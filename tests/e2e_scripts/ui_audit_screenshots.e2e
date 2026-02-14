@@ -1,0 +1,63 @@
+# E2E Test: UI Screenshots for Design Audit
+# Captures screenshots of each major UI state for multi-audit review.
+# Run: ./output/floatinghotel.exe . --test-script=tests/e2e_scripts/ui_audit_screenshots.e2e --screenshot-dir=output/screenshots/audit
+
+# Wait for initial render and git data load
+wait 3
+
+# 1. Initial state — default view with Changes tab, sidebar, and diff area
+screenshot 01_initial_state
+
+# 2. Click on the first file in the sidebar to show its diff
+click 140 200
+wait 1
+screenshot 02_file_selected
+
+# 3. Click a second file
+click 140 230
+wait 1
+screenshot 03_second_file
+
+# 4. Click on the File menu
+click 30 14
+wait 0.5
+screenshot 04_file_menu
+
+# 5. Close menu and open View menu
+escape
+wait 0.3
+click 70 14
+wait 0.5
+screenshot 05_view_menu
+
+# 6. Close menu
+escape
+wait 0.3
+
+# 7. Click on the Refs/Branches tab in sidebar
+click 200 60
+wait 1
+screenshot 06_refs_branches
+
+# 8. Switch back to Changes tab
+click 100 60
+wait 0.5
+
+# 9. Scroll down to commit log area and click a commit
+click 140 500
+wait 1
+screenshot 07_commit_detail
+
+# 10. Click another commit
+click 140 540
+wait 1
+screenshot 08_different_commit
+
+# 11. Click the toolbar Refresh button (top area)
+click 50 40
+wait 2
+screenshot 09_after_refresh
+
+# 12. Final screenshot of full state
+wait 0.5
+screenshot 10_final_state

@@ -1,0 +1,38 @@
+# E2E Test: Sidebar Interactions
+# Tests sidebar state changes: tabs, file selection, stage/unstage
+
+# Wait for load
+wait 3
+
+# Changes tab should be active by default
+screenshot sidebar_01_changes_tab
+
+# Click on a file in the changes list
+click 140 200
+wait 1
+screenshot sidebar_02_file_clicked
+
+# Click the stage button (+) on a file row (right side of sidebar, ~260px x)
+click 260 200
+wait 1
+screenshot sidebar_03_after_stage
+
+# Click the unstage button (-) on a staged file (top section)
+click 260 150
+wait 1
+screenshot sidebar_04_after_unstage
+
+# Switch to Refs tab
+click 200 60
+wait 1
+screenshot sidebar_05_refs_tab
+
+# Click on a branch in the list
+click 140 120
+wait 1
+screenshot sidebar_06_branch_selected
+
+# Switch back to Changes
+click 100 60
+wait 0.5
+screenshot sidebar_07_back_to_changes
