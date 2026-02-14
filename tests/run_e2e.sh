@@ -85,22 +85,31 @@ echo "Screenshots: $SCREENSHOT_DIR"
 echo "Repo: $REPO_PATH"
 echo ""
 
+# Validation report directory
+VALIDATION_DIR="$OUTPUT_DIR/validation"
+mkdir -p "$VALIDATION_DIR"
+
 # Run each script individually for isolation
 PASSED=0
 FAILED=0
+ALL_VALIDATION_WARNINGS=""
 
 for script in "${SCRIPTS[@]}"; do
     name="$(basename "$script" .e2e)"
     echo -e "${BLUE}--- $name ---${NC}"
 
     SCRIPT_SCREENSHOT_DIR="$SCREENSHOT_DIR/$name"
+    SCRIPT_LOG="$VALIDATION_DIR/${name}.log"
+    SCRIPT_REPORT="$VALIDATION_DIR/${name}.json"
     mkdir -p "$SCRIPT_SCREENSHOT_DIR"
 
     if "$EXECUTABLE" "$REPO_PATH" \
         --test-mode \
         --test-script="$script" \
         --screenshot-dir="$SCRIPT_SCREENSHOT_DIR" \
-        --e2e-timeout="$TIMEOUT" 2>&1; then
+        --e2e-timeout="$TIMEOUT" \
+        --validation-report="$SCRIPT_REPORT" \
+        2>&1 | tee "$SCRIPT_LOG"; then
         echo -e "  ${GREEN}[PASS]${NC} $name"
         PASSED=$((PASSED + 1))
     else
@@ -111,6 +120,14 @@ for script in "${SCRIPTS[@]}"; do
     # Count screenshots taken
     SC_COUNT=$(ls "$SCRIPT_SCREENSHOT_DIR"/*.png 2>/dev/null | wc -l | tr -d ' ')
     echo "  Screenshots: $SC_COUNT"
+
+    # Extract validation warnings from log
+    WARN_COUNT=$(grep -c "\[UI Validation\]" "$SCRIPT_LOG" 2>/dev/null || true)
+    if [ "$WARN_COUNT" -gt 0 ]; then
+        echo -e "  ${YELLOW}Validation warnings: $WARN_COUNT${NC}"
+    else
+        echo -e "  Validation warnings: 0"
+    fi
     echo ""
 done
 
@@ -128,6 +145,48 @@ echo "Screenshots saved to: $SCREENSHOT_DIR"
 # Count total screenshots
 TOTAL_SC=$(find "$SCREENSHOT_DIR" -name "*.png" 2>/dev/null | wc -l | tr -d ' ')
 echo "Total screenshots: $TOTAL_SC"
+
+# Validation summary across all scripts
+echo ""
+echo "=============================================="
+echo "   Validation Summary"
+echo "=============================================="
+echo ""
+echo "Reports saved to: $VALIDATION_DIR/"
+
+# Merge all validation reports
+TOTAL_VIOLATIONS=0
+for report in "$VALIDATION_DIR"/*.json; do
+    [ -f "$report" ] || continue
+    name="$(basename "$report" .json)"
+    count=$(grep -c '"message"' "$report" 2>/dev/null || true)
+    if [ "$count" -gt 0 ]; then
+        echo -e "  ${YELLOW}$name: $count unique violations${NC}"
+        TOTAL_VIOLATIONS=$((TOTAL_VIOLATIONS + count))
+    else
+        echo -e "  ${GREEN}$name: clean${NC}"
+    fi
+done
+
+if [ "$TOTAL_VIOLATIONS" -gt 0 ]; then
+    echo ""
+    echo -e "${YELLOW}Total unique violations across all scripts: $TOTAL_VIOLATIONS${NC}"
+    echo "Review individual reports in $VALIDATION_DIR/ for details."
+
+    # Print the deduplicated summary from the first log that has it
+    for logfile in "$VALIDATION_DIR"/*.log; do
+        [ -f "$logfile" ] || continue
+        if grep -q "UI Validation Summary" "$logfile" 2>/dev/null; then
+            echo ""
+            echo "--- Validation Details (from $(basename "$logfile")) ---"
+            sed -n '/=== UI Validation Summary/,/=== End Validation Summary ===/p' "$logfile"
+            break
+        fi
+    done
+else
+    echo ""
+    echo -e "${GREEN}No validation violations detected.${NC}"
+fi
 
 if [ $FAILED -gt 0 ]; then
     exit 1

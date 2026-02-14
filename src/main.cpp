@@ -4,7 +4,7 @@
 #include <filesystem>
 #include <string>
 
-#include "logging.h"
+#include <afterhours/src/logging.h>
 #include "preload.h"
 #include "rl.h"
 #include "settings.h"
@@ -21,6 +21,7 @@
 #include "ecs/sidebar_system.h"
 #include "ecs/status_bar_system.h"
 #include "ecs/toolbar_system.h"
+#include "ecs/validation_summary_system.h"
 #include "git/git_runner.h"
 
 // E2E testing support
@@ -50,6 +51,9 @@ std::string screenshotDir = "output/screenshots";
 float e2eTimeout = 30.0f;
 afterhours::testing::E2ERunner e2eRunner;
 
+// Validation
+std::string validationReportPath;
+
 }  // namespace app_state
 
 // Init callback: runs after Sokol/Metal window is created
@@ -57,17 +61,14 @@ static void app_init() {
     using namespace afterhours;
 
     {
-        SCOPED_TIMER("Preload and singletons");
         Preload::get().init("floatinghotel").make_singleton();
     }
 
     {
-        SCOPED_TIMER("Load settings");
         Settings::get().load_save_file();
     }
 
     {
-        SCOPED_TIMER("UI context init");
         ui_imm::initUIContext(Settings::get().get_window_width(),
                               Settings::get().get_window_height());
 
@@ -130,8 +131,6 @@ static void app_init() {
     app_state::systemManager = &sm;
 
     {
-        SCOPED_TIMER("Register all systems");
-
         // Ensure toast and modal singletons exist before any UI system
         // accesses them (e.g. sidebar renders modal dialogs)
         afterhours::toast::enforce_singletons(sm);
@@ -175,7 +174,7 @@ static void app_init() {
                         std::filesystem::create_directories(dir);
                         std::filesystem::path path = dir / (name + ".png");
                         afterhours::graphics::take_screenshot(path.c_str());
-                        LOG_INFO("Screenshot: %s", path.c_str());
+                        log_info("Screenshot: {}", path.string());
                     }));
             afterhours::testing::ui_commands::register_ui_commands<InputAction>(sm);
             afterhours::testing::register_unknown_handler(sm);
@@ -190,6 +189,21 @@ static void app_init() {
 
         // UI validation systems (design rule enforcement)
         afterhours::ui::validation::register_systems<InputAction>(sm);
+
+        // Validation summary: deduplicates warnings and prints a clean report
+        {
+            auto summary = std::make_unique<ecs::ValidationSummarySystem>();
+            summary->settle_frames = 5;
+            if (!app_state::validationReportPath.empty()) {
+                summary->report_path = app_state::validationReportPath;
+            }
+            auto* summaryPtr = summary.get();
+            sm.register_update_system(std::move(summary));
+
+            auto trigger = std::make_unique<ecs::ValidationSummaryTrigger>();
+            trigger->summary = summaryPtr;
+            sm.register_update_system(std::move(trigger));
+        }
     }
 
     // Measure startup time
@@ -198,7 +212,7 @@ static void app_init() {
         std::chrono::duration_cast<std::chrono::milliseconds>(
             readyTime - app_state::startTime)
             .count();
-    LOG_INFO("Startup time: %lld ms", static_cast<long long>(startupMs));
+    log_info("Startup time: {} ms", startupMs);
 }
 
 // Frame callback: runs every frame
@@ -248,6 +262,8 @@ int main(int argc, char* argv[]) {
             app_state::testScriptDir = value;
         } else if (name == "e2e-timeout") {
             app_state::e2eTimeout = std::stof(value);
+        } else if (name == "validation-report") {
+            app_state::validationReportPath = value;
         }
     }
 
@@ -270,7 +286,7 @@ int main(int argc, char* argv[]) {
         std::filesystem::create_directories(dir);
         std::filesystem::path path = dir / (name + ".png");
         afterhours::graphics::take_screenshot(path.c_str());
-        LOG_INFO("Screenshot: %s", path.c_str());
+        log_info("Screenshot: {}", path.string());
     });
 
     // Resolve relative paths to absolute

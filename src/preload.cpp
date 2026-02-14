@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "input_mapping.h"
-#include "logging.h"
 #include "rl.h"
 
 #include <afterhours/src/core/key_codes.h>
@@ -19,15 +18,8 @@ using namespace afterhours;
 Preload::Preload() {}
 
 Preload& Preload::init(const char* /*title*/) {
-    {
-        SCOPED_TIMER("files::init");
-        files::init("floatinghotel", "resources");
-    }
-
-    {
-        SCOPED_TIMER("set_exit_key");
-        afterhours::graphics::set_exit_key(0);
-    }
+    files::init("floatinghotel", "resources");
+    afterhours::graphics::set_exit_key(0);
 
     return *this;
 }
@@ -35,9 +27,7 @@ Preload& Preload::init(const char* /*title*/) {
 Preload& Preload::make_singleton() {
     auto& sophie = EntityHelper::createEntity();
     {
-        SCOPED_TIMER("Afterhours singleton setup");
         {
-            SCOPED_TIMER("  input::add_singleton_components");
             // Input mappings for text input (T031)
             std::map<int, afterhours::input::ValidInputs> mapping;
             mapping[static_cast<int>(InputAction::TextBackspace)] = {
@@ -64,11 +54,9 @@ Preload& Preload::make_singleton() {
             input::add_singleton_components(sophie, mapping);
         }
         {
-            SCOPED_TIMER("  window_manager::add_singleton_components");
             window_manager::add_singleton_components(sophie, 200);
         }
         {
-            SCOPED_TIMER("  ui::init_ui_plugin");
             ui::init_ui_plugin<InputAction>();
         }
     }
@@ -80,23 +68,13 @@ Preload& Preload::make_singleton() {
     auto& fontMgr =
         EntityHelper::get_singleton_cmp_enforce<ui::FontManager>();
 
-    {
-        SCOPED_TIMER("Load fonts");
-        {
-            SCOPED_TIMER("  font: DEFAULT_FONT (Roboto)");
-            fontMgr.load_font(ui::UIComponent::DEFAULT_FONT,
-                              ui_font_path.c_str());
-        }
-        {
-            SCOPED_TIMER("  font: SYMBOL_FONT (Roboto)");
-            fontMgr.load_font(ui::UIComponent::SYMBOL_FONT,
-                              ui_font_path.c_str());
-        }
-    }
+    fontMgr.load_font(ui::UIComponent::DEFAULT_FONT,
+                      ui_font_path.c_str());
+    fontMgr.load_font(ui::UIComponent::SYMBOL_FONT,
+                      ui_font_path.c_str());
 
     // Dark theme setup
     {
-        SCOPED_TIMER("Theme setup");
         ui::imm::ThemeDefaults::get()
             .set_theme_color(ui::Theme::Usage::Primary,
                              afterhours::Color{0, 122, 204, 255})

@@ -9,7 +9,7 @@
 #include "../git/git_parser.h"
 #include "../git/git_runner.h"
 #include "../input_mapping.h"
-#include "../logging.h"
+#include <afterhours/src/logging.h>
 #include "../rl.h"
 #include "../ui/diff_renderer.h"
 #include "../ui/theme.h"

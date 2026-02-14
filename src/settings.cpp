@@ -8,7 +8,7 @@
 
 #include <afterhours/src/plugins/files.h>
 
-#include "logging.h"
+#include <afterhours/src/logging.h>
 
 struct Settings::Data {
     int windowWidth = 1200;
@@ -38,7 +38,7 @@ std::string Settings::get_settings_path() const {
 bool Settings::load_save_file() {
     std::string path = get_settings_path();
     if (!std::filesystem::exists(path)) {
-        LOG_INFO("No settings file found at %s, using defaults", path.c_str());
+        log_info("No settings file found at {}, using defaults", path);
         return false;
     }
 
@@ -57,11 +57,11 @@ bool Settings::load_save_file() {
         data_->lastActiveRepo = j.value("last_active_repo", std::string{});
         data_->unstagedPolicy = j.value("commit_unstaged_policy", std::string{"ask"});
 
-        LOG_INFO("Settings loaded from %s", path.c_str());
+        log_info("Settings loaded from {}", path);
         return true;
     } catch (const std::exception& e) {
-        LOG_WARNING("Failed to parse settings file %s: %s (using defaults)",
-                    path.c_str(), e.what());
+        log_warn("Failed to parse settings file {}: {} (using defaults)",
+                 path, e.what());
         return false;
     }
 }
@@ -81,11 +81,11 @@ void Settings::write_save_file() {
     std::string path = get_settings_path();
     std::ofstream f(path);
     if (!f.good()) {
-        LOG_ERROR("Failed to open settings file for writing: %s", path.c_str());
+        log_error("Failed to open settings file for writing: {}", path);
         return;
     }
     f << j.dump(2);
-    LOG_INFO("Settings saved to %s", path.c_str());
+    log_info("Settings saved to {}", path);
 }
 
 void Settings::save_if_auto() {

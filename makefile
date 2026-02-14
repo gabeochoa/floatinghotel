@@ -208,10 +208,6 @@ $(TEST_DIR)/test_git_commands: tests/unit/test_git_commands.cpp src/git/git_comm
 	@echo "Compiling test_git_commands..."
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
-$(TEST_DIR)/test_logging: tests/unit/test_logging.cpp src/logging.cpp | $(TEST_DIR)
-	@echo "Compiling test_logging..."
-	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
-
 $(TEST_DIR)/test_context_menu: tests/unit/test_context_menu.cpp src/ui/context_menu.cpp | $(TEST_DIR)
 	@echo "Compiling test_context_menu..."
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
@@ -221,7 +217,6 @@ TEST_EXES := $(TEST_DIR)/test_git_parser \
     $(TEST_DIR)/test_process \
     $(TEST_DIR)/test_settings \
     $(TEST_DIR)/test_git_commands \
-    $(TEST_DIR)/test_logging \
     $(TEST_DIR)/test_context_menu
 
 test: $(TEST_EXES)
@@ -237,6 +232,39 @@ test: $(TEST_EXES)
 	[ "$$FAIL" -eq 0 ]
 
 .PHONY: test
+
+# ==============================================================================
+# VALIDATION
+# ==============================================================================
+
+# Run the app briefly against the fixture repo and collect validation warnings.
+# Requires GPU access (run from a GUI terminal, not tmux/ssh).
+validate: $(MAIN_EXE)
+	@echo "Running UI validation..."
+	@mkdir -p output/validation
+	@if [ ! -d tests/fixture_repo/.git ]; then \
+		bash tests/create_fixture_repo.sh; \
+	fi
+	@$(MAIN_EXE) tests/fixture_repo \
+		--test-mode \
+		--test-script=tests/e2e_scripts/ui_audit_screenshots.e2e \
+		--screenshot-dir=output/validation/screenshots \
+		--validation-report=output/validation/report.json \
+		--e2e-timeout=10 \
+		2>&1 | tee output/validation/validate.log; \
+	echo ""; \
+	if grep -q "UI Validation Summary" output/validation/validate.log 2>/dev/null; then \
+		echo "--- Validation Results ---"; \
+		sed -n '/=== UI Validation Summary/,/=== End Validation Summary ===/p' output/validation/validate.log; \
+	elif [ -f output/validation/report.json ]; then \
+		VCOUNT=$$(grep -c '"message"' output/validation/report.json 2>/dev/null || echo 0); \
+		echo "Validation report: $$VCOUNT unique violations"; \
+		echo "See output/validation/report.json for details"; \
+	else \
+		echo "No validation output captured (app may have failed to start)"; \
+	fi
+
+.PHONY: validate
 
 # ==============================================================================
 
