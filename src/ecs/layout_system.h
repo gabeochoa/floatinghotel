@@ -667,7 +667,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         div(ctx, mk(row.ent(), 2),
             ComponentConfig{}
                 .with_label(value)
-                .with_size(ComponentSize{percent(1.0f), h720(META_ROW_H)})
+                .with_size(ComponentSize{afterhours::ui::expand(), h720(META_ROW_H)})
                 .with_custom_text_color(valueColor)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
@@ -870,7 +870,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(fileRow.ent(), 2),
                 ComponentConfig{}
                     .with_label(fname)
-                    .with_size(ComponentSize{percent(1.0f), h720(FILE_ROW_H)})
+                    .with_size(ComponentSize{afterhours::ui::expand(), h720(FILE_ROW_H)})
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_alignment(TextAlignment::Left)
                     .with_padding(Padding{
@@ -1017,15 +1017,22 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                                        0, 0);  // 0 = use percent(1.0f)
             } else {
                 // File selected but no diff found for it (might be untracked/new)
-                div(ctx, mk(mainBg.ent(), 3040),
+                // Center the message both horizontally and vertically
+                auto noDiffContainer = div(ctx, mk(mainBg.ent(), 3040),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                        .with_flex_direction(FlexDirection::Column)
+                        .with_justify_content(JustifyContent::Center)
+                        .with_align_items(AlignItems::Center)
+                        .with_transparent_bg()
+                        .with_roundness(0.0f)
+                        .with_debug_name("no_diff_container"));
+                div(ctx, mk(noDiffContainer.ent(), 3041),
                     ComponentConfig{}
                         .with_label("No diff available for this file")
-                        .with_size(ComponentSize{percent(1.0f), h720(32)})
-                        .with_padding(Padding{
-                            .top = h720(16), .right = w1280(8),
-                            .bottom = h720(8), .left = w1280(8)})
+                        .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_alignment(TextAlignment::Center)
+                        .with_transparent_bg()
                         .with_roundness(0.0f)
                         .with_debug_name("no_diff_msg"));
             }
