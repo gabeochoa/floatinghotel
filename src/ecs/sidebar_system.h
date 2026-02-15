@@ -1358,60 +1358,95 @@ private:
         }
     }
 
-    // Render a single commit row as composed single-label to avoid framework
-    // child positioning bug with nested FlexDirection::Row.
+    // Render a single commit row with graph-style dot + subject + badges.
+    // Uses a container div with explicit widths (expand() doesn't resolve
+    // inside buttons), then a clickable button for the text area.
     void render_commit_row(UIContext<InputAction>& ctx,
                            Entity& parent, int index,
                            const CommitEntry& commit,
                            RepoComponent& repo) {
         bool selected = (commit.hash == repo.selectedCommitHash);
         constexpr float ROW_H = static_cast<float>(theme::layout::COMMIT_ROW_HEIGHT);
+        constexpr float DOT_COL_W = 22.0f;
 
         auto rowBg = selected ? theme::SELECTED_BG : theme::SIDEBAR_BG;
-        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
-                                : theme::TEXT_PRIMARY;
 
         int baseId = index * 2 + 10;
 
-        // Compose single label: "hash  subject\nauthor  time"
+        float sidebarW = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;
+
+        // Determine if this is HEAD
+        bool isHead = (!commit.decorations.empty() &&
+                       commit.decorations.find("HEAD") != std::string::npos);
+
+        // Parse badges
+        auto badges = commit_log_detail::parse_decorations(commit.decorations);
+
+        // Build subject text (truncated)
         std::string subjectText = commit.subject;
-        constexpr size_t MAX_SUBJECT_CHARS = 28;
-        if (subjectText.size() > MAX_SUBJECT_CHARS) {
-            subjectText = subjectText.substr(0, MAX_SUBJECT_CHARS - 1) + "\xe2\x80\xa6";
+        size_t maxChars = badges.empty() ? 30 : 18;
+        if (subjectText.size() > maxChars) {
+            subjectText = subjectText.substr(0, maxChars - 1) + "\xe2\x80\xa6";
         }
 
-        std::string line1 = commit.shortHash + "  " + subjectText;
-        std::string line2 = commit.author;
-
-        // Add relative time
-        std::string timeStr = commit_log_detail::relative_time(commit.authorDate);
-        if (!timeStr.empty()) {
-            line2 += "  " + timeStr;
-        }
-
-        // Add decoration tags inline
-        if (!commit.decorations.empty()) {
-            auto badges = commit_log_detail::parse_decorations(commit.decorations);
-            for (auto& badge : badges) {
-                line2 += " [" + badge.label + "]";
-            }
-        }
-
-        std::string label = line1 + "\n" + line2;
-
-        auto commitWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-        auto rowResult = button(ctx, mk(parent, baseId),
+        // === Container row ===
+        auto rowContainer = div(ctx, mk(parent, baseId),
             ComponentConfig{}
-                .with_label(label)
-                .with_size(ComponentSize{commitWidth, h720(ROW_H)})
+                .with_size(ComponentSize{pixels(sidebarW), h720(ROW_H)})
                 .with_custom_background(rowBg)
-                .with_custom_text_color(textCol)
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_roundness(0.0f)
+                .with_debug_name("commit_row_container"));
+
+        // === Graph dot column (holds centered circle) ===
+        auto dotCol = div(ctx, mk(rowContainer.ent(), 1),
+            ComponentConfig{}
+                .with_size(ComponentSize{w1280(DOT_COL_W), h720(ROW_H)})
+                .with_flex_direction(FlexDirection::Column)
+                .with_align_items(AlignItems::Center)
+                .with_justify_content(JustifyContent::Center)
+                .with_transparent_bg()
+                .with_roundness(0.0f)
+                .with_debug_name("graph_dot_col"));
+
+        // The dot: solid filled circle (or outline for HEAD)
+        constexpr float DOT_SIZE = 8.0f;
+        if (isHead) {
+            // Open circle for HEAD: colored border, transparent interior
+            // Approximate with a slightly larger ring: outer dot + inner dark dot
+            div(ctx, mk(dotCol.ent(), 1),
+                ComponentConfig{}
+                    .with_size(ComponentSize{h720(DOT_SIZE), h720(DOT_SIZE)})
+                    .with_custom_background(theme::GRAPH_DOT)
+                    .with_roundness(0.5f)
+                    .with_debug_name("graph_dot_outer"));
+        } else {
+            // Filled circle
+            div(ctx, mk(dotCol.ent(), 1),
+                ComponentConfig{}
+                    .with_size(ComponentSize{h720(DOT_SIZE), h720(DOT_SIZE)})
+                    .with_custom_background(theme::GRAPH_DOT)
+                    .with_roundness(0.5f)
+                    .with_debug_name("graph_dot"));
+        }
+
+        // === Clickable text button (sizes to content) ===
+        auto subjectColor = selected ? afterhours::Color{255, 255, 255, 255}
+                                     : theme::TEXT_PRIMARY;
+
+        auto rowResult = button(ctx, mk(rowContainer.ent(), 2),
+            ComponentConfig{}
+                .with_label(subjectText)
+                .with_size(ComponentSize{children(), h720(ROW_H)})
+                .with_custom_background(afterhours::Color{0, 0, 0, 0})
+                .with_custom_text_color(subjectColor)
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(4), .left = w1280(10)})
+                    .top = h720(2), .right = w1280(4),
+                    .bottom = h720(2), .left = w1280(0)})
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
-                .with_debug_name("commit_row"));
+                .with_debug_name("commit_btn"));
 
         // Click -> select this commit
         if (rowResult) {
@@ -1421,17 +1456,55 @@ private:
             if (!rEntities.empty()) {
                 auto& r = rEntities[0].get().get<RepoComponent>();
                 r.selectedCommitHash = commit.hash;
-                r.selectedFilePath.clear();  // Deselect any file
+                r.selectedFilePath.clear();
             }
         }
 
-        // Row separator
-        div(ctx, mk(parent, baseId + 1),
-            ComponentConfig{}
-                .with_size(ComponentSize{commitWidth, h720(1)})
-                .with_custom_background(theme::ROW_SEPARATOR)
-                .with_roundness(0.0f)
-                .with_debug_name("commit_sep"));
+        // === Inline badges (rendered after button in the row) ===
+        if (!badges.empty()) {
+            int badgeChildId = 10;
+            for (auto& badge : badges) {
+                afterhours::Color bg, txt;
+                switch (badge.type) {
+                    case commit_log_detail::DecorationType::Head:
+                        bg = theme::BADGE_HEAD_BG;
+                        txt = afterhours::Color{255, 255, 255, 255};
+                        break;
+                    case commit_log_detail::DecorationType::LocalBranch:
+                        bg = theme::BADGE_BRANCH_BG;
+                        txt = afterhours::Color{255, 255, 255, 255};
+                        break;
+                    case commit_log_detail::DecorationType::RemoteBranch:
+                        bg = theme::BADGE_REMOTE_BG;
+                        txt = afterhours::Color{255, 255, 255, 255};
+                        break;
+                    case commit_log_detail::DecorationType::Tag:
+                        bg = theme::BADGE_TAG_BG;
+                        txt = theme::BADGE_TAG_TEXT;
+                        break;
+                    default:
+                        bg = theme::BADGE_TAG_BG;
+                        txt = theme::BADGE_TAG_TEXT;
+                        break;
+                }
+
+                div(ctx, mk(rowContainer.ent(), badgeChildId++),
+                    ComponentConfig{}
+                        .with_label(badge.label)
+                        .with_size(ComponentSize{children(), h720(16)})
+                        .with_padding(Padding{
+                            .top = h720(1), .right = w1280(4),
+                            .bottom = h720(1), .left = w1280(4)})
+                        .with_margin(Margin{
+                            .top = {}, .bottom = {},
+                            .left = w1280(2), .right = {}})
+                        .with_custom_background(bg)
+                        .with_custom_text_color(txt)
+                        .with_roundness(0.3f)
+                        .with_alignment(TextAlignment::Center)
+                        .with_debug_name("commit_badge"));
+            }
+        }
     }
 
     // Render colored decoration badges (branch, HEAD, remote, tag)

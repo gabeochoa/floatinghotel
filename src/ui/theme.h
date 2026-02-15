@@ -52,6 +52,10 @@ inline Color BADGE_REMOTE_BG  = {78, 154, 220, 255};    // #4E9ADC (remote branc
 inline Color BADGE_TAG_BG     = {85, 85, 85, 255};      // #555555 (tag)
 inline Color BADGE_TAG_TEXT   = {204, 204, 204, 255};   // #CCCCCC (tag text)
 
+// Commit graph
+inline Color GRAPH_DOT        = {150, 110, 220, 255};   // Purple/violet for graph dots
+inline Color GRAPH_LINE       = {80, 60, 120, 255};     // Dimmer purple for connecting line
+
 // Row separator
 inline Color ROW_SEPARATOR    = {48, 48, 48, 255};      // #303030 (more visible)
 
@@ -93,7 +97,7 @@ constexpr int SIDEBAR_DEFAULT_WIDTH = 300;
 constexpr int SIDEBAR_MIN_WIDTH = 200;
 constexpr float SIDEBAR_MIN_PCT = 0.18f;  // Min 18% of window width
 constexpr int FILE_ROW_HEIGHT = 28;
-constexpr int COMMIT_ROW_HEIGHT = 42;
+constexpr int COMMIT_ROW_HEIGHT = 30;
 constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
 constexpr float FONT_SIZE_MONO = 16.0f;    // Monospace for code/diffs
