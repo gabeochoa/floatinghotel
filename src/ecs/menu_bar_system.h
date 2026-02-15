@@ -232,39 +232,53 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                             .with_debug_name("menu_separator"));
                     itemY += SEPARATOR_HEIGHT;
                 } else {
-                    // Build label with shortcut aligned right
-                    std::string fullLabel = "  " + item.label;
-                    if (!item.shortcut.empty()) {
-                        // Pad to push shortcut right
-                        size_t currentLen = fullLabel.length();
-                        size_t targetLen = 24;
-                        if (currentLen < targetLen) {
-                            fullLabel += std::string(targetLen - currentLen, ' ');
-                        }
-                        fullLabel += item.shortcut;
-                    }
-
                     // Check hover
                     bool hovered = afterhours::ui::is_mouse_inside(
                         ctx.mouse.pos,
                         RectangleType{dropdownX + rpx(2.0f), itemY, maxWidth - rpx(4.0f), ITEM_HEIGHT}) && item.enabled;
 
+                    float itemW = maxWidth - rpx(4.0f);
+                    float itemX = dropdownX + rpx(2.0f);
+
+                    // Label button (left-aligned, handles clicks)
+                    afterhours::Color labelColor = !item.enabled ? menu_colors::DISABLED_TEXT :
+                        hovered ? menu_colors::ITEM_HOVER_TEXT : menu_colors::ITEM_TEXT;
+
                     auto itemResult = button(ctx, mk(uiRoot, 1500 + menuIdx * 100 + itemIdx),
                         ComponentConfig{}
-                            .with_label(fullLabel)
-                            .with_size(ComponentSize{pixels(maxWidth - rpx(4.0f)), pixels(ITEM_HEIGHT)})
+                            .with_label("  " + item.label)
+                            .with_size(ComponentSize{pixels(itemW), pixels(ITEM_HEIGHT)})
                             .with_absolute_position()
-                            .with_translate(dropdownX + rpx(2.0f), itemY)
+                            .with_translate(itemX, itemY)
                             .with_custom_background(hovered ? menu_colors::ITEM_HOVER_BG : menu_colors::DROPDOWN_BG)
-                            .with_custom_text_color(
-                                !item.enabled ? menu_colors::DISABLED_TEXT :
-                                hovered ? menu_colors::ITEM_HOVER_TEXT : menu_colors::ITEM_TEXT)
+                            .with_custom_text_color(labelColor)
                             .with_alignment(TextAlignment::Left)
                             .with_justify_content(JustifyContent::Center)
                             .with_click_activation(ClickActivationMode::Press)
                             .with_roundness(0.0f)
                             .with_render_layer(51)
                             .with_debug_name("menu_item_" + item.label));
+
+                    // Shortcut text (narrow, right-positioned, no overlap with label)
+                    if (!item.shortcut.empty()) {
+                        float shortcutW = static_cast<float>(item.shortcut.length()) * charW + rpx(16.0f);
+                        float shortcutX = itemX + itemW - shortcutW;
+                        div(ctx, mk(uiRoot, 1700 + menuIdx * 100 + itemIdx),
+                            ComponentConfig{}
+                                .with_label(item.shortcut)
+                                .with_size(ComponentSize{pixels(shortcutW), pixels(ITEM_HEIGHT)})
+                                .with_absolute_position()
+                                .with_translate(shortcutX, itemY)
+                                .with_custom_background(hovered ? menu_colors::ITEM_HOVER_BG : menu_colors::DROPDOWN_BG)
+                                .with_custom_text_color(
+                                    hovered ? menu_colors::ITEM_HOVER_TEXT : menu_colors::SHORTCUT_TEXT)
+                                .with_alignment(TextAlignment::Right)
+                                .with_padding(Padding{.right = w1280(8.0f)})
+                                .with_justify_content(JustifyContent::Center)
+                                .with_roundness(0.0f)
+                                .with_render_layer(52)
+                                .with_debug_name("menu_shortcut_" + item.label));
+                    }
 
                     // Handle item click
                     if (itemResult && item.enabled) {
