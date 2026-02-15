@@ -1,0 +1,61 @@
+# E2E Test: Menu bar only (other systems disabled)
+# Focus on getting menu bar layout correct at various sizes.
+
+wait 1
+
+# 1. Default 1200x800
+screenshot menu_01_1200x800
+
+# 2. Click File menu using text finder
+click_text "File"
+wait 0.5
+screenshot menu_02_file_dropdown_1200x800
+
+# Close it
+click_text "File"
+wait 0.3
+
+# 3. 1920x1080
+resize 1920 1080
+wait 2
+screenshot menu_03_1920x1080
+
+click_text "File"
+wait 0.5
+screenshot menu_04_file_dropdown_1920x1080
+
+click_text "File"
+wait 0.3
+
+# 4. 1280x720
+resize 1280 720
+wait 2
+screenshot menu_05_1280x720
+
+click_text "File"
+wait 0.5
+screenshot menu_06_file_dropdown_720p
+
+click_text "File"
+wait 0.3
+
+# 5. 800x600
+resize 800 600
+wait 2
+screenshot menu_07_800x600
+
+click_text "File"
+wait 0.5
+screenshot menu_08_file_dropdown_800x600
+
+click_text "File"
+wait 0.3
+
+# 6. 2560x1440
+resize 2560 1440
+wait 2
+screenshot menu_09_2560x1440
+
+click_text "File"
+wait 0.5
+screenshot menu_10_file_dropdown_2560x1440

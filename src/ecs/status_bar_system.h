@@ -18,6 +18,8 @@ using afterhours::ui::imm::div;
 using afterhours::ui::imm::button;
 using afterhours::ui::imm::mk;
 using afterhours::ui::pixels;
+using afterhours::ui::h720;
+using afterhours::ui::w1280;
 using afterhours::ui::percent;
 using afterhours::ui::FlexDirection;
 using afterhours::ui::AlignItems;
@@ -28,6 +30,11 @@ using afterhours::ui::HasClickListener;
 
 // StatusBarSystem: Renders the status bar at the bottom of the window.
 // Shows branch name, dirty indicator, ahead/behind counts, and command log toggle.
+//
+// NOTE: Due to a framework issue where children of absolute-positioned elements
+// render at screen (0,0) instead of the parent's translated position, the status
+// bar renders its content as a SINGLE composed label rather than multiple child
+// elements. The "Show Log" button uses a separate absolute div.
 struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
@@ -53,117 +60,94 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         }
         auto barBg = detached ? theme::STATUS_BAR_DETACHED_BG : theme::STATUS_BAR_BG;
 
-        // === Status bar background ===
-        auto barResult = div(ctx, mk(uiRoot, 4000),
+        // === Status bar background (render_layer 5 so it draws above content) ===
+        div(ctx, mk(uiRoot, 4000),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(w), pixels(h)})
                 .with_absolute_position()
                 .with_translate(0, y)
                 .with_custom_background(barBg)
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(8),
-                    .bottom = pixels(0), .left = pixels(8)})
                 .with_roundness(0.0f)
-                .with_debug_name("status_bar"));
+                .with_render_layer(5)
+                .with_debug_name("status_bar_bg"));
 
-        // === Left section: branch info ===
-        std::string branchLabel;
+        // === Compose status text as a single string ===
+        std::string statusText;
         bool isDirty = false;
-        int aheadCount = 0;
-        int behindCount = 0;
 
         if (!repoEntities.empty()) {
             auto& repo = repoEntities[0].get().get<RepoComponent>();
             isDirty = repo.isDirty;
-            aheadCount = repo.aheadCount;
-            behindCount = repo.behindCount;
 
+            // Branch name
             if (detached) {
-                // Show detached HEAD warning with short hash
                 std::string shortHash = repo.headCommitHash.substr(
                     0, std::min<size_t>(7, repo.headCommitHash.size()));
-                branchLabel = "HEAD " + shortHash;
+                statusText = "HEAD " + shortHash;
             } else {
-                branchLabel = repo.currentBranch.empty() ? "main" : repo.currentBranch;
+                statusText = repo.currentBranch.empty() ? "main" : repo.currentBranch;
+            }
+
+            // Dirty/clean indicator (plain ASCII for font compatibility)
+            statusText += isDirty ? "  *dirty" : "  clean";
+
+            // File counts
+            int totalFiles = static_cast<int>(
+                repo.stagedFiles.size() + repo.unstagedFiles.size() +
+                repo.untrackedFiles.size());
+            if (totalFiles > 0) {
+                statusText += "  " + std::to_string(totalFiles) + " files";
+            }
+
+            // Ahead/behind counts
+            if (repo.aheadCount > 0 || repo.behindCount > 0) {
+                statusText += "  ";
+                if (repo.aheadCount > 0)
+                    statusText += "+" + std::to_string(repo.aheadCount);
+                if (repo.behindCount > 0) {
+                    if (repo.aheadCount > 0) statusText += "/";
+                    statusText += "-" + std::to_string(repo.behindCount);
+                }
             }
         } else {
-            branchLabel = "No repository";
+            statusText = "No repository";
         }
 
-        // Branch name
-        div(ctx, mk(barResult.ent(), 4010),
+        // Status info label (absolute, rendered at correct position)
+        float sw = static_cast<float>(afterhours::graphics::get_screen_width());
+        float padX = afterhours::ui::resolve_to_pixels(w1280(8), sw);
+        div(ctx, mk(uiRoot, 4010),
             ComponentConfig{}
-                .with_label(branchLabel)
-                .with_size(ComponentSize{afterhours::ui::children(), pixels(h)})
+                .with_label(statusText)
+                .with_size(ComponentSize{pixels(w * 0.7f), pixels(h)})
+                .with_absolute_position()
+                .with_translate(padX, y)
                 .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(8),
-                    .bottom = pixels(0), .left = pixels(0)})
+                    .top = h720(6), .right = w1280(8),
+                    .bottom = h720(6), .left = w1280(8)})
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
-                .with_debug_name("status_branch"));
+                .with_render_layer(5)
+                .with_debug_name("status_info"));
 
-        // Dirty indicator (colored dot)
-        if (!repoEntities.empty()) {
-            auto dotColor = isDirty ? theme::STATUS_BAR_DIRTY : theme::STATUS_BAR_CLEAN;
-            std::string dotChar = isDirty ? "\xe2\x97\x8f" : "\xe2\x9c\x93"; // ● or ✓
-            div(ctx, mk(barResult.ent(), 4020),
-                ComponentConfig{}
-                    .with_label(dotChar)
-                    .with_size(ComponentSize{afterhours::ui::children(), pixels(h)})
-                    .with_padding(Padding{
-                        .top = pixels(0), .right = pixels(8),
-                        .bottom = pixels(0), .left = pixels(0)})
-                    .with_custom_text_color(dotColor)
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("status_dirty"));
-        }
-
-        // Ahead/behind counts (hidden when both 0)
-        if (aheadCount > 0 || behindCount > 0) {
-            std::string abText;
-            if (behindCount > 0)
-                abText += "\xe2\x86\x93" + std::to_string(behindCount); // ↓N
-            if (aheadCount > 0) {
-                if (!abText.empty()) abText += " ";
-                abText += "\xe2\x86\x91" + std::to_string(aheadCount); // ↑N
-            }
-            div(ctx, mk(barResult.ent(), 4030),
-                ComponentConfig{}
-                    .with_label(abText)
-                    .with_size(ComponentSize{afterhours::ui::children(), pixels(h)})
-                    .with_padding(Padding{
-                        .top = pixels(0), .right = pixels(8),
-                        .bottom = pixels(0), .left = pixels(0)})
-                    .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                    .with_alignment(TextAlignment::Left)
-                    .with_roundness(0.0f)
-                    .with_debug_name("status_ahead_behind"));
-        }
-
-        // === Spacer (flex-grow to push right section to the right) ===
-        div(ctx, mk(barResult.ent(), 4040),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), pixels(1)})
-                .with_roundness(0.0f)
-                .with_debug_name("status_spacer"));
-
-        // === Right section: command log toggle button ===
+        // === Right section: command log toggle button (absolute) ===
         std::string logLabel = layout.commandLogVisible ? "Hide Log" : "Show Log";
-        auto logBtn = button(ctx, mk(barResult.ent(), 4050),
+        float btnW = afterhours::ui::resolve_to_pixels(w1280(80), sw);
+        auto logBtn = button(ctx, mk(uiRoot, 4050),
             ComponentConfig{}
                 .with_label(logLabel)
-                .with_size(ComponentSize{afterhours::ui::children(), pixels(h - 4)})
+                .with_size(ComponentSize{pixels(btnW), pixels(h - 4)})
+                .with_absolute_position()
+                .with_translate(w - btnW - 8, y + 2)
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = pixels(8)})
+                    .top = h720(2), .right = w1280(10),
+                    .bottom = h720(2), .left = w1280(10)})
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_custom_background(afterhours::Color{0, 0, 0, 0})
+                .with_custom_background(afterhours::Color{255, 255, 255, 20})
                 .with_alignment(TextAlignment::Center)
-                .with_roundness(0.0f)
+                .with_roundness(0.04f)
+                .with_render_layer(5)
                 .with_debug_name("status_log_toggle"));
 
         if (logBtn) {

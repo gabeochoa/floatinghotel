@@ -1,0 +1,65 @@
+# E2E Test: Window Resize Behavior
+# Verifies that layout adapts correctly at various window sizes.
+# Run: ./output/floatinghotel.exe . --test-script=tests/e2e_scripts/resize_test.e2e --screenshot-dir=output/screenshots/resize
+#
+# Tests the following resolutions:
+#   1. 1200x800  (default)
+#   2. 1920x1080 (1080p)
+#   3. 1280x720  (720p baseline)
+#   4. 800x600   (small window)
+#   5. 1600x900  (common laptop)
+#   6. 2560x1440 (1440p)
+
+# Wait for initial render and git data load
+wait 3
+
+# ─── 1. Default size: 1200x800 ───
+screenshot resize_01_default_1200x800
+
+# ─── 2. Resize to 1920x1080 (Full HD) ───
+resize 1920 1080
+wait 2
+screenshot resize_02_fullhd_1920x1080
+
+# ─── 3. Resize to 1280x720 (720p baseline) ───
+resize 1280 720
+wait 2
+screenshot resize_03_720p_1280x720
+
+# ─── 4. Resize to 800x600 (small window) ───
+resize 800 600
+wait 2
+screenshot resize_04_small_800x600
+
+# ─── 5. Resize to 1600x900 (common laptop) ───
+resize 1600 900
+wait 2
+screenshot resize_05_laptop_1600x900
+
+# ─── 6. Resize to 2560x1440 (1440p) ───
+resize 2560 1440
+wait 2
+screenshot resize_06_1440p_2560x1440
+
+# ─── 7. Back to default, click a file, then resize ───
+resize 1200 800
+wait 2
+# Click first file in sidebar
+click 160 170
+wait 1
+screenshot resize_07_file_selected_1200x800
+
+# ─── 8. Resize with file selected to check diff pane scales ───
+resize 1920 1080
+wait 2
+screenshot resize_08_file_selected_1920x1080
+
+# ─── 9. Resize down with file selected ───
+resize 800 600
+wait 2
+screenshot resize_09_file_selected_800x600
+
+# ─── 10. Resize back to 720p baseline for final check ───
+resize 1280 720
+wait 2
+screenshot resize_10_final_720p

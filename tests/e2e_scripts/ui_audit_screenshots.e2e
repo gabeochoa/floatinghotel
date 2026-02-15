@@ -1,6 +1,13 @@
 # E2E Test: UI Screenshots for Design Audit
 # Captures screenshots of each major UI state for multi-audit review.
 # Run: ./output/floatinghotel.exe . --test-script=tests/e2e_scripts/ui_audit_screenshots.e2e --screenshot-dir=output/screenshots/audit
+#
+# Window: 1200x800, 720p-scaled layout:
+#   Menu bar:    y=0..40,  full width
+#   Toolbar:     y=40..89, full width
+#   Sidebar:     x=0..319, y=89..764  (files top 60%, commits bottom 40%)
+#   Main content:x=323..1200, y=89..764
+#   Status bar:  y=764..800
 
 # Wait for initial render and git data load
 wait 3
@@ -8,56 +15,63 @@ wait 3
 # 1. Initial state — default view with Changes tab, sidebar, and diff area
 screenshot 01_initial_state
 
-# 2. Click on the first file in the sidebar to show its diff
-click 140 200
+# 2. Click on the first file in the sidebar files area (y~130 = inside file list)
+click 160 170
 wait 1
 screenshot 02_file_selected
 
-# 3. Click a second file
-click 140 230
+# 3. Click a second file (one row below)
+click 160 200
 wait 1
 screenshot 03_second_file
 
-# 4. Click on the File menu
-click 30 14
+# 4. Click on the File menu (top-left in menu bar, y~20)
+click 30 20
 wait 0.5
 screenshot 04_file_menu
 
-# 5. Close menu and open View menu
+# 5. Close menu and open Edit menu
 escape
 wait 0.3
-click 70 14
+click 80 20
 wait 0.5
-screenshot 05_view_menu
+screenshot 05_edit_menu
 
-# 6. Close menu
+# 6. Close menu and open View menu
+escape
+wait 0.3
+click 130 20
+wait 0.5
+screenshot 06_view_menu
+
+# 7. Close menu
 escape
 wait 0.3
 
-# 7. Click on the Refs/Branches tab in sidebar
-click 200 60
+# 8. Click on the Refs/Branches tab in sidebar (tab bar at y~92)
+click 250 95
 wait 1
-screenshot 06_refs_branches
+screenshot 07_refs_branches
 
-# 8. Switch back to Changes tab
-click 100 60
+# 9. Switch back to Changes tab
+click 120 95
 wait 0.5
 
-# 9. Scroll down to commit log area and click a commit
-click 140 500
+# 10. Click a commit in the sidebar log area (y~520 = inside commit log)
+click 160 540
 wait 1
-screenshot 07_commit_detail
+screenshot 08_commit_selected
 
-# 10. Click another commit
-click 140 540
+# 11. Click a different commit
+click 160 580
 wait 1
-screenshot 08_different_commit
+screenshot 09_different_commit
 
-# 11. Click the toolbar Refresh button (top area)
-click 50 40
+# 12. Click the toolbar Refresh button (y~60 = middle of toolbar)
+click 50 60
 wait 2
-screenshot 09_after_refresh
+screenshot 10_after_refresh
 
-# 12. Final screenshot of full state
+# 13. Final screenshot of full state
 wait 0.5
-screenshot 10_final_state
+screenshot 11_final_state

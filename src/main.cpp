@@ -33,6 +33,14 @@ struct MainRenderSystem : afterhours::System<> {
     void once(float) override {}
 };
 
+// Consumes 'resize' commands as no-ops (used with --e2e-no-resize)
+struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("resize")) return;
+        cmd.consume();
+    }
+};
+
 // Shared state between main() and the run() callbacks
 namespace app_state {
 
@@ -45,6 +53,7 @@ std::chrono::high_resolution_clock::time_point startTime;
 
 // E2E test mode
 bool testModeEnabled = false;
+bool e2eNoResize = false;
 std::string testScriptPath;
 std::string testScriptDir;
 std::string screenshotDir = "output/screenshots";
@@ -72,14 +81,18 @@ static void app_init() {
         ui_imm::initUIContext(Settings::get().get_window_width(),
                               Settings::get().get_window_height());
 
-        afterhours::ui::imm::UIStylingDefaults::get().set_default_font(
+        auto& styling = afterhours::ui::imm::UIStylingDefaults::get();
+        styling.set_default_font(
             afterhours::ui::UIComponent::DEFAULT_FONT,
-            afterhours::ui::pixels(16.0f));
+            afterhours::ui::h720(18.0f));
+
+        // Use Proportional scaling: h720/w1280 scale with resolution,
+        // pixels() stay fixed. Good for apps targeting a reference resolution.
+        styling.set_scaling_mode(afterhours::ui::ScalingMode::Proportional);
 
         // Enable UI validation in development mode (min font size, contrast,
         // resolution independence, etc.)
-        afterhours::ui::imm::UIStylingDefaults::get()
-            .enable_development_validation();
+        styling.enable_development_validation();
     }
 
     // Create the editor entity with layout + repo components
@@ -165,6 +178,9 @@ static void app_init() {
 
         // E2E testing systems (only in test mode)
         if (app_state::testModeEnabled) {
+            if (app_state::e2eNoResize) {
+                sm.register_update_system(std::make_unique<SkipResizeCommand>());
+            }
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
                 std::make_unique<afterhours::testing::HandleScreenshotCommand>(
@@ -253,6 +269,7 @@ int main(int argc, char* argv[]) {
 
     // Parse test mode flags
     app_state::testModeEnabled = cmdl["--test-mode"];
+    app_state::e2eNoResize = cmdl["--e2e-no-resize"];
     for (auto& [name, value] : cmdl.params()) {
         if (name == "screenshot-dir") {
             app_state::screenshotDir = value;

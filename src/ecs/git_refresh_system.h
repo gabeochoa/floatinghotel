@@ -42,12 +42,10 @@ struct GitDataRefreshSystem : afterhours::System<RepoComponent> {
             repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
         }
 
-        // Refresh diff for selected file
-        if (!repo.selectedFilePath.empty()) {
-            auto diffResult = git::git_diff(repo.repoPath);
-            if (diffResult.success()) {
-                repo.currentDiff = git::parse_diff(diffResult.stdout_str());
-            }
+        // Always load diff data so it's ready when a file is selected
+        auto diffResult = git::git_diff(repo.repoPath);
+        if (diffResult.success()) {
+            repo.currentDiff = git::parse_diff(diffResult.stdout_str());
         }
 
         // Refresh branch list (T031)

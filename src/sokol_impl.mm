@@ -26,6 +26,41 @@
 // Screenshot support (macOS screencapture via window ID)
 #import <AppKit/AppKit.h>
 
+extern "C" void metal_set_window_size(int width, int height) {
+    @autoreleasepool {
+        NSWindow* window = [NSApp mainWindow];
+        if (!window) {
+            window = [NSApp keyWindow];
+        }
+        if (!window) {
+            NSArray<NSWindow*>* windows = [NSApp windows];
+            for (NSWindow* w in windows) {
+                if ([w isVisible]) {
+                    window = w;
+                    break;
+                }
+            }
+        }
+        if (!window) {
+            NSLog(@"metal_set_window_size: no window available");
+            return;
+        }
+
+        // Get the current frame and compute the new one.
+        // Keep the top-left corner anchored (macOS uses bottom-left origin).
+        NSRect frame = [window frame];
+        CGFloat titleBarHeight = frame.size.height - [[window contentView] frame].size.height;
+        CGFloat newHeight = (CGFloat)height + titleBarHeight;
+        CGFloat newWidth = (CGFloat)width;
+
+        // Anchor top-left: adjust origin.y so the top edge stays put
+        CGFloat deltaH = newHeight - frame.size.height;
+        NSRect newFrame = NSMakeRect(frame.origin.x, frame.origin.y - deltaH,
+                                     newWidth, newHeight);
+        [window setFrame:newFrame display:YES animate:NO];
+    }
+}
+
 extern "C" void metal_take_screenshot(const char* filename) {
     @autoreleasepool {
         NSWindow* window = [NSApp mainWindow];

@@ -99,8 +99,8 @@ struct RepoComponent : public afterhours::BaseComponent {
 };
 
 struct LayoutComponent : public afterhours::BaseComponent {
-    float sidebarWidth = 280.0f;
-    float sidebarMinWidth = 180.0f;
+    float sidebarWidth = 340.0f;
+    float sidebarMinWidth = 200.0f;
     float commitLogRatio = 0.4f;
     float commitEditorHeight = 0.0f;
 

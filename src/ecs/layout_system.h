@@ -26,6 +26,8 @@ using afterhours::ui::imm::hstack;
 using afterhours::ui::imm::button;
 using afterhours::ui::imm::mk;
 using afterhours::ui::pixels;
+using afterhours::ui::h720;
+using afterhours::ui::w1280;
 using afterhours::ui::percent;
 using afterhours::ui::children;
 using afterhours::ui::FlexDirection;
@@ -39,6 +41,7 @@ using afterhours::ui::HasClickListener;
 using afterhours::ui::HasDragListener;
 using afterhours::ui::Overflow;
 using afterhours::ui::Axis;
+using afterhours::ui::resolve_to_pixels;
 
 // LayoutUpdateSystem: Recalculates all panel rectangles each frame based on
 // current screen size, sidebar width, and commit log ratio.
@@ -47,48 +50,73 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                        float) override {
         int screenW = afterhours::graphics::get_screen_width();
         int screenH = afterhours::graphics::get_screen_height();
+        float sw = static_cast<float>(screenW);
+        float sh = static_cast<float>(screenH);
 
-        float menuH = static_cast<float>(theme::layout::MENU_BAR_HEIGHT);
-        float toolbarH = static_cast<float>(theme::layout::TOOLBAR_HEIGHT);
-        float statusH = static_cast<float>(theme::layout::STATUS_BAR_HEIGHT);
+        // Use resolve_to_pixels with h720/w1280 for resolution-independent sizing.
+        // h720(x) -> screen_pct(x/720) -> x * (screenH / 720) pixels.
+        // w1280(x) -> screen_pct(x/1280) -> x * (screenW / 1280) pixels.
+        auto rpxH = [sh](float design_px) {
+            return resolve_to_pixels(h720(design_px), sh);
+        };
+        auto rpxW = [sw](float design_px) {
+            return resolve_to_pixels(w1280(design_px), sw);
+        };
+
+        float menuH = rpxH(static_cast<float>(theme::layout::MENU_BAR_HEIGHT));
+        float toolbarH = rpxH(static_cast<float>(theme::layout::TOOLBAR_HEIGHT));
+        float statusH = rpxH(static_cast<float>(theme::layout::STATUS_BAR_HEIGHT));
         float contentY = menuH + toolbarH;
-        float contentH = static_cast<float>(screenH) - menuH - toolbarH - statusH;
+        float contentH = sh - menuH - toolbarH - statusH;
 
-        layout.menuBar = {0, 0, static_cast<float>(screenW), menuH};
-        layout.toolbar = {0, menuH, static_cast<float>(screenW), toolbarH};
+        layout.menuBar = {0, 0, sw, menuH};
+        // Toolbar position/size computed after sidebar width is known (below)
 
-        // Clamp sidebar width
-        float maxSidebarW = static_cast<float>(screenW) * 0.5f;
-        layout.sidebarWidth = std::clamp(layout.sidebarWidth,
-                                         layout.sidebarMinWidth, maxSidebarW);
+        // Scale sidebar width to match w1280 coordinate system
+        float scaledSidebarW = rpxW(layout.sidebarWidth);
+        float scaledSidebarMinW = rpxW(layout.sidebarMinWidth);
 
-        constexpr float dividerW = 4.0f;
+        // Ensure sidebar is at least SIDEBAR_MIN_PCT of window width at high res
+        float pctMinW = sw * theme::layout::SIDEBAR_MIN_PCT;
+        if (pctMinW > scaledSidebarMinW) scaledSidebarMinW = pctMinW;
+
+        // Clamp sidebar width (in screen pixels)
+        float maxSidebarW = sw * 0.5f;
+        scaledSidebarW = std::clamp(scaledSidebarW, scaledSidebarMinW, maxSidebarW);
+
+        float dividerW = rpxW(4.0f);
 
         if (layout.sidebarVisible) {
-            layout.sidebar = {0, contentY, layout.sidebarWidth, contentH};
+            layout.sidebar = {0, contentY, scaledSidebarW, contentH};
+
+            // Toolbar starts after the sidebar, spanning the content area only
+            // This avoids z-order issues where sidebar renders on top of toolbar
+            layout.toolbar = {scaledSidebarW + dividerW, menuH, sw - scaledSidebarW - dividerW, toolbarH};
 
             // Sidebar internal split: files (1-commitLogRatio) / commits (commitLogRatio)
             float filesH = contentH * (1.0f - layout.commitLogRatio);
             float commitsH = contentH * layout.commitLogRatio;
-            layout.sidebarFiles = {0, contentY, layout.sidebarWidth, filesH};
-            layout.sidebarLog = {0, contentY + filesH, layout.sidebarWidth, commitsH};
+            layout.sidebarFiles = {0, contentY, scaledSidebarW, filesH};
+            layout.sidebarLog = {0, contentY + filesH, scaledSidebarW, commitsH};
 
             // Commit editor area (overlaps bottom of sidebar when visible)
-            if (layout.commitEditorHeight > 0.0f) {
+            float scaledEditorH = rpxH(layout.commitEditorHeight);
+            if (scaledEditorH > 0.0f) {
                 layout.sidebarCommitEditor = {
-                    0, contentY + contentH - layout.commitEditorHeight,
-                    layout.sidebarWidth, layout.commitEditorHeight};
+                    0, contentY + contentH - scaledEditorH,
+                    scaledSidebarW, scaledEditorH};
             } else {
                 layout.sidebarCommitEditor = {0, 0, 0, 0};
             }
 
-            float mainX = layout.sidebarWidth + dividerW;
-            float mainW = static_cast<float>(screenW) - layout.sidebarWidth - dividerW;
+            float mainX = scaledSidebarW + dividerW;
+            float mainW = sw - scaledSidebarW - dividerW;
 
             // Command log panel takes space from the bottom of main content
             if (layout.commandLogVisible) {
-                float logH = std::clamp(layout.commandLogHeight, 80.0f, contentH * 0.6f);
-                layout.commandLogHeight = logH;
+                float scaledLogH = rpxH(layout.commandLogHeight);
+                float logH = std::clamp(scaledLogH, rpxH(80.0f), contentH * 0.6f);
+                layout.commandLogHeight = logH * 720.0f / sh; // store back in 720p coords
                 float mainH = contentH - logH;
                 layout.mainContent = {mainX, contentY, mainW, mainH};
                 layout.commandLog = {mainX, contentY + mainH, mainW, logH};
@@ -102,12 +130,16 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.sidebarLog = {0, 0, 0, 0};
             layout.sidebarCommitEditor = {0, 0, 0, 0};
 
+            // No sidebar - toolbar spans full width
+            layout.toolbar = {0, menuH, sw, toolbarH};
+
             float mainX = 0;
-            float mainW = static_cast<float>(screenW);
+            float mainW = sw;
 
             if (layout.commandLogVisible) {
-                float logH = std::clamp(layout.commandLogHeight, 80.0f, contentH * 0.6f);
-                layout.commandLogHeight = logH;
+                float scaledLogH = rpxH(layout.commandLogHeight);
+                float logH = std::clamp(scaledLogH, rpxH(80.0f), contentH * 0.6f);
+                layout.commandLogHeight = logH * 720.0f / sh; // store back in 720p coords
                 float mainH = contentH - logH;
                 layout.mainContent = {mainX, contentY, mainW, mainH};
                 layout.commandLog = {mainX, contentY + mainH, mainW, logH};
@@ -117,8 +149,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             }
         }
 
-        layout.statusBar = {0, static_cast<float>(screenH) - statusH,
-                            static_cast<float>(screenW), statusH};
+        layout.statusBar = {0, sh - statusH, sw, statusH};
     }
 };
 
@@ -180,12 +211,15 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             float topY = layout.mainContent.y + 60.0f; // min main content height
             float newLogH = bottomY - mouseY;
             newLogH = std::clamp(newLogH, 80.0f, bottomY - topY);
+            // Convert back to 720-baseline for storage
+            float sh = static_cast<float>(afterhours::graphics::get_screen_height());
+            float unscaledLogH = newLogH * 720.0f / sh;
 
             auto lEntities = afterhours::EntityQuery({.force_merge = true})
                                  .whereHasComponent<LayoutComponent>()
                                  .gen();
             if (!lEntities.empty()) {
-                lEntities[0].get().get<LayoutComponent>().commandLogHeight = newLogH;
+                lEntities[0].get().get<LayoutComponent>().commandLogHeight = unscaledLogH;
             }
         }
     }
@@ -205,13 +239,13 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
     constexpr float HEADER_H = 28.0f;
     auto headerBar = div(ctx, mk(panelBg.ent(), 3220),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f), pixels(HEADER_H)})
+            .with_size(ComponentSize{percent(1.0f), h720(HEADER_H)})
             .with_custom_background(theme::BORDER)
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
             .with_padding(Padding{
-                .top = pixels(0), .right = pixels(8),
-                .bottom = pixels(0), .left = pixels(8)})
+                .top = h720(0), .right = w1280(8),
+                .bottom = h720(0), .left = w1280(8)})
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_header"));
 
@@ -219,7 +253,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
     div(ctx, mk(headerBar.ent(), 3221),
         ComponentConfig{}
             .with_label("GIT COMMAND LOG")
-            .with_size(ComponentSize{percent(1.0f), pixels(HEADER_H)})
+            .with_size(ComponentSize{percent(1.0f), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
@@ -230,17 +264,20 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
     div(ctx, mk(headerBar.ent(), 3222),
         ComponentConfig{}
             .with_label(countLabel)
-            .with_size(ComponentSize{children(), pixels(HEADER_H)})
+            .with_size(ComponentSize{children(), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_alignment(TextAlignment::Right)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_count"));
 
     // === Scrollable entries area ===
-    float scrollH = cl.height - HEADER_H;
+    float cmdLogScreenH = static_cast<float>(afterhours::graphics::get_screen_height());
+    float cmdLogHeaderPx = resolve_to_pixels(h720(HEADER_H), cmdLogScreenH);
+    float cmdLogScrollH = cl.height - cmdLogHeaderPx;
+    if (cmdLogScrollH < 10.0f) cmdLogScrollH = 10.0f;
     auto scrollArea = div(ctx, mk(panelBg.ent(), 3230),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f), pixels(scrollH)})
+            .with_size(ComponentSize{percent(1.0f), pixels(cmdLogScrollH)})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_custom_background(theme::SIDEBAR_BG)
@@ -252,10 +289,10 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
         div(ctx, mk(scrollArea.ent(), 3240),
             ComponentConfig{}
                 .with_label("No commands executed yet")
-                .with_size(ComponentSize{percent(1.0f), pixels(32)})
+                .with_size(ComponentSize{percent(1.0f), h720(32)})
                 .with_padding(Padding{
-                    .top = pixels(8), .right = pixels(8),
-                    .bottom = pixels(8), .left = pixels(8)})
+                    .top = h720(8), .right = w1280(8),
+                    .bottom = h720(8), .left = w1280(8)})
                 .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
@@ -284,10 +321,10 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
         div(ctx, mk(scrollArea.ent(), 3300 + entryId * 10),
             ComponentConfig{}
                 .with_label(cmdLabel)
-                .with_size(ComponentSize{percent(1.0f), pixels(ENTRY_CMD_H)})
+                .with_size(ComponentSize{percent(1.0f), h720(ENTRY_CMD_H)})
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = pixels(8)})
+                    .top = h720(2), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(8)})
                 .with_custom_text_color(cmdColor)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
@@ -309,10 +346,10 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(scrollArea.ent(), 3300 + entryId * 10 + 1),
                 ComponentConfig{}
                     .with_label(displayOut)
-                    .with_size(ComponentSize{percent(1.0f), pixels(ENTRY_OUTPUT_H)})
+                    .with_size(ComponentSize{percent(1.0f), h720(ENTRY_OUTPUT_H)})
                     .with_padding(Padding{
-                        .top = pixels(0), .right = pixels(8),
-                        .bottom = pixels(2), .left = pixels(24)})
+                        .top = h720(0), .right = w1280(8),
+                        .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
@@ -333,10 +370,10 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(scrollArea.ent(), 3300 + entryId * 10 + 2),
                 ComponentConfig{}
                     .with_label(displayErr)
-                    .with_size(ComponentSize{percent(1.0f), pixels(ENTRY_OUTPUT_H)})
+                    .with_size(ComponentSize{percent(1.0f), h720(ENTRY_OUTPUT_H)})
                     .with_padding(Padding{
-                        .top = pixels(0), .right = pixels(8),
-                        .bottom = pixels(2), .left = pixels(24)})
+                        .top = h720(0), .right = w1280(8),
+                        .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::STATUS_DELETED)
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
@@ -539,13 +576,13 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     auto backBtn = button(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
             .with_label("<- Back")
-            .with_size(ComponentSize{children(), pixels(24)})
+            .with_size(ComponentSize{children(), h720(24)})
             .with_padding(Padding{
-                .top = pixels(4), .right = pixels(12),
-                .bottom = pixels(4), .left = pixels(12)})
+                .top = h720(4), .right = w1280(12),
+                .bottom = h720(4), .left = w1280(12)})
             .with_margin(Margin{
-                .top = pixels(8), .bottom = pixels(4),
-                .left = pixels(HEADER_PAD), .right = {}})
+                .top = h720(8), .bottom = h720(4),
+                .left = w1280(HEADER_PAD), .right = {}})
             .with_custom_background(afterhours::Color{0, 0, 0, 0})
             .with_custom_text_color(theme::BUTTON_PRIMARY)
             .with_roundness(0.04f)
@@ -563,8 +600,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label(selectedCommit->subject)
             .with_size(ComponentSize{percent(1.0f), children()})
             .with_padding(Padding{
-                .top = pixels(8), .right = pixels(HEADER_PAD),
-                .bottom = pixels(4), .left = pixels(HEADER_PAD)})
+                .top = h720(8), .right = w1280(HEADER_PAD),
+                .bottom = h720(4), .left = w1280(HEADER_PAD)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
@@ -577,8 +614,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_label(repo.commitDetailBody)
                 .with_size(ComponentSize{percent(1.0f), children()})
                 .with_padding(Padding{
-                    .top = pixels(4), .right = pixels(HEADER_PAD),
-                    .bottom = pixels(8), .left = pixels(HEADER_PAD)})
+                    .top = h720(4), .right = w1280(HEADER_PAD),
+                    .bottom = h720(8), .left = w1280(HEADER_PAD)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
@@ -596,11 +633,11 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_custom_background(theme::SIDEBAR_BG)
             .with_flex_direction(FlexDirection::Column)
             .with_padding(Padding{
-                .top = pixels(META_PAD), .right = pixels(HEADER_PAD),
-                .bottom = pixels(META_PAD), .left = pixels(HEADER_PAD)})
+                .top = h720(META_PAD), .right = w1280(HEADER_PAD),
+                .bottom = h720(META_PAD), .left = w1280(HEADER_PAD)})
             .with_margin(Margin{
-                .top = pixels(4), .bottom = pixels(4),
-                .left = pixels(HEADER_PAD), .right = pixels(HEADER_PAD)})
+                .top = h720(4), .bottom = h720(4),
+                .left = w1280(HEADER_PAD), .right = w1280(HEADER_PAD)})
             .with_roundness(0.04f)
             .with_debug_name("commit_meta_box"));
 
@@ -609,7 +646,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                        afterhours::Color valueColor = theme::TEXT_PRIMARY) {
         auto row = div(ctx, mk(metaBox.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), pixels(META_ROW_H)})
+                .with_size(ComponentSize{percent(1.0f), h720(META_ROW_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_roundness(0.0f)
@@ -618,19 +655,19 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         div(ctx, mk(row.ent(), 1),
             ComponentConfig{}
                 .with_label(label)
-                .with_size(ComponentSize{pixels(META_LABEL_W), pixels(META_ROW_H)})
+                .with_size(ComponentSize{w1280(META_LABEL_W), h720(META_ROW_H)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_alignment(TextAlignment::Right)
                 .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(8),
-                    .bottom = pixels(0), .left = pixels(0)})
+                    .top = h720(0), .right = w1280(8),
+                    .bottom = h720(0), .left = w1280(0)})
                 .with_roundness(0.0f)
                 .with_debug_name("meta_label"));
 
         div(ctx, mk(row.ent(), 2),
             ComponentConfig{}
                 .with_label(value)
-                .with_size(ComponentSize{percent(1.0f), pixels(META_ROW_H)})
+                .with_size(ComponentSize{percent(1.0f), h720(META_ROW_H)})
                 .with_custom_text_color(valueColor)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
@@ -680,7 +717,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     if (!selectedCommit->decorations.empty()) {
         auto badgeRow = div(ctx, mk(metaBox.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), pixels(META_ROW_H)})
+                .with_size(ComponentSize{percent(1.0f), h720(META_ROW_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_roundness(0.0f)
@@ -689,12 +726,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         div(ctx, mk(badgeRow.ent(), 1),
             ComponentConfig{}
                 .with_label("Refs:")
-                .with_size(ComponentSize{pixels(META_LABEL_W), pixels(META_ROW_H)})
+                .with_size(ComponentSize{w1280(META_LABEL_W), h720(META_ROW_H)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_alignment(TextAlignment::Right)
                 .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(8),
-                    .bottom = pixels(0), .left = pixels(0)})
+                    .top = h720(0), .right = w1280(8),
+                    .bottom = h720(0), .left = w1280(0)})
                 .with_roundness(0.0f)
                 .with_debug_name("refs_label"));
 
@@ -728,13 +765,13 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(badgeRow.ent(), badgeId++),
                 ComponentConfig{}
                     .with_label(badge.label)
-                    .with_size(ComponentSize{children(), pixels(14)})
+                    .with_size(ComponentSize{children(), h720(14)})
                     .with_padding(Padding{
-                        .top = pixels(1), .right = pixels(4),
-                        .bottom = pixels(1), .left = pixels(4)})
+                        .top = h720(1), .right = w1280(4),
+                        .bottom = h720(1), .left = w1280(4)})
                     .with_margin(Margin{
                         .top = {}, .bottom = {},
-                        .left = {}, .right = pixels(3)})
+                        .left = {}, .right = w1280(3)})
                     .with_custom_background(bg)
                     .with_custom_text_color(text)
                     .with_roundness(0.15f)
@@ -746,10 +783,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     // === Separator ===
     div(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f), pixels(1)})
+            .with_size(ComponentSize{percent(1.0f), h720(1)})
             .with_custom_background(theme::BORDER)
             .with_margin(Margin{
-                .top = pixels(8), .bottom = pixels(8),
+                .top = h720(8), .bottom = h720(8),
                 .left = {}, .right = {}})
             .with_roundness(0.0f)
             .with_debug_name("commit_sep"));
@@ -770,10 +807,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
                 .with_label(summaryLabel)
-                .with_size(ComponentSize{percent(1.0f), pixels(24)})
+                .with_size(ComponentSize{percent(1.0f), h720(24)})
                 .with_padding(Padding{
-                    .top = pixels(4), .right = pixels(HEADER_PAD),
-                    .bottom = pixels(4), .left = pixels(HEADER_PAD)})
+                    .top = h720(4), .right = w1280(HEADER_PAD),
+                    .bottom = h720(4), .left = w1280(HEADER_PAD)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
@@ -805,12 +842,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
             auto fileRow = div(ctx, mk(scrollContainer.ent(), nextId++),
                 ComponentConfig{}
-                    .with_size(ComponentSize{percent(1.0f), pixels(FILE_ROW_H)})
+                    .with_size(ComponentSize{percent(1.0f), h720(FILE_ROW_H)})
                     .with_flex_direction(FlexDirection::Row)
                     .with_align_items(AlignItems::Center)
                     .with_padding(Padding{
-                        .top = pixels(2), .right = pixels(HEADER_PAD),
-                        .bottom = pixels(2), .left = pixels(HEADER_PAD)})
+                        .top = h720(2), .right = w1280(HEADER_PAD),
+                        .bottom = h720(2), .left = w1280(HEADER_PAD)})
                     .with_custom_background(theme::WINDOW_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_summary_row"));
@@ -819,7 +856,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(fileRow.ent(), 1),
                 ComponentConfig{}
                     .with_label(badge)
-                    .with_size(ComponentSize{pixels(20), pixels(FILE_ROW_H)})
+                    .with_size(ComponentSize{w1280(20), h720(FILE_ROW_H)})
                     .with_custom_text_color(badgeColor)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -833,12 +870,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(fileRow.ent(), 2),
                 ComponentConfig{}
                     .with_label(fname)
-                    .with_size(ComponentSize{percent(1.0f), pixels(FILE_ROW_H)})
+                    .with_size(ComponentSize{percent(1.0f), h720(FILE_ROW_H)})
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_alignment(TextAlignment::Left)
                     .with_padding(Padding{
-                        .top = pixels(0), .right = pixels(8),
-                        .bottom = pixels(0), .left = pixels(4)})
+                        .top = h720(0), .right = w1280(8),
+                        .bottom = h720(0), .left = w1280(4)})
                     .with_roundness(0.0f)
                     .with_debug_name("file_name"));
 
@@ -852,7 +889,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(fileRow.ent(), 3),
                 ComponentConfig{}
                     .with_label(statsStr)
-                    .with_size(ComponentSize{pixels(60), pixels(FILE_ROW_H)})
+                    .with_size(ComponentSize{w1280(60), h720(FILE_ROW_H)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
@@ -872,7 +909,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
             auto barContainer = div(ctx, mk(fileRow.ent(), 4),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(CHANGE_BAR_W), pixels(BAR_H)})
+                    .with_size(ComponentSize{w1280(CHANGE_BAR_W), h720(BAR_H)})
                     .with_flex_direction(FlexDirection::Row)
                     .with_custom_background(theme::BORDER)
                     .with_roundness(0.15f)
@@ -881,7 +918,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             if (greenW > 0.5f) {
                 div(ctx, mk(barContainer.ent(), 1),
                     ComponentConfig{}
-                        .with_size(ComponentSize{pixels(greenW), pixels(BAR_H)})
+                        .with_size(ComponentSize{w1280(greenW), h720(BAR_H)})
                         .with_custom_background(theme::STATUS_ADDED)
                         .with_roundness(0.0f)
                         .with_debug_name("bar_green"));
@@ -889,7 +926,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             if (redW > 0.5f) {
                 div(ctx, mk(barContainer.ent(), 2),
                     ComponentConfig{}
-                        .with_size(ComponentSize{pixels(redW), pixels(BAR_H)})
+                        .with_size(ComponentSize{w1280(redW), h720(BAR_H)})
                         .with_custom_background(theme::STATUS_DELETED)
                         .with_roundness(0.0f)
                         .with_debug_name("bar_red"));
@@ -899,10 +936,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         // === Separator before diffs ===
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), pixels(1)})
+                .with_size(ComponentSize{percent(1.0f), h720(1)})
                 .with_custom_background(theme::BORDER)
                 .with_margin(Margin{
-                    .top = pixels(8), .bottom = pixels(8),
+                    .top = h720(8), .bottom = h720(8),
                     .left = {}, .right = {}})
                 .with_roundness(0.0f)
                 .with_debug_name("diff_sep"));
@@ -956,22 +993,48 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         if (hasSelectedFile && hasDiffData) {
-            // Render diff view for selected file
+            // Render diff view for selected file only
             auto& repo = repoEntities[0].get().get<RepoComponent>();
 
-            // Diff stats header
-            ui::render_diff_header(ctx, mainBg.ent(), repo.currentDiff, 3040);
+            // Filter diffs to just the selected file
+            std::vector<FileDiff> selectedDiffs;
+            for (auto& d : repo.currentDiff) {
+                // Match by filename (selectedFilePath may be relative, d.filePath may vary)
+                if (d.filePath == repo.selectedFilePath ||
+                    d.filePath.ends_with("/" + repo.selectedFilePath) ||
+                    repo.selectedFilePath.ends_with("/" + d.filePath) ||
+                    repo.selectedFilePath.ends_with(d.filePath)) {
+                    selectedDiffs.push_back(d);
+                    break;
+                }
+            }
 
-            // Inline diff content
-            ui::render_inline_diff(ctx, mainBg.ent(), repo.currentDiff,
-                                   layout.mainContent.width,
-                                   layout.mainContent.height);
+            if (!selectedDiffs.empty()) {
+                // Render diff as child of mainBg using percent() sizing.
+                // (Previously used a separate absolute element as workaround
+                // for framework bug — now fixed upstream.)
+                ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
+                                       0, 0);  // 0 = use percent(1.0f)
+            } else {
+                // File selected but no diff found for it (might be untracked/new)
+                div(ctx, mk(mainBg.ent(), 3040),
+                    ComponentConfig{}
+                        .with_label("No diff available for this file")
+                        .with_size(ComponentSize{percent(1.0f), h720(32)})
+                        .with_padding(Padding{
+                            .top = h720(16), .right = w1280(8),
+                            .bottom = h720(8), .left = w1280(8)})
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("no_diff_msg"));
+            }
         } else if (hasSelectedCommit) {
             // === Commit Detail View (T035) ===
             auto& repo = repoEntities[0].get().get<RepoComponent>();
             render_commit_detail(ctx, mainBg.ent(), repo, layout);
         } else {
-            // Empty state — no file or commit selected
+            // Empty state — clean, Apple Notes-style welcome
             auto emptyContainer = div(ctx, mk(mainBg.ent(), 3060),
                 ComponentConfig{}
                     .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
@@ -981,35 +1044,47 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_roundness(0.0f)
                     .with_debug_name("empty_state"));
 
+            // Large decorative icon
+            div(ctx, mk(emptyContainer.ent(), 3005),
+                ComponentConfig{}
+                    .with_label("\xe2\x97\x87")  // diamond symbol
+                    .with_size(ComponentSize{children(), children()})
+                    .with_font_size(h720(32))
+                    .with_padding(Padding{
+                        .top = h720(0), .right = w1280(0),
+                        .bottom = h720(16), .left = w1280(0)})
+                    .with_custom_text_color(afterhours::Color{60, 60, 60, 255})
+                    .with_alignment(TextAlignment::Center)
+                    .with_roundness(0.0f)
+                    .with_debug_name("empty_icon"));
+
+            // Primary hint
             div(ctx, mk(emptyContainer.ent(), 3010),
                 ComponentConfig{}
-                    .with_label("Select a file to view diff")
+                    .with_label("Select a file or commit")
                     .with_size(ComponentSize{children(), children()})
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                    .with_font_size(h720(18))
+                    .with_padding(Padding{
+                        .top = h720(0), .right = w1280(0),
+                        .bottom = h720(6), .left = w1280(0)})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("empty_hint_1"));
 
+            // Secondary hint
             div(ctx, mk(emptyContainer.ent(), 3020),
                 ComponentConfig{}
-                    .with_label("--- or ---")
+                    .with_label("to view changes")
                     .with_size(ComponentSize{children(), children()})
+                    .with_font_size(h720(14))
                     .with_padding(Padding{
-                        .top = pixels(8), .right = pixels(0),
-                        .bottom = pixels(8), .left = pixels(0)})
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                        .top = h720(0), .right = w1280(0),
+                        .bottom = h720(0), .left = w1280(0)})
+                    .with_custom_text_color(afterhours::Color{80, 80, 80, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("empty_hint_2"));
-
-            div(ctx, mk(emptyContainer.ent(), 3030),
-                ComponentConfig{}
-                    .with_label("Click a commit to view details")
-                    .with_size(ComponentSize{children(), children()})
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("empty_hint_3"));
         }
 
         // === Command Log Panel (at bottom of main content area) ===
@@ -1024,11 +1099,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (layout.commandLogVisible) {
                 dividerH += layout.commandLog.height;
             }
+            // Divider also spans the toolbar row above for visual continuity
+            float dividerY = layout.toolbar.y;
+            float fullDividerH = dividerH + (layout.mainContent.y - layout.toolbar.y);
             auto vDivider = div(ctx, mk(uiRoot, 3100),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(4), pixels(dividerH)})
+                    .with_size(ComponentSize{pixels(2), pixels(fullDividerH)})
                     .with_absolute_position()
-                    .with_translate(layout.sidebarWidth, layout.mainContent.y)
+                    .with_translate(layout.sidebar.width, dividerY)
                     .with_custom_background(theme::BORDER)
                     .with_roundness(0.0f)
                     .with_debug_name("sidebar_divider"));
@@ -1040,8 +1118,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (vDrag.down) {
                 auto mousePos = afterhours::graphics::get_mouse_position();
                 float mouseX = static_cast<float>(mousePos.x);
-                float maxW = static_cast<float>(afterhours::graphics::get_screen_width()) * 0.5f;
-                float newWidth = std::clamp(mouseX, layout.sidebarMinWidth, maxW);
+                float sw = static_cast<float>(afterhours::graphics::get_screen_width());
+                float maxW = sw * 0.5f;
+                // Convert mouse position (screen pixels) back to 1280-baseline
+                float newWidth1280 = mouseX * 1280.0f / sw;
+                float newWidth = std::clamp(newWidth1280, layout.sidebarMinWidth, maxW * 1280.0f / sw);
 
                 auto lEntities = afterhours::EntityQuery({.force_merge = true})
                                      .whereHasComponent<LayoutComponent>()

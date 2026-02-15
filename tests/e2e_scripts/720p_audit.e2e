@@ -1,0 +1,10 @@
+# Full UI audit test at 720p
+wait 5
+resize 1280 720
+wait 3
+screenshot 720p_01_initial
+
+# Click a file in sidebar using click_button (requires HasClickListener)
+click_button makefile
+wait 3
+screenshot 720p_02_file_selected

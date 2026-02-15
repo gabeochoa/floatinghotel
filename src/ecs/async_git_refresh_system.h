@@ -44,9 +44,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pendingStatus_ = git::git_status_async(path);
             pendingLog_    = git::git_log_async(path, 100, 0);
 
-            if (!repo.selectedFilePath.empty()) {
-                pendingDiff_ = git::git_diff_async(path);
-            }
+            // Always load diff data so it's ready when a file is selected
+            pendingDiff_ = git::git_diff_async(path);
 
             pendingBranches_ = git::git_branch_list_async(path);
             pendingHead_     = git::git_rev_parse_head_async(path);

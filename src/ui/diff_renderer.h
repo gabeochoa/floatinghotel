@@ -30,6 +30,8 @@ using afterhours::ui::Margin;
 using afterhours::ui::TextAlignment;
 using afterhours::ui::percent;
 using afterhours::ui::pixels;
+using afterhours::ui::h720;
+using afterhours::ui::w1280;
 
 namespace diff_detail {
 
@@ -55,45 +57,16 @@ constexpr int BASE_ID = 4000;
 
 } // namespace diff_detail
 
-// Render the diff summary header showing total file/line change stats.
-inline void render_diff_header(UIContext<InputAction>& ctx,
-                                Entity& parent,
-                                const std::vector<ecs::FileDiff>& diffs,
-                                int baseId) {
-    int totalAdditions = 0, totalDeletions = 0;
-    for (auto& d : diffs) {
-        totalAdditions += d.additions;
-        totalDeletions += d.deletions;
-    }
-
-    std::string stats = std::to_string(diffs.size()) + " file"
-        + (diffs.size() != 1 ? "s" : "") + " changed, +"
-        + std::to_string(totalAdditions) + " -"
-        + std::to_string(totalDeletions);
-
-    div(ctx, mk(parent, baseId),
-        ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f),
-                                     pixels(diff_detail::DIFF_HEADER_H)})
-            .with_padding(Padding{
-                .top = pixels(4), .right = pixels(8),
-                .bottom = pixels(4), .left = pixels(8)})
-            .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_custom_background(theme::PANEL_BG)
-            .with_label(stats)
-            .with_alignment(TextAlignment::Left)
-            .with_roundness(0.0f)
-            .with_debug_name("diff_stats_header"));
-}
-
-// Render a single diff line (one row: old line# | new line# | content).
+// Render a single diff line as a composed label.
+// Format: "  OldLn  NewLn  content"
 inline void render_diff_line(UIContext<InputAction>& ctx,
                               Entity& parent,
                               int id,
                               const std::string& line,
                               int& oldLine,
-                              int& newLine) {
-    afterhours::Color bgColor, textColor, gutterBg;
+                              int& newLine,
+                              float contentWidth = 0) {
+    afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
 
@@ -104,171 +77,74 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     if (prefix == '+') {
         bgColor   = diff_detail::DIFF_ADD_BG;
         textColor = theme::DIFF_ADD_TEXT;
-        gutterBg  = diff_detail::GUTTER_ADD_BG;
         newNum    = std::to_string(newLine++);
     } else if (prefix == '-') {
         bgColor   = diff_detail::DIFF_DEL_BG;
         textColor = theme::DIFF_DEL_TEXT;
-        gutterBg  = diff_detail::GUTTER_DEL_BG;
         oldNum    = std::to_string(oldLine++);
     } else {
         bgColor   = theme::PANEL_BG;
         textColor = theme::TEXT_PRIMARY;
-        gutterBg  = diff_detail::GUTTER_BG;
         oldNum    = std::to_string(oldLine++);
         newNum    = std::to_string(newLine++);
     }
 
-    // Row container
-    auto lineRow = div(ctx, mk(parent, id),
+    // Right-pad line numbers for alignment
+    auto padNum = [](const std::string& n, size_t width) -> std::string {
+        if (n.empty()) return std::string(width, ' ');
+        if (n.size() >= width) return n;
+        return std::string(width - n.size(), ' ') + n;
+    };
+
+    std::string label = padNum(oldNum, 5) + " " + padNum(newNum, 5) + "  " + content;
+
+    auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
+    div(ctx, mk(parent, id),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f),
-                                     pixels(diff_detail::LINE_HEIGHT)})
+            .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
             .with_custom_background(bgColor)
-            .with_flex_direction(FlexDirection::Row)
-            .with_align_items(AlignItems::Center)
-            .with_roundness(0.0f)
-            .with_debug_name("diff_line"));
-
-    // Old line number gutter
-    div(ctx, mk(lineRow.ent(), id * 4 + 1),
-        ComponentConfig{}
-            .with_size(ComponentSize{pixels(diff_detail::GUTTER_WIDTH),
-                                     pixels(diff_detail::LINE_HEIGHT)})
-            .with_custom_background(gutterBg)
-            .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_label(oldNum)
-            .with_alignment(TextAlignment::Right)
-            .with_padding(Padding{
-                .top = pixels(0), .right = pixels(4),
-                .bottom = pixels(0), .left = pixels(0)})
-            .with_roundness(0.0f)
-            .with_debug_name("old_ln"));
-
-    // New line number gutter
-    div(ctx, mk(lineRow.ent(), id * 4 + 2),
-        ComponentConfig{}
-            .with_size(ComponentSize{pixels(diff_detail::GUTTER_WIDTH),
-                                     pixels(diff_detail::LINE_HEIGHT)})
-            .with_custom_background(gutterBg)
-            .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_label(newNum)
-            .with_alignment(TextAlignment::Right)
-            .with_padding(Padding{
-                .top = pixels(0), .right = pixels(4),
-                .bottom = pixels(0), .left = pixels(0)})
-            .with_roundness(0.0f)
-            .with_debug_name("new_ln"));
-
-    // Line content
-    div(ctx, mk(lineRow.ent(), id * 4 + 3),
-        ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f),
-                                     pixels(diff_detail::LINE_HEIGHT)})
             .with_custom_text_color(textColor)
-            .with_label(content)
+            .with_label(label)
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
-                .top = pixels(0), .right = pixels(0),
-                .bottom = pixels(0), .left = pixels(diff_detail::CODE_PAD_LEFT)})
+                .top = h720(0), .right = w1280(0),
+                .bottom = h720(0), .left = w1280(4)})
             .with_roundness(0.0f)
-            .with_debug_name("line_content"));
+            .with_debug_name("diff_line"));
 }
 
-// Render a single hunk with its header (including stage/discard buttons) and all diff lines.
+// Render a single hunk with its header and all diff lines.
 inline void render_hunk(UIContext<InputAction>& ctx,
                          Entity& parent,
                          const ecs::FileDiff& fileDiff,
                          const ecs::DiffHunk& hunk,
-                         int& nextId) {
-    // Hunk header bar: row with @@ text, spacer, [Stage Hunk], [Discard]
-    int hunkHeaderId = nextId++;
-    auto hunkHeader = div(ctx, mk(parent, hunkHeaderId),
-        ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f),
-                                     pixels(diff_detail::HUNK_HEADER_H + 4)})
-            .with_custom_background(diff_detail::HUNK_HEADER_BG)
-            .with_flex_direction(FlexDirection::Row)
-            .with_align_items(AlignItems::Center)
-            .with_roundness(0.0f)
-            .with_debug_name("hunk_header"));
+                         int& nextId,
+                         float contentWidth = 0) {
+    (void)fileDiff; // Kept for future stage/discard functionality
 
-    // Hunk range info text
-    div(ctx, mk(hunkHeader.ent(), hunkHeaderId * 6 + 1),
+    auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
+
+    // Hunk header as single label (avoids Row layout bug)
+    int hunkHeaderId = nextId++;
+    div(ctx, mk(parent, hunkHeaderId),
         ComponentConfig{}
             .with_label(hunk.header)
-            .with_size(ComponentSize{percent(1.0f),
-                                     pixels(diff_detail::HUNK_HEADER_H)})
+            .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
+            .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
-                .top = pixels(2), .right = pixels(8),
-                .bottom = pixels(2), .left = pixels(8)})
+                .top = h720(2), .right = w1280(8),
+                .bottom = h720(2), .left = w1280(8)})
             .with_roundness(0.0f)
-            .with_debug_name("hunk_range"));
-
-    // [Stage Hunk] button
-    auto stageBtn = button(ctx, mk(hunkHeader.ent(), hunkHeaderId * 6 + 2),
-        ComponentConfig{}
-            .with_label("Stage Hunk")
-            .with_size(ComponentSize{children(), pixels(20)})
-            .with_custom_background(theme::BUTTON_PRIMARY)
-            .with_custom_text_color(theme::STATUS_BAR_TEXT)
-            .with_padding(Padding{
-                .top = pixels(2), .right = pixels(8),
-                .bottom = pixels(2), .left = pixels(8)})
-            .with_margin(Margin{
-                .top = pixels(0), .right = pixels(4),
-                .bottom = pixels(0), .left = pixels(0)})
-            .with_roundness(0.04f)
-            .with_debug_name("stage_hunk_btn"));
-
-    if (stageBtn) {
-        auto rEntities = afterhours::EntityQuery({.force_merge = true})
-                             .whereHasComponent<ecs::RepoComponent>()
-                             .gen();
-        if (!rEntities.empty()) {
-            auto& repo = rEntities[0].get().get<ecs::RepoComponent>();
-            git::stage_hunk(repo.repoPath, fileDiff, hunk);
-            repo.refreshRequested = true;
-        }
-    }
-
-    // [Discard] button
-    auto discardBtn = button(ctx, mk(hunkHeader.ent(), hunkHeaderId * 6 + 3),
-        ComponentConfig{}
-            .with_label("Discard")
-            .with_size(ComponentSize{children(), pixels(20)})
-            .with_custom_background(theme::STATUS_DELETED)
-            .with_custom_text_color(theme::STATUS_BAR_TEXT)
-            .with_padding(Padding{
-                .top = pixels(2), .right = pixels(8),
-                .bottom = pixels(2), .left = pixels(8)})
-            .with_margin(Margin{
-                .top = pixels(0), .right = pixels(8),
-                .bottom = pixels(0), .left = pixels(0)})
-            .with_roundness(0.04f)
-            .with_debug_name("discard_hunk_btn"));
-
-    if (discardBtn) {
-        // TODO(T044): Show confirmation dialog before discarding.
-        // For now, discard directly.
-        auto rEntities = afterhours::EntityQuery({.force_merge = true})
-                             .whereHasComponent<ecs::RepoComponent>()
-                             .gen();
-        if (!rEntities.empty()) {
-            auto& repo = rEntities[0].get().get<ecs::RepoComponent>();
-            git::discard_hunk(repo.repoPath, fileDiff, hunk);
-            repo.refreshRequested = true;
-        }
-    }
+            .with_debug_name("hunk_header"));
 
     // Render each line in the hunk
     int oldLine = hunk.oldStart;
     int newLine = hunk.newStart;
 
     for (auto& line : hunk.lines) {
-        render_diff_line(ctx, parent, nextId++, line, oldLine, newLine);
+        render_diff_line(ctx, parent, nextId++, line, oldLine, newLine, contentWidth);
     }
 }
 
@@ -277,18 +153,49 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 inline void render_inline_diff(UIContext<InputAction>& ctx,
                                 Entity& parent,
                                 const std::vector<ecs::FileDiff>& diffs,
-                                float /*width*/, float /*height*/) {
+                                float contentWidth, float contentHeight) {
     int nextId = diff_detail::BASE_ID;
+
+    // Size the scroll container to fill available space
+    auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
+    auto h = contentHeight > 0 ? pixels(contentHeight - diff_detail::DIFF_HEADER_H)
+                                : percent(1.0f);
 
     // Scrollable container for all diff content
     auto scrollContainer = div(ctx, mk(parent, nextId++),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+            .with_size(ComponentSize{w, h})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_custom_background(theme::PANEL_BG)
             .with_roundness(0.0f)
             .with_debug_name("diff_scroll"));
+
+    // Stats summary header inside scroll
+    {
+        int totalAdditions = 0, totalDeletions = 0;
+        for (auto& d : diffs) {
+            totalAdditions += d.additions;
+            totalDeletions += d.deletions;
+        }
+        std::string stats = std::to_string(diffs.size()) + " file"
+            + (diffs.size() != 1 ? "s" : "") + " changed, +"
+            + std::to_string(totalAdditions) + " -"
+            + std::to_string(totalDeletions);
+
+        div(ctx, mk(scrollContainer.ent(), nextId++),
+            ComponentConfig{}
+                .with_size(ComponentSize{percent(1.0f), h720(diff_detail::DIFF_HEADER_H)})
+                .with_padding(Padding{
+                    .top = h720(4), .right = w1280(8),
+                    .bottom = h720(4), .left = w1280(8)})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_custom_background(theme::PANEL_BG)
+                .with_label(stats)
+                .with_alignment(TextAlignment::Left)
+                .with_roundness(0.0f)
+                .with_debug_name("diff_stats_header"));
+    }
 
     for (auto& fileDiff : diffs) {
         // File header bar
@@ -319,15 +226,14 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
 
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f),
-                                         pixels(diff_detail::FILE_HEADER_H)})
+                .with_size(ComponentSize{w, h720(diff_detail::FILE_HEADER_H)})
                 .with_custom_background(theme::BORDER)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_label(fileLabel)
                 .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
-                    .top = pixels(4), .right = pixels(8),
-                    .bottom = pixels(4), .left = pixels(8)})
+                    .top = h720(4), .right = w1280(8),
+                    .bottom = h720(4), .left = w1280(8)})
                 .with_roundness(0.0f)
                 .with_debug_name("file_header"));
 
@@ -335,29 +241,30 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
         if (fileDiff.isBinary) {
             div(ctx, mk(scrollContainer.ent(), nextId++),
                 ComponentConfig{}
-                    .with_size(ComponentSize{percent(1.0f), pixels(24)})
+                    .with_size(ComponentSize{w, h720(24)})
                     .with_custom_background(theme::PANEL_BG)
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_label("Binary file not shown")
                     .with_alignment(TextAlignment::Center)
                     .with_padding(Padding{
-                        .top = pixels(4), .right = pixels(8),
-                        .bottom = pixels(4), .left = pixels(8)})
+                        .top = h720(4), .right = w1280(8),
+                        .bottom = h720(4), .left = w1280(8)})
                     .with_roundness(0.0f)
                     .with_debug_name("binary_notice"));
             continue;
         }
 
-        // Render each hunk
+        // Render each hunk (passing contentWidth for proper sizing)
         for (auto& hunk : fileDiff.hunks) {
-            render_hunk(ctx, scrollContainer.ent(), fileDiff, hunk, nextId);
+            render_hunk(ctx, scrollContainer.ent(), fileDiff, hunk, nextId,
+                        contentWidth);
         }
 
         // Spacer between files
         if (&fileDiff != &diffs.back()) {
             div(ctx, mk(scrollContainer.ent(), nextId++),
                 ComponentConfig{}
-                    .with_size(ComponentSize{percent(1.0f), pixels(8)})
+                    .with_size(ComponentSize{w, h720(8)})
                     .with_custom_background(theme::PANEL_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_spacer"));

@@ -63,6 +63,7 @@ CXXFLAGS := $(CXXSTD) $(CXXFLAGS_BASE) $(CXXFLAGS_SUPPRESS) \
     $(MACOS_FLAGS) $(ACCESSIBILITY_CXXFLAGS) \
     -DAFTER_HOURS_UI_SINGLE_COLLECTION \
     -DAFTER_HOURS_USE_METAL \
+    -DAFTER_HOURS_ENABLE_E2E_TESTING \
     -DFMT_HEADER_ONLY
 
 # Include directories (use -isystem for vendor to suppress their warnings)

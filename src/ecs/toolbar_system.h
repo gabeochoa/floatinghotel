@@ -18,6 +18,8 @@ using afterhours::ui::imm::div;
 using afterhours::ui::imm::button;
 using afterhours::ui::imm::mk;
 using afterhours::ui::pixels;
+using afterhours::ui::h720;
+using afterhours::ui::w1280;
 using afterhours::ui::percent;
 using afterhours::ui::children;
 using afterhours::ui::FlexDirection;
@@ -44,33 +46,49 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
                                 .gen();
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
+        float toolbarX = layout.toolbar.x;
         float w = layout.toolbar.width;
         float h = layout.toolbar.height;
-        float y = layout.toolbar.y;
+        float toolbarY = layout.toolbar.y;
 
-        // Toolbar background
-        auto toolbarBg = div(ctx, mk(uiRoot, 1100),
+        // Position toolbar directly at its layout position (after sidebar when visible)
+        auto topChrome = div(ctx, mk(uiRoot, 5000),
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(w), pixels(h)})
+                .with_size(ComponentSize{pixels(w), pixels(h + 2)})
                 .with_absolute_position()
-                .with_translate(0, y)
+                .with_translate(toolbarX, toolbarY)
+                .with_flex_direction(FlexDirection::Column)
+                .with_roundness(0.0f)
+                .with_render_layer(5)
+                .with_debug_name("top_chrome"));
+
+        // Top border (separates from menu bar)
+        div(ctx, mk(topChrome.ent(), 2),
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(w), pixels(1)})
+                .with_custom_background(theme::BORDER)
+                .with_roundness(0.0f)
+                .with_debug_name("toolbar_top_border"));
+
+        // Toolbar row (flow child of topChrome, positioned after spacer)
+        auto toolbarBg = div(ctx, mk(topChrome.ent(), 3),
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(w), pixels(h - 2)})
                 .with_custom_background(theme::TOOLBAR_BG)
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = pixels(theme::layout::SMALL_PADDING),
-                    .right = pixels(theme::layout::PADDING),
-                    .bottom = pixels(theme::layout::SMALL_PADDING),
-                    .left = pixels(theme::layout::PADDING)})
+                    .top = h720(theme::layout::SMALL_PADDING),
+                    .right = w1280(theme::layout::PADDING),
+                    .bottom = h720(theme::layout::SMALL_PADDING),
+                    .left = w1280(theme::layout::PADDING)})
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar"));
 
         // Bottom border
-        div(ctx, mk(uiRoot, 1101),
+        div(ctx, mk(topChrome.ent(), 4),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(w), pixels(1)})
-                .with_absolute_position()
-                .with_translate(0, y + h - 1)
                 .with_custom_background(theme::BORDER)
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_border"));
@@ -94,22 +112,28 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
         int nextId = 1110;
         auto toolbarButton = [&](const std::string& label, bool enabled) -> bool {
             int id = nextId++;
+            auto btnBg = enabled ? afterhours::Color{62, 62, 66, 255}   // Subtle but visible
+                                 : afterhours::Color{55, 55, 58, 0};   // Transparent when disabled
+            auto textCol = enabled ? afterhours::Color{200, 200, 200, 255}
+                                   : afterhours::Color{90, 90, 90, 255};
+            // Sized per label length for clean proportions
+            float btnWidth = static_cast<float>(label.size()) * 9.0f + 24.0f;
             auto config = ComponentConfig{}
                 .with_label(label)
-                .with_size(ComponentSize{children(), pixels(theme::layout::TOOLBAR_BUTTON_HEIGHT)})
+                .with_size(ComponentSize{w1280(btnWidth), h720(28)})
                 .with_padding(Padding{
-                    .top = pixels(theme::layout::TOOLBAR_BUTTON_VPAD),
-                    .right = pixels(theme::layout::TOOLBAR_BUTTON_HPAD),
-                    .bottom = pixels(theme::layout::TOOLBAR_BUTTON_VPAD),
-                    .left = pixels(theme::layout::TOOLBAR_BUTTON_HPAD)})
+                    .top = h720(4),
+                    .right = w1280(10),
+                    .bottom = h720(4),
+                    .left = w1280(10)})
                 .with_margin(Margin{
                     .top = {},
                     .bottom = {},
                     .left = {},
-                    .right = pixels(4)})
-                .with_custom_background(afterhours::Color{0, 0, 0, 0})
-                .with_custom_text_color(enabled ? theme::TEXT_PRIMARY : theme::TOOLBAR_BTN_DISABLED)
-                .with_roundness(0.04f)
+                    .right = w1280(3)})
+                .with_custom_background(btnBg)
+                .with_custom_text_color(textCol)
+                .with_roundness(0.08f)
                 .with_alignment(TextAlignment::Center)
                 .with_debug_name("toolbar_btn");
             config.disabled = !enabled;
@@ -124,13 +148,13 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
             div(ctx, mk(toolbarBg.ent(), id),
                 ComponentConfig{}
                     .with_size(ComponentSize{
-                        pixels(theme::layout::TOOLBAR_SEP_WIDTH),
-                        pixels(theme::layout::TOOLBAR_SEP_HEIGHT)})
+                        w1280(theme::layout::TOOLBAR_SEP_WIDTH),
+                        h720(theme::layout::TOOLBAR_SEP_HEIGHT)})
                     .with_margin(Margin{
                         .top = {},
                         .bottom = {},
-                        .left = pixels(theme::layout::TOOLBAR_SEP_MARGIN),
-                        .right = pixels(theme::layout::TOOLBAR_SEP_MARGIN)})
+                        .left = w1280(theme::layout::TOOLBAR_SEP_MARGIN),
+                        .right = w1280(theme::layout::TOOLBAR_SEP_MARGIN)})
                     .with_custom_background(theme::BORDER)
                     .with_roundness(0.0f)
                     .with_debug_name("toolbar_sep"));
@@ -202,7 +226,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
         // === Spacer to push branch selector right ===
         div(ctx, mk(toolbarBg.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), pixels(1)})
+                .with_size(ComponentSize{percent(1.0f), h720(1)})
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_spacer"));
 
