@@ -133,6 +133,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
                     .right = w1280(3)})
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
+                .with_font_size(h720(theme::layout::FONT_CHROME))
                 .with_roundness(0.08f)
                 .with_alignment(TextAlignment::Center)
                 .with_debug_name("toolbar_btn");

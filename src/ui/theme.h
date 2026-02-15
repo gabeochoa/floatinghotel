@@ -84,7 +84,7 @@ inline Color TEXT_TERTIARY     = {90, 90, 90, 255};     // #5A5A5A
 
 // Layout constants
 namespace layout {
-constexpr int MENU_BAR_HEIGHT = 36;
+constexpr int MENU_BAR_HEIGHT = 24;
 constexpr int TOOLBAR_HEIGHT = 44;
 constexpr int TOOLBAR_BUTTON_HEIGHT = 36;
 constexpr int TOOLBAR_BUTTON_HPAD = 10;
@@ -92,7 +92,7 @@ constexpr int TOOLBAR_BUTTON_VPAD = 6;
 constexpr int TOOLBAR_SEP_WIDTH = 1;
 constexpr int TOOLBAR_SEP_HEIGHT = 24;
 constexpr int TOOLBAR_SEP_MARGIN = 8;
-constexpr int STATUS_BAR_HEIGHT = 32;
+constexpr int STATUS_BAR_HEIGHT = 22;
 constexpr int SIDEBAR_DEFAULT_WIDTH = 300;
 constexpr int SIDEBAR_MIN_WIDTH = 200;
 constexpr float SIDEBAR_MIN_PCT = 0.18f;  // Min 18% of window width
@@ -100,9 +100,19 @@ constexpr int FILE_ROW_HEIGHT = 28;
 constexpr int COMMIT_ROW_HEIGHT = 30;
 constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
-constexpr float FONT_SIZE_MONO = 16.0f;    // Monospace for code/diffs
-constexpr float FONT_SIZE_UI = 16.0f;      // Proportional for UI chrome
-constexpr float FONT_SIZE_SMALL = 13.0f;   // Small labels
+// Text hierarchy (values are h720 reference pixels at 720p)
+constexpr float FONT_HERO     = 18.0f;   // Commit detail subject, empty state title
+constexpr float FONT_HEADING  = 15.0f;   // Diff file headers, section titles
+constexpr float FONT_BODY     = 14.0f;   // Sidebar file names, commit detail meta
+constexpr float FONT_CHROME   = 13.0f;   // Menu bar, toolbar, menus, commit entries
+constexpr float FONT_CODE     = 13.0f;   // Diff code text, line numbers
+constexpr float FONT_META     = 12.0f;   // Diff stats, status bar, shortcut keys
+constexpr float FONT_CAPTION  = 11.0f;   // Section headers (STAGED CHANGES), badges
+
+// Legacy aliases
+constexpr float FONT_SIZE_MONO = FONT_CODE;
+constexpr float FONT_SIZE_UI = FONT_BODY;
+constexpr float FONT_SIZE_SMALL = FONT_META;
 } // namespace layout
 
 // Helper: get status badge color for a file status character

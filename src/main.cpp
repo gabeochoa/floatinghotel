@@ -183,7 +183,7 @@ static void app_init() {
         auto& styling = afterhours::ui::imm::UIStylingDefaults::get();
         styling.set_default_font(
             afterhours::ui::UIComponent::DEFAULT_FONT,
-            afterhours::ui::h720(18.0f));
+            afterhours::ui::h720(14.0f));
 
         // Use Proportional scaling: h720/w1280 scale with resolution,
         // pixels() stay fixed. Good for apps targeting a reference resolution.
@@ -192,6 +192,8 @@ static void app_init() {
         // Enable UI validation in development mode (min font size, contrast,
         // resolution independence, etc.)
         styling.enable_development_validation();
+        // Lower min font threshold for 720p (11px is legible at this res)
+        styling.validation.min_font_size = 11.0f;
     }
 
     // Create the editor entity with layout + repo components
