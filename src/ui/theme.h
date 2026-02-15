@@ -36,7 +36,7 @@ inline Color DIFF_HUNK_HEADER = {78, 154, 220, 255};
 inline Color BUTTON_PRIMARY   = {0, 122, 204, 255};    // Blue
 inline Color BUTTON_SECONDARY = {62, 62, 64, 255};     // #3E3E40
 inline Color HOVER_BG         = {50, 50, 52, 255};     // #323234
-inline Color SELECTED_BG      = {4, 57, 94, 255};
+inline Color SELECTED_BG      = {36, 90, 145, 255};   // Visible blue for clear selection
 inline Color FOCUS_RING       = {0, 122, 204, 255};
 
 // Toolbar
@@ -73,7 +73,7 @@ inline Color STATUS_BAR_BTN_HOVER = {255, 255, 255, 25};  // Subtle white hover
 inline Color SECTION_HEADER_BG = {32, 32, 33, 255};     // #202021
 
 // Selected row (solid, for file/commit rows)
-inline Color SELECTED_BG_SOLID = {4, 57, 94, 255};      // Same as SELECTED_BG but solid
+inline Color SELECTED_BG_SOLID = {36, 90, 145, 255};    // Same as SELECTED_BG but solid
 
 // Tertiary text
 inline Color TEXT_TERTIARY     = {90, 90, 90, 255};     // #5A5A5A

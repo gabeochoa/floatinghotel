@@ -108,7 +108,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(0), .right = w1280(0),
-                .bottom = h720(0), .left = w1280(4)})
+                .bottom = h720(0), .left = w1280(diff_detail::CODE_PAD_LEFT)})
             .with_roundness(0.0f)
             .with_debug_name("diff_line"));
 }

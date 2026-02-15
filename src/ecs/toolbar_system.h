@@ -226,7 +226,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
         // === Spacer to push branch selector right ===
         div(ctx, mk(toolbarBg.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(1)})
+                .with_size(ComponentSize{afterhours::ui::expand(), h720(1)})
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_spacer"));
 
