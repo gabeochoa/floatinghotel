@@ -1,0 +1,26 @@
+#TDD not ready
+# Flow: Push, pull, and fetch operations
+# User pushes local commits, fetches remote changes
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Note: test repo has no remote, so push/pull/fetch should show errors gracefully
+
+# Try Push — should show error toast (no remote configured)
+click_button Push
+wait 3
+screenshot flow_remote_01_push_no_remote
+
+# Try Pull — should show error toast
+click_button Pull
+wait 3
+screenshot flow_remote_02_pull_no_remote
+
+# Try Fetch — should show error toast
+click_button Fetch
+wait 3
+screenshot flow_remote_03_fetch_no_remote

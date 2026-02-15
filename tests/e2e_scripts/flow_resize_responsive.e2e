@@ -1,0 +1,36 @@
+# Flow: Test responsive layout at different window sizes
+# User resizes the window and UI adapts
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+
+# Wide layout
+resize 1920 1080
+wait 2
+screenshot flow_resize_01_1080p
+
+# Standard
+resize 1280 720
+wait 2
+screenshot flow_resize_02_720p
+
+# Narrow
+resize 800 600
+wait 2
+screenshot flow_resize_03_narrow
+
+# Very narrow — sidebar should collapse or shrink
+resize 640 480
+wait 2
+screenshot flow_resize_04_very_narrow
+
+# Tall and narrow
+resize 600 900
+wait 2
+screenshot flow_resize_05_tall_narrow
+
+# Back to standard
+resize 1280 720
+wait 2
+screenshot flow_resize_06_restored

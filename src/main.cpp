@@ -41,6 +41,58 @@ struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECom
     }
 };
 
+// Custom E2E command: make_test_repo
+// Runs scripts/setup_test_repo.sh, switches the app to the new repo, and refreshes.
+struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("make_test_repo")) return;
+
+        // Find the setup script relative to the executable's working directory
+        std::string script = "scripts/setup_test_repo.sh";
+        auto result = run_process("", {"bash", script});
+        if (!result.success()) {
+            cmd.fail("make_test_repo: script failed: " + result.stderr_str);
+            return;
+        }
+
+        // Script prints the repo path on stdout
+        std::string repoPath = result.stdout_str;
+        // Trim trailing whitespace/newlines
+        while (!repoPath.empty() && (repoPath.back() == '\n' || repoPath.back() == '\r' || repoPath.back() == ' '))
+            repoPath.pop_back();
+
+        if (repoPath.empty()) {
+            cmd.fail("make_test_repo: script returned empty path");
+            return;
+        }
+
+        // Switch the app to the test repo
+        auto repoEntities = afterhours::EntityQuery({.force_merge = true})
+                                .whereHasComponent<ecs::RepoComponent>()
+                                .gen();
+        if (!repoEntities.empty()) {
+            auto& repo = repoEntities[0].get().get<ecs::RepoComponent>();
+            log_info("make_test_repo: switching from '{}' to '{}'", repo.repoPath, repoPath);
+            repo.repoPath = repoPath;
+            repo.refreshRequested = true;
+            repo.selectedFilePath.clear();
+            repo.selectedCommitHash.clear();
+            // Clear cached data so stale results don't linger
+            repo.stagedFiles.clear();
+            repo.unstagedFiles.clear();
+            repo.untrackedFiles.clear();
+            repo.commitLog.clear();
+            repo.currentDiff.clear();
+            repo.commitLogLoaded = 0;
+        } else {
+            log_warn("make_test_repo: no RepoComponent entity found!");
+        }
+
+        log_info("make_test_repo: done, path={}", repoPath);
+        cmd.consume();
+    }
+};
+
 // Shared state between main() and the run() callbacks
 namespace app_state {
 
@@ -181,6 +233,7 @@ static void app_init() {
             if (app_state::e2eNoResize) {
                 sm.register_update_system(std::make_unique<SkipResizeCommand>());
             }
+            sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
                 std::make_unique<afterhours::testing::HandleScreenshotCommand>(

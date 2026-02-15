@@ -1,0 +1,23 @@
+#TDD not ready
+# Flow: Scroll sidebar when there are many files
+# Tests that the file list is scrollable with many files
+# Requires a repo with many changed files
+
+# TODO: need a variant of make_test_repo with 20+ files
+# make_large_test_repo
+wait 3
+resize 1280 720
+wait 2
+
+# The file list should be scrollable
+# Scroll down to see more files
+# scroll_down sidebar_file_list 10
+# wait 1
+# screenshot flow_sidebar_scroll_01_scrolled
+
+# Scroll back up
+# scroll_up sidebar_file_list 10
+# wait 1
+# screenshot flow_sidebar_scroll_02_back_to_top
+
+screenshot flow_sidebar_scroll_placeholder

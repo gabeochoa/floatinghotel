@@ -1,0 +1,34 @@
+#TDD not ready
+# Flow: Write a commit message and commit staged changes
+# User stages files, types a message, and commits
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Stage all files first
+click_button "Stage All"
+wait 3
+screenshot flow_commit_01_staged
+
+# Click Commit button to open the commit editor
+click_button Commit
+wait 2
+screenshot flow_commit_02_editor_open
+
+# Type a commit message
+# The commit editor should have a text input for the subject line
+type "Add build config and todo list"
+wait 1
+screenshot flow_commit_03_message_typed
+
+# Submit the commit (Enter or a confirm button)
+enter
+wait 3
+screenshot flow_commit_04_committed
+
+# The file list should now be empty (working tree clean)
+# The new commit should appear at the top of the commit log
+screenshot flow_commit_05_clean_state

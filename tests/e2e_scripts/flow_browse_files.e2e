@@ -1,0 +1,31 @@
+# Flow: Browse changed files and view diffs
+# User opens the app, sees file list, clicks files to view diffs
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Should see staged, unstaged, and untracked sections
+screenshot flow_browse_01_file_list
+
+# Click an unstaged file to view its diff
+click_button README.md
+wait 2
+screenshot flow_browse_02_readme_diff
+
+# Click a different file
+click_button main.cpp
+wait 2
+screenshot flow_browse_03_maincpp_diff
+
+# Click the staged file
+click_button .gitignore
+wait 2
+screenshot flow_browse_04_staged_diff
+
+# Click an untracked file
+click_button TODO.md
+wait 2
+screenshot flow_browse_05_untracked

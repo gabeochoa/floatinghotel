@@ -1,0 +1,15 @@
+#TDD not ready
+# Flow: Open an empty git repo (no commits, no files)
+# App should show a friendly empty state
+# TODO: need a make_empty_test_repo command or a flag
+# For now, this test documents what the empty state should look like
+
+# make_empty_test_repo
+wait 3
+resize 1280 720
+wait 2
+
+# The sidebar should show "No changes" or similar
+# The commit log should show "No commits yet"
+# The main content should show the empty state message
+screenshot flow_empty_01_initial

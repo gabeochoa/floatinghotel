@@ -1,0 +1,28 @@
+#TDD not ready
+# Flow: Open and change settings/preferences
+# User opens settings dialog, changes theme or font size
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Open Edit menu > Preferences (or File > Settings)
+# TODO: settings dialog not yet implemented
+# click_text Edit
+# wait 1
+# click_text Preferences
+# wait 2
+# screenshot flow_settings_01_dialog
+
+# Change font size
+# set_slider font_size 16
+# wait 1
+# screenshot flow_settings_02_larger_font
+
+# Close dialog
+# escape
+# wait 1
+# screenshot flow_settings_03_applied
+screenshot flow_settings_placeholder

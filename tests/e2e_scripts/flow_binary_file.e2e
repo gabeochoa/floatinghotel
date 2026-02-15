@@ -1,0 +1,15 @@
+# Flow: Select a binary file and see appropriate message
+# Binary files shouldn't show a text diff
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Click the binary file (icon.png)
+click_button icon.png
+wait 2
+screenshot flow_binary_01_selected
+
+# The diff view should show "Binary file" or similar instead of diff lines

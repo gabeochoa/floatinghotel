@@ -1,0 +1,30 @@
+#TDD not ready
+# Flow: Stash and pop changes
+# User stashes dirty changes, does something, then pops the stash
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Should have dirty files
+screenshot flow_stash_01_dirty
+
+# Stash all changes (via Git menu)
+# TODO: stash not yet implemented
+# click_text Git
+# wait 1
+# click_text "Stash"
+# wait 3
+# screenshot flow_stash_02_clean_after_stash
+
+# File list should be empty
+
+# Pop the stash
+# click_text Git
+# wait 1
+# click_text "Pop Stash"
+# wait 3
+# screenshot flow_stash_03_restored
+screenshot flow_stash_placeholder

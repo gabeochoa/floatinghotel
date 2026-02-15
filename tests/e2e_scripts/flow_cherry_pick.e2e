@@ -1,0 +1,17 @@
+#TDD not ready
+# Flow: Cherry-pick a commit from another branch
+# User views a commit on another branch and cherry-picks it
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# TODO: cherry-pick not yet implemented
+# Switch to view all branches in commit log
+# Find "feat: add basic logging utility" commit (on feature branch)
+# Right-click > Cherry-pick
+# Confirm
+# The commit should appear on main
+screenshot flow_cherrypick_placeholder

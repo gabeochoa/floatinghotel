@@ -1,0 +1,28 @@
+#TDD not ready
+# Flow: Amend the last commit
+# User makes changes, then amends instead of creating new commit
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Stage all files
+click_button "Stage All"
+wait 3
+
+# Open commit with amend option
+# TODO: amend checkbox or menu item not yet implemented
+# click_button Commit
+# wait 2
+# toggle_checkbox amend
+# wait 1
+# screenshot flow_amend_01_checkbox
+
+# The commit message should pre-populate with the last commit's message
+# screenshot flow_amend_02_prefilled
+# enter
+# wait 3
+# screenshot flow_amend_03_amended
+screenshot flow_amend_01_placeholder

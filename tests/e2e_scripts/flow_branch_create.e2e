@@ -1,0 +1,29 @@
+#TDD not ready
+# Flow: Create a new branch from current HEAD
+# User creates a branch, sees it in the branch list
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Open Git menu and create new branch
+click_text Git
+wait 1
+click_text "New Branch"
+wait 2
+screenshot flow_newbranch_01_dialog
+
+# Type branch name
+type "feature/my-new-branch"
+wait 1
+screenshot flow_newbranch_02_name_typed
+
+# Confirm creation
+enter
+wait 3
+screenshot flow_newbranch_03_created
+
+# Should now be on the new branch
+# Branch name should appear in toolbar and sidebar

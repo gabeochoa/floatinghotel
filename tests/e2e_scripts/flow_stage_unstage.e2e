@@ -1,0 +1,29 @@
+#TDD not ready
+# Flow: Stage and unstage individual files
+# User selects files and moves them between staged/unstaged
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Initial state: 1 staged, 2 unstaged, 2 untracked
+screenshot flow_stage_01_initial
+
+# Stage All — moves all unstaged to staged
+click_button "Stage All"
+wait 3
+screenshot flow_stage_02_after_stage_all
+
+# Unstage All — moves everything back to unstaged
+click_button "Unstage All"
+wait 3
+screenshot flow_stage_03_after_unstage_all
+
+# Stage a single file by right-clicking (context menu)
+# TODO: right-click context menu not implemented yet
+# right_click_text README.md
+# click_text "Stage File"
+# wait 2
+# screenshot flow_stage_04_single_staged

@@ -1,0 +1,23 @@
+#TDD not ready
+# Flow: Create a tag on the current commit
+# User tags a commit for release
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Open Git menu > Create Tag
+# TODO: tag creation not yet implemented
+# click_text Git
+# wait 1
+# click_text "Create Tag"
+# wait 2
+# type "v1.0.0"
+# enter
+# wait 3
+# screenshot flow_tag_01_created
+
+# The tag should appear in the commit log next to the tagged commit
+screenshot flow_tag_placeholder

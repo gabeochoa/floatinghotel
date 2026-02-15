@@ -1,0 +1,25 @@
+#TDD not ready
+# Flow: Revert a commit
+# User selects a commit and reverts it
+make_test_repo
+wait 3
+click_button Refresh
+wait 5
+resize 1280 720
+wait 2
+
+# Click a commit in the log
+click_text "Add contributing guidelines"
+wait 2
+screenshot flow_revert_01_selected
+
+# Right-click or use menu to revert
+# TODO: revert not yet implemented
+# right_click_text "Add contributing guidelines"
+# wait 1
+# click_text "Revert Commit"
+# wait 3
+# screenshot flow_revert_02_reverted
+
+# A new revert commit should appear in the log
+# CONTRIBUTING.md should now appear as a deleted file
