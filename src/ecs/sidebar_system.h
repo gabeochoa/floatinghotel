@@ -1226,52 +1226,28 @@ private:
         }
     }
 
-    // Render a section header: "v Changes" with count badge on right
+    // Render a section header: "▾ STAGED CHANGES  1"
     void render_section_header(UIContext<InputAction>& ctx,
                                 Entity& parent, int id,
                                 const std::string& label, size_t count) {
         auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Row container
-        auto row = div(ctx, mk(parent, id),
-            ComponentConfig{}
-                .with_size(ComponentSize{secWidth, h720(20)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(3), .left = w1280(6)})
-                .with_custom_background(theme::SIDEBAR_BG)
-                .with_roundness(0.0f)
-                .with_debug_name("section_hdr"));
-
-        // Disclosure triangle + label
-        std::string headerText = "\xe2\x80\xb8 " + label; // ‸ (small triangle approx)
-        div(ctx, mk(row.ent(), 1),
+        // Single-line label with count appended
+        std::string headerText = "\xe2\x96\xbe " + label +
+                                 "  " + std::to_string(count);
+        div(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_label(headerText)
-                .with_size(ComponentSize{afterhours::ui::expand(), h720(16)})
+                .with_size(ComponentSize{secWidth, h720(20)})
+                .with_padding(Padding{
+                    .top = h720(5), .right = w1280(8),
+                    .bottom = h720(3), .left = w1280(10)})
+                .with_custom_background(theme::SIDEBAR_BG)
                 .with_custom_text_color(afterhours::Color{140, 140, 140, 255})
                 .with_font_size(h720(theme::layout::FONT_CAPTION))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
-                .with_debug_name("section_label"));
-
-        // Count badge (pill on the right)
-        std::string countStr = std::to_string(count);
-        div(ctx, mk(row.ent(), 2),
-            ComponentConfig{}
-                .with_label(countStr)
-                .with_size(ComponentSize{children(), h720(14)})
-                .with_padding(Padding{
-                    .top = h720(1), .right = w1280(5),
-                    .bottom = h720(1), .left = w1280(5)})
-                .with_custom_background(afterhours::Color{60, 60, 65, 255})
-                .with_custom_text_color(afterhours::Color{180, 180, 180, 255})
-                .with_font_size(h720(theme::layout::FONT_CAPTION))
-                .with_roundness(0.4f)
-                .with_alignment(TextAlignment::Center)
-                .with_debug_name("section_count"));
+                .with_debug_name("section_hdr"));
     }
 
     // Render a file row: "filename  dir" on left, status letter on right
@@ -1324,7 +1300,7 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
-        // Spacer
+        // Spacer pushes status to the right
         div(ctx, mk(rowContainer.ent(), 3),
             ComponentConfig{}
                 .with_size(ComponentSize{afterhours::ui::expand(), h720(1)})
@@ -1338,7 +1314,7 @@ private:
         div(ctx, mk(rowContainer.ent(), 4),
             ComponentConfig{}
                 .with_label(statusStr)
-                .with_size(ComponentSize{children(), h720(ROW_H)})
+                .with_size(ComponentSize{w1280(16), h720(ROW_H)})
                 .with_custom_text_color(statusCol)
                 .with_font_size(h720(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Right)
@@ -1401,7 +1377,7 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
-        // Spacer
+        // Spacer pushes status to the right
         div(ctx, mk(rowContainer.ent(), 3),
             ComponentConfig{}
                 .with_size(ComponentSize{afterhours::ui::expand(), h720(1)})
@@ -1412,7 +1388,7 @@ private:
         div(ctx, mk(rowContainer.ent(), 4),
             ComponentConfig{}
                 .with_label("U")
-                .with_size(ComponentSize{children(), h720(ROW_H)})
+                .with_size(ComponentSize{w1280(16), h720(ROW_H)})
                 .with_custom_text_color(sidebar_detail::status_color('U'))
                 .with_font_size(h720(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Right)
