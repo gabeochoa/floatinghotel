@@ -359,7 +359,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                         .with_padding(Padding{
                             .top = h720(5), .right = w1280(8),
                             .bottom = h720(3), .left = w1280(10)})
-                        .with_custom_background(afterhours::Color{28, 28, 30, 255})
+                        .with_custom_background(theme::SIDEBAR_BG)
                         .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
                         .with_font_size(h720(theme::layout::FONT_BODY))
                         .with_alignment(TextAlignment::Left)
@@ -454,7 +454,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_padding(Padding{
                     .top = h720(4), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(10)})
-                .with_custom_background(afterhours::Color{30, 30, 32, 255})
+                .with_custom_background(theme::SIDEBAR_BG)
                 .with_custom_text_color(afterhours::Color{140, 140, 140, 255})
                 .with_font_size(h720(theme::layout::FONT_CAPTION))
                 .with_alignment(TextAlignment::Left)
@@ -537,7 +537,7 @@ private:
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
-                .with_custom_background(afterhours::Color{30, 30, 30, 255})
+                .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_mode_tabs"));
 
@@ -1241,7 +1241,7 @@ private:
                 .with_padding(Padding{
                     .top = h720(4), .right = w1280(8),
                     .bottom = h720(3), .left = w1280(6)})
-                .with_custom_background(afterhours::Color{30, 30, 32, 255})
+                .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("section_hdr"));
 
