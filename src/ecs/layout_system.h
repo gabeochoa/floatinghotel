@@ -66,11 +66,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float menuH = rpxH(static_cast<float>(theme::layout::MENU_BAR_HEIGHT));
         float toolbarH = rpxH(static_cast<float>(theme::layout::TOOLBAR_HEIGHT));
         float statusH = rpxH(static_cast<float>(theme::layout::STATUS_BAR_HEIGHT));
-        float contentY = menuH + toolbarH;
-        float contentH = sh - menuH - toolbarH - statusH;
 
         layout.menuBar = {0, 0, sw, menuH};
-        // Toolbar position/size computed after sidebar width is known (below)
 
         // Scale sidebar width to match w1280 coordinate system
         float scaledSidebarW = rpxW(layout.sidebarWidth);
@@ -87,41 +84,49 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float dividerW = rpxW(4.0f);
 
         if (layout.sidebarVisible) {
-            layout.sidebar = {0, contentY, scaledSidebarW, contentH};
+            // Toolbar lives inside the sidebar column (two rows of compact buttons)
+            float sidebarToolbarH = rpxH(52.0f);
+            layout.toolbar = {0, menuH, scaledSidebarW, sidebarToolbarH};
 
-            // Toolbar starts after the sidebar, spanning the content area only
-            // This avoids z-order issues where sidebar renders on top of toolbar
-            layout.toolbar = {scaledSidebarW + dividerW, menuH, sw - scaledSidebarW - dividerW, toolbarH};
+            // Sidebar content area starts below the toolbar strip
+            float sidebarContentY = menuH + sidebarToolbarH;
+            float sidebarContentH = sh - menuH - sidebarToolbarH - statusH;
+            layout.sidebar = {0, sidebarContentY, scaledSidebarW, sidebarContentH};
 
-            // Sidebar internal split: files (1-commitLogRatio) / commits (commitLogRatio)
-            float filesH = contentH * (1.0f - layout.commitLogRatio);
-            float commitsH = contentH * layout.commitLogRatio;
-            layout.sidebarFiles = {0, contentY, scaledSidebarW, filesH};
-            layout.sidebarLog = {0, contentY + filesH, scaledSidebarW, commitsH};
+            // Sidebar internal split: files / commits (account for divider)
+            float dividerH = rpxH(5.0f);
+            float usableH = sidebarContentH - dividerH;
+            float filesH = usableH * (1.0f - layout.commitLogRatio);
+            float commitsH = usableH * layout.commitLogRatio;
+            layout.sidebarFiles = {0, sidebarContentY, scaledSidebarW, filesH};
+            layout.sidebarLog = {0, sidebarContentY + filesH, scaledSidebarW, commitsH};
 
             // Commit editor area (overlaps bottom of sidebar when visible)
             float scaledEditorH = rpxH(layout.commitEditorHeight);
             if (scaledEditorH > 0.0f) {
                 layout.sidebarCommitEditor = {
-                    0, contentY + contentH - scaledEditorH,
+                    0, sidebarContentY + sidebarContentH - scaledEditorH,
                     scaledSidebarW, scaledEditorH};
             } else {
                 layout.sidebarCommitEditor = {0, 0, 0, 0};
             }
 
+            // Main content gets full height (no toolbar gap)
             float mainX = scaledSidebarW + dividerW;
             float mainW = sw - scaledSidebarW - dividerW;
+            float mainContentY = menuH;
+            float mainContentH = sh - menuH - statusH;
 
             // Command log panel takes space from the bottom of main content
             if (layout.commandLogVisible) {
                 float scaledLogH = rpxH(layout.commandLogHeight);
-                float logH = std::clamp(scaledLogH, rpxH(80.0f), contentH * 0.6f);
-                layout.commandLogHeight = logH * 720.0f / sh; // store back in 720p coords
-                float mainH = contentH - logH;
-                layout.mainContent = {mainX, contentY, mainW, mainH};
-                layout.commandLog = {mainX, contentY + mainH, mainW, logH};
+                float logH = std::clamp(scaledLogH, rpxH(80.0f), mainContentH * 0.6f);
+                layout.commandLogHeight = logH * 720.0f / sh;
+                float mainH = mainContentH - logH;
+                layout.mainContent = {mainX, mainContentY, mainW, mainH};
+                layout.commandLog = {mainX, mainContentY + mainH, mainW, logH};
             } else {
-                layout.mainContent = {mainX, contentY, mainW, contentH};
+                layout.mainContent = {mainX, mainContentY, mainW, mainContentH};
                 layout.commandLog = {0, 0, 0, 0};
             }
         } else {
@@ -130,7 +135,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.sidebarLog = {0, 0, 0, 0};
             layout.sidebarCommitEditor = {0, 0, 0, 0};
 
-            // No sidebar - toolbar spans full width
+            // No sidebar - toolbar spans full width below menu
+            float contentY = menuH + toolbarH;
+            float contentH = sh - menuH - toolbarH - statusH;
             layout.toolbar = {0, menuH, sw, toolbarH};
 
             float mainX = 0;
@@ -139,7 +146,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             if (layout.commandLogVisible) {
                 float scaledLogH = rpxH(layout.commandLogHeight);
                 float logH = std::clamp(scaledLogH, rpxH(80.0f), contentH * 0.6f);
-                layout.commandLogHeight = logH * 720.0f / sh; // store back in 720p coords
+                layout.commandLogHeight = logH * 720.0f / sh;
                 float mainH = contentH - logH;
                 layout.mainContent = {mainX, contentY, mainW, mainH};
                 layout.commandLog = {mainX, contentY + mainH, mainW, logH};

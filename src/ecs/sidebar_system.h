@@ -323,6 +323,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_translate(layout.sidebar.x, layout.sidebar.y)
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_flex_direction(FlexDirection::Column)
+                .with_overflow(Overflow::Hidden, Axis::Y)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_bg"));
 
@@ -450,13 +451,13 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         div(ctx, mk(logBg.ent(), 2310),
             ComponentConfig{}
                 .with_label("COMMIT LOG")
-                .with_size(ComponentSize{logW, h720(18)})
+                .with_size(ComponentSize{logW, h720(24)})
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(10)})
+                    .top = h720(6), .right = w1280(8),
+                    .bottom = h720(4), .left = w1280(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
-                .with_custom_text_color(afterhours::Color{140, 140, 140, 255})
-                .with_font_size(h720(theme::layout::FONT_CAPTION))
+                .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
+                .with_font_size(h720(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("log_header"));
@@ -1238,13 +1239,13 @@ private:
         div(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_label(headerText)
-                .with_size(ComponentSize{secWidth, h720(20)})
+                .with_size(ComponentSize{secWidth, h720(24)})
                 .with_padding(Padding{
-                    .top = h720(5), .right = w1280(8),
-                    .bottom = h720(3), .left = w1280(10)})
+                    .top = h720(6), .right = w1280(8),
+                    .bottom = h720(4), .left = w1280(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
-                .with_custom_text_color(afterhours::Color{140, 140, 140, 255})
-                .with_font_size(h720(theme::layout::FONT_CAPTION))
+                .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
+                .with_font_size(h720(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("section_hdr"));
@@ -1295,7 +1296,7 @@ private:
                 .with_size(ComponentSize{children(), h720(ROW_H)})
                 .with_custom_background(afterhours::Color{0, 0, 0, 0})
                 .with_custom_text_color(textCol)
-                .with_font_size(h720(theme::layout::FONT_BODY))
+                .with_font_size(h720(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
@@ -1316,7 +1317,7 @@ private:
                 .with_label(statusStr)
                 .with_size(ComponentSize{w1280(16), h720(ROW_H)})
                 .with_custom_text_color(statusCol)
-                .with_font_size(h720(theme::layout::FONT_BODY))
+                .with_font_size(h720(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Right)
                 .with_roundness(0.0f)
                 .with_debug_name("file_status"));
@@ -1372,7 +1373,7 @@ private:
                 .with_size(ComponentSize{children(), h720(ROW_H)})
                 .with_custom_background(afterhours::Color{0, 0, 0, 0})
                 .with_custom_text_color(textCol)
-                .with_font_size(h720(theme::layout::FONT_BODY))
+                .with_font_size(h720(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
@@ -1390,7 +1391,7 @@ private:
                 .with_label("U")
                 .with_size(ComponentSize{w1280(16), h720(ROW_H)})
                 .with_custom_text_color(sidebar_detail::status_color('U'))
-                .with_font_size(h720(theme::layout::FONT_BODY))
+                .with_font_size(h720(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Right)
                 .with_roundness(0.0f)
                 .with_debug_name("file_status"));
