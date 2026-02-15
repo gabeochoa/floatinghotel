@@ -2,16 +2,19 @@
 # Flow: Cherry-pick a commit from another branch
 # User views a commit on another branch and cherry-picks it
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
+
+# Show current commit log (main branch only)
+screenshot flow_cherrypick_01_commit_log
+
+# Open Git menu to check for cherry-pick option
+click_text Git
+wait_frames 5
+screenshot flow_cherrypick_02_git_menu
+
+# Close menu
+click 640 400
+wait_frames 5
 
 # TODO: cherry-pick not yet implemented
-# Switch to view all branches in commit log
-# Find "feat: add basic logging utility" commit (on feature branch)
-# Right-click > Cherry-pick
-# Confirm
-# The commit should appear on main
-screenshot flow_cherrypick_placeholder

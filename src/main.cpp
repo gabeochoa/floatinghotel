@@ -23,6 +23,7 @@
 #include "ecs/toolbar_system.h"
 #include "ecs/validation_summary_system.h"
 #include "git/git_runner.h"
+#include "git/git_parser.h"
 
 // E2E testing support
 #include <afterhours/src/plugins/e2e_testing/e2e_testing.h>
@@ -42,7 +43,8 @@ struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECom
 };
 
 // Custom E2E command: make_test_repo
-// Runs scripts/setup_test_repo.sh, switches the app to the new repo, and refreshes.
+// Runs scripts/setup_test_repo.sh, switches the app to the new repo,
+// and does a SYNCHRONOUS git refresh so data is ready immediately.
 struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("make_test_repo")) return;
@@ -66,7 +68,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             return;
         }
 
-        // Switch the app to the test repo
+        // Switch the app to the test repo and load data synchronously
         auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                                 .whereHasComponent<ecs::RepoComponent>()
                                 .gen();
@@ -74,16 +76,57 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             auto& repo = repoEntities[0].get().get<ecs::RepoComponent>();
             log_info("make_test_repo: switching from '{}' to '{}'", repo.repoPath, repoPath);
             repo.repoPath = repoPath;
-            repo.refreshRequested = true;
             repo.selectedFilePath.clear();
             repo.selectedCommitHash.clear();
-            // Clear cached data so stale results don't linger
-            repo.stagedFiles.clear();
-            repo.unstagedFiles.clear();
-            repo.untrackedFiles.clear();
-            repo.commitLog.clear();
-            repo.currentDiff.clear();
-            repo.commitLogLoaded = 0;
+
+            // Synchronous refresh — data is ready this frame, no waits needed
+            repo.refreshRequested = true;
+            repo.isRefreshing = true;
+
+            auto statusResult = git::git_status(repoPath);
+            if (statusResult.success()) {
+                auto parsed = git::parse_status(statusResult.stdout_str());
+                repo.currentBranch = parsed.branchName;
+                repo.isDetachedHead = parsed.isDetachedHead;
+                repo.aheadCount = parsed.aheadCount;
+                repo.behindCount = parsed.behindCount;
+                repo.stagedFiles = std::move(parsed.stagedFiles);
+                repo.unstagedFiles = std::move(parsed.unstagedFiles);
+                repo.untrackedFiles = std::move(parsed.untrackedFiles);
+                repo.isDirty = !repo.stagedFiles.empty() ||
+                               !repo.unstagedFiles.empty() ||
+                               !repo.untrackedFiles.empty();
+            }
+
+            auto logResult = git::git_log(repoPath, 100, 0);
+            if (logResult.success()) {
+                repo.commitLog = git::parse_log(logResult.stdout_str());
+                repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
+                repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
+            }
+
+            auto diffResult = git::git_diff(repoPath);
+            if (diffResult.success()) {
+                repo.currentDiff = git::parse_diff(diffResult.stdout_str());
+            }
+
+            auto branchResult = git::git_branch_list(repoPath);
+            if (branchResult.success()) {
+                repo.branches = git::parse_branch_list(branchResult.stdout_str());
+            }
+
+            auto headResult = git::git_rev_parse_head(repoPath);
+            if (headResult.success()) {
+                repo.headCommitHash = headResult.stdout_str();
+                while (!repo.headCommitHash.empty() &&
+                       (repo.headCommitHash.back() == '\n' ||
+                        repo.headCommitHash.back() == '\r')) {
+                    repo.headCommitHash.pop_back();
+                }
+            }
+
+            repo.isRefreshing = false;
+            repo.refreshRequested = false;
         } else {
             log_warn("make_test_repo: no RepoComponent entity found!");
         }
@@ -120,10 +163,14 @@ std::string validationReportPath;
 // Init callback: runs after Sokol/Metal window is created
 static void app_init() {
     using namespace afterhours;
+    auto t0 = std::chrono::high_resolution_clock::now();
 
     {
         Preload::get().init("floatinghotel").make_singleton();
     }
+    auto t1 = std::chrono::high_resolution_clock::now();
+    log_info("  Preload+fonts: {} ms",
+        std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count());
 
     {
         Settings::get().load_save_file();
@@ -275,13 +322,17 @@ static void app_init() {
         }
     }
 
+    auto t2 = std::chrono::high_resolution_clock::now();
+    log_info("  Systems registration: {} ms",
+        std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
+
     // Measure startup time
     auto readyTime = std::chrono::high_resolution_clock::now();
     auto startupMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(
             readyTime - app_state::startTime)
             .count();
-    log_info("Startup time: {} ms", startupMs);
+    log_info("Startup time: {} ms (from graphics::run to app_init done)", startupMs);
 }
 
 // Frame callback: runs every frame
@@ -314,6 +365,7 @@ static void app_cleanup() {
 }
 
 int main(int argc, char* argv[]) {
+    auto mainStart = std::chrono::high_resolution_clock::now();
     argh::parser cmdl(argc, argv);
 
     // Parse repo path from first positional argument
@@ -391,6 +443,12 @@ int main(int argc, char* argv[]) {
     // Update last active repo in settings
     if (!app_state::repoPath.empty()) {
         Settings::get().set_last_active_repo(app_state::repoPath);
+    }
+
+    {
+        auto preGfxMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::high_resolution_clock::now() - mainStart).count();
+        log_info("Pre-graphics init: {} ms", preGfxMs);
     }
 
     app_state::startTime = std::chrono::high_resolution_clock::now();

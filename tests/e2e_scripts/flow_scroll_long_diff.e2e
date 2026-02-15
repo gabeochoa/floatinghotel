@@ -2,19 +2,17 @@
 # Flow: Scroll through a long diff
 # User selects a file with many changes and scrolls through the diff
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Select a modified file
 click_button README.md
-wait 2
-screenshot flow_scroll_01_top
+wait_frames 5
+screenshot flow_scroll_01_readme_diff
 
-# Scroll down in the diff view
+# Select another file to compare
+click_button main.cpp
+wait_frames 5
+screenshot flow_scroll_02_maincpp_diff
+
 # TODO: scroll command for specific UI region not yet available
-# scroll_down diff_scroll 5
-# wait 1
-# screenshot flow_scroll_02_scrolled

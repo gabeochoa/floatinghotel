@@ -2,24 +2,18 @@
 # Flow: Use keyboard shortcuts
 # User presses keyboard shortcuts for common actions
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
-# Cmd+R to refresh (or F5)
-# TODO: modifier key combos not wired yet
-# key cmd+r
-# wait 3
-# screenshot flow_kb_01_refresh
-
-# Cmd+S to stage current file
-# key cmd+s
-# wait 2
-# screenshot flow_kb_02_staged
+# Select a file first
+click_button README.md
+wait_frames 5
+screenshot flow_kb_01_file_selected
 
 # Escape to deselect
 escape
-wait 1
-screenshot flow_kb_01_escape
+wait_frames 5
+screenshot flow_kb_02_after_escape
+
+# TODO: modifier key combos (Cmd+R, Cmd+S) not wired yet
+screenshot flow_kb_03_current_state

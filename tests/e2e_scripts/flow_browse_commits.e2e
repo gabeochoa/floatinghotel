@@ -1,31 +1,28 @@
 # Flow: Browse commit history and view commit details
 # User clicks commits in the log to see what changed
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Should see 3 commits in the log
 screenshot flow_commits_01_log
 
 # Click the most recent commit to view its detail
 click_text "Add contributing guidelines"
-wait 2
+wait_frames 5
 screenshot flow_commits_02_detail
 
 # Click a different commit
 click_text "Add unit tests"
-wait 2
+wait_frames 5
 screenshot flow_commits_03_tests_commit
 
 # Click the initial commit
 click_text "Initial commit"
-wait 2
+wait_frames 5
 screenshot flow_commits_04_initial
 
 # Go back to file view by clicking a file
 click_button README.md
-wait 2
+wait_frames 5
 screenshot flow_commits_05_back_to_files

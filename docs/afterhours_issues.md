@@ -31,6 +31,33 @@ if (it != mapping.end()) {
 
 ---
 
+### `simulate_click` doesn't auto-release mouse button
+
+**Severity:** High (breaks all E2E multi-click tests)  
+**Status:** Patched locally, needs upstream fix
+
+`test_input::simulate_click()` sets `left_down = true` and `press_frames = 1`, but never releases `left_down`. The UI system computes `just_pressed = !prev_down && down`, so only the **first** `simulate_click` in a session produces `just_pressed = true`. All subsequent clicks see `prev_down = true` (still held) and never detect a new press transition.
+
+**Symptoms:** After the first `click_button`/`click_text` in an E2E test, all subsequent click commands find the correct element but produce no effect — menus don't open, file selection doesn't change, buttons don't trigger.
+
+**Fix applied locally** in `vendor/afterhours/src/plugins/e2e_testing/input_injector.h` and `test_input.h`:
+
+1. Added `bool auto_release = false` field to `MouseState`
+2. `simulate_mouse_press()` sets `auto_release = true`
+3. `reset_frame()` auto-releases (`left_down = false`, `just_released = true`) when `auto_release` is true and `press_frames` has expired
+4. Explicit `mouse_down` commands (which set `press_frames = 0`) are unaffected since they don't set `auto_release`
+
+```cpp
+// In reset_frame(), after the press_frames countdown:
+} else if (m.auto_release && m.left_down) {
+    m.left_down = false;
+    m.just_released = true;
+    m.auto_release = false;
+}
+```
+
+---
+
 ## Resolved Issues
 
 ### Fixed in afterhours commit `c10c0aa`

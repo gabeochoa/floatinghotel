@@ -1,14 +1,25 @@
 #!/bin/bash
 # Creates a reproducible test git repo at /tmp/floatinghotel_test_repo.
-# Idempotent — always blows away and recreates from scratch.
+# Uses a cached template for speed — only builds from scratch on first run.
 set -euo pipefail
 
 REPO="/tmp/floatinghotel_test_repo"
+TEMPLATE="/tmp/floatinghotel_test_template"
 
-# Nuke and recreate
-rm -rf "$REPO"
-mkdir -p "$REPO"
-cd "$REPO"
+# Fast path: copy from cached template
+if [ -d "$TEMPLATE/.git" ]; then
+    rm -rf "$REPO"
+    cp -R "$TEMPLATE" "$REPO"
+    # Re-apply the dirty working tree state (cp preserves it, but
+    # git index needs to be valid — just verify)
+    echo "$REPO"
+    exit 0
+fi
+
+# Slow path: build template from scratch (only runs once)
+rm -rf "$TEMPLATE"
+mkdir -p "$TEMPLATE"
+cd "$TEMPLATE"
 
 git init -b main >/dev/null 2>&1
 git config user.email "test@floatinghotel.dev"
@@ -124,5 +135,9 @@ TODOEOF
 
 # Create a binary-ish file (untracked)
 printf '\x89PNG\r\n' > icon.png
+
+# Now copy template to actual repo
+rm -rf "$REPO"
+cp -R "$TEMPLATE" "$REPO"
 
 echo "$REPO"

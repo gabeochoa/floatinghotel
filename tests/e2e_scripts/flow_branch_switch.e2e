@@ -2,23 +2,20 @@
 # Flow: Switch between branches
 # User clicks the branch indicator to see branches, switches to another one
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Should be on main branch
 screenshot flow_branch_01_on_main
 
 # Click the branch name in the toolbar to open branch picker
 click_button main
-wait 2
+wait_frames 5
 screenshot flow_branch_02_picker_open
 
 # Switch to the feature branch
 click_text "feature/add-logging"
-wait 3
+wait_frames 5
 screenshot flow_branch_03_on_feature
 
 # The file list should update to show the feature branch state

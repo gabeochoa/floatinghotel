@@ -1,10 +1,6 @@
 # Smoke test: make_test_repo creates a clean test repo and app switches to it
 # Verifies: staged files, unstaged files, untracked files, commit log populated
-wait 3
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 screenshot test_repo_smoke

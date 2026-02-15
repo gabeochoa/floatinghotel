@@ -2,22 +2,19 @@
 # Flow: Toggle command log panel
 # User clicks the command log toggle in the status bar
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Command log should be hidden by default
 screenshot flow_cmdlog_01_hidden
 
 # Click the toggle button in the status bar
 click_button ">"
-wait 2
+wait_frames 5
 screenshot flow_cmdlog_02_visible
 
 # The command log should show recent git commands
 # Click toggle again to hide
 click_button ">"
-wait 2
+wait_frames 5
 screenshot flow_cmdlog_03_hidden_again

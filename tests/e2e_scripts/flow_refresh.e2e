@@ -1,18 +1,15 @@
 # Flow: Refresh repository data
 # User clicks Refresh to reload file status and commit log
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Take initial snapshot
 screenshot flow_refresh_01_initial
 
 # Click Refresh button
 click_button Refresh
-wait 5
+wait_frames 5
 screenshot flow_refresh_02_after_refresh
 
 # Data should remain the same (no external changes)

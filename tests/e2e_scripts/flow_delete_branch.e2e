@@ -1,28 +1,20 @@
 #TDD not ready
 # Flow: Delete a branch
-# User deletes a feature branch they no longer needs
+# User deletes a feature branch they no longer need
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
-# Open Git menu > Delete Branch
+# Show current state with branches
+screenshot flow_delbranch_01_initial
+
+# Open Git menu to check for delete branch option
+click_text Git
+wait_frames 5
+screenshot flow_delbranch_02_git_menu
+
+# Close menu
+click 640 400
+wait_frames 5
+
 # TODO: branch deletion not yet implemented in menu
-# click_text Git
-# wait 1
-# click_text "Delete Branch"
-# wait 2
-# screenshot flow_delbranch_01_picker
-
-# Select feature/add-logging to delete
-# click_text "feature/add-logging"
-# wait 1
-# screenshot flow_delbranch_02_confirm
-
-# Confirm deletion
-# click_button "Delete"
-# wait 3
-# screenshot flow_delbranch_03_deleted
-screenshot flow_delbranch_placeholder

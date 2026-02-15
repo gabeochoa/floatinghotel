@@ -2,27 +2,20 @@
 # Flow: Open and change settings/preferences
 # User opens settings dialog, changes theme or font size
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
-# Open Edit menu > Preferences (or File > Settings)
-# TODO: settings dialog not yet implemented
-# click_text Edit
-# wait 1
-# click_text Preferences
-# wait 2
-# screenshot flow_settings_01_dialog
+# Show current state
+screenshot flow_settings_01_current
 
-# Change font size
-# set_slider font_size 16
-# wait 1
-# screenshot flow_settings_02_larger_font
+# Open Edit menu to see what's available
+click_text Edit
+wait_frames 5
+screenshot flow_settings_02_edit_menu
 
-# Close dialog
-# escape
-# wait 1
-# screenshot flow_settings_03_applied
-screenshot flow_settings_placeholder
+# Close menu
+click 640 400
+wait_frames 5
+
+# TODO: settings/preferences dialog not yet implemented
+screenshot flow_settings_03_placeholder

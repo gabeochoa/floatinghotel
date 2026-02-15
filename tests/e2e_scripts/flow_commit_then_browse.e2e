@@ -2,35 +2,32 @@
 # Flow: Full cycle — stage, commit, then verify the new commit in the log
 # User goes through the full stage > commit > verify flow
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Record initial state
 screenshot flow_fullcycle_01_initial
 
 # Stage all
 click_button "Stage All"
-wait 3
+wait_frames 5
 screenshot flow_fullcycle_02_staged
 
 # Commit
 click_button Commit
-wait 2
+wait_frames 5
 type "chore: clean up project files"
-wait 1
+wait_frames 5
 enter
-wait 3
+wait_frames 5
 screenshot flow_fullcycle_03_committed
 
 # Refresh to see updated commit log
 click_button Refresh
-wait 5
+wait_frames 5
 screenshot flow_fullcycle_04_new_commit_in_log
 
 # Click the new commit to view its diff
 click_text "chore: clean up project files"
-wait 2
+wait_frames 5
 screenshot flow_fullcycle_05_commit_detail

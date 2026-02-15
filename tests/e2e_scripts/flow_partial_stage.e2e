@@ -2,22 +2,18 @@
 # Flow: Stage individual hunks or lines from a diff
 # User views a diff and stages only specific hunks
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Select a file with changes
 click_button README.md
-wait 2
+wait_frames 5
 screenshot flow_partial_01_diff_view
 
-# Click "Stage Hunk" button on a specific hunk
-# TODO: hunk-level staging not yet implemented
-# click_button "Stage Hunk"
-# wait 2
-# screenshot flow_partial_02_hunk_staged
+# Select another file to compare diff views
+click_button main.cpp
+wait_frames 5
+screenshot flow_partial_02_maincpp_diff
 
-# The file should now appear in both staged and unstaged sections
-# (partially staged)
+# TODO: hunk-level staging not yet implemented
+# Each hunk should have a "Stage Hunk" button

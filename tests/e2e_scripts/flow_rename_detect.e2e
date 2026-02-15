@@ -1,9 +1,13 @@
 #TDD not ready
 # Flow: Detect and display renamed files
 # Git should detect file renames and show them properly
-# Requires a test repo where a file is renamed
+make_test_repo
+resize 1280 720
+wait_frames 5
 
-# TODO: need make_test_repo variant or modify test repo to rename a file
+# Show current file list (no renames in test repo currently)
+screenshot flow_rename_01_current_files
+
+# TODO: need make_test_repo variant that renames a file
 # The sidebar should show R -> for renamed files
-# The diff should show the rename with any content changes
-screenshot flow_rename_placeholder
+screenshot flow_rename_02_placeholder

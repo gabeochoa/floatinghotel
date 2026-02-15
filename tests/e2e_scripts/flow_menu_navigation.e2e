@@ -1,49 +1,46 @@
 # Flow: Navigate through menu bar
 # User opens menus, sees items, closes menus
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Open File menu
 click_text File
-wait 1
+wait_frames 5
 screenshot flow_menu_01_file_open
 
 # Close by clicking elsewhere
 click 640 400
-wait 1
+wait_frames 5
 
 # Open Edit menu
 click_text Edit
-wait 1
+wait_frames 5
 screenshot flow_menu_02_edit_open
 
 # Close
 click 640 400
-wait 1
+wait_frames 5
 
 # Open View menu
 click_text View
-wait 1
+wait_frames 5
 screenshot flow_menu_03_view_open
 
 # Close
 click 640 400
-wait 1
+wait_frames 5
 
 # Open Git menu
 click_text Git
-wait 1
+wait_frames 5
 screenshot flow_menu_04_git_open
 
 # Close
 click 640 400
-wait 1
+wait_frames 5
 
 # Open Help menu
 click_text Help
-wait 1
+wait_frames 5
 screenshot flow_menu_05_help_open

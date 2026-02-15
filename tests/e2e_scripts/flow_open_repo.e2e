@@ -2,26 +2,20 @@
 # Flow: Open a different repository
 # User opens File > Open Repository and switches to another repo
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Current repo loaded
 screenshot flow_openrepo_01_current
 
-# Open File menu > Open Repository
-# TODO: open repo dialog not yet implemented
-# click_text File
-# wait 1
-# click_text "Open Repository"
-# wait 2
-# screenshot flow_openrepo_02_dialog
+# Open File menu to look for "Open Repository"
+click_text File
+wait_frames 5
+screenshot flow_openrepo_02_file_menu
 
-# Select a different repo path
-# type "/tmp/floatinghotel_test_repo"
-# enter
-# wait 5
-# screenshot flow_openrepo_03_switched
-screenshot flow_openrepo_placeholder
+# Close menu
+click 640 400
+wait_frames 5
+
+# TODO: open repo dialog not yet implemented
+screenshot flow_openrepo_03_placeholder

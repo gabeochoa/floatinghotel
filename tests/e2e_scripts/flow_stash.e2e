@@ -2,29 +2,20 @@
 # Flow: Stash and pop changes
 # User stashes dirty changes, does something, then pops the stash
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Should have dirty files
 screenshot flow_stash_01_dirty
 
-# Stash all changes (via Git menu)
-# TODO: stash not yet implemented
-# click_text Git
-# wait 1
-# click_text "Stash"
-# wait 3
-# screenshot flow_stash_02_clean_after_stash
+# Open Git menu to see if Stash is available
+click_text Git
+wait_frames 5
+screenshot flow_stash_02_git_menu
 
-# File list should be empty
+# Close menu
+click 640 400
+wait_frames 5
 
-# Pop the stash
-# click_text Git
-# wait 1
-# click_text "Pop Stash"
-# wait 3
-# screenshot flow_stash_03_restored
-screenshot flow_stash_placeholder
+# TODO: stash not yet implemented in Git menu
+screenshot flow_stash_03_current_state

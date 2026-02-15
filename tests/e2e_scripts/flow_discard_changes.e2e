@@ -2,22 +2,18 @@
 # Flow: Discard changes to a file
 # User right-clicks a modified file and discards changes
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Should have 2 unstaged files (README.md, main.cpp)
 screenshot flow_discard_01_initial
 
-# Right-click a file to get context menu
+# Select a file to view its diff before discarding
+click_button README.md
+wait_frames 5
+screenshot flow_discard_02_file_selected
+
 # TODO: context menu with discard not yet implemented
 # right_click_text README.md
-# wait 1
-# screenshot flow_discard_02_context_menu
 # click_text "Discard Changes"
-# wait 2
-# screenshot flow_discard_03_discarded
-
-# README.md should no longer appear in the changes list
+screenshot flow_discard_03_current_state

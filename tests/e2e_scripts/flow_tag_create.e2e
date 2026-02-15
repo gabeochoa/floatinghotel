@@ -2,22 +2,19 @@
 # Flow: Create a tag on the current commit
 # User tags a commit for release
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
-# Open Git menu > Create Tag
+# Show current commit log
+screenshot flow_tag_01_commit_log
+
+# Open Git menu to check for tag option
+click_text Git
+wait_frames 5
+screenshot flow_tag_02_git_menu
+
+# Close menu
+click 640 400
+wait_frames 5
+
 # TODO: tag creation not yet implemented
-# click_text Git
-# wait 1
-# click_text "Create Tag"
-# wait 2
-# type "v1.0.0"
-# enter
-# wait 3
-# screenshot flow_tag_01_created
-
-# The tag should appear in the commit log next to the tagged commit
-screenshot flow_tag_placeholder

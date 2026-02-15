@@ -1,17 +1,21 @@
 #TDD not ready
 # Flow: Handle merge conflicts
 # User tries to merge/pull and gets conflicts, resolves them
-# Requires a test repo with diverged branches
-
-# TODO: setup_test_repo.sh would need a variant that creates conflicts
-# make_conflict_test_repo
-wait 3
+make_test_repo
 resize 1280 720
-wait 2
+wait_frames 5
 
-# After merge attempt:
-# Sidebar should show conflicted files with a special indicator (C or !)
-# Selecting a conflicted file should show conflict markers in the diff
-# User resolves, stages, and commits
+# Show current state (no conflicts, just documenting baseline)
+screenshot flow_conflict_01_baseline
 
-screenshot flow_conflict_placeholder
+# Open Git menu to see merge options
+click_text Git
+wait_frames 5
+screenshot flow_conflict_02_git_menu
+
+# Close menu
+click 640 400
+wait_frames 5
+
+# TODO: need a test repo variant with diverged branches + conflicts
+screenshot flow_conflict_03_placeholder

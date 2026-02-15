@@ -2,27 +2,16 @@
 # Flow: Search/filter files in the sidebar
 # User types in a filter to narrow the file list
 make_test_repo
-wait 3
-click_button Refresh
-wait 5
 resize 1280 720
-wait 2
+wait_frames 5
 
 # Should see all files
 screenshot flow_search_01_all_files
 
-# Focus the search/filter input (Cmd+F or click)
-# TODO: file filter/search not yet implemented
-# click_text "Filter files..."
-# wait 1
-# type "main"
-# wait 1
-# screenshot flow_search_02_filtered
+# Select a file to show we have content
+click_button main.cpp
+wait_frames 5
+screenshot flow_search_02_file_selected
 
-# Should only show main.cpp
-# Clear the filter
-# select_all
-# key backspace
-# wait 1
-# screenshot flow_search_03_cleared
-screenshot flow_search_placeholder
+# TODO: file filter/search not yet implemented
+screenshot flow_search_03_current_state
