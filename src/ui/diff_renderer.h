@@ -179,18 +179,18 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
             totalDeletions += d.deletions;
         }
         std::string stats = std::to_string(diffs.size()) + " file"
-            + (diffs.size() != 1 ? "s" : "") + " changed, +"
-            + std::to_string(totalAdditions) + " -"
+            + (diffs.size() != 1 ? "s" : "") + " changed  +"
+            + std::to_string(totalAdditions) + "  -"
             + std::to_string(totalDeletions);
 
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), h720(diff_detail::DIFF_HEADER_H)})
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(4), .left = w1280(8)})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_custom_background(theme::PANEL_BG)
+                    .top = h720(6), .right = w1280(12),
+                    .bottom = h720(4), .left = w1280(12)})
+                .with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_custom_background(afterhours::Color{35, 35, 38, 255})
                 .with_label(stats)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)

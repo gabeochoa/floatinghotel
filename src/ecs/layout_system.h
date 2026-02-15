@@ -1041,6 +1041,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_flex_direction(FlexDirection::Column)
                     .with_justify_content(JustifyContent::Center)
                     .with_align_items(AlignItems::Center)
+                    .with_transparent_bg()
                     .with_roundness(0.0f)
                     .with_debug_name("empty_state"));
 
@@ -1053,6 +1054,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(0),
                         .bottom = h720(16), .left = w1280(0)})
+                    .with_transparent_bg()
                     .with_custom_text_color(afterhours::Color{60, 60, 60, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -1065,8 +1067,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_size(ComponentSize{children(), children()})
                     .with_font_size(h720(18))
                     .with_padding(Padding{
-                        .top = h720(0), .right = w1280(0),
-                        .bottom = h720(6), .left = w1280(0)})
+                        .top = h720(0), .right = w1280(8),
+                        .bottom = h720(6), .left = w1280(8)})
+                    .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -1079,8 +1082,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_size(ComponentSize{children(), children()})
                     .with_font_size(h720(14))
                     .with_padding(Padding{
-                        .top = h720(0), .right = w1280(0),
-                        .bottom = h720(0), .left = w1280(0)})
+                        .top = h720(0), .right = w1280(8),
+                        .bottom = h720(0), .left = w1280(8)})
+                    .with_transparent_bg()
                     .with_custom_text_color(afterhours::Color{80, 80, 80, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)

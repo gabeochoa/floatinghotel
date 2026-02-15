@@ -115,7 +115,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
             auto btnBg = enabled ? afterhours::Color{62, 62, 66, 255}   // Subtle but visible
                                  : afterhours::Color{55, 55, 58, 0};   // Transparent when disabled
             auto textCol = enabled ? afterhours::Color{200, 200, 200, 255}
-                                   : afterhours::Color{90, 90, 90, 255};
+                                   : afterhours::Color{120, 120, 120, 255}; // Dim but readable
             // Sized per label length for clean proportions
             float btnWidth = static_cast<float>(label.size()) * 9.0f + 24.0f;
             auto config = ComponentConfig{}
