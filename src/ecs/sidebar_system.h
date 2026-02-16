@@ -98,17 +98,9 @@ inline std::string format_stats(int additions, int deletions) {
     return s;
 }
 
-// Color for a status character
+// Color for a status character — uses theme colors for consistency
 inline afterhours::Color status_color(char status) {
-    switch (status) {
-        case 'M': return afterhours::Color{78, 154, 230, 255};  // Blue
-        case 'A': return afterhours::Color{88, 186, 96, 255};   // Green
-        case 'D': return afterhours::Color{220, 80, 80, 255};   // Red
-        case 'R': return afterhours::Color{180, 140, 60, 255};  // Yellow
-        case '?': return afterhours::Color{88, 186, 96, 255};   // Green (untracked = new)
-        case 'U': return afterhours::Color{88, 186, 96, 255};   // Green (untracked)
-        default:  return afterhours::Color{180, 180, 180, 255}; // Gray
-    }
+    return theme::statusColor(status);
 }
 
 } // namespace sidebar_detail
@@ -343,31 +335,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("sidebar_files"));
 
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
-            // Combined branch indicator + mode toggle in one compact row
-            {
-                auto branchWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-                std::string branchDisplay = "main";
-                if (!repoEntities.empty()) {
-                    auto& repo = repoEntities[0].get().get<RepoComponent>();
-                    if (!repo.currentBranch.empty()) branchDisplay = repo.currentBranch;
-                }
-                // "● main" on the left, acts as section identity
-                std::string branchLabel = "\xe2\x97\x86 " + branchDisplay; // ◆ branch
-                div(ctx, mk(filesBg.ent(), 2090),
-                    ComponentConfig{}
-                        .with_label(branchLabel)
-                        .with_size(ComponentSize{branchWidth, h720(24)})
-                        .with_padding(Padding{
-                            .top = h720(5), .right = w1280(8),
-                            .bottom = h720(3), .left = w1280(10)})
-                        .with_custom_background(theme::SIDEBAR_BG)
-                        .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
-                        .with_font_size(h720(theme::layout::FONT_BODY))
-                        .with_alignment(TextAlignment::Left)
-                        .with_roundness(0.0f)
-                        .with_debug_name("branch_header"));
-            }
-
             // Render file list directly into filesBg (no intermediate container)
             // to avoid framework bug where nested container children render wrong
             if (!repoEntities.empty()) {
@@ -409,8 +376,9 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         // === Horizontal divider between files and commit log (flow child) ===
         auto hDivider = div(ctx, mk(sidebarRoot.ent(), 2200),
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(sidebarW), h720(5)})
+                .with_size(ComponentSize{pixels(sidebarW), pixels(1)})
                 .with_custom_background(theme::SIDEBAR_DIVIDER)
+                .with_cursor(afterhours::ui::CursorType::ResizeV)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_h_divider"));
 
@@ -446,21 +414,29 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_log"));
 
-        // Commit log header
+        // Commit log header (matches section header style)
         auto logW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-        div(ctx, mk(logBg.ent(), 2310),
-            ComponentConfig{}
-                .with_label("COMMIT LOG")
-                .with_size(ComponentSize{logW, h720(24)})
-                .with_padding(Padding{
-                    .top = h720(6), .right = w1280(8),
-                    .bottom = h720(4), .left = w1280(10)})
-                .with_custom_background(theme::SIDEBAR_BG)
-                .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
-                .with_font_size(h720(theme::layout::FONT_BODY))
-                .with_alignment(TextAlignment::Left)
-                .with_roundness(0.0f)
-                .with_debug_name("log_header"));
+        {
+            size_t commitCount = 0;
+            if (!repoEntities.empty()) {
+                commitCount = repoEntities[0].get().get<RepoComponent>().commitLog.size();
+            }
+            std::string logHeaderText = "\xe2\x96\xbe COMMITS  " + std::to_string(commitCount);
+            div(ctx, mk(logBg.ent(), 2310),
+                ComponentConfig{}
+                    .with_label(logHeaderText)
+                    .with_size(ComponentSize{logW, h720(24)})
+                    .with_padding(Padding{
+                        .top = h720(7), .right = w1280(8),
+                        .bottom = h720(5), .left = w1280(10)})
+                    .with_custom_background(theme::SECTION_HEADER_BG)
+                    .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
+                    .with_font_size(h720(theme::layout::FONT_CAPTION))
+                    .with_letter_spacing(0.5f)
+                    .with_alignment(TextAlignment::Left)
+                    .with_roundness(0.0f)
+                    .with_debug_name("log_header"));
+        }
 
         // === Scrollable commit log entries ===
         float sh2 = static_cast<float>(afterhours::graphics::get_screen_height());
@@ -1207,7 +1183,7 @@ private:
         // === Changes (unstaged) section ===
         if (!repo.unstagedFiles.empty()) {
             render_section_header(ctx, scrollParent, nextId++,
-                "CHANGES", repo.unstagedFiles.size());
+                "UNSTAGED CHANGES", repo.unstagedFiles.size());
 
             for (int i = 0; i < static_cast<int>(repo.unstagedFiles.size()); ++i) {
                 render_file_row(ctx, scrollParent, nextId++,
@@ -1241,11 +1217,12 @@ private:
                 .with_label(headerText)
                 .with_size(ComponentSize{secWidth, h720(24)})
                 .with_padding(Padding{
-                    .top = h720(6), .right = w1280(8),
-                    .bottom = h720(4), .left = w1280(10)})
-                .with_custom_background(theme::SIDEBAR_BG)
+                    .top = h720(7), .right = w1280(8),
+                    .bottom = h720(5), .left = w1280(10)})
+                .with_custom_background(theme::SECTION_HEADER_BG)
                 .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
-                .with_font_size(h720(theme::layout::FONT_BODY))
+                .with_font_size(h720(theme::layout::FONT_CAPTION))
+                .with_letter_spacing(0.5f)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("section_hdr"));
@@ -1274,50 +1251,44 @@ private:
 
         auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Outer div container (expand() doesn't work inside button)
-        auto rowContainer = div(ctx, mk(parent, id),
+        // Clickable row container — button for hover state
+        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
+                                : theme::TEXT_PRIMARY;
+        auto rowResult = button(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_custom_background(rowBg)
+                .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
+                .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_padding(Padding{
-                    .top = h720(1), .right = w1280(8),
-                    .bottom = h720(1), .left = w1280(10)})
+                    .top = h720(3), .right = w1280(8),
+                    .bottom = h720(3), .left = w1280(10)})
                 .with_roundness(0.0f)
                 .with_debug_name("file_row"));
 
-        // Clickable filename (sizes to content)
-        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
-                                : theme::TEXT_PRIMARY;
-        auto rowResult = button(ctx, mk(rowContainer.ent(), 1),
+        // Filename label
+        div(ctx, mk(rowResult.ent(), 1),
             ComponentConfig{}
                 .with_label(label)
-                .with_size(ComponentSize{children(), h720(ROW_H)})
-                .with_custom_background(afterhours::Color{0, 0, 0, 0})
+                .with_size(ComponentSize{afterhours::ui::expand(), h720(ROW_H)})
                 .with_custom_text_color(textCol)
-                .with_font_size(h720(theme::layout::FONT_META))
+                .with_font_size(h720(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
-        // Spacer pushes status to the right
-        div(ctx, mk(rowContainer.ent(), 3),
-            ComponentConfig{}
-                .with_size(ComponentSize{afterhours::ui::expand(), h720(1)})
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-                .with_debug_name("file_spacer"));
-
-        // Status letter (right side, colored)
+        // Status letter (right side, colored text only — no background)
         std::string statusStr(1, statusChar);
         auto statusCol = sidebar_detail::status_color(statusChar);
-        div(ctx, mk(rowContainer.ent(), 4),
+        div(ctx, mk(rowResult.ent(), 4),
             ComponentConfig{}
                 .with_label(statusStr)
                 .with_size(ComponentSize{w1280(16), h720(ROW_H)})
+                .with_transparent_bg()
                 .with_custom_text_color(statusCol)
-                .with_font_size(h720(theme::layout::FONT_META))
+                .with_font_size(h720(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Right)
                 .with_roundness(0.0f)
                 .with_debug_name("file_status"));
@@ -1352,46 +1323,41 @@ private:
 
         auto uRowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Outer div container
-        auto rowContainer = div(ctx, mk(parent, id),
+        // Clickable row container — button for hover state
+        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
+                                : theme::TEXT_PRIMARY;
+        auto rowResult = button(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_size(ComponentSize{uRowWidth, h720(ROW_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_custom_background(rowBg)
+                .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
+                .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_padding(Padding{
-                    .top = h720(1), .right = w1280(8),
-                    .bottom = h720(1), .left = w1280(10)})
+                    .top = h720(3), .right = w1280(8),
+                    .bottom = h720(3), .left = w1280(10)})
                 .with_roundness(0.0f)
                 .with_debug_name("untracked_row"));
 
-        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
-                                : theme::TEXT_PRIMARY;
-        auto rowResult = button(ctx, mk(rowContainer.ent(), 1),
+        // Filename label
+        div(ctx, mk(rowResult.ent(), 1),
             ComponentConfig{}
                 .with_label(label)
-                .with_size(ComponentSize{children(), h720(ROW_H)})
-                .with_custom_background(afterhours::Color{0, 0, 0, 0})
+                .with_size(ComponentSize{afterhours::ui::expand(), h720(ROW_H)})
                 .with_custom_text_color(textCol)
-                .with_font_size(h720(theme::layout::FONT_META))
+                .with_font_size(h720(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
-        // Spacer pushes status to the right
-        div(ctx, mk(rowContainer.ent(), 3),
-            ComponentConfig{}
-                .with_size(ComponentSize{afterhours::ui::expand(), h720(1)})
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-                .with_debug_name("file_spacer"));
-
-        div(ctx, mk(rowContainer.ent(), 4),
+        div(ctx, mk(rowResult.ent(), 4),
             ComponentConfig{}
                 .with_label("U")
                 .with_size(ComponentSize{w1280(16), h720(ROW_H)})
+                .with_transparent_bg()
                 .with_custom_text_color(sidebar_detail::status_color('U'))
-                .with_font_size(h720(theme::layout::FONT_META))
+                .with_font_size(h720(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Right)
                 .with_roundness(0.0f)
                 .with_debug_name("file_status"));
@@ -1477,18 +1443,16 @@ private:
         // Parse badges
         auto badges = commit_log_detail::parse_decorations(commit.decorations);
 
-        // Build subject text (truncated)
+        // Subject text (no manual truncation — framework handles ellipsis)
         std::string subjectText = commit.subject;
-        size_t maxChars = badges.empty() ? 30 : 18;
-        if (subjectText.size() > maxChars) {
-            subjectText = subjectText.substr(0, maxChars - 1) + "\xe2\x80\xa6";
-        }
 
         // === Container row ===
         auto rowContainer = div(ctx, mk(parent, baseId),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(sidebarW), h720(ROW_H)})
                 .with_custom_background(rowBg)
+                .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
+                .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_roundness(0.0f)
@@ -1533,8 +1497,9 @@ private:
         auto rowResult = button(ctx, mk(rowContainer.ent(), 2),
             ComponentConfig{}
                 .with_label(subjectText)
-                .with_size(ComponentSize{children(), h720(ROW_H)})
+                .with_size(ComponentSize{afterhours::ui::expand(), h720(ROW_H)})
                 .with_custom_background(afterhours::Color{0, 0, 0, 0})
+                .with_custom_hover_bg(afterhours::Color{0, 0, 0, 0})
                 .with_custom_text_color(subjectColor)
                 .with_font_size(h720(theme::layout::FONT_CHROME))
                 .with_padding(Padding{

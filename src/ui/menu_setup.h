@@ -73,7 +73,7 @@ inline std::vector<Menu> createMenuBar() {
     }});
 
     // Git menu
-    menus.push_back({"Git", {
+    menus.push_back({"Repository", {
         MenuItem::item("Stage File", "Cmd+Shift+S"),
         MenuItem::item("Unstage File", "Cmd+Shift+U"),
         MenuItem::separator(),

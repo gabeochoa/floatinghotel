@@ -35,14 +35,14 @@ using afterhours::ui::w1280;
 
 namespace diff_detail {
 
-// Diff-specific colors from the mockup spec
-constexpr afterhours::Color DIFF_ADD_BG      = {13, 40, 24, 255};   // #0D2818
-constexpr afterhours::Color DIFF_DEL_BG      = {61, 17, 23, 255};   // #3D1117
-constexpr afterhours::Color HUNK_HEADER_BG   = {26, 35, 50, 255};   // #1A2332
-constexpr afterhours::Color GUTTER_BG        = {26, 26, 26, 255};   // #1A1A1A
-constexpr afterhours::Color GUTTER_BORDER    = {58, 58, 58, 255};   // #3A3A3A
-constexpr afterhours::Color GUTTER_ADD_BG    = {13, 51, 23, 255};   // #0D3317
-constexpr afterhours::Color GUTTER_DEL_BG    = {77, 17, 23, 255};   // #4D1117
+// Diff colors — all defined in theme.h, aliased here for brevity
+const auto& DIFF_ADD_BG    = theme::DIFF_ADD_BG;
+const auto& DIFF_DEL_BG    = theme::DIFF_DEL_BG;
+const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
+const auto& GUTTER_BG      = theme::GUTTER_BG;
+const auto& GUTTER_BORDER  = theme::GUTTER_BORDER;
+const auto& GUTTER_ADD_BG  = theme::GUTTER_ADD_BG;
+const auto& GUTTER_DEL_BG  = theme::GUTTER_DEL_BG;
 
 constexpr float LINE_HEIGHT   = 20.0f;
 constexpr float GUTTER_WIDTH  = 40.0f;
@@ -133,11 +133,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
             .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
-            .with_font_size(h720(theme::layout::FONT_CODE))
+            .with_font_size(h720(theme::layout::FONT_META))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
-                .top = h720(2), .right = w1280(8),
-                .bottom = h720(2), .left = w1280(8)})
+                .top = h720(4), .right = w1280(12),
+                .bottom = h720(4), .left = w1280(12)})
             .with_roundness(0.0f)
             .with_debug_name("hunk_header"));
 
@@ -230,14 +230,15 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{w, h720(diff_detail::FILE_HEADER_H)})
-                .with_custom_background(theme::BORDER)
+                .with_custom_background(theme::SIDEBAR_BG)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_label(fileLabel)
                 .with_font_size(h720(theme::layout::FONT_HEADING))
                 .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(4), .left = w1280(8)})
+                    .top = h720(8), .right = w1280(16),
+                    .bottom = h720(8), .left = w1280(16)})
+                .with_border_bottom(theme::BORDER)
                 .with_roundness(0.0f)
                 .with_debug_name("file_header"));
 

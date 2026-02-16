@@ -84,8 +84,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float dividerW = rpxW(4.0f);
 
         if (layout.sidebarVisible) {
-            // Toolbar lives inside the sidebar column (two rows of compact buttons)
-            float sidebarToolbarH = rpxH(52.0f);
+            // Toolbar lives inside the sidebar column (single row of buttons)
+            float sidebarToolbarH = rpxH(38.0f);
             layout.toolbar = {0, menuH, scaledSidebarW, sidebarToolbarH};
 
             // Sidebar content area starts below the toolbar strip
@@ -1085,7 +1085,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .top = h720(0), .right = w1280(0),
                         .bottom = h720(16), .left = w1280(0)})
                     .with_transparent_bg()
-                    .with_custom_text_color(afterhours::Color{60, 60, 60, 255})
+                    .with_custom_text_color(afterhours::Color{80, 80, 80, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("empty_icon"));
@@ -1095,7 +1095,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("Select a file or commit")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_size(h720(theme::layout::FONT_HERO))
+                    .with_font_size(h720(theme::layout::FONT_HEADING))
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(6), .left = w1280(8)})
@@ -1113,12 +1113,27 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_font_size(h720(theme::layout::FONT_CHROME))
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(8),
-                        .bottom = h720(0), .left = w1280(8)})
+                        .bottom = h720(4), .left = w1280(8)})
                     .with_transparent_bg()
-                    .with_custom_text_color(afterhours::Color{80, 80, 80, 255})
+                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("empty_hint_2"));
+
+            // Keyboard shortcut hint
+            div(ctx, mk(emptyContainer.ent(), 3030),
+                ComponentConfig{}
+                    .with_label("j/k navigate  Enter view  s stage  c commit")
+                    .with_size(ComponentSize{children(), children()})
+                    .with_font_size(h720(theme::layout::FONT_META))
+                    .with_padding(Padding{
+                        .top = h720(16), .right = w1280(8),
+                        .bottom = h720(0), .left = w1280(8)})
+                    .with_transparent_bg()
+                    .with_custom_text_color(afterhours::Color{60, 60, 60, 255})
+                    .with_alignment(TextAlignment::Center)
+                    .with_roundness(0.0f)
+                    .with_debug_name("empty_shortcuts"));
         }
 
         // === Command Log Panel (at bottom of main content area) ===
@@ -1142,6 +1157,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_absolute_position()
                     .with_translate(layout.sidebar.width, dividerY)
                     .with_custom_background(theme::BORDER)
+                    .with_cursor(afterhours::ui::CursorType::ResizeH)
                     .with_roundness(0.0f)
                     .with_debug_name("sidebar_divider"));
 

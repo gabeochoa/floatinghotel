@@ -96,93 +96,61 @@ private:
     void render_sidebar_toolbar(UIContext<InputAction>& ctx,
                                 Result& topChrome,
                                 float w, float /*h*/,
-                                Entities& repoEntities,
-                                bool hasRepo, bool hasUnstaged, bool hasStaged) {
-        // Background matches sidebar
+                                Entities& /*repoEntities*/,
+                                bool hasRepo, bool /*hasUnstaged*/, bool hasStaged) {
+        // Toolbar with bottom border
         auto toolbarBg = div(ctx, mk(topChrome.ent(), 1),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(w), children()})
-                .with_custom_background(theme::SIDEBAR_BG)
+                .with_custom_background(theme::TOOLBAR_BG)
+                .with_border_bottom(theme::BORDER)
                 .with_flex_direction(FlexDirection::Column)
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(6),
-                    .bottom = h720(4), .left = w1280(6)})
+                    .top = h720(6), .right = w1280(8),
+                    .bottom = h720(6), .left = w1280(8)})
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_sidebar"));
 
-        // Bottom border
-        div(ctx, mk(topChrome.ent(), 2),
-            ComponentConfig{}
-                .with_size(ComponentSize{pixels(w), pixels(1)})
-                .with_custom_background(theme::BORDER)
-                .with_roundness(0.0f)
-                .with_debug_name("toolbar_border"));
-
         int nextId = 1100;
 
-        // Row 1: Refresh | Stage | Unstage
+        // Single row: Commit | Push | Pull | Stash (gap: 4px between buttons)
         auto row1 = div(ctx, mk(toolbarBg.ent(), 10),
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), children()})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
+                .with_gap(w1280(4))
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_row1"));
 
         auto sidebarBtn = [&](Entity& parent, int id,
-                              const std::string& label, bool enabled) -> bool {
-            auto btnBg = enabled ? afterhours::Color{65, 65, 70, 255}
-                                 : afterhours::Color{50, 50, 53, 255};
-            auto textCol = enabled ? afterhours::Color{220, 220, 220, 255}
-                                   : afterhours::Color{100, 100, 100, 255};
-            float btnW = static_cast<float>(label.size()) * 7.5f + 12.0f;
+                              const std::string& label, bool enabled,
+                              bool primary = false) -> bool {
+            auto btnBg = primary ? theme::BUTTON_PRIMARY
+                                 : (enabled ? theme::BUTTON_SECONDARY
+                                            : afterhours::Color{50, 50, 53, 255});
+            auto textCol = primary ? afterhours::Color{255, 255, 255, 255}
+                                   : (enabled ? afterhours::Color{204, 204, 204, 255}
+                                              : afterhours::Color{100, 100, 100, 255});
+            float btnW = static_cast<float>(label.size()) * 9.0f + 24.0f;
             auto config = ComponentConfig{}
                 .with_label(label)
-                .with_size(ComponentSize{w1280(btnW), h720(20)})
+                .with_size(ComponentSize{w1280(btnW), h720(26)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(5),
-                    .bottom = h720(2), .left = w1280(5)})
-                .with_margin(Margin{
-                    .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(3)})
+                    .top = h720(4), .right = w1280(10),
+                    .bottom = h720(4), .left = w1280(10)})
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
-                .with_font_size(h720(theme::layout::FONT_META))
-                .with_roundness(0.08f)
+                .with_font_size(h720(theme::layout::FONT_CHROME))
+                .with_roundness(0.12f)
                 .with_alignment(TextAlignment::Center)
-                .with_debug_name("stoolbar_btn");
+                .with_cursor(afterhours::ui::CursorType::Pointer)
+                .with_debug_name("toolbar_btn");
             config.disabled = !enabled;
             return static_cast<bool>(button(ctx, mk(parent, id), config));
         };
 
-        // Row 1 buttons
-        if (sidebarBtn(row1.ent(), nextId++, "Refresh", hasRepo)) {
-            if (hasRepo) {
-                repoEntities[0].get().template get<RepoComponent>().refreshRequested = true;
-            }
-        }
-        if (sidebarBtn(row1.ent(), nextId++, "Stage", hasRepo && hasUnstaged)) {
-            if (hasRepo) {
-                repoEntities[0].get().template get<RepoComponent>().refreshRequested = true;
-            }
-        }
-        if (sidebarBtn(row1.ent(), nextId++, "Unstage", hasRepo && hasStaged)) {
-            if (hasRepo) {
-                repoEntities[0].get().template get<RepoComponent>().refreshRequested = true;
-            }
-        }
-
-        // Row 2: Commit | Push | Pull | Fetch
-        auto row2 = div(ctx, mk(toolbarBg.ent(), 20),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{.top = h720(2)})
-                .with_roundness(0.0f)
-                .with_debug_name("toolbar_row2"));
-
-        if (sidebarBtn(row2.ent(), nextId++, "Commit", hasRepo && hasStaged)) {
+        if (sidebarBtn(row1.ent(), nextId++, "Commit", hasRepo && hasStaged, true)) {
             auto editorEntities = afterhours::EntityQuery({.force_merge = true})
                                       .whereHasComponent<CommitEditorComponent>()
                                       .gen();
@@ -191,14 +159,11 @@ private:
                     .commitRequested = true;
             }
         }
-        if (sidebarBtn(row2.ent(), nextId++, "Push", hasRepo)) {
-            // Async push handled by T046
+        if (sidebarBtn(row1.ent(), nextId++, "Push", hasRepo)) {
         }
-        if (sidebarBtn(row2.ent(), nextId++, "Pull", hasRepo)) {
-            // Async pull handled by T046
+        if (sidebarBtn(row1.ent(), nextId++, "Pull", hasRepo)) {
         }
-        if (sidebarBtn(row2.ent(), nextId++, "Fetch", hasRepo)) {
-            // Async fetch handled by T046
+        if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
         }
     }
 
@@ -263,6 +228,7 @@ private:
                 .with_font_size(h720(theme::layout::FONT_CHROME))
                 .with_roundness(0.08f)
                 .with_alignment(TextAlignment::Center)
+                .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
             config.disabled = !enabled;
             return static_cast<bool>(button(ctx, mk(toolbarBg.ent(), id), config));

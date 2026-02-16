@@ -26,11 +26,16 @@ inline Color STATUS_UNTRACKED = {128, 128, 128, 255};  // Gray
 inline Color STATUS_CONFLICT  = {220, 140, 50, 255};   // Orange
 
 // Diff colors
-inline Color DIFF_ADD_BG      = {13, 17, 23, 255};
-inline Color DIFF_ADD_TEXT     = {126, 231, 135, 255};
-inline Color DIFF_DEL_BG      = {61, 17, 23, 255};
-inline Color DIFF_DEL_TEXT     = {255, 123, 114, 255};
-inline Color DIFF_HUNK_HEADER = {78, 154, 220, 255};
+inline Color DIFF_ADD_BG      = {35, 52, 35, 255};    // #233423 — green tint
+inline Color DIFF_ADD_TEXT     = {126, 231, 135, 255}; // #7EE787
+inline Color DIFF_DEL_BG      = {61, 17, 23, 255};    // #3D1117
+inline Color DIFF_DEL_TEXT     = {255, 123, 114, 255}; // #FF7B72
+inline Color DIFF_HUNK_HEADER = {78, 154, 220, 255};  // #4E9ADC
+inline Color DIFF_HUNK_BG     = {26, 35, 50, 255};    // #1A2332
+inline Color GUTTER_BG        = {30, 30, 30, 255};    // #1E1E1E (matches WINDOW_BG)
+inline Color GUTTER_BORDER    = {58, 58, 58, 255};    // #3A3A3A (matches BORDER)
+inline Color GUTTER_ADD_BG    = {13, 51, 23, 255};    // #0D3317
+inline Color GUTTER_DEL_BG    = {77, 17, 23, 255};    // #4D1117
 
 // Interactive
 inline Color BUTTON_PRIMARY   = {0, 122, 204, 255};    // Blue

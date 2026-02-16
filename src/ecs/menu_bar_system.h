@@ -37,8 +37,8 @@ using afterhours::ui::resolve_to_pixels;
 
 // Colors from the mockup spec
 namespace menu_colors {
-    constexpr afterhours::Color BAR_BG        = {51, 51, 51, 255};       // #333333
-    constexpr afterhours::Color HEADER_TEXT    = {204, 204, 204, 255};   // #CCCCCC
+    constexpr afterhours::Color BAR_BG        = {30, 30, 30, 255};       // #1E1E1E (matches WINDOW_BG)
+    constexpr afterhours::Color HEADER_TEXT    = {128, 128, 128, 255};   // #808080 (secondary text)
     constexpr afterhours::Color ACTIVE_BG      = {45, 45, 45, 255};     // #2D2D2D
     constexpr afterhours::Color ACTIVE_TEXT    = {255, 255, 255, 255};   // #FFFFFF
     constexpr afterhours::Color DROPDOWN_BG    = {45, 45, 45, 255};     // #2D2D2D

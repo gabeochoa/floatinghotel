@@ -73,11 +73,8 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
 
         // === Compose status text as a single string ===
         std::string statusText;
-        bool isDirty = false;
-
         if (!repoEntities.empty()) {
             auto& repo = repoEntities[0].get().get<RepoComponent>();
-            isDirty = repo.isDirty;
 
             // Branch name
             if (detached) {
@@ -88,27 +85,25 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 statusText = repo.currentBranch.empty() ? "main" : repo.currentBranch;
             }
 
-            // Dirty/clean indicator (plain ASCII for font compatibility)
-            statusText += isDirty ? "  *dirty" : "  clean";
+            // File counts (staged, unstaged)
+            int stagedCount = static_cast<int>(repo.stagedFiles.size());
+            int unstagedCount = static_cast<int>(
+                repo.unstagedFiles.size() + repo.untrackedFiles.size());
 
-            // File counts
-            int totalFiles = static_cast<int>(
-                repo.stagedFiles.size() + repo.unstagedFiles.size() +
-                repo.untrackedFiles.size());
-            if (totalFiles > 0) {
-                statusText += "  " + std::to_string(totalFiles) + " files";
+            std::string rightText;
+            if (stagedCount > 0 || unstagedCount > 0) {
+                if (stagedCount > 0)
+                    rightText += std::to_string(stagedCount) + " staged";
+                if (stagedCount > 0 && unstagedCount > 0)
+                    rightText += ", ";
+                if (unstagedCount > 0)
+                    rightText += std::to_string(unstagedCount) + " unstaged";
+            } else {
+                rightText = "clean";
             }
 
-            // Ahead/behind counts
-            if (repo.aheadCount > 0 || repo.behindCount > 0) {
-                statusText += "  ";
-                if (repo.aheadCount > 0)
-                    statusText += "+" + std::to_string(repo.aheadCount);
-                if (repo.behindCount > 0) {
-                    if (repo.aheadCount > 0) statusText += "/";
-                    statusText += "-" + std::to_string(repo.behindCount);
-                }
-            }
+            // Pad with spaces to push right text toward the right side
+            statusText += "                    " + rightText;
         } else {
             statusText = "No repository";
         }
@@ -126,7 +121,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                     .top = h720(4), .right = w1280(8),
                     .bottom = h720(4), .left = w1280(8)})
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_size(h720(theme::layout::FONT_CAPTION))
+                .with_font_size(h720(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_render_layer(5)
