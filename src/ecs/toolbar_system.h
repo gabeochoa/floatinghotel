@@ -144,7 +144,8 @@ private:
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
                 .with_font_size(pixels(theme::layout::FONT_TOOLBAR))
-                .with_roundness(0.12f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
@@ -228,7 +229,8 @@ private:
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
                 .with_font_size(pixels(theme::layout::FONT_META))
-                .with_roundness(0.08f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");

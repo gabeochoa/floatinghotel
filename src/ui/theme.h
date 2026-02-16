@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bitset>
 #include <afterhours/src/drawing_helpers.h>
 
 namespace theme {
@@ -114,6 +115,14 @@ constexpr float FONT_CODE     = 18.0f;   // Diff code text, line numbers
 constexpr float FONT_META     = 18.0f;   // Diff stats, status bar, shortcut keys
 constexpr float FONT_CAPTION  = 13.0f;   // Section headers (STAGED CHANGES), badges
 constexpr float FONT_TOOLBAR  = 13.0f;   // Toolbar buttons (compact)
+
+// Rounded corners (enable all four corners)
+const std::bitset<4> ROUNDED_CORNERS = std::bitset<4>(0b1111);
+
+// Roundness (0.0 = square, 1.0 = fully round/pill)
+constexpr float ROUNDNESS_BUTTON = 0.4f;   // Toolbar & dialog buttons
+constexpr float ROUNDNESS_BADGE  = 0.6f;   // Commit/branch badge pills
+constexpr float ROUNDNESS_BOX    = 0.3f;   // Metadata boxes, containers
 
 // Legacy aliases
 constexpr float FONT_SIZE_MONO = FONT_CODE;

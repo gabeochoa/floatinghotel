@@ -540,7 +540,8 @@ private:
                     .with_custom_background(tabBg)
                     .with_custom_text_color(tabText)
                     .with_font_size(pixels(theme::layout::FONT_CHROME))
-                    .with_roundness(0.04f)
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                     .with_alignment(TextAlignment::Center)
                     .with_debug_name("mode_" + label));
 
@@ -600,7 +601,8 @@ private:
                 .with_custom_background(theme::BUTTON_PRIMARY)
                 .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
                 .with_font_size(pixels(theme::layout::FONT_CAPTION))
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_debug_name("new_branch_btn"));
 
@@ -703,7 +705,8 @@ private:
                 .with_custom_background(badgeBg)
                 .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
                 .with_font_size(pixels(theme::layout::FONT_CAPTION))
-                .with_roundness(0.15f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_roundness(theme::layout::ROUNDNESS_BADGE)
                 .with_alignment(TextAlignment::Center)
                 .with_debug_name("branch_badge"));
 
@@ -745,7 +748,8 @@ private:
                     .with_size(ComponentSize{w1280(20), h720(20)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::STATUS_DELETED)
-                    .with_roundness(0.04f)
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                     .with_alignment(TextAlignment::Center)
                     .with_debug_name("delete_branch_btn"));
 
@@ -837,7 +841,8 @@ private:
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_new_branch"))) {
@@ -858,7 +863,8 @@ private:
                     .bottom = h720(0), .left = w1280(16)})
                 .with_custom_background(createBg)
                 .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("create_branch_btn"))) {
@@ -938,7 +944,8 @@ private:
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_delete"))) {
@@ -956,7 +963,8 @@ private:
                     .bottom = h720(0), .left = w1280(16)})
                 .with_custom_background(theme::STATUS_DELETED)
                 .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("confirm_delete"))) {
@@ -1040,7 +1048,8 @@ private:
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_force_delete"))) {
@@ -1058,7 +1067,8 @@ private:
                     .bottom = h720(0), .left = w1280(16)})
                 .with_custom_background(theme::STATUS_DELETED)
                 .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("force_delete_btn"))) {
@@ -1112,7 +1122,8 @@ private:
                         .left = {}, .right = w1280(4)})
                     .with_custom_background(tabBg)
                     .with_custom_text_color(tabText)
-                    .with_roundness(0.04f)
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                     .with_alignment(TextAlignment::Center)
                     .with_debug_name("tab_" + label));
 
@@ -1490,6 +1501,7 @@ private:
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(8), pixels(8)})
                 .with_custom_background(theme::GRAPH_DOT)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                 .with_roundness(1.0f)
                 .with_debug_name("commit_dot"));
 
@@ -1557,7 +1569,8 @@ private:
                     .with_custom_background(bg)
                     .with_custom_text_color(btxt)
                     .with_font_size(pixels(11.0f))
-                    .with_roundness(0.25f)
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_roundness(theme::layout::ROUNDNESS_BADGE)
                     .with_alignment(TextAlignment::Center)
                     .with_debug_name("commit_badge"));
         }
@@ -1798,7 +1811,8 @@ private:
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_btn"));
@@ -1820,7 +1834,8 @@ private:
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_PRIMARY)
                 .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("staged_only_btn"));
@@ -1845,7 +1860,8 @@ private:
                     .bottom = h720(0), .left = w1280(16)})
                 .with_custom_background(theme::STATUS_ADDED)
                 .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("stage_all_btn"));

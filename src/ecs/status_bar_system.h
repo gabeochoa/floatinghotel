@@ -145,7 +145,8 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_transparent_bg()
                 .with_custom_hover_bg(theme::STATUS_BAR_BTN_HOVER)
                 .with_alignment(TextAlignment::Center)
-                .with_roundness(0.04f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_render_layer(5)
                 .with_debug_name("status_log_toggle"));
 

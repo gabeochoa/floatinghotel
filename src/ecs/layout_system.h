@@ -596,7 +596,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_transparent_bg()
             .with_custom_text_color(theme::BUTTON_PRIMARY)
             .with_font_size(pixels(14.0f))
-            .with_roundness(0.04f)
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+            .with_roundness(theme::layout::ROUNDNESS_BUTTON)
             .with_debug_name("commit_back_btn"));
 
     if (backBtn) {
@@ -650,7 +651,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_margin(Margin{
                 .top = pixels(4), .bottom = pixels(4),
                 .left = pixels(PAD), .right = pixels(PAD)})
-            .with_roundness(0.04f)
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+            .with_roundness(theme::layout::ROUNDNESS_BOX)
             .with_debug_name("commit_meta_box"));
 
     auto metaRow = [&](const std::string& label, const std::string& value,
@@ -790,7 +792,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_custom_background(bg)
                     .with_custom_text_color(text)
                     .with_font_size(pixels(11.0f))
-                    .with_roundness(0.25f)
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BADGE)
                     .with_alignment(TextAlignment::Center)
                     .with_debug_name("commit_dec_badge"));
         }
@@ -930,7 +933,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_size(ComponentSize{pixels(BAR_W), pixels(8)})
                     .with_flex_direction(FlexDirection::Row)
                     .with_custom_background(theme::BORDER)
-                    .with_roundness(0.15f)
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(theme::layout::ROUNDNESS_BADGE)
                     .with_debug_name("change_bar"));
 
             if (greenW > 0.5f) {
