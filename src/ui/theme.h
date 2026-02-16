@@ -102,18 +102,18 @@ constexpr int STATUS_BAR_HEIGHT = 22;
 constexpr int SIDEBAR_DEFAULT_WIDTH = 300;
 constexpr int SIDEBAR_MIN_WIDTH = 200;
 constexpr float SIDEBAR_MIN_PCT = 0.18f;  // Min 18% of window width
-constexpr int FILE_ROW_HEIGHT = 28;
-constexpr int COMMIT_ROW_HEIGHT = 30;
+constexpr int FILE_ROW_HEIGHT = 34;
+constexpr int COMMIT_ROW_HEIGHT = 36;
 constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
 // Text hierarchy (values are h720 reference pixels at 720p)
 constexpr float FONT_HERO     = 26.0f;   // Commit detail subject, empty state title
 constexpr float FONT_HEADING  = 22.0f;   // Diff file headers, section titles
-constexpr float FONT_BODY     = 20.0f;   // Sidebar file names, commit detail meta
-constexpr float FONT_CHROME   = 20.0f;   // Menu bar, toolbar, menus, commit entries
-constexpr float FONT_CODE     = 18.0f;   // Diff code text, line numbers
-constexpr float FONT_META     = 18.0f;   // Diff stats, status bar, shortcut keys
-constexpr float FONT_CAPTION  = 13.0f;   // Section headers (STAGED CHANGES), badges
+constexpr float FONT_BODY     = 28.0f;   // Sidebar file names, commit detail meta
+constexpr float FONT_CHROME   = 26.0f;   // Menu bar, toolbar, menus, commit entries
+constexpr float FONT_CODE     = 24.0f;   // Diff code text, line numbers
+constexpr float FONT_META     = 24.0f;   // Diff stats, status bar, shortcut keys
+constexpr float FONT_CAPTION  = 20.0f;   // Section headers (STAGED CHANGES), badges
 constexpr float FONT_TOOLBAR  = 13.0f;   // Toolbar buttons (compact)
 
 // Rounded corners (enable all four corners)

@@ -1566,7 +1566,7 @@ private:
                         .bottom = pixels(1), .left = pixels(5)})
                     .with_custom_background(bg)
                     .with_custom_text_color(btxt)
-                    .with_font_size(pixels(11.0f))
+                    .with_font_size(pixels(15.0f))
                     .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                 .with_roundness(theme::layout::ROUNDNESS_BADGE)
                     .with_alignment(TextAlignment::Center)
