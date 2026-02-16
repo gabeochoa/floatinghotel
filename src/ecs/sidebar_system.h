@@ -717,6 +717,7 @@ private:
                 .with_custom_text_color(nameColor)
                 .with_font_size(pixels(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Left)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
                 .with_debug_name("branch_name"));
 
