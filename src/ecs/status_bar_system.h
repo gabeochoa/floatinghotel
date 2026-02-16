@@ -120,6 +120,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_padding(Padding{
                     .top = h720(4), .right = w1280(8),
                     .bottom = h720(4), .left = w1280(8)})
+                .with_transparent_bg()
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
                 .with_font_size(pixels(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Left)

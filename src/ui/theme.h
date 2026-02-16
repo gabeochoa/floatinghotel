@@ -112,7 +112,8 @@ constexpr float FONT_BODY     = 20.0f;   // Sidebar file names, commit detail me
 constexpr float FONT_CHROME   = 20.0f;   // Menu bar, toolbar, menus, commit entries
 constexpr float FONT_CODE     = 18.0f;   // Diff code text, line numbers
 constexpr float FONT_META     = 18.0f;   // Diff stats, status bar, shortcut keys
-constexpr float FONT_CAPTION  = 16.0f;   // Section headers (STAGED CHANGES), badges
+constexpr float FONT_CAPTION  = 13.0f;   // Section headers (STAGED CHANGES), badges
+constexpr float FONT_TOOLBAR  = 13.0f;   // Toolbar buttons (compact)
 
 // Legacy aliases
 constexpr float FONT_SIZE_MONO = FONT_CODE;

@@ -1217,6 +1217,7 @@ private:
             ComponentConfig{}
                 .with_label(headerText)
                 .with_size(ComponentSize{secWidth, children()})
+                .with_margin(Margin{.top = pixels(6)})
                 .with_padding(Padding{
                     .top = pixels(7), .right = pixels(10),
                     .bottom = pixels(5), .left = pixels(10)})
@@ -1442,7 +1443,7 @@ private:
         }
     }
 
-    // Render a single commit row with Row flex: [dot] [label with message+badges+hash]
+    // Render a single commit row: [dot] [subject] [badge pills] [hash]
     void render_commit_row(UIContext<InputAction>& ctx,
                            Entity& parent, int index,
                            const CommitEntry& commit,
@@ -1455,15 +1456,7 @@ private:
         int baseId = index * 2 + 10;
         float sidebarW = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;
 
-        // Build single-line label: "subject  [badges]  hash"
         auto badges = commit_log_detail::parse_decorations(commit.decorations);
-        std::string commitLabel = commit.subject;
-        if (!badges.empty()) {
-            for (auto& badge : badges) {
-                commitLabel += "  [" + badge.label + "]";
-            }
-        }
-        commitLabel += "  " + commit.hash.substr(0, 7);
 
         // Row container (clickable div with Row flex)
         auto row = div(ctx, mk(parent, baseId),
@@ -1478,7 +1471,7 @@ private:
                 .with_padding(Padding{
                     .top = pixels(4), .right = pixels(10),
                     .bottom = pixels(4), .left = pixels(10)})
-                .with_gap(pixels(8))
+                .with_gap(pixels(6))
                 .with_roundness(0.0f)
                 .with_debug_name("commit_row"));
 
@@ -1492,23 +1485,73 @@ private:
                 .with_roundness(1.0f)
                 .with_debug_name("commit_dot"));
 
-        // Commit label: sidebarW - padL(10) - padR(10) - dot(8) - gap(8)
-        float labelW = sidebarW - 36.0f;
-        if (labelW < 40.0f) labelW = 40.0f;
-
+        // Subject text (fills remaining space, truncates with ellipsis)
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
         div(ctx, mk(row.ent(), 2),
             ComponentConfig{}
-                .with_label(commitLabel)
-                .with_size(ComponentSize{pixels(labelW), children()})
+                .with_label(commit.subject)
+                .with_size(ComponentSize{expand(), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(textCol)
                 .with_font_size(pixels(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
-                .with_debug_name("commit_label"));
+                .with_debug_name("commit_subject"));
+
+        // Badge pills (colored, rounded)
+        int badgeId = 10;
+        for (auto& badge : badges) {
+            afterhours::Color bg, btxt;
+            switch (badge.type) {
+                case commit_log_detail::DecorationType::Head:
+                    bg = theme::BADGE_HEAD_BG;
+                    btxt = afterhours::Color{255, 255, 255, 255};
+                    break;
+                case commit_log_detail::DecorationType::LocalBranch:
+                    bg = theme::BADGE_BRANCH_BG;
+                    btxt = afterhours::Color{255, 255, 255, 255};
+                    break;
+                case commit_log_detail::DecorationType::RemoteBranch:
+                    bg = theme::BADGE_REMOTE_BG;
+                    btxt = afterhours::Color{255, 255, 255, 255};
+                    break;
+                case commit_log_detail::DecorationType::Tag:
+                    bg = theme::BADGE_TAG_BG;
+                    btxt = theme::BADGE_TAG_TEXT;
+                    break;
+                default:
+                    bg = theme::BADGE_TAG_BG;
+                    btxt = theme::BADGE_TAG_TEXT;
+                    break;
+            }
+            div(ctx, mk(row.ent(), badgeId++),
+                ComponentConfig{}
+                    .with_label(badge.label)
+                    .with_size(ComponentSize{children(), children()})
+                    .with_padding(Padding{
+                        .top = pixels(1), .right = pixels(5),
+                        .bottom = pixels(1), .left = pixels(5)})
+                    .with_custom_background(bg)
+                    .with_custom_text_color(btxt)
+                    .with_font_size(pixels(11.0f))
+                    .with_roundness(0.25f)
+                    .with_alignment(TextAlignment::Center)
+                    .with_debug_name("commit_badge"));
+        }
+
+        // Commit hash (gray, smaller font)
+        div(ctx, mk(row.ent(), 30),
+            ComponentConfig{}
+                .with_label(commit.hash.substr(0, 7))
+                .with_size(ComponentSize{children(), children()})
+                .with_transparent_bg()
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(pixels(12.0f))
+                .with_alignment(TextAlignment::Left)
+                .with_roundness(0.0f)
+                .with_debug_name("commit_hash"));
 
         // Click -> select this commit
         if (row.ent().get<HasClickListener>().down) {
@@ -1522,8 +1565,6 @@ private:
             }
         }
     }
-
-    // (render_decoration_badges removed — badges now inline in commit label text)
 
     // ---- Unstaged Changes Dialog (T030) ----
     // Custom modal dialog showing staged/unstaged file lists with three
