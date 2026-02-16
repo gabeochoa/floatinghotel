@@ -1170,11 +1170,13 @@ private:
         }
 
         int nextId = 2600;
+        bool firstSection = true;
 
         // === Staged Changes section ===
         if (!repo.stagedFiles.empty()) {
             render_section_header(ctx, scrollParent, nextId++,
-                "STAGED CHANGES", repo.stagedFiles.size());
+                "STAGED CHANGES", repo.stagedFiles.size(), firstSection);
+            firstSection = false;
 
             for (int i = 0; i < static_cast<int>(repo.stagedFiles.size()); ++i) {
                 render_file_row(ctx, scrollParent, nextId++,
@@ -1185,7 +1187,8 @@ private:
         // === Changes (unstaged) section ===
         if (!repo.unstagedFiles.empty()) {
             render_section_header(ctx, scrollParent, nextId++,
-                "UNSTAGED CHANGES", repo.unstagedFiles.size());
+                "UNSTAGED CHANGES", repo.unstagedFiles.size(), firstSection);
+            firstSection = false;
 
             for (int i = 0; i < static_cast<int>(repo.unstagedFiles.size()); ++i) {
                 render_file_row(ctx, scrollParent, nextId++,
@@ -1196,7 +1199,8 @@ private:
         // === Untracked section ===
         if (!repo.untrackedFiles.empty()) {
             render_section_header(ctx, scrollParent, nextId++,
-                "UNTRACKED", repo.untrackedFiles.size());
+                "UNTRACKED", repo.untrackedFiles.size(), firstSection);
+            firstSection = false;
 
             for (int i = 0; i < static_cast<int>(repo.untrackedFiles.size()); ++i) {
                 render_untracked_row(ctx, scrollParent, nextId++,
@@ -1206,18 +1210,18 @@ private:
     }
 
     // Render a section header: "▾ STAGED CHANGES  1"
+    // isFirst: true for the very first section (no top margin needed)
     void render_section_header(UIContext<InputAction>& ctx,
                                 Entity& parent, int id,
-                                const std::string& label, size_t count) {
+                                const std::string& label, size_t count,
+                                bool isFirst = false) {
         auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
         std::string headerText = "\xe2\x96\xbe " + label +
                                  "  " + std::to_string(count);
-        div(ctx, mk(parent, id),
-            ComponentConfig{}
+        auto config = ComponentConfig{}
                 .with_label(headerText)
                 .with_size(ComponentSize{secWidth, children()})
-                .with_margin(Margin{.top = pixels(6)})
                 .with_padding(Padding{
                     .top = pixels(7), .right = pixels(10),
                     .bottom = pixels(5), .left = pixels(10)})
@@ -1227,7 +1231,11 @@ private:
                 .with_letter_spacing(0.5f)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
-                .with_debug_name("section_hdr"));
+                .with_debug_name("section_hdr");
+        if (!isFirst) {
+            config = config.with_margin(Margin{.top = pixels(6)});
+        }
+        div(ctx, mk(parent, id), config);
     }
 
     // Render a file row with Row flex: [filename (expand)] [dir (gray)] [status (colored)]
@@ -1471,7 +1479,7 @@ private:
                 .with_padding(Padding{
                     .top = pixels(4), .right = pixels(10),
                     .bottom = pixels(4), .left = pixels(10)})
-                .with_gap(pixels(6))
+                .with_gap(pixels(8))
                 .with_roundness(0.0f)
                 .with_debug_name("commit_row"));
 
@@ -1494,7 +1502,7 @@ private:
                 .with_size(ComponentSize{expand(), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(textCol)
-                .with_font_size(pixels(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(16.0f))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
@@ -1548,7 +1556,7 @@ private:
                 .with_size(ComponentSize{children(), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(12.0f))
+                .with_font_size(pixels(14.0f))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("commit_hash"));

@@ -139,8 +139,8 @@ private:
                 .with_label(label)
                 .with_size(ComponentSize{children(), children()})
                 .with_padding(Padding{
-                    .top = pixels(4), .right = pixels(12),
-                    .bottom = pixels(4), .left = pixels(12)})
+                    .top = pixels(4), .right = pixels(14),
+                    .bottom = pixels(4), .left = pixels(14)})
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
                 .with_font_size(pixels(theme::layout::FONT_TOOLBAR))
