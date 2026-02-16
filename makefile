@@ -166,7 +166,7 @@ output: $(MAIN_EXE)
 	$(cp_resources_cmd)
 
 run: output
-	./$(MAIN_EXE)
+	./$(MAIN_EXE) .
 
 install: $(MAIN_EXE)
 	@scripts/install.sh
