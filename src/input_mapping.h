@@ -3,6 +3,8 @@
 enum class InputAction {
     None,
     // Required by afterhours UI systems
+    WidgetUp,
+    WidgetDown,
     WidgetRight,
     WidgetLeft,
     WidgetNext,
