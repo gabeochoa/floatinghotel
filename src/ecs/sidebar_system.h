@@ -1270,7 +1270,7 @@ private:
 
         auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Row container (clickable div with Row flex)
+        // Row container
         auto row = div(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
@@ -1281,9 +1281,9 @@ private:
                 .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_padding(Padding{
-                    .top = pixels(3), .right = pixels(10),
-                    .bottom = pixels(3), .left = pixels(10)})
-                .with_gap(pixels(6))
+                    .top = pixels(0), .right = pixels(4),
+                    .bottom = pixels(0), .left = pixels(10)})
+                .with_gap(pixels(4))
                 .with_roundness(0.0f)
                 .with_debug_name("file_row"));
 
@@ -1292,8 +1292,8 @@ private:
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
 
-        // Filename: sidebarW - padL(10) - padR(10) - gap(6) - status(16)
-        float nameW = sidebarPixelWidth_ - 42.0f;
+        // Filename: sidebarW - padL(10) - padR(4) - gap(4) - status(20)
+        float nameW = sidebarPixelWidth_ - 38.0f;
         if (nameW < 40.0f) nameW = 40.0f;
 
         std::string label = fname;
@@ -1305,21 +1305,21 @@ private:
                 .with_size(ComponentSize{pixels(nameW), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(textCol)
-                .with_font_size(pixels(16.0f))
+                .with_font_size(pixels(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
-        // Status letter (fixed width, colored)
+        // Status letter (right-aligned, vertically centered by AlignItems::Center)
         auto statusCol = sidebar_detail::status_color(statusChar);
         div(ctx, mk(row.ent(), 3),
             ComponentConfig{}
                 .with_label(statusStr)
-                .with_size(ComponentSize{pixels(16), children()})
+                .with_size(ComponentSize{pixels(20), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(statusCol)
-                .with_font_size(pixels(14.0f))
+                .with_font_size(pixels(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Right)
                 .with_roundness(0.0f)
                 .with_debug_name("file_status"));
@@ -1352,7 +1352,7 @@ private:
 
         auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Row container (clickable div with Row flex)
+        // Row container
         auto row = div(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
@@ -1363,9 +1363,9 @@ private:
                 .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_padding(Padding{
-                    .top = pixels(3), .right = pixels(10),
-                    .bottom = pixels(3), .left = pixels(10)})
-                .with_gap(pixels(6))
+                    .top = pixels(0), .right = pixels(4),
+                    .bottom = pixels(0), .left = pixels(10)})
+                .with_gap(pixels(4))
                 .with_roundness(0.0f)
                 .with_debug_name("untracked_row"));
 
@@ -1374,8 +1374,7 @@ private:
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
 
-        // Filename: sidebarW - padL(10) - padR(10) - gap(6) - status(16)
-        float nameW = sidebarPixelWidth_ - 42.0f;
+        float nameW = sidebarPixelWidth_ - 38.0f;
         if (nameW < 40.0f) nameW = 40.0f;
 
         std::string label = fname;
@@ -1387,20 +1386,20 @@ private:
                 .with_size(ComponentSize{pixels(nameW), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(textCol)
-                .with_font_size(pixels(16.0f))
+                .with_font_size(pixels(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
-        // Status letter "U" (fixed width, gray)
+        // Status letter "U" (right-aligned, vertically centered by AlignItems::Center)
         div(ctx, mk(row.ent(), 3),
             ComponentConfig{}
                 .with_label("U")
-                .with_size(ComponentSize{pixels(16), children()})
+                .with_size(ComponentSize{pixels(20), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(sidebar_detail::status_color('U'))
-                .with_font_size(pixels(14.0f))
+                .with_font_size(pixels(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Right)
                 .with_roundness(0.0f)
                 .with_debug_name("file_status"));
@@ -1477,7 +1476,7 @@ private:
 
         auto badges = commit_log_detail::parse_decorations(commit.decorations);
 
-        // Row container (clickable div with Row flex)
+        // Row container
         auto row = div(ctx, mk(parent, baseId),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(sidebarW), h720(ROW_H)})
@@ -1488,8 +1487,8 @@ private:
                 .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_padding(Padding{
-                    .top = pixels(4), .right = pixels(10),
-                    .bottom = pixels(4), .left = pixels(10)})
+                    .top = pixels(0), .right = pixels(4),
+                    .bottom = pixels(0), .left = pixels(10)})
                 .with_gap(pixels(8))
                 .with_roundness(0.0f)
                 .with_debug_name("commit_row"));
@@ -1505,20 +1504,19 @@ private:
                 .with_roundness(1.0f)
                 .with_debug_name("commit_dot"));
 
-        // Calculate widths: row has padL(10)+padR(10), dot(8), gap(8) per child
-        // Hash: ~50px at 14px font for 7 chars
-        // Each badge: ~45px (label chars * ~6px + 10px padding) at 11px font
         constexpr float HASH_W = 52.0f;
         constexpr float BADGE_EST_W = 46.0f;
-        int numChildren = 2 + static_cast<int>(badges.size()); // subject + badges + hash
+        // Subject: sidebarW - padL(10) - padR(4) - dot(8) - gaps - badges - hashArea(56)
+        // Hash is absolute-positioned so reserve fixed space for it
+        constexpr float HASH_AREA = 56.0f;
+        int numFlowChildren = 1 + static_cast<int>(badges.size()); // dot + subject + badges (no hash)
         float fixedW = 8.0f  // dot
-                     + HASH_W
                      + BADGE_EST_W * static_cast<float>(badges.size())
-                     + 8.0f * static_cast<float>(numChildren); // gaps
-        float subjectW = sidebarW - 20.0f - fixedW; // 20 = padding L+R
+                     + 8.0f * static_cast<float>(numFlowChildren) // gaps between flow children
+                     + HASH_AREA;
+        float subjectW = sidebarW - 14.0f - fixedW; // 14 = padL(10) + padR(4)
         if (subjectW < 50.0f) subjectW = 50.0f;
 
-        // Subject text (calculated width, truncates with ellipsis)
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
         div(ctx, mk(row.ent(), 2),
@@ -1527,7 +1525,7 @@ private:
                 .with_size(ComponentSize{pixels(subjectW), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(textCol)
-                .with_font_size(pixels(16.0f))
+                .with_font_size(pixels(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
@@ -1575,15 +1573,17 @@ private:
                     .with_debug_name("commit_badge"));
         }
 
-        // Commit hash (gray, fixed width)
+        // Commit hash (absolute positioned at fixed right position)
         div(ctx, mk(row.ent(), 30),
             ComponentConfig{}
                 .with_label(commit.hash.substr(0, 7))
-                .with_size(ComponentSize{pixels(HASH_W), children()})
+                .with_size(ComponentSize{pixels(HASH_W), h720(ROW_H)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(14.0f))
-                .with_alignment(TextAlignment::Left)
+                .with_font_size(pixels(theme::layout::FONT_META))
+                .with_alignment(TextAlignment::Right)
+                .with_absolute_position()
+                .with_translate(pixels(sidebarW - HASH_W - 14.0f), pixels(0))
                 .with_roundness(0.0f)
                 .with_debug_name("commit_hash"));
 
