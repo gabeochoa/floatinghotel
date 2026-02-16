@@ -314,6 +314,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_absolute_position()
                 .with_translate(layout.sidebar.x, layout.sidebar.y)
                 .with_custom_background(theme::SIDEBAR_BG)
+                .with_border_right(theme::BORDER)
                 .with_flex_direction(FlexDirection::Column)
                 .with_overflow(Overflow::Hidden, Axis::Y)
                 .with_roundness(0.0f)
@@ -330,7 +331,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_flex_direction(FlexDirection::Column)
-                .with_overflow(Overflow::Scroll, Axis::Y)
+                .with_overflow(Overflow::Auto, Axis::Y)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_files"));
 
@@ -425,10 +426,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             div(ctx, mk(logBg.ent(), 2310),
                 ComponentConfig{}
                     .with_label(logHeaderText)
-                    .with_size(ComponentSize{logW, h720(24)})
+                    .with_size(ComponentSize{logW, children()})
                     .with_padding(Padding{
-                        .top = h720(7), .right = w1280(8),
-                        .bottom = h720(5), .left = w1280(10)})
+                        .top = pixels(7), .right = pixels(10),
+                        .bottom = pixels(5), .left = pixels(10)})
                     .with_custom_background(theme::SECTION_HEADER_BG)
                     .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
                     .with_font_size(pixels(theme::layout::FONT_CAPTION))
@@ -447,7 +448,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         auto logScroll = div(ctx, mk(logBg.ent(), 2320),
             ComponentConfig{}
                 .with_size(ComponentSize{logW, pixels(logScrollH)})
-                .with_overflow(Overflow::Scroll, Axis::Y)
+                .with_overflow(Overflow::Auto, Axis::Y)
                 .with_flex_direction(FlexDirection::Column)
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
@@ -617,7 +618,7 @@ private:
         auto scrollArea = div(ctx, mk(parent, 2170),
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), pixels(refsScrollH)})
-                .with_overflow(Overflow::Scroll, Axis::Y)
+                .with_overflow(Overflow::Auto, Axis::Y)
                 .with_flex_direction(FlexDirection::Column)
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
@@ -1209,16 +1210,15 @@ private:
                                 const std::string& label, size_t count) {
         auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Single-line label with count appended
         std::string headerText = "\xe2\x96\xbe " + label +
                                  "  " + std::to_string(count);
         div(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_label(headerText)
-                .with_size(ComponentSize{secWidth, h720(24)})
+                .with_size(ComponentSize{secWidth, children()})
                 .with_padding(Padding{
-                    .top = h720(7), .right = w1280(8),
-                    .bottom = h720(5), .left = w1280(10)})
+                    .top = pixels(7), .right = pixels(10),
+                    .bottom = pixels(5), .left = pixels(10)})
                 .with_custom_background(theme::SECTION_HEADER_BG)
                 .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
                 .with_font_size(pixels(theme::layout::FONT_CAPTION))
@@ -1228,7 +1228,7 @@ private:
                 .with_debug_name("section_hdr"));
     }
 
-    // Render a file row: "filename  dir" on left, status letter on right
+    // Render a file row with Row flex: [filename (expand)] [dir (gray)] [status (colored)]
     void render_file_row(UIContext<InputAction>& ctx,
                          Entity& parent, int id,
                          const FileStatus& file,
@@ -1243,36 +1243,68 @@ private:
 
         auto rowBg = selected ? theme::SELECTED_BG : theme::SIDEBAR_BG;
 
-        // Compose label: "M  filename  dir"
         std::string fname = sidebar_detail::basename_from_path(file.path);
         std::string dir = sidebar_detail::dir_from_path(file.path);
         std::string statusStr(1, statusChar);
-        std::string label = statusStr + "  " + fname;
-        if (!dir.empty()) label += "  " + dir;
 
         auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Single-label button row (status letter baked into the label text)
-        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
-                                : theme::TEXT_PRIMARY;
-        auto rowResult = button(ctx, mk(parent, id),
+        // Row container (clickable div with Row flex)
+        auto row = div(ctx, mk(parent, id),
             ComponentConfig{}
-                .with_label(label)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_flex_wrap(afterhours::ui::FlexWrap::NoWrap)
+                .with_align_items(AlignItems::Center)
                 .with_custom_background(rowBg)
                 .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
-                .with_custom_text_color(textCol)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_font_size(pixels(theme::layout::FONT_CHROME))
-                .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
-                    .top = h720(3), .right = w1280(8),
-                    .bottom = h720(3), .left = w1280(10)})
+                    .top = pixels(3), .right = pixels(10),
+                    .bottom = pixels(3), .left = pixels(10)})
+                .with_gap(pixels(6))
                 .with_roundness(0.0f)
                 .with_debug_name("file_row"));
 
+        row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
+
+        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
+                                : theme::TEXT_PRIMARY;
+
+        // Filename: sidebarW - padL(10) - padR(10) - gap(6) - status(16)
+        float nameW = sidebarPixelWidth_ - 42.0f;
+        if (nameW < 40.0f) nameW = 40.0f;
+
+        std::string label = fname;
+        if (!dir.empty()) label += "  " + dir;
+
+        div(ctx, mk(row.ent(), 1),
+            ComponentConfig{}
+                .with_label(label)
+                .with_size(ComponentSize{pixels(nameW), children()})
+                .with_transparent_bg()
+                .with_custom_text_color(textCol)
+                .with_font_size(pixels(theme::layout::FONT_CHROME))
+                .with_alignment(TextAlignment::Left)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_roundness(0.0f)
+                .with_debug_name("file_name"));
+
+        // Status letter (fixed width, colored)
+        auto statusCol = sidebar_detail::status_color(statusChar);
+        div(ctx, mk(row.ent(), 3),
+            ComponentConfig{}
+                .with_label(statusStr)
+                .with_size(ComponentSize{pixels(16), children()})
+                .with_transparent_bg()
+                .with_custom_text_color(statusCol)
+                .with_font_size(pixels(theme::layout::FONT_META))
+                .with_alignment(TextAlignment::Right)
+                .with_roundness(0.0f)
+                .with_debug_name("file_status"));
+
         // Click -> select this file
-        if (rowResult) {
+        if (row.ent().get<HasClickListener>().down) {
             auto rEntities = afterhours::EntityQuery({.force_merge = true})
                                  .whereHasComponent<RepoComponent>()
                                  .gen();
@@ -1284,7 +1316,7 @@ private:
         }
     }
 
-    // Render a row for an untracked file: "filename  dir" + "U" on right
+    // Render a row for an untracked file with Row flex: [filename (expand)] [dir (gray)] [U (gray)]
     void render_untracked_row(UIContext<InputAction>& ctx,
                                Entity& parent, int id,
                                const std::string& path,
@@ -1296,31 +1328,63 @@ private:
 
         std::string fname = sidebar_detail::basename_from_path(path);
         std::string dir = sidebar_detail::dir_from_path(path);
-        std::string label = fname;
-        if (!dir.empty()) label += "  " + dir;
 
-        auto uRowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
+        auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        std::string fullLabel = "U  " + label;
-        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
-                                : theme::TEXT_PRIMARY;
-        auto rowResult = button(ctx, mk(parent, id),
+        // Row container (clickable div with Row flex)
+        auto row = div(ctx, mk(parent, id),
             ComponentConfig{}
-                .with_label(fullLabel)
-                .with_size(ComponentSize{uRowWidth, h720(ROW_H)})
+                .with_size(ComponentSize{rowWidth, h720(ROW_H)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_flex_wrap(afterhours::ui::FlexWrap::NoWrap)
+                .with_align_items(AlignItems::Center)
                 .with_custom_background(rowBg)
                 .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
-                .with_custom_text_color(textCol)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_font_size(pixels(theme::layout::FONT_CHROME))
-                .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
-                    .top = h720(3), .right = w1280(8),
-                    .bottom = h720(3), .left = w1280(10)})
+                    .top = pixels(3), .right = pixels(10),
+                    .bottom = pixels(3), .left = pixels(10)})
+                .with_gap(pixels(6))
                 .with_roundness(0.0f)
                 .with_debug_name("untracked_row"));
 
-        if (rowResult) {
+        row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
+
+        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
+                                : theme::TEXT_PRIMARY;
+
+        // Filename: sidebarW - padL(10) - padR(10) - gap(6) - status(16)
+        float nameW = sidebarPixelWidth_ - 42.0f;
+        if (nameW < 40.0f) nameW = 40.0f;
+
+        std::string label = fname;
+        if (!dir.empty()) label += "  " + dir;
+
+        div(ctx, mk(row.ent(), 1),
+            ComponentConfig{}
+                .with_label(label)
+                .with_size(ComponentSize{pixels(nameW), children()})
+                .with_transparent_bg()
+                .with_custom_text_color(textCol)
+                .with_font_size(pixels(theme::layout::FONT_CHROME))
+                .with_alignment(TextAlignment::Left)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_roundness(0.0f)
+                .with_debug_name("file_name"));
+
+        // Status letter "U" (fixed width, gray)
+        div(ctx, mk(row.ent(), 3),
+            ComponentConfig{}
+                .with_label("U")
+                .with_size(ComponentSize{pixels(16), children()})
+                .with_transparent_bg()
+                .with_custom_text_color(sidebar_detail::status_color('U'))
+                .with_font_size(pixels(theme::layout::FONT_META))
+                .with_alignment(TextAlignment::Right)
+                .with_roundness(0.0f)
+                .with_debug_name("file_status"));
+
+        if (row.ent().get<HasClickListener>().down) {
             auto rEntities = afterhours::EntityQuery({.force_merge = true})
                                  .whereHasComponent<RepoComponent>()
                                  .gen();
@@ -1377,57 +1441,76 @@ private:
         }
     }
 
-    // Render a single commit row with graph-style dot + subject + badges.
-    // Uses a container div with explicit widths (expand() doesn't resolve
-    // inside buttons), then a clickable button for the text area.
+    // Render a single commit row with Row flex: [dot] [label with message+badges+hash]
     void render_commit_row(UIContext<InputAction>& ctx,
                            Entity& parent, int index,
                            const CommitEntry& commit,
                            RepoComponent& repo) {
         bool selected = (commit.hash == repo.selectedCommitHash);
         constexpr float ROW_H = static_cast<float>(theme::layout::COMMIT_ROW_HEIGHT);
-        constexpr float DOT_COL_W = 22.0f;
 
         auto rowBg = selected ? theme::SELECTED_BG : theme::SIDEBAR_BG;
 
         int baseId = index * 2 + 10;
-
         float sidebarW = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;
 
-        // Determine if this is HEAD
-        bool isHead = (!commit.decorations.empty() &&
-                       commit.decorations.find("HEAD") != std::string::npos);
-
-        // Parse badges
+        // Build single-line label: "subject  [badges]  hash"
         auto badges = commit_log_detail::parse_decorations(commit.decorations);
+        std::string commitLabel = commit.subject;
+        if (!badges.empty()) {
+            for (auto& badge : badges) {
+                commitLabel += "  [" + badge.label + "]";
+            }
+        }
+        commitLabel += "  " + commit.hash.substr(0, 7);
 
-        // Subject text (no manual truncation — framework handles ellipsis)
-        std::string subjectText = commit.subject;
-
-        // Single-line label for the commit subject
-        std::string commitLabel = subjectText;
-
-        auto subjectColor = selected ? afterhours::Color{255, 255, 255, 255}
-                                     : theme::TEXT_PRIMARY;
-
-        auto rowResult = button(ctx, mk(parent, baseId),
+        // Row container (clickable div with Row flex)
+        auto row = div(ctx, mk(parent, baseId),
             ComponentConfig{}
-                .with_label(commitLabel)
                 .with_size(ComponentSize{pixels(sidebarW), h720(ROW_H)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_flex_wrap(afterhours::ui::FlexWrap::NoWrap)
+                .with_align_items(AlignItems::Center)
                 .with_custom_background(rowBg)
                 .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
-                .with_custom_text_color(subjectColor)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_font_size(pixels(theme::layout::FONT_CHROME))
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(10),
-                    .bottom = h720(4), .left = w1280(10)})
-                .with_alignment(TextAlignment::Left)
+                    .top = pixels(4), .right = pixels(10),
+                    .bottom = pixels(4), .left = pixels(10)})
+                .with_gap(pixels(8))
                 .with_roundness(0.0f)
                 .with_debug_name("commit_row"));
 
+        row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
+
+        // Purple dot (8x8 circle)
+        div(ctx, mk(row.ent(), 1),
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(8), pixels(8)})
+                .with_custom_background(theme::GRAPH_DOT)
+                .with_roundness(1.0f)
+                .with_debug_name("commit_dot"));
+
+        // Commit label: sidebarW - padL(10) - padR(10) - dot(8) - gap(8)
+        float labelW = sidebarW - 36.0f;
+        if (labelW < 40.0f) labelW = 40.0f;
+
+        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
+                                : theme::TEXT_PRIMARY;
+        div(ctx, mk(row.ent(), 2),
+            ComponentConfig{}
+                .with_label(commitLabel)
+                .with_size(ComponentSize{pixels(labelW), children()})
+                .with_transparent_bg()
+                .with_custom_text_color(textCol)
+                .with_font_size(pixels(theme::layout::FONT_CHROME))
+                .with_alignment(TextAlignment::Left)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_roundness(0.0f)
+                .with_debug_name("commit_label"));
+
         // Click -> select this commit
-        if (rowResult) {
+        if (row.ent().get<HasClickListener>().down) {
             auto rEntities = afterhours::EntityQuery({.force_merge = true})
                                  .whereHasComponent<RepoComponent>()
                                  .gen();
@@ -1437,80 +1520,9 @@ private:
                 r.selectedFilePath.clear();
             }
         }
-
-        // Render metadata line: badges (if any) + short hash
-        {
-            std::string metaLine;
-            for (auto& badge : badges) {
-                if (!metaLine.empty()) metaLine += "  ";
-                metaLine += "[" + badge.label + "]";
-            }
-            if (!metaLine.empty()) metaLine += "  ";
-            metaLine += commit.hash.substr(0, 7);
-            div(ctx, mk(parent, baseId + 1),
-                ComponentConfig{}
-                    .with_label(metaLine)
-                    .with_size(ComponentSize{pixels(sidebarW), h720(14)})
-                    .with_custom_background(theme::SIDEBAR_BG)
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(theme::layout::FONT_CAPTION))
-                    .with_alignment(TextAlignment::Left)
-                    .with_padding(Padding{
-                        .top = h720(0), .right = w1280(10),
-                        .bottom = h720(2), .left = w1280(12)})
-                    .with_roundness(0.0f)
-                    .with_debug_name("commit_meta"));
-        }
     }
 
-    // Render colored decoration badges (branch, HEAD, remote, tag)
-    void render_decoration_badges(UIContext<InputAction>& ctx,
-                                   Entity& parent,
-                                   const std::string& decorations) {
-        auto badges = commit_log_detail::parse_decorations(decorations);
-        int badgeId = 10;
-        for (auto& badge : badges) {
-            afterhours::Color bg, text;
-            switch (badge.type) {
-                case commit_log_detail::DecorationType::Head:
-                    bg = theme::BADGE_HEAD_BG;
-                    text = afterhours::Color{255, 255, 255, 255};
-                    break;
-                case commit_log_detail::DecorationType::LocalBranch:
-                    bg = theme::BADGE_BRANCH_BG;
-                    text = afterhours::Color{255, 255, 255, 255};
-                    break;
-                case commit_log_detail::DecorationType::RemoteBranch:
-                    bg = theme::BADGE_REMOTE_BG;
-                    text = afterhours::Color{255, 255, 255, 255};
-                    break;
-                case commit_log_detail::DecorationType::Tag:
-                    bg = theme::BADGE_TAG_BG;
-                    text = theme::BADGE_TAG_TEXT;
-                    break;
-                default:
-                    bg = theme::BADGE_TAG_BG;
-                    text = theme::BADGE_TAG_TEXT;
-                    break;
-            }
-
-            div(ctx, mk(parent, badgeId++),
-                ComponentConfig{}
-                    .with_label(badge.label)
-                    .with_size(ComponentSize{children(), h720(14)})
-                    .with_padding(Padding{
-                        .top = h720(1), .right = w1280(4),
-                        .bottom = h720(1), .left = w1280(4)})
-                    .with_margin(Margin{
-                        .top = {}, .bottom = {},
-                        .left = {}, .right = w1280(3)})
-                    .with_custom_background(bg)
-                    .with_custom_text_color(text)
-                    .with_roundness(0.15f)
-                    .with_alignment(TextAlignment::Center)
-                    .with_debug_name("dec_badge"));
-        }
-    }
+    // (render_decoration_badges removed — badges now inline in commit label text)
 
     // ---- Unstaged Changes Dialog (T030) ----
     // Custom modal dialog showing staged/unstaged file lists with three

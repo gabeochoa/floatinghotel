@@ -75,6 +75,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{pixels(w), pixels(h)})
                 .with_absolute_position()
                 .with_translate(toolbarX, toolbarY)
+                .with_custom_background(theme::TOOLBAR_BG)
                 .with_flex_direction(FlexDirection::Column)
                 .with_roundness(0.0f)
                 .with_render_layer(5)
@@ -107,8 +108,8 @@ private:
                 .with_flex_direction(FlexDirection::Column)
                 .with_align_items(AlignItems::FlexStart)
                 .with_padding(Padding{
-                    .top = h720(6), .right = w1280(8),
-                    .bottom = h720(6), .left = w1280(8)})
+                    .top = pixels(6), .right = pixels(8),
+                    .bottom = pixels(6), .left = pixels(8)})
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_sidebar"));
 
@@ -120,7 +121,7 @@ private:
                 .with_size(ComponentSize{percent(1.0f), children()})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
-                .with_gap(w1280(4))
+                .with_gap(pixels(4))
                 .with_transparent_bg()
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_row1"));
@@ -134,13 +135,12 @@ private:
             auto textCol = primary ? afterhours::Color{255, 255, 255, 255}
                                    : (enabled ? afterhours::Color{204, 204, 204, 255}
                                               : afterhours::Color{100, 100, 100, 255});
-            float btnW = static_cast<float>(label.size()) * 9.0f + 24.0f;
             auto config = ComponentConfig{}
                 .with_label(label)
-                .with_size(ComponentSize{w1280(btnW), h720(26)})
+                .with_size(ComponentSize{children(), children()})
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(10),
-                    .bottom = h720(4), .left = w1280(10)})
+                    .top = pixels(4), .right = pixels(14),
+                    .bottom = pixels(4), .left = pixels(14)})
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
                 .with_font_size(pixels(theme::layout::FONT_META))
