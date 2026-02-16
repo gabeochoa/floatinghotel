@@ -287,7 +287,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
     auto scrollArea = div(ctx, mk(panelBg.ent(), 3230),
         ComponentConfig{}
             .with_size(ComponentSize{percent(1.0f), pixels(cmdLogScrollH)})
-            .with_overflow(Overflow::Scroll, Axis::Y)
+            .with_overflow(Overflow::Auto, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_custom_background(theme::SIDEBAR_BG)
             .with_roundness(0.0f)
@@ -547,7 +547,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     if (repo.cachedCommitHash != repo.selectedCommitHash) {
         repo.cachedCommitHash = repo.selectedCommitHash;
 
-        // Get commit diff
         auto diffResult = git::git_show(repo.repoPath, repo.selectedCommitHash);
         if (diffResult.success()) {
             repo.commitDetailDiff = git::parse_diff(diffResult.stdout_str());
@@ -555,7 +554,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             repo.commitDetailDiff.clear();
         }
 
-        // Get commit metadata (body, email, parents)
         auto infoResult = git::git_show_commit_info(repo.repoPath, repo.selectedCommitHash);
         if (infoResult.success()) {
             auto info = cdv::parse_commit_info(infoResult.stdout_str());
@@ -569,10 +567,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         }
     }
 
-    // ID range: 3050-3099 for commit detail header elements
     int nextId = 3050;
+    constexpr float PAD = 16.0f;
+    constexpr float LABEL_W = 70.0f;
+    float contentW = layout.mainContent.width;
 
-    // === Scrollable container for entire commit detail ===
+    // === Scrollable container ===
     auto scrollContainer = div(ctx, mk(parent, nextId++),
         ComponentConfig{}
             .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
@@ -582,23 +582,20 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("commit_detail_scroll"));
 
-    // === Header section: subject + body ===
-    constexpr float HEADER_PAD = 16.0f;
-
-    // Back button
+    // === Back button ===
     auto backBtn = button(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
             .with_label("<- Back")
-            .with_size(ComponentSize{children(), h720(22)})
+            .with_size(ComponentSize{children(), children()})
             .with_padding(Padding{
-                .top = h720(3), .right = w1280(12),
-                .bottom = h720(3), .left = w1280(12)})
+                .top = pixels(3), .right = pixels(12),
+                .bottom = pixels(3), .left = pixels(12)})
             .with_margin(Margin{
-                .top = h720(8), .bottom = h720(4),
-                .left = w1280(HEADER_PAD), .right = {}})
-            .with_custom_background(afterhours::Color{0, 0, 0, 0})
+                .top = pixels(8), .bottom = pixels(4),
+                .left = pixels(PAD), .right = {}})
+            .with_transparent_bg()
             .with_custom_text_color(theme::BUTTON_PRIMARY)
-            .with_font_size(pixels(theme::layout::FONT_CHROME))
+            .with_font_size(pixels(14.0f))
             .with_roundness(0.04f)
             .with_debug_name("commit_back_btn"));
 
@@ -608,40 +605,39 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         return;
     }
 
-    // Subject line (bold, large)
+    // === Subject line ===
     div(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
             .with_label(selectedCommit->subject)
             .with_size(ComponentSize{percent(1.0f), children()})
             .with_padding(Padding{
-                .top = h720(8), .right = w1280(HEADER_PAD),
-                .bottom = h720(4), .left = w1280(HEADER_PAD)})
+                .top = pixels(8), .right = pixels(PAD),
+                .bottom = pixels(4), .left = pixels(PAD)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font_size(pixels(theme::layout::FONT_HERO))
+            .with_font_size(pixels(20.0f))
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("commit_subject"));
 
-    // Commit body (if present)
+    // === Commit body (if present) ===
     if (!repo.commitDetailBody.empty()) {
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
                 .with_label(repo.commitDetailBody)
                 .with_size(ComponentSize{percent(1.0f), children()})
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(HEADER_PAD),
-                    .bottom = h720(8), .left = w1280(HEADER_PAD)})
+                    .top = pixels(4), .right = pixels(PAD),
+                    .bottom = pixels(8), .left = pixels(PAD)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(pixels(theme::layout::FONT_BODY))
+                .with_font_size(pixels(14.0f))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("commit_body"));
     }
 
     // === Metadata table ===
-    constexpr float META_ROW_H = 22.0f;
-    constexpr float META_LABEL_W = 80.0f;
-    constexpr float META_PAD = 12.0f;
+    float metaValueW = contentW - PAD * 4 - LABEL_W - 8.0f;
+    if (metaValueW < 100.0f) metaValueW = 100.0f;
 
     auto metaBox = div(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
@@ -649,60 +645,62 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_custom_background(theme::SIDEBAR_BG)
             .with_flex_direction(FlexDirection::Column)
             .with_padding(Padding{
-                .top = h720(META_PAD), .right = w1280(HEADER_PAD),
-                .bottom = h720(META_PAD), .left = w1280(HEADER_PAD)})
+                .top = pixels(10), .right = pixels(PAD),
+                .bottom = pixels(10), .left = pixels(PAD)})
             .with_margin(Margin{
-                .top = h720(4), .bottom = h720(4),
-                .left = w1280(HEADER_PAD), .right = w1280(HEADER_PAD)})
+                .top = pixels(4), .bottom = pixels(4),
+                .left = pixels(PAD), .right = pixels(PAD)})
             .with_roundness(0.04f)
             .with_debug_name("commit_meta_box"));
 
-    // Helper lambda for metadata rows
     auto metaRow = [&](const std::string& label, const std::string& value,
                        afterhours::Color valueColor = theme::TEXT_PRIMARY) {
         auto row = div(ctx, mk(metaBox.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(META_ROW_H)})
+                .with_size(ComponentSize{percent(1.0f), children()})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
+                .with_transparent_bg()
                 .with_roundness(0.0f)
                 .with_debug_name("meta_row"));
 
         div(ctx, mk(row.ent(), 1),
             ComponentConfig{}
                 .with_label(label)
-                .with_size(ComponentSize{w1280(META_LABEL_W), h720(META_ROW_H)})
+                .with_size(ComponentSize{pixels(LABEL_W), children()})
+                .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(13.0f))
                 .with_alignment(TextAlignment::Right)
                 .with_padding(Padding{
-                    .top = h720(0), .right = w1280(8),
-                    .bottom = h720(0), .left = w1280(0)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = {}})
                 .with_roundness(0.0f)
                 .with_debug_name("meta_label"));
 
         div(ctx, mk(row.ent(), 2),
             ComponentConfig{}
                 .with_label(value)
-                .with_size(ComponentSize{afterhours::ui::expand(), h720(META_ROW_H)})
+                .with_size(ComponentSize{pixels(metaValueW), children()})
+                .with_transparent_bg()
                 .with_custom_text_color(valueColor)
-                .with_font_size(pixels(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(13.0f))
                 .with_alignment(TextAlignment::Left)
+                .with_padding(Padding{
+                    .top = pixels(2), .bottom = pixels(2)})
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
                 .with_debug_name("meta_value"));
     };
 
-    // Commit hash
     metaRow("Commit:", selectedCommit->hash, theme::TEXT_SECONDARY);
 
-    // Author
     std::string authorStr = selectedCommit->author;
     if (!repo.commitDetailAuthorEmail.empty()) {
         authorStr += " <" + repo.commitDetailAuthorEmail + ">";
     }
     metaRow("Author:", authorStr);
 
-    // Date
     std::string dateStr = selectedCommit->authorDate;
     std::string relTime = cdv::relative_time(selectedCommit->authorDate);
     if (!relTime.empty()) {
@@ -710,9 +708,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     }
     metaRow("Date:", dateStr);
 
-    // Parents
     if (!repo.commitDetailParents.empty()) {
-        // Show abbreviated parent hashes
         std::string parentDisplay;
         std::string remaining = repo.commitDetailParents;
         while (!remaining.empty()) {
@@ -731,25 +727,29 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         metaRow("Parents:", parentDisplay, theme::BUTTON_PRIMARY);
     }
 
-    // Decoration badges (branches, tags)
+    // Decoration badges
     if (!selectedCommit->decorations.empty()) {
         auto badgeRow = div(ctx, mk(metaBox.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(META_ROW_H)})
+                .with_size(ComponentSize{percent(1.0f), children()})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
+                .with_gap(pixels(4))
+                .with_transparent_bg()
                 .with_roundness(0.0f)
                 .with_debug_name("meta_badge_row"));
 
         div(ctx, mk(badgeRow.ent(), 1),
             ComponentConfig{}
                 .with_label("Refs:")
-                .with_size(ComponentSize{w1280(META_LABEL_W), h720(META_ROW_H)})
+                .with_size(ComponentSize{pixels(LABEL_W), children()})
+                .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(pixels(13.0f))
                 .with_alignment(TextAlignment::Right)
                 .with_padding(Padding{
-                    .top = h720(0), .right = w1280(8),
-                    .bottom = h720(0), .left = w1280(0)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = {}})
                 .with_roundness(0.0f)
                 .with_debug_name("refs_label"));
 
@@ -783,16 +783,14 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(badgeRow.ent(), badgeId++),
                 ComponentConfig{}
                     .with_label(badge.label)
-                    .with_size(ComponentSize{children(), h720(14)})
+                    .with_size(ComponentSize{children(), children()})
                     .with_padding(Padding{
-                        .top = h720(1), .right = w1280(4),
-                        .bottom = h720(1), .left = w1280(4)})
-                    .with_margin(Margin{
-                        .top = {}, .bottom = {},
-                        .left = {}, .right = w1280(3)})
+                        .top = pixels(1), .right = pixels(5),
+                        .bottom = pixels(1), .left = pixels(5)})
                     .with_custom_background(bg)
                     .with_custom_text_color(text)
-                    .with_roundness(0.15f)
+                    .with_font_size(pixels(11.0f))
+                    .with_roundness(0.25f)
                     .with_alignment(TextAlignment::Center)
                     .with_debug_name("commit_dec_badge"));
         }
@@ -801,11 +799,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     // === Separator ===
     div(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f), h720(1)})
+            .with_size(ComponentSize{percent(1.0f), pixels(1)})
             .with_custom_background(theme::BORDER)
             .with_margin(Margin{
-                .top = h720(8), .bottom = h720(8),
-                .left = {}, .right = {}})
+                .top = pixels(8), .bottom = pixels(8)})
             .with_roundness(0.0f)
             .with_debug_name("commit_sep"));
 
@@ -825,59 +822,59 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
                 .with_label(summaryLabel)
-                .with_size(ComponentSize{percent(1.0f), h720(22)})
+                .with_size(ComponentSize{percent(1.0f), children()})
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(HEADER_PAD),
-                    .bottom = h720(4), .left = w1280(HEADER_PAD)})
+                    .top = pixels(4), .right = pixels(PAD),
+                    .bottom = pixels(4), .left = pixels(PAD)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(13.0f))
+                .with_letter_spacing(0.5f)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("files_changed_header"));
 
-        // File summary rows with change bars
-        constexpr float FILE_ROW_H = 28.0f;
-        constexpr float CHANGE_BAR_W = 60.0f;
+        // File summary rows
+        constexpr float STATS_W = 55.0f;
+        constexpr float BAR_W = 50.0f;
+        constexpr float BADGE_W = 20.0f;
 
         int totalChanges = totalAdd + totalDel;
-        if (totalChanges == 0) totalChanges = 1; // avoid div by zero
+        if (totalChanges == 0) totalChanges = 1;
+
+        float fileNameW = contentW - PAD * 2 - BADGE_W - STATS_W - BAR_W - 8.0f * 3;
+        if (fileNameW < 80.0f) fileNameW = 80.0f;
 
         for (size_t fi = 0; fi < repo.commitDetailDiff.size(); ++fi) {
             auto& fd = repo.commitDetailDiff[fi];
 
-            // Status badge character
             std::string badge = "M";
             afterhours::Color badgeColor = theme::STATUS_MODIFIED;
-            if (fd.isNew) {
-                badge = "A";
-                badgeColor = theme::STATUS_ADDED;
-            } else if (fd.isDeleted) {
-                badge = "D";
-                badgeColor = theme::STATUS_DELETED;
-            } else if (fd.isRenamed) {
-                badge = "R";
-                badgeColor = theme::STATUS_RENAMED;
-            }
+            if (fd.isNew) { badge = "A"; badgeColor = theme::STATUS_ADDED; }
+            else if (fd.isDeleted) { badge = "D"; badgeColor = theme::STATUS_DELETED; }
+            else if (fd.isRenamed) { badge = "R"; badgeColor = theme::STATUS_RENAMED; }
 
             auto fileRow = div(ctx, mk(scrollContainer.ent(), nextId++),
                 ComponentConfig{}
-                    .with_size(ComponentSize{percent(1.0f), h720(FILE_ROW_H)})
+                    .with_size(ComponentSize{percent(1.0f), children()})
                     .with_flex_direction(FlexDirection::Row)
+                    .with_flex_wrap(afterhours::ui::FlexWrap::NoWrap)
                     .with_align_items(AlignItems::Center)
                     .with_padding(Padding{
-                        .top = h720(2), .right = w1280(HEADER_PAD),
-                        .bottom = h720(2), .left = w1280(HEADER_PAD)})
+                        .top = pixels(3), .right = pixels(PAD),
+                        .bottom = pixels(3), .left = pixels(PAD)})
+                    .with_gap(pixels(8))
                     .with_custom_background(theme::WINDOW_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_summary_row"));
 
-            // Badge
+            // Status badge
             div(ctx, mk(fileRow.ent(), 1),
                 ComponentConfig{}
                     .with_label(badge)
-                    .with_size(ComponentSize{w1280(20), h720(FILE_ROW_H)})
+                    .with_size(ComponentSize{pixels(BADGE_W), children()})
+                    .with_transparent_bg()
                     .with_custom_text_color(badgeColor)
-                    .with_font_size(pixels(theme::layout::FONT_CHROME))
+                    .with_font_size(pixels(14.0f))
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("file_badge"));
@@ -890,13 +887,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(fileRow.ent(), 2),
                 ComponentConfig{}
                     .with_label(fname)
-                    .with_size(ComponentSize{afterhours::ui::expand(), h720(FILE_ROW_H)})
+                    .with_size(ComponentSize{pixels(fileNameW), children()})
+                    .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(pixels(theme::layout::FONT_BODY))
+                    .with_font_size(pixels(14.0f))
                     .with_alignment(TextAlignment::Left)
-                    .with_padding(Padding{
-                        .top = h720(0), .right = w1280(8),
-                        .bottom = h720(0), .left = w1280(4)})
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_roundness(0.0f)
                     .with_debug_name("file_name"));
 
@@ -910,28 +906,28 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(fileRow.ent(), 3),
                 ComponentConfig{}
                     .with_label(statsStr)
-                    .with_size(ComponentSize{w1280(60), h720(FILE_ROW_H)})
+                    .with_size(ComponentSize{pixels(STATS_W), children()})
+                    .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(theme::layout::FONT_META))
+                    .with_font_size(pixels(12.0f))
                     .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
                     .with_debug_name("file_stats"));
 
-            // Change bar (visual proportional bar)
+            // Change bar
             int fileTotal = fd.additions + fd.deletions;
             float filePct = static_cast<float>(fileTotal) / static_cast<float>(totalChanges);
             float addPct = (fileTotal > 0)
                 ? static_cast<float>(fd.additions) / static_cast<float>(fileTotal)
                 : 0.0f;
 
-            constexpr float BAR_H = 8.0f;
-            float barFillW = CHANGE_BAR_W * std::min(filePct * 5.0f, 1.0f); // Scale up so small changes are visible
+            float barFillW = BAR_W * std::min(filePct * 5.0f, 1.0f);
             float greenW = barFillW * addPct;
             float redW = barFillW * (1.0f - addPct);
 
             auto barContainer = div(ctx, mk(fileRow.ent(), 4),
                 ComponentConfig{}
-                    .with_size(ComponentSize{w1280(CHANGE_BAR_W), h720(BAR_H)})
+                    .with_size(ComponentSize{pixels(BAR_W), pixels(8)})
                     .with_flex_direction(FlexDirection::Row)
                     .with_custom_background(theme::BORDER)
                     .with_roundness(0.15f)
@@ -940,7 +936,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             if (greenW > 0.5f) {
                 div(ctx, mk(barContainer.ent(), 1),
                     ComponentConfig{}
-                        .with_size(ComponentSize{w1280(greenW), h720(BAR_H)})
+                        .with_size(ComponentSize{pixels(greenW), pixels(8)})
                         .with_custom_background(theme::STATUS_ADDED)
                         .with_roundness(0.0f)
                         .with_debug_name("bar_green"));
@@ -948,7 +944,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             if (redW > 0.5f) {
                 div(ctx, mk(barContainer.ent(), 2),
                     ComponentConfig{}
-                        .with_size(ComponentSize{w1280(redW), h720(BAR_H)})
+                        .with_size(ComponentSize{pixels(redW), pixels(8)})
                         .with_custom_background(theme::STATUS_DELETED)
                         .with_roundness(0.0f)
                         .with_debug_name("bar_red"));
@@ -958,15 +954,14 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         // === Separator before diffs ===
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(1)})
+                .with_size(ComponentSize{percent(1.0f), pixels(1)})
                 .with_custom_background(theme::BORDER)
                 .with_margin(Margin{
-                    .top = h720(8), .bottom = h720(8),
-                    .left = {}, .right = {}})
+                    .top = pixels(8), .bottom = pixels(8)})
                 .with_roundness(0.0f)
                 .with_debug_name("diff_sep"));
 
-        // === Inline diff for the commit ===
+        // === Inline diff ===
         ui::render_inline_diff(ctx, scrollContainer.ent(),
                                repo.commitDetailDiff,
                                layout.mainContent.width,
