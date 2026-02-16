@@ -183,11 +183,11 @@ static void app_init() {
         auto& styling = afterhours::ui::imm::UIStylingDefaults::get();
         styling.set_default_font(
             afterhours::ui::UIComponent::DEFAULT_FONT,
-            afterhours::ui::h720(14.0f));
+            afterhours::ui::pixels(14.0f));
 
-        // Use Proportional scaling: h720/w1280 scale with resolution,
-        // pixels() stay fixed. Good for apps targeting a reference resolution.
-        styling.set_scaling_mode(afterhours::ui::ScalingMode::Proportional);
+        // Use Adaptive scaling: pixels() = logical pixels * ui_scale (web-like).
+        // Font sizes and layout behave like CSS px values.
+        styling.set_scaling_mode(afterhours::ui::ScalingMode::Adaptive);
 
         // Enable UI validation in development mode (min font size, contrast,
         // resolution independence, etc.)

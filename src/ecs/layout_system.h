@@ -262,7 +262,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label("GIT COMMAND LOG")
             .with_size(ComponentSize{percent(1.0f), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(h720(theme::layout::FONT_CAPTION))
+            .with_font_size(pixels(theme::layout::FONT_CAPTION))
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_title"));
@@ -274,7 +274,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label(countLabel)
             .with_size(ComponentSize{children(), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(h720(theme::layout::FONT_META))
+            .with_font_size(pixels(theme::layout::FONT_META))
             .with_alignment(TextAlignment::Right)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_count"));
@@ -303,7 +303,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(8), .right = w1280(8),
                     .bottom = h720(8), .left = w1280(8)})
                 .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                .with_font_size(h720(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name("cmdlog_empty"));
@@ -336,7 +336,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
                 .with_custom_text_color(cmdColor)
-                .with_font_size(h720(theme::layout::FONT_CODE))
+                .with_font_size(pixels(theme::layout::FONT_CODE))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("cmdlog_entry_" + std::to_string(entryId)));
@@ -362,7 +362,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(h720(theme::layout::FONT_META))
+                    .with_font_size(pixels(theme::layout::FONT_META))
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("cmdlog_out_" + std::to_string(entryId)));
@@ -387,7 +387,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::STATUS_DELETED)
-                    .with_font_size(h720(theme::layout::FONT_META))
+                    .with_font_size(pixels(theme::layout::FONT_META))
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("cmdlog_err_" + std::to_string(entryId)));
@@ -598,7 +598,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .left = w1280(HEADER_PAD), .right = {}})
             .with_custom_background(afterhours::Color{0, 0, 0, 0})
             .with_custom_text_color(theme::BUTTON_PRIMARY)
-            .with_font_size(h720(theme::layout::FONT_CHROME))
+            .with_font_size(pixels(theme::layout::FONT_CHROME))
             .with_roundness(0.04f)
             .with_debug_name("commit_back_btn"));
 
@@ -617,7 +617,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .top = h720(8), .right = w1280(HEADER_PAD),
                 .bottom = h720(4), .left = w1280(HEADER_PAD)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font_size(h720(theme::layout::FONT_HERO))
+            .with_font_size(pixels(theme::layout::FONT_HERO))
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("commit_subject"));
@@ -632,7 +632,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(4), .right = w1280(HEADER_PAD),
                     .bottom = h720(8), .left = w1280(HEADER_PAD)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(h720(theme::layout::FONT_BODY))
+                .with_font_size(pixels(theme::layout::FONT_BODY))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("commit_body"));
@@ -673,7 +673,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_label(label)
                 .with_size(ComponentSize{w1280(META_LABEL_W), h720(META_ROW_H)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(h720(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Right)
                 .with_padding(Padding{
                     .top = h720(0), .right = w1280(8),
@@ -686,7 +686,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_label(value)
                 .with_size(ComponentSize{afterhours::ui::expand(), h720(META_ROW_H)})
                 .with_custom_text_color(valueColor)
-                .with_font_size(h720(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("meta_value"));
@@ -830,7 +830,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(4), .right = w1280(HEADER_PAD),
                     .bottom = h720(4), .left = w1280(HEADER_PAD)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(h720(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(theme::layout::FONT_CHROME))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("files_changed_header"));
@@ -877,7 +877,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_label(badge)
                     .with_size(ComponentSize{w1280(20), h720(FILE_ROW_H)})
                     .with_custom_text_color(badgeColor)
-                    .with_font_size(h720(theme::layout::FONT_CHROME))
+                    .with_font_size(pixels(theme::layout::FONT_CHROME))
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("file_badge"));
@@ -892,7 +892,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_label(fname)
                     .with_size(ComponentSize{afterhours::ui::expand(), h720(FILE_ROW_H)})
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(h720(theme::layout::FONT_BODY))
+                    .with_font_size(pixels(theme::layout::FONT_BODY))
                     .with_alignment(TextAlignment::Left)
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(8),
@@ -912,7 +912,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_label(statsStr)
                     .with_size(ComponentSize{w1280(60), h720(FILE_ROW_H)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(h720(theme::layout::FONT_META))
+                    .with_font_size(pixels(theme::layout::FONT_META))
                     .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
                     .with_debug_name("file_stats"));
@@ -1054,7 +1054,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label("No diff available for this file")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font_size(h720(theme::layout::FONT_HEADING))
+                        .with_font_size(pixels(theme::layout::FONT_HEADING))
                         .with_transparent_bg()
                         .with_roundness(0.0f)
                         .with_debug_name("no_diff_msg"));
@@ -1080,7 +1080,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("\xe2\x97\x87")  // diamond symbol
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_size(h720(32))
+                    .with_font_size(pixels(32))
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(0),
                         .bottom = h720(16), .left = w1280(0)})
@@ -1095,7 +1095,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("Select a file or commit")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_size(h720(theme::layout::FONT_HEADING))
+                    .with_font_size(pixels(theme::layout::FONT_HEADING))
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(6), .left = w1280(8)})
@@ -1110,7 +1110,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("to view changes")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_size(h720(theme::layout::FONT_CHROME))
+                    .with_font_size(pixels(theme::layout::FONT_CHROME))
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(4), .left = w1280(8)})
@@ -1125,7 +1125,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("j/k navigate  Enter view  s stage  c commit")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_size(h720(theme::layout::FONT_META))
+                    .with_font_size(pixels(theme::layout::FONT_META))
                     .with_padding(Padding{
                         .top = h720(16), .right = w1280(8),
                         .bottom = h720(0), .left = w1280(8)})

@@ -98,13 +98,14 @@ private:
                                 float w, float /*h*/,
                                 Entities& /*repoEntities*/,
                                 bool hasRepo, bool /*hasUnstaged*/, bool hasStaged) {
-        // Toolbar with bottom border
+        // Toolbar fills its allocated height
         auto toolbarBg = div(ctx, mk(topChrome.ent(), 1),
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(w), children()})
+                .with_size(ComponentSize{pixels(w), percent(1.0f)})
                 .with_custom_background(theme::TOOLBAR_BG)
                 .with_border_bottom(theme::BORDER)
                 .with_flex_direction(FlexDirection::Column)
+                .with_align_items(AlignItems::FlexStart)
                 .with_padding(Padding{
                     .top = h720(6), .right = w1280(8),
                     .bottom = h720(6), .left = w1280(8)})
@@ -120,6 +121,7 @@ private:
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_gap(w1280(4))
+                .with_transparent_bg()
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_row1"));
 
@@ -141,7 +143,7 @@ private:
                     .bottom = h720(4), .left = w1280(10)})
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
-                .with_font_size(h720(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(theme::layout::FONT_META))
                 .with_roundness(0.12f)
                 .with_alignment(TextAlignment::Center)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
@@ -225,7 +227,7 @@ private:
                     .left = {}, .right = w1280(3)})
                 .with_custom_background(btnBg)
                 .with_custom_text_color(textCol)
-                .with_font_size(h720(theme::layout::FONT_CHROME))
+                .with_font_size(pixels(theme::layout::FONT_META))
                 .with_roundness(0.08f)
                 .with_alignment(TextAlignment::Center)
                 .with_cursor(afterhours::ui::CursorType::Pointer)

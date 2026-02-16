@@ -107,7 +107,7 @@ constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
 // Text hierarchy (values are h720 reference pixels at 720p)
 constexpr float FONT_HERO     = 18.0f;   // Commit detail subject, empty state title
-constexpr float FONT_HEADING  = 15.0f;   // Diff file headers, section titles
+constexpr float FONT_HEADING  = 14.0f;   // Diff file headers, section titles
 constexpr float FONT_BODY     = 14.0f;   // Sidebar file names, commit detail meta
 constexpr float FONT_CHROME   = 13.0f;   // Menu bar, toolbar, menus, commit entries
 constexpr float FONT_CODE     = 13.0f;   // Diff code text, line numbers
