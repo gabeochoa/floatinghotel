@@ -1493,13 +1493,26 @@ private:
                 .with_roundness(1.0f)
                 .with_debug_name("commit_dot"));
 
-        // Subject text (fills remaining space, truncates with ellipsis)
+        // Calculate widths: row has padL(10)+padR(10), dot(8), gap(8) per child
+        // Hash: ~50px at 14px font for 7 chars
+        // Each badge: ~45px (label chars * ~6px + 10px padding) at 11px font
+        constexpr float HASH_W = 52.0f;
+        constexpr float BADGE_EST_W = 46.0f;
+        int numChildren = 2 + static_cast<int>(badges.size()); // subject + badges + hash
+        float fixedW = 8.0f  // dot
+                     + HASH_W
+                     + BADGE_EST_W * static_cast<float>(badges.size())
+                     + 8.0f * static_cast<float>(numChildren); // gaps
+        float subjectW = sidebarW - 20.0f - fixedW; // 20 = padding L+R
+        if (subjectW < 50.0f) subjectW = 50.0f;
+
+        // Subject text (calculated width, truncates with ellipsis)
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
         div(ctx, mk(row.ent(), 2),
             ComponentConfig{}
                 .with_label(commit.subject)
-                .with_size(ComponentSize{expand(), children()})
+                .with_size(ComponentSize{pixels(subjectW), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(textCol)
                 .with_font_size(pixels(16.0f))
@@ -1508,7 +1521,7 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("commit_subject"));
 
-        // Badge pills (colored, rounded)
+        // Badge pills (colored, rounded, fixed width per badge)
         int badgeId = 10;
         for (auto& badge : badges) {
             afterhours::Color bg, btxt;
@@ -1537,7 +1550,7 @@ private:
             div(ctx, mk(row.ent(), badgeId++),
                 ComponentConfig{}
                     .with_label(badge.label)
-                    .with_size(ComponentSize{children(), children()})
+                    .with_size(ComponentSize{pixels(BADGE_EST_W), children()})
                     .with_padding(Padding{
                         .top = pixels(1), .right = pixels(5),
                         .bottom = pixels(1), .left = pixels(5)})
@@ -1549,11 +1562,11 @@ private:
                     .with_debug_name("commit_badge"));
         }
 
-        // Commit hash (gray, smaller font)
+        // Commit hash (gray, fixed width)
         div(ctx, mk(row.ent(), 30),
             ComponentConfig{}
                 .with_label(commit.hash.substr(0, 7))
-                .with_size(ComponentSize{children(), children()})
+                .with_size(ComponentSize{pixels(HASH_W), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_font_size(pixels(14.0f))
