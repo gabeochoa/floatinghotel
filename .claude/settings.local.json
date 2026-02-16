@@ -1,7 +1,6 @@
 {
   "permissions": {
     "allow": [
-      "Skill(claw-town)",
       "Bash(python3:*)",
       "Bash(xargs:*)",
       "Bash(GIT_CONFIG_NOSYSTEM=1 git -c user.name=temp -c user.email=temp@temp.com log --oneline -20)",
@@ -16,11 +15,8 @@
       "Bash(tmux capture-pane:*)",
       "Bash(ls:*)",
       "Bash(test:*)",
-      "Bash(CLAW_TOWN_TASKS_DIR=/Users/gabeochoa/p/floatinghotel/.tasks python3:*)",
       "Bash(chmod:*)",
       "Bash(gh api:*)",
-      "Bash(# Check how the dashboard was originally launched - look at the startup script grep -A 10 -i dashboard ~/.claude/skills/claw-town/scripts/claw_town_startup.sh)",
-      "Bash(# Check the entry script too grep -A 10 -i dashboard ~/.claude/skills/claw-town/scripts/claw_town_entry.sh)",
       "Bash(tmux send-keys:*)",
       "Bash(tmux list-sessions:*)",
       "Bash(timeout 5 /Users/gabeochoa/p/floatinghotel/scripts/auto_nudge.sh:*)",
