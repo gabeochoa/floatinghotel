@@ -11,6 +11,7 @@
 #include "../git/git_commands.h"
 #include "../git/git_runner.h"
 #include "../settings.h"
+#include "../ui/presets.h"
 #include "../ui/theme.h"
 #include "../ui_context.h"
 #include "components.h"
@@ -43,6 +44,7 @@ using afterhours::ui::HasClickListener;
 using afterhours::ui::HasDragListener;
 using afterhours::ui::Overflow;
 using afterhours::ui::Axis;
+using afterhours::ui::FontSizing;
 using afterhours::ui::JustifyContent;
 using afterhours::ui::resolve_to_pixels;
 using afterhours::ui::imm::checkbox;
@@ -327,12 +329,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
         float filesH = layout.sidebarFiles.height;
         auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
-            ComponentConfig{}
+            preset::ScrollPanel()
                 .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
-                .with_custom_background(theme::SIDEBAR_BG)
-                .with_flex_direction(FlexDirection::Column)
-                .with_overflow(Overflow::Auto, Axis::Y)
-                .with_roundness(0.0f)
                 .with_debug_name("sidebar_files"));
 
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
@@ -424,18 +422,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             }
             std::string logHeaderText = "\xe2\x96\xbe COMMITS  " + std::to_string(commitCount);
             div(ctx, mk(logBg.ent(), 2310),
-                ComponentConfig{}
-                    .with_label(logHeaderText)
+                preset::SectionHeader(logHeaderText)
                     .with_size(ComponentSize{logW, children()})
-                    .with_padding(Padding{
-                        .top = pixels(7), .right = pixels(10),
-                        .bottom = pixels(5), .left = pixels(10)})
-                    .with_custom_background(theme::SECTION_HEADER_BG)
-                    .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
-                    .with_font_size(pixels(theme::layout::FONT_CAPTION))
-                    .with_letter_spacing(0.5f)
-                    .with_alignment(TextAlignment::Left)
-                    .with_roundness(0.0f)
                     .with_debug_name("log_header"));
         }
 
@@ -446,12 +434,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         if (logScrollH < 20.0f) logScrollH = 20.0f;
 
         auto logScroll = div(ctx, mk(logBg.ent(), 2320),
-            ComponentConfig{}
+            preset::ScrollPanel()
                 .with_size(ComponentSize{logW, pixels(logScrollH)})
-                .with_overflow(Overflow::Auto, Axis::Y)
-                .with_flex_direction(FlexDirection::Column)
-                .with_custom_background(theme::SIDEBAR_BG)
-                .with_roundness(0.0f)
                 .with_debug_name("commit_log_scroll"));
 
         if (!repoEntities.empty()) {
@@ -522,28 +506,23 @@ private:
         auto makeTab = [&](int id, const std::string& label,
                            LayoutComponent::SidebarMode mode) {
             bool active = (layout.sidebarMode == mode);
-            auto tabBg = active ? theme::BUTTON_PRIMARY
-                                : theme::BUTTON_SECONDARY;
-            auto tabText = active ? afterhours::Color{255, 255, 255, 255}
-                                  : theme::TEXT_PRIMARY;
 
-            auto result = button(ctx, mk(tabRow.ent(), id),
-                ComponentConfig{}
-                    .with_label(label)
-                    .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
-                    .with_padding(Padding{
-                        .top = h720(2), .right = w1280(TAB_HPAD),
-                        .bottom = h720(2), .left = w1280(TAB_HPAD)})
-                    .with_margin(Margin{
-                        .top = {}, .bottom = {},
-                        .left = {}, .right = w1280(4)})
-                    .with_custom_background(tabBg)
-                    .with_custom_text_color(tabText)
-                    .with_font_size(pixels(theme::layout::FONT_CHROME))
-                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                    .with_alignment(TextAlignment::Center)
-                    .with_debug_name("mode_" + label));
+            auto config = preset::Button(label)
+                .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(TAB_HPAD),
+                    .bottom = h720(2), .left = w1280(TAB_HPAD)})
+                .with_margin(Margin{
+                    .top = {}, .bottom = {},
+                    .left = {}, .right = w1280(4)})
+                .with_font_tier(FontSizing::Tier::Large)
+                .with_debug_name("mode_" + label);
+            if (!active) {
+                config = config.with_custom_background(theme::BUTTON_SECONDARY)
+                               .with_custom_text_color(theme::TEXT_PRIMARY);
+            }
+
+            auto result = button(ctx, mk(tabRow.ent(), id), config);
 
             if (result) {
                 auto lEntities = afterhours::EntityQuery({.force_merge = true})
@@ -585,25 +564,19 @@ private:
                 .with_label(branchLabel)
                 .with_size(ComponentSize{percent(1.0f), h720(18)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(theme::layout::FONT_CAPTION))
+                .with_font_tier(FontSizing::Tier::Small)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("branches_label"));
 
         // "+ New" button
         auto newBranchBtn = button(ctx, mk(headerRow.ent(), 2),
-            ComponentConfig{}
-                .with_label("+ New")
+            preset::Button("+ New")
                 .with_size(ComponentSize{children(), h720(18)})
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
-                .with_custom_background(theme::BUTTON_PRIMARY)
-                .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
-                .with_font_size(pixels(theme::layout::FONT_CAPTION))
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
+                .with_font_tier(FontSizing::Tier::Small)
                 .with_debug_name("new_branch_btn"));
 
         if (newBranchBtn) {
@@ -618,12 +591,8 @@ private:
         if (refsScrollH < 20.0f) refsScrollH = 20.0f;
 
         auto scrollArea = div(ctx, mk(parent, 2170),
-            ComponentConfig{}
+            preset::ScrollPanel()
                 .with_size(ComponentSize{percent(1.0f), pixels(refsScrollH)})
-                .with_overflow(Overflow::Auto, Axis::Y)
-                .with_flex_direction(FlexDirection::Column)
-                .with_custom_background(theme::SIDEBAR_BG)
-                .with_roundness(0.0f)
                 .with_debug_name("refs_scroll"));
 
         if (repo.branches.empty()) {
@@ -692,8 +661,8 @@ private:
         auto badgeBg = branch.isLocal ? theme::BADGE_BRANCH_BG
                                       : theme::BADGE_REMOTE_BG;
         div(ctx, mk(rowResult.ent(), 2),
-            ComponentConfig{}
-                .with_label(branch.isLocal ? "L" : "R")
+            preset::Badge(branch.isLocal ? "L" : "R", badgeBg,
+                          afterhours::Color{255, 255, 255, 255})
                 .with_size(ComponentSize{w1280(18), h720(14)})
                 .with_padding(Padding{
                     .top = h720(1), .right = w1280(2),
@@ -702,12 +671,6 @@ private:
                     .top = {}, .bottom = {},
                     .left = w1280(isCurrent ? 5.0f : 8.0f),
                     .right = w1280(6)})
-                .with_custom_background(badgeBg)
-                .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
-                .with_font_size(pixels(theme::layout::FONT_CAPTION))
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_roundness(theme::layout::ROUNDNESS_BADGE)
-                .with_alignment(TextAlignment::Center)
                 .with_debug_name("branch_badge"));
 
         // Branch name
@@ -718,7 +681,7 @@ private:
                 .with_label(branch.name)
                 .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
                 .with_custom_text_color(nameColor)
-                .with_font_size(pixels(theme::layout::FONT_BODY))
+                .with_font_tier(FontSizing::Tier::XL)
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
@@ -734,7 +697,7 @@ private:
                         .top = h720(0), .right = w1280(4),
                         .bottom = h720(0), .left = w1280(4)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(theme::layout::FONT_META))
+                    .with_font_tier(FontSizing::Tier::Medium)
                     .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
                     .with_debug_name("branch_tracking"));
@@ -743,14 +706,10 @@ private:
         // Delete button (only for non-current branches)
         if (!isCurrent) {
             auto deleteBtn = button(ctx, mk(rowResult.ent(), 5),
-                ComponentConfig{}
-                    .with_label("x")
+                preset::Button("x")
                     .with_size(ComponentSize{w1280(20), h720(20)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::STATUS_DELETED)
-                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                    .with_alignment(TextAlignment::Center)
                     .with_debug_name("delete_branch_btn"));
 
             if (deleteBtn) {
@@ -761,10 +720,8 @@ private:
 
         // Row separator
         div(ctx, mk(parent, 2200 + index * 10 + 1),
-            ComponentConfig{}
+            preset::RowSeparator()
                 .with_size(ComponentSize{percent(1.0f), h720(1)})
-                .with_custom_background(theme::ROW_SEPARATOR)
-                .with_roundness(0.0f)
                 .with_debug_name("branch_sep"));
     }
 
@@ -817,33 +774,18 @@ private:
 
         // Button row
         auto btnRow = div(ctx, mk(modalEnt, 3),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(44)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_justify_content(JustifyContent::FlexEnd)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(8), .left = w1280(16)})
+            preset::DialogButtonRow()
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("new_branch_buttons"));
 
         // Cancel
         if (button(ctx, mk(btnRow.ent(), 1),
-            ComponentConfig{}
-                .with_label("Cancel")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_new_branch"))) {
             repo.showNewBranchDialog = false;
@@ -852,20 +794,8 @@ private:
 
         // Create
         bool canCreate = !repo.newBranchName.empty();
-        auto createBg = canCreate ? theme::BUTTON_PRIMARY
-                                  : theme::TOOLBAR_BTN_DISABLED;
         if (button(ctx, mk(btnRow.ent(), 2),
-            ComponentConfig{}
-                .with_label("Create")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
-                .with_custom_background(createBg)
-                .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
+            preset::Button("Create", canCreate)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("create_branch_btn"))) {
             if (canCreate) {
@@ -907,46 +837,24 @@ private:
 
         // Message
         div(ctx, mk(modalEnt, 1),
-            ComponentConfig{}
-                .with_label(message)
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(8), .left = w1280(16)})
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_alignment(TextAlignment::Left)
+            preset::DialogMessage(message)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("delete_msg"));
 
         // Button row
         auto btnRow = div(ctx, mk(modalEnt, 2),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(44)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_justify_content(JustifyContent::FlexEnd)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(8), .left = w1280(16)})
+            preset::DialogButtonRow()
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("delete_buttons"));
 
         // Cancel
         if (button(ctx, mk(btnRow.ent(), 1),
-            ComponentConfig{}
-                .with_label("Cancel")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_delete"))) {
             repo.showDeleteBranchDialog = false;
@@ -955,17 +863,8 @@ private:
 
         // Delete (red)
         if (button(ctx, mk(btnRow.ent(), 2),
-            ComponentConfig{}
-                .with_label("Delete")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Delete")
                 .with_custom_background(theme::STATUS_DELETED)
-                .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("confirm_delete"))) {
             auto result = git::delete_branch(repo.repoPath,
@@ -1011,46 +910,25 @@ private:
 
         // Warning message
         div(ctx, mk(modalEnt, 1),
-            ComponentConfig{}
-                .with_label(message)
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(8), .left = w1280(16)})
+            preset::DialogMessage(message)
                 .with_custom_text_color(theme::STATUS_CONFLICT)
-                .with_alignment(TextAlignment::Left)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("force_delete_msg"));
 
         // Button row
         auto btnRow = div(ctx, mk(modalEnt, 2),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(44)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_justify_content(JustifyContent::FlexEnd)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(8), .left = w1280(16)})
+            preset::DialogButtonRow()
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("force_delete_buttons"));
 
         // Cancel
         if (button(ctx, mk(btnRow.ent(), 1),
-            ComponentConfig{}
-                .with_label("Cancel")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_force_delete"))) {
             repo.showForceDeleteDialog = false;
@@ -1059,17 +937,8 @@ private:
 
         // Force Delete (red)
         if (button(ctx, mk(btnRow.ent(), 2),
-            ComponentConfig{}
-                .with_label("Force Delete")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Force Delete")
                 .with_custom_background(theme::STATUS_DELETED)
-                .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("force_delete_btn"))) {
             auto result = git::delete_branch(repo.repoPath,
@@ -1105,27 +974,22 @@ private:
         auto makeTab = [&](int id, const std::string& label,
                            LayoutComponent::FileViewMode mode) {
             bool active = (layout.fileViewMode == mode);
-            auto tabBg = active ? theme::BUTTON_PRIMARY
-                                : theme::BUTTON_SECONDARY;
-            auto tabText = active ? afterhours::Color{255, 255, 255, 255}
-                                  : theme::TEXT_PRIMARY;
 
-            auto result = button(ctx, mk(tabRow.ent(), id),
-                ComponentConfig{}
-                    .with_label(label)
-                    .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
-                    .with_padding(Padding{
-                        .top = h720(2), .right = w1280(TAB_HPAD),
-                        .bottom = h720(2), .left = w1280(TAB_HPAD)})
-                    .with_margin(Margin{
-                        .top = {}, .bottom = {},
-                        .left = {}, .right = w1280(4)})
-                    .with_custom_background(tabBg)
-                    .with_custom_text_color(tabText)
-                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                    .with_alignment(TextAlignment::Center)
-                    .with_debug_name("tab_" + label));
+            auto config = preset::Button(label)
+                .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(TAB_HPAD),
+                    .bottom = h720(2), .left = w1280(TAB_HPAD)})
+                .with_margin(Margin{
+                    .top = {}, .bottom = {},
+                    .left = {}, .right = w1280(4)})
+                .with_debug_name("tab_" + label);
+            if (!active) {
+                config = config.with_custom_background(theme::BUTTON_SECONDARY)
+                               .with_custom_text_color(theme::TEXT_PRIMARY);
+            }
+
+            auto result = button(ctx, mk(tabRow.ent(), id), config);
 
             if (result) {
                 auto lEntities = afterhours::EntityQuery({.force_merge = true})
@@ -1155,15 +1019,11 @@ private:
         if (empty) {
             // Empty state
             div(ctx, mk(scrollParent, 2500),
-                ComponentConfig{}
-                    .with_label("\xe2\x9c\x93 No changes") // ✓ No changes
+                preset::EmptyStateText("\xe2\x9c\x93 No changes") // ✓ No changes
                     .with_size(ComponentSize{percent(1.0f), h720(28)})
                     .with_padding(Padding{
                         .top = h720(20), .right = w1280(8),
                         .bottom = h720(4), .left = w1280(8)})
-                    .with_custom_text_color(theme::EMPTY_STATE_TEXT)
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
                     .with_debug_name("empty_changes"));
 
             div(ctx, mk(scrollParent, 2501),
@@ -1230,18 +1090,8 @@ private:
 
         std::string headerText = "\xe2\x96\xbe " + label +
                                  "  " + std::to_string(count);
-        auto config = ComponentConfig{}
-                .with_label(headerText)
+        auto config = preset::SectionHeader(headerText)
                 .with_size(ComponentSize{secWidth, children()})
-                .with_padding(Padding{
-                    .top = pixels(7), .right = pixels(10),
-                    .bottom = pixels(5), .left = pixels(10)})
-                .with_custom_background(theme::SECTION_HEADER_BG)
-                .with_custom_text_color(afterhours::Color{160, 160, 160, 255})
-                .with_font_size(pixels(theme::layout::FONT_CAPTION))
-                .with_letter_spacing(0.5f)
-                .with_alignment(TextAlignment::Left)
-                .with_roundness(0.0f)
                 .with_debug_name("section_hdr");
         if (!isFirst) {
             config = config.with_margin(Margin{.top = pixels(6)});
@@ -1272,19 +1122,8 @@ private:
 
         // Row container
         auto row = div(ctx, mk(parent, id),
-            ComponentConfig{}
+            preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_flex_wrap(afterhours::ui::FlexWrap::NoWrap)
-                .with_align_items(AlignItems::Center)
-                .with_custom_background(rowBg)
-                .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
-                .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(4),
-                    .bottom = pixels(0), .left = pixels(10)})
-                .with_gap(pixels(4))
-                .with_roundness(0.0f)
                 .with_debug_name("file_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1300,28 +1139,19 @@ private:
         if (!dir.empty()) label += "  " + dir;
 
         div(ctx, mk(row.ent(), 1),
-            ComponentConfig{}
-                .with_label(label)
+            preset::BodyText(label)
                 .with_size(ComponentSize{pixels(nameW), children()})
-                .with_transparent_bg()
                 .with_custom_text_color(textCol)
-                .with_font_size(pixels(theme::layout::FONT_BODY))
-                .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
         // Status letter (right-aligned, vertically centered by AlignItems::Center)
         auto statusCol = sidebar_detail::status_color(statusChar);
         div(ctx, mk(row.ent(), 3),
-            ComponentConfig{}
-                .with_label(statusStr)
+            preset::MetaText(statusStr)
                 .with_size(ComponentSize{pixels(20), children()})
-                .with_transparent_bg()
                 .with_custom_text_color(statusCol)
-                .with_font_size(pixels(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Right)
-                .with_roundness(0.0f)
                 .with_debug_name("file_status"));
 
         // Click -> select this file
@@ -1354,19 +1184,8 @@ private:
 
         // Row container
         auto row = div(ctx, mk(parent, id),
-            ComponentConfig{}
+            preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_flex_wrap(afterhours::ui::FlexWrap::NoWrap)
-                .with_align_items(AlignItems::Center)
-                .with_custom_background(rowBg)
-                .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
-                .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(4),
-                    .bottom = pixels(0), .left = pixels(10)})
-                .with_gap(pixels(4))
-                .with_roundness(0.0f)
                 .with_debug_name("untracked_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1381,27 +1200,18 @@ private:
         if (!dir.empty()) label += "  " + dir;
 
         div(ctx, mk(row.ent(), 1),
-            ComponentConfig{}
-                .with_label(label)
+            preset::BodyText(label)
                 .with_size(ComponentSize{pixels(nameW), children()})
-                .with_transparent_bg()
                 .with_custom_text_color(textCol)
-                .with_font_size(pixels(theme::layout::FONT_BODY))
-                .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_roundness(0.0f)
                 .with_debug_name("file_name"));
 
         // Status letter "U" (right-aligned, vertically centered by AlignItems::Center)
         div(ctx, mk(row.ent(), 3),
-            ComponentConfig{}
-                .with_label("U")
+            preset::MetaText("U")
                 .with_size(ComponentSize{pixels(20), children()})
-                .with_transparent_bg()
                 .with_custom_text_color(sidebar_detail::status_color('U'))
-                .with_font_size(pixels(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Right)
-                .with_roundness(0.0f)
                 .with_debug_name("file_status"));
 
         if (row.ent().get<HasClickListener>().down) {
@@ -1424,15 +1234,11 @@ private:
                                    RepoComponent& repo) {
         if (repo.commitLog.empty()) {
             div(ctx, mk(scrollParent, 0),
-                ComponentConfig{}
-                    .with_label("No commits yet")
+                preset::EmptyStateText("No commits yet")
                     .with_size(ComponentSize{percent(1.0f), h720(32)})
                     .with_padding(Padding{
                         .top = h720(16), .right = w1280(8),
                         .bottom = h720(8), .left = w1280(8)})
-                    .with_custom_text_color(theme::EMPTY_STATE_TEXT)
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
                     .with_debug_name("empty_log"));
             return;
         }
@@ -1454,7 +1260,7 @@ private:
                         .top = h720(3), .right = w1280(8),
                         .bottom = h720(3), .left = w1280(8)})
                     .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                    .with_font_size(pixels(theme::layout::FONT_META))
+                    .with_font_tier(FontSizing::Tier::Medium)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("lazy_load"));
@@ -1478,19 +1284,9 @@ private:
 
         // Row container
         auto row = div(ctx, mk(parent, baseId),
-            ComponentConfig{}
+            preset::SelectableRow(selected)
                 .with_size(ComponentSize{pixels(sidebarW), h720(ROW_H)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_flex_wrap(afterhours::ui::FlexWrap::NoWrap)
-                .with_align_items(AlignItems::Center)
-                .with_custom_background(rowBg)
-                .with_custom_hover_bg(selected ? theme::SELECTED_BG : theme::HOVER_BG)
-                .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(4),
-                    .bottom = pixels(0), .left = pixels(10)})
                 .with_gap(pixels(8))
-                .with_roundness(0.0f)
                 .with_debug_name("commit_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1520,15 +1316,10 @@ private:
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
         div(ctx, mk(row.ent(), 2),
-            ComponentConfig{}
-                .with_label(commit.subject)
+            preset::BodyText(commit.subject)
                 .with_size(ComponentSize{pixels(subjectW), children()})
-                .with_transparent_bg()
                 .with_custom_text_color(textCol)
-                .with_font_size(pixels(theme::layout::FONT_BODY))
-                .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_roundness(0.0f)
                 .with_debug_name("commit_subject"));
 
         // Badge pills (colored, rounded, fixed width per badge)
@@ -1558,33 +1349,18 @@ private:
                     break;
             }
             div(ctx, mk(row.ent(), badgeId++),
-                ComponentConfig{}
-                    .with_label(badge.label)
+                preset::Badge(badge.label, bg, btxt)
                     .with_size(ComponentSize{pixels(BADGE_EST_W), children()})
-                    .with_padding(Padding{
-                        .top = pixels(1), .right = pixels(5),
-                        .bottom = pixels(1), .left = pixels(5)})
-                    .with_custom_background(bg)
-                    .with_custom_text_color(btxt)
-                    .with_font_size(pixels(15.0f))
-                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_roundness(theme::layout::ROUNDNESS_BADGE)
-                    .with_alignment(TextAlignment::Center)
                     .with_debug_name("commit_badge"));
         }
 
         // Commit hash (absolute positioned at fixed right position)
         div(ctx, mk(row.ent(), 30),
-            ComponentConfig{}
-                .with_label(commit.hash.substr(0, 7))
+            preset::MetaText(commit.hash.substr(0, 7))
                 .with_size(ComponentSize{pixels(HASH_W), h720(ROW_H)})
-                .with_transparent_bg()
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(theme::layout::FONT_META))
                 .with_alignment(TextAlignment::Right)
                 .with_absolute_position()
                 .with_translate(pixels(sidebarW - HASH_W - 14.0f), pixels(0))
-                .with_roundness(0.0f)
                 .with_debug_name("commit_hash"));
 
         // Click -> select this commit
@@ -1635,14 +1411,7 @@ private:
 
         // -- Summary text --
         div(ctx, mk(modalEnt, 1),
-            ComponentConfig{}
-                .with_label(summary)
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(8), .left = w1280(16)})
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_alignment(TextAlignment::Left)
+            preset::DialogMessage(summary)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("unstaged_summary"));
 
@@ -1787,33 +1556,18 @@ private:
 
         // -- Button row: [Cancel] [Commit Staged Only] [Stage All & Commit] --
         auto btnRow = div(ctx, mk(modalEnt, 40),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(44)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_justify_content(JustifyContent::FlexEnd)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(8), .left = w1280(16)})
+            preset::DialogButtonRow()
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("dialog_buttons"));
 
         // Cancel button
         auto cancelBtn = button(ctx, mk(btnRow.ent(), 1),
-            ComponentConfig{}
-                .with_label("Cancel")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_btn"));
 
@@ -1823,20 +1577,10 @@ private:
 
         // "Commit Staged Only" button (primary blue)
         auto stagedOnlyBtn = button(ctx, mk(btnRow.ent(), 2),
-            ComponentConfig{}
-                .with_label("Commit Staged Only")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Commit Staged Only")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(8)})
-                .with_custom_background(theme::BUTTON_PRIMARY)
-                .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("staged_only_btn"));
 
@@ -1852,17 +1596,8 @@ private:
 
         // "Stage All & Commit" button (green)
         auto stageAllBtn = button(ctx, mk(btnRow.ent(), 3),
-            ComponentConfig{}
-                .with_label("Stage All & Commit")
-                .with_size(ComponentSize{children(), h720(32)})
-                .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+            preset::Button("Stage All & Commit")
                 .with_custom_background(theme::STATUS_ADDED)
-                .with_custom_text_color(Color{255, 255, 255, 255})
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("stage_all_btn"));
 

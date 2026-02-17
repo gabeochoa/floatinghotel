@@ -5,6 +5,7 @@
 #include "../../vendor/afterhours/src/core/system.h"
 #include "../input_mapping.h"
 #include "../rl.h"
+#include "../ui/presets.h"
 #include "../ui/theme.h"
 #include "../ui_context.h"
 #include "components.h"
@@ -122,7 +123,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                     .bottom = h720(4), .left = w1280(8)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_size(pixels(theme::layout::FONT_META))
+                .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_render_layer(5)
@@ -132,8 +133,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         std::string logLabel = layout.commandLogVisible ? "Hide Log" : "Show Log";
         float btnW = afterhours::ui::resolve_to_pixels(w1280(80), sw);
         auto logBtn = button(ctx, mk(uiRoot, 4050),
-            ComponentConfig{}
-                .with_label(logLabel)
+            preset::Button(logLabel)
                 .with_size(ComponentSize{pixels(btnW), pixels(h - 4)})
                 .with_absolute_position()
                 .with_translate(w - btnW - 8, y + 2)
@@ -141,12 +141,9 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                     .top = h720(2), .right = w1280(10),
                     .bottom = h720(2), .left = w1280(10)})
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_size(pixels(theme::layout::FONT_CAPTION))
+                .with_font_tier(afterhours::ui::FontSizing::Tier::Small)
                 .with_transparent_bg()
                 .with_custom_hover_bg(theme::STATUS_BAR_BTN_HOVER)
-                .with_alignment(TextAlignment::Center)
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_roundness(theme::layout::ROUNDNESS_BUTTON)
                 .with_render_layer(5)
                 .with_debug_name("status_log_toggle"));
 

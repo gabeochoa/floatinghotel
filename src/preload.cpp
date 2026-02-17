@@ -93,6 +93,15 @@ Preload& Preload::make_singleton() {
             .set_theme_color(ui::Theme::Usage::Accent,
                              afterhours::Color{0, 122, 204, 255});
 
+        // Configure font sizing tiers (values are h720 reference pixels)
+        // Small=13 (caption, toolbar), Medium=24 (meta, code),
+        // Large=26 (chrome, hero, heading), XL=28 (body)
+        auto& theme = ui::imm::ThemeDefaults::get().theme;
+        theme.font_sizing.small = 13.0f;
+        theme.font_sizing.medium = 24.0f;
+        theme.font_sizing.large = 26.0f;
+        theme.font_sizing.xl = 28.0f;
+
         ui::imm::UIStylingDefaults::get().set_grid_snapping(true);
     }
 

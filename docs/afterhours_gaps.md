@@ -135,25 +135,69 @@ Issues encountered while trying to match a precise HTML/CSS mockup in the afterh
 
 ---
 
-### 12. Adaptive Scaling Mode (Web-Like Font Sizing)
+### 12. Adaptive Scaling Mode (Web-Like Font Sizing) — SUPERSEDED
 
 **Not a gap** — documenting a configuration choice.
 
-**Was:** Using `ScalingMode::Proportional` with `h720()` for font sizes. Fonts scaled proportionally with screen resolution (13px at 720p → 26px at 1440p). This made text appear larger on high-DPI displays.
+**Was:** Using `ScalingMode::Proportional` with `h720()` for font sizes.
 
-**Now:** Switched to `ScalingMode::Adaptive` with `pixels()` for font sizes. Fonts behave like CSS `px` — they stay at their declared size regardless of resolution. Layout dimensions still use `h720()`/`w1280()` where proportional scaling is desired.
+**Then:** Switched to `ScalingMode::Adaptive` with `pixels()` for fonts.
 
-**Font size mapping (matches HTML mockup):**
-| Component | CSS px | Theme constant |
-|-----------|--------|----------------|
-| Section headers | 11px | `FONT_CAPTION` (11.0f) |
-| Toolbar buttons | 12px | `FONT_META` (12.0f) |
-| Hunk headers | 12px | `FONT_META` (12.0f) |
-| Status bar | 12px | `FONT_META` (12.0f) |
-| Menu bar, file rows, commit rows | 13px | `FONT_CHROME` (13.0f) |
-| Diff code | 13px | `FONT_CODE` (13.0f) |
-| Diff file header | 14px | `FONT_HEADING` (14.0f) |
-| Commit detail subject | 18px | `FONT_HERO` (18.0f) |
+**Now (design system migration):** Switched back to `h720()` via `with_font_tier()`. All fonts now use the `FontSizing::Tier` system (Small=13, Medium=24, Large=26, XL=28) which internally applies `h720()`. The 8 separate `FONT_*` constants are deprecated in favor of 4 tiers. Fonts scale proportionally with window height again.
+
+---
+
+### 13. Custom Colors Bypass Disabled Dimming
+
+**Problem:** `resolve_background_color()` returns custom colors as-is when `disabled=true`. The disabled dimming (opacity reduction + desaturation) only applies to `Theme::Usage`-based colors. Since real apps overwhelmingly use `with_custom_background(Color)` for design system colors that don't map to the 10 built-in Usage values, `with_disabled(true)` blocks interactions but does NOT change the visual appearance.
+
+**Impact:** Our `preset::Button(label, enabled)` has to manually swap bg/text colors based on the `enabled` parameter instead of relying on `with_disabled(!enabled)`. Every preset that supports a disabled state needs the same boilerplate.
+
+**Workaround:** Manually check `enabled` in each preset factory function and set different bg/text colors:
+```cpp
+auto bg = enabled ? theme::BUTTON_PRIMARY : theme::DISABLED_BG;
+auto text = enabled ? Color{255,255,255,255} : theme::DISABLED_TEXT;
+config.disabled = !enabled;
+```
+
+**Suggested fix:** Apply the same `disabled_opacity` dimming + desaturation to custom colors in `resolve_background_color()`:
+```cpp
+Color resolve_background_color(const Theme &theme) const {
+    if (color_usage == Theme::Usage::Custom && custom_color.has_value()) {
+        if (disabled) {
+            return theme.apply_disabled_dimming(custom_color.value());
+        }
+        return custom_color.value();
+    }
+    // ... existing usage-based path
+}
+```
+Also apply the same treatment to custom text colors in the text rendering path.
+
+---
+
+### 14. `with_font_tier()` Only Supports `h720()` Scaling
+
+**Problem:** `with_font_tier(FontSizing::Tier)` hardcodes `h720()` for the font size:
+```cpp
+ComponentConfig &with_font_tier(FontSizing::Tier tier) {
+    font_size = h720(theme.font_sizing.get(tier));  // Always h720
+}
+```
+There is no way to use the tier lookup system with fixed `pixels()` sizing. Apps that want semantic font tiers but CSS-like fixed pixel sizing (e.g., when using `ScalingMode::Adaptive`) cannot use `with_font_tier()`.
+
+**Impact:** Adopting `with_font_tier()` forces proportional font scaling. We accepted this, but apps that need adaptive scaling with tier-based font management are stuck doing manual `with_font_size(pixels(theme.font_sizing.get(tier)))`.
+
+**Suggested fix:** Add a scaling mode parameter or a separate method:
+```cpp
+// Option A: parameter
+ComponentConfig &with_font_tier(FontSizing::Tier tier, bool proportional = true);
+
+// Option B: separate method
+ComponentConfig &with_font_tier_px(FontSizing::Tier tier) {
+    font_size = pixels(theme.font_sizing.get(tier));
+}
+```
 
 ---
 
@@ -172,4 +216,6 @@ Issues encountered while trying to match a precise HTML/CSS mockup in the afterh
 | 9 | Cursor changes | **RESOLVED** | 27b535e |
 | 10 | Letter spacing | **RESOLVED** | bff4609 |
 | 11 | Row flex with expand() | **OPEN** | — |
-| 12 | Adaptive scaling mode | **INFO** | — |
+| 12 | Adaptive scaling mode | **SUPERSEDED** | — |
+| 13 | Custom colors bypass disabled dimming | **OPEN** | — |
+| 14 | `with_font_tier()` only supports h720 | **OPEN** | — |

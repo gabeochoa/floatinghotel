@@ -39,6 +39,10 @@ inline Color GUTTER_BORDER = {58, 58, 58, 255};  // #3A3A3A (matches BORDER)
 inline Color GUTTER_ADD_BG = {13, 51, 23, 255};  // #0D3317
 inline Color GUTTER_DEL_BG = {77, 17, 23, 255};  // #4D1117
 
+// Disabled state (unified across all interactive elements)
+inline Color DISABLED_BG = {90, 90, 90, 255};       // #5A5A5A
+inline Color DISABLED_TEXT = {150, 150, 150, 255};   // #969696
+
 // Interactive
 inline Color BUTTON_PRIMARY = {0, 122, 204, 255};   // Blue
 inline Color BUTTON_SECONDARY = {62, 62, 64, 255};  // #3E3E40

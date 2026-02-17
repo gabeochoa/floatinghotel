@@ -5,6 +5,7 @@
 #include "../../vendor/afterhours/src/core/system.h"
 #include "../input_mapping.h"
 #include "../rl.h"
+#include "../ui/presets.h"
 #include "../ui/theme.h"
 #include "../ui_context.h"
 #include "components.h"
@@ -129,27 +130,18 @@ private:
         auto sidebarBtn = [&](Entity& parent, int id,
                               const std::string& label, bool enabled,
                               bool primary = false) -> bool {
-            auto btnBg = primary ? theme::BUTTON_PRIMARY
-                                 : (enabled ? theme::BUTTON_SECONDARY
-                                            : afterhours::Color{50, 50, 53, 255});
-            auto textCol = primary ? afterhours::Color{255, 255, 255, 255}
-                                   : (enabled ? afterhours::Color{204, 204, 204, 255}
-                                              : afterhours::Color{100, 100, 100, 255});
-            auto config = ComponentConfig{}
-                .with_label(label)
+            auto config = preset::Button(label, enabled)
                 .with_size(ComponentSize{children(), children()})
                 .with_padding(Padding{
                     .top = pixels(4), .right = pixels(14),
                     .bottom = pixels(4), .left = pixels(14)})
-                .with_custom_background(btnBg)
-                .with_custom_text_color(textCol)
-                .with_font_size(pixels(theme::layout::FONT_TOOLBAR))
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
+                .with_font_tier(afterhours::ui::FontSizing::Tier::Small)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
-            config.disabled = !enabled;
+            if (enabled && !primary) {
+                config = config.with_custom_background(theme::BUTTON_SECONDARY)
+                               .with_custom_text_color(afterhours::Color{204, 204, 204, 255});
+            }
             return static_cast<bool>(button(ctx, mk(parent, id), config));
         };
 
@@ -163,10 +155,13 @@ private:
             }
         }
         if (sidebarBtn(row1.ent(), nextId++, "Push", hasRepo)) {
+            // TODO 
         }
         if (sidebarBtn(row1.ent(), nextId++, "Pull", hasRepo)) {
+            // TODO 
         }
         if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
+            // TODO 
         }
     }
 
@@ -212,13 +207,8 @@ private:
         int nextId = 1110;
         auto toolbarButton = [&](const std::string& label, bool enabled) -> bool {
             int id = nextId++;
-            auto btnBg = enabled ? afterhours::Color{62, 62, 66, 255}
-                                 : afterhours::Color{55, 55, 58, 0};
-            auto textCol = enabled ? afterhours::Color{200, 200, 200, 255}
-                                   : afterhours::Color{120, 120, 120, 255};
             float btnWidth = static_cast<float>(label.size()) * 9.0f + 24.0f;
-            auto config = ComponentConfig{}
-                .with_label(label)
+            auto config = preset::Button(label, enabled)
                 .with_size(ComponentSize{w1280(btnWidth), h720(28)})
                 .with_padding(Padding{
                     .top = h720(4), .right = w1280(10),
@@ -226,15 +216,13 @@ private:
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(3)})
-                .with_custom_background(btnBg)
-                .with_custom_text_color(textCol)
-                .with_font_size(pixels(theme::layout::FONT_META))
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_roundness(theme::layout::ROUNDNESS_BUTTON)
-                .with_alignment(TextAlignment::Center)
+                .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
-            config.disabled = !enabled;
+            if (enabled) {
+                config = config.with_custom_background(afterhours::Color{62, 62, 66, 255})
+                               .with_custom_text_color(afterhours::Color{200, 200, 200, 255});
+            }
             return static_cast<bool>(button(ctx, mk(toolbarBg.ent(), id), config));
         };
 
