@@ -1,0 +1,72 @@
+# Regression test: scroll offset click targeting
+# Verifies that click_text/click_button hit the correct position after
+# content has been scrolled.  Mirrors the ScrollClickBug repro in wm_afterhours.
+#
+# The bug: HandleClicks applies scroll offset to hit-test rects, but the e2e
+# framework's get_screen_rect did not, so simulated clicks landed at pre-scroll
+# coordinates.
+
+make_test_repo
+resize 1280 720
+wait_frames 10
+
+# ── Baseline: full-size window, no scrolling needed ──────────
+click_text README.md
+wait_frames 5
+screenshot scroll_click_01_baseline_file_selected
+
+# ── Shrink window to force sidebar scroll overflow ───────────
+# At 640x300 the file list and commit log sections are short enough
+# that not all items fit, forcing the scroll panels to activate.
+resize 640 300
+wait_frames 10
+screenshot scroll_click_02_small_window
+
+# ── Click a file near the bottom of the list ─────────────────
+# With the small window, TODO.md or icon.png may be below the fold.
+# Even if still visible, the scroll panel is active and the offset
+# math must be correct for the click to register.
+click_text TODO.md
+wait_frames 5
+screenshot scroll_click_03_click_todo
+
+# ── Scroll the sidebar down and click again ──────────────────
+# Move mouse into the sidebar file area, then scroll down.
+mouse_move 160 180
+wait_frames 2
+scroll_wheel 0 -3
+wait_frames 5
+screenshot scroll_click_04_after_scroll
+
+# Click a file that has shifted due to scrolling
+click_text main.cpp
+wait_frames 5
+screenshot scroll_click_05_click_after_scroll
+
+# ── Test commit log scroll area ──────────────────────────────
+# Move mouse into the commit log area and scroll
+mouse_move 160 260
+wait_frames 2
+scroll_wheel 0 -3
+wait_frames 5
+
+# Click a commit entry after scrolling the log
+click_text "Initial commit"
+wait_frames 5
+screenshot scroll_click_06_commit_after_scroll
+
+# ── Test sidebar mode tabs (were missing before fix) ─────────
+click_button Refs
+wait_frames 5
+screenshot scroll_click_07_refs_tab
+
+click_button Changes
+wait_frames 5
+screenshot scroll_click_08_changes_tab
+
+# ── Restore and verify normal operation ──────────────────────
+resize 1280 720
+wait_frames 5
+click_text README.md
+wait_frames 5
+screenshot scroll_click_09_restored

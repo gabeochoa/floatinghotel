@@ -322,12 +322,19 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_bg"));
 
+        float sidebarW = layout.sidebar.width;
+        sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
+
+        // === Changes / Refs mode toggle tabs ===
+        render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
+
         // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
         // NOTE: Use explicit pixels for width (not percent) to avoid framework bug
         // where percent(1.0f) resolves to screen width in absolute-positioned parents.
-        float sidebarW = layout.sidebar.width;
-        sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
-        float filesH = layout.sidebarFiles.height;
+        float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
+        float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab);
+        float filesH = layout.sidebarFiles.height - tabH;
+        if (filesH < 20.0f) filesH = 20.0f;
         auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
             preset::ScrollPanel()
                 .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
