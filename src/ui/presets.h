@@ -139,7 +139,7 @@ inline ComponentConfig BodyText(const std::string& label) {
         .with_size(ComponentSize{percent(1.0f), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_PRIMARY)
-        .with_font_size(FontSize::XL)
+        .with_font_size(FontSize::Large)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }
@@ -152,7 +152,7 @@ inline ComponentConfig MetaText(const std::string& label) {
         .with_size(ComponentSize{children(), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_font_size(FontSize::Medium)
+        .with_font_size(FontSize::Small)
         .with_roundness(0.0f);
 }
 

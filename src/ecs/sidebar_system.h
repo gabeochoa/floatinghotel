@@ -427,7 +427,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (!repoEntities.empty()) {
                 commitCount = repoEntities[0].get().get<RepoComponent>().commitLog.size();
             }
-            std::string logHeaderText = "\xe2\x96\xbe COMMITS  " + std::to_string(commitCount);
+            std::string logHeaderText = "\xe2\x96\xbe Commits  " + std::to_string(commitCount);
             div(ctx, mk(logBg.ent(), 2310),
                 preset::SectionHeader(logHeaderText)
                     .with_size(ComponentSize{logW, children()})
@@ -564,7 +564,7 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("refs_header"));
 
-        std::string branchLabel = "BRANCHES (" +
+        std::string branchLabel = "Branches (" +
             std::to_string(repo.branches.size()) + ")";
         div(ctx, mk(headerRow.ent(), 1),
             ComponentConfig{}
@@ -688,7 +688,7 @@ private:
                 .with_label(branch.name)
                 .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
                 .with_custom_text_color(nameColor)
-                .with_font_size(FontSize::XL)
+                .with_font_size(FontSize::Large)
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
@@ -1053,7 +1053,7 @@ private:
         // === Staged Changes section ===
         if (!repo.stagedFiles.empty()) {
             render_section_header(ctx, scrollParent, nextId++,
-                "STAGED CHANGES", repo.stagedFiles.size(), firstSection);
+                "Staged Changes", repo.stagedFiles.size(), firstSection);
             firstSection = false;
 
             for (int i = 0; i < static_cast<int>(repo.stagedFiles.size()); ++i) {
@@ -1065,7 +1065,7 @@ private:
         // === Changes (unstaged) section ===
         if (!repo.unstagedFiles.empty()) {
             render_section_header(ctx, scrollParent, nextId++,
-                "UNSTAGED CHANGES", repo.unstagedFiles.size(), firstSection);
+                "Unstaged Changes", repo.unstagedFiles.size(), firstSection);
             firstSection = false;
 
             for (int i = 0; i < static_cast<int>(repo.unstagedFiles.size()); ++i) {
@@ -1077,7 +1077,7 @@ private:
         // === Untracked section ===
         if (!repo.untrackedFiles.empty()) {
             render_section_header(ctx, scrollParent, nextId++,
-                "UNTRACKED", repo.untrackedFiles.size(), firstSection);
+                "Untracked", repo.untrackedFiles.size(), firstSection);
             firstSection = false;
 
             for (int i = 0; i < static_cast<int>(repo.untrackedFiles.size()); ++i) {
