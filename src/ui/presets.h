@@ -28,7 +28,7 @@ using afterhours::ui::h720;
 using afterhours::ui::percent;
 using afterhours::ui::pixels;
 using afterhours::ui::w1280;
-using afterhours::ui::FontSizing;
+using afterhours::ui::FontSize;
 using afterhours::ui::imm::ComponentConfig;
 
 // ============================================================================
@@ -74,7 +74,7 @@ inline ComponentConfig SectionHeader(const std::string& label) {
             .bottom = pixels(5), .left = pixels(10)})
         .with_custom_background(theme::SECTION_HEADER_BG)
         .with_custom_text_color(Color{160, 160, 160, 255})
-        .with_font_tier(FontSizing::Tier::Small)
+        .with_font_size(FontSize::Small)
         .with_letter_spacing(0.5f)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
@@ -121,7 +121,7 @@ inline ComponentConfig Badge(const std::string& label, Color bg, Color text) {
             .bottom = pixels(1), .left = pixels(5)})
         .with_custom_background(bg)
         .with_custom_text_color(text)
-        .with_font_tier(FontSizing::Tier::Small)
+        .with_font_size(FontSize::Small)
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
         .with_roundness(theme::layout::ROUNDNESS_BADGE)
         .with_alignment(TextAlignment::Center);
@@ -139,7 +139,7 @@ inline ComponentConfig BodyText(const std::string& label) {
         .with_size(ComponentSize{percent(1.0f), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_PRIMARY)
-        .with_font_tier(FontSizing::Tier::XL)
+        .with_font_size(FontSize::XL)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }
@@ -152,7 +152,7 @@ inline ComponentConfig MetaText(const std::string& label) {
         .with_size(ComponentSize{children(), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_font_tier(FontSizing::Tier::Medium)
+        .with_font_size(FontSize::Medium)
         .with_roundness(0.0f);
 }
 
@@ -174,7 +174,7 @@ inline ComponentConfig CaptionText(const std::string& label) {
         .with_label(label)
         .with_size(ComponentSize{children(), children()})
         .with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_font_tier(FontSizing::Tier::Small)
+        .with_font_size(FontSize::Small)
         .with_roundness(0.0f);
 }
 

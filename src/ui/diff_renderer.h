@@ -105,7 +105,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_custom_background(bgColor)
             .with_custom_text_color(textColor)
             .with_label(label)
-            .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+            .with_font_size(afterhours::ui::FontSize::Medium)
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(0), .right = w1280(0),
@@ -133,7 +133,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
             .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
-            .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+            .with_font_size(afterhours::ui::FontSize::Medium)
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(4), .right = w1280(12),
@@ -194,7 +194,7 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_custom_background(afterhours::Color{35, 35, 38, 255})
                 .with_label(stats)
-                .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("diff_stats_header"));
@@ -233,7 +233,7 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_label(fileLabel)
-                .with_font_tier(afterhours::ui::FontSizing::Tier::XL)
+                .with_font_size(afterhours::ui::FontSize::XL)
                 .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
                     .top = h720(8), .right = w1280(16),
@@ -250,7 +250,7 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                     .with_custom_background(theme::PANEL_BG)
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_label("Binary file not shown")
-                    .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                    .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_alignment(TextAlignment::Center)
                     .with_padding(Padding{
                         .top = h720(4), .right = w1280(8),

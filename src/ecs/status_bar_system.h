@@ -123,7 +123,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                     .bottom = h720(4), .left = w1280(8)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_render_layer(5)
@@ -141,7 +141,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                     .top = h720(2), .right = w1280(10),
                     .bottom = h720(2), .left = w1280(10)})
                 .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_tier(afterhours::ui::FontSizing::Tier::Small)
+                .with_font_size(afterhours::ui::FontSize::Small)
                 .with_transparent_bg()
                 .with_custom_hover_bg(theme::STATUS_BAR_BTN_HOVER)
                 .with_render_layer(5)

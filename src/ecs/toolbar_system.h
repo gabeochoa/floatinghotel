@@ -135,7 +135,7 @@ private:
                 .with_padding(Padding{
                     .top = pixels(4), .right = pixels(14),
                     .bottom = pixels(4), .left = pixels(14)})
-                .with_font_tier(afterhours::ui::FontSizing::Tier::Small)
+                .with_font_size(afterhours::ui::FontSize::Small)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
             if (enabled && !primary) {
@@ -216,7 +216,7 @@ private:
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(3)})
-                .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
             if (enabled) {

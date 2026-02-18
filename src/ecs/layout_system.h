@@ -263,7 +263,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label("GIT COMMAND LOG")
             .with_size(ComponentSize{percent(1.0f), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_tier(afterhours::ui::FontSizing::Tier::Small)
+            .with_font_size(afterhours::ui::FontSize::Small)
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_title"));
@@ -275,7 +275,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label(countLabel)
             .with_size(ComponentSize{children(), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+            .with_font_size(afterhours::ui::FontSize::Medium)
             .with_alignment(TextAlignment::Right)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_count"));
@@ -304,7 +304,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(8), .right = w1280(8),
                     .bottom = h720(8), .left = w1280(8)})
                 .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                .with_font_tier(afterhours::ui::FontSizing::Tier::Large)
+                .with_font_size(afterhours::ui::FontSize::Large)
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name("cmdlog_empty"));
@@ -337,7 +337,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
                 .with_custom_text_color(cmdColor)
-                .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("cmdlog_entry_" + std::to_string(entryId)));
@@ -363,7 +363,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                    .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("cmdlog_out_" + std::to_string(entryId)));
@@ -388,7 +388,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::STATUS_DELETED)
-                    .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                    .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("cmdlog_err_" + std::to_string(entryId)));
@@ -595,7 +595,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .left = pixels(PAD), .right = {}})
             .with_transparent_bg()
             .with_custom_text_color(theme::BUTTON_PRIMARY)
-            .with_font_tier(afterhours::ui::FontSizing::Tier::Small)
+            .with_font_size(afterhours::ui::FontSize::Small)
             .with_debug_name("commit_back_btn"));
 
     if (backBtn) {
@@ -1051,7 +1051,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label("No diff available for this file")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font_tier(afterhours::ui::FontSizing::Tier::Large)
+                        .with_font_size(afterhours::ui::FontSize::Large)
                         .with_transparent_bg()
                         .with_roundness(0.0f)
                         .with_debug_name("no_diff_msg"));
@@ -1092,7 +1092,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("Select a file or commit")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_tier(afterhours::ui::FontSizing::Tier::Large)
+                    .with_font_size(afterhours::ui::FontSize::Large)
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(6), .left = w1280(8)})
@@ -1107,7 +1107,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("to view changes")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_tier(afterhours::ui::FontSizing::Tier::Large)
+                    .with_font_size(afterhours::ui::FontSize::Large)
                     .with_padding(Padding{
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(4), .left = w1280(8)})
@@ -1122,7 +1122,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("j/k navigate  Enter view  s stage  c commit")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_tier(afterhours::ui::FontSizing::Tier::Medium)
+                    .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_padding(Padding{
                         .top = h720(16), .right = w1280(8),
                         .bottom = h720(0), .left = w1280(8)})

@@ -44,7 +44,7 @@ using afterhours::ui::HasClickListener;
 using afterhours::ui::HasDragListener;
 using afterhours::ui::Overflow;
 using afterhours::ui::Axis;
-using afterhours::ui::FontSizing;
+using afterhours::ui::FontSize;
 using afterhours::ui::JustifyContent;
 using afterhours::ui::resolve_to_pixels;
 using afterhours::ui::imm::checkbox;
@@ -515,7 +515,7 @@ private:
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(4)})
-                .with_font_tier(FontSizing::Tier::Large)
+                .with_font_size(FontSize::Large)
                 .with_debug_name("mode_" + label);
             if (!active) {
                 config = config.with_custom_background(theme::BUTTON_SECONDARY)
@@ -564,7 +564,7 @@ private:
                 .with_label(branchLabel)
                 .with_size(ComponentSize{percent(1.0f), h720(18)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_tier(FontSizing::Tier::Small)
+                .with_font_size(FontSize::Small)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("branches_label"));
@@ -576,7 +576,7 @@ private:
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
-                .with_font_tier(FontSizing::Tier::Small)
+                .with_font_size(FontSize::Small)
                 .with_debug_name("new_branch_btn"));
 
         if (newBranchBtn) {
@@ -681,7 +681,7 @@ private:
                 .with_label(branch.name)
                 .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
                 .with_custom_text_color(nameColor)
-                .with_font_tier(FontSizing::Tier::XL)
+                .with_font_size(FontSize::XL)
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
@@ -697,7 +697,7 @@ private:
                         .top = h720(0), .right = w1280(4),
                         .bottom = h720(0), .left = w1280(4)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_tier(FontSizing::Tier::Medium)
+                    .with_font_size(FontSize::Medium)
                     .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
                     .with_debug_name("branch_tracking"));
@@ -1112,8 +1112,6 @@ private:
 
         constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
 
-        auto rowBg = selected ? theme::SELECTED_BG : theme::SIDEBAR_BG;
-
         std::string fname = sidebar_detail::basename_from_path(file.path);
         std::string dir = sidebar_detail::dir_from_path(file.path);
         std::string statusStr(1, statusChar);
@@ -1174,8 +1172,6 @@ private:
                                RepoComponent& repo) {
         bool selected = (path == repo.selectedFilePath);
         constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
-
-        auto rowBg = selected ? theme::SELECTED_BG : theme::SIDEBAR_BG;
 
         std::string fname = sidebar_detail::basename_from_path(path);
         std::string dir = sidebar_detail::dir_from_path(path);
@@ -1260,7 +1256,7 @@ private:
                         .top = h720(3), .right = w1280(8),
                         .bottom = h720(3), .left = w1280(8)})
                     .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                    .with_font_tier(FontSizing::Tier::Medium)
+                    .with_font_size(FontSize::Medium)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("lazy_load"));
@@ -1274,8 +1270,6 @@ private:
                            RepoComponent& repo) {
         bool selected = (commit.hash == repo.selectedCommitHash);
         constexpr float ROW_H = static_cast<float>(theme::layout::COMMIT_ROW_HEIGHT);
-
-        auto rowBg = selected ? theme::SELECTED_BG : theme::SIDEBAR_BG;
 
         int baseId = index * 2 + 10;
         float sidebarW = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;

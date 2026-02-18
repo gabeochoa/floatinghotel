@@ -1,0 +1,252 @@
+# Baseline Screenshots: All UI Flows
+# Captures every major UI state for before/after comparison during design system migration.
+# Run: ./output/floatinghotel.exe --test-mode --test-script=tests/e2e_scripts/baseline_all_flows.e2e --screenshot-dir=output/screenshots/baseline
+#
+# Naming: baseline_NN_category_description
+# Categories: empty, default, sidebar, diff, menu, refs, commit, cmdlog, resize
+
+# =============================================================================
+# 1. EMPTY STATE (no repo loaded)
+# =============================================================================
+resize 1280 720
+wait_frames 10
+
+screenshot baseline_01_empty_no_repo
+
+# =============================================================================
+# 2. DEFAULT STATE (repo loaded, Changes tab, no selection)
+# =============================================================================
+make_test_repo
+wait_frames 10
+
+screenshot baseline_02_default_state
+
+# =============================================================================
+# 3. SIDEBAR: FILE SELECTION (click file labels to select them)
+# =============================================================================
+
+# Select an unstaged file (README.md) - file rows are divs, use click_text
+click_text README.md
+wait_frames 5
+screenshot baseline_03_sidebar_file_unstaged_selected
+
+# Select a different unstaged file (main.cpp)
+click_text main.cpp
+wait_frames 5
+screenshot baseline_04_sidebar_file_unstaged_second
+
+# Select the staged file (.gitignore)
+click_text .gitignore
+wait_frames 5
+screenshot baseline_05_sidebar_file_staged_selected
+
+# Select an untracked file (TODO.md)
+click_text TODO.md
+wait_frames 5
+screenshot baseline_06_sidebar_file_untracked_selected
+
+# =============================================================================
+# 4. DIFF VIEWS (inline diff for different file types)
+# =============================================================================
+
+# Unstaged modification diff (README.md)
+click_text README.md
+wait_frames 5
+screenshot baseline_07_diff_unstaged_modification
+
+# Unstaged modification diff (main.cpp - code file)
+click_text main.cpp
+wait_frames 5
+screenshot baseline_08_diff_unstaged_code
+
+# Staged file diff (.gitignore - new file)
+click_text .gitignore
+wait_frames 5
+screenshot baseline_09_diff_staged_new_file
+
+# Untracked file (TODO.md)
+click_text TODO.md
+wait_frames 5
+screenshot baseline_10_diff_untracked_file
+
+# =============================================================================
+# 5. COMMIT LOG (browse commits, select commit details)
+# =============================================================================
+
+# Click the most recent commit
+click_text "Add contributing guidelines"
+wait_frames 5
+screenshot baseline_11_commit_detail_recent
+
+# Click middle commit
+click_text "Add unit tests"
+wait_frames 5
+screenshot baseline_12_commit_detail_middle
+
+# Click initial commit
+click_text "Initial commit"
+wait_frames 5
+screenshot baseline_13_commit_detail_initial
+
+# =============================================================================
+# 6. SIDEBAR TOOLBAR (Commit, Push, Pull, Stash buttons in sidebar mode)
+# =============================================================================
+
+# Go back to file view first
+click_text README.md
+wait_frames 5
+screenshot baseline_14_sidebar_toolbar
+
+# =============================================================================
+# 7. REFS / BRANCHES TAB
+# =============================================================================
+
+# Switch to Refs tab (sidebar mode tabs are buttons)
+click_button Refs
+wait_frames 5
+screenshot baseline_15_refs_tab
+
+# Switch back to Changes tab
+click_button Changes
+wait_frames 5
+
+# =============================================================================
+# 8. MENU BAR (each menu open)
+# =============================================================================
+
+# File menu
+click_text File
+wait_frames 5
+screenshot baseline_16_menu_file
+
+# Close
+escape
+wait_frames 3
+
+# Edit menu
+click_text Edit
+wait_frames 5
+screenshot baseline_17_menu_edit
+
+# Close
+escape
+wait_frames 3
+
+# View menu
+click_text View
+wait_frames 5
+screenshot baseline_18_menu_view
+
+# Close
+escape
+wait_frames 3
+
+# Repository menu
+click_text Repository
+wait_frames 5
+screenshot baseline_19_menu_repository
+
+# Close
+escape
+wait_frames 3
+
+# Help menu
+click_text Help
+wait_frames 5
+screenshot baseline_20_menu_help
+
+# Close
+escape
+wait_frames 3
+
+# =============================================================================
+# 9. COMMAND LOG (toggled open)
+# =============================================================================
+
+click_button "Show Log"
+wait_frames 5
+screenshot baseline_21_command_log_open
+
+# Close command log
+click_button "Hide Log"
+wait_frames 5
+screenshot baseline_22_command_log_closed
+
+# =============================================================================
+# 10. COMMIT EDITOR (via toolbar Commit button)
+# =============================================================================
+
+# Commit button in sidebar toolbar (requires staged files)
+click_button Commit
+wait_frames 5
+screenshot baseline_23_commit_flow
+
+# Close if dialog opened
+escape
+wait_frames 5
+
+# =============================================================================
+# 11. NEW BRANCH DIALOG
+# =============================================================================
+
+# Open via Repository menu
+click_text Repository
+wait_frames 5
+click_text "New Branch"
+wait_frames 5
+screenshot baseline_24_new_branch_dialog
+
+# Type a branch name
+type "feature/design-system"
+wait_frames 5
+screenshot baseline_25_new_branch_with_name
+
+# Cancel
+click_button Cancel
+wait_frames 5
+
+# =============================================================================
+# 12. RESPONSIVE LAYOUTS (different window sizes)
+# =============================================================================
+
+# Select a file to show populated state
+click_text README.md
+wait_frames 5
+
+# Full HD
+resize 1920 1080
+wait_frames 5
+screenshot baseline_26_responsive_1080p
+
+# Standard 720p
+resize 1280 720
+wait_frames 5
+screenshot baseline_27_responsive_720p
+
+# Narrow
+resize 800 600
+wait_frames 5
+screenshot baseline_28_responsive_narrow
+
+# Very narrow
+resize 640 480
+wait_frames 5
+screenshot baseline_29_responsive_very_narrow
+
+# Tall and narrow
+resize 600 900
+wait_frames 5
+screenshot baseline_30_responsive_tall_narrow
+
+# Restore to standard
+resize 1280 720
+wait_frames 5
+screenshot baseline_31_responsive_restored
+
+# =============================================================================
+# 13. FINAL: fully populated state
+# =============================================================================
+
+click_text README.md
+wait_frames 5
+screenshot baseline_32_final_full_state
