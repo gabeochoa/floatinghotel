@@ -4,9 +4,16 @@
 #include <afterhours/src/plugins/ui/theme.h>
 
 #include <cassert>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <vector>
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#endif
 
 #include "input_mapping.h"
 #include "rl.h"
@@ -15,10 +22,49 @@
 
 using namespace afterhours;
 
+namespace {
+
+std::filesystem::path get_exe_dir() {
+#ifdef __APPLE__
+    uint32_t size = 0;
+    _NSGetExecutablePath(nullptr, &size);
+    std::string buf(size, '\0');
+    if (_NSGetExecutablePath(buf.data(), &size) == 0) {
+        return std::filesystem::canonical(buf).parent_path();
+    }
+#elif defined(__linux__)
+    return std::filesystem::read_symlink("/proc/self/exe").parent_path();
+#elif defined(_WIN32)
+    char buf[MAX_PATH];
+    GetModuleFileNameA(nullptr, buf, MAX_PATH);
+    return std::filesystem::path(buf).parent_path();
+#endif
+    return std::filesystem::current_path();
+}
+
+std::string resolve_resource_root() {
+    auto exe_dir = get_exe_dir();
+
+    // 1. Next to the executable (output/resources/)
+    auto candidate = exe_dir / "resources";
+    if (std::filesystem::is_directory(candidate))
+        return candidate.string();
+
+    // 2. macOS .app bundle (Contents/MacOS/../Resources)
+    candidate = exe_dir / ".." / "Resources";
+    if (std::filesystem::is_directory(candidate))
+        return std::filesystem::canonical(candidate).string();
+
+    // 3. Fallback: relative to CWD (current behavior, for dev workflow)
+    return "resources";
+}
+
+} // namespace
+
 Preload::Preload() {}
 
 Preload& Preload::init(const char* /*title*/) {
-    files::init("floatinghotel", "resources");
+    files::init("floatinghotel", resolve_resource_root());
     afterhours::graphics::set_exit_key(0);
 
     return *this;

@@ -149,30 +149,50 @@ clean-all: clean
 	rm -f $(MAIN_EXE)
 	@echo "Cleaned all"
 
-# Resource copying
-ifeq ($(UNAME_S),Darwin)
-    mkdir_cmd := mkdir -p $(OUTPUT_DIR)/resources/
-    cp_resources_cmd := cp -r resources/* $(OUTPUT_DIR)/resources/
-else ifeq ($(OS),Windows_NT)
-    mkdir_cmd := powershell -command "& {&'New-Item' -Path .\ -Name $(OUTPUT_DIR)\resources -ItemType directory -ErrorAction SilentlyContinue}"
-    cp_resources_cmd := powershell -command "& {&'Copy-Item' .\resources\* $(OUTPUT_DIR)\resources -ErrorAction SilentlyContinue}"
-else
-    mkdir_cmd := mkdir -p $(OUTPUT_DIR)/resources/
-    cp_resources_cmd := cp -r resources/* $(OUTPUT_DIR)/resources/
-endif
+# Resource copying (always sync resources next to the executable)
+copy-resources:
+	@mkdir -p $(OUTPUT_DIR)/resources/fonts
+	@rsync -a --delete resources/ $(OUTPUT_DIR)/resources/
 
-output: $(MAIN_EXE)
-	$(mkdir_cmd)
-	$(cp_resources_cmd)
+output: $(MAIN_EXE) copy-resources
 
 run: output
 	./$(MAIN_EXE) .
 
-install: $(MAIN_EXE)
+# macOS .app bundle
+APP_BUNDLE := $(OUTPUT_DIR)/FloatingHotel.app
+bundle: $(MAIN_EXE) copy-resources
+	@echo "Building FloatingHotel.app..."
+	@mkdir -p $(APP_BUNDLE)/Contents/MacOS
+	@mkdir -p $(APP_BUNDLE)/Contents/Resources
+	@cp $(MAIN_EXE) $(APP_BUNDLE)/Contents/MacOS/floatinghotel
+	@rsync -a --delete $(OUTPUT_DIR)/resources/ $(APP_BUNDLE)/Contents/Resources/
+	@printf '%s\n' \
+		'<?xml version="1.0" encoding="UTF-8"?>' \
+		'<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+		'<plist version="1.0">' \
+		'<dict>' \
+		'    <key>CFBundleExecutable</key>' \
+		'    <string>floatinghotel</string>' \
+		'    <key>CFBundleIdentifier</key>' \
+		'    <string>com.floatinghotel.app</string>' \
+		'    <key>CFBundleName</key>' \
+		'    <string>FloatingHotel</string>' \
+		'    <key>CFBundleVersion</key>' \
+		'    <string>1.0</string>' \
+		'    <key>CFBundlePackageType</key>' \
+		'    <string>APPL</string>' \
+		'    <key>NSHighResolutionCapable</key>' \
+		'    <true/>' \
+		'</dict>' \
+		'</plist>' > $(APP_BUNDLE)/Contents/Info.plist
+	@echo "Built $(APP_BUNDLE)"
+
+install: output
 	@scripts/install.sh
 
 # Utility targets
-.PHONY: all clean clean-all deps output run install
+.PHONY: all clean clean-all deps copy-resources output run bundle install
 
 # ==============================================================================
 # UNIT TESTS
