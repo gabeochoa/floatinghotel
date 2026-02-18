@@ -564,16 +564,11 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("refs_header"));
 
-        std::string branchLabel = "Branches (" +
-            std::to_string(repo.branches.size()) + ")";
+        std::string branchLabel = "\xe2\x96\xbe Branches  " +
+            std::to_string(repo.branches.size());
         div(ctx, mk(headerRow.ent(), 1),
-            ComponentConfig{}
-                .with_label(branchLabel)
-                .with_size(ComponentSize{percent(1.0f), h720(18)})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(FontSize::Small)
-                .with_alignment(TextAlignment::Left)
-                .with_roundness(0.0f)
+            preset::SectionHeader(branchLabel)
+                .with_size(ComponentSize{percent(1.0f), children()})
                 .with_debug_name("branches_label"));
 
         // "+ New" button

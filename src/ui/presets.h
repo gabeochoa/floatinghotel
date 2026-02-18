@@ -63,19 +63,19 @@ inline ComponentConfig Button(const std::string& label, bool enabled = true) {
 // Section Headers
 // ============================================================================
 
-// Section header for sidebar groups ("STAGED CHANGES 3", "COMMITS 42").
-// Default size: percent(1.0f) x children().
+// Section header for sidebar groups ("Staged Changes 3", "Commits 42").
+// Default size: percent(1.0f) x h720(24). Fixed height ensures consistent
+// font rendering across all section headers.
 inline ComponentConfig SectionHeader(const std::string& label) {
     return ComponentConfig{}
         .with_label(label)
-        .with_size(ComponentSize{percent(1.0f), children()})
+        .with_size(ComponentSize{percent(1.0f), h720(24)})
         .with_padding(Padding{
-            .top = pixels(7), .right = pixels(10),
-            .bottom = pixels(5), .left = pixels(10)})
+            .top = h720(4), .right = pixels(10),
+            .bottom = h720(4), .left = pixels(10)})
         .with_custom_background(theme::SECTION_HEADER_BG)
         .with_custom_text_color(Color{160, 160, 160, 255})
         .with_font_size(FontSize::Small)
-        .with_letter_spacing(0.5f)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }
