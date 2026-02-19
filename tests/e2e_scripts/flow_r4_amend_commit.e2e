@@ -1,0 +1,18 @@
+# R4: Repository > Amend Last Commit
+# Verifies clicking Amend Last Commit sets amend mode.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Amend starts as false
+validate is_amend=false
+
+# Trigger amend via Repository menu
+click_text "Repository"
+wait_frames 3
+click_text "Amend Last Commit"
+wait_frames 10
+
+# Amend flag should now be set
+validate is_amend=true
+screenshot r4_01_amend_mode

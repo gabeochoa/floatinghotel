@@ -1,0 +1,24 @@
+# V5: View > Changed Files View
+# Verifies clicking Changed Files View sets file view mode to Flat.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Default is Flat
+validate file_view_mode=Flat
+
+# Switch to Tree first
+click_text "View"
+wait_frames 3
+click_text "Tree View"
+wait_frames 5
+validate file_view_mode=Tree
+
+# Now switch back to Changed Files View (Flat)
+click_text "View"
+wait_frames 3
+click_text "Changed Files View"
+wait_frames 5
+
+validate file_view_mode=Flat
+screenshot v5_01_changed_files_view

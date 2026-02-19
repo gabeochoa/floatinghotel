@@ -1,0 +1,17 @@
+# V4: View > Side-by-Side Diff
+# Verifies clicking Side-by-Side Diff sets the diff view mode.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Default is Inline
+validate diff_view_mode=Inline
+
+# Switch to Side-by-Side via menu
+click_text "View"
+wait_frames 3
+click_text "Side-by-Side Diff"
+wait_frames 5
+
+validate diff_view_mode=SideBySide
+screenshot v4_01_side_by_side

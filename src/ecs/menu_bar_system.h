@@ -283,8 +283,12 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                                 .with_debug_name("menu_shortcut_" + item.label));
                     }
 
-                    // Handle item click
-                    if (itemResult && item.enabled) {
+                    // Handle item click via direct mouse check (same pattern
+                    // as headers — avoids the one-frame-late button result
+                    // which gets swallowed by the click consumption below).
+                    (void)itemResult;
+                    bool itemClicked = hovered && ctx.mouse.just_pressed;
+                    if (itemClicked && item.enabled) {
                         if (item.action) {
                             item.action();
                         }

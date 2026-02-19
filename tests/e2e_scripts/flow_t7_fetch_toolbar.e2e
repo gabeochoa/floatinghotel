@@ -1,0 +1,21 @@
+# T7: Toolbar > Fetch
+# Verifies the Fetch toolbar button attempts a git fetch.
+# No remote configured, so fetch fails gracefully.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Hide sidebar to show full-width toolbar
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=false
+
+# Click Fetch in the toolbar
+click_text "Fetch"
+wait_frames 10
+
+# App should still be responsive
+validate branch=main
+screenshot t7_01_fetch_toolbar

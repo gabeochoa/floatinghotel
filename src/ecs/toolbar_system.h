@@ -3,6 +3,8 @@
 #include <string>
 
 #include "../../vendor/afterhours/src/core/system.h"
+#include "../git/git_commands.h"
+#include "../git/git_runner.h"
 #include "../input_mapping.h"
 #include "../rl.h"
 #include "../ui/presets.h"
@@ -98,7 +100,7 @@ private:
     void render_sidebar_toolbar(UIContext<InputAction>& ctx,
                                 Result& topChrome,
                                 float w, float /*h*/,
-                                Entities& /*repoEntities*/,
+                                Entities& repoEntities,
                                 bool hasRepo, bool /*hasUnstaged*/, bool hasStaged) {
         // Toolbar fills its allocated height
         auto toolbarBg = div(ctx, mk(topChrome.ent(), 1),
@@ -155,13 +157,17 @@ private:
             }
         }
         if (sidebarBtn(row1.ent(), nextId++, "Push", hasRepo)) {
-            // TODO 
+            auto& repo = repoEntities[0].get().template get<RepoComponent>();
+            git::git_push(repo.repoPath);
+            repo.refreshRequested = true;
         }
         if (sidebarBtn(row1.ent(), nextId++, "Pull", hasRepo)) {
-            // TODO 
+            auto& repo = repoEntities[0].get().template get<RepoComponent>();
+            git::git_pull(repo.repoPath);
+            repo.refreshRequested = true;
         }
         if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
-            // TODO 
+            // TODO: needs git stash infrastructure
         }
     }
 
@@ -249,12 +255,16 @@ private:
         }
         if (toolbarButton("Stage All", hasRepo && hasUnstaged)) {
             if (hasRepo) {
-                repoEntities[0].get().template get<RepoComponent>().refreshRequested = true;
+                auto& repo = repoEntities[0].get().template get<RepoComponent>();
+                git::stage_all(repo.repoPath);
+                repo.refreshRequested = true;
             }
         }
         if (toolbarButton("Unstage All", hasRepo && hasStaged)) {
             if (hasRepo) {
-                repoEntities[0].get().template get<RepoComponent>().refreshRequested = true;
+                auto& repo = repoEntities[0].get().template get<RepoComponent>();
+                git::unstage_all(repo.repoPath);
+                repo.refreshRequested = true;
             }
         }
 
@@ -269,9 +279,21 @@ private:
                     .commitRequested = true;
             }
         }
-        if (toolbarButton("Push", hasRepo)) {}
-        if (toolbarButton("Pull", hasRepo)) {}
-        if (toolbarButton("Fetch", hasRepo)) {}
+        if (toolbarButton("Push", hasRepo)) {
+            auto& repo = repoEntities[0].get().template get<RepoComponent>();
+            git::git_push(repo.repoPath);
+            repo.refreshRequested = true;
+        }
+        if (toolbarButton("Pull", hasRepo)) {
+            auto& repo = repoEntities[0].get().template get<RepoComponent>();
+            git::git_pull(repo.repoPath);
+            repo.refreshRequested = true;
+        }
+        if (toolbarButton("Fetch", hasRepo)) {
+            auto& repo = repoEntities[0].get().template get<RepoComponent>();
+            git::git_fetch(repo.repoPath);
+            repo.refreshRequested = true;
+        }
 
         toolbarSeparator();
 

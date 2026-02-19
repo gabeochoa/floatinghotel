@@ -1,0 +1,24 @@
+# T3: Toolbar > Unstage All
+# Verifies the Unstage All toolbar button unstages all staged files.
+# The full-width toolbar only appears when sidebar is hidden.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Baseline: 1 staged file (.gitignore)
+validate staged_count=1
+
+# Hide sidebar to show full-width toolbar
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=false
+
+# Click Unstage All in the toolbar
+click_text "Unstage All"
+wait_frames 10
+
+# No files should be staged now
+validate staged_count=0
+screenshot t3_01_all_unstaged

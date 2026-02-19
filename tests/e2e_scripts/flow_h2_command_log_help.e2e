@@ -1,0 +1,18 @@
+# H2: Help > Command Log
+# Verifies clicking Command Log in the Help menu shows the command log panel.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Command log starts hidden
+validate command_log_visible=false
+
+# Open Help menu, click Command Log
+click_text "Help"
+wait_frames 3
+click_text "Command Log"
+wait_frames 5
+
+# Command log should now be visible
+validate command_log_visible=true
+screenshot h2_01_command_log_via_help

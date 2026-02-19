@@ -1,0 +1,18 @@
+# R9: Repository > Fetch
+# Verifies clicking Fetch attempts a git fetch.
+# Test repo has no remote, so the fetch will fail gracefully.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+validate branch=main
+
+# Fetch via Repository menu
+click_text "Repository"
+wait_frames 3
+click_text "Fetch"
+wait_frames 10
+
+# App should still be responsive
+validate branch=main
+screenshot r9_01_fetch_attempted

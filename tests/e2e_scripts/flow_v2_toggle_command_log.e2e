@@ -1,0 +1,29 @@
+# V2: View > Toggle Command Log
+# Verifies clicking Toggle Command Log shows/hides the command log panel.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Command log starts hidden
+validate command_log_visible=false
+screenshot v2_01_log_hidden
+
+# Open View menu, click Toggle Command Log
+click_text "View"
+wait_frames 3
+click_text "Toggle Command Log"
+wait_frames 5
+
+# Command log should now be visible
+validate command_log_visible=true
+screenshot v2_02_log_visible
+
+# Toggle it back off
+click_text "View"
+wait_frames 3
+click_text "Toggle Command Log"
+wait_frames 5
+
+# Command log should be hidden again
+validate command_log_visible=false
+screenshot v2_03_log_hidden_again

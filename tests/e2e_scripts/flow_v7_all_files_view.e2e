@@ -1,0 +1,17 @@
+# V7: View > All Files View
+# Verifies clicking All Files View sets file view mode to All.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Default is Flat
+validate file_view_mode=Flat
+
+# Switch to All Files View via menu
+click_text "View"
+wait_frames 3
+click_text "All Files View"
+wait_frames 5
+
+validate file_view_mode=All
+screenshot v7_01_all_files_view

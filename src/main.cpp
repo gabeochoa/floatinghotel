@@ -404,6 +404,90 @@ int main(int argc, char* argv[]) {
         app_state::e2eRunner.load_script(app_state::testScriptPath);
     }
     app_state::e2eRunner.set_timeout(app_state::e2eTimeout);
+    app_state::e2eRunner.set_reset_callback([] {
+        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::LayoutComponent>().gen();
+        if (!layoutQ.empty()) {
+            auto& l = layoutQ[0].get().get<ecs::LayoutComponent>();
+            l.sidebarVisible = true;
+            l.commandLogVisible = false;
+            l.diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
+            l.fileViewMode = ecs::LayoutComponent::FileViewMode::Flat;
+            l.sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
+        }
+        auto editorQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::CommitEditorComponent>().gen();
+        if (!editorQ.empty()) {
+            auto& e = editorQ[0].get().get<ecs::CommitEditorComponent>();
+            e.isAmend = false;
+            e.commitRequested = false;
+            e.showUnstagedDialog = false;
+        }
+        auto menuQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::MenuComponent>().gen();
+        if (!menuQ.empty()) {
+            menuQ[0].get().get<ecs::MenuComponent>().activeMenuIndex = -1;
+        }
+    });
+    app_state::e2eRunner.set_property_getter([](const std::string& key) -> std::string {
+        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::LayoutComponent>().gen();
+        auto repoQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::RepoComponent>().gen();
+        auto editorQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::CommitEditorComponent>().gen();
+
+        if (key == "sidebar_visible") {
+            if (!layoutQ.empty())
+                return layoutQ[0].get().get<ecs::LayoutComponent>().sidebarVisible ? "true" : "false";
+        } else if (key == "command_log_visible") {
+            if (!layoutQ.empty())
+                return layoutQ[0].get().get<ecs::LayoutComponent>().commandLogVisible ? "true" : "false";
+        } else if (key == "diff_view_mode") {
+            if (!layoutQ.empty()) {
+                auto m = layoutQ[0].get().get<ecs::LayoutComponent>().diffViewMode;
+                return m == ecs::LayoutComponent::DiffViewMode::Inline ? "Inline" : "SideBySide";
+            }
+        } else if (key == "file_view_mode") {
+            if (!layoutQ.empty()) {
+                switch (layoutQ[0].get().get<ecs::LayoutComponent>().fileViewMode) {
+                    case ecs::LayoutComponent::FileViewMode::Flat: return "Flat";
+                    case ecs::LayoutComponent::FileViewMode::Tree: return "Tree";
+                    case ecs::LayoutComponent::FileViewMode::All: return "All";
+                    default: return "Unknown";
+                }
+            }
+        } else if (key == "sidebar_mode") {
+            if (!layoutQ.empty()) {
+                auto m = layoutQ[0].get().get<ecs::LayoutComponent>().sidebarMode;
+                return m == ecs::LayoutComponent::SidebarMode::Changes ? "Changes" : "Refs";
+            }
+        } else if (key == "staged_count") {
+            if (!repoQ.empty())
+                return std::to_string(repoQ[0].get().get<ecs::RepoComponent>().stagedFiles.size());
+        } else if (key == "unstaged_count") {
+            if (!repoQ.empty()) {
+                auto& r = repoQ[0].get().get<ecs::RepoComponent>();
+                return std::to_string(r.unstagedFiles.size());
+            }
+        } else if (key == "untracked_count") {
+            if (!repoQ.empty())
+                return std::to_string(repoQ[0].get().get<ecs::RepoComponent>().untrackedFiles.size());
+        } else if (key == "branch") {
+            if (!repoQ.empty())
+                return repoQ[0].get().get<ecs::RepoComponent>().currentBranch;
+        } else if (key == "selected_file") {
+            if (!repoQ.empty())
+                return repoQ[0].get().get<ecs::RepoComponent>().selectedFilePath;
+        } else if (key == "is_amend") {
+            if (!editorQ.empty())
+                return editorQ[0].get().get<ecs::CommitEditorComponent>().isAmend ? "true" : "false";
+        } else if (key == "refresh_requested") {
+            if (!repoQ.empty())
+                return repoQ[0].get().get<ecs::RepoComponent>().refreshRequested ? "true" : "false";
+        }
+        return "";
+    });
     app_state::e2eRunner.set_screenshot_callback([](const std::string& name) {
         std::filesystem::path dir =
             std::filesystem::absolute(app_state::screenshotDir);

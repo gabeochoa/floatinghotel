@@ -1,0 +1,29 @@
+# V1: View > Toggle Sidebar
+# Verifies clicking Toggle Sidebar hides/shows the sidebar panel.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Sidebar starts visible
+validate sidebar_visible=true
+screenshot v1_01_sidebar_visible
+
+# Open View menu, click Toggle Sidebar
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
+# Sidebar should now be hidden
+validate sidebar_visible=false
+screenshot v1_02_sidebar_hidden
+
+# Toggle it back on
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
+# Sidebar should be visible again
+validate sidebar_visible=true
+screenshot v1_03_sidebar_restored

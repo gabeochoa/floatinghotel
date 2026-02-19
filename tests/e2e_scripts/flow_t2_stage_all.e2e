@@ -1,0 +1,27 @@
+# T2: Toolbar > Stage All
+# Verifies the Stage All toolbar button stages all unstaged and untracked files.
+# The full-width toolbar only appears when sidebar is hidden.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Baseline: 2 unstaged, 2 untracked
+validate unstaged_count=2
+validate untracked_count=2
+validate staged_count=1
+
+# Hide sidebar to show full-width toolbar (requires V1 to be implemented)
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=false
+
+# Click Stage All in the toolbar
+click_text "Stage All"
+wait_frames 10
+
+# All files should now be staged
+validate unstaged_count=0
+validate untracked_count=0
+screenshot t2_01_all_staged

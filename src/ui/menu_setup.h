@@ -8,6 +8,8 @@
 #include <afterhours/src/ecs.h>
 
 #include "../ecs/components.h"
+#include "../git/git_commands.h"
+#include "../git/git_runner.h"
 
 namespace menu_setup {
 
@@ -57,15 +59,59 @@ inline std::vector<Menu> createMenuBar() {
 
     // View menu
     menus.push_back({"View", {
-        MenuItem::item("Toggle Sidebar", "Cmd+B"),
-        MenuItem::item("Toggle Command Log", "Cmd+Shift+L"),
+        MenuItem::item("Toggle Sidebar", "Cmd+B", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty()) {
+                auto& l = q[0].get().get<ecs::LayoutComponent>();
+                l.sidebarVisible = !l.sidebarVisible;
+            }
+        }),
+        MenuItem::item("Toggle Command Log", "Cmd+Shift+L", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty()) {
+                auto& l = q[0].get().get<ecs::LayoutComponent>();
+                l.commandLogVisible = !l.commandLogVisible;
+            }
+        }),
         MenuItem::separator(),
-        MenuItem::item("Inline Diff", "Cmd+Shift+I"),
-        MenuItem::item("Side-by-Side Diff", "Cmd+Shift+D"),
+        MenuItem::item("Inline Diff", "Cmd+Shift+I", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty())
+                q[0].get().get<ecs::LayoutComponent>().diffViewMode =
+                    ecs::LayoutComponent::DiffViewMode::Inline;
+        }),
+        MenuItem::item("Side-by-Side Diff", "Cmd+Shift+D", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty())
+                q[0].get().get<ecs::LayoutComponent>().diffViewMode =
+                    ecs::LayoutComponent::DiffViewMode::SideBySide;
+        }),
         MenuItem::separator(),
-        MenuItem::item("Changed Files View", ""),
-        MenuItem::item("Tree View", ""),
-        MenuItem::item("All Files View", ""),
+        MenuItem::item("Changed Files View", "", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty())
+                q[0].get().get<ecs::LayoutComponent>().fileViewMode =
+                    ecs::LayoutComponent::FileViewMode::Flat;
+        }),
+        MenuItem::item("Tree View", "", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty())
+                q[0].get().get<ecs::LayoutComponent>().fileViewMode =
+                    ecs::LayoutComponent::FileViewMode::Tree;
+        }),
+        MenuItem::item("All Files View", "", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty())
+                q[0].get().get<ecs::LayoutComponent>().fileViewMode =
+                    ecs::LayoutComponent::FileViewMode::All;
+        }),
         MenuItem::separator(),
         MenuItem::item("Zoom In", "Cmd+="),
         MenuItem::item("Zoom Out", "Cmd+-"),
@@ -74,11 +120,41 @@ inline std::vector<Menu> createMenuBar() {
 
     // Git menu
     menus.push_back({"Repository", {
-        MenuItem::item("Stage File", "Cmd+Shift+S"),
-        MenuItem::item("Unstage File", "Cmd+Shift+U"),
+        MenuItem::item("Stage File", "Cmd+Shift+S", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::RepoComponent>().gen();
+            if (!q.empty()) {
+                auto& r = q[0].get().get<ecs::RepoComponent>();
+                if (!r.selectedFilePath.empty()) {
+                    git::stage_file(r.repoPath, r.selectedFilePath);
+                    r.refreshRequested = true;
+                }
+            }
+        }),
+        MenuItem::item("Unstage File", "Cmd+Shift+U", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::RepoComponent>().gen();
+            if (!q.empty()) {
+                auto& r = q[0].get().get<ecs::RepoComponent>();
+                if (!r.selectedFilePath.empty()) {
+                    git::unstage_file(r.repoPath, r.selectedFilePath);
+                    r.refreshRequested = true;
+                }
+            }
+        }),
         MenuItem::separator(),
-        MenuItem::item("Commit...", "Cmd+Enter"),
-        MenuItem::item("Amend Last Commit", ""),
+        MenuItem::item("Commit...", "Cmd+Enter", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::CommitEditorComponent>().gen();
+            if (!q.empty())
+                q[0].get().get<ecs::CommitEditorComponent>().commitRequested = true;
+        }),
+        MenuItem::item("Amend Last Commit", "", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::CommitEditorComponent>().gen();
+            if (!q.empty())
+                q[0].get().get<ecs::CommitEditorComponent>().isAmend = true;
+        }),
         MenuItem::separator(),
         MenuItem::item("New Branch...", "Cmd+Shift+B", [] {
             auto repoEntities = afterhours::EntityQuery({.force_merge = true})
@@ -102,15 +178,46 @@ inline std::vector<Menu> createMenuBar() {
             }
         }),
         MenuItem::separator(),
-        MenuItem::item("Push", "Cmd+Shift+P"),
-        MenuItem::item("Pull", "Cmd+Shift+L"),
-        MenuItem::item("Fetch", ""),
+        MenuItem::item("Push", "Cmd+Shift+P", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::RepoComponent>().gen();
+            if (!q.empty()) {
+                auto& r = q[0].get().get<ecs::RepoComponent>();
+                git::git_push(r.repoPath);
+                r.refreshRequested = true;
+            }
+        }),
+        MenuItem::item("Pull", "Cmd+Shift+L", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::RepoComponent>().gen();
+            if (!q.empty()) {
+                auto& r = q[0].get().get<ecs::RepoComponent>();
+                git::git_pull(r.repoPath);
+                r.refreshRequested = true;
+            }
+        }),
+        MenuItem::item("Fetch", "", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::RepoComponent>().gen();
+            if (!q.empty()) {
+                auto& r = q[0].get().get<ecs::RepoComponent>();
+                git::git_fetch(r.repoPath);
+                r.refreshRequested = true;
+            }
+        }),
     }});
 
     // Help menu
     menus.push_back({"Help", {
         MenuItem::item("Keyboard Shortcuts", "Cmd+?"),
-        MenuItem::item("Command Log", ""),
+        MenuItem::item("Command Log", "", [] {
+            auto q = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (!q.empty()) {
+                auto& l = q[0].get().get<ecs::LayoutComponent>();
+                l.commandLogVisible = !l.commandLogVisible;
+            }
+        }),
         MenuItem::item("About floatinghotel", ""),
     }});
 

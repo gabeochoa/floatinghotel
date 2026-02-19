@@ -1,0 +1,24 @@
+# V3: View > Inline Diff
+# Verifies clicking Inline Diff sets the diff view mode.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Default is Inline
+validate diff_view_mode=Inline
+
+# Switch to SideBySide first via menu
+click_text "View"
+wait_frames 3
+click_text "Side-by-Side Diff"
+wait_frames 5
+validate diff_view_mode=SideBySide
+
+# Now switch back to Inline via menu
+click_text "View"
+wait_frames 3
+click_text "Inline Diff"
+wait_frames 5
+
+validate diff_view_mode=Inline
+screenshot v3_01_inline_diff

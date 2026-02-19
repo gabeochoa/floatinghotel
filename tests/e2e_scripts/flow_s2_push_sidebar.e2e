@@ -1,0 +1,17 @@
+# S2: Sidebar Toolbar > Push
+# Verifies the Push button in the sidebar toolbar attempts a git push.
+# Sidebar must be visible (default state).
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Sidebar is visible by default, so sidebar toolbar is shown
+validate sidebar_visible=true
+
+# Click Push in the sidebar toolbar
+click_button "Push"
+wait_frames 10
+
+# App should still be responsive
+validate branch=main
+screenshot s2_01_push_sidebar

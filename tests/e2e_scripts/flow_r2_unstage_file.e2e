@@ -1,0 +1,24 @@
+# R2: Repository > Unstage File
+# Verifies clicking Unstage File unstages the currently selected file.
+# Test repo has .gitignore staged.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Baseline: 1 staged
+validate staged_count=1
+
+# Select the staged file by clicking it in the sidebar
+click_text ".gitignore"
+wait_frames 5
+screenshot r2_01_staged_file_selected
+
+# Unstage it via Repository menu
+click_text "Repository"
+wait_frames 3
+click_text "Unstage File"
+wait_frames 10
+
+# Should now have 0 staged
+validate staged_count=0
+screenshot r2_02_file_unstaged

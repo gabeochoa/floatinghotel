@@ -1,0 +1,21 @@
+# T6: Toolbar > Pull
+# Verifies the Pull toolbar button attempts a git pull.
+# No remote configured, so pull fails gracefully.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Hide sidebar to show full-width toolbar
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=false
+
+# Click Pull in the toolbar
+click_text "Pull"
+wait_frames 10
+
+# App should still be responsive
+validate branch=main
+screenshot t6_01_pull_toolbar
