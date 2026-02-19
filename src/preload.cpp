@@ -110,6 +110,8 @@ Preload& Preload::make_singleton() {
     // Load fonts
     std::string ui_font_path =
         files::get_resource_path("fonts", "Roboto-Regular.ttf").string();
+    std::string mono_font_path =
+        files::get_resource_path("fonts", "JetBrainsMono-Regular.ttf").string();
 
     auto& fontMgr =
         EntityHelper::get_singleton_cmp_enforce<ui::FontManager>();
@@ -118,6 +120,7 @@ Preload& Preload::make_singleton() {
                       ui_font_path.c_str());
     fontMgr.load_font(ui::UIComponent::SYMBOL_FONT,
                       ui_font_path.c_str());
+    fontMgr.load_font("mono", mono_font_path.c_str());
 
     // Dark theme setup
     {

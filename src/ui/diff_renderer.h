@@ -105,7 +105,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_custom_background(bgColor)
             .with_custom_text_color(textColor)
             .with_label(label)
-            .with_font_size(afterhours::ui::FontSize::Medium)
+            .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(0), .right = w1280(0),
@@ -133,7 +133,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
             .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
-            .with_font_size(afterhours::ui::FontSize::Medium)
+            .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(4), .right = w1280(12),
