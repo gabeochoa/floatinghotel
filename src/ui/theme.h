@@ -112,8 +112,8 @@ constexpr int STATUS_BAR_HEIGHT = 22;
 constexpr int SIDEBAR_DEFAULT_WIDTH = 300;
 constexpr int SIDEBAR_MIN_WIDTH = 200;
 constexpr float SIDEBAR_MIN_PCT = 0.18f;  // Min 18% of window width
-constexpr int FILE_ROW_HEIGHT = 34;
-constexpr int COMMIT_ROW_HEIGHT = 36;
+constexpr int FILE_ROW_HEIGHT = 24;
+constexpr int COMMIT_ROW_HEIGHT = 26;
 constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
 // Text hierarchy (values are h720 reference pixels at 720p)
