@@ -683,7 +683,7 @@ private:
                 .with_label(branch.name)
                 .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
                 .with_custom_text_color(nameColor)
-                .with_font_size(FontSize::Large)
+                .with_font_size(FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)

@@ -75,7 +75,7 @@ inline ComponentConfig SectionHeader(const std::string& label) {
             .bottom = h720(4), .left = pixels(10)})
         .with_custom_background(theme::SECTION_HEADER_BG)
         .with_custom_text_color(Color{160, 160, 160, 255})
-        .with_font_size(FontSize::Small)
+        .with_font_size(FontSize::Large)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }
@@ -139,7 +139,7 @@ inline ComponentConfig BodyText(const std::string& label) {
         .with_size(ComponentSize{percent(1.0f), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_PRIMARY)
-        .with_font_size(FontSize::Large)
+        .with_font_size(FontSize::Medium)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }

@@ -117,16 +117,16 @@ constexpr int COMMIT_ROW_HEIGHT = 36;
 constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
 // Text hierarchy (values are h720 reference pixels at 720p)
-constexpr float FONT_HERO = 26.0f;  // Commit detail subject, empty state title
-constexpr float FONT_HEADING = 22.0f;  // Diff file headers, section titles
-constexpr float FONT_BODY = 28.0f;     // Sidebar file names, commit detail meta
-constexpr float FONT_CHROME =
-    26.0f;                          // Menu bar, toolbar, menus, commit entries
-constexpr float FONT_CODE = 24.0f;  // Diff code text, line numbers
-constexpr float FONT_META = 24.0f;  // Diff stats, status bar, shortcut keys
-constexpr float FONT_CAPTION =
-    12.0f;  // Section headers (STAGED CHANGES), badges
-constexpr float FONT_TOOLBAR = 13.0f;  // Toolbar buttons (compact)
+// Actual rendering uses FontSize tiers set in preload.cpp:
+// Small=12, Medium=15, Large=17, XL=19
+constexpr float FONT_HERO = 20.0f;     // Empty state title
+constexpr float FONT_HEADING = 18.0f;  // Diff file headers, section titles
+constexpr float FONT_BODY = 15.0f;     // Sidebar file names, commit detail meta
+constexpr float FONT_CHROME = 19.0f;   // Menu bar
+constexpr float FONT_CODE = 16.0f;     // Diff code text, line numbers
+constexpr float FONT_META = 12.0f;     // Hashes, status badges, shortcut keys
+constexpr float FONT_CAPTION = 17.0f;  // Section headers (Staged Changes)
+constexpr float FONT_TOOLBAR = 17.0f;  // Toolbar buttons, tabs
 
 // Rounded corners (enable all four corners)
 const std::bitset<4> ROUNDED_CORNERS = std::bitset<4>(0b1111);
