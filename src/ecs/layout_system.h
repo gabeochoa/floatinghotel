@@ -595,7 +595,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .left = pixels(PAD), .right = {}})
             .with_transparent_bg()
             .with_custom_text_color(theme::BUTTON_PRIMARY)
-            .with_font_size(afterhours::ui::FontSize::Small)
+            .with_font_size(afterhours::ui::FontSize::Large)
             .with_debug_name("commit_back_btn"));
 
     if (backBtn) {
@@ -963,11 +963,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
                 .with_debug_name("diff_sep"));
 
-        // === Inline diff ===
+        // === Inline diff (embedded — no nested scroll container) ===
         ui::render_inline_diff(ctx, scrollContainer.ent(),
                                repo.commitDetailDiff,
                                layout.mainContent.width,
-                               layout.mainContent.height);
+                               layout.mainContent.height,
+                               /*embedInParentScroll=*/true);
     }
 }
 

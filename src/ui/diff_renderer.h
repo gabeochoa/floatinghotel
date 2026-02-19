@@ -152,26 +152,34 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
 // Render the complete inline diff view for all file diffs.
 // This is the main entry point called by MainContentSystem.
+// When embedInParentScroll is true, diff content is added directly to the parent
+// without creating a nested scroll container (used by commit detail view).
 inline void render_inline_diff(UIContext<InputAction>& ctx,
                                 Entity& parent,
                                 const std::vector<ecs::FileDiff>& diffs,
-                                float contentWidth, float contentHeight) {
+                                float contentWidth, float contentHeight,
+                                bool embedInParentScroll = false) {
     int nextId = diff_detail::BASE_ID;
 
-    // Size the scroll container to fill available space
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
-    auto h = contentHeight > 0 ? pixels(contentHeight - diff_detail::DIFF_HEADER_H)
-                                : percent(1.0f);
 
-    // Scrollable container for all diff content
-    auto scrollContainer = div(ctx, mk(parent, nextId++),
-        ComponentConfig{}
-            .with_size(ComponentSize{w, h})
-            .with_overflow(Overflow::Scroll, Axis::Y)
-            .with_flex_direction(FlexDirection::Column)
-            .with_custom_background(theme::PANEL_BG)
-            .with_roundness(0.0f)
-            .with_debug_name("diff_scroll"));
+    // When embedded, attach directly to parent; otherwise create our own scroll wrapper.
+    // We always resolve contentParent to the entity that will own the diff rows.
+    Entity* contentParent = &parent;
+    if (!embedInParentScroll) {
+        auto h = contentHeight > 0
+                     ? pixels(contentHeight - diff_detail::DIFF_HEADER_H)
+                     : percent(1.0f);
+        auto scrollContainer = div(ctx, mk(parent, nextId++),
+            ComponentConfig{}
+                .with_size(ComponentSize{w, h})
+                .with_overflow(Overflow::Scroll, Axis::Y)
+                .with_flex_direction(FlexDirection::Column)
+                .with_custom_background(theme::PANEL_BG)
+                .with_roundness(0.0f)
+                .with_debug_name("diff_scroll"));
+        contentParent = &scrollContainer.ent();
+    }
 
     // Stats summary header inside scroll
     {
@@ -185,7 +193,7 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
             + std::to_string(totalAdditions) + "  -"
             + std::to_string(totalDeletions);
 
-        div(ctx, mk(scrollContainer.ent(), nextId++),
+        div(ctx, mk(*contentParent, nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), h720(diff_detail::DIFF_HEADER_H)})
                 .with_padding(Padding{
@@ -227,7 +235,7 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
             fileLabel += "  (binary)";
         }
 
-        div(ctx, mk(scrollContainer.ent(), nextId++),
+        div(ctx, mk(*contentParent, nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{w, h720(diff_detail::FILE_HEADER_H)})
                 .with_custom_background(theme::SIDEBAR_BG)
@@ -244,7 +252,7 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
 
         // Binary files: just show the header, no hunks
         if (fileDiff.isBinary) {
-            div(ctx, mk(scrollContainer.ent(), nextId++),
+            div(ctx, mk(*contentParent, nextId++),
                 ComponentConfig{}
                     .with_size(ComponentSize{w, h720(24)})
                     .with_custom_background(theme::PANEL_BG)
@@ -262,13 +270,13 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
 
         // Render each hunk (passing contentWidth for proper sizing)
         for (auto& hunk : fileDiff.hunks) {
-            render_hunk(ctx, scrollContainer.ent(), fileDiff, hunk, nextId,
+            render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
                         contentWidth);
         }
 
         // Spacer between files
         if (&fileDiff != &diffs.back()) {
-            div(ctx, mk(scrollContainer.ent(), nextId++),
+            div(ctx, mk(*contentParent, nextId++),
                 ComponentConfig{}
                     .with_size(ComponentSize{w, h720(8)})
                     .with_custom_background(theme::PANEL_BG)
