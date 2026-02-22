@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "../../vendor/afterhours/src/core/system.h"
+#include "../../vendor/afterhours/src/plugins/toast.h"
 #include "../input_mapping.h"
 #include "../rl.h"
 #include "../ui/menu_setup.h"
@@ -301,6 +302,12 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     itemY += ITEM_HEIGHT;
                 }
             }
+        }
+
+        // Drain pending toast (from Tier B stub menu actions that lack UIContext)
+        if (!menu.pendingToast.empty()) {
+            afterhours::toast::send_info(ctx, menu.pendingToast, 2.0f);
+            menu.pendingToast.clear();
         }
 
         // Close menus on click outside

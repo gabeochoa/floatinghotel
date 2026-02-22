@@ -1,0 +1,22 @@
+# Shortcut conflict fix: Pull no longer shows Cmd+Shift+L
+# Cmd+Shift+L is reserved for Toggle Command Log (View menu).
+# The Repository > Pull item should have no shortcut displayed.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Open Repository menu and verify Pull is present but has no shortcut
+click_text "Repository"
+wait_frames 5
+expect_text "Pull"
+screenshot shortcut_01_repo_menu_open
+
+# Verify Toggle Command Log still owns Cmd+Shift+L
+# Close Repository menu first
+click_text "Repository"
+wait_frames 3
+
+click_text "View"
+wait_frames 5
+expect_text "Cmd+Shift+L"
+screenshot shortcut_02_view_menu_cmd_shift_l

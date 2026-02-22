@@ -368,25 +368,38 @@ Each item has its own test file. All tests use `validate` commands backed by a `
 
 Run `./scripts/run_flow_tests.sh` and count PASS/FAIL to track progress.
 
-- [ ] V1: Toggle Sidebar
-- [ ] V2: Toggle Command Log
-- [ ] V3: Inline Diff
-- [ ] V4: Side-by-Side Diff
-- [ ] V5: Changed Files View
-- [ ] V6: Tree View
-- [ ] V7: All Files View
-- [ ] R1: Stage File
-- [ ] R2: Unstage File
-- [ ] R3: Commit...
-- [ ] R4: Amend Last Commit
-- [ ] R7: Push (menu)
-- [ ] R8: Pull (menu)
-- [ ] R9: Fetch (menu)
-- [ ] T2: Stage All (toolbar)
-- [ ] T3: Unstage All (toolbar)
-- [ ] T5: Push (toolbar)
-- [ ] T6: Pull (toolbar)
-- [ ] T7: Fetch (toolbar)
-- [ ] S2: Push (sidebar)
-- [ ] S3: Pull (sidebar)
-- [ ] H2: Command Log (Help)
+- [x] V1: Toggle Sidebar
+- [x] V2: Toggle Command Log
+- [x] V3: Inline Diff
+- [x] V4: Side-by-Side Diff
+- [x] V5: Changed Files View
+- [x] V6: Tree View
+- [x] V7: All Files View
+- [x] R1: Stage File
+- [x] R2: Unstage File
+- [x] R3: Commit...
+- [x] R4: Amend Last Commit
+- [x] R7: Push (menu)
+- [x] R8: Pull (menu) — shortcut cleared (was conflicting with Command Log)
+- [x] R9: Fetch (menu)
+- [x] T2: Stage All (toolbar)
+- [x] T3: Unstage All (toolbar)
+- [x] T5: Push (toolbar)
+- [x] T6: Pull (toolbar)
+- [x] T7: Fetch (toolbar)
+- [x] S2: Push (sidebar)
+- [x] S3: Pull (sidebar)
+- [x] H2: Command Log (Help)
+
+### Tier B stubs (show "not yet implemented" toast)
+- [x] F1: Open Repository...
+- [x] F2: Close Tab
+- [x] E1: Copy
+- [x] E2: Select All
+- [x] E3: Find...
+- [x] V8: Zoom In
+- [x] V9: Zoom Out
+- [x] V10: Reset Zoom
+- [x] H1: Keyboard Shortcuts
+- [x] H3: About floatinghotel
+- [x] S4: Stash (sidebar toolbar)

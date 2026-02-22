@@ -1,0 +1,23 @@
+# Tier B stubs: File menu items show "not yet implemented" toast
+# Verifies Open Repository and Close Tab show toast feedback.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# F1: Open Repository shows toast
+click_text "File"
+wait_frames 3
+click_text "Open Repository..."
+wait_frames 5
+expect_text "not yet implemented"
+screenshot stub_toast_file_01_open_repo
+
+wait_frames 60
+
+# F2: Close Tab shows toast
+click_text "File"
+wait_frames 3
+click_text "Close Tab"
+wait_frames 5
+expect_text "not yet implemented"
+screenshot stub_toast_file_02_close_tab

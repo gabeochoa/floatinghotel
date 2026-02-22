@@ -1,0 +1,14 @@
+# Tier B stub: Stash sidebar toolbar button shows "not yet implemented" toast
+# The sidebar toolbar is visible when the sidebar is shown (default state).
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Sidebar is visible by default, showing the compact toolbar with Stash button
+validate sidebar_visible=true
+
+# Click Stash in sidebar toolbar
+click_text "Stash"
+wait_frames 5
+expect_text "not yet implemented"
+screenshot stub_toast_stash_01

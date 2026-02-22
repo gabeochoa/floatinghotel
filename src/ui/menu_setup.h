@@ -35,14 +35,25 @@ struct Menu {
     std::vector<MenuItem> items;
 };
 
+inline void set_pending_toast(const std::string& msg) {
+    auto q = afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<ecs::MenuComponent>().gen();
+    if (!q.empty())
+        q[0].get().get<ecs::MenuComponent>().pendingToast = msg;
+}
+
 inline std::vector<Menu> createMenuBar() {
     std::vector<Menu> menus;
 
     // File menu
     menus.push_back({"File", {
-        MenuItem::item("Open Repository...", "Cmd+O"),
+        MenuItem::item("Open Repository...", "Cmd+O", [] {
+            set_pending_toast("Open Repository is not yet implemented");
+        }),
         MenuItem::separator(),
-        MenuItem::item("Close Tab", "Cmd+W"),
+        MenuItem::item("Close Tab", "Cmd+W", [] {
+            set_pending_toast("Close Tab is not yet implemented");
+        }),
         MenuItem::separator(),
         MenuItem::item("Quit", "Cmd+Q", [] {
             afterhours::graphics::request_quit();
@@ -51,10 +62,16 @@ inline std::vector<Menu> createMenuBar() {
 
     // Edit menu
     menus.push_back({"Edit", {
-        MenuItem::item("Copy", "Cmd+C"),
-        MenuItem::item("Select All", "Cmd+A"),
+        MenuItem::item("Copy", "Cmd+C", [] {
+            set_pending_toast("Copy is not yet implemented");
+        }),
+        MenuItem::item("Select All", "Cmd+A", [] {
+            set_pending_toast("Select All is not yet implemented");
+        }),
         MenuItem::separator(),
-        MenuItem::item("Find...", "Cmd+F"),
+        MenuItem::item("Find...", "Cmd+F", [] {
+            set_pending_toast("Find is not yet implemented");
+        }),
     }});
 
     // View menu
@@ -113,9 +130,15 @@ inline std::vector<Menu> createMenuBar() {
                     ecs::LayoutComponent::FileViewMode::All;
         }),
         MenuItem::separator(),
-        MenuItem::item("Zoom In", "Cmd+="),
-        MenuItem::item("Zoom Out", "Cmd+-"),
-        MenuItem::item("Reset Zoom", "Cmd+0"),
+        MenuItem::item("Zoom In", "Cmd+=", [] {
+            set_pending_toast("Zoom In is not yet implemented");
+        }),
+        MenuItem::item("Zoom Out", "Cmd+-", [] {
+            set_pending_toast("Zoom Out is not yet implemented");
+        }),
+        MenuItem::item("Reset Zoom", "Cmd+0", [] {
+            set_pending_toast("Reset Zoom is not yet implemented");
+        }),
     }});
 
     // Git menu
@@ -193,7 +216,7 @@ inline std::vector<Menu> createMenuBar() {
                 r.refreshRequested = true;
             }
         }),
-        MenuItem::item("Pull", "Cmd+Shift+L", [] {
+        MenuItem::item("Pull", "", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<ecs::RepoComponent>()
                 .whereHasComponent<ecs::ActiveTab>().gen();
@@ -217,7 +240,9 @@ inline std::vector<Menu> createMenuBar() {
 
     // Help menu
     menus.push_back({"Help", {
-        MenuItem::item("Keyboard Shortcuts", "Cmd+?"),
+        MenuItem::item("Keyboard Shortcuts", "Cmd+?", [] {
+            set_pending_toast("Keyboard Shortcuts is not yet implemented");
+        }),
         MenuItem::item("Command Log", "", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<ecs::LayoutComponent>().gen();
@@ -226,7 +251,9 @@ inline std::vector<Menu> createMenuBar() {
                 l.commandLogVisible = !l.commandLogVisible;
             }
         }),
-        MenuItem::item("About floatinghotel", ""),
+        MenuItem::item("About floatinghotel", "", [] {
+            set_pending_toast("About floatinghotel is not yet implemented");
+        }),
     }});
 
     return menus;

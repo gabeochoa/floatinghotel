@@ -169,7 +169,11 @@ private:
             repo.refreshRequested = true;
         }
         if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
-            // TODO: needs git stash infrastructure
+            auto menuQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<MenuComponent>().gen();
+            if (!menuQ.empty())
+                menuQ[0].get().get<MenuComponent>().pendingToast =
+                    "Stash is not yet implemented";
         }
     }
 

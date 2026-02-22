@@ -156,6 +156,8 @@ struct MenuComponent : public afterhours::BaseComponent {
 
     enum class PendingDialog { None, OpenRepo };
     PendingDialog pendingDialog = PendingDialog::None;
+
+    std::string pendingToast;
 };
 
 struct CommandLogComponent : public afterhours::BaseComponent {

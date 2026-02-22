@@ -1,0 +1,138 @@
+# Tier A regression: verify wired menu/toolbar actions still work
+# Covers a representative sample of Tier A items across all categories.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# --- View menu actions ---
+
+# V1: Toggle Sidebar off and back on
+validate sidebar_visible=true
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=false
+
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=true
+
+# V2: Toggle Command Log
+validate command_log_visible=false
+click_text "View"
+wait_frames 3
+click_text "Toggle Command Log"
+wait_frames 5
+validate command_log_visible=true
+
+# Toggle it back off
+click_text "View"
+wait_frames 3
+click_text "Toggle Command Log"
+wait_frames 5
+validate command_log_visible=false
+
+# V3/V4: Diff view modes
+click_text "View"
+wait_frames 3
+click_text "Side-by-Side Diff"
+wait_frames 5
+validate diff_view_mode=SideBySide
+
+click_text "View"
+wait_frames 3
+click_text "Inline Diff"
+wait_frames 5
+validate diff_view_mode=Inline
+
+# V5/V6/V7: File view modes
+click_text "View"
+wait_frames 3
+click_text "Tree View"
+wait_frames 5
+validate file_view_mode=Tree
+
+click_text "View"
+wait_frames 3
+click_text "All Files View"
+wait_frames 5
+validate file_view_mode=All
+
+click_text "View"
+wait_frames 3
+click_text "Changed Files View"
+wait_frames 5
+validate file_view_mode=Flat
+
+screenshot tier_a_01_view_actions_done
+
+# --- Repository menu actions ---
+
+# R1: Stage File (select a file first)
+validate staged_count=1
+validate unstaged_count=2
+click_text "README.md"
+wait_frames 5
+click_text "Repository"
+wait_frames 3
+click_text "Stage File"
+wait_frames 10
+validate staged_count=2
+validate unstaged_count=1
+screenshot tier_a_02_stage_file
+
+# R2: Unstage File
+click_text "Repository"
+wait_frames 3
+click_text "Unstage File"
+wait_frames 10
+validate staged_count=1
+validate unstaged_count=2
+screenshot tier_a_03_unstage_file
+
+# R9: Fetch (no remote, but should not crash)
+click_text "Repository"
+wait_frames 3
+click_text "Fetch"
+wait_frames 10
+validate branch=main
+screenshot tier_a_04_fetch
+
+# --- Toolbar actions (need full-width toolbar = sidebar hidden) ---
+
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=false
+
+# T2: Stage All
+click_text "Stage All"
+wait_frames 10
+validate unstaged_count=0
+validate untracked_count=0
+screenshot tier_a_05_stage_all
+
+# T3: Unstage All
+click_text "Unstage All"
+wait_frames 10
+validate staged_count=0
+screenshot tier_a_06_unstage_all
+
+# Restore sidebar
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+validate sidebar_visible=true
+
+# --- Help menu ---
+click_text "Help"
+wait_frames 3
+click_text "Command Log"
+wait_frames 5
+validate command_log_visible=true
+screenshot tier_a_07_help_command_log
