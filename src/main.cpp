@@ -263,38 +263,61 @@ static void app_init() {
     auto& tabStripEntity = EntityHelper::createEntity();
     auto& tabStrip = tabStripEntity.addComponent<ecs::TabStripComponent>();
 
-    // Create the default tab entity (owns repo + commit editor + tab state)
-    auto& tabEntity = EntityHelper::createEntity();
-    tabEntity.addComponent<ecs::Tab>();
-    tabEntity.addComponent<ecs::ActiveTab>();
+    // Helper: create a tab entity for a given repo path
+    auto savedPolicy = Settings::get().get_unstaged_policy();
+    auto createTab = [&tabStrip, &savedPolicy](const std::string& path, bool makeActive) -> afterhours::Entity& {
+        auto& tab = EntityHelper::createEntity();
+        tab.addComponent<ecs::Tab>();
+        if (makeActive) tab.addComponent<ecs::ActiveTab>();
 
-    auto& repoComp = tabEntity.addComponent<ecs::RepoComponent>();
-    repoComp.repoPath = app_state::repoPath;
-    if (!repoComp.repoPath.empty()) {
-        repoComp.refreshRequested = true;
-        Settings::get().add_recent_repo(repoComp.repoPath);
-    }
+        auto& repo = tab.addComponent<ecs::RepoComponent>();
+        repo.repoPath = path;
+        if (!path.empty()) {
+            repo.refreshRequested = true;
+            Settings::get().add_recent_repo(path);
+            std::filesystem::path p(path);
+            tab.get<ecs::Tab>().label = p.filename().string();
+        }
 
-    auto& commitEditor = tabEntity.addComponent<ecs::CommitEditorComponent>();
-    {
-        auto savedPolicy = Settings::get().get_unstaged_policy();
+        auto& editor = tab.addComponent<ecs::CommitEditorComponent>();
         if (savedPolicy == "stage_all") {
-            commitEditor.unstagedPolicy =
-                ecs::CommitEditorComponent::UnstagedPolicy::StageAll;
+            editor.unstagedPolicy = ecs::CommitEditorComponent::UnstagedPolicy::StageAll;
         } else if (savedPolicy == "staged_only") {
-            commitEditor.unstagedPolicy =
-                ecs::CommitEditorComponent::UnstagedPolicy::CommitStagedOnly;
+            editor.unstagedPolicy = ecs::CommitEditorComponent::UnstagedPolicy::CommitStagedOnly;
+        }
+
+        tabStrip.tabOrder.push_back(tab.id);
+        return tab;
+    };
+
+    if (!app_state::repoPath.empty()) {
+        // CLI repo specified: single tab
+        createTab(app_state::repoPath, true);
+    } else {
+        // Restore tabs from last session
+        auto savedRepos = Settings::get().get_open_repos();
+        auto lastActive = Settings::get().get_last_active_repo();
+
+        if (!savedRepos.empty()) {
+            bool anyActive = false;
+            for (auto& path : savedRepos) {
+                bool isActive = (path == lastActive);
+                createTab(path, isActive);
+                if (isActive) anyActive = true;
+            }
+            // If last_active_repo didn't match any saved tab, activate the first
+            if (!anyActive) {
+                auto firstOpt = EntityHelper::getEntityForID(tabStrip.tabOrder[0]);
+                if (firstOpt.valid()) firstOpt.asE().addComponent<ecs::ActiveTab>();
+            }
+        } else if (!lastActive.empty()) {
+            // No saved tabs but have a last-active repo (legacy settings)
+            createTab(lastActive, true);
+        } else {
+            // Fresh start: empty welcome tab
+            createTab("", true);
         }
     }
-
-    // Update tab label from repo path and record in recent repos
-    if (!repoComp.repoPath.empty()) {
-        std::filesystem::path p(repoComp.repoPath);
-        tabEntity.get<ecs::Tab>().label = p.filename().string();
-        Settings::get().add_recent_repo(repoComp.repoPath);
-    }
-
-    tabStrip.tabOrder.push_back(tabEntity.id);
 
     // Wire git log callback to record all git commands in the CommandLogComponent
     git::set_log_callback([&cmdLog](const std::string& cmd,
@@ -436,6 +459,30 @@ static void app_frame() {
 
 // Cleanup callback: runs when window is closing
 static void app_cleanup() {
+    // Save open tab repos in tab-strip order
+    auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<ecs::TabStripComponent>().gen();
+    if (!tabStripQ.empty()) {
+        auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
+        std::vector<std::string> openRepos;
+        std::string activeRepo;
+        for (auto tabId : tabStrip.tabOrder) {
+            auto opt = afterhours::EntityHelper::getEntityForID(tabId);
+            if (!opt.valid() || !opt->has<ecs::RepoComponent>()) continue;
+            auto& repo = opt->get<ecs::RepoComponent>();
+            if (!repo.repoPath.empty()) {
+                openRepos.push_back(repo.repoPath);
+                if (opt->has<ecs::ActiveTab>()) {
+                    activeRepo = repo.repoPath;
+                }
+            }
+        }
+        Settings::get().set_open_repos(openRepos);
+        if (!activeRepo.empty()) {
+            Settings::get().set_last_active_repo(activeRepo);
+        }
+    }
+
     Settings::get().write_save_file();
 }
 
@@ -607,17 +654,6 @@ int main(int argc, char* argv[]) {
     }
 
     app_state::repoPath = repoPath;
-
-    // If no path specified, try last-used repo from settings
-    if (app_state::repoPath.empty()) {
-        Settings::get().load_save_file();
-        app_state::repoPath = Settings::get().get_last_active_repo();
-    }
-
-    // Update last active repo in settings
-    if (!app_state::repoPath.empty()) {
-        Settings::get().set_last_active_repo(app_state::repoPath);
-    }
 
     {
         auto preGfxMs = std::chrono::duration_cast<std::chrono::milliseconds>(

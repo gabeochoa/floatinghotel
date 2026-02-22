@@ -32,8 +32,9 @@ struct Settings {
     float get_commit_log_ratio() const;
     void set_commit_log_ratio(float r);
 
-    // Open repos
+    // Open repos (tab session persistence)
     const std::vector<std::string>& get_open_repos() const;
+    void set_open_repos(const std::vector<std::string>& repos);
     void add_open_repo(const std::string& path);
     void remove_open_repo(const std::string& path);
 

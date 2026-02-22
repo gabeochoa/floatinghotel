@@ -6,6 +6,7 @@
 #include "../../vendor/afterhours/src/core/system.h"
 #include "../input_mapping.h"
 #include "../rl.h"
+#include "../settings.h"
 #include "../ui/presets.h"
 #include "../ui/theme.h"
 #include "../ui_context.h"
@@ -252,6 +253,14 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         newTab.addComponent<ActiveTab>();
+
+        // Update last active repo in settings
+        if (newTab.has<RepoComponent>()) {
+            auto& repo = newTab.get<RepoComponent>();
+            if (!repo.repoPath.empty()) {
+                Settings::get().set_last_active_repo(repo.repoPath);
+            }
+        }
 
         // Load incoming tab state into layout
         auto& tab = newTab.get<Tab>();

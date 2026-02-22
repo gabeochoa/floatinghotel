@@ -132,6 +132,11 @@ const std::vector<std::string>& Settings::get_open_repos() const {
     return data_->openRepos;
 }
 
+void Settings::set_open_repos(const std::vector<std::string>& repos) {
+    data_->openRepos = repos;
+    save_if_auto();
+}
+
 void Settings::add_open_repo(const std::string& path) {
     if (path.empty()) return;
     // Remove duplicates
