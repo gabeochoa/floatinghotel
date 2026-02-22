@@ -16,5 +16,6 @@ enum class InputAction {
     TextDelete,
     TextHome,
     TextEnd,
+    TextSelectAll,
     // Will be extended by T040 (keyboard navigation)
 };

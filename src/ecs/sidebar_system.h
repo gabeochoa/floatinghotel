@@ -1126,6 +1126,7 @@ private:
         auto row = div(ctx, mk(parent, id),
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
+                .with_overflow(Overflow::Hidden, Axis::X)
                 .with_debug_name("file_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1134,8 +1135,7 @@ private:
                                 : theme::TEXT_PRIMARY;
 
         // Filename: sidebarW - padL(10) - padR(4) - gap(4) - status(20)
-        float nameW = sidebarPixelWidth_ - 38.0f;
-        if (nameW < 40.0f) nameW = 40.0f;
+        float nameW = std::max(sidebarPixelWidth_ - 38.0f, 30.0f);
 
         std::string label = fname;
         if (!dir.empty()) label += "  " + dir;
@@ -1187,6 +1187,7 @@ private:
         auto row = div(ctx, mk(parent, id),
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
+                .with_overflow(Overflow::Hidden, Axis::X)
                 .with_debug_name("untracked_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1194,8 +1195,7 @@ private:
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
 
-        float nameW = sidebarPixelWidth_ - 38.0f;
-        if (nameW < 40.0f) nameW = 40.0f;
+        float nameW = std::max(sidebarPixelWidth_ - 38.0f, 30.0f);
 
         std::string label = fname;
         if (!dir.empty()) label += "  " + dir;
@@ -1297,6 +1297,7 @@ private:
                     .top = pixels(0), .right = pixels(4),
                     .bottom = pixels(0), .left = pixels(0)})
                 .with_gap(pixels(4))
+                .with_overflow(Overflow::Hidden, Axis::X)
                 .with_debug_name("commit_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1349,7 +1350,7 @@ private:
                      + 8.0f * static_cast<float>(numFlowChildren)
                      + HASH_AREA;
         float subjectW = sidebarW - 14.0f - fixedW;
-        if (subjectW < 50.0f) subjectW = 50.0f;
+        if (subjectW < 30.0f) subjectW = 30.0f;
 
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;

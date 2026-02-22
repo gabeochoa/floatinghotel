@@ -352,13 +352,16 @@ static void app_init() {
         // the UI-creating systems read them.
         sm.register_update_system(std::make_unique<ecs::LayoutUpdateSystem>());
 
-        // UI-creating systems (order determines visual stacking)
+        // UI-creating systems (order determines visual stacking;
+        // later systems draw on top of earlier ones)
         sm.register_update_system(std::make_unique<ecs::TabBarSystem>());
-        sm.register_update_system(std::make_unique<ecs::MenuBarSystem>());
         sm.register_update_system(std::make_unique<ecs::ToolbarSystem>());
         sm.register_update_system(std::make_unique<ecs::SidebarSystem>());
         sm.register_update_system(std::make_unique<ecs::MainContentSystem>());
         sm.register_update_system(std::make_unique<ecs::StatusBarSystem>());
+        // MenuBarSystem runs last so dropdown elements draw on top of
+        // toolbar/sidebar when a menu is open
+        sm.register_update_system(std::make_unique<ecs::MenuBarSystem>());
 
         // Post-layout (entity mapping, autolayout, interactions)
         ui_imm::registerUIPostLayoutSystems(sm);

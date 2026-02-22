@@ -82,7 +82,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_custom_background(theme::TOOLBAR_BG)
                 .with_flex_direction(FlexDirection::Column)
                 .with_roundness(0.0f)
-                .with_render_layer(5)
+                .with_render_layer(1)
                 .with_debug_name("top_chrome"));
 
         if (inSidebar) {
@@ -138,7 +138,7 @@ private:
                 .with_padding(Padding{
                     .top = pixels(4), .right = pixels(14),
                     .bottom = pixels(4), .left = pixels(14)})
-                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
             if (enabled && !primary) {

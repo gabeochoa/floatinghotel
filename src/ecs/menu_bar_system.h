@@ -95,7 +95,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_roundness(0.0f)
-                .with_render_layer(5)
+                .with_render_layer(10)
                 .with_debug_name("menu_bar"));
 
         // Check if any menu is currently open
@@ -145,7 +145,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_align_items(AlignItems::Center)
                     .with_click_activation(ClickActivationMode::Press)
                     .with_roundness(0.0f)
-                    .with_render_layer(5)
+                    .with_render_layer(10)
                     .with_debug_name("menu_header_" + menus_[i].label));
 
             // Handle header click: toggle this menu
@@ -204,7 +204,8 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             // Dropdown background with border
-            div(ctx, mk(uiRoot, 1100 + menuIdx),
+            // Entity IDs 9000+ to ensure dropdown draws above toolbar (5000) and sidebar (2000)
+            div(ctx, mk(uiRoot, 9100 + menuIdx),
                 ComponentConfig{}
                     .with_size(ComponentSize{pixels(maxWidth), pixels(dropdownHeight)})
                     .with_absolute_position()
@@ -212,7 +213,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_custom_background(menu_colors::DROPDOWN_BG)
                     .with_border(menu_colors::DROPDOWN_BORDER, h720(1.0f))
                     .with_roundness(0.0f)
-                    .with_render_layer(50)
+                    .with_render_layer(100)
                     .with_debug_name("dropdown_" + menuDef.label));
 
             // Render each menu item
@@ -223,14 +224,14 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
 
                 if (item.isSeparator) {
                     // Separator line
-                    div(ctx, mk(uiRoot, 1200 + menuIdx * 100 + itemIdx),
+                    div(ctx, mk(uiRoot, 9200 + menuIdx * 100 + itemIdx),
                         ComponentConfig{}
                             .with_size(ComponentSize{pixels(maxWidth - rpx(8.0f)), pixels(rpx(1.0f))})
                             .with_absolute_position()
                             .with_translate(dropdownX + rpx(4.0f), itemY + rpx(4.0f))
                             .with_custom_background(menu_colors::SEPARATOR)
                             .with_roundness(0.0f)
-                            .with_render_layer(51)
+                            .with_render_layer(101)
                             .with_debug_name("menu_separator"));
                     itemY += SEPARATOR_HEIGHT;
                 } else {
@@ -246,7 +247,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     afterhours::Color labelColor = !item.enabled ? menu_colors::DISABLED_TEXT :
                         hovered ? menu_colors::ITEM_HOVER_TEXT : menu_colors::ITEM_TEXT;
 
-                    auto itemResult = button(ctx, mk(uiRoot, 1500 + menuIdx * 100 + itemIdx),
+                    auto itemResult = button(ctx, mk(uiRoot, 9500 + menuIdx * 100 + itemIdx),
                         ComponentConfig{}
                             .with_label("  " + item.label)
                             .with_size(ComponentSize{pixels(itemW), pixels(ITEM_HEIGHT)})
@@ -259,14 +260,14 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                             .with_justify_content(JustifyContent::Center)
                             .with_click_activation(ClickActivationMode::Press)
                             .with_roundness(0.0f)
-                            .with_render_layer(51)
+                            .with_render_layer(101)
                             .with_debug_name("menu_item_" + item.label));
 
                     // Shortcut text (narrow, right-positioned, no overlap with label)
                     if (!item.shortcut.empty()) {
                         float shortcutW = static_cast<float>(item.shortcut.length()) * charW + rpx(16.0f);
                         float shortcutX = itemX + itemW - shortcutW;
-                        div(ctx, mk(uiRoot, 1700 + menuIdx * 100 + itemIdx),
+                        div(ctx, mk(uiRoot, 9700 + menuIdx * 100 + itemIdx),
                             ComponentConfig{}
                                 .with_label(item.shortcut)
                                 .with_size(ComponentSize{pixels(shortcutW), pixels(ITEM_HEIGHT)})
@@ -280,7 +281,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                                 .with_padding(Padding{.right = w1280(8.0f)})
                                 .with_justify_content(JustifyContent::Center)
                                 .with_roundness(0.0f)
-                                .with_render_layer(52)
+                                .with_render_layer(102)
                                 .with_debug_name("menu_shortcut_" + item.label));
                     }
 

@@ -65,10 +65,10 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             return resolve_to_pixels(w1280(design_px), sw);
         };
 
-        float tabStripH = rpxH(28.0f);
-        float menuH = rpxH(static_cast<float>(theme::layout::MENU_BAR_HEIGHT));
-        float toolbarH = rpxH(static_cast<float>(theme::layout::TOOLBAR_HEIGHT));
-        float statusH = rpxH(static_cast<float>(theme::layout::STATUS_BAR_HEIGHT));
+        float tabStripH = std::max(rpxH(28.0f), 18.0f);
+        float menuH = std::max(rpxH(static_cast<float>(theme::layout::MENU_BAR_HEIGHT)), 16.0f);
+        float toolbarH = std::max(rpxH(static_cast<float>(theme::layout::TOOLBAR_HEIGHT)), 28.0f);
+        float statusH = std::max(rpxH(static_cast<float>(theme::layout::STATUS_BAR_HEIGHT)), 16.0f);
 
         float actualTabStripH = tabStripH;
 
@@ -84,8 +84,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         if (pctMinW > scaledSidebarMinW) scaledSidebarMinW = pctMinW;
 
         // Clamp sidebar width (in screen pixels)
+        // At very narrow widths, limit sidebar to 50% of window
         float maxSidebarW = sw * 0.5f;
-        scaledSidebarW = std::clamp(scaledSidebarW, scaledSidebarMinW, maxSidebarW);
+        scaledSidebarW = std::clamp(scaledSidebarW, std::min(scaledSidebarMinW, maxSidebarW), maxSidebarW);
 
         float dividerW = rpxW(4.0f);
 
@@ -93,17 +94,17 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
         if (layout.sidebarVisible) {
             // Toolbar lives inside the sidebar column (single row of buttons)
-            float sidebarToolbarH = rpxH(38.0f);
+            float sidebarToolbarH = std::max(rpxH(38.0f), 24.0f);
             layout.toolbar = {0, topY, scaledSidebarW, sidebarToolbarH};
 
             // Sidebar content area starts below the toolbar strip
             float sidebarContentY = topY + sidebarToolbarH;
-            float sidebarContentH = sh - topY - sidebarToolbarH - statusH;
+            float sidebarContentH = std::max(sh - topY - sidebarToolbarH - statusH, 40.0f);
             layout.sidebar = {0, sidebarContentY, scaledSidebarW, sidebarContentH};
 
             // Sidebar internal split: files / commits (account for divider)
             float dividerH = rpxH(5.0f);
-            float usableH = sidebarContentH - dividerH;
+            float usableH = std::max(sidebarContentH - dividerH, 20.0f);
             float filesH = usableH * (1.0f - layout.commitLogRatio);
             float commitsH = usableH * layout.commitLogRatio;
             layout.sidebarFiles = {0, sidebarContentY, scaledSidebarW, filesH};
@@ -121,9 +122,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
             // Main content gets full height (no toolbar gap)
             float mainX = scaledSidebarW + dividerW;
-            float mainW = sw - scaledSidebarW - dividerW;
+            float mainW = std::max(sw - scaledSidebarW - dividerW, 20.0f);
             float mainContentY = topY;
-            float mainContentH = sh - topY - statusH;
+            float mainContentH = std::max(sh - topY - statusH, 20.0f);
 
             // Command log panel takes space from the bottom of main content
             if (layout.commandLogVisible) {
@@ -145,7 +146,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
             // No sidebar - toolbar spans full width below menu
             float contentY = topY + toolbarH;
-            float contentH = sh - topY - toolbarH - statusH;
+            float contentH = std::max(sh - topY - toolbarH - statusH, 20.0f);
             layout.toolbar = {0, topY, sw, toolbarH};
 
             float mainX = 0;
