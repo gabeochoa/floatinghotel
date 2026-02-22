@@ -580,7 +580,7 @@ private:
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
-                .with_font_size(FontSize::Small)
+                .with_font_size(h720(16))
                 .with_debug_name("new_branch_btn"));
 
         if (newBranchBtn) {
@@ -667,10 +667,10 @@ private:
         div(ctx, mk(rowResult.ent(), 2),
             preset::Badge(branch.isLocal ? "L" : "R", badgeBg,
                           afterhours::Color{255, 255, 255, 255})
-                .with_size(ComponentSize{w1280(18), h720(14)})
+                .with_size(ComponentSize{w1280(20), h720(16)})
                 .with_padding(Padding{
-                    .top = h720(1), .right = w1280(2),
-                    .bottom = h720(1), .left = w1280(2)})
+                    .top = h720(1), .right = w1280(3),
+                    .bottom = h720(1), .left = w1280(3)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = w1280(isCurrent ? 5.0f : 8.0f),
@@ -1126,7 +1126,6 @@ private:
         auto row = div(ctx, mk(parent, id),
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
-                .with_overflow(Overflow::Hidden, Axis::X)
                 .with_debug_name("file_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1187,7 +1186,6 @@ private:
         auto row = div(ctx, mk(parent, id),
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
-                .with_overflow(Overflow::Hidden, Axis::X)
                 .with_debug_name("untracked_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1297,7 +1295,6 @@ private:
                     .top = pixels(0), .right = pixels(4),
                     .bottom = pixels(0), .left = pixels(0)})
                 .with_gap(pixels(4))
-                .with_overflow(Overflow::Hidden, Axis::X)
                 .with_debug_name("commit_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1342,12 +1339,30 @@ private:
                 .with_debug_name("commit_dot"));
 
         constexpr float HASH_W = 52.0f;
-        constexpr float BADGE_EST_W = 46.0f;
         constexpr float HASH_AREA = 56.0f;
-        int numFlowChildren = 1 + static_cast<int>(badges.size());
+        constexpr float BADGE_EST_W = 46.0f;
+
+        // Show at most one badge in the row to maximise subject readability.
+        // Pick the most useful one: HEAD > local branch > tag > remote.
+        const commit_log_detail::Decoration* bestBadge = nullptr;
+        for (auto& b : badges) {
+            if (!bestBadge) { bestBadge = &b; continue; }
+            auto rank = [](commit_log_detail::DecorationType t) -> int {
+                switch (t) {
+                    case commit_log_detail::DecorationType::Head:         return 4;
+                    case commit_log_detail::DecorationType::LocalBranch:  return 3;
+                    case commit_log_detail::DecorationType::Tag:          return 2;
+                    case commit_log_detail::DecorationType::RemoteBranch: return 1;
+                    default: return 0;
+                }
+            };
+            if (rank(b.type) > rank(bestBadge->type)) bestBadge = &b;
+        }
+
+        bool hasBadge = (bestBadge != nullptr);
         float fixedW = GRAPH_COL_W
-                     + BADGE_EST_W * static_cast<float>(badges.size())
-                     + 8.0f * static_cast<float>(numFlowChildren)
+                     + (hasBadge ? BADGE_EST_W + 4.0f : 0.0f)
+                     + 4.0f
                      + HASH_AREA;
         float subjectW = sidebarW - 14.0f - fixedW;
         if (subjectW < 30.0f) subjectW = 30.0f;
@@ -1361,11 +1376,9 @@ private:
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("commit_subject"));
 
-        // Badge pills (colored, rounded, fixed width per badge)
-        int badgeId = 10;
-        for (auto& badge : badges) {
+        if (bestBadge) {
             afterhours::Color bg, btxt;
-            switch (badge.type) {
+            switch (bestBadge->type) {
                 case commit_log_detail::DecorationType::Head:
                     bg = theme::BADGE_HEAD_BG;
                     btxt = afterhours::Color{255, 255, 255, 255};
@@ -1387,9 +1400,8 @@ private:
                     btxt = theme::BADGE_TAG_TEXT;
                     break;
             }
-            div(ctx, mk(row.ent(), badgeId++),
-                preset::Badge(badge.label, bg, btxt)
-                    .with_size(ComponentSize{pixels(BADGE_EST_W), children()})
+            div(ctx, mk(row.ent(), 10),
+                preset::Badge(bestBadge->label, bg, btxt)
                     .with_debug_name("commit_badge"));
         }
 

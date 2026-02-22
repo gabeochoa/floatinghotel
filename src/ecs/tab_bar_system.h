@@ -174,7 +174,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                         .with_translate(closeX, closeY)
                         .with_custom_background(closeHovered ? tab_colors::CLOSE_HOVER : bg)
                         .with_custom_text_color(closeHovered ? tab_colors::TAB_TEXT_ACT : tab_colors::TAB_TEXT)
-                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_font_size(afterhours::ui::h720(16))
                         .with_alignment(TextAlignment::Center)
                         .with_justify_content(JustifyContent::Center)
                         .with_align_items(AlignItems::Center)

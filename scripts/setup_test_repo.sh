@@ -63,7 +63,14 @@ APPEOF
 git add -A
 git commit -m "Initial commit: add project skeleton" >/dev/null 2>&1
 
-# ── Commit 2: add tests ───────────────────────────────────
+# ── Commits 2-53: bulk history for scroll testing ─────────
+for i in $(seq 2 53); do
+    echo "// update $i" >> src/app.cpp
+    git add -A
+    git commit -m "Iteration $i: update app logic" >/dev/null 2>&1
+done
+
+# ── Commit 54: add tests ──────────────────────────────────
 mkdir -p tests
 cat > tests/test_utils.cpp << 'TESTEOF'
 #include "../utils.h"
@@ -79,7 +86,7 @@ TESTEOF
 git add -A
 git commit -m "Add unit tests for utils" >/dev/null 2>&1
 
-# ── Commit 3: add docs ────────────────────────────────────
+# ── Commit 55: add docs ───────────────────────────────────
 cat > CONTRIBUTING.md << 'CONTRIBEOF'
 # Contributing
 1. Fork the repo

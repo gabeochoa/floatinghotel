@@ -121,7 +121,7 @@ inline ComponentConfig Badge(const std::string& label, Color bg, Color text) {
             .bottom = pixels(1), .left = pixels(5)})
         .with_custom_background(bg)
         .with_custom_text_color(text)
-        .with_font_size(FontSize::Small)
+        .with_font_size(h720(16))
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
         .with_roundness(theme::layout::ROUNDNESS_BADGE)
         .with_alignment(TextAlignment::Center);
@@ -152,7 +152,7 @@ inline ComponentConfig MetaText(const std::string& label) {
         .with_size(ComponentSize{children(), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_font_size(FontSize::Small)
+        .with_font_size(h720(16))
         .with_roundness(0.0f);
 }
 
@@ -174,7 +174,7 @@ inline ComponentConfig CaptionText(const std::string& label) {
         .with_label(label)
         .with_size(ComponentSize{children(), children()})
         .with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_font_size(FontSize::Small)
+        .with_font_size(h720(16))
         .with_roundness(0.0f);
 }
 

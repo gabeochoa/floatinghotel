@@ -271,7 +271,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label("GIT COMMAND LOG")
             .with_size(ComponentSize{percent(1.0f), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(afterhours::ui::FontSize::Small)
+            .with_font_size(afterhours::ui::h720(16))
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_title"));
@@ -789,18 +789,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             }
 
             div(ctx, mk(badgeRow.ent(), badgeId++),
-                ComponentConfig{}
-                    .with_label(badge.label)
-                    .with_size(ComponentSize{children(), children()})
-                    .with_padding(Padding{
-                        .top = pixels(1), .right = pixels(5),
-                        .bottom = pixels(1), .left = pixels(5)})
-                    .with_custom_background(bg)
-                    .with_custom_text_color(text)
-                    .with_font_size(pixels(11.0f))
-                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(theme::layout::ROUNDNESS_BADGE)
-                    .with_alignment(TextAlignment::Center)
+                preset::Badge(badge.label, bg, text)
                     .with_debug_name("commit_dec_badge"));
         }
     }
@@ -1338,7 +1327,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label(dirPath)
                         .with_size(ComponentSize{percent(1.0f), children()})
-                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_font_size(afterhours::ui::h720(16))
                         .with_transparent_bg()
                         .with_custom_text_color(afterhours::Color{100, 100, 100, 255})
                         .with_alignment(TextAlignment::Left)

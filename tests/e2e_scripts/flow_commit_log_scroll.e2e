@@ -1,0 +1,35 @@
+# Test: commit log scrolling stays contained within its scroll panel.
+# The test repo now has 20+ commits so the log overflows at 1280x720.
+# Scrolls the commit log and verifies the file list area is unaffected.
+make_test_repo
+resize 1280 720
+wait_frames 10
+
+# Baseline: all sidebar sections visible
+screenshot flow_commit_log_scroll_01_baseline
+
+# Move mouse into the commit log area (below the file list)
+mouse_move 160 550
+wait_frames 3
+
+# Scroll down in commit log
+scroll_wheel 0 -3
+wait_frames 5
+screenshot flow_commit_log_scroll_02_scroll_down_1
+
+scroll_wheel 0 -3
+wait_frames 5
+screenshot flow_commit_log_scroll_03_scroll_down_2
+
+scroll_wheel 0 -5
+wait_frames 5
+screenshot flow_commit_log_scroll_04_scroll_down_3
+
+# Scroll back up
+scroll_wheel 0 5
+wait_frames 5
+screenshot flow_commit_log_scroll_05_scroll_up_1
+
+scroll_wheel 0 5
+wait_frames 5
+screenshot flow_commit_log_scroll_06_scroll_up_2
