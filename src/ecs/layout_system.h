@@ -11,6 +11,7 @@
 #include "../input_mapping.h"
 #include <afterhours/src/logging.h>
 #include "../rl.h"
+#include "../settings.h"
 #include "../ui/diff_renderer.h"
 #include "../ui/presets.h"
 #include "../ui/theme.h"
@@ -64,11 +65,15 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             return resolve_to_pixels(w1280(design_px), sw);
         };
 
+        float tabStripH = rpxH(28.0f);
         float menuH = rpxH(static_cast<float>(theme::layout::MENU_BAR_HEIGHT));
         float toolbarH = rpxH(static_cast<float>(theme::layout::TOOLBAR_HEIGHT));
         float statusH = rpxH(static_cast<float>(theme::layout::STATUS_BAR_HEIGHT));
 
-        layout.menuBar = {0, 0, sw, menuH};
+        float actualTabStripH = tabStripH;
+
+        layout.tabStrip = {0, 0, sw, actualTabStripH};
+        layout.menuBar = {0, actualTabStripH, sw, menuH};
 
         // Scale sidebar width to match w1280 coordinate system
         float scaledSidebarW = rpxW(layout.sidebarWidth);
@@ -84,14 +89,16 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
         float dividerW = rpxW(4.0f);
 
+        float topY = actualTabStripH + menuH;
+
         if (layout.sidebarVisible) {
             // Toolbar lives inside the sidebar column (single row of buttons)
             float sidebarToolbarH = rpxH(38.0f);
-            layout.toolbar = {0, menuH, scaledSidebarW, sidebarToolbarH};
+            layout.toolbar = {0, topY, scaledSidebarW, sidebarToolbarH};
 
             // Sidebar content area starts below the toolbar strip
-            float sidebarContentY = menuH + sidebarToolbarH;
-            float sidebarContentH = sh - menuH - sidebarToolbarH - statusH;
+            float sidebarContentY = topY + sidebarToolbarH;
+            float sidebarContentH = sh - topY - sidebarToolbarH - statusH;
             layout.sidebar = {0, sidebarContentY, scaledSidebarW, sidebarContentH};
 
             // Sidebar internal split: files / commits (account for divider)
@@ -115,8 +122,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             // Main content gets full height (no toolbar gap)
             float mainX = scaledSidebarW + dividerW;
             float mainW = sw - scaledSidebarW - dividerW;
-            float mainContentY = menuH;
-            float mainContentH = sh - menuH - statusH;
+            float mainContentY = topY;
+            float mainContentH = sh - topY - statusH;
 
             // Command log panel takes space from the bottom of main content
             if (layout.commandLogVisible) {
@@ -137,9 +144,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.sidebarCommitEditor = {0, 0, 0, 0};
 
             // No sidebar - toolbar spans full width below menu
-            float contentY = menuH + toolbarH;
-            float contentH = sh - menuH - toolbarH - statusH;
-            layout.toolbar = {0, menuH, sw, toolbarH};
+            float contentY = topY + toolbarH;
+            float contentH = sh - topY - toolbarH - statusH;
+            layout.toolbar = {0, topY, sw, toolbarH};
 
             float mainX = 0;
             float mainW = sw;
@@ -984,6 +991,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                                 .whereHasComponent<RepoComponent>()
+                                .whereHasComponent<ActiveTab>()
                                 .gen();
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
@@ -1000,22 +1008,34 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_roundness(0.0f)
                 .with_debug_name("main_content"));
 
+        // Check if active tab has a repo loaded
+        bool hasRepo = !repoEntities.empty() &&
+                       !repoEntities[0].get().get<RepoComponent>().repoPath.empty();
+
+        if (!hasRepo) {
+            render_welcome_screen(ctx, mainBg.ent(), layout);
+
+            // Still render command log and divider
+            if (layout.commandLogVisible) {
+                render_command_log(ctx, uiRoot, layout);
+            }
+            if (layout.sidebarVisible) {
+                render_sidebar_divider(ctx, uiRoot, layout);
+            }
+            return;
+        }
+
         // Determine what to show: diff, commit detail, or empty state
         bool hasSelectedFile = false;
         bool hasSelectedCommit = false;
         bool hasDiffData = false;
 
-        if (!repoEntities.empty()) {
-            auto& repo = repoEntities[0].get().get<RepoComponent>();
-            hasSelectedFile = !repo.selectedFilePath.empty();
-            hasSelectedCommit = !repo.selectedCommitHash.empty();
-            hasDiffData = !repo.currentDiff.empty();
-        }
+        auto& repo = repoEntities[0].get().get<RepoComponent>();
+        hasSelectedFile = !repo.selectedFilePath.empty();
+        hasSelectedCommit = !repo.selectedCommitHash.empty();
+        hasDiffData = !repo.currentDiff.empty();
 
         if (hasSelectedFile && hasDiffData) {
-            // Render diff view for selected file only
-            auto& repo = repoEntities[0].get().get<RepoComponent>();
-
             // Filter diffs to just the selected file
             std::vector<FileDiff> selectedDiffs;
             for (auto& d : repo.currentDiff) {
@@ -1058,8 +1078,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("no_diff_msg"));
             }
         } else if (hasSelectedCommit) {
-            // === Commit Detail View (T035) ===
-            auto& repo = repoEntities[0].get().get<RepoComponent>();
             render_commit_detail(ctx, mainBg.ent(), repo, layout);
         } else {
             // Empty state — clean, Apple Notes-style welcome
@@ -1139,47 +1157,233 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             render_command_log(ctx, uiRoot, layout);
         }
 
-        // === Vertical divider between sidebar and main content ===
         if (layout.sidebarVisible) {
-            // Divider spans the full content height (main + command log if visible)
-            float dividerH = layout.mainContent.height;
-            if (layout.commandLogVisible) {
-                dividerH += layout.commandLog.height;
-            }
-            // Divider also spans the toolbar row above for visual continuity
-            float dividerY = layout.toolbar.y;
-            float fullDividerH = dividerH + (layout.mainContent.y - layout.toolbar.y);
-            auto vDivider = div(ctx, mk(uiRoot, 3100),
-                ComponentConfig{}
-                    .with_size(ComponentSize{pixels(2), pixels(fullDividerH)})
-                    .with_absolute_position()
-                    .with_translate(layout.sidebar.width, dividerY)
-                    .with_custom_background(theme::BORDER)
-                    .with_cursor(afterhours::ui::CursorType::ResizeH)
-                    .with_roundness(0.0f)
-                    .with_debug_name("sidebar_divider"));
+            render_sidebar_divider(ctx, uiRoot, layout);
+        }
+    }
 
-            // Make vertical divider draggable (adjusts sidebar width)
-            vDivider.ent().addComponentIfMissing<HasDragListener>(
-                [](Entity& /*e*/) {});
-            auto& vDrag = vDivider.ent().get<HasDragListener>();
-            if (vDrag.down) {
-                auto mousePos = afterhours::graphics::get_mouse_position();
-                float mouseX = static_cast<float>(mousePos.x);
-                float sw = static_cast<float>(afterhours::graphics::get_screen_width());
-                float maxW = sw * 0.5f;
-                // Convert mouse position (screen pixels) back to 1280-baseline
-                float newWidth1280 = mouseX * 1280.0f / sw;
-                float newWidth = std::clamp(newWidth1280, layout.sidebarMinWidth, maxW * 1280.0f / sw);
+    void render_sidebar_divider(UIContext<InputAction>& ctx, Entity& uiRoot,
+                                 LayoutComponent& layout) {
+        float dividerH = layout.mainContent.height;
+        if (layout.commandLogVisible) {
+            dividerH += layout.commandLog.height;
+        }
+        float dividerY = layout.toolbar.y;
+        float fullDividerH = dividerH + (layout.mainContent.y - layout.toolbar.y);
+        auto vDivider = div(ctx, mk(uiRoot, 3100),
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(2), pixels(fullDividerH)})
+                .with_absolute_position()
+                .with_translate(layout.sidebar.width, dividerY)
+                .with_custom_background(theme::BORDER)
+                .with_cursor(afterhours::ui::CursorType::ResizeH)
+                .with_roundness(0.0f)
+                .with_debug_name("sidebar_divider"));
 
-                auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                     .whereHasComponent<LayoutComponent>()
-                                     .gen();
-                if (!lEntities.empty()) {
-                    lEntities[0].get().get<LayoutComponent>().sidebarWidth = newWidth;
-                }
+        vDivider.ent().addComponentIfMissing<HasDragListener>(
+            [](Entity& /*e*/) {});
+        auto& vDrag = vDivider.ent().get<HasDragListener>();
+        if (vDrag.down) {
+            auto mousePos = afterhours::graphics::get_mouse_position();
+            float mouseX = static_cast<float>(mousePos.x);
+            float sw = static_cast<float>(afterhours::graphics::get_screen_width());
+            float maxW = sw * 0.5f;
+            float newWidth1280 = mouseX * 1280.0f / sw;
+            float newWidth = std::clamp(newWidth1280, layout.sidebarMinWidth, maxW * 1280.0f / sw);
+
+            auto lEntities = afterhours::EntityQuery({.force_merge = true})
+                                 .whereHasComponent<LayoutComponent>()
+                                 .gen();
+            if (!lEntities.empty()) {
+                lEntities[0].get().get<LayoutComponent>().sidebarWidth = newWidth;
             }
         }
+    }
+
+    void render_welcome_screen(UIContext<InputAction>& ctx, Entity& parent,
+                                LayoutComponent& /*layout*/) {
+        auto container = div(ctx, mk(parent, 3060),
+            ComponentConfig{}
+                .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                .with_flex_direction(FlexDirection::Column)
+                .with_justify_content(JustifyContent::Center)
+                .with_align_items(AlignItems::Center)
+                .with_transparent_bg()
+                .with_roundness(0.0f)
+                .with_debug_name("welcome_screen"));
+
+        div(ctx, mk(container.ent(), 1),
+            ComponentConfig{}
+                .with_label("\xe2\x97\x87")
+                .with_size(ComponentSize{children(), children()})
+                .with_font_size(pixels(36))
+                .with_padding(Padding{.bottom = h720(12)})
+                .with_transparent_bg()
+                .with_custom_text_color(afterhours::Color{70, 130, 180, 255})
+                .with_alignment(TextAlignment::Center)
+                .with_roundness(0.0f)
+                .with_debug_name("welcome_icon"));
+
+        div(ctx, mk(container.ent(), 2),
+            ComponentConfig{}
+                .with_label("Welcome to floatinghotel")
+                .with_size(ComponentSize{children(), children()})
+                .with_font_size(pixels(22))
+                .with_padding(Padding{.bottom = h720(6)})
+                .with_transparent_bg()
+                .with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_alignment(TextAlignment::Center)
+                .with_roundness(0.0f)
+                .with_debug_name("welcome_title"));
+
+        div(ctx, mk(container.ent(), 3),
+            ComponentConfig{}
+                .with_label("Open a repository to get started")
+                .with_size(ComponentSize{children(), children()})
+                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_padding(Padding{.bottom = h720(24)})
+                .with_transparent_bg()
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_alignment(TextAlignment::Center)
+                .with_roundness(0.0f)
+                .with_debug_name("welcome_subtitle"));
+
+        // Collect normalized paths of repos currently open in other tabs
+        auto canonicalize = [](const std::string& p) -> std::string {
+            std::error_code ec;
+            auto cp = std::filesystem::canonical(p, ec);
+            return ec ? p : cp.string();
+        };
+
+        auto allTabs = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<Tab>()
+            .whereHasComponent<RepoComponent>().gen();
+
+        std::vector<std::string> openPaths;
+        for (auto& t : allTabs) {
+            auto& r = t.get().get<RepoComponent>();
+            if (!r.repoPath.empty()) {
+                openPaths.push_back(canonicalize(r.repoPath));
+            }
+        }
+
+        std::vector<std::string> recentRepos;
+        auto savedRecent = Settings::get().get_recent_repos();
+        for (auto& path : savedRecent) {
+            std::string norm = canonicalize(path);
+            bool alreadyOpen = false;
+            for (auto& op : openPaths) {
+                if (op == norm) { alreadyOpen = true; break; }
+            }
+            if (!alreadyOpen) {
+                recentRepos.push_back(path);
+            }
+        }
+
+        if (!recentRepos.empty()) {
+            div(ctx, mk(container.ent(), 10),
+                ComponentConfig{}
+                    .with_label("Recently Opened")
+                    .with_size(ComponentSize{w1280(400), children()})
+                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_padding(Padding{.bottom = h720(8)})
+                    .with_transparent_bg()
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_alignment(TextAlignment::Left)
+                    .with_roundness(0.0f)
+                    .with_debug_name("recent_header"));
+
+            constexpr afterhours::Color REPO_ROW_BG = {38, 38, 38, 255};
+            constexpr afterhours::Color REPO_ROW_HOVER = {50, 50, 50, 255};
+            const char* home = std::getenv("HOME");
+            size_t homeLen = home ? std::strlen(home) : 0;
+
+            for (int ri = 0; ri < static_cast<int>(recentRepos.size()); ++ri) {
+                std::filesystem::path p(recentRepos[ri]);
+                std::string basename = p.filename().string();
+                std::string dirPath = p.parent_path().string();
+
+                if (home && dirPath.starts_with(home)) {
+                    dirPath = "~" + dirPath.substr(homeLen);
+                }
+
+                auto row = button(ctx, mk(container.ent(), 100 + ri),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{w1280(400), h720(36)})
+                        .with_flex_direction(FlexDirection::Column)
+                        .with_justify_content(JustifyContent::Center)
+                        .with_padding(Padding{
+                            .top = h720(4), .right = w1280(12),
+                            .bottom = h720(4), .left = w1280(12)})
+                        .with_custom_background(REPO_ROW_BG)
+                        .with_custom_hover_bg(REPO_ROW_HOVER)
+                        .with_roundness(4.0f)
+                        .with_margin(Margin{.bottom = h720(2)})
+                        .with_cursor(afterhours::ui::CursorType::Pointer)
+                        .with_debug_name("recent_repo_" + basename));
+
+                div(ctx, mk(row.ent(), 1),
+                    ComponentConfig{}
+                        .with_label(basename)
+                        .with_size(ComponentSize{percent(1.0f), children()})
+                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::TEXT_PRIMARY)
+                        .with_alignment(TextAlignment::Left)
+                        .with_roundness(0.0f)
+                        .with_debug_name("recent_name"));
+
+                div(ctx, mk(row.ent(), 2),
+                    ComponentConfig{}
+                        .with_label(dirPath)
+                        .with_size(ComponentSize{percent(1.0f), children()})
+                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_transparent_bg()
+                        .with_custom_text_color(afterhours::Color{100, 100, 100, 255})
+                        .with_alignment(TextAlignment::Left)
+                        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                        .with_roundness(0.0f)
+                        .with_debug_name("recent_path"));
+
+                // Click to open repo in this tab
+                if (row) {
+                    auto activeQ = afterhours::EntityQuery({.force_merge = true})
+                        .whereHasComponent<RepoComponent>()
+                        .whereHasComponent<ActiveTab>().gen();
+                    if (!activeQ.empty()) {
+                        auto& repo = activeQ[0].get().get<RepoComponent>();
+                        repo.repoPath = recentRepos[ri];
+                        repo.refreshRequested = true;
+                        Settings::get().add_recent_repo(recentRepos[ri]);
+                    }
+                }
+            }
+        } else {
+            div(ctx, mk(container.ent(), 10),
+                ComponentConfig{}
+                    .with_label("No recent repositories")
+                    .with_size(ComponentSize{children(), children()})
+                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_padding(Padding{.bottom = h720(8)})
+                    .with_transparent_bg()
+                    .with_custom_text_color(afterhours::Color{70, 70, 70, 255})
+                    .with_alignment(TextAlignment::Center)
+                    .with_roundness(0.0f)
+                    .with_debug_name("no_recent"));
+        }
+
+        // Open repo hint
+        div(ctx, mk(container.ent(), 20),
+            ComponentConfig{}
+                .with_label("Cmd+O to open a repository")
+                .with_size(ComponentSize{children(), children()})
+                .with_font_size(afterhours::ui::FontSize::Medium)
+                .with_padding(Padding{.top = h720(20)})
+                .with_transparent_bg()
+                .with_custom_text_color(afterhours::Color{60, 60, 60, 255})
+                .with_alignment(TextAlignment::Center)
+                .with_roundness(0.0f)
+                .with_debug_name("welcome_hint"));
     }
 };
 

@@ -46,6 +46,10 @@ struct Settings {
     std::string get_unstaged_policy() const;
     void set_unstaged_policy(const std::string& policy);
 
+    // Recent repos (for welcome screen)
+    std::vector<std::string> get_recent_repos() const;
+    void add_recent_repo(const std::string& path);
+
     std::string get_settings_path() const;
 
     // Auto-save support

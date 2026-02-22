@@ -1,0 +1,12 @@
+# Test: New tab shows welcome screen
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Create a new empty tab
+new_tab
+wait_frames 5
+
+validate active_tab_label=Untitled
+validate tab_count=2
+screenshot tab4_01_welcome_screen

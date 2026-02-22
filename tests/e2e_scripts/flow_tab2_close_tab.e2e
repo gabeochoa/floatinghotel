@@ -1,0 +1,27 @@
+# Test: Closing a tab reduces tab count and activates neighbor
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Create two extra tabs
+new_tab
+wait_frames 2
+new_tab
+wait_frames 2
+
+validate tab_count=3
+screenshot tab2_01_three_tabs
+
+# Close active tab (the last one)
+close_tab
+wait_frames 3
+
+validate tab_count=2
+screenshot tab2_02_after_close
+
+# Close another
+close_tab
+wait_frames 3
+
+validate tab_count=1
+screenshot tab2_03_back_to_one

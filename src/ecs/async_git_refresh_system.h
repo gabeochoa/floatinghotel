@@ -26,8 +26,10 @@ namespace ecs {
 // this one -- swap the registration in main.cpp to choose which to use.
 struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
-    void for_each_with(afterhours::Entity& /*entity*/,
+    void for_each_with(afterhours::Entity& entity,
                        RepoComponent& repo, float) override {
+
+        if (!entity.has<ActiveTab>()) return;
 
         // ---- Phase 1: kick off async operations ----
         if (repo.refreshRequested && !repo.isRefreshing) {

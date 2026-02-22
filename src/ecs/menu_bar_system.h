@@ -83,13 +83,14 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         Entity& uiRoot = ui_imm::getUIRootEntity();
         float barW = layout.menuBar.width;
         float barH = layout.menuBar.height;
+        float barY = layout.menuBar.y;
 
         // Menu bar background (render_layer 10 so it draws above sidebar/toolbar)
         div(ctx, mk(uiRoot, 1000),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(barW), pixels(barH)})
                 .with_absolute_position()
-                .with_translate(0, 0)
+                .with_translate(0, barY)
                 .with_custom_background(menu_colors::BAR_BG)
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
@@ -121,12 +122,12 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             // Header width in screen pixels (scaled with font)
             float headerW = static_cast<float>(menus_[i].label.length()) * charW + hdrPad;
 
-            headerRects_[i] = {headerX, 0.0f, headerW, barH};
+            headerRects_[i] = {headerX, barY, headerW, barH};
 
             // Check mouse hover over this header
             bool mouseOverHeader = afterhours::ui::is_mouse_inside(
                 ctx.mouse.pos,
-                RectangleType{headerX, 0.0f, headerW, barH});
+                RectangleType{headerX, barY, headerW, barH});
 
             bool highlighted = isActive || (anyMenuOpen && mouseOverHeader);
 
@@ -135,7 +136,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_label(menus_[i].label)
                     .with_size(ComponentSize{pixels(headerW), pixels(barH)})
                     .with_absolute_position()
-                    .with_translate(headerX, 0.0f)
+                    .with_translate(headerX, barY)
                     .with_custom_background(highlighted ? menu_colors::ACTIVE_BG : menu_colors::BAR_BG)
                     .with_custom_text_color(highlighted ? menu_colors::ACTIVE_TEXT : menu_colors::HEADER_TEXT)
                     .with_font_size(afterhours::ui::FontSize::XL)
@@ -180,7 +181,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
 
             // Calculate dropdown position (below the header)
             float dropdownX = headerRects_[menuIdx].x;
-            float dropdownY = barH;
+            float dropdownY = barY + barH;
 
             // Calculate dropdown dimensions using resolve_to_pixels
             float ITEM_HEIGHT = rpx(24.0f);
@@ -320,7 +321,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 if (!clickInMenu && menu.activeMenuIndex >= 0 && menu.activeMenuIndex < static_cast<int>(menus_.size())) {
                     int menuIdx = menu.activeMenuIndex;
                     float dropdownX = headerRects_[menuIdx].x;
-                    float dropdownY = barH;
+                    float dropdownY = barY + barH;
 
                     float dropdownHeight = rpx(8.0f); // padding
                     for (const auto& item : menus_[menuIdx].items) {

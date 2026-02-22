@@ -20,6 +20,7 @@ struct Settings::Data {
     std::vector<std::string> openRepos;
     std::string lastActiveRepo;
     std::string unstagedPolicy = "ask";
+    std::vector<std::string> recentRepos;
 };
 
 Settings::Settings() { data_ = new Data(); }
@@ -56,6 +57,8 @@ bool Settings::load_save_file() {
             j.value("open_repos", std::vector<std::string>{});
         data_->lastActiveRepo = j.value("last_active_repo", std::string{});
         data_->unstagedPolicy = j.value("commit_unstaged_policy", std::string{"ask"});
+        data_->recentRepos =
+            j.value("recent_repos", std::vector<std::string>{});
 
         log_info("Settings loaded from {}", path);
         return true;
@@ -77,6 +80,7 @@ void Settings::write_save_file() {
     j["open_repos"] = data_->openRepos;
     j["last_active_repo"] = data_->lastActiveRepo;
     j["commit_unstaged_policy"] = data_->unstagedPolicy;
+    j["recent_repos"] = data_->recentRepos;
 
     std::string path = get_settings_path();
     std::ofstream f(path);
@@ -166,6 +170,25 @@ void Settings::set_unstaged_policy(const std::string& policy) {
         data_->unstagedPolicy = policy;
     } else {
         data_->unstagedPolicy = "ask";
+    }
+    save_if_auto();
+}
+
+// Recent repos
+std::vector<std::string> Settings::get_recent_repos() const {
+    return data_->recentRepos;
+}
+
+void Settings::add_recent_repo(const std::string& path) {
+    if (path.empty()) return;
+    // Move to front (most recent first), remove duplicates
+    data_->recentRepos.erase(
+        std::remove(data_->recentRepos.begin(), data_->recentRepos.end(), path),
+        data_->recentRepos.end());
+    data_->recentRepos.insert(data_->recentRepos.begin(), path);
+    // Keep max 10
+    if (data_->recentRepos.size() > 10) {
+        data_->recentRepos.resize(10);
     }
     save_if_auto();
 }

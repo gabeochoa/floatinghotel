@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "../../vendor/afterhours/src/core/base_component.h"
+#include "../../vendor/afterhours/src/core/entity_helper.h"
 
 namespace ecs {
 
@@ -119,6 +120,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     float commandLogHeight = 200.0f;
 
     struct Rect { float x=0, y=0, width=0, height=0; };
+    Rect tabStrip{};
     Rect menuBar{};
     Rect toolbar{};
     Rect sidebar{};
@@ -176,6 +178,23 @@ struct SettingsComponent : public afterhours::BaseComponent {
     std::vector<std::string> openRepoPaths;
     std::string lastActiveRepo;
     std::string settingsFilePath;
+};
+
+// ---- Tab Components ----
+
+struct ActiveTab : public afterhours::BaseComponent {};
+
+struct Tab : public afterhours::BaseComponent {
+    std::string label = "Untitled";
+
+    LayoutComponent::SidebarMode sidebarMode = LayoutComponent::SidebarMode::Changes;
+    LayoutComponent::FileViewMode fileViewMode = LayoutComponent::FileViewMode::Flat;
+    LayoutComponent::DiffViewMode diffViewMode = LayoutComponent::DiffViewMode::Inline;
+    bool sidebarVisible = true;
+};
+
+struct TabStripComponent : public afterhours::BaseComponent {
+    std::vector<afterhours::EntityID> tabOrder;
 };
 
 } // namespace ecs

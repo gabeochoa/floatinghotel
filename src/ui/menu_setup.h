@@ -122,7 +122,8 @@ inline std::vector<Menu> createMenuBar() {
     menus.push_back({"Repository", {
         MenuItem::item("Stage File", "Cmd+Shift+S", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>().gen();
+                .whereHasComponent<ecs::RepoComponent>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
             if (!q.empty()) {
                 auto& r = q[0].get().get<ecs::RepoComponent>();
                 if (!r.selectedFilePath.empty()) {
@@ -133,7 +134,8 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Unstage File", "Cmd+Shift+U", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>().gen();
+                .whereHasComponent<ecs::RepoComponent>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
             if (!q.empty()) {
                 auto& r = q[0].get().get<ecs::RepoComponent>();
                 if (!r.selectedFilePath.empty()) {
@@ -145,13 +147,15 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::separator(),
         MenuItem::item("Commit...", "Cmd+Enter", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::CommitEditorComponent>().gen();
+                .whereHasComponent<ecs::CommitEditorComponent>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
             if (!q.empty())
                 q[0].get().get<ecs::CommitEditorComponent>().commitRequested = true;
         }),
         MenuItem::item("Amend Last Commit", "", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::CommitEditorComponent>().gen();
+                .whereHasComponent<ecs::CommitEditorComponent>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
             if (!q.empty())
                 q[0].get().get<ecs::CommitEditorComponent>().isAmend = true;
         }),
@@ -159,6 +163,7 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("New Branch...", "Cmd+Shift+B", [] {
             auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<ecs::RepoComponent>()
+                .whereHasComponent<ecs::ActiveTab>()
                 .gen();
             if (!repoEntities.empty()) {
                 auto& repo = repoEntities[0].get().get<ecs::RepoComponent>();
@@ -180,7 +185,8 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::separator(),
         MenuItem::item("Push", "Cmd+Shift+P", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>().gen();
+                .whereHasComponent<ecs::RepoComponent>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
             if (!q.empty()) {
                 auto& r = q[0].get().get<ecs::RepoComponent>();
                 git::git_push(r.repoPath);
@@ -189,7 +195,8 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Pull", "Cmd+Shift+L", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>().gen();
+                .whereHasComponent<ecs::RepoComponent>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
             if (!q.empty()) {
                 auto& r = q[0].get().get<ecs::RepoComponent>();
                 git::git_pull(r.repoPath);
@@ -198,7 +205,8 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Fetch", "", [] {
             auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>().gen();
+                .whereHasComponent<ecs::RepoComponent>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
             if (!q.empty()) {
                 auto& r = q[0].get().get<ecs::RepoComponent>();
                 git::git_fetch(r.repoPath);

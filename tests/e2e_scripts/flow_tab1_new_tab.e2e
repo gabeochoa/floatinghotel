@@ -1,0 +1,20 @@
+# Test: Creating a new tab increases tab count
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Start with 1 tab
+validate tab_count=1
+screenshot tab1_01_single_tab
+
+# Create a new tab
+new_tab
+wait_frames 3
+
+# Should now have 2 tabs
+validate tab_count=2
+screenshot tab1_02_two_tabs
+
+# New tab should be active with default label
+validate active_tab_label=Untitled
+screenshot tab1_03_new_tab_active

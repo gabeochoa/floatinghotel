@@ -20,6 +20,7 @@
 #include "ecs/menu_bar_system.h"
 #include "ecs/sidebar_system.h"
 #include "ecs/status_bar_system.h"
+#include "ecs/tab_bar_system.h"
 #include "ecs/toolbar_system.h"
 #include "ecs/validation_summary_system.h"
 #include "git/git_runner.h"
@@ -68,9 +69,10 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             return;
         }
 
-        // Switch the app to the test repo and load data synchronously
+        // Switch the active tab to the test repo and load data synchronously
         auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                                 .whereHasComponent<ecs::RepoComponent>()
+                                .whereHasComponent<ecs::ActiveTab>()
                                 .gen();
         if (!repoEntities.empty()) {
             auto& repo = repoEntities[0].get().get<ecs::RepoComponent>();
@@ -136,6 +138,55 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
     }
 };
 
+// Custom E2E command: new_tab / close_tab
+struct HandleTabCommands : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed()) return;
+
+        if (cmd.is("new_tab")) {
+            auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::TabStripComponent>().gen();
+            auto layoutQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (tabStripQ.empty() || layoutQ.empty()) {
+                cmd.fail("new_tab: missing TabStripComponent or LayoutComponent");
+                return;
+            }
+            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
+            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            ecs::TabBarSystem::create_new_tab(tabStrip, layout);
+            cmd.consume();
+            return;
+        }
+
+        if (cmd.is("close_tab")) {
+            auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::TabStripComponent>().gen();
+            auto layoutQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (tabStripQ.empty() || layoutQ.empty()) {
+                cmd.fail("close_tab: missing TabStripComponent or LayoutComponent");
+                return;
+            }
+            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
+            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            if (tabStrip.tabOrder.size() <= 1) {
+                cmd.fail("close_tab: cannot close the last tab");
+                return;
+            }
+            for (size_t i = 0; i < tabStrip.tabOrder.size(); ++i) {
+                auto opt = afterhours::EntityHelper::getEntityForID(tabStrip.tabOrder[i]);
+                if (opt.valid() && opt->has<ecs::ActiveTab>()) {
+                    ecs::TabBarSystem::close_tab(tabStrip, tabStrip.tabOrder[i], i, true, layout);
+                    break;
+                }
+            }
+            cmd.consume();
+            return;
+        }
+    }
+};
+
 // Shared state between main() and the run() callbacks
 namespace app_state {
 
@@ -196,24 +247,35 @@ static void app_init() {
         styling.validation.min_font_size = 11.0f;
     }
 
-    // Create the editor entity with layout + repo components
+    // Create the shared editor entity (layout, menu, command log, settings)
     auto& entity = EntityHelper::createEntity();
     app_state::editorEntity = &entity;
 
     auto& layoutComp = entity.addComponent<ecs::LayoutComponent>();
-    (void)layoutComp;  // Uses defaults from component definition
+    (void)layoutComp;
 
-    auto& repoComp = entity.addComponent<ecs::RepoComponent>();
+    auto& menuComp = entity.addComponent<ecs::MenuComponent>();
+    (void)menuComp;
+
+    auto& cmdLog = entity.addComponent<ecs::CommandLogComponent>();
+
+    // Create the tab strip singleton
+    auto& tabStripEntity = EntityHelper::createEntity();
+    auto& tabStrip = tabStripEntity.addComponent<ecs::TabStripComponent>();
+
+    // Create the default tab entity (owns repo + commit editor + tab state)
+    auto& tabEntity = EntityHelper::createEntity();
+    tabEntity.addComponent<ecs::Tab>();
+    tabEntity.addComponent<ecs::ActiveTab>();
+
+    auto& repoComp = tabEntity.addComponent<ecs::RepoComponent>();
     repoComp.repoPath = app_state::repoPath;
     if (!repoComp.repoPath.empty()) {
         repoComp.refreshRequested = true;
+        Settings::get().add_recent_repo(repoComp.repoPath);
     }
 
-    auto& menuComp = entity.addComponent<ecs::MenuComponent>();
-    (void)menuComp;  // Menu bar state
-
-    auto& commitEditor = entity.addComponent<ecs::CommitEditorComponent>();
-    // Load remembered unstaged policy from settings
+    auto& commitEditor = tabEntity.addComponent<ecs::CommitEditorComponent>();
     {
         auto savedPolicy = Settings::get().get_unstaged_policy();
         if (savedPolicy == "stage_all") {
@@ -223,10 +285,16 @@ static void app_init() {
             commitEditor.unstagedPolicy =
                 ecs::CommitEditorComponent::UnstagedPolicy::CommitStagedOnly;
         }
-        // Default is Ask
     }
 
-    auto& cmdLog = entity.addComponent<ecs::CommandLogComponent>();
+    // Update tab label from repo path and record in recent repos
+    if (!repoComp.repoPath.empty()) {
+        std::filesystem::path p(repoComp.repoPath);
+        tabEntity.get<ecs::Tab>().label = p.filename().string();
+        Settings::get().add_recent_repo(repoComp.repoPath);
+    }
+
+    tabStrip.tabOrder.push_back(tabEntity.id);
 
     // Wire git log callback to record all git commands in the CommandLogComponent
     git::set_log_callback([&cmdLog](const std::string& cmd,
@@ -253,12 +321,16 @@ static void app_init() {
         // Pre-layout (context begin, clear children)
         ui_imm::registerUIPreLayoutSystems(sm);
 
+        // Tab sync: capture view mode changes into active Tab each frame
+        sm.register_update_system(std::make_unique<ecs::TabSyncSystem>());
+
         // Layout calculation must run before UI systems so panel rects
         // (toolbar, sidebar, status bar, etc.) have correct sizes when
         // the UI-creating systems read them.
         sm.register_update_system(std::make_unique<ecs::LayoutUpdateSystem>());
 
         // UI-creating systems (order determines visual stacking)
+        sm.register_update_system(std::make_unique<ecs::TabBarSystem>());
         sm.register_update_system(std::make_unique<ecs::MenuBarSystem>());
         sm.register_update_system(std::make_unique<ecs::ToolbarSystem>());
         sm.register_update_system(std::make_unique<ecs::SidebarSystem>());
@@ -283,6 +355,7 @@ static void app_init() {
                 sm.register_update_system(std::make_unique<SkipResizeCommand>());
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
+            sm.register_update_system(std::make_unique<HandleTabCommands>());
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
                 std::make_unique<afterhours::testing::HandleScreenshotCommand>(
@@ -416,7 +489,8 @@ int main(int argc, char* argv[]) {
             l.sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
         }
         auto editorQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::CommitEditorComponent>().gen();
+            .whereHasComponent<ecs::CommitEditorComponent>()
+            .whereHasComponent<ecs::ActiveTab>().gen();
         if (!editorQ.empty()) {
             auto& e = editorQ[0].get().get<ecs::CommitEditorComponent>();
             e.isAmend = false;
@@ -433,9 +507,11 @@ int main(int argc, char* argv[]) {
         auto layoutQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::LayoutComponent>().gen();
         auto repoQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::RepoComponent>().gen();
+            .whereHasComponent<ecs::RepoComponent>()
+            .whereHasComponent<ecs::ActiveTab>().gen();
         auto editorQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::CommitEditorComponent>().gen();
+            .whereHasComponent<ecs::CommitEditorComponent>()
+            .whereHasComponent<ecs::ActiveTab>().gen();
 
         if (key == "sidebar_visible") {
             if (!layoutQ.empty())
@@ -485,6 +561,18 @@ int main(int argc, char* argv[]) {
         } else if (key == "refresh_requested") {
             if (!repoQ.empty())
                 return repoQ[0].get().get<ecs::RepoComponent>().refreshRequested ? "true" : "false";
+        } else if (key == "tab_count") {
+            auto tabQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::TabStripComponent>().gen();
+            if (!tabQ.empty())
+                return std::to_string(tabQ[0].get().get<ecs::TabStripComponent>().tabOrder.size());
+            return "0";
+        } else if (key == "active_tab_label") {
+            auto tabQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::Tab>()
+                .whereHasComponent<ecs::ActiveTab>().gen();
+            if (!tabQ.empty())
+                return tabQ[0].get().get<ecs::Tab>().label;
         }
         return "";
     });

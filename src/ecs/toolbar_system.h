@@ -47,6 +47,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
 
         auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                                 .whereHasComponent<RepoComponent>()
+                                .whereHasComponent<ActiveTab>()
                                 .gen();
 
         // Get repo state for enable/disable logic
@@ -150,6 +151,7 @@ private:
         if (sidebarBtn(row1.ent(), nextId++, "Commit", hasRepo && hasStaged, true)) {
             auto editorEntities = afterhours::EntityQuery({.force_merge = true})
                                       .whereHasComponent<CommitEditorComponent>()
+                                      .whereHasComponent<ActiveTab>()
                                       .gen();
             if (!editorEntities.empty()) {
                 editorEntities[0].get().get<CommitEditorComponent>()
@@ -273,6 +275,7 @@ private:
         if (toolbarButton("Commit", hasRepo && hasStaged)) {
             auto editorEntities = afterhours::EntityQuery({.force_merge = true})
                                       .whereHasComponent<CommitEditorComponent>()
+                                      .whereHasComponent<ActiveTab>()
                                       .gen();
             if (!editorEntities.empty()) {
                 editorEntities[0].get().get<CommitEditorComponent>()

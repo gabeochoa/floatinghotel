@@ -304,6 +304,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
         auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                                 .whereHasComponent<RepoComponent>()
+                                .whereHasComponent<ActiveTab>()
                                 .gen();
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
@@ -468,6 +469,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
             auto editorEntities = afterhours::EntityQuery({.force_merge = true})
                                       .whereHasComponent<CommitEditorComponent>()
+                                      .whereHasComponent<ActiveTab>()
                                       .gen();
             if (!editorEntities.empty()) {
                 auto& editor = editorEntities[0].get().get<CommitEditorComponent>();
@@ -1158,6 +1160,7 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto rEntities = afterhours::EntityQuery({.force_merge = true})
                                  .whereHasComponent<RepoComponent>()
+                                 .whereHasComponent<ActiveTab>()
                                  .gen();
             if (!rEntities.empty()) {
                 auto& r = rEntities[0].get().get<RepoComponent>();
@@ -1215,6 +1218,7 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto rEntities = afterhours::EntityQuery({.force_merge = true})
                                  .whereHasComponent<RepoComponent>()
+                                 .whereHasComponent<ActiveTab>()
                                  .gen();
             if (!rEntities.empty()) {
                 auto& r = rEntities[0].get().get<RepoComponent>();
@@ -1363,6 +1367,7 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto rEntities = afterhours::EntityQuery({.force_merge = true})
                                  .whereHasComponent<RepoComponent>()
+                                 .whereHasComponent<ActiveTab>()
                                  .gen();
             if (!rEntities.empty()) {
                 auto& r = rEntities[0].get().get<RepoComponent>();

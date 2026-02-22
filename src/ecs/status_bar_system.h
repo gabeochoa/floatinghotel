@@ -47,6 +47,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
 
         auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                                 .whereHasComponent<RepoComponent>()
+                                .whereHasComponent<ActiveTab>()
                                 .gen();
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
