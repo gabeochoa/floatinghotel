@@ -26,6 +26,7 @@ struct CommitEntry {
     std::string author;
     std::string authorDate;    // ISO 8601 format
     std::string decorations;   // Branch/tag labels from %D
+    std::string parentHashes;  // Space-separated parent hashes from %P
 };
 
 struct DiffHunk {

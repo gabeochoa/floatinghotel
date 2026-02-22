@@ -67,8 +67,7 @@ inline Color BADGE_TAG_TEXT = {204, 204, 204, 255};  // #CCCCCC (tag text)
 
 // Commit graph
 inline Color GRAPH_DOT = {150, 110, 220, 255};  // Purple/violet for graph dots
-inline Color GRAPH_LINE = {80, 60, 120,
-                           255};  // Dimmer purple for connecting line
+inline Color GRAPH_LINE = {100, 80, 150, 255}; // Connecting lines between commits
 
 // Row separator
 inline Color ROW_SEPARATOR = {48, 48, 48, 255};  // #303030 (more visible)

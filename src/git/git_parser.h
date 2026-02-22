@@ -25,8 +25,8 @@ StatusResult parse_status(const std::string& porcelain_output);
 
 // ---- Log Parser (T013) ----
 
-// Parse output of: git log --format="%H%x00%h%x00%s%x00%an%x00%aI%x00%D"
-// Fields are NUL-separated: hash, shortHash, subject, author, date, decorations
+// Parse output of: git log --format="%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P"
+// Fields are NUL-separated: hash, shortHash, subject, author, date, decorations, parentHashes
 std::vector<ecs::CommitEntry> parse_log(const std::string& log_output);
 
 // ---- Diff Parser (T014) ----

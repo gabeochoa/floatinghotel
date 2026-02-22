@@ -67,10 +67,10 @@ GitResult git_status(const std::string& repo_path) {
 
 GitResult git_log(const std::string& repo_path, int max_count, int skip) {
     // Machine-readable format with NUL separators:
-    // hash\0shortHash\0subject\0author\0date\0decorations
+    // hash\0shortHash\0subject\0author\0date\0decorations\0parentHashes
     std::vector<std::string> args = {
         "log",
-        "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D",
+        "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P",
     };
     if (max_count > 0) {
         args.push_back("-" + std::to_string(max_count));
@@ -175,7 +175,7 @@ std::future<GitResult> git_log_async(const std::string& repo_path,
                                       int max_count, int skip) {
     std::vector<std::string> args = {
         "log",
-        "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D",
+        "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P",
     };
     if (max_count > 0) {
         args.push_back("-" + std::to_string(max_count));

@@ -149,6 +149,7 @@ std::vector<ecs::CommitEntry> parse_log(const std::string& log_output) {
             entry.author = fields[3];
             entry.authorDate = fields[4];
             if (fields.size() > 5) entry.decorations = fields[5];
+            if (fields.size() > 6) entry.parentHashes = fields[6];
             entries.push_back(std::move(entry));
         }
     }

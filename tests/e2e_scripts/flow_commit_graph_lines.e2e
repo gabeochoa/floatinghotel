@@ -1,0 +1,20 @@
+# Flow: Verify commit graph lines are drawn between commits
+# The test repo has 3 commits on main — should see a continuous
+# vertical line connecting the purple dots in the sidebar log.
+make_test_repo
+resize 1280 720
+wait_frames 10
+
+# Capture the full sidebar with commit log visible
+screenshot graph_lines_01_initial
+
+# Click first commit to highlight it and verify graph lines persist
+# Use partial text since wider graph column may truncate subjects
+click_text "contributing"
+wait_frames 5
+screenshot graph_lines_02_selected_commit
+
+# Click a different commit to see selection moves while lines stay
+click_text "Initial commit"
+wait_frames 5
+screenshot graph_lines_03_different_commit

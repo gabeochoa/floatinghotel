@@ -1248,8 +1248,10 @@ private:
         constexpr int MAX_VISIBLE = 500;
         int count = std::min(static_cast<int>(repo.commitLog.size()), MAX_VISIBLE);
 
+        bool multipleCommits = (count > 1);
         for (int i = 0; i < count; ++i) {
-            render_commit_row(ctx, scrollParent, i, repo.commitLog[i], repo);
+            render_commit_row(ctx, scrollParent, i, repo.commitLog[i], repo,
+                              multipleCommits);
         }
 
         // Lazy load indicator at bottom
@@ -1269,11 +1271,13 @@ private:
         }
     }
 
-    // Render a single commit row: [dot] [subject] [badge pills] [hash]
+    // Render a single commit row: [graph_col] [subject] [badge pills] [hash]
+    // showGraphLine controls whether the vertical connecting line is drawn
     void render_commit_row(UIContext<InputAction>& ctx,
                            Entity& parent, int index,
                            const CommitEntry& commit,
-                           RepoComponent& repo) {
+                           RepoComponent& repo,
+                           bool showGraphLine = true) {
         bool selected = (commit.hash == repo.selectedCommitHash);
         constexpr float ROW_H = static_cast<float>(theme::layout::COMMIT_ROW_HEIGHT);
 
@@ -1282,35 +1286,69 @@ private:
 
         auto badges = commit_log_detail::parse_decorations(commit.decorations);
 
-        // Row container
+        constexpr float DOT_SIZE = 8.0f;
+        constexpr float LINE_W = 2.0f;
+        constexpr float GRAPH_COL_W = 22.0f;
+
         auto row = div(ctx, mk(parent, baseId),
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{pixels(sidebarW), h720(ROW_H)})
-                .with_gap(pixels(8))
+                .with_padding(Padding{
+                    .top = pixels(0), .right = pixels(4),
+                    .bottom = pixels(0), .left = pixels(0)})
+                .with_gap(pixels(4))
                 .with_debug_name("commit_row"));
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 
-        // Purple dot (8x8 circle)
-        div(ctx, mk(row.ent(), 1),
+        float shG = static_cast<float>(
+            afterhours::graphics::get_screen_height());
+        float rowPx = resolve_to_pixels(h720(ROW_H), shG);
+        if (rowPx < 1.0f) rowPx = 26.0f;
+
+        // Graph wrapper: 22px wide container for line and dot.
+        auto graphWrap = div(ctx, mk(row.ent(), 1),
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(8), pixels(8)})
+                .with_size(ComponentSize{pixels(GRAPH_COL_W), pixels(rowPx)})
+                .with_roundness(0.0f)
+                .with_debug_name("graph_wrap"));
+
+        // Line: 0-width div with border-left, absolutely positioned
+        // so the border is centered on the dot center (GRAPH_COL_W/2).
+        // Border draws LINE_W px right from element's left edge,
+        // so left edge = center - LINE_W/2.
+        if (showGraphLine) {
+            float lineX = (GRAPH_COL_W - LINE_W) / 2.0f;
+            div(ctx, mk(graphWrap.ent(), 1),
+                ComponentConfig{}
+                    .with_size(ComponentSize{pixels(0), pixels(rowPx)})
+                    .with_absolute_position(lineX, 0.0f)
+                    .with_border_left(theme::GRAPH_LINE, pixels(LINE_W))
+                    .with_roundness(0.0f)
+                    .with_debug_name("graph_line"));
+        }
+
+        // Dot: absolute, centered both ways
+        float dotX = (GRAPH_COL_W - DOT_SIZE) / 2.0f;
+        float dotY = (rowPx - DOT_SIZE) / 2.0f;
+        div(ctx, mk(graphWrap.ent(), 2),
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(DOT_SIZE), pixels(DOT_SIZE)})
+                .with_absolute_position(dotX, dotY)
                 .with_custom_background(theme::GRAPH_DOT)
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                 .with_roundness(1.0f)
+                .with_render_layer(1)
                 .with_debug_name("commit_dot"));
 
         constexpr float HASH_W = 52.0f;
         constexpr float BADGE_EST_W = 46.0f;
-        // Subject: sidebarW - padL(10) - padR(4) - dot(8) - gaps - badges - hashArea(56)
-        // Hash is absolute-positioned so reserve fixed space for it
         constexpr float HASH_AREA = 56.0f;
-        int numFlowChildren = 1 + static_cast<int>(badges.size()); // dot + subject + badges (no hash)
-        float fixedW = 8.0f  // dot
+        int numFlowChildren = 1 + static_cast<int>(badges.size());
+        float fixedW = GRAPH_COL_W
                      + BADGE_EST_W * static_cast<float>(badges.size())
-                     + 8.0f * static_cast<float>(numFlowChildren) // gaps between flow children
+                     + 8.0f * static_cast<float>(numFlowChildren)
                      + HASH_AREA;
-        float subjectW = sidebarW - 14.0f - fixedW; // 14 = padL(10) + padR(4)
+        float subjectW = sidebarW - 14.0f - fixedW;
         if (subjectW < 50.0f) subjectW = 50.0f;
 
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
