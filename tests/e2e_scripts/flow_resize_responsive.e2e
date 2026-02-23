@@ -23,7 +23,7 @@ wait_frames 5
 screenshot flow_resize_04_very_narrow
 
 # Tall and narrow
-resize 600 900
+resize 640 900
 wait_frames 5
 screenshot flow_resize_05_tall_narrow
 

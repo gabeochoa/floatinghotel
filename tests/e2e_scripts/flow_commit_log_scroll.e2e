@@ -1,6 +1,9 @@
 # Test: commit log scrolling stays contained within its scroll panel.
 # The test repo now has 20+ commits so the log overflows at 1280x720.
 # Scrolls the commit log and verifies the file list area is unaffected.
+# NOTE: scroll_wheel injection is a no-op on macOS Metal backend (vendor bug).
+# This test still validates that the layout is correct; scroll verification
+# requires the vendor fix for MetalPlatformAPI::get_mouse_wheel_move_v().
 make_test_repo
 resize 1280 720
 wait_frames 10

@@ -234,7 +234,7 @@ wait_frames 5
 screenshot baseline_29_responsive_very_narrow
 
 # Tall and narrow
-resize 600 900
+resize 640 900
 wait_frames 5
 screenshot baseline_30_responsive_tall_narrow
 

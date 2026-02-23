@@ -1338,8 +1338,8 @@ private:
                 .with_render_layer(1)
                 .with_debug_name("commit_dot"));
 
-        constexpr float HASH_W = 52.0f;
-        constexpr float HASH_AREA = 56.0f;
+        constexpr float HASH_W = 46.0f;
+        constexpr float HASH_AREA = 50.0f;
         constexpr float BADGE_EST_W = 46.0f;
 
         // Show at most one badge in the row to maximise subject readability.

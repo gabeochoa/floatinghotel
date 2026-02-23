@@ -210,6 +210,13 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             sv.scroll_offset = {0.0f, 0.0f};
         }
 
+        // Remove any active toasts from previous tests
+        auto toastEntities = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<afterhours::toast::Toast>().gen();
+        for (auto& ref : toastEntities) {
+            ref.get().cleanup = true;
+        }
+
         // Clear modal stack to prevent stale modal input gates from blocking clicks
         auto* modalRoot = afterhours::EntityHelper::get_singleton_cmp<
             afterhours::modal::ModalRoot>();
@@ -403,6 +410,10 @@ static void app_init() {
         styling.enable_development_validation();
         // Lower min font threshold for 720p (11px is legible at this res)
         styling.validation.min_font_size = 11.0f;
+        // Disable visual overlays in test mode so screenshots are clean
+        if (app_state::testModeEnabled) {
+            styling.validation.highlight_violations = false;
+        }
     }
 
     // Create the shared editor entity (layout, menu, command log, settings)

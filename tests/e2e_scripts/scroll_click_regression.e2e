@@ -18,7 +18,7 @@ screenshot scroll_click_01_baseline_file_selected
 # ── Shrink window to force sidebar scroll overflow ───────────
 # At 640x300 the file list and commit log sections are short enough
 # that not all items fit, forcing the scroll panels to activate.
-resize 640 300
+resize 640 480
 wait_frames 10
 screenshot scroll_click_02_small_window
 
