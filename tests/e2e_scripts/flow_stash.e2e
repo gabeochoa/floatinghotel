@@ -9,7 +9,7 @@ wait_frames 5
 screenshot flow_stash_01_dirty
 
 # Open Git menu to see if Stash is available
-click_text Git
+click_text "Repository"
 wait_frames 5
 screenshot flow_stash_02_git_menu
 

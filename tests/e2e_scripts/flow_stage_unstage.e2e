@@ -8,15 +8,27 @@ wait_frames 5
 # Initial state: 1 staged, 2 unstaged, 2 untracked
 screenshot flow_stage_01_initial
 
+# Hide sidebar to access toolbar buttons
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
 # Stage All — moves all unstaged to staged
-click_button "Stage All"
+click_text "Stage All"
 wait_frames 5
 screenshot flow_stage_02_after_stage_all
 
 # Unstage All — moves everything back to unstaged
-click_button "Unstage All"
+click_text "Unstage All"
 wait_frames 5
 screenshot flow_stage_03_after_unstage_all
+
+# Restore sidebar
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
 
 # Stage a single file by right-clicking (context menu)
 # TODO: right-click context menu not implemented yet

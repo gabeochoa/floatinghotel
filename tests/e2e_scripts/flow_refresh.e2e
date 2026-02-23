@@ -7,10 +7,21 @@ wait_frames 5
 # Take initial snapshot
 screenshot flow_refresh_01_initial
 
+# Hide sidebar to access toolbar Refresh button
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
 # Click Refresh button
-click_button Refresh
+click_text "Refresh"
 wait_frames 5
 screenshot flow_refresh_02_after_refresh
 
+# Restore sidebar
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
 # Data should remain the same (no external changes)
-# File counts and commit log should match

@@ -9,7 +9,7 @@ wait_frames 5
 screenshot flow_discard_01_initial
 
 # Select a file to view its diff before discarding
-click_button README.md
+click_text "README.md"
 wait_frames 5
 screenshot flow_discard_02_file_selected
 

@@ -7,17 +7,23 @@ wait_frames 5
 
 # Note: test repo has no remote, so push/pull/fetch should show errors gracefully
 
+# Hide sidebar to access toolbar buttons
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
 # Try Push — should show error toast (no remote configured)
-click_button Push
+click_text "Push"
 wait_frames 5
 screenshot flow_remote_01_push_no_remote
 
 # Try Pull — should show error toast
-click_button Pull
+click_text "Pull"
 wait_frames 5
 screenshot flow_remote_02_pull_no_remote
 
 # Try Fetch — should show error toast
-click_button Fetch
+click_text "Fetch"
 wait_frames 5
 screenshot flow_remote_03_fetch_no_remote

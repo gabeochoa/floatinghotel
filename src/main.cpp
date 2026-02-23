@@ -69,6 +69,38 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             return;
         }
 
+        // Reset UI state before loading new repo
+        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::LayoutComponent>().gen();
+        if (!layoutQ.empty()) {
+            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            layout.sidebarVisible = true;
+            layout.commandLogVisible = false;
+            layout.sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
+            layout.fileViewMode = ecs::LayoutComponent::FileViewMode::Flat;
+            layout.diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
+        }
+
+        // Close all extra tabs, keep only one
+        auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::TabStripComponent>().gen();
+        if (!tabStripQ.empty() && !layoutQ.empty()) {
+            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
+            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            while (tabStrip.tabOrder.size() > 1) {
+                auto lastId = tabStrip.tabOrder.back();
+                auto lastIdx = tabStrip.tabOrder.size() - 1;
+                ecs::TabBarSystem::close_tab(tabStrip, lastId, lastIdx, true, layout);
+            }
+            // Ensure the remaining tab is active
+            if (!tabStrip.tabOrder.empty()) {
+                auto firstOpt = afterhours::EntityHelper::getEntityForID(tabStrip.tabOrder[0]);
+                if (firstOpt.valid() && !firstOpt->has<ecs::ActiveTab>()) {
+                    firstOpt->addComponent<ecs::ActiveTab>();
+                }
+            }
+        }
+
         // Switch the active tab to the test repo and load data synchronously
         auto repoEntities = afterhours::EntityQuery({.force_merge = true})
                                 .whereHasComponent<ecs::RepoComponent>()
@@ -80,6 +112,43 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.repoPath = repoPath;
             repo.selectedFilePath.clear();
             repo.selectedCommitHash.clear();
+            repo.cachedCommitHash.clear();
+            repo.commitDetailDiff.clear();
+            repo.commitDetailBody.clear();
+            repo.commitDetailAuthorEmail.clear();
+            repo.commitDetailParents.clear();
+            repo.showNewBranchDialog = false;
+            repo.newBranchName.clear();
+            repo.showDeleteBranchDialog = false;
+            repo.deleteBranchName.clear();
+            repo.showForceDeleteDialog = false;
+
+            // Clear commit editor state
+            auto editorEntities = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::CommitEditorComponent>()
+                .whereHasComponent<ecs::ActiveTab>()
+                .gen();
+            if (!editorEntities.empty()) {
+                auto& editor = editorEntities[0].get().get<ecs::CommitEditorComponent>();
+                editor.subject.clear();
+                editor.body.clear();
+                editor.isVisible = false;
+                editor.isAmend = false;
+                editor.commitRequested = false;
+                editor.showUnstagedDialog = false;
+                editor.rememberChoice = false;
+            }
+
+            // Close any open menus
+            auto menuEntities = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::MenuComponent>()
+                .gen();
+            if (!menuEntities.empty()) {
+                auto& menu = menuEntities[0].get().get<ecs::MenuComponent>();
+                menu.activeMenuIndex = -1;
+                menu.pendingDialog = ecs::MenuComponent::PendingDialog::None;
+                menu.pendingToast.clear();
+            }
 
             // Synchronous refresh — data is ready this frame, no waits needed
             repo.refreshRequested = true;
@@ -133,7 +202,76 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             log_warn("make_test_repo: no RepoComponent entity found!");
         }
 
+        // Reset all scroll offsets to prevent stale scroll state
+        auto scrollEntities = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<afterhours::ui::HasScrollView>().gen();
+        for (auto& ref : scrollEntities) {
+            auto& sv = ref.get().get<afterhours::ui::HasScrollView>();
+            sv.scroll_offset = {0.0f, 0.0f};
+        }
+
+        // Clear modal stack to prevent stale modal input gates from blocking clicks
+        auto* modalRoot = afterhours::EntityHelper::get_singleton_cmp<
+            afterhours::modal::ModalRoot>();
+        if (modalRoot) {
+            modalRoot->modal_stack.clear();
+        }
+
+        // Reset UI focus/active/hot state and clear all input gates
+        auto ctxEntities = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<afterhours::ui::UIContext<InputAction>>().gen();
+        if (!ctxEntities.empty()) {
+            auto& ctx = ctxEntities[0].get().get<afterhours::ui::UIContext<InputAction>>();
+            ctx.hot_id = ctx.ROOT;
+            ctx.prev_hot_id = ctx.ROOT;
+            ctx.focus_id = ctx.ROOT;
+            ctx.visual_focus_id = ctx.ROOT;
+            ctx.active_id = ctx.ROOT;
+            ctx.prev_active_id = ctx.ROOT;
+            ctx.last_processed = ctx.ROOT;
+            ctx.input_gates.clear();
+        }
+        afterhours::testing::test_input::reset_all();
+
         log_info("make_test_repo: done, path={}", repoPath);
+        cmd.consume();
+    }
+};
+
+// Custom E2E command: reset_ui
+// Restores UI to default state: sidebar visible, command log hidden,
+// default view modes, close all extra tabs.
+struct HandleResetUI : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("reset_ui")) return;
+
+        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::LayoutComponent>().gen();
+        if (!layoutQ.empty()) {
+            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            layout.sidebarVisible = true;
+            layout.commandLogVisible = false;
+            layout.sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
+        }
+
+        auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::TabStripComponent>().gen();
+        if (!tabStripQ.empty() && !layoutQ.empty()) {
+            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
+            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            while (tabStrip.tabOrder.size() > 1) {
+                auto lastId = tabStrip.tabOrder.back();
+                auto lastIdx = tabStrip.tabOrder.size() - 1;
+                ecs::TabBarSystem::close_tab(tabStrip, lastId, lastIdx, true, layout);
+            }
+            if (!tabStrip.tabOrder.empty()) {
+                auto firstOpt = afterhours::EntityHelper::getEntityForID(tabStrip.tabOrder[0]);
+                if (firstOpt.valid() && !firstOpt->has<ecs::ActiveTab>()) {
+                    firstOpt->addComponent<ecs::ActiveTab>();
+                }
+            }
+        }
+
         cmd.consume();
     }
 };
@@ -180,6 +318,26 @@ struct HandleTabCommands : afterhours::System<afterhours::testing::PendingE2ECom
                     ecs::TabBarSystem::close_tab(tabStrip, tabStrip.tabOrder[i], i, true, layout);
                     break;
                 }
+            }
+            cmd.consume();
+            return;
+        }
+
+        if (cmd.is("reset_tabs")) {
+            auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::TabStripComponent>().gen();
+            auto layoutQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::LayoutComponent>().gen();
+            if (tabStripQ.empty() || layoutQ.empty()) {
+                cmd.fail("reset_tabs: missing TabStripComponent or LayoutComponent");
+                return;
+            }
+            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
+            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            while (tabStrip.tabOrder.size() > 1) {
+                auto lastId = tabStrip.tabOrder.back();
+                auto lastIdx = tabStrip.tabOrder.size() - 1;
+                ecs::TabBarSystem::close_tab(tabStrip, lastId, lastIdx, false, layout);
             }
             cmd.consume();
             return;
@@ -381,6 +539,7 @@ static void app_init() {
                 sm.register_update_system(std::make_unique<SkipResizeCommand>());
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
+            sm.register_update_system(std::make_unique<HandleResetUI>());
             sm.register_update_system(std::make_unique<HandleTabCommands>());
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(

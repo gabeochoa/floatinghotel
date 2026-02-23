@@ -23,6 +23,6 @@ wait_frames 5
 screenshot flow_commits_04_initial
 
 # Go back to file view by clicking a file
-click_button README.md
+click_text "README.md"
 wait_frames 5
 screenshot flow_commits_05_back_to_files

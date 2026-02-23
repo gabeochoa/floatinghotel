@@ -5,13 +5,19 @@ make_test_repo
 resize 1280 720
 wait_frames 5
 
+# Hide sidebar to access toolbar buttons
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
 # Stage all files
-click_button "Stage All"
+click_text "Stage All"
 wait_frames 5
 screenshot flow_amend_01_all_staged
 
 # Open commit editor
-click_button Commit
+click_text "Commit"
 wait_frames 5
 screenshot flow_amend_02_commit_editor
 

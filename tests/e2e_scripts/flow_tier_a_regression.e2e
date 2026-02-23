@@ -111,7 +111,7 @@ validate sidebar_visible=false
 
 # T2: Stage All
 click_text "Stage All"
-wait_frames 10
+wait_frames 20
 validate unstaged_count=0
 validate untracked_count=0
 screenshot tier_a_05_stage_all

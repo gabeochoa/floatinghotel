@@ -32,7 +32,7 @@ click 640 400
 wait_frames 5
 
 # Open Git menu
-click_text Git
+click_text "Repository"
 wait_frames 5
 screenshot flow_menu_04_git_open
 

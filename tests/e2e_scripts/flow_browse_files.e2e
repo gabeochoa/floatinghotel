@@ -8,21 +8,21 @@ wait_frames 5
 screenshot flow_browse_01_file_list
 
 # Click an unstaged file to view its diff
-click_button README.md
+click_text "README.md"
 wait_frames 5
 screenshot flow_browse_02_readme_diff
 
 # Click a different file
-click_button main.cpp
+click_text "main.cpp"
 wait_frames 5
 screenshot flow_browse_03_maincpp_diff
 
 # Click the staged file
-click_button .gitignore
+click_text ".gitignore"
 wait_frames 5
 screenshot flow_browse_04_staged_diff
 
 # Click an untracked file
-click_button TODO.md
+click_text "TODO.md"
 wait_frames 5
 screenshot flow_browse_05_untracked

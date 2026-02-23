@@ -11,7 +11,7 @@ wait_frames 5
 screenshot flow_revert_01_commit_selected
 
 # Open Git menu to check for revert option
-click_text Git
+click_text "Repository"
 wait_frames 5
 screenshot flow_revert_02_git_menu
 

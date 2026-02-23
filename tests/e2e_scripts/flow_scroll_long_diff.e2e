@@ -6,12 +6,12 @@ resize 1280 720
 wait_frames 5
 
 # Select a modified file
-click_button README.md
+click_text "README.md"
 wait_frames 5
 screenshot flow_scroll_01_readme_diff
 
 # Select another file to compare
-click_button main.cpp
+click_text "main.cpp"
 wait_frames 5
 screenshot flow_scroll_02_maincpp_diff
 

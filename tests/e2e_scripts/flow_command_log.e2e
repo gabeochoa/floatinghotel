@@ -1,6 +1,6 @@
 #TDD not ready
 # Flow: Toggle command log panel
-# User clicks the command log toggle in the status bar
+# User uses View menu to toggle the command log
 make_test_repo
 resize 1280 720
 wait_frames 5
@@ -8,13 +8,16 @@ wait_frames 5
 # Command log should be hidden by default
 screenshot flow_cmdlog_01_hidden
 
-# Click the toggle button in the status bar
-click_button ">"
+# Toggle via View menu
+click_text "View"
+wait_frames 3
+click_text "Toggle Command Log"
 wait_frames 5
 screenshot flow_cmdlog_02_visible
 
-# The command log should show recent git commands
-# Click toggle again to hide
-click_button ">"
+# Toggle again to hide
+click_text "View"
+wait_frames 3
+click_text "Toggle Command Log"
 wait_frames 5
 screenshot flow_cmdlog_03_hidden_again

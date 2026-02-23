@@ -5,7 +5,7 @@ resize 1280 720
 wait_frames 5
 
 # Click the binary file (icon.png)
-click_button icon.png
+click_text "icon.png"
 wait_frames 5
 screenshot flow_binary_01_selected
 

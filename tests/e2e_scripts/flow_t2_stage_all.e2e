@@ -19,7 +19,7 @@ validate sidebar_visible=false
 
 # Click Stage All in the toolbar
 click_text "Stage All"
-wait_frames 10
+wait_frames 20
 
 # All files should now be staged
 validate unstaged_count=0

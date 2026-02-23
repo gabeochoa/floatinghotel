@@ -8,13 +8,19 @@ wait_frames 5
 # Record initial state
 screenshot flow_fullcycle_01_initial
 
+# Hide sidebar to access toolbar buttons
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
+
 # Stage all
-click_button "Stage All"
+click_text "Stage All"
 wait_frames 5
 screenshot flow_fullcycle_02_staged
 
 # Commit
-click_button Commit
+click_text "Commit"
 wait_frames 5
 type "chore: clean up project files"
 wait_frames 5
@@ -23,9 +29,15 @@ wait_frames 5
 screenshot flow_fullcycle_03_committed
 
 # Refresh to see updated commit log
-click_button Refresh
+click_text "Refresh"
 wait_frames 5
 screenshot flow_fullcycle_04_new_commit_in_log
+
+# Restore sidebar to see commit log
+click_text "View"
+wait_frames 3
+click_text "Toggle Sidebar"
+wait_frames 5
 
 # Click the new commit to view its diff
 click_text "chore: clean up project files"

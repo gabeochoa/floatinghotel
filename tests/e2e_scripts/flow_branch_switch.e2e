@@ -9,7 +9,7 @@ wait_frames 5
 screenshot flow_branch_01_on_main
 
 # Click the branch name in the toolbar to open branch picker
-click_button main
+click_text "main"
 wait_frames 5
 screenshot flow_branch_02_picker_open
 

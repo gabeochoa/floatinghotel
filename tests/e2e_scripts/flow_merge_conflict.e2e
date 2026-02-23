@@ -9,7 +9,7 @@ wait_frames 5
 screenshot flow_conflict_01_baseline
 
 # Open Git menu to see merge options
-click_text Git
+click_text "Repository"
 wait_frames 5
 screenshot flow_conflict_02_git_menu
 

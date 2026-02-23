@@ -6,7 +6,7 @@ resize 1280 720
 wait_frames 5
 
 # Open Git menu and create new branch
-click_text Git
+click_text "Repository"
 wait_frames 5
 click_text "New Branch"
 wait_frames 5

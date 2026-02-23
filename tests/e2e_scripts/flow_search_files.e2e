@@ -9,7 +9,7 @@ wait_frames 5
 screenshot flow_search_01_all_files
 
 # Select a file to show we have content
-click_button main.cpp
+click_text "main.cpp"
 wait_frames 5
 screenshot flow_search_02_file_selected
 

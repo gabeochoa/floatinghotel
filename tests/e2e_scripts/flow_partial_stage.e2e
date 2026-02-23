@@ -6,12 +6,12 @@ resize 1280 720
 wait_frames 5
 
 # Select a file with changes
-click_button README.md
+click_text "README.md"
 wait_frames 5
 screenshot flow_partial_01_diff_view
 
 # Select another file to compare diff views
-click_button main.cpp
+click_text "main.cpp"
 wait_frames 5
 screenshot flow_partial_02_maincpp_diff
 

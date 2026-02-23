@@ -6,7 +6,7 @@ resize 1280 720
 wait_frames 5
 
 # Select a file first
-click_button README.md
+click_text "README.md"
 wait_frames 5
 screenshot flow_kb_01_file_selected
 
