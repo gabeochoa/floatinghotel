@@ -1364,7 +1364,7 @@ private:
                      + (hasBadge ? BADGE_EST_W + 4.0f : 0.0f)
                      + 4.0f
                      + HASH_AREA;
-        float subjectW = sidebarW - 14.0f - fixedW;
+        float subjectW = sidebarW - 4.0f - fixedW;
         if (subjectW < 30.0f) subjectW = 30.0f;
 
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
@@ -1413,7 +1413,7 @@ private:
                 .with_font_size(FontSize::Medium)
                 .with_alignment(TextAlignment::Right)
                 .with_absolute_position()
-                .with_translate(pixels(sidebarW - HASH_W - 14.0f), pixels(0))
+                .with_translate(pixels(sidebarW - HASH_W - 4.0f), pixels(0))
                 .with_debug_name("commit_hash"));
 
         // Click -> select this commit
