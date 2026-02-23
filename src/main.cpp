@@ -50,7 +50,6 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("make_test_repo")) return;
 
-        // Find the setup script relative to the executable's working directory
         std::string script = "scripts/setup_test_repo.sh";
         auto result = run_process("", {"bash", script});
         if (!result.success()) {
@@ -405,12 +404,12 @@ static void app_init() {
         // Font sizes and layout behave like CSS px values.
         styling.set_scaling_mode(afterhours::ui::ScalingMode::Adaptive);
 
-        // Enable UI validation in development mode (min font size, contrast,
-        // resolution independence, etc.)
+        // Enable UI validation checks (min font size, contrast, etc.)
+        // Use Silent mode so per-frame log spam doesn't peg the CPU;
+        // ValidationSummarySystem prints a deduplicated report instead.
         styling.enable_development_validation();
-        // Lower min font threshold for 720p (11px is legible at this res)
+        styling.validation.mode = afterhours::ui::ValidationMode::Silent;
         styling.validation.min_font_size = 11.0f;
-        // Disable visual overlays in test mode so screenshots are clean
         if (app_state::testModeEnabled) {
             styling.validation.highlight_violations = false;
         }
@@ -577,7 +576,6 @@ static void app_init() {
         // UI validation systems (design rule enforcement)
         afterhours::ui::validation::register_systems<InputAction>(sm);
 
-        // Validation summary: deduplicates warnings and prints a clean report
         {
             auto summary = std::make_unique<ecs::ValidationSummarySystem>();
             summary->settle_frames = 5;
@@ -621,7 +619,6 @@ static void app_frame() {
     }
 
     afterhours::graphics::begin_drawing();
-    // Dark background #1E1E1E
     afterhours::graphics::clear_background(
         afterhours::Color{30, 30, 30, 255});
 
