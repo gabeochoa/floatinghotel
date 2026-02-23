@@ -1402,6 +1402,7 @@ private:
             }
             div(ctx, mk(row.ent(), 10),
                 preset::Badge(bestBadge->label, bg, btxt)
+                    .with_font_size(FontSize::Medium)
                     .with_debug_name("commit_badge"));
         }
 
@@ -1409,6 +1410,7 @@ private:
         div(ctx, mk(row.ent(), 30),
             preset::MetaText(commit.hash.substr(0, 7))
                 .with_size(ComponentSize{pixels(HASH_W), h720(ROW_H)})
+                .with_font_size(FontSize::Medium)
                 .with_alignment(TextAlignment::Right)
                 .with_absolute_position()
                 .with_translate(pixels(sidebarW - HASH_W - 14.0f), pixels(0))
