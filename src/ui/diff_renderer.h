@@ -1,37 +1,9 @@
 #pragma once
 
-#include <string>
-#include <vector>
-
-#include "../ecs/components.h"
+#include "../ecs/ui_imports.h"
 #include "../git/git_commands.h"
-#include "../input_mapping.h"
-#include "../rl.h"
-#include "../ui_context.h"
-#include "theme.h"
 
 namespace ui {
-
-using afterhours::Entity;
-using afterhours::ui::UIContext;
-using afterhours::ui::imm::ComponentConfig;
-using afterhours::ui::imm::button;
-using afterhours::ui::imm::div;
-using afterhours::ui::imm::mk;
-using afterhours::ui::Axis;
-using afterhours::ui::AlignItems;
-using afterhours::ui::children;
-using afterhours::ui::ComponentSize;
-using afterhours::ui::FlexDirection;
-using afterhours::ui::JustifyContent;
-using afterhours::ui::Overflow;
-using afterhours::ui::Padding;
-using afterhours::ui::Margin;
-using afterhours::ui::TextAlignment;
-using afterhours::ui::percent;
-using afterhours::ui::pixels;
-using afterhours::ui::h720;
-using afterhours::ui::w1280;
 
 namespace diff_detail {
 

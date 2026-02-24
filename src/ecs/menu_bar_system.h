@@ -1,40 +1,12 @@
 #pragma once
 
 #include <algorithm>
-#include <string>
-#include <vector>
 
-#include "../../vendor/afterhours/src/core/system.h"
 #include "../../vendor/afterhours/src/plugins/toast.h"
-#include "../input_mapping.h"
-#include "../rl.h"
 #include "../ui/menu_setup.h"
-#include "../ui/theme.h"
-#include "../ui_context.h"
-#include "components.h"
+#include "ui_imports.h"
 
 namespace ecs {
-
-using afterhours::Entity;
-using afterhours::ui::UIContext;
-using afterhours::ui::imm::ComponentConfig;
-using afterhours::ui::imm::div;
-using afterhours::ui::imm::button;
-using afterhours::ui::imm::mk;
-using afterhours::ui::pixels;
-using afterhours::ui::h720;
-using afterhours::ui::w1280;
-using afterhours::ui::percent;
-using afterhours::ui::children;
-using afterhours::ui::FlexDirection;
-using afterhours::ui::AlignItems;
-using afterhours::ui::JustifyContent;
-using afterhours::ui::ComponentSize;
-using afterhours::ui::Padding;
-using afterhours::ui::TextAlignment;
-using afterhours::ui::HasClickListener;
-using afterhours::ui::ClickActivationMode;
-using afterhours::ui::resolve_to_pixels;
 
 // Colors from the mockup spec
 namespace menu_colors {

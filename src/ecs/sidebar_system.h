@@ -5,50 +5,16 @@
 #include <string>
 #include <vector>
 
-#include "../../vendor/afterhours/src/core/system.h"
-#include "../input_mapping.h"
-#include "../rl.h"
 #include "../git/git_commands.h"
 #include "../git/git_runner.h"
 #include "../settings.h"
-#include "../ui/presets.h"
-#include "../ui/theme.h"
-#include "../ui_context.h"
 #include "../util/git_helpers.h"
-#include "components.h"
+#include "ui_imports.h"
 
 #include "../../vendor/afterhours/src/plugins/modal.h"
 #include "../../vendor/afterhours/src/plugins/ui/text_input/text_input.h"
 
 namespace ecs {
-
-using afterhours::Entity;
-using afterhours::ui::UIContext;
-using afterhours::ui::imm::ComponentConfig;
-using afterhours::ui::imm::div;
-using afterhours::ui::imm::button;
-using afterhours::ui::imm::mk;
-using afterhours::ui::pixels;
-using afterhours::ui::h720;
-using afterhours::ui::w1280;
-using afterhours::ui::expand;
-using afterhours::ui::percent;
-using afterhours::ui::children;
-using afterhours::ui::FlexDirection;
-using afterhours::ui::AlignItems;
-using afterhours::ui::JustifyContent;
-using afterhours::ui::ComponentSize;
-using afterhours::ui::Padding;
-using afterhours::ui::Margin;
-using afterhours::ui::TextAlignment;
-using afterhours::ui::HasClickListener;
-using afterhours::ui::HasDragListener;
-using afterhours::ui::Overflow;
-using afterhours::ui::Axis;
-using afterhours::ui::FontSize;
-using afterhours::ui::JustifyContent;
-using afterhours::ui::resolve_to_pixels;
-using afterhours::ui::imm::checkbox;
 
 namespace sidebar_detail {
 

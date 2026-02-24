@@ -1,33 +1,8 @@
 #pragma once
 
-#include <string>
-
-#include "../../vendor/afterhours/src/core/system.h"
-#include "../input_mapping.h"
-#include "../rl.h"
-#include "../ui/presets.h"
-#include "../ui/theme.h"
-#include "../ui_context.h"
-#include "components.h"
+#include "ui_imports.h"
 
 namespace ecs {
-
-using afterhours::Entity;
-using afterhours::ui::UIContext;
-using afterhours::ui::imm::ComponentConfig;
-using afterhours::ui::imm::div;
-using afterhours::ui::imm::button;
-using afterhours::ui::imm::mk;
-using afterhours::ui::pixels;
-using afterhours::ui::h720;
-using afterhours::ui::w1280;
-using afterhours::ui::percent;
-using afterhours::ui::FlexDirection;
-using afterhours::ui::AlignItems;
-using afterhours::ui::ComponentSize;
-using afterhours::ui::Padding;
-using afterhours::ui::TextAlignment;
-using afterhours::ui::HasClickListener;
 
 // StatusBarSystem: Renders the status bar at the bottom of the window.
 // Shows branch name, dirty indicator, ahead/behind counts, and command log toggle.
