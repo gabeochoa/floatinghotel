@@ -152,7 +152,6 @@ struct CommitEditorComponent : public afterhours::BaseComponent {
 
 struct MenuComponent : public afterhours::BaseComponent {
     int activeMenuIndex = -1;
-    bool commandLogVisible = false;
 
     enum class PendingDialog { None, OpenRepo };
     PendingDialog pendingDialog = PendingDialog::None;
@@ -169,18 +168,6 @@ struct CommandLogComponent : public afterhours::BaseComponent {
         double timestamp = 0.0;
     };
     std::vector<Entry> entries;
-};
-
-struct SettingsComponent : public afterhours::BaseComponent {
-    int windowWidth = 1200;
-    int windowHeight = 800;
-    int windowX = 100;
-    int windowY = 100;
-    float sidebarWidth = 280.0f;
-    float commitLogRatio = 0.4f;
-    std::vector<std::string> openRepoPaths;
-    std::string lastActiveRepo;
-    std::string settingsFilePath;
 };
 
 // ---- Tab Components ----

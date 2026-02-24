@@ -11,8 +11,7 @@
 
 namespace ecs {
 
-// AsyncGitDataRefreshSystem: Non-blocking replacement for
-// GitDataRefreshSystem.
+// AsyncGitDataRefreshSystem: Non-blocking git data refresh.
 //
 // When RepoComponent::refreshRequested is set, this system launches all
 // git queries (status, log, diff, branch-list, rev-parse HEAD) on
@@ -21,9 +20,6 @@ namespace ecs {
 // ready it is consumed and written into the RepoComponent on the main
 // thread.  Once every pending operation has completed,
 // RepoComponent::isRefreshing is cleared.
-//
-// The original synchronous GitDataRefreshSystem is preserved alongside
-// this one -- swap the registration in main.cpp to choose which to use.
 struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
     void for_each_with(afterhours::Entity& entity,
