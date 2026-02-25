@@ -91,6 +91,7 @@ struct RepoComponent : public afterhours::BaseComponent {
 
     bool refreshRequested = false;
     bool isRefreshing = false;
+    bool hasLoadedOnce = false;
 
     // Branch dialog state (T031)
     bool showNewBranchDialog = false;

@@ -359,6 +359,7 @@ static void app_init() {
         std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count());
 
     {
+        Settings::get().auto_save_enabled = false;
         Settings::get().load_save_file();
     }
 
@@ -565,6 +566,10 @@ static void app_init() {
         }
     }
 
+    // Single settings write for all init-time mutations, then re-enable auto-save
+    Settings::get().write_save_file();
+    Settings::get().auto_save_enabled = true;
+
     auto t2 = std::chrono::high_resolution_clock::now();
     log_info("  Systems registration: {} ms",
         std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
@@ -631,7 +636,9 @@ static void app_frame() {
 
 // Cleanup callback: runs when window is closing
 static void app_cleanup() {
-    // Save open tab repos in tab-strip order
+    // Batch all cleanup mutations into a single disk write
+    Settings::get().auto_save_enabled = false;
+
     auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
         .whereHasComponent<ecs::TabStripComponent>().gen();
     if (!tabStripQ.empty()) {
@@ -801,16 +808,16 @@ int main(int argc, char* argv[]) {
         repoPath = std::filesystem::absolute(repoPath).string();
     }
 
-    // Validate that the path is a git repository
+    // Quick validation: check the directory exists and contains .git
+    // (avoids spawning a git subprocess on startup)
     if (!repoPath.empty()) {
         if (!std::filesystem::is_directory(repoPath)) {
             fprintf(stderr, "Error: '%s' is not a directory\n",
                     repoPath.c_str());
             return 1;
         }
-        auto result = run_process(
-            "", {"git", "-C", repoPath, "rev-parse", "--git-dir"});
-        if (!result.success()) {
+        auto gitDir = std::filesystem::path(repoPath) / ".git";
+        if (!std::filesystem::exists(gitDir)) {
             fprintf(stderr, "Error: '%s' is not a git repository\n",
                     repoPath.c_str());
             return 1;

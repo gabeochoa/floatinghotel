@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <fstream>
+#include <sstream>
 
 #include <afterhours/src/logging.h>
 #include "../git/git_parser.h"
@@ -868,6 +870,65 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     }
 }
 
+inline std::optional<FileDiff> build_new_file_diff(
+    const std::string& repoPath, const std::string& relPath) {
+    namespace fs = std::filesystem;
+    fs::path fullPath = fs::path(repoPath) / relPath;
+
+    std::error_code ec;
+    if (!fs::exists(fullPath, ec) || fs::is_directory(fullPath, ec))
+        return std::nullopt;
+
+    auto fileSize = fs::file_size(fullPath, ec);
+    if (ec) return std::nullopt;
+
+    constexpr std::uintmax_t MAX_SIZE = 1 * 1024 * 1024; // 1 MB
+    if (fileSize > MAX_SIZE) return std::nullopt;
+
+    std::ifstream ifs(fullPath, std::ios::binary);
+    if (!ifs) return std::nullopt;
+
+    std::string contents((std::istreambuf_iterator<char>(ifs)),
+                          std::istreambuf_iterator<char>());
+
+    // Detect binary: any null byte in the first 8 KB
+    bool isBinary = false;
+    {
+        auto checkLen = std::min(contents.size(), size_t(8192));
+        for (size_t i = 0; i < checkLen; ++i) {
+            if (contents[i] == '\0') { isBinary = true; break; }
+        }
+    }
+
+    FileDiff diff;
+    diff.filePath = relPath;
+    diff.isNew = true;
+
+    if (isBinary) {
+        diff.isBinary = true;
+        return diff;
+    }
+
+    std::istringstream ss(contents);
+    std::string line;
+    DiffHunk hunk;
+    hunk.oldStart = 0;
+    hunk.oldCount = 0;
+    hunk.newStart = 1;
+
+    int lineNum = 0;
+    while (std::getline(ss, line)) {
+        ++lineNum;
+        hunk.lines.push_back("+" + line);
+    }
+    hunk.newCount = lineNum;
+    hunk.header = "@@ -0,0 +1," + std::to_string(lineNum) + " @@ (new file)";
+    diff.additions = lineNum;
+    diff.hunks.push_back(std::move(hunk));
+
+    return diff;
+}
+
 // MainContentSystem: Renders the main content area (diff viewer or empty state).
 struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
@@ -914,21 +975,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             return;
         }
 
-        // Determine what to show: diff, commit detail, or empty state
-        bool hasSelectedFile = false;
-        bool hasSelectedCommit = false;
-        bool hasDiffData = false;
-
         auto& repo = repoEntities[0].get().get<RepoComponent>();
-        hasSelectedFile = !repo.selectedFilePath.empty();
-        hasSelectedCommit = !repo.selectedCommitHash.empty();
-        hasDiffData = !repo.currentDiff.empty();
+        bool hasSelectedFile = !repo.selectedFilePath.empty();
+        bool hasSelectedCommit = !repo.selectedCommitHash.empty();
 
-        if (hasSelectedFile && hasDiffData) {
-            // Filter diffs to just the selected file
+        if (hasSelectedFile) {
+            // Try to find a matching diff from git diff output
             std::vector<FileDiff> selectedDiffs;
             for (auto& d : repo.currentDiff) {
-                // Match by filename (selectedFilePath may be relative, d.filePath may vary)
                 if (d.filePath == repo.selectedFilePath ||
                     d.filePath.ends_with("/" + repo.selectedFilePath) ||
                     repo.selectedFilePath.ends_with("/" + d.filePath) ||
@@ -938,15 +992,19 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }
 
+            // For new/untracked files, synthesize a diff from the file contents
+            if (selectedDiffs.empty()) {
+                auto synth = build_new_file_diff(repo.repoPath,
+                                                  repo.selectedFilePath);
+                if (synth.has_value()) {
+                    selectedDiffs.push_back(std::move(*synth));
+                }
+            }
+
             if (!selectedDiffs.empty()) {
-                // Render diff as child of mainBg using percent() sizing.
-                // (Previously used a separate absolute element as workaround
-                // for framework bug — now fixed upstream.)
                 ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
-                                       0, 0);  // 0 = use percent(1.0f)
+                                       0, 0);
             } else {
-                // File selected but no diff found for it (might be untracked/new)
-                // Center the message both horizontally and vertically
                 auto noDiffContainer = div(ctx, mk(mainBg.ent(), 3040),
                     ComponentConfig{}
                         .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
@@ -969,7 +1027,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         } else if (hasSelectedCommit) {
             render_commit_detail(ctx, mainBg.ent(), repo, layout);
         } else {
-            // Empty state — clean, Apple Notes-style welcome
             auto emptyContainer = div(ctx, mk(mainBg.ent(), 3060),
                 ComponentConfig{}
                     .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
@@ -980,50 +1037,91 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_roundness(0.0f)
                     .with_debug_name("empty_state"));
 
-            // Large decorative icon
-            div(ctx, mk(emptyContainer.ent(), 3005),
-                ComponentConfig{}
-                    .with_label("\xe2\x97\x87")  // diamond symbol
-                    .with_size(ComponentSize{children(), children()})
-                    .with_font_size(pixels(32))
-                    .with_padding(Padding{
-                        .top = h720(0), .right = w1280(0),
-                        .bottom = h720(16), .left = w1280(0)})
-                    .with_transparent_bg()
-                    .with_custom_text_color(afterhours::Color{80, 80, 80, 255})
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("empty_icon"));
+            if (!repo.hasLoadedOnce && (repo.isRefreshing || repo.refreshRequested)) {
+                // Initial load in progress
+                static int mainSpinIdx = 0;
+                static int mainFrameCounter = 0;
+                constexpr const char* spinFrames[] = {
+                    "\xe2\xa0\x8b", "\xe2\xa0\x99", "\xe2\xa0\xb9",
+                    "\xe2\xa0\xb8", "\xe2\xa0\xbc", "\xe2\xa0\xb4",
+                    "\xe2\xa0\xa6", "\xe2\xa0\xa7", "\xe2\xa0\x87",
+                    "\xe2\xa0\x8f"
+                };
+                if (++mainFrameCounter >= 6) {
+                    mainFrameCounter = 0;
+                    mainSpinIdx = (mainSpinIdx + 1) % 10;
+                }
 
-            // Primary hint
-            div(ctx, mk(emptyContainer.ent(), 3010),
-                ComponentConfig{}
-                    .with_label("Select a file or commit")
-                    .with_size(ComponentSize{children(), children()})
-                    .with_font_size(afterhours::ui::FontSize::Large)
-                    .with_padding(Padding{
-                        .top = h720(0), .right = w1280(8),
-                        .bottom = h720(6), .left = w1280(8)})
-                    .with_transparent_bg()
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("empty_hint_1"));
+                div(ctx, mk(emptyContainer.ent(), 3005),
+                    ComponentConfig{}
+                        .with_label(spinFrames[mainSpinIdx])
+                        .with_size(ComponentSize{children(), children()})
+                        .with_font_size(pixels(32))
+                        .with_padding(Padding{
+                            .top = h720(0), .right = w1280(0),
+                            .bottom = h720(16), .left = w1280(0)})
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("loading_icon"));
 
-            // Secondary hint
-            div(ctx, mk(emptyContainer.ent(), 3020),
-                ComponentConfig{}
-                    .with_label("to view changes")
-                    .with_size(ComponentSize{children(), children()})
-                    .with_font_size(afterhours::ui::FontSize::Large)
-                    .with_padding(Padding{
-                        .top = h720(0), .right = w1280(8),
-                        .bottom = h720(4), .left = w1280(8)})
-                    .with_transparent_bg()
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("empty_hint_2"));
+                div(ctx, mk(emptyContainer.ent(), 3010),
+                    ComponentConfig{}
+                        .with_label("Loading repository\xe2\x80\xa6")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_padding(Padding{
+                            .top = h720(0), .right = w1280(8),
+                            .bottom = h720(6), .left = w1280(8)})
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("loading_text"));
+            } else {
+                div(ctx, mk(emptyContainer.ent(), 3005),
+                    ComponentConfig{}
+                        .with_label("\xe2\x97\x87")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_font_size(pixels(32))
+                        .with_padding(Padding{
+                            .top = h720(0), .right = w1280(0),
+                            .bottom = h720(16), .left = w1280(0)})
+                        .with_transparent_bg()
+                        .with_custom_text_color(afterhours::Color{80, 80, 80, 255})
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("empty_icon"));
+
+                div(ctx, mk(emptyContainer.ent(), 3010),
+                    ComponentConfig{}
+                        .with_label("Select a file or commit")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_padding(Padding{
+                            .top = h720(0), .right = w1280(8),
+                            .bottom = h720(6), .left = w1280(8)})
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("empty_hint_1"));
+
+                div(ctx, mk(emptyContainer.ent(), 3020),
+                    ComponentConfig{}
+                        .with_label("to view changes")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_padding(Padding{
+                            .top = h720(0), .right = w1280(8),
+                            .bottom = h720(4), .left = w1280(8)})
+                        .with_transparent_bg()
+                        .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("empty_hint_2"));
+            }
 
             // Keyboard shortcut hint
             div(ctx, mk(emptyContainer.ent(), 3030),

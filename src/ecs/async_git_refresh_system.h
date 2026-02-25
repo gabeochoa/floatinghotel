@@ -133,6 +133,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
         if (!pendingStatus_ && !pendingLog_ && !pendingDiff_ &&
             !pendingBranches_ && !pendingHead_) {
             repo.isRefreshing = false;
+            repo.hasLoadedOnce = true;
         }
     }
 

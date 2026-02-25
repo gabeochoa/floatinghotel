@@ -1,6 +1,7 @@
 #include "git_runner.h"
 
 #include <mutex>
+#include <thread>
 
 namespace git {
 
@@ -47,10 +48,11 @@ GitResult git_run(const std::string& repo_path,
 std::future<GitResult> git_run_async(
     const std::string& repo_path,
     const std::vector<std::string>& args) {
-    return std::async(std::launch::async,
-                      [repo_path, args]() {
-                          return git_run(repo_path, args);
-                      });
+    std::packaged_task<GitResult()> task(
+        [repo_path, args]() { return git_run(repo_path, args); });
+    auto future = task.get_future();
+    std::thread(std::move(task)).detach();
+    return future;
 }
 
 bool is_git_available() {

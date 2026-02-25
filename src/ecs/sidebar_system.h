@@ -901,26 +901,51 @@ private:
                      repo.untrackedFiles.empty();
 
         if (empty) {
-            // Empty state
-            div(ctx, mk(scrollParent, 2500),
-                preset::EmptyStateText("\xe2\x9c\x93 No changes") // ✓ No changes
-                    .with_size(ComponentSize{percent(1.0f), h720(28)})
-                    .with_padding(Padding{
-                        .top = h720(20), .right = w1280(8),
-                        .bottom = h720(4), .left = w1280(8)})
-                    .with_debug_name("empty_changes"));
+            if (!repo.hasLoadedOnce) {
+                // Initial load in progress — show spinner
+                static int spinIdx = 0;
+                static int frameCounter = 0;
+                constexpr const char* spinFrames[] = {
+                    "\xe2\xa0\x8b", "\xe2\xa0\x99", "\xe2\xa0\xb9",
+                    "\xe2\xa0\xb8", "\xe2\xa0\xbc", "\xe2\xa0\xb4",
+                    "\xe2\xa0\xa6", "\xe2\xa0\xa7", "\xe2\xa0\x87",
+                    "\xe2\xa0\x8f"  // braille spinner: ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏
+                };
+                if (++frameCounter >= 6) { frameCounter = 0; spinIdx = (spinIdx + 1) % 10; }
+                std::string label = std::string(spinFrames[spinIdx]) + "  Loading\xe2\x80\xa6";
 
-            div(ctx, mk(scrollParent, 2501),
-                ComponentConfig{}
-                    .with_label("Working tree clean")
-                    .with_size(ComponentSize{percent(1.0f), h720(22)})
-                    .with_padding(Padding{
-                        .top = h720(0), .right = w1280(8),
-                        .bottom = h720(8), .left = w1280(8)})
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("empty_clean"));
+                div(ctx, mk(scrollParent, 2500),
+                    ComponentConfig{}
+                        .with_label(label)
+                        .with_size(ComponentSize{percent(1.0f), h720(28)})
+                        .with_padding(Padding{
+                            .top = h720(20), .right = w1280(8),
+                            .bottom = h720(4), .left = w1280(8)})
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("loading_spinner"));
+            } else {
+                div(ctx, mk(scrollParent, 2500),
+                    preset::EmptyStateText("\xe2\x9c\x93 No changes")
+                        .with_size(ComponentSize{percent(1.0f), h720(28)})
+                        .with_padding(Padding{
+                            .top = h720(20), .right = w1280(8),
+                            .bottom = h720(4), .left = w1280(8)})
+                        .with_debug_name("empty_changes"));
+
+                div(ctx, mk(scrollParent, 2501),
+                    ComponentConfig{}
+                        .with_label("Working tree clean")
+                        .with_size(ComponentSize{percent(1.0f), h720(22)})
+                        .with_padding(Padding{
+                            .top = h720(0), .right = w1280(8),
+                            .bottom = h720(8), .left = w1280(8)})
+                        .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                        .with_alignment(TextAlignment::Center)
+                        .with_roundness(0.0f)
+                        .with_debug_name("empty_clean"));
+            }
             return;
         }
 
