@@ -1,7 +1,7 @@
 # Text hierarchy audit at 720p
 make_test_repo
 resize 1280 720
-wait_frames 15
+wait_frames 2
 
 # 1. Empty state — menu bar, toolbar, sidebar sections, empty state text, status bar
 screenshot txaudit_01_empty
@@ -31,6 +31,6 @@ screenshot txaudit_05_view_menu
 
 escape
 wait_frames 5
-click_text Git
+click_text Repository
 wait_frames 8
-screenshot txaudit_06_git_menu
+screenshot txaudit_06_repository_menu

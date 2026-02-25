@@ -9,7 +9,7 @@ TEMPLATE="/tmp/floatinghotel_test_template"
 # Fast path: copy from cached template
 if [ -d "$TEMPLATE/.git" ]; then
     rm -rf "$REPO"
-    cp -R "$TEMPLATE" "$REPO"
+    cp -Rc "$TEMPLATE" "$REPO"
     # Re-apply the dirty working tree state (cp preserves it, but
     # git index needs to be valid — just verify)
     echo "$REPO"
@@ -145,6 +145,6 @@ printf '\x89PNG\r\n' > icon.png
 
 # Now copy template to actual repo
 rm -rf "$REPO"
-cp -R "$TEMPLATE" "$REPO"
+cp -Rc "$TEMPLATE" "$REPO"
 
 echo "$REPO"

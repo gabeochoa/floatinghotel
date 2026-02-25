@@ -1,28 +1,28 @@
 make_test_repo
 resize 1280 720
-wait_frames 30
+wait_frames 2
 
 # Main changes view
 screenshot sidebar_changes.png
-wait_frames 5
+wait_frames 2
 
 # Click a file to show selection
 click_text "README.md"
-wait_frames 15
+wait_frames 3
 screenshot sidebar_selected.png
-wait_frames 5
+wait_frames 2
 
 # Switch to Refs tab
 click_text "Refs"
-wait_frames 15
+wait_frames 3
 screenshot sidebar_refs.png
-wait_frames 5
+wait_frames 2
 
 # Switch back to Changes
 click_text "Changes"
-wait_frames 15
+wait_frames 3
 
 # Click a commit
 click_text "Add contributing"
-wait_frames 15
+wait_frames 3
 screenshot sidebar_commit_selected.png

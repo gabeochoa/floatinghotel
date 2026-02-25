@@ -1,35 +1,23 @@
-#TDD not ready
-# Flow: Write a commit message and commit staged changes
-# User stages files, types a message, and commits
+# Flow: Commit staged changes via the sidebar toolbar
 make_test_repo
 resize 1280 720
 wait_frames 5
 
-# Hide sidebar to access toolbar buttons
-click_text "View"
-wait_frames 3
-click_text "Toggle Sidebar"
-wait_frames 5
+# Initial state: 1 staged file (.gitignore), unstaged + untracked files
+validate staged_count=1
+screenshot flow_commit_01_initial
 
-# Stage all files first
-click_text "Stage All"
-wait_frames 5
-screenshot flow_commit_01_staged
+# Click Commit in sidebar toolbar — opens unstaged dialog
+click_button "Commit"
+wait_frames 10
+screenshot flow_commit_02_unstaged_dialog
 
-# Click Commit button to open the commit editor
-click_text "Commit"
-wait_frames 5
-screenshot flow_commit_02_editor_open
+# Click "Stage All & Commit" to stage everything and commit
+click_button "Stage All & Commit"
+wait_frames 10
+wait_for_refresh
+screenshot flow_commit_03_committed
 
-# Type a commit message
-type "Add build config and todo list"
-wait_frames 5
-screenshot flow_commit_03_message_typed
-
-# Submit the commit (Enter or a confirm button)
-enter
-wait_frames 5
-screenshot flow_commit_04_committed
-
-# The file list should now be empty (working tree clean)
-screenshot flow_commit_05_clean_state
+# After commit, staged count should be 0 (clean tree)
+validate staged_count=0
+screenshot flow_commit_04_clean_state

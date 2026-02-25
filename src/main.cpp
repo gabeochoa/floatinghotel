@@ -15,6 +15,7 @@
 #include "../vendor/afterhours/src/ecs.h"
 
 #include "ecs/components.h"
+#include "ecs/app_reset.h"
 #include "ecs/async_git_refresh_system.h"
 #include "ecs/layout_system.h"
 #include "ecs/menu_bar_system.h"
@@ -72,32 +73,14 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
         auto layoutQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::LayoutComponent>().gen();
         if (!layoutQ.empty()) {
-            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
-            layout.sidebarVisible = true;
-            layout.commandLogVisible = false;
-            layout.sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
-            layout.fileViewMode = ecs::LayoutComponent::FileViewMode::Flat;
-            layout.diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
+            ecs::reset_layout_defaults(layoutQ[0].get().get<ecs::LayoutComponent>());
         }
 
-        // Close all extra tabs, keep only one
         auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::TabStripComponent>().gen();
         if (!tabStripQ.empty() && !layoutQ.empty()) {
-            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
-            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
-            while (tabStrip.tabOrder.size() > 1) {
-                auto lastId = tabStrip.tabOrder.back();
-                auto lastIdx = tabStrip.tabOrder.size() - 1;
-                ecs::TabBarSystem::close_tab(tabStrip, lastId, lastIdx, true, layout);
-            }
-            // Ensure the remaining tab is active
-            if (!tabStrip.tabOrder.empty()) {
-                auto firstOpt = afterhours::EntityHelper::getEntityForID(tabStrip.tabOrder[0]);
-                if (firstOpt.valid() && !firstOpt->has<ecs::ActiveTab>()) {
-                    firstOpt->addComponent<ecs::ActiveTab>();
-                }
-            }
+            ecs::reset_tabs(tabStripQ[0].get().get<ecs::TabStripComponent>(),
+                            layoutQ[0].get().get<ecs::LayoutComponent>());
         }
 
         // Switch the active tab to the test repo and load data synchronously
@@ -122,31 +105,19 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.deleteBranchName.clear();
             repo.showForceDeleteDialog = false;
 
-            // Clear commit editor state
             auto editorEntities = afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<ecs::CommitEditorComponent>()
                 .whereHasComponent<ecs::ActiveTab>()
                 .gen();
             if (!editorEntities.empty()) {
-                auto& editor = editorEntities[0].get().get<ecs::CommitEditorComponent>();
-                editor.subject.clear();
-                editor.body.clear();
-                editor.isVisible = false;
-                editor.isAmend = false;
-                editor.commitRequested = false;
-                editor.showUnstagedDialog = false;
-                editor.rememberChoice = false;
+                ecs::reset_commit_editor(editorEntities[0].get().get<ecs::CommitEditorComponent>());
             }
 
-            // Close any open menus
             auto menuEntities = afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<ecs::MenuComponent>()
                 .gen();
             if (!menuEntities.empty()) {
-                auto& menu = menuEntities[0].get().get<ecs::MenuComponent>();
-                menu.activeMenuIndex = -1;
-                menu.pendingDialog = ecs::MenuComponent::PendingDialog::None;
-                menu.pendingToast.clear();
+                ecs::reset_menus(menuEntities[0].get().get<ecs::MenuComponent>());
             }
 
             // Synchronous refresh — data is ready this frame, no waits needed
@@ -201,43 +172,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             log_warn("make_test_repo: no RepoComponent entity found!");
         }
 
-        // Reset all scroll offsets to prevent stale scroll state
-        auto scrollEntities = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<afterhours::ui::HasScrollView>().gen();
-        for (auto& ref : scrollEntities) {
-            auto& sv = ref.get().get<afterhours::ui::HasScrollView>();
-            sv.scroll_offset = {0.0f, 0.0f};
-        }
-
-        // Remove any active toasts from previous tests
-        auto toastEntities = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<afterhours::toast::Toast>().gen();
-        for (auto& ref : toastEntities) {
-            ref.get().cleanup = true;
-        }
-
-        // Clear modal stack to prevent stale modal input gates from blocking clicks
-        auto* modalRoot = afterhours::EntityHelper::get_singleton_cmp<
-            afterhours::modal::ModalRoot>();
-        if (modalRoot) {
-            modalRoot->modal_stack.clear();
-        }
-
-        // Reset UI focus/active/hot state and clear all input gates
-        auto ctxEntities = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<afterhours::ui::UIContext<InputAction>>().gen();
-        if (!ctxEntities.empty()) {
-            auto& ctx = ctxEntities[0].get().get<afterhours::ui::UIContext<InputAction>>();
-            ctx.hot_id = ctx.ROOT;
-            ctx.prev_hot_id = ctx.ROOT;
-            ctx.focus_id = ctx.ROOT;
-            ctx.visual_focus_id = ctx.ROOT;
-            ctx.active_id = ctx.ROOT;
-            ctx.prev_active_id = ctx.ROOT;
-            ctx.last_processed = ctx.ROOT;
-            ctx.input_gates.clear();
-        }
-        afterhours::testing::test_input::reset_all();
+        ecs::reset_ui_transient_state();
 
         log_info("make_test_repo: done, path={}", repoPath);
         cmd.consume();
@@ -253,29 +188,15 @@ struct HandleResetUI : afterhours::System<afterhours::testing::PendingE2ECommand
 
         auto layoutQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::LayoutComponent>().gen();
-        if (!layoutQ.empty()) {
-            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
-            layout.sidebarVisible = true;
-            layout.commandLogVisible = false;
-            layout.sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
-        }
-
         auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::TabStripComponent>().gen();
+
+        if (!layoutQ.empty()) {
+            ecs::reset_layout_defaults(layoutQ[0].get().get<ecs::LayoutComponent>());
+        }
         if (!tabStripQ.empty() && !layoutQ.empty()) {
-            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
-            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
-            while (tabStrip.tabOrder.size() > 1) {
-                auto lastId = tabStrip.tabOrder.back();
-                auto lastIdx = tabStrip.tabOrder.size() - 1;
-                ecs::TabBarSystem::close_tab(tabStrip, lastId, lastIdx, true, layout);
-            }
-            if (!tabStrip.tabOrder.empty()) {
-                auto firstOpt = afterhours::EntityHelper::getEntityForID(tabStrip.tabOrder[0]);
-                if (firstOpt.valid() && !firstOpt->has<ecs::ActiveTab>()) {
-                    firstOpt->addComponent<ecs::ActiveTab>();
-                }
-            }
+            ecs::reset_tabs(tabStripQ[0].get().get<ecs::TabStripComponent>(),
+                            layoutQ[0].get().get<ecs::LayoutComponent>());
         }
 
         cmd.consume();
@@ -338,16 +259,28 @@ struct HandleTabCommands : afterhours::System<afterhours::testing::PendingE2ECom
                 cmd.fail("reset_tabs: missing TabStripComponent or LayoutComponent");
                 return;
             }
-            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
-            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
-            while (tabStrip.tabOrder.size() > 1) {
-                auto lastId = tabStrip.tabOrder.back();
-                auto lastIdx = tabStrip.tabOrder.size() - 1;
-                ecs::TabBarSystem::close_tab(tabStrip, lastId, lastIdx, false, layout);
-            }
+            ecs::reset_tabs(tabStripQ[0].get().get<ecs::TabStripComponent>(),
+                            layoutQ[0].get().get<ecs::LayoutComponent>());
             cmd.consume();
             return;
         }
+    }
+};
+
+// Flag for wait_for_refresh gating (set by system, read by app_frame).
+// Declared here so it's visible to both HandleWaitForRefresh and app_frame.
+namespace e2e_refresh_gate {
+inline bool triggered = false;
+}
+
+// HandleWaitForRefresh: consumes the "wait_for_refresh" E2E command immediately
+// and sets a flag that gates the runner in app_frame() until the async refresh
+// completes. This avoids the runner advancing to subsequent commands too early.
+struct HandleWaitForRefresh : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("wait_for_refresh")) return;
+        cmd.consume();
+        e2e_refresh_gate::triggered = true;
     }
 };
 
@@ -369,6 +302,8 @@ std::string testScriptDir;
 std::string screenshotDir = "output/screenshots";
 float e2eTimeout = 30.0f;
 afterhours::testing::E2ERunner e2eRunner;
+bool waitingForRefresh = false;
+float refreshWaitElapsed = 0.0f;
 
 // Validation
 std::string validationReportPath;
@@ -551,6 +486,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
             sm.register_update_system(std::make_unique<HandleResetUI>());
             sm.register_update_system(std::make_unique<HandleTabCommands>());
+            sm.register_update_system(std::make_unique<HandleWaitForRefresh>());
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
                 std::make_unique<afterhours::testing::HandleScreenshotCommand>(
@@ -611,10 +547,38 @@ static void app_frame() {
     // E2E test runner: tick and check completion
     if (app_state::testModeEnabled && app_state::e2eRunner.has_commands()) {
         afterhours::testing::test_input::reset_frame();
-        app_state::e2eRunner.tick(dt);
-        if (app_state::e2eRunner.is_finished()) {
-            app_state::e2eRunner.print_results();
-            afterhours::graphics::request_quit();
+
+        // Pick up the flag set by HandleWaitForRefresh during the
+        // previous frame's system run (systems execute after runner tick).
+        if (e2e_refresh_gate::triggered) {
+            e2e_refresh_gate::triggered = false;
+            app_state::waitingForRefresh = true;
+            app_state::refreshWaitElapsed = 0.0f;
+        }
+
+        if (app_state::waitingForRefresh) {
+            app_state::refreshWaitElapsed += dt;
+            constexpr float MAX_REFRESH_WAIT = 5.0f;
+            bool refreshDone = true;
+            auto repoQ = afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<ecs::RepoComponent>()
+                .whereHasComponent<ecs::ActiveTab>()
+                .gen();
+            if (!repoQ.empty()) {
+                auto& repo = repoQ[0].get().get<ecs::RepoComponent>();
+                refreshDone = !repo.refreshRequested && !repo.isRefreshing;
+            }
+            if (refreshDone || app_state::refreshWaitElapsed > MAX_REFRESH_WAIT) {
+                app_state::waitingForRefresh = false;
+            }
+        }
+
+        if (!app_state::waitingForRefresh) {
+            app_state::e2eRunner.tick(dt);
+            if (app_state::e2eRunner.is_finished()) {
+                app_state::e2eRunner.print_results();
+                afterhours::graphics::request_quit();
+            }
         }
     }
 
@@ -698,26 +662,18 @@ int main(int argc, char* argv[]) {
         auto layoutQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::LayoutComponent>().gen();
         if (!layoutQ.empty()) {
-            auto& l = layoutQ[0].get().get<ecs::LayoutComponent>();
-            l.sidebarVisible = true;
-            l.commandLogVisible = false;
-            l.diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
-            l.fileViewMode = ecs::LayoutComponent::FileViewMode::Flat;
-            l.sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
+            ecs::reset_layout_defaults(layoutQ[0].get().get<ecs::LayoutComponent>());
         }
         auto editorQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::CommitEditorComponent>()
             .whereHasComponent<ecs::ActiveTab>().gen();
         if (!editorQ.empty()) {
-            auto& e = editorQ[0].get().get<ecs::CommitEditorComponent>();
-            e.isAmend = false;
-            e.commitRequested = false;
-            e.showUnstagedDialog = false;
+            ecs::reset_commit_editor(editorQ[0].get().get<ecs::CommitEditorComponent>());
         }
         auto menuQ = afterhours::EntityQuery({.force_merge = true})
             .whereHasComponent<ecs::MenuComponent>().gen();
         if (!menuQ.empty()) {
-            menuQ[0].get().get<ecs::MenuComponent>().activeMenuIndex = -1;
+            ecs::reset_menus(menuQ[0].get().get<ecs::MenuComponent>());
         }
     });
     app_state::e2eRunner.set_property_getter([](const std::string& key) -> std::string {

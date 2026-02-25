@@ -510,12 +510,10 @@ private:
 
         auto rowBg = isCurrent ? theme::SELECTED_BG : theme::SIDEBAR_BG;
 
-        // Row container
-        auto rowResult = button(ctx, mk(parent, 2200 + index * 10),
-            ComponentConfig{}
+        // Row container (use div + HasClickListener for reliable E2E click detection)
+        auto rowResult = div(ctx, mk(parent, 2200 + index * 10),
+            preset::SelectableRow(isCurrent)
                 .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
                 .with_custom_background(rowBg)
                 .with_padding(Padding{
                     .top = h720(0), .right = w1280(8),
@@ -523,8 +521,10 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("branch_row"));
 
+        rowResult.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
+
         // Click -> checkout this branch
-        if (rowResult && !isCurrent) {
+        if (rowResult.ent().get<HasClickListener>().down && !isCurrent) {
             auto result = git::checkout_branch(repo.repoPath, branch.name);
             if (result.success()) {
                 repo.refreshRequested = true;

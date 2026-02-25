@@ -12,7 +12,7 @@ validate branch=main
 click_text "Repository"
 wait_frames 3
 click_text "Push"
-wait_frames 10
+wait_for_refresh
 
 # App should still be responsive (validate something to prove it)
 validate branch=main

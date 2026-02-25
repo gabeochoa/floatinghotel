@@ -1,23 +1,21 @@
-#TDD not ready
-# Flow: Switch between branches
-# User clicks the branch indicator to see branches, switches to another one
+# Flow: Switch between branches via the Refs sidebar tab
 make_test_repo
 resize 1280 720
 wait_frames 5
 
 # Should be on main branch
+validate branch=main
 screenshot flow_branch_01_on_main
 
-# Click the branch name in the toolbar to open branch picker
-click_text "main"
+# Switch to Refs tab
+click_button Refs
 wait_frames 5
-screenshot flow_branch_02_picker_open
+screenshot flow_branch_02_refs_tab
 
-# Switch to the feature branch
+# Click the feature branch to check it out
 click_text "feature/add-logging"
-wait_frames 5
+wait_for_refresh
 screenshot flow_branch_03_on_feature
 
-# The file list should update to show the feature branch state
-# The commit log should show the feature branch commit
-# The branch name should update in the toolbar and sidebar
+# Branch should have changed
+validate branch=feature/add-logging

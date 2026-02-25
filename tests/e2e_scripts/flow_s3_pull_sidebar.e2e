@@ -10,7 +10,7 @@ validate sidebar_visible=true
 
 # Click Pull in the sidebar toolbar
 click_button "Pull"
-wait_frames 10
+wait_for_refresh
 
 # App should still be responsive
 validate branch=main

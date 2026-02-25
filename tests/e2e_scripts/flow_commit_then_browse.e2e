@@ -1,45 +1,27 @@
-#TDD not ready
-# Flow: Full cycle — stage, commit, then verify the new commit in the log
-# User goes through the full stage > commit > verify flow
+# Flow: Stage all and commit, then browse the new commit in the log
 make_test_repo
 resize 1280 720
 wait_frames 5
 
-# Record initial state
+# Record initial state (1 staged .gitignore)
+validate staged_count=1
 screenshot flow_fullcycle_01_initial
 
-# Hide sidebar to access toolbar buttons
-click_text "View"
-wait_frames 3
-click_text "Toggle Sidebar"
-wait_frames 5
+# Click Commit in sidebar toolbar — opens unstaged dialog
+click_button "Commit"
+wait_frames 10
+screenshot flow_fullcycle_02_unstaged_dialog
 
-# Stage all
-click_text "Stage All"
-wait_frames 5
-screenshot flow_fullcycle_02_staged
-
-# Commit
-click_text "Commit"
-wait_frames 5
-type "chore: clean up project files"
-wait_frames 5
-enter
-wait_frames 5
+# Click "Stage All & Commit" to stage everything and commit
+click_button "Stage All & Commit"
+wait_frames 10
+wait_for_refresh
 screenshot flow_fullcycle_03_committed
 
-# Refresh to see updated commit log
-click_text "Refresh"
-wait_frames 5
-screenshot flow_fullcycle_04_new_commit_in_log
+# After commit, staged count should be 0
+validate staged_count=0
 
-# Restore sidebar to see commit log
-click_text "View"
-wait_frames 3
-click_text "Toggle Sidebar"
+# The new commit with default message should appear in the log
+click_text "Update"
 wait_frames 5
-
-# Click the new commit to view its diff
-click_text "chore: clean up project files"
-wait_frames 5
-screenshot flow_fullcycle_05_commit_detail
+screenshot flow_fullcycle_04_commit_detail

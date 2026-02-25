@@ -6,7 +6,7 @@
 # requires the vendor fix for MetalPlatformAPI::get_mouse_wheel_move_v().
 make_test_repo
 resize 1280 720
-wait_frames 10
+wait_frames 2
 
 # Baseline: all sidebar sections visible
 screenshot flow_commit_log_scroll_01_baseline

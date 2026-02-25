@@ -17,7 +17,7 @@ validate sidebar_visible=false
 
 # Click Unstage All in the toolbar
 click_text "Unstage All"
-wait_frames 10
+wait_for_refresh
 
 # No files should be staged now
 validate staged_count=0

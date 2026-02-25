@@ -1,10 +1,10 @@
 # Full UI audit test at 720p
-wait 5
+make_test_repo
 resize 1280 720
-wait 3
+wait_frames 5
 screenshot 720p_01_initial
 
-# Click a file in sidebar using click_button (requires HasClickListener)
-click_button makefile
-wait 3
+# Click a file in sidebar
+click_text README.md
+wait_frames 5
 screenshot 720p_02_file_selected

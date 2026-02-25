@@ -17,7 +17,7 @@ screenshot r2_01_staged_file_selected
 click_text "Repository"
 wait_frames 3
 click_text "Unstage File"
-wait_frames 10
+wait_for_refresh
 
 # Should now have 0 staged
 validate staged_count=0

@@ -14,7 +14,7 @@ validate sidebar_visible=false
 
 # Click Pull in the toolbar
 click_text "Pull"
-wait_frames 10
+wait_for_refresh
 
 # App should still be responsive
 validate branch=main

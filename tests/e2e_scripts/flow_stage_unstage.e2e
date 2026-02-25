@@ -16,12 +16,12 @@ wait_frames 5
 
 # Stage All — moves all unstaged to staged
 click_text "Stage All"
-wait_frames 5
+wait_for_refresh
 screenshot flow_stage_02_after_stage_all
 
 # Unstage All — moves everything back to unstaged
 click_text "Unstage All"
-wait_frames 5
+wait_for_refresh
 screenshot flow_stage_03_after_unstage_all
 
 # Restore sidebar

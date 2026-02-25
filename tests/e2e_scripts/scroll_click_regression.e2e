@@ -8,7 +8,7 @@
 
 make_test_repo
 resize 1280 720
-wait_frames 10
+wait_frames 2
 
 # ── Baseline: full-size window, no scrolling needed ──────────
 click_text README.md
@@ -66,6 +66,9 @@ screenshot scroll_click_08_changes_tab
 
 # ── Restore and verify normal operation ──────────────────────
 resize 1280 720
+wait_frames 10
+# Re-select Changes tab (resize can reset sidebar mode)
+click_button Changes
 wait_frames 5
 click_text README.md
 wait_frames 5

@@ -79,7 +79,7 @@ wait_frames 5
 click_text "Repository"
 wait_frames 3
 click_text "Stage File"
-wait_frames 10
+wait_for_refresh
 validate staged_count=2
 validate unstaged_count=1
 screenshot tier_a_02_stage_file
@@ -88,7 +88,7 @@ screenshot tier_a_02_stage_file
 click_text "Repository"
 wait_frames 3
 click_text "Unstage File"
-wait_frames 10
+wait_for_refresh
 validate staged_count=1
 validate unstaged_count=2
 screenshot tier_a_03_unstage_file
@@ -97,7 +97,7 @@ screenshot tier_a_03_unstage_file
 click_text "Repository"
 wait_frames 3
 click_text "Fetch"
-wait_frames 10
+wait_for_refresh
 validate branch=main
 screenshot tier_a_04_fetch
 
@@ -111,14 +111,14 @@ validate sidebar_visible=false
 
 # T2: Stage All
 click_text "Stage All"
-wait_frames 20
+wait_for_refresh
 validate unstaged_count=0
 validate untracked_count=0
 screenshot tier_a_05_stage_all
 
 # T3: Unstage All
 click_text "Unstage All"
-wait_frames 10
+wait_for_refresh
 validate staged_count=0
 screenshot tier_a_06_unstage_all
 

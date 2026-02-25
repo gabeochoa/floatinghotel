@@ -14,7 +14,7 @@ validate sidebar_visible=false
 
 # Click Push in the toolbar
 click_text "Push"
-wait_frames 10
+wait_for_refresh
 
 # App should still be responsive
 validate branch=main
