@@ -6,17 +6,17 @@ wait_frames 5
 
 # F1: Open Repository shows toast
 click_text "File"
-wait_frames 3
+wait_frames 5
 click_text "Open Repository..."
 wait_frames 5
 expect_text "not yet implemented"
 screenshot stub_toast_file_01_open_repo
 
-wait_frames 60
+wait_frames 5
 
 # F2: Close Tab shows toast
 click_text "File"
-wait_frames 3
+wait_frames 5
 click_text "Close Tab"
 wait_frames 5
 expect_text "not yet implemented"

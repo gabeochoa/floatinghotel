@@ -6,27 +6,27 @@ wait_frames 5
 
 # E1: Copy shows toast
 click_text "Edit"
-wait_frames 3
+wait_frames 5
 click_text "Copy"
 wait_frames 5
 expect_text "not yet implemented"
 screenshot stub_toast_edit_01_copy
 
-wait_frames 60
+wait_frames 5
 
 # E2: Select All shows toast
 click_text "Edit"
-wait_frames 3
+wait_frames 5
 click_text "Select All"
 wait_frames 5
 expect_text "not yet implemented"
 screenshot stub_toast_edit_02_select_all
 
-wait_frames 60
+wait_frames 5
 
 # E3: Find shows toast
 click_text "Edit"
-wait_frames 3
+wait_frames 5
 click_text "Find..."
 wait_frames 5
 expect_text "not yet implemented"

@@ -6,27 +6,27 @@ wait_frames 5
 
 # V8: Zoom In shows toast
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Zoom In"
 wait_frames 5
 expect_text "not yet implemented"
 screenshot stub_toast_view_01_zoom_in
 
-wait_frames 60
+wait_frames 5
 
 # V9: Zoom Out shows toast
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Zoom Out"
 wait_frames 5
 expect_text "not yet implemented"
 screenshot stub_toast_view_02_zoom_out
 
-wait_frames 60
+wait_frames 5
 
 # V10: Reset Zoom shows toast
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Reset Zoom"
 wait_frames 5
 expect_text "not yet implemented"

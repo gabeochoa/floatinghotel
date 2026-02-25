@@ -10,7 +10,7 @@ screenshot flow_stage_01_initial
 
 # Hide sidebar to access toolbar buttons
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 
@@ -26,7 +26,7 @@ screenshot flow_stage_03_after_unstage_all
 
 # Restore sidebar
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 

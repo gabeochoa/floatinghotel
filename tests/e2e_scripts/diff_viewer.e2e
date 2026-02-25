@@ -1,24 +1,26 @@
 # E2E Test: Diff Viewer
 # Captures the diff view in various states
 
-# Wait for load
-wait 3
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 5
 
 # Select a file to show diff
 click 140 200
-wait 1
+wait_frames 5
 screenshot diff_01_inline_view
 
 # Try scrolling the diff area (right half of window, ~700px x)
 scroll_wheel 0 -3
-wait 0.5
+wait_frames 5
 screenshot diff_02_scrolled_down
 
 scroll_wheel 0 3
-wait 0.5
+wait_frames 5
 screenshot diff_03_scrolled_up
 
 # Click on a different file
 click 140 260
-wait 1
+wait_frames 5
 screenshot diff_04_different_file

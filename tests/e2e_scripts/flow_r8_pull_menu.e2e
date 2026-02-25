@@ -9,7 +9,7 @@ validate branch=main
 
 # Pull via Repository menu
 click_text "Repository"
-wait_frames 3
+wait_frames 5
 click_text "Pull"
 wait_for_refresh
 

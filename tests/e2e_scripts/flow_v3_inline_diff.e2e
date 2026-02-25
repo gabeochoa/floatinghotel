@@ -9,14 +9,14 @@ validate diff_view_mode=Inline
 
 # Switch to SideBySide first via menu
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Side-by-Side Diff"
 wait_frames 5
 validate diff_view_mode=SideBySide
 
 # Now switch back to Inline via menu
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Inline Diff"
 wait_frames 5
 

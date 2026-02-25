@@ -9,7 +9,7 @@ wait_frames 5
 
 # Hide sidebar to access toolbar buttons
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 

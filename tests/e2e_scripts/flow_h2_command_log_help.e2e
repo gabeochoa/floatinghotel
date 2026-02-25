@@ -9,7 +9,7 @@ validate command_log_visible=false
 
 # Open Help menu, click Command Log
 click_text "Help"
-wait_frames 3
+wait_frames 5
 click_text "Command Log"
 wait_frames 5
 

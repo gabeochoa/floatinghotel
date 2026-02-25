@@ -14,7 +14,7 @@ screenshot shortcut_01_repo_menu_open
 # Verify Toggle Command Log still owns Cmd+Shift+L
 # Close Repository menu first
 click_text "Repository"
-wait_frames 3
+wait_frames 5
 
 click_text "View"
 wait_frames 5

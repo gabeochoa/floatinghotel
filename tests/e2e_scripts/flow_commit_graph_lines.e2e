@@ -3,7 +3,7 @@
 # vertical line connecting the purple dots in the sidebar log.
 make_test_repo
 resize 1280 720
-wait_frames 2
+wait_frames 5
 
 # Capture the full sidebar with commit log visible
 screenshot graph_lines_01_initial

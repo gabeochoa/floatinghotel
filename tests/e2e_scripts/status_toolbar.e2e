@@ -1,16 +1,18 @@
 # E2E Test: Status Bar and Toolbar
 # Captures toolbar and status bar in various states
 
-# Wait for load
-wait 3
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 5
 screenshot chrome_01_full_view
 
 # Click the Show Log button in status bar (bottom right area)
 click 1100 780
-wait 0.5
+wait_frames 5
 screenshot chrome_02_command_log_visible
 
 # Click Hide Log
 click 1100 580
-wait 0.5
+wait_frames 5
 screenshot chrome_03_command_log_hidden

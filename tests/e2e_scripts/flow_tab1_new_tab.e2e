@@ -9,7 +9,7 @@ screenshot tab1_01_single_tab
 
 # Create a new tab
 new_tab
-wait_frames 3
+wait_frames 5
 
 # Should now have 2 tabs
 validate tab_count=2

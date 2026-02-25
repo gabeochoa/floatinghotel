@@ -5,23 +5,23 @@ wait_frames 5
 
 # Create two extra tabs
 new_tab
-wait_frames 2
+wait_frames 5
 new_tab
-wait_frames 2
+wait_frames 5
 
 validate tab_count=3
 screenshot tab2_01_three_tabs
 
 # Close active tab (the last one)
 close_tab
-wait_frames 3
+wait_frames 5
 
 validate tab_count=2
 screenshot tab2_02_after_close
 
 # Close another
 close_tab
-wait_frames 3
+wait_frames 5
 
 validate tab_count=1
 screenshot tab2_03_back_to_one

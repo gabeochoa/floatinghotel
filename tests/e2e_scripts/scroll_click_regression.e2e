@@ -8,7 +8,7 @@
 
 make_test_repo
 resize 1280 720
-wait_frames 2
+wait_frames 5
 
 # ── Baseline: full-size window, no scrolling needed ──────────
 click_text README.md
@@ -19,7 +19,7 @@ screenshot scroll_click_01_baseline_file_selected
 # At 640x300 the file list and commit log sections are short enough
 # that not all items fit, forcing the scroll panels to activate.
 resize 640 480
-wait_frames 10
+wait_frames 5
 screenshot scroll_click_02_small_window
 
 # ── Click a file near the bottom of the list ─────────────────
@@ -33,7 +33,7 @@ screenshot scroll_click_03_click_todo
 # ── Scroll the sidebar down and click again ──────────────────
 # Move mouse into the sidebar file area, then scroll down.
 mouse_move 160 180
-wait_frames 2
+wait_frames 5
 scroll_wheel 0 -3
 wait_frames 5
 screenshot scroll_click_04_after_scroll
@@ -46,7 +46,7 @@ screenshot scroll_click_05_click_after_scroll
 # ── Test commit log scroll area ──────────────────────────────
 # Move mouse into the commit log area and scroll
 mouse_move 160 260
-wait_frames 2
+wait_frames 5
 scroll_wheel 0 -3
 wait_frames 5
 
@@ -66,7 +66,7 @@ screenshot scroll_click_08_changes_tab
 
 # ── Restore and verify normal operation ──────────────────────
 resize 1280 720
-wait_frames 10
+wait_frames 5
 # Re-select Changes tab (resize can reset sidebar mode)
 click_button Changes
 wait_frames 5

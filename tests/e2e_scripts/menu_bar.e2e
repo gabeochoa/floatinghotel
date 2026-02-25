@@ -1,52 +1,54 @@
 # E2E Test: Menu Bar
 # Opens each menu and captures the dropdown
 
-# Wait for load
-wait 3
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 5
 screenshot menu_00_initial
 
 # File menu
 click 30 14
-wait 0.5
+wait_frames 5
 screenshot menu_01_file
 
 # Close
 escape
-wait 0.3
+wait_frames 5
 
 # Edit menu
 click 50 14
-wait 0.5
+wait_frames 5
 screenshot menu_02_edit
 
 # Close
 escape
-wait 0.3
+wait_frames 5
 
 # View menu
 click 70 14
-wait 0.5
+wait_frames 5
 screenshot menu_03_view
 
 # Close
 escape
-wait 0.3
+wait_frames 5
 
 # Repository menu
 click 110 14
-wait 0.5
+wait_frames 5
 screenshot menu_04_repository
 
 # Close
 escape
-wait 0.3
+wait_frames 5
 
 # Help menu
 click 150 14
-wait 0.5
+wait_frames 5
 screenshot menu_05_help
 
 # Close
 escape
-wait 0.3
+wait_frames 5
 screenshot menu_06_all_closed

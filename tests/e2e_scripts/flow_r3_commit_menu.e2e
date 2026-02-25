@@ -10,9 +10,9 @@ validate staged_count=1
 
 # Trigger commit via Repository menu
 click_text "Repository"
-wait_frames 3
+wait_frames 5
 click_text "Commit..."
-wait_frames 10
+wait_frames 5
 
 # The commit editor area should be visible/active
 # (commitRequested is ephemeral so we check for visible UI instead)

@@ -9,13 +9,13 @@ wait_frames 5
 # V1: Toggle Sidebar off and back on
 validate sidebar_visible=true
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 validate sidebar_visible=false
 
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 validate sidebar_visible=true
@@ -23,46 +23,46 @@ validate sidebar_visible=true
 # V2: Toggle Command Log
 validate command_log_visible=false
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Command Log"
 wait_frames 5
 validate command_log_visible=true
 
 # Toggle it back off
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Command Log"
 wait_frames 5
 validate command_log_visible=false
 
 # V3/V4: Diff view modes
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Side-by-Side Diff"
 wait_frames 5
 validate diff_view_mode=SideBySide
 
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Inline Diff"
 wait_frames 5
 validate diff_view_mode=Inline
 
 # V5/V6/V7: File view modes
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Tree View"
 wait_frames 5
 validate file_view_mode=Tree
 
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "All Files View"
 wait_frames 5
 validate file_view_mode=All
 
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Changed Files View"
 wait_frames 5
 validate file_view_mode=Flat
@@ -77,7 +77,7 @@ validate unstaged_count=2
 click_text "README.md"
 wait_frames 5
 click_text "Repository"
-wait_frames 3
+wait_frames 5
 click_text "Stage File"
 wait_for_refresh
 validate staged_count=2
@@ -86,7 +86,7 @@ screenshot tier_a_02_stage_file
 
 # R2: Unstage File
 click_text "Repository"
-wait_frames 3
+wait_frames 5
 click_text "Unstage File"
 wait_for_refresh
 validate staged_count=1
@@ -95,7 +95,7 @@ screenshot tier_a_03_unstage_file
 
 # R9: Fetch (no remote, but should not crash)
 click_text "Repository"
-wait_frames 3
+wait_frames 5
 click_text "Fetch"
 wait_for_refresh
 validate branch=main
@@ -104,7 +104,7 @@ screenshot tier_a_04_fetch
 # --- Toolbar actions (need full-width toolbar = sidebar hidden) ---
 
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 validate sidebar_visible=false
@@ -124,14 +124,14 @@ screenshot tier_a_06_unstage_all
 
 # Restore sidebar
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 validate sidebar_visible=true
 
 # --- Help menu ---
 click_text "Help"
-wait_frames 3
+wait_frames 5
 click_text "Command Log"
 wait_frames 5
 validate command_log_visible=true

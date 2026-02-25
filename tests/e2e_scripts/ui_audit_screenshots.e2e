@@ -9,69 +9,71 @@
 #   Main content:x=323..1200, y=89..764
 #   Status bar:  y=764..800
 
-# Wait for initial render and git data load
-wait 3
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 5
 
 # 1. Initial state — default view with Changes tab, sidebar, and diff area
 screenshot 01_initial_state
 
 # 2. Click on the first file in the sidebar files area (y~130 = inside file list)
 click 160 170
-wait 1
+wait_frames 5
 screenshot 02_file_selected
 
 # 3. Click a second file (one row below)
 click 160 200
-wait 1
+wait_frames 5
 screenshot 03_second_file
 
 # 4. Click on the File menu (top-left in menu bar, y~20)
 click 30 20
-wait 0.5
+wait_frames 5
 screenshot 04_file_menu
 
 # 5. Close menu and open Edit menu
 escape
-wait 0.3
+wait_frames 5
 click 80 20
-wait 0.5
+wait_frames 5
 screenshot 05_edit_menu
 
 # 6. Close menu and open View menu
 escape
-wait 0.3
+wait_frames 5
 click 130 20
-wait 0.5
+wait_frames 5
 screenshot 06_view_menu
 
 # 7. Close menu
 escape
-wait 0.3
+wait_frames 5
 
 # 8. Click on the Refs/Branches tab in sidebar (tab bar at y~92)
 click 250 95
-wait 1
+wait_frames 5
 screenshot 07_refs_branches
 
 # 9. Switch back to Changes tab
 click 120 95
-wait 0.5
+wait_frames 5
 
 # 10. Click a commit in the sidebar log area (y~520 = inside commit log)
 click 160 540
-wait 1
+wait_frames 5
 screenshot 08_commit_selected
 
 # 11. Click a different commit
 click 160 580
-wait 1
+wait_frames 5
 screenshot 09_different_commit
 
 # 12. Click the toolbar Refresh button (y~60 = middle of toolbar)
 click 50 60
-wait 2
+wait_frames 5
 screenshot 10_after_refresh
 
 # 13. Final screenshot of full state
-wait 0.5
+wait_frames 5
 screenshot 11_final_state

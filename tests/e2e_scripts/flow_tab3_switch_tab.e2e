@@ -8,14 +8,14 @@ validate tab_count=1
 
 # Change view mode to SideBySide on tab 1
 click_text "View"
-wait_frames 2
+wait_frames 5
 click_text "Side-by-Side Diff"
-wait_frames 3
+wait_frames 5
 validate diff_view_mode=SideBySide
 
 # Create a new tab - should get default Inline mode
 new_tab
-wait_frames 3
+wait_frames 5
 validate tab_count=2
 validate diff_view_mode=Inline
 validate active_tab_label=Untitled
@@ -23,7 +23,7 @@ screenshot tab3_01_new_tab_inline
 
 # Switch back to tab 1 by clicking its label
 click_text "floatinghotel_test_repo"
-wait_frames 3
+wait_frames 5
 
 # Tab 1 should still have SideBySide
 validate diff_view_mode=SideBySide

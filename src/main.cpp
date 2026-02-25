@@ -170,6 +170,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
 
             repo.isRefreshing = false;
             repo.refreshRequested = false;
+            repo.hasLoadedOnce = true;
         } else {
             log_warn("make_test_repo: no RepoComponent entity found!");
         }

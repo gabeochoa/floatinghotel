@@ -10,14 +10,14 @@ screenshot flow_cmdlog_01_hidden
 
 # Toggle via View menu
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Command Log"
 wait_frames 5
 screenshot flow_cmdlog_02_visible
 
 # Toggle again to hide
 click_text "View"
-wait_frames 3
+wait_frames 5
 click_text "Toggle Command Log"
 wait_frames 5
 screenshot flow_cmdlog_03_hidden_again

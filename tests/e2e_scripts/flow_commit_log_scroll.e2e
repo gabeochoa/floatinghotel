@@ -6,14 +6,14 @@
 # requires the vendor fix for MetalPlatformAPI::get_mouse_wheel_move_v().
 make_test_repo
 resize 1280 720
-wait_frames 2
+wait_frames 5
 
 # Baseline: all sidebar sections visible
 screenshot flow_commit_log_scroll_01_baseline
 
 # Move mouse into the commit log area (below the file list)
 mouse_move 160 550
-wait_frames 3
+wait_frames 5
 
 # Scroll down in commit log
 scroll_wheel 0 -3

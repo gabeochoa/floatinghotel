@@ -9,9 +9,9 @@ validate is_amend=false
 
 # Trigger amend via Repository menu
 click_text "Repository"
-wait_frames 3
+wait_frames 5
 click_text "Amend Last Commit"
-wait_frames 10
+wait_frames 5
 
 # Amend flag should now be set
 validate is_amend=true

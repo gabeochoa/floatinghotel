@@ -9,12 +9,12 @@ screenshot flow_fullcycle_01_initial
 
 # Click Commit in sidebar toolbar — opens unstaged dialog
 click_button "Commit"
-wait_frames 10
+wait_frames 5
 screenshot flow_fullcycle_02_unstaged_dialog
 
 # Click "Stage All & Commit" to stage everything and commit
 click_button "Stage All & Commit"
-wait_frames 10
+wait_frames 5
 wait_for_refresh
 screenshot flow_fullcycle_03_committed
 

@@ -2,6 +2,8 @@
 
 #include "../ecs/ui_imports.h"
 #include "../git/git_commands.h"
+#include <afterhours/src/plugins/clipboard.h>
+#include <afterhours/src/plugins/toast.h>
 
 namespace ui {
 
@@ -26,6 +28,23 @@ constexpr float CODE_PAD_LEFT = 8.0f;
 // ID ranges for diff elements to avoid collision with other systems.
 // MainContentSystem uses 3000-3999. We use 4000-59999.
 constexpr int BASE_ID = 4000;
+
+inline std::string hunk_to_text(const ecs::DiffHunk& hunk) {
+    std::string text = hunk.header + "\n";
+    for (auto& line : hunk.lines) {
+        text += line + "\n";
+    }
+    return text;
+}
+
+inline std::string file_diff_to_text(const ecs::FileDiff& diff) {
+    std::string text = "--- a/" + (diff.oldPath.empty() ? diff.filePath : diff.oldPath) + "\n";
+    text += "+++ b/" + diff.filePath + "\n";
+    for (auto& hunk : diff.hunks) {
+        text += hunk_to_text(hunk);
+    }
+    return text;
+}
 
 } // namespace diff_detail
 
@@ -97,21 +116,47 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
-    // Hunk header as single label (avoids Row layout bug)
+    // Hunk header row: label + copy button
     int hunkHeaderId = nextId++;
-    div(ctx, mk(parent, hunkHeaderId),
+    auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
+        ComponentConfig{}
+            .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
+            .with_flex_direction(FlexDirection::Row)
+            .with_justify_content(JustifyContent::SpaceBetween)
+            .with_align_items(AlignItems::Center)
+            .with_custom_background(diff_detail::HUNK_HEADER_BG)
+            .with_roundness(0.0f)
+            .with_debug_name("hunk_header_row"));
+
+    div(ctx, mk(hunkRow.ent(), 0),
         ComponentConfig{}
             .with_label(hunk.header)
-            .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
-            .with_custom_background(diff_detail::HUNK_HEADER_BG)
+            .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
-                .top = h720(4), .right = w1280(12),
+                .top = h720(4), .right = w1280(0),
                 .bottom = h720(4), .left = w1280(12)})
-            .with_roundness(0.0f)
-            .with_debug_name("hunk_header"));
+            .with_debug_name("hunk_header_label"));
+
+    {
+        std::string hunkText = diff_detail::hunk_to_text(hunk);
+        auto copyBtn = button(ctx, mk(hunkRow.ent(), 1),
+            preset::Button("Copy")
+                .with_size(ComponentSize{children(), h720(18)})
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(8)})
+                .with_custom_background(afterhours::Color{60, 60, 65, 255})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_debug_name("copy_hunk_btn"));
+        if (copyBtn) {
+            afterhours::clipboard::set_text(hunkText);
+            afterhours::toast::send_info(ctx, "Copied hunk to clipboard", 1.5f);
+        }
+    }
 
     // Render each line in the hunk
     int oldLine = hunk.oldStart;
@@ -207,20 +252,47 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
             fileLabel += "  (binary)";
         }
 
-        div(ctx, mk(*contentParent, nextId++),
+        int fileHeaderRowId = nextId++;
+        auto fileHeaderRow = div(ctx, mk(*contentParent, fileHeaderRowId),
             ComponentConfig{}
                 .with_size(ComponentSize{w, h720(diff_detail::FILE_HEADER_H)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_justify_content(JustifyContent::SpaceBetween)
+                .with_align_items(AlignItems::Center)
                 .with_custom_background(theme::SIDEBAR_BG)
-                .with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_border_bottom(theme::BORDER)
+                .with_roundness(0.0f)
+                .with_debug_name("file_header_row"));
+
+        div(ctx, mk(fileHeaderRow.ent(), 0),
+            ComponentConfig{}
                 .with_label(fileLabel)
+                .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(afterhours::ui::FontSize::XL)
                 .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
+                    .top = h720(8), .right = w1280(0),
                     .bottom = h720(8), .left = w1280(16)})
-                .with_border_bottom(theme::BORDER)
-                .with_roundness(0.0f)
-                .with_debug_name("file_header"));
+                .with_debug_name("file_header_label"));
+
+        {
+            std::string diffText = diff_detail::file_diff_to_text(fileDiff);
+            auto fileCopyBtn = button(ctx, mk(fileHeaderRow.ent(), 1),
+                preset::Button("Copy Diff")
+                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_padding(Padding{
+                        .top = h720(2), .right = w1280(8),
+                        .bottom = h720(2), .left = w1280(8)})
+                    .with_custom_background(afterhours::Color{60, 60, 65, 255})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_debug_name("copy_file_diff_btn"));
+            if (fileCopyBtn) {
+                afterhours::clipboard::set_text(diffText);
+                afterhours::toast::send_info(ctx, "Copied diff to clipboard", 1.5f);
+            }
+        }
 
         // Binary files: just show the header, no hunks
         if (fileDiff.isBinary) {
