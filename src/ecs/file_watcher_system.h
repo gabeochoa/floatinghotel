@@ -27,18 +27,14 @@ struct FileWatcherSystem : afterhours::System<RepoComponent> {
             cooldown_until_ = clock::now() + COOLDOWN;
         }
 
-        // Drain watcher events but don't act on them during cooldown
-        // or when a refresh is already in progress. This prevents the
-        // watcher from racing with app-initiated refreshes (e.g. after
-        // commit, stage, checkout) whose git operations also modify .git/.
-        bool changed = watcher_.poll_changed();
-
         if (repo.refreshRequested || repo.isRefreshing) {
             cooldown_until_ = clock::now() + COOLDOWN;
             return;
         }
 
-        if (changed && clock::now() >= cooldown_until_) {
+        if (clock::now() < cooldown_until_) return;
+
+        if (watcher_.poll_changed()) {
             repo.refreshRequested = true;
             cooldown_until_ = clock::now() + COOLDOWN;
         }

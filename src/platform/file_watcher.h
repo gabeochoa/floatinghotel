@@ -39,11 +39,8 @@ public:
     void watch(const std::string& path) {
         stop();
 
-        watched_path_ = path;
         changed_.store(false, std::memory_order_relaxed);
 
-        // Resolve symlinks — FSEvents requires canonical paths
-        // (e.g. /tmp -> /private/tmp on macOS)
         std::error_code ec;
         auto canon = std::filesystem::canonical(path, ec);
         std::string real_path = ec ? path : canon.string();
@@ -64,7 +61,7 @@ public:
             &ctx,
             paths,
             kFSEventStreamEventIdSinceNow,
-            0.5, // latency in seconds — coalesces rapid writes
+            0.5,
             kFSEventStreamCreateFlagUseCFTypes |
                 kFSEventStreamCreateFlagFileEvents);
 
@@ -76,29 +73,35 @@ public:
             return;
         }
 
-        run_loop_thread_ = std::thread([this] {
-            run_loop_ = CFRunLoopGetCurrent();
+        FSEventStreamRef stream = stream_;
+        run_loop_thread_ = std::thread([this, stream] {
+            CFRunLoopRef rl = CFRunLoopGetCurrent();
+            run_loop_.store(rl, std::memory_order_release);
+
             FSEventStreamScheduleWithRunLoop(
-                stream_, run_loop_, kCFRunLoopDefaultMode);
-            FSEventStreamStart(stream_);
+                stream, rl, kCFRunLoopDefaultMode);
+            FSEventStreamStart(stream);
             CFRunLoopRun();
+
+            FSEventStreamStop(stream);
+            FSEventStreamInvalidate(stream);
         });
     }
 
     void stop() {
-        if (stream_) {
-            FSEventStreamStop(stream_);
-            FSEventStreamInvalidate(stream_);
-            FSEventStreamRelease(stream_);
-            stream_ = nullptr;
-        }
-        if (run_loop_) {
-            CFRunLoopStop(run_loop_);
-            run_loop_ = nullptr;
-        }
+        if (!stream_) return;
+
         if (run_loop_thread_.joinable()) {
+            while (!run_loop_.load(std::memory_order_acquire)) {
+                std::this_thread::yield();
+            }
+            CFRunLoopStop(run_loop_.load(std::memory_order_acquire));
             run_loop_thread_.join();
         }
+        run_loop_.store(nullptr, std::memory_order_relaxed);
+
+        FSEventStreamRelease(stream_);
+        stream_ = nullptr;
     }
 
     bool poll_changed() {
@@ -117,10 +120,9 @@ private:
         self->changed_.store(true, std::memory_order_release);
     }
 
-    std::string watched_path_;
     std::atomic<bool> changed_{false};
     FSEventStreamRef stream_{nullptr};
-    CFRunLoopRef run_loop_{nullptr};
+    std::atomic<CFRunLoopRef> run_loop_{nullptr};
     std::thread run_loop_thread_;
 };
 
