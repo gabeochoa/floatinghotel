@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <filesystem>
+#include <fstream>
 #include <string>
 
 #include <afterhours/src/logging.h>
@@ -17,6 +18,7 @@
 #include "ecs/components.h"
 #include "ecs/app_reset.h"
 #include "ecs/async_git_refresh_system.h"
+#include "ecs/file_watcher_system.h"
 #include "ecs/layout_system.h"
 #include "ecs/menu_bar_system.h"
 #include "ecs/sidebar_system.h"
@@ -267,6 +269,40 @@ struct HandleTabCommands : afterhours::System<afterhours::testing::PendingE2ECom
     }
 };
 
+// touch_file <filename> — appends a line to a file in the active repo's working tree.
+// Used by E2E tests to simulate external edits and verify the file watcher picks them up.
+struct HandleTouchFile : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("touch_file")) return;
+        if (!cmd.has_args(1)) {
+            cmd.fail("touch_file requires a filename argument");
+            return;
+        }
+
+        auto repoQ = afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<ecs::RepoComponent>()
+            .whereHasComponent<ecs::ActiveTab>().gen();
+        if (repoQ.empty()) {
+            cmd.fail("touch_file: no active repo");
+            return;
+        }
+
+        auto& repo = repoQ[0].get().get<ecs::RepoComponent>();
+        std::filesystem::path filePath = std::filesystem::path(repo.repoPath) / cmd.args[0];
+
+        std::ofstream ofs(filePath, std::ios::app);
+        if (!ofs) {
+            cmd.fail("touch_file: could not open " + filePath.string());
+            return;
+        }
+        ofs << "# edited by e2e test\n";
+        ofs.close();
+
+        log_info("touch_file: wrote to {}", filePath.string());
+        cmd.consume();
+    }
+};
+
 // Flag for wait_for_refresh gating (set by system, read by app_frame).
 // Declared here so it's visible to both HandleWaitForRefresh and app_frame.
 namespace e2e_refresh_gate {
@@ -470,6 +506,7 @@ static void app_init() {
         ui_imm::registerUIPostLayoutSystems(sm);
 
         // Update systems
+        sm.register_update_system(std::make_unique<ecs::FileWatcherSystem>());
         sm.register_update_system(std::make_unique<ecs::AsyncGitDataRefreshSystem>());
 
         // Toast notification systems
@@ -486,6 +523,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
             sm.register_update_system(std::make_unique<HandleResetUI>());
             sm.register_update_system(std::make_unique<HandleTabCommands>());
+            sm.register_update_system(std::make_unique<HandleTouchFile>());
             sm.register_update_system(std::make_unique<HandleWaitForRefresh>());
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(

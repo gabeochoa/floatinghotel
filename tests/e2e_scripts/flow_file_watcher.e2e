@@ -1,0 +1,31 @@
+# Flow: File watcher detects external edits and auto-refreshes
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Baseline: 1 staged, 2 unstaged, 2 untracked
+validate staged_count=1
+validate unstaged_count=2
+validate untracked_count=2
+screenshot file_watcher_01_initial
+
+# Create a new file externally — watcher should detect it
+# wait 3s for cooldown (1s) + FSEvents latency (0.5s) + async git refresh
+touch_file watcher_test.txt
+wait 3
+screenshot file_watcher_02_after_new_file
+
+# Untracked count should increase by 1
+validate untracked_count=3
+
+# Modify an existing tracked file externally
+touch_file README.md
+wait 3
+screenshot file_watcher_03_after_edit
+
+# Unstaged count should still be 2 (README.md was already unstaged)
+validate unstaged_count=2
+
+# The new file should be visible in the sidebar
+expect_text watcher_test.txt
+screenshot file_watcher_04_new_file_visible

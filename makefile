@@ -6,7 +6,7 @@ ifeq ($(UNAME_S),Darwin)
     CXX := clang++
     EXT := .exe
     MACOS_FLAGS :=
-    FRAMEWORKS := -framework CoreFoundation \
+    FRAMEWORKS := -framework CoreFoundation -framework CoreServices \
         -framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore
 else ifeq ($(OS),Windows_NT)
     CXX := g++
