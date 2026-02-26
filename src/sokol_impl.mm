@@ -61,6 +61,38 @@ extern "C" void metal_set_window_size(int width, int height) {
     }
 }
 
+#import <objc/runtime.h>
+
+static id _e2e_activity_token = nil;
+
+extern "C" void metal_activate_app(void) {
+    @autoreleasepool {
+        [NSApp activateIgnoringOtherApps:YES];
+        NSWindow* window = [NSApp mainWindow];
+        if (!window) {
+            NSArray<NSWindow*>* windows = [NSApp windows];
+            for (NSWindow* w in windows) {
+                if ([w isVisible]) { window = w; break; }
+            }
+        }
+        if (window) {
+            [window makeKeyAndOrderFront:nil];
+        }
+
+        if (!_e2e_activity_token) {
+            _e2e_activity_token = [[NSProcessInfo processInfo]
+                beginActivityWithOptions:(NSActivityUserInitiatedAllowingIdleSystemSleep |
+                                         NSActivityLatencyCritical)
+                reason:@"E2E Testing"];
+        }
+    }
+}
+
+#include <spawn.h>
+#include <sys/wait.h>
+
+extern char **environ;
+
 extern "C" void metal_take_screenshot(const char* filename) {
     @autoreleasepool {
         NSWindow* window = [NSApp mainWindow];
@@ -82,14 +114,29 @@ extern "C" void metal_take_screenshot(const char* filename) {
         }
 
         CGWindowID windowID = (CGWindowID)[window windowNumber];
-        NSString* path = [NSString stringWithUTF8String:filename];
+        char wid_str[32];
+        snprintf(wid_str, sizeof(wid_str), "%u", windowID);
 
-        NSString* cmd = [NSString stringWithFormat:
-            @"/usr/sbin/screencapture -x -o -l %u %@",
-            windowID, path];
-        int ret = system([cmd UTF8String]);
-        if (ret != 0) {
-            NSLog(@"take_screenshot: screencapture failed with code %d", ret);
+        char* argv[] = {
+            (char*)"/usr/sbin/screencapture",
+            (char*)"-x", (char*)"-o",
+            (char*)"-l", wid_str,
+            (char*)filename,
+            nullptr
+        };
+
+        pid_t pid;
+        int ret = posix_spawn(&pid, "/usr/sbin/screencapture",
+                              nullptr, nullptr, argv, environ);
+        if (ret == 0) {
+            int status;
+            waitpid(pid, &status, 0);
+        } else {
+            NSLog(@"take_screenshot: posix_spawn failed with %d", ret);
         }
     }
+}
+
+extern "C" void metal_wait_all_screenshots(void) {
+    // no-op: screenshots are taken synchronously
 }

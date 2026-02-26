@@ -52,39 +52,119 @@ Tracking afterhours features/bugs that floatinghotel needs but are not yet imple
 
 ---
 
+## Styling & Layout Gaps
+
+### Text Overflow / Ellipsis — RESOLVED (120a9ed) — **BUG: hangs with expand() sizing**
+
+**Was:** Text clipped silently or showed debug indicator. Manual truncation with `substr()` was fragile.
+
+**Now:** `with_text_overflow(TextOverflow::Ellipsis)` on `ComponentConfig`. Renderer binary-searches for longest fitting prefix and appends "...".
+
+**Bug found:** Using `with_text_overflow(Ellipsis)` on elements sized with `expand()` (or `children()`) causes an infinite hang on launch. The binary search in the truncation code likely runs against a 0-width container before layout resolves, creating an infinite loop. Only safe to use on elements with fixed pixel widths.
+
+---
+
+### No Font Weight Support — OPEN
+
+**Problem:** `ComponentConfig` has `with_font()` and `with_font_size()` but no `with_font_weight()`. The mockup uses `font-weight: 600` on diff file headers and status letters. The only way to approximate bold text is to load a separate bold font file and switch font names per-component, which is cumbersome.
+
+**Impact:** Diff file headers and status badge letters should be semi-bold but render at normal weight.
+
+**Suggested fix:** Add a `FontWeight` enum and a `with_font_weight(FontWeight)` method. The text rendering path would select the appropriate font variant at render time.
+
+---
+
+### No Rich Text / Multi-Color Text in a Single Label — OPEN
+
+**Problem:** Each `div` or `button` can only have one text color. To show a filename in white and its directory path in gray on the same row, you need two separate child `div` elements.
+
+**Workaround:** Bake status letter and filename into a single label string (e.g. `"M  README.md"`). Colored status letters are sacrificed.
+
+**Suggested fix:** Support a `StyledText` API:
+```cpp
+.with_styled_label({
+  {"M ",        theme::STATUS_MODIFIED},
+  {"theme.h ",  theme::TEXT_PRIMARY},
+  {"src/ui",    theme::TEXT_SECONDARY}
+})
+```
+
+---
+
+### Row Flex Layout Broken with expand() Children — OPEN
+
+**Problem:** When a `button` or `div` with `FlexDirection::Row` contains children, any child sized with `expand()` consumes the full parent width instead of the remaining width after fixed-size siblings.
+
+**Impact:** Cannot create a row like `[status_letter(16px) | filename(expand)]` — the filename fills 100% and the status letter wraps below.
+
+**Workaround:** Bake all content into a single label string on the parent element, avoiding child elements entirely.
+
+**Suggested fix:** The autolayout engine should calculate `expand()` as `parent_content_width - sum(fixed_sibling_widths)` in Row flex, matching CSS `flex: 1` behavior.
+
+---
+
+### Custom Colors Bypass Disabled Dimming — OPEN
+
+**Problem:** `resolve_background_color()` returns custom colors as-is when `disabled=true`. The disabled dimming only applies to `Theme::Usage`-based colors. Since real apps overwhelmingly use `with_custom_background(Color)`, `with_disabled(true)` blocks interactions but does NOT change the visual appearance.
+
+**Workaround:** Manually check `enabled` in each preset factory function and set different bg/text colors.
+
+- should be fixed (wm_afterhours added `disabled_opacity` to theme.h)
+
+---
+
+### `with_font_tier()` Only Supports `h720()` Scaling — OPEN
+
+**Problem:** `with_font_tier(FontSizing::Tier)` hardcodes `h720()` for the font size. There is no way to use the tier lookup system with fixed `pixels()` sizing.
+
+**Impact:** Adopting `with_font_tier()` forces proportional font scaling.
+
+**Suggested fix:** Add a scaling mode parameter or a separate `with_font_tier_px(FontSizing::Tier)` method.
+
+---
+
+## Resolved Styling Gaps
+
+| # | Gap | Commit |
+|---|-----|--------|
+| 1 | Custom hover background | a0c2b03 |
+| 3 | Text overflow ellipsis | 120a9ed |
+| 4 | Flex gap | 37fe6f4 |
+| 6 | Per-side border | 9eb0796 |
+| 7 | Default transparent bg | 778f786 |
+| 8 | Absolute child positioning | 1cb50a3 |
+| 9 | Cursor changes | 27b535e |
+| 10 | Letter spacing | bff4609 |
+| 12 | Adaptive scaling mode | SUPERSEDED |
+
+---
+
 ## Known Vendor Bugs
 
 ### tab_container() position bug
 - **Issue:** Tab strip renders at screen-absolute position, ignoring parent container bounds.
 - **Impact:** Cannot use `tab_container()` for multi-repo tabs.
 - **Workaround:** Build manual tab buttons in a row using `div()` + `button()`.
-- **Status:** Known upstream issue.
 
 ### toggle_switch() layout issue
 - **Issue:** Creates sibling entities that consume extra layout space.
 - **Impact:** Toggle switches misalign adjacent elements.
 - **Workaround:** Use `with_no_wrap()` on parent, increase container height.
-- **Status:** Known upstream issue.
 
 ### text_input() requires InputAction enum values
 - **Issue:** `text_input::text_input()` template expects `InputAction::TextBackspace`, `TextDelete`, `TextHome`, `TextEnd` enum values, which are not part of afterhours and must be defined by the host app.
 - **Impact:** Cannot use `text_input()` without adding these to the app's `InputAction` enum and registering key mappings.
-- **Workaround (T031):** Added the required enum values to `src/input_mapping.h` and registered key mappings in `src/preload.cpp`.
-- **Status:** Design limitation — afterhours text_input assumes the host app defines these actions.
+- **Workaround:** Added the required enum values to `src/input_mapping.h` and registered key mappings in `src/preload.cpp`.
 
 ### Clipboard shortcuts not wired in text_input
 - **Issue:** `text_input()` doesn't wire Cmd+C/V/X clipboard shortcuts — requires manual action binding.
 - **Impact:** Copy/paste doesn't work in commit message editor without manual wiring.
 - **Workaround:** Wire clipboard shortcuts manually in `InputSystem` via `ActionMap`.
-- **Status:** Known upstream issue (same issue in wordproc).
+- should be fixed (wm_afterhours implemented clipboard shortcuts in text_input phases 1-9)
 
 ---
 
 ## Feature Requests (Lower Priority)
-
-### Cursor change on hover
-- **What's missing:** No API to change the mouse cursor (e.g., resize cursor on divider hover).
-- **Workaround:** Skip cursor changes for now. Visual highlight on hover is sufficient.
 
 ### Synchronized scroll views
 - **What's missing:** No built-in way to synchronize scroll position between two `scroll_view()` containers.

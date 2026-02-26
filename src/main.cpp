@@ -8,6 +8,8 @@
 
 #ifdef __APPLE__
 #include <copyfile.h>
+extern "C" void metal_activate_app(void);
+extern "C" void metal_wait_all_screenshots(void);
 #endif
 
 #include <afterhours/src/logging.h>
@@ -388,6 +390,7 @@ float e2eTimeout = 30.0f;
 afterhours::testing::E2ERunner e2eRunner;
 bool waitingForRefresh = false;
 float refreshWaitElapsed = 0.0f;
+std::string pendingScreenshotName;
 
 // Validation
 std::string validationReportPath;
@@ -641,6 +644,14 @@ static void app_init() {
     log_info("  Systems registration: {} ms",
         std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
 
+    // In test mode, bring the window to the foreground so the Metal display
+    // link runs at full speed instead of being throttled to ~0.5 FPS.
+#ifdef __APPLE__
+    if (app_state::testModeEnabled) {
+        metal_activate_app();
+    }
+#endif
+
     // Measure startup time
     auto readyTime = std::chrono::high_resolution_clock::now();
     auto startupMs =
@@ -650,16 +661,15 @@ static void app_init() {
     log_info("Startup time: {} ms (from graphics::run to app_init done)", startupMs);
 }
 
-// Frame callback: runs every frame
-static void app_frame() {
-    float dt = afterhours::graphics::get_frame_time();
+// Process E2E commands in a tight loop without rendering, breaking when
+// a screenshot is needed or when we must wait for async operations.
+static void e2e_tick_loop(float real_dt) {
+    constexpr int MAX_TICKS = 200;
+    constexpr float SIM_DT = 1.0f / 60.0f;
 
-    // E2E test runner: tick and check completion
-    if (app_state::testModeEnabled && app_state::e2eRunner.has_commands()) {
+    for (int i = 0; i < MAX_TICKS; ++i) {
         afterhours::testing::test_input::reset_frame();
 
-        // Pick up the flag set by HandleWaitForRefresh during the
-        // previous frame's system run (systems execute after runner tick).
         if (e2e_refresh_gate::triggered) {
             e2e_refresh_gate::triggered = false;
             app_state::waitingForRefresh = true;
@@ -667,7 +677,7 @@ static void app_frame() {
         }
 
         if (app_state::waitingForRefresh) {
-            app_state::refreshWaitElapsed += dt;
+            app_state::refreshWaitElapsed += real_dt;
             constexpr float MAX_REFRESH_WAIT = 5.0f;
             bool refreshDone = true;
             auto repoQ = afterhours::EntityQuery({.force_merge = true})
@@ -680,24 +690,70 @@ static void app_frame() {
             }
             if (refreshDone || app_state::refreshWaitElapsed > MAX_REFRESH_WAIT) {
                 app_state::waitingForRefresh = false;
+                continue;
             }
+            break;
         }
 
-        if (!app_state::waitingForRefresh) {
-            app_state::e2eRunner.tick(dt);
-            if (app_state::e2eRunner.is_finished()) {
-                app_state::e2eRunner.print_results();
-                afterhours::graphics::request_quit();
-            }
+        app_state::e2eRunner.tick(SIM_DT);
+
+        if (!app_state::pendingScreenshotName.empty()) break;
+        if (app_state::e2eRunner.is_finished()) break;
+
+        auto& entities = afterhours::EntityHelper::get_entities_for_mod();
+        app_state::systemManager->tick_all(entities, SIM_DT);
+        afterhours::EntityHelper::cleanup();
+
+        // A surviving pending command (e.g. expect_text retrying) needs a
+        // render pass to update VisibleTextRegistry before it can succeed.
+        if (!afterhours::EntityQuery()
+                .whereHasComponent<afterhours::testing::PendingE2ECommand>()
+                .gen().empty()) break;
+    }
+}
+
+// Render one frame and take any pending screenshot.
+static void e2e_render_and_screenshot(float dt) {
+    afterhours::testing::test_input::reset_frame();
+    afterhours::graphics::begin_drawing();
+    afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
+    app_state::systemManager->run(dt);
+    afterhours::graphics::end_drawing();
+
+    if (!app_state::pendingScreenshotName.empty()) {
+        std::filesystem::path dir =
+            std::filesystem::absolute(app_state::screenshotDir);
+        std::filesystem::create_directories(dir);
+        std::filesystem::path path = dir / (app_state::pendingScreenshotName + ".png");
+        afterhours::graphics::take_screenshot(path.c_str());
+        app_state::pendingScreenshotName.clear();
+    }
+}
+
+// Frame callback: runs every frame
+static void app_frame() {
+    float dt = afterhours::graphics::get_frame_time();
+
+    if (app_state::testModeEnabled && app_state::e2eRunner.has_commands()) {
+        e2e_tick_loop(dt);
+        e2e_render_and_screenshot(dt);
+
+        if (app_state::e2eRunner.is_finished()) {
+#ifdef __APPLE__
+            metal_wait_all_screenshots();
+#endif
+            app_state::e2eRunner.print_results();
+            // In test mode, exit immediately to avoid waiting for the display
+            // link to fire another frame for the quit sequence.
+            _exit(app_state::e2eRunner.has_failed() ? 1 : 0);
         }
+        return;
     }
 
     afterhours::graphics::begin_drawing();
     afterhours::graphics::clear_background(
         afterhours::Color{30, 30, 30, 255});
-
     app_state::systemManager->run(dt);
-
     afterhours::graphics::end_drawing();
 }
 
@@ -748,7 +804,7 @@ int main(int argc, char* argv[]) {
             app_state::screenshotDir = value;
         } else if (name == "test-script") {
             app_state::testScriptPath = value;
-        } else if (name == "test-script-dir") {
+        } else if (name == "test-script-dir" || name == "test-dir") {
             app_state::testScriptDir = value;
         } else if (name == "e2e-timeout") {
             app_state::e2eTimeout = std::stof(value);
@@ -862,12 +918,7 @@ int main(int argc, char* argv[]) {
         return "";
     });
     app_state::e2eRunner.set_screenshot_callback([](const std::string& name) {
-        std::filesystem::path dir =
-            std::filesystem::absolute(app_state::screenshotDir);
-        std::filesystem::create_directories(dir);
-        std::filesystem::path path = dir / (name + ".png");
-        afterhours::graphics::take_screenshot(path.c_str());
-        log_info("Screenshot: {}", path.string());
+        app_state::pendingScreenshotName = name;
     });
 
     // Resolve relative paths to absolute
