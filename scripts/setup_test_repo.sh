@@ -1,23 +1,56 @@
 #!/bin/bash
 # Creates a reproducible test git repo at /tmp/floatinghotel_test_repo.
 # Uses a cached template for speed — only builds from scratch on first run.
+# Uses mv + cp -Rc (APFS clone) instead of rm -rf so the file watcher's
+# FSEvents handles on the old directory are harmlessly orphaned rather than
+# causing "Directory not empty" failures.
 set -euo pipefail
 
 REPO="/tmp/floatinghotel_test_repo"
 TEMPLATE="/tmp/floatinghotel_test_template"
+TRASH="/tmp/floatinghotel_test_trash_$$"
 
-# Fast path: copy from cached template
+apply_dirty_state() {
+    local dir="$1"
+    cd "$dir"
+
+    cat >> README.md << 'DIRTY'
+
+## Development
+Run `make` to build.
+DIRTY
+
+    sed -i '' 's/Hello, world!/Hello, floatinghotel!/' main.cpp 2>/dev/null || \
+    sed -i 's/Hello, world!/Hello, floatinghotel!/' main.cpp
+
+    echo "build/" > .gitignore
+    git add .gitignore
+
+    cat > TODO.md << 'TODOEOF'
+# TODO
+- [ ] Add CI pipeline
+- [ ] Write more tests
+- [ ] Add error handling
+TODOEOF
+
+    printf '\x89PNG\r\n' > icon.png
+}
+
+# Fast path: clone from cached template
 if [ -d "$TEMPLATE/.git" ]; then
-    rm -rf "$REPO"
+    # Move old repo out of the way (mv is atomic, never fails on locked files)
+    if [ -d "$REPO" ]; then
+        mv "$REPO" "$TRASH"
+    fi
     cp -Rc "$TEMPLATE" "$REPO"
-    # Re-apply the dirty working tree state (cp preserves it, but
-    # git index needs to be valid — just verify)
     echo "$REPO"
     exit 0
 fi
 
 # Slow path: build template from scratch (only runs once)
-rm -rf "$TEMPLATE"
+if [ -d "$TEMPLATE" ]; then
+    find "$TEMPLATE" -delete 2>/dev/null || true
+fi
 mkdir -p "$TEMPLATE"
 cd "$TEMPLATE"
 
@@ -116,35 +149,9 @@ git commit -m "feat: add basic logging utility" >/dev/null 2>&1
 git checkout main >/dev/null 2>&1
 
 # ── Leave working tree dirty (unstaged + untracked) ───────
+apply_dirty_state "$TEMPLATE"
 
-# Modify an existing tracked file (unstaged change)
-cat >> README.md << 'DIRTY'
-
-## Development
-Run `make` to build.
-DIRTY
-
-# Modify another tracked file
-sed -i '' 's/Hello, world!/Hello, floatinghotel!/' main.cpp 2>/dev/null || \
-sed -i 's/Hello, world!/Hello, floatinghotel!/' main.cpp
-
-# Stage one file (so we have both staged and unstaged)
-echo "build/" > .gitignore
-git add .gitignore
-
-# Create an untracked file
-cat > TODO.md << 'TODOEOF'
-# TODO
-- [ ] Add CI pipeline
-- [ ] Write more tests
-- [ ] Add error handling
-TODOEOF
-
-# Create a binary-ish file (untracked)
-printf '\x89PNG\r\n' > icon.png
-
-# Now copy template to actual repo
-rm -rf "$REPO"
+# First-time copy from template to repo
 cp -Rc "$TEMPLATE" "$REPO"
 
 echo "$REPO"

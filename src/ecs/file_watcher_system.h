@@ -11,8 +11,11 @@ namespace ecs {
 
 struct FileWatcherSystem : afterhours::System<RepoComponent> {
 
+    bool disabled = false;
+
     void for_each_with(afterhours::Entity& entity,
                        RepoComponent& repo, float) override {
+        if (disabled) return;
         if (!entity.has<ActiveTab>()) return;
         if (repo.repoPath.empty()) return;
 
@@ -21,9 +24,10 @@ struct FileWatcherSystem : afterhours::System<RepoComponent> {
         if (ec) return;
         std::string resolved = canon.string();
 
-        if (resolved != watched_path_) {
+        if (resolved != watched_path_ || repo.repoVersion != watched_version_) {
             watcher_.watch(resolved);
             watched_path_ = resolved;
+            watched_version_ = repo.repoVersion;
             cooldown_until_ = clock::now() + COOLDOWN;
         }
 
@@ -46,6 +50,7 @@ private:
 
     platform::FileWatcher watcher_;
     std::string watched_path_;
+    unsigned watched_version_ = 0;
     clock::time_point cooldown_until_{};
 };
 

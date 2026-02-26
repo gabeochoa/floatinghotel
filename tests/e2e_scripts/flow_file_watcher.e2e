@@ -1,6 +1,7 @@
 # Flow: File watcher detects external edits and auto-refreshes
 make_test_repo
 resize 1280 720
+enable_file_watcher
 wait_frames 5
 
 # Baseline: 1 staged, 2 unstaged, 2 untracked

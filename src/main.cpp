@@ -4,6 +4,11 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
+#include <unistd.h>
+
+#ifdef __APPLE__
+#include <copyfile.h>
+#endif
 
 #include <afterhours/src/logging.h>
 #include "preload.h"
@@ -47,29 +52,69 @@ struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECom
 };
 
 // Custom E2E command: make_test_repo
-// Runs scripts/setup_test_repo.sh, switches the app to the new repo,
-// and does a SYNCHRONOUS git refresh so data is ready immediately.
+// Resets the test repo from a cached template using fast filesystem operations.
+// Falls back to the shell script for first-time template creation.
 struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECommand> {
+
+    static constexpr const char* REPO_PATH = "/tmp/floatinghotel_test_repo";
+    static constexpr const char* TEMPLATE_PATH = "/tmp/floatinghotel_test_template";
+
+    bool ensure_template() {
+        namespace fs = std::filesystem;
+        if (fs::exists(fs::path(TEMPLATE_PATH) / ".git")) return true;
+        auto result = run_process("", {"bash", "scripts/setup_test_repo.sh"});
+        return result.success();
+    }
+
+    bool reset_repo_fast() {
+        namespace fs = std::filesystem;
+        static unsigned trash_counter = 0;
+        std::string trashPath = std::string("/tmp/fh_trash_") +
+            std::to_string(::getpid()) + "_" + std::to_string(++trash_counter);
+
+        if (fs::exists(REPO_PATH)) {
+            std::error_code ec;
+            fs::rename(REPO_PATH, trashPath, ec);
+            if (ec) {
+                log_warn("make_test_repo: rename failed: {}", ec.message());
+                return false;
+            }
+        }
+
+#ifdef __APPLE__
+        int ret = copyfile(TEMPLATE_PATH, REPO_PATH, nullptr,
+                           COPYFILE_ALL | COPYFILE_RECURSIVE | COPYFILE_CLONE);
+        if (ret != 0) {
+            log_warn("make_test_repo: copyfile failed: {}", strerror(errno));
+            return false;
+        }
+        return true;
+#else
+        std::error_code ec;
+        fs::copy(TEMPLATE_PATH, REPO_PATH,
+                 fs::copy_options::recursive | fs::copy_options::copy_symlinks, ec);
+        if (ec) {
+            log_warn("make_test_repo: copy failed: {}", ec.message());
+            return false;
+        }
+        return true;
+#endif
+    }
+
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("make_test_repo")) return;
 
-        std::string script = "scripts/setup_test_repo.sh";
-        auto result = run_process("", {"bash", script});
-        if (!result.success()) {
-            cmd.fail("make_test_repo: script failed: " + result.stderr_str);
+        if (!ensure_template()) {
+            cmd.fail("make_test_repo: failed to create template");
             return;
         }
 
-        // Script prints the repo path on stdout
-        std::string repoPath = result.stdout_str;
-        // Trim trailing whitespace/newlines
-        while (!repoPath.empty() && (repoPath.back() == '\n' || repoPath.back() == '\r' || repoPath.back() == ' '))
-            repoPath.pop_back();
-
-        if (repoPath.empty()) {
-            cmd.fail("make_test_repo: script returned empty path");
+        if (!reset_repo_fast()) {
+            cmd.fail("make_test_repo: failed to reset repo");
             return;
         }
+
+        std::string repoPath = REPO_PATH;
 
         // Reset UI state before loading new repo
         auto layoutQ = afterhours::EntityQuery({.force_merge = true})
@@ -171,6 +216,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.isRefreshing = false;
             repo.refreshRequested = false;
             repo.hasLoadedOnce = true;
+            repo.repoVersion++;
         } else {
             log_warn("make_test_repo: no RepoComponent entity found!");
         }
@@ -326,6 +372,7 @@ namespace app_state {
 
 afterhours::SystemManager* systemManager = nullptr;
 afterhours::Entity* editorEntity = nullptr;
+ecs::FileWatcherSystem* fileWatcher = nullptr;
 
 std::string repoPath;
 
@@ -346,6 +393,19 @@ float refreshWaitElapsed = 0.0f;
 std::string validationReportPath;
 
 }  // namespace app_state
+
+struct HandleFileWatcherToggle : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed()) return;
+        if (cmd.is("enable_file_watcher")) {
+            if (app_state::fileWatcher) app_state::fileWatcher->disabled = false;
+            cmd.consume();
+        } else if (cmd.is("disable_file_watcher")) {
+            if (app_state::fileWatcher) app_state::fileWatcher->disabled = true;
+            cmd.consume();
+        }
+    }
+};
 
 // Init callback: runs after Sokol/Metal window is created
 static void app_init() {
@@ -508,7 +568,12 @@ static void app_init() {
         ui_imm::registerUIPostLayoutSystems(sm);
 
         // Update systems
-        sm.register_update_system(std::make_unique<ecs::FileWatcherSystem>());
+        auto fileWatcherPtr = std::make_unique<ecs::FileWatcherSystem>();
+        app_state::fileWatcher = fileWatcherPtr.get();
+        if (app_state::testModeEnabled) {
+            fileWatcherPtr->disabled = true;
+        }
+        sm.register_update_system(std::move(fileWatcherPtr));
         sm.register_update_system(std::make_unique<ecs::AsyncGitDataRefreshSystem>());
 
         // Toast notification systems
@@ -527,6 +592,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleTabCommands>());
             sm.register_update_system(std::make_unique<HandleTouchFile>());
             sm.register_update_system(std::make_unique<HandleWaitForRefresh>());
+            sm.register_update_system(std::make_unique<HandleFileWatcherToggle>());
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
                 std::make_unique<afterhours::testing::HandleScreenshotCommand>(

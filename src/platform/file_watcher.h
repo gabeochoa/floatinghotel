@@ -92,10 +92,14 @@ public:
         if (!stream_) return;
 
         if (run_loop_thread_.joinable()) {
-            while (!run_loop_.load(std::memory_order_acquire)) {
-                std::this_thread::yield();
+            // Wait for the run loop to be set (thread may not have started yet)
+            for (int i = 0; i < 500 && !run_loop_.load(std::memory_order_acquire); ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
             }
-            CFRunLoopStop(run_loop_.load(std::memory_order_acquire));
+            CFRunLoopRef rl = run_loop_.load(std::memory_order_acquire);
+            if (rl) {
+                CFRunLoopStop(rl);
+            }
             run_loop_thread_.join();
         }
         run_loop_.store(nullptr, std::memory_order_relaxed);

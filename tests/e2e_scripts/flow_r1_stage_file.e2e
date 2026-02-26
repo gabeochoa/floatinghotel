@@ -18,6 +18,7 @@ screenshot r1_01_file_selected
 click_text "Repository"
 wait_frames 5
 click_text "Stage File"
+wait_frames 5
 wait_for_refresh
 
 # Should now have 2 staged, 1 unstaged
