@@ -8,6 +8,7 @@
 #include <afterhours/src/ecs.h>
 
 #include "../ecs/components.h"
+#include "../ecs/query_helpers.h"
 #include "../git/git_commands.h"
 #include "../git/git_runner.h"
 
@@ -36,10 +37,8 @@ struct Menu {
 };
 
 inline void set_pending_toast(const std::string& msg) {
-    auto q = afterhours::EntityQuery({.force_merge = true})
-        .whereHasComponent<ecs::MenuComponent>().gen();
-    if (!q.empty())
-        q[0].get().get<ecs::MenuComponent>().pendingToast = msg;
+    auto* menu = ecs::find_singleton<ecs::MenuComponent>();
+    if (menu) menu->pendingToast = msg;
 }
 
 inline std::vector<Menu> createMenuBar() {
@@ -77,57 +76,34 @@ inline std::vector<Menu> createMenuBar() {
     // View menu
     menus.push_back({"View", {
         MenuItem::item("Toggle Sidebar", "Cmd+B", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty()) {
-                auto& l = q[0].get().get<ecs::LayoutComponent>();
-                l.sidebarVisible = !l.sidebarVisible;
-            }
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->sidebarVisible = !l->sidebarVisible;
         }),
         MenuItem::item("Toggle Command Log", "Cmd+Shift+L", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty()) {
-                auto& l = q[0].get().get<ecs::LayoutComponent>();
-                l.commandLogVisible = !l.commandLogVisible;
-            }
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->commandLogVisible = !l->commandLogVisible;
         }),
         MenuItem::separator(),
         MenuItem::item("Inline Diff", "Cmd+Shift+I", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty())
-                q[0].get().get<ecs::LayoutComponent>().diffViewMode =
-                    ecs::LayoutComponent::DiffViewMode::Inline;
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
         }),
         MenuItem::item("Side-by-Side Diff", "Cmd+Shift+D", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty())
-                q[0].get().get<ecs::LayoutComponent>().diffViewMode =
-                    ecs::LayoutComponent::DiffViewMode::SideBySide;
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->diffViewMode = ecs::LayoutComponent::DiffViewMode::SideBySide;
         }),
         MenuItem::separator(),
         MenuItem::item("Changed Files View", "", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty())
-                q[0].get().get<ecs::LayoutComponent>().fileViewMode =
-                    ecs::LayoutComponent::FileViewMode::Flat;
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::Flat;
         }),
         MenuItem::item("Tree View", "", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty())
-                q[0].get().get<ecs::LayoutComponent>().fileViewMode =
-                    ecs::LayoutComponent::FileViewMode::Tree;
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::Tree;
         }),
         MenuItem::item("All Files View", "", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty())
-                q[0].get().get<ecs::LayoutComponent>().fileViewMode =
-                    ecs::LayoutComponent::FileViewMode::All;
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::All;
         }),
         MenuItem::separator(),
         MenuItem::item("Zoom In", "Cmd+=", [] {
@@ -144,97 +120,55 @@ inline std::vector<Menu> createMenuBar() {
     // Git menu
     menus.push_back({"Repository", {
         MenuItem::item("Stage File", "Cmd+Shift+S", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!q.empty()) {
-                auto& r = q[0].get().get<ecs::RepoComponent>();
-                if (!r.selectedFilePath.empty()) {
-                    git::stage_file(r.repoPath, r.selectedFilePath);
-                    r.refreshRequested = true;
-                }
+            auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (r && !r->selectedFilePath.empty()) {
+                git::stage_file(r->repoPath, r->selectedFilePath);
+                r->refreshRequested = true;
             }
         }),
         MenuItem::item("Unstage File", "Cmd+Shift+U", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!q.empty()) {
-                auto& r = q[0].get().get<ecs::RepoComponent>();
-                if (!r.selectedFilePath.empty()) {
-                    git::unstage_file(r.repoPath, r.selectedFilePath);
-                    r.refreshRequested = true;
-                }
+            auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (r && !r->selectedFilePath.empty()) {
+                git::unstage_file(r->repoPath, r->selectedFilePath);
+                r->refreshRequested = true;
             }
         }),
         MenuItem::separator(),
         MenuItem::item("Commit...", "Cmd+Enter", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::CommitEditorComponent>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!q.empty())
-                q[0].get().get<ecs::CommitEditorComponent>().commitRequested = true;
+            auto* e = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>();
+            if (e) e->commitRequested = true;
         }),
         MenuItem::item("Amend Last Commit", "", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::CommitEditorComponent>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!q.empty())
-                q[0].get().get<ecs::CommitEditorComponent>().isAmend = true;
+            auto* e = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>();
+            if (e) e->isAmend = true;
         }),
         MenuItem::separator(),
         MenuItem::item("New Branch...", "Cmd+Shift+B", [] {
-            auto repoEntities = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>()
-                .whereHasComponent<ecs::ActiveTab>()
-                .gen();
-            if (!repoEntities.empty()) {
-                auto& repo = repoEntities[0].get().get<ecs::RepoComponent>();
-                repo.showNewBranchDialog = true;
-                repo.newBranchName.clear();
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (repo) {
+                repo->showNewBranchDialog = true;
+                repo->newBranchName.clear();
             }
         }),
         MenuItem::item("Checkout Branch...", "Cmd+Shift+O", [] {
-            // Switch sidebar to Refs view
-            auto layoutEntities = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>()
-                .gen();
-            if (!layoutEntities.empty()) {
-                auto& layout = layoutEntities[0].get().get<ecs::LayoutComponent>();
-                layout.sidebarMode = ecs::LayoutComponent::SidebarMode::Refs;
-                layout.sidebarVisible = true;
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) {
+                l->sidebarMode = ecs::LayoutComponent::SidebarMode::Refs;
+                l->sidebarVisible = true;
             }
         }),
         MenuItem::separator(),
         MenuItem::item("Push", "Cmd+Shift+P", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!q.empty()) {
-                auto& r = q[0].get().get<ecs::RepoComponent>();
-                git::git_push(r.repoPath);
-                r.refreshRequested = true;
-            }
+            auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (r) { git::git_push(r->repoPath); r->refreshRequested = true; }
         }),
         MenuItem::item("Pull", "", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!q.empty()) {
-                auto& r = q[0].get().get<ecs::RepoComponent>();
-                git::git_pull(r.repoPath);
-                r.refreshRequested = true;
-            }
+            auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (r) { git::git_pull(r->repoPath); r->refreshRequested = true; }
         }),
         MenuItem::item("Fetch", "", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!q.empty()) {
-                auto& r = q[0].get().get<ecs::RepoComponent>();
-                git::git_fetch(r.repoPath);
-                r.refreshRequested = true;
-            }
+            auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (r) { git::git_fetch(r->repoPath); r->refreshRequested = true; }
         }),
     }});
 
@@ -244,12 +178,8 @@ inline std::vector<Menu> createMenuBar() {
             set_pending_toast("Keyboard Shortcuts is not yet implemented");
         }),
         MenuItem::item("Command Log", "", [] {
-            auto q = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (!q.empty()) {
-                auto& l = q[0].get().get<ecs::LayoutComponent>();
-                l.commandLogVisible = !l.commandLogVisible;
-            }
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->commandLogVisible = !l->commandLogVisible;
         }),
         MenuItem::item("About floatinghotel", "", [] {
             set_pending_toast("About floatinghotel is not yet implemented");

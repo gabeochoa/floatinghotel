@@ -14,27 +14,17 @@ namespace ecs {
 struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
-        auto layoutEntities = afterhours::EntityQuery({.force_merge = true})
-                                  .whereHasComponent<LayoutComponent>()
-                                  .gen();
-        if (layoutEntities.empty()) return;
-        auto& layout = layoutEntities[0].get().get<LayoutComponent>();
-
-        auto repoEntities = afterhours::EntityQuery({.force_merge = true})
-                                .whereHasComponent<RepoComponent>()
-                                .whereHasComponent<ActiveTab>()
-                                .gen();
+        auto* layout = find_singleton<LayoutComponent>();
+        if (!layout) return;
+        auto* repo = find_singleton<RepoComponent, ActiveTab>();
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
-        float w = layout.statusBar.width;
-        float h = layout.statusBar.height;
-        float y = layout.statusBar.y;
+        float w = layout->statusBar.width;
+        float h = layout->statusBar.height;
+        float y = layout->statusBar.y;
 
         // Determine background color (orange for detached HEAD, blue normally)
-        bool detached = false;
-        if (!repoEntities.empty()) {
-            detached = repoEntities[0].get().get<RepoComponent>().isDetachedHead;
-        }
+        bool detached = repo && repo->isDetachedHead;
         auto barBg = detached ? theme::STATUS_BAR_DETACHED_BG : theme::STATUS_BAR_BG;
 
         // === Status bar background (render_layer 5 so it draws above content) ===
@@ -50,22 +40,20 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
 
         // === Compose status text as a single string ===
         std::string statusText;
-        if (!repoEntities.empty()) {
-            auto& repo = repoEntities[0].get().get<RepoComponent>();
-
+        if (repo) {
             // Branch name
             if (detached) {
-                std::string shortHash = repo.headCommitHash.substr(
-                    0, std::min<size_t>(7, repo.headCommitHash.size()));
+                std::string shortHash = repo->headCommitHash.substr(
+                    0, std::min<size_t>(7, repo->headCommitHash.size()));
                 statusText = "HEAD " + shortHash;
             } else {
-                statusText = repo.currentBranch.empty() ? "main" : repo.currentBranch;
+                statusText = repo->currentBranch.empty() ? "main" : repo->currentBranch;
             }
 
             // File counts (staged, unstaged)
-            int stagedCount = static_cast<int>(repo.stagedFiles.size());
+            int stagedCount = static_cast<int>(repo->stagedFiles.size());
             int unstagedCount = static_cast<int>(
-                repo.unstagedFiles.size() + repo.untrackedFiles.size());
+                repo->unstagedFiles.size() + repo->untrackedFiles.size());
 
             std::string rightText;
             if (stagedCount > 0 || unstagedCount > 0) {
@@ -106,7 +94,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("status_info"));
 
         // === Right section: command log toggle button (absolute) ===
-        std::string logLabel = layout.commandLogVisible ? "Hide Log" : "Show Log";
+        std::string logLabel = layout->commandLogVisible ? "Hide Log" : "Show Log";
         float btnW = afterhours::ui::resolve_to_pixels(w1280(80), sw);
         auto logBtn = button(ctx, mk(uiRoot, 4050),
             preset::Button(logLabel)
@@ -124,14 +112,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("status_log_toggle"));
 
         if (logBtn) {
-            // Toggle command log visibility on LayoutComponent
-            auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<LayoutComponent>()
-                                 .gen();
-            if (!lEntities.empty()) {
-                auto& lc = lEntities[0].get().get<LayoutComponent>();
-                lc.commandLogVisible = !lc.commandLogVisible;
-            }
+            layout->commandLogVisible = !layout->commandLogVisible;
         }
     }
 };

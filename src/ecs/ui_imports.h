@@ -11,6 +11,7 @@
 #include "../ui/theme.h"
 #include "../ui_context.h"
 #include "components.h"
+#include "query_helpers.h"
 
 using afterhours::Entity;
 using afterhours::EntityHelper;

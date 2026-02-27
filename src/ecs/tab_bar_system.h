@@ -21,17 +21,13 @@ namespace tab_colors {
 struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
-        auto layoutEntities = afterhours::EntityQuery({.force_merge = true})
-                                  .whereHasComponent<LayoutComponent>()
-                                  .gen();
-        if (layoutEntities.empty()) return;
-        auto& layout = layoutEntities[0].get().get<LayoutComponent>();
+        auto* layoutP = find_singleton<LayoutComponent>();
+        if (!layoutP) return;
+        auto& layout = *layoutP;
 
-        auto tabStripEntities = afterhours::EntityQuery({.force_merge = true})
-                                    .whereHasComponent<TabStripComponent>()
-                                    .gen();
-        if (tabStripEntities.empty()) return;
-        auto& tabStrip = tabStripEntities[0].get().get<TabStripComponent>();
+        auto* tabStripP = find_singleton<TabStripComponent>();
+        if (!tabStripP) return;
+        auto& tabStrip = *tabStripP;
 
         // Handle Cmd+T (new tab) and Cmd+W (close tab)
         bool cmdDown = afterhours::graphics::is_key_down(343); // LEFT_SUPER
@@ -207,12 +203,10 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
     }
 
     static void switch_to_tab(Entity& newTab, LayoutComponent& layout) {
-        auto activeQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<Tab>()
-            .whereHasComponent<ActiveTab>().gen();
+        auto* oldActiveEnt = find_singleton_entity<Tab, ActiveTab>();
 
-        if (!activeQ.empty()) {
-            auto& oldTab = activeQ[0].get();
+        if (oldActiveEnt) {
+            auto& oldTab = *oldActiveEnt;
             // Save current layout state into the outgoing tab
             auto& oldTabComp = oldTab.get<Tab>();
             oldTabComp.sidebarMode = layout.sidebarMode;
@@ -242,11 +236,9 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
 
     static void create_new_tab(TabStripComponent& tabStrip, LayoutComponent& layout) {
         // Save current tab state
-        auto activeQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<Tab>()
-            .whereHasComponent<ActiveTab>().gen();
-        if (!activeQ.empty()) {
-            auto& oldTab = activeQ[0].get();
+        auto* oldActiveEnt = find_singleton_entity<Tab, ActiveTab>();
+        if (oldActiveEnt) {
+            auto& oldTab = *oldActiveEnt;
             auto& oldTabComp = oldTab.get<Tab>();
             oldTabComp.sidebarMode = layout.sidebarMode;
             oldTabComp.fileViewMode = layout.fileViewMode;
@@ -294,27 +286,23 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
 // view modes. Runs early each frame to capture changes from menu/toolbar actions.
 struct TabSyncSystem : afterhours::System<> {
     void once(float) override {
-        auto activeQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<Tab>()
-            .whereHasComponent<ActiveTab>().gen();
-        if (activeQ.empty()) return;
+        auto* activeEnt = find_singleton_entity<Tab, ActiveTab>();
+        if (!activeEnt) return;
 
-        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<LayoutComponent>().gen();
-        if (layoutQ.empty()) return;
+        auto* layout = find_singleton<LayoutComponent>();
+        if (!layout) return;
 
-        auto& tab = activeQ[0].get().get<Tab>();
-        auto& layout = layoutQ[0].get().get<LayoutComponent>();
+        auto& tab = activeEnt->get<Tab>();
 
         // Continuously sync layout -> tab so switching away captures latest state
-        tab.sidebarMode = layout.sidebarMode;
-        tab.fileViewMode = layout.fileViewMode;
-        tab.diffViewMode = layout.diffViewMode;
-        tab.sidebarVisible = layout.sidebarVisible;
+        tab.sidebarMode = layout->sidebarMode;
+        tab.fileViewMode = layout->fileViewMode;
+        tab.diffViewMode = layout->diffViewMode;
+        tab.sidebarVisible = layout->sidebarVisible;
 
         // Update tab label from repo if available
-        if (activeQ[0].get().has<RepoComponent>()) {
-            auto& repo = activeQ[0].get().get<RepoComponent>();
+        if (activeEnt->has<RepoComponent>()) {
+            auto& repo = activeEnt->get<RepoComponent>();
             if (!repo.repoPath.empty()) {
                 std::filesystem::path p(repo.repoPath);
                 std::string base = p.filename().string();

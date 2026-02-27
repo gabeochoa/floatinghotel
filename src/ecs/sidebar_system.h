@@ -174,18 +174,13 @@ inline void save_policy(CommitEditorComponent::UnstagedPolicy policy) {
 struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
-        auto layoutEntities = afterhours::EntityQuery({.force_merge = true})
-                                  .whereHasComponent<LayoutComponent>()
-                                  .gen();
-        if (layoutEntities.empty()) return;
-        auto& layout = layoutEntities[0].get().get<LayoutComponent>();
+        auto* layoutPtr = find_singleton<LayoutComponent>();
+        if (!layoutPtr) return;
+        auto& layout = *layoutPtr;
 
         if (!layout.sidebarVisible) return;
 
-        auto repoEntities = afterhours::EntityQuery({.force_merge = true})
-                                .whereHasComponent<RepoComponent>()
-                                .whereHasComponent<ActiveTab>()
-                                .gen();
+        auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
 
@@ -224,9 +219,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
             // Render file list directly into filesBg (no intermediate container)
             // to avoid framework bug where nested container children render wrong
-            if (!repoEntities.empty()) {
-                auto& repo = repoEntities[0].get().get<RepoComponent>();
-                render_file_list(ctx, filesBg.ent(), repo);
+            if (repoPtr) {
+                render_file_list(ctx, filesBg.ent(), *repoPtr);
             } else {
                 div(ctx, mk(filesBg.ent(), 2150),
                     ComponentConfig{}
@@ -242,9 +236,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             }
         } else {
             // === Refs view (T031) ===
-            if (!repoEntities.empty()) {
-                auto& repo = repoEntities[0].get().get<RepoComponent>();
-                render_refs_view(ctx, filesBg.ent(), repo, layout);
+            if (repoPtr) {
+                render_refs_view(ctx, filesBg.ent(), *repoPtr, layout);
             } else {
                 div(ctx, mk(filesBg.ent(), 2150),
                     ComponentConfig{}
@@ -282,12 +275,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             float newCommitRatio = 1.0f - ratio;
             newCommitRatio = std::clamp(newCommitRatio, 0.2f, 0.8f);
 
-            auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<LayoutComponent>()
-                                 .gen();
-            if (!lEntities.empty()) {
-                lEntities[0].get().get<LayoutComponent>().commitLogRatio = newCommitRatio;
-            }
+            auto* lc = find_singleton<LayoutComponent>();
+            if (lc) lc->commitLogRatio = newCommitRatio;
         }
 
         // === Commit Log section (flow child of sidebar, fills remaining space) ===
@@ -305,8 +294,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         auto logW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         {
             size_t commitCount = 0;
-            if (!repoEntities.empty()) {
-                commitCount = repoEntities[0].get().get<RepoComponent>().commitLog.size();
+            if (repoPtr) {
+                commitCount = repoPtr->commitLog.size();
             }
             std::string logHeaderText = "\xe2\x96\xbe Commits  " + std::to_string(commitCount);
             div(ctx, mk(logBg.ent(), 2310),
@@ -326,9 +315,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{logW, pixels(logScrollH)})
                 .with_debug_name("commit_log_scroll"));
 
-        if (!repoEntities.empty()) {
-            auto& repo = repoEntities[0].get().get<RepoComponent>();
-            render_commit_log_entries(ctx, logScroll.ent(), repo);
+        if (repoPtr) {
+            render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
         } else {
             div(ctx, mk(logScroll.ent(), 0),
                 ComponentConfig{}
@@ -344,23 +332,19 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         // === Commit workflow + Unstaged Changes Dialog (T030) ===
-        if (!repoEntities.empty()) {
-            auto& repo = repoEntities[0].get().get<RepoComponent>();
+        if (repoPtr) {
+            auto& repo = *repoPtr;
 
-            auto editorEntities = afterhours::EntityQuery({.force_merge = true})
-                                      .whereHasComponent<CommitEditorComponent>()
-                                      .whereHasComponent<ActiveTab>()
-                                      .gen();
-            if (!editorEntities.empty()) {
-                auto& editor = editorEntities[0].get().get<CommitEditorComponent>();
+            auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
+            if (editor) {
 
                 // Process commit request
-                if (editor.commitRequested) {
-                    commit_workflow::handle_commit_request(repo, editor);
+                if (editor->commitRequested) {
+                    commit_workflow::handle_commit_request(repo, *editor);
                 }
 
                 // Render unstaged changes dialog
-                render_unstaged_dialog(ctx, uiRoot, repo, editor);
+                render_unstaged_dialog(ctx, uiRoot, repo, *editor);
             }
 
             // === Branch dialogs (T031) ===
@@ -414,12 +398,8 @@ private:
             auto result = button(ctx, mk(tabRow.ent(), id), config);
 
             if (result) {
-                auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                     .whereHasComponent<LayoutComponent>()
-                                     .gen();
-                if (!lEntities.empty()) {
-                    lEntities[0].get().get<LayoutComponent>().sidebarMode = mode;
-                }
+                auto* lc = find_singleton<LayoutComponent>();
+                if (lc) lc->sidebarMode = mode;
             }
         };
 
@@ -876,12 +856,8 @@ private:
             auto result = button(ctx, mk(tabRow.ent(), id), config);
 
             if (result) {
-                auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                     .whereHasComponent<LayoutComponent>()
-                                     .gen();
-                if (!lEntities.empty()) {
-                    lEntities[0].get().get<LayoutComponent>().fileViewMode = mode;
-                }
+                auto* lc = find_singleton<LayoutComponent>();
+                if (lc) lc->fileViewMode = mode;
             }
         };
 
@@ -1062,14 +1038,10 @@ private:
 
         // Click -> select this file
         if (row.ent().get<HasClickListener>().down) {
-            auto rEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<RepoComponent>()
-                                 .whereHasComponent<ActiveTab>()
-                                 .gen();
-            if (!rEntities.empty()) {
-                auto& r = rEntities[0].get().get<RepoComponent>();
-                r.selectedFilePath = file.path;
-                r.selectedCommitHash.clear();
+            auto* r = find_singleton<RepoComponent, ActiveTab>();
+            if (r) {
+                r->selectedFilePath = file.path;
+                r->selectedCommitHash.clear();
             }
         }
     }
@@ -1119,14 +1091,10 @@ private:
                 .with_debug_name("file_status"));
 
         if (row.ent().get<HasClickListener>().down) {
-            auto rEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<RepoComponent>()
-                                 .whereHasComponent<ActiveTab>()
-                                 .gen();
-            if (!rEntities.empty()) {
-                auto& r = rEntities[0].get().get<RepoComponent>();
-                r.selectedFilePath = path;
-                r.selectedCommitHash.clear();
+            auto* r = find_singleton<RepoComponent, ActiveTab>();
+            if (r) {
+                r->selectedFilePath = path;
+                r->selectedCommitHash.clear();
             }
         }
     }
@@ -1323,15 +1291,11 @@ private:
 
         // Click -> select this commit
         if (row.ent().get<HasClickListener>().down) {
-            auto rEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<RepoComponent>()
-                                 .whereHasComponent<ActiveTab>()
-                                 .gen();
-            if (!rEntities.empty()) {
-                auto& r = rEntities[0].get().get<RepoComponent>();
-                r.selectedCommitHash = commit.hash;
-                r.selectedFilePath.clear();
-                r.cachedFilePath.clear();
+            auto* r = find_singleton<RepoComponent, ActiveTab>();
+            if (r) {
+                r->selectedCommitHash = commit.hash;
+                r->selectedFilePath.clear();
+                r->cachedFilePath.clear();
             }
         }
     }

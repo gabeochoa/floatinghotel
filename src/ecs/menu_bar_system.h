@@ -36,17 +36,13 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
 
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
-        auto menuEntities = afterhours::EntityQuery({.force_merge = true})
-                                .whereHasComponent<MenuComponent>()
-                                .gen();
-        if (menuEntities.empty()) return;
-        auto& menu = menuEntities[0].get().get<MenuComponent>();
+        auto* menuPtr = find_singleton<MenuComponent>();
+        if (!menuPtr) return;
+        auto& menu = *menuPtr;
 
-        auto layoutEntities = afterhours::EntityQuery({.force_merge = true})
-                                  .whereHasComponent<LayoutComponent>()
-                                  .gen();
-        if (layoutEntities.empty()) return;
-        auto& layout = layoutEntities[0].get().get<LayoutComponent>();
+        auto* layoutPtr = find_singleton<LayoutComponent>();
+        if (!layoutPtr) return;
+        auto& layout = *layoutPtr;
 
         if (!initialized_) {
             menus_ = menu_setup::createMenuBar();

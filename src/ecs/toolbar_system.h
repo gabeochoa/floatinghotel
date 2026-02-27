@@ -12,29 +12,22 @@ namespace ecs {
 struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
-        auto layoutEntities = afterhours::EntityQuery({.force_merge = true})
-                                  .whereHasComponent<LayoutComponent>()
-                                  .gen();
-        if (layoutEntities.empty()) return;
-        auto& layout = layoutEntities[0].get().get<LayoutComponent>();
+        auto* layoutPtr = find_singleton<LayoutComponent>();
+        if (!layoutPtr) return;
+        auto& layout = *layoutPtr;
 
-        auto repoEntities = afterhours::EntityQuery({.force_merge = true})
-                                .whereHasComponent<RepoComponent>()
-                                .whereHasComponent<ActiveTab>()
-                                .gen();
+        auto* repo = find_singleton<RepoComponent, ActiveTab>();
 
-        // Get repo state for enable/disable logic
-        bool hasRepo = !repoEntities.empty();
+        bool hasRepo = (repo != nullptr);
         bool hasUnstaged = false;
         bool hasStaged = false;
         std::string branchName = "main";
 
-        if (hasRepo) {
-            auto& repo = repoEntities[0].get().get<RepoComponent>();
-            hasUnstaged = !repo.unstagedFiles.empty() || !repo.untrackedFiles.empty();
-            hasStaged = !repo.stagedFiles.empty();
-            if (!repo.currentBranch.empty()) {
-                branchName = repo.currentBranch;
+        if (repo) {
+            hasUnstaged = !repo->unstagedFiles.empty() || !repo->untrackedFiles.empty();
+            hasStaged = !repo->stagedFiles.empty();
+            if (!repo->currentBranch.empty()) {
+                branchName = repo->currentBranch;
             }
         }
 
@@ -60,21 +53,20 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
 
         if (inSidebar) {
             render_sidebar_toolbar(ctx, topChrome, w, h,
-                                   repoEntities, hasRepo, hasUnstaged, hasStaged);
+                                   repo, hasRepo, hasUnstaged, hasStaged);
         } else {
             render_fullwidth_toolbar(ctx, topChrome, w, h,
-                                     repoEntities, hasRepo, hasUnstaged, hasStaged,
+                                     repo, hasRepo, hasUnstaged, hasStaged,
                                      branchName);
         }
     }
 
 private:
-    // Compact toolbar for sidebar: two rows of small buttons
-    template<typename Result, typename Entities>
+    template<typename Result>
     void render_sidebar_toolbar(UIContext<InputAction>& ctx,
                                 Result& topChrome,
                                 float w, float /*h*/,
-                                Entities& repoEntities,
+                                RepoComponent* repo,
                                 bool hasRepo, bool /*hasUnstaged*/, bool hasStaged) {
         // Toolbar fills its allocated height
         auto toolbarBg = div(ctx, mk(topChrome.ent(), 1),
@@ -122,40 +114,29 @@ private:
         };
 
         if (sidebarBtn(row1.ent(), nextId++, "Commit", hasRepo && hasStaged, true)) {
-            auto editorEntities = afterhours::EntityQuery({.force_merge = true})
-                                      .whereHasComponent<CommitEditorComponent>()
-                                      .whereHasComponent<ActiveTab>()
-                                      .gen();
-            if (!editorEntities.empty()) {
-                editorEntities[0].get().get<CommitEditorComponent>()
-                    .commitRequested = true;
-            }
+            auto* editor = ::ecs::find_singleton<CommitEditorComponent, ActiveTab>();
+            if (editor) editor->commitRequested = true;
         }
         if (sidebarBtn(row1.ent(), nextId++, "Push", hasRepo)) {
-            auto& repo = repoEntities[0].get().template get<RepoComponent>();
-            git::git_push(repo.repoPath);
-            repo.refreshRequested = true;
+            git::git_push(repo->repoPath);
+            repo->refreshRequested = true;
         }
         if (sidebarBtn(row1.ent(), nextId++, "Pull", hasRepo)) {
-            auto& repo = repoEntities[0].get().template get<RepoComponent>();
-            git::git_pull(repo.repoPath);
-            repo.refreshRequested = true;
+            git::git_pull(repo->repoPath);
+            repo->refreshRequested = true;
         }
         if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
-            auto menuQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<MenuComponent>().gen();
-            if (!menuQ.empty())
-                menuQ[0].get().get<MenuComponent>().pendingToast =
-                    "Stash is not yet implemented";
+            auto* menuComp = ::ecs::find_singleton<MenuComponent>();
+            if (menuComp)
+                menuComp->pendingToast = "Stash is not yet implemented";
         }
     }
 
-    // Full-width toolbar (when no sidebar)
-    template<typename Result, typename Entities>
+    template<typename Result>
     void render_fullwidth_toolbar(UIContext<InputAction>& ctx,
                                   Result& topChrome,
                                   float w, float h,
-                                  Entities& repoEntities,
+                                  RepoComponent* repo,
                                   bool hasRepo, bool hasUnstaged, bool hasStaged,
                                   const std::string& branchName) {
         // Top border
@@ -228,51 +209,34 @@ private:
         };
 
         if (toolbarButton("Refresh", hasRepo)) {
-            if (hasRepo) {
-                repoEntities[0].get().template get<RepoComponent>().refreshRequested = true;
-            }
+            repo->refreshRequested = true;
         }
         if (toolbarButton("Stage All", hasRepo && hasUnstaged)) {
-            if (hasRepo) {
-                auto& repo = repoEntities[0].get().template get<RepoComponent>();
-                git::stage_all(repo.repoPath);
-                repo.refreshRequested = true;
-            }
+            git::stage_all(repo->repoPath);
+            repo->refreshRequested = true;
         }
         if (toolbarButton("Unstage All", hasRepo && hasStaged)) {
-            if (hasRepo) {
-                auto& repo = repoEntities[0].get().template get<RepoComponent>();
-                git::unstage_all(repo.repoPath);
-                repo.refreshRequested = true;
-            }
+            git::unstage_all(repo->repoPath);
+            repo->refreshRequested = true;
         }
 
         toolbarSeparator();
 
         if (toolbarButton("Commit", hasRepo && hasStaged)) {
-            auto editorEntities = afterhours::EntityQuery({.force_merge = true})
-                                      .whereHasComponent<CommitEditorComponent>()
-                                      .whereHasComponent<ActiveTab>()
-                                      .gen();
-            if (!editorEntities.empty()) {
-                editorEntities[0].get().get<CommitEditorComponent>()
-                    .commitRequested = true;
-            }
+            auto* editor = ::ecs::find_singleton<CommitEditorComponent, ActiveTab>();
+            if (editor) editor->commitRequested = true;
         }
         if (toolbarButton("Push", hasRepo)) {
-            auto& repo = repoEntities[0].get().template get<RepoComponent>();
-            git::git_push(repo.repoPath);
-            repo.refreshRequested = true;
+            git::git_push(repo->repoPath);
+            repo->refreshRequested = true;
         }
         if (toolbarButton("Pull", hasRepo)) {
-            auto& repo = repoEntities[0].get().template get<RepoComponent>();
-            git::git_pull(repo.repoPath);
-            repo.refreshRequested = true;
+            git::git_pull(repo->repoPath);
+            repo->refreshRequested = true;
         }
         if (toolbarButton("Fetch", hasRepo)) {
-            auto& repo = repoEntities[0].get().template get<RepoComponent>();
-            git::git_fetch(repo.repoPath);
-            repo.refreshRequested = true;
+            git::git_fetch(repo->repoPath);
+            repo->refreshRequested = true;
         }
 
         toolbarSeparator();
@@ -287,13 +251,10 @@ private:
         // Branch selector
         std::string branchLabel = branchName + " \xe2\x96\xbe";
         if (toolbarButton(branchLabel, hasRepo)) {
-            auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<LayoutComponent>()
-                                 .gen();
-            if (!lEntities.empty()) {
-                auto& lc = lEntities[0].get().get<LayoutComponent>();
-                lc.sidebarMode = LayoutComponent::SidebarMode::Refs;
-                lc.sidebarVisible = true;
+            auto* lc = ::ecs::find_singleton<LayoutComponent>();
+            if (lc) {
+                lc->sidebarMode = LayoutComponent::SidebarMode::Refs;
+                lc->sidebarVisible = true;
             }
         }
     }

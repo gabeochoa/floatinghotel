@@ -159,11 +159,9 @@ inline std::string format_timestamp(double timestamp) {
 inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                                Entity& uiRoot,
                                LayoutComponent& layout) {
-    auto cmdLogEntities = afterhours::EntityQuery({.force_merge = true})
-                              .whereHasComponent<CommandLogComponent>()
-                              .gen();
-    if (cmdLogEntities.empty()) return;
-    auto& cmdLog = cmdLogEntities[0].get().get<CommandLogComponent>();
+    auto* cmdLogPtr = find_singleton<CommandLogComponent>();
+    if (!cmdLogPtr) return;
+    auto& cmdLog = *cmdLogPtr;
 
     auto& cl = layout.commandLog;
 
@@ -202,12 +200,8 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             float sh = static_cast<float>(afterhours::graphics::get_screen_height());
             float unscaledLogH = newLogH * 720.0f / sh;
 
-            auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<LayoutComponent>()
-                                 .gen();
-            if (!lEntities.empty()) {
-                lEntities[0].get().get<LayoutComponent>().commandLogHeight = unscaledLogH;
-            }
+            auto* lc = find_singleton<LayoutComponent>();
+            if (lc) lc->commandLogHeight = unscaledLogH;
         }
     }
 
@@ -994,16 +988,11 @@ inline std::optional<FileDiff> build_new_file_diff(
 struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
-        auto layoutEntities = afterhours::EntityQuery({.force_merge = true})
-                                  .whereHasComponent<LayoutComponent>()
-                                  .gen();
-        if (layoutEntities.empty()) return;
-        auto& layout = layoutEntities[0].get().get<LayoutComponent>();
+        auto* layoutPtr = find_singleton<LayoutComponent>();
+        if (!layoutPtr) return;
+        auto& layout = *layoutPtr;
 
-        auto repoEntities = afterhours::EntityQuery({.force_merge = true})
-                                .whereHasComponent<RepoComponent>()
-                                .whereHasComponent<ActiveTab>()
-                                .gen();
+        auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
 
@@ -1020,8 +1009,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("main_content"));
 
         // Check if active tab has a repo loaded
-        bool hasRepo = !repoEntities.empty() &&
-                       !repoEntities[0].get().get<RepoComponent>().repoPath.empty();
+        bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
 
         if (!hasRepo) {
             render_welcome_screen(ctx, mainBg.ent(), layout);
@@ -1036,7 +1024,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             return;
         }
 
-        auto& repo = repoEntities[0].get().get<RepoComponent>();
+        auto& repo = *repoPtr;
         bool hasSelectedFile = !repo.selectedFilePath.empty();
         bool hasSelectedCommit = !repo.selectedCommitHash.empty();
 
@@ -1244,12 +1232,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             float newWidth1280 = mouseX * 1280.0f / sw;
             float newWidth = std::clamp(newWidth1280, layout.sidebarMinWidth, maxW * 1280.0f / sw);
 
-            auto lEntities = afterhours::EntityQuery({.force_merge = true})
-                                 .whereHasComponent<LayoutComponent>()
-                                 .gen();
-            if (!lEntities.empty()) {
-                lEntities[0].get().get<LayoutComponent>().sidebarWidth = newWidth;
-            }
+            auto* lc = find_singleton<LayoutComponent>();
+            if (lc) lc->sidebarWidth = newWidth;
         }
     }
 
@@ -1400,13 +1384,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
                 // Click to open repo in this tab
                 if (row) {
-                    auto activeQ = afterhours::EntityQuery({.force_merge = true})
-                        .whereHasComponent<RepoComponent>()
-                        .whereHasComponent<ActiveTab>().gen();
-                    if (!activeQ.empty()) {
-                        auto& repo = activeQ[0].get().get<RepoComponent>();
-                        repo.repoPath = recentRepos[ri];
-                        repo.refreshRequested = true;
+                    auto* activeRepo = find_singleton<RepoComponent, ActiveTab>();
+                    if (activeRepo) {
+                        activeRepo->repoPath = recentRepos[ri];
+                        activeRepo->refreshRequested = true;
                         Settings::get().add_recent_repo(recentRepos[ri]);
                     }
                 }
