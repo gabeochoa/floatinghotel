@@ -348,9 +348,12 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             // === Branch dialogs (T031) ===
-            render_new_branch_dialog(ctx, uiRoot, repo);
-            render_delete_branch_dialog(ctx, uiRoot, repo);
-            render_force_delete_dialog(ctx, uiRoot, repo);
+            auto* branchDialog = find_singleton<BranchDialogState, ActiveTab>();
+            if (branchDialog) {
+                render_new_branch_dialog(ctx, uiRoot, repo, *branchDialog);
+                render_delete_branch_dialog(ctx, uiRoot, repo, *branchDialog);
+                render_force_delete_dialog(ctx, uiRoot, repo, *branchDialog);
+            }
         }
     }
 
@@ -444,8 +447,11 @@ private:
                 .with_debug_name("new_branch_btn"));
 
         if (newBranchBtn) {
-            repo.showNewBranchDialog = true;
-            repo.newBranchName.clear();
+            auto* bd = find_singleton<BranchDialogState, ActiveTab>();
+            if (bd) {
+                bd->showNewBranchDialog = true;
+                bd->newBranchName.clear();
+            }
         }
 
         // Scrollable branch list
@@ -577,8 +583,11 @@ private:
                     .with_debug_name("delete_branch_btn"));
 
             if (deleteBtn) {
-                repo.deleteBranchName = branch.name;
-                repo.showDeleteBranchDialog = true;
+                auto* bd = find_singleton<BranchDialogState, ActiveTab>();
+                if (bd) {
+                    bd->deleteBranchName = branch.name;
+                    bd->showDeleteBranchDialog = true;
+                }
             }
         }
 
@@ -592,8 +601,9 @@ private:
     // ---- New Branch dialog (T031) ----
     void render_new_branch_dialog(UIContext<InputAction>& ctx,
                                    Entity& uiRoot,
-                                   RepoComponent& repo) {
-        if (!repo.showNewBranchDialog) return;
+                                   RepoComponent& repo,
+                                   BranchDialogState& bd) {
+        if (!bd.showNewBranchDialog) return;
 
         using namespace afterhours;
         using afterhours::ui::h720;
@@ -602,7 +612,7 @@ private:
         constexpr int CONTENT_LAYER = 1001;
 
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, MODAL_ID), repo.showNewBranchDialog,
+            ctx, mk(uiRoot, MODAL_ID), bd.showNewBranchDialog,
             ModalConfig{}
                 .with_size(w1280(380), h720(180))
                 .with_title("New Branch")
@@ -626,7 +636,7 @@ private:
 
         // Text input
         afterhours::text_input::text_input(ctx, mk(modalEnt, 2),
-            repo.newBranchName,
+            bd.newBranchName,
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), h720(32)})
                 .with_padding(Padding{
@@ -652,23 +662,23 @@ private:
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_new_branch"))) {
-            repo.showNewBranchDialog = false;
-            repo.newBranchName.clear();
+            bd.showNewBranchDialog = false;
+            bd.newBranchName.clear();
         }
 
         // Create
-        bool canCreate = !repo.newBranchName.empty();
+        bool canCreate = !bd.newBranchName.empty();
         if (button(ctx, mk(btnRow.ent(), 2),
             preset::Button("Create", canCreate)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("create_branch_btn"))) {
             if (canCreate) {
-                auto result = git::create_branch(repo.repoPath, repo.newBranchName);
+                auto result = git::create_branch(repo.repoPath, bd.newBranchName);
                 if (result.success()) {
                     repo.refreshRequested = true;
                 }
-                repo.showNewBranchDialog = false;
-                repo.newBranchName.clear();
+                bd.showNewBranchDialog = false;
+                bd.newBranchName.clear();
             }
         }
     }
@@ -676,8 +686,9 @@ private:
     // ---- Delete Branch confirmation dialog (T031) ----
     void render_delete_branch_dialog(UIContext<InputAction>& ctx,
                                       Entity& uiRoot,
-                                      RepoComponent& repo) {
-        if (!repo.showDeleteBranchDialog) return;
+                                      RepoComponent& repo,
+                                      BranchDialogState& bd) {
+        if (!bd.showDeleteBranchDialog) return;
 
         using namespace afterhours;
         using afterhours::ui::h720;
@@ -685,12 +696,12 @@ private:
         constexpr int MODAL_ID = 8200;
         constexpr int CONTENT_LAYER = 1001;
 
-        std::string message = "Delete branch '" + repo.deleteBranchName + "'?\n"
+        std::string message = "Delete branch '" + bd.deleteBranchName + "'?\n"
             "This will delete the local branch. If it has unmerged\n"
             "changes, you will be prompted to force delete.";
 
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, MODAL_ID), repo.showDeleteBranchDialog,
+            ctx, mk(uiRoot, MODAL_ID), bd.showDeleteBranchDialog,
             ModalConfig{}
                 .with_size(w1280(420), h720(180))
                 .with_title("Delete Branch")
@@ -721,8 +732,8 @@ private:
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_delete"))) {
-            repo.showDeleteBranchDialog = false;
-            repo.deleteBranchName.clear();
+            bd.showDeleteBranchDialog = false;
+            bd.deleteBranchName.clear();
         }
 
         // Delete (red)
@@ -732,15 +743,14 @@ private:
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("confirm_delete"))) {
             auto result = git::delete_branch(repo.repoPath,
-                                              repo.deleteBranchName, false);
+                                              bd.deleteBranchName, false);
             if (result.success()) {
                 repo.refreshRequested = true;
-                repo.showDeleteBranchDialog = false;
-                repo.deleteBranchName.clear();
+                bd.showDeleteBranchDialog = false;
+                bd.deleteBranchName.clear();
             } else {
-                // Safe delete failed (unmerged) — prompt for force delete
-                repo.showDeleteBranchDialog = false;
-                repo.showForceDeleteDialog = true;
+                bd.showDeleteBranchDialog = false;
+                bd.showForceDeleteDialog = true;
             }
         }
     }
@@ -748,8 +758,9 @@ private:
     // ---- Force Delete Branch dialog (T031) ----
     void render_force_delete_dialog(UIContext<InputAction>& ctx,
                                      Entity& uiRoot,
-                                     RepoComponent& repo) {
-        if (!repo.showForceDeleteDialog) return;
+                                     RepoComponent& repo,
+                                     BranchDialogState& bd) {
+        if (!bd.showForceDeleteDialog) return;
 
         using namespace afterhours;
         using afterhours::ui::h720;
@@ -757,13 +768,13 @@ private:
         constexpr int MODAL_ID = 8300;
         constexpr int CONTENT_LAYER = 1001;
 
-        std::string message = "Branch '" + repo.deleteBranchName +
+        std::string message = "Branch '" + bd.deleteBranchName +
             "' has unmerged changes.\n\n"
             "Force delete will permanently lose these changes.\n"
             "Are you sure?";
 
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, MODAL_ID), repo.showForceDeleteDialog,
+            ctx, mk(uiRoot, MODAL_ID), bd.showForceDeleteDialog,
             ModalConfig{}
                 .with_size(w1280(420), h720(200))
                 .with_title("Force Delete Branch")
@@ -795,8 +806,8 @@ private:
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_force_delete"))) {
-            repo.showForceDeleteDialog = false;
-            repo.deleteBranchName.clear();
+            bd.showForceDeleteDialog = false;
+            bd.deleteBranchName.clear();
         }
 
         // Force Delete (red)
@@ -806,12 +817,12 @@ private:
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("force_delete_btn"))) {
             auto result = git::delete_branch(repo.repoPath,
-                                              repo.deleteBranchName, true);
+                                              bd.deleteBranchName, true);
             if (result.success()) {
                 repo.refreshRequested = true;
             }
-            repo.showForceDeleteDialog = false;
-            repo.deleteBranchName.clear();
+            bd.showForceDeleteDialog = false;
+            bd.deleteBranchName.clear();
         }
     }
 

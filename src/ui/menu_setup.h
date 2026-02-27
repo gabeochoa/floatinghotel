@@ -144,10 +144,10 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::separator(),
         MenuItem::item("New Branch...", "Cmd+Shift+B", [] {
-            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (repo) {
-                repo->showNewBranchDialog = true;
-                repo->newBranchName.clear();
+            auto* bd = ecs::find_singleton<ecs::BranchDialogState, ecs::ActiveTab>();
+            if (bd) {
+                bd->showNewBranchDialog = true;
+                bd->newBranchName.clear();
             }
         }),
         MenuItem::item("Checkout Branch...", "Cmd+Shift+O", [] {

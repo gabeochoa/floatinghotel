@@ -27,6 +27,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ecs/async_git_refresh_system.h"
 #include "ecs/file_watcher_system.h"
 #include "ecs/layout_system.h"
+#include "ecs/main_content_system.h"
 #include "ecs/menu_bar_system.h"
 #include "ecs/sidebar_system.h"
 #include "ecs/status_bar_system.h"
@@ -144,16 +145,24 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.selectedFilePath.clear();
             repo.cachedFilePath.clear();
             repo.selectedCommitHash.clear();
-            repo.cachedCommitHash.clear();
-            repo.commitDetailDiff.clear();
-            repo.commitDetailBody.clear();
-            repo.commitDetailAuthorEmail.clear();
-            repo.commitDetailParents.clear();
-            repo.showNewBranchDialog = false;
-            repo.newBranchName.clear();
-            repo.showDeleteBranchDialog = false;
-            repo.deleteBranchName.clear();
-            repo.showForceDeleteDialog = false;
+
+            auto* detailCache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
+            if (detailCache) {
+                detailCache->cachedCommitHash.clear();
+                detailCache->commitDetailDiff.clear();
+                detailCache->commitDetailBody.clear();
+                detailCache->commitDetailAuthorEmail.clear();
+                detailCache->commitDetailParents.clear();
+            }
+
+            auto* branchDialog = ecs::find_singleton<ecs::BranchDialogState, ecs::ActiveTab>();
+            if (branchDialog) {
+                branchDialog->showNewBranchDialog = false;
+                branchDialog->newBranchName.clear();
+                branchDialog->showDeleteBranchDialog = false;
+                branchDialog->deleteBranchName.clear();
+                branchDialog->showForceDeleteDialog = false;
+            }
 
             auto editorEntities = afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<ecs::CommitEditorComponent>()
@@ -483,6 +492,9 @@ static void app_init() {
             std::filesystem::path p(path);
             tab.get<ecs::Tab>().label = p.filename().string();
         }
+
+        tab.addComponent<ecs::CommitDetailCache>();
+        tab.addComponent<ecs::BranchDialogState>();
 
         auto& editor = tab.addComponent<ecs::CommitEditorComponent>();
         if (savedPolicy == "stage_all") {

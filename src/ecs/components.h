@@ -84,19 +84,21 @@ struct RepoComponent : public afterhours::BaseComponent {
 
     std::string cachedFilePath;
 
-    // Commit detail cache (T035)
-    std::string cachedCommitHash;              // Hash of the commit whose detail is cached
-    std::vector<FileDiff> commitDetailDiff;    // Parsed diff for the selected commit
-    std::string commitDetailBody;              // Full commit message body
-    std::string commitDetailAuthorEmail;       // Author email
-    std::string commitDetailParents;           // Space-separated parent hashes
-
     bool refreshRequested = false;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;
+};
 
-    // Branch dialog state (T031)
+struct CommitDetailCache : public afterhours::BaseComponent {
+    std::string cachedCommitHash;
+    std::vector<FileDiff> commitDetailDiff;
+    std::string commitDetailBody;
+    std::string commitDetailAuthorEmail;
+    std::string commitDetailParents;
+};
+
+struct BranchDialogState : public afterhours::BaseComponent {
     bool showNewBranchDialog = false;
     std::string newBranchName;
     bool showDeleteBranchDialog = false;

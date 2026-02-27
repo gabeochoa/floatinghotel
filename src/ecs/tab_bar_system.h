@@ -251,6 +251,8 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         newEntity.addComponent<Tab>();
         newEntity.addComponent<ActiveTab>();
         newEntity.addComponent<RepoComponent>();
+        newEntity.addComponent<CommitDetailCache>();
+        newEntity.addComponent<BranchDialogState>();
         newEntity.addComponent<CommitEditorComponent>();
 
         tabStrip.tabOrder.push_back(newEntity.id);
