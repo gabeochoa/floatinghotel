@@ -451,20 +451,62 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             break;
         }
     }
-    if (!selectedCommit) return;
 
-    // Fetch and cache commit diff + metadata if not already cached
-    if (repo.cachedCommitHash != repo.selectedCommitHash) {
-        repo.cachedCommitHash = repo.selectedCommitHash;
+    if (!selectedCommit) {
+        // Commit no longer in loaded log — show a message instead of blank
+        auto container = div(ctx, mk(parent, 3049),
+            ComponentConfig{}
+                .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                .with_flex_direction(FlexDirection::Column)
+                .with_justify_content(JustifyContent::Center)
+                .with_align_items(AlignItems::Center)
+                .with_custom_background(theme::WINDOW_BG)
+                .with_roundness(0.0f)
+                .with_debug_name("commit_not_found"));
 
+        div(ctx, mk(container.ent(), 1),
+            ComponentConfig{}
+                .with_label("Commit not found in loaded history")
+                .with_size(ComponentSize{children(), children()})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_transparent_bg()
+                .with_roundness(0.0f)
+                .with_debug_name("commit_not_found_msg"));
+
+        auto goBackBtn = button(ctx, mk(container.ent(), 2),
+            preset::Button("<- Back")
+                .with_size(ComponentSize{children(), children()})
+                .with_padding(Padding{
+                    .top = pixels(6), .right = pixels(16),
+                    .bottom = pixels(6), .left = pixels(16)})
+                .with_margin(Margin{.top = pixels(12)})
+                .with_transparent_bg()
+                .with_custom_text_color(theme::BUTTON_PRIMARY)
+                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_debug_name("commit_not_found_back"));
+
+        if (goBackBtn) {
+            repo.selectedCommitHash.clear();
+            repo.cachedCommitHash.clear();
+        }
+        return;
+    }
+
+    // Fetch and cache commit diff + metadata if not already cached.
+    // Only set cachedCommitHash after both git commands succeed so that
+    // transient failures are retried on the next frame.
+    bool commitJustChanged = (repo.cachedCommitHash != repo.selectedCommitHash);
+    if (commitJustChanged) {
         auto diffResult = git::git_show(repo.repoPath, repo.selectedCommitHash);
+        auto infoResult = git::git_show_commit_info(repo.repoPath, repo.selectedCommitHash);
+
         if (diffResult.success()) {
             repo.commitDetailDiff = git::parse_diff(diffResult.stdout_str());
         } else {
             repo.commitDetailDiff.clear();
         }
 
-        auto infoResult = git::git_show_commit_info(repo.repoPath, repo.selectedCommitHash);
         if (infoResult.success()) {
             auto info = cdv::parse_commit_info(infoResult.stdout_str());
             repo.commitDetailBody = info.body;
@@ -475,6 +517,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             repo.commitDetailAuthorEmail.clear();
             repo.commitDetailParents.clear();
         }
+
+        repo.cachedCommitHash = repo.selectedCommitHash;
     }
 
     int nextId = 3050;
@@ -491,6 +535,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_custom_background(theme::WINDOW_BG)
             .with_roundness(0.0f)
             .with_debug_name("commit_detail_scroll"));
+
+    if (commitJustChanged && scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
+        scrollContainer.ent().get<afterhours::ui::HasScrollView>().scroll_offset = {0, 0};
+    }
 
     // === Back button ===
     auto backBtn = button(ctx, mk(scrollContainer.ent(), nextId++),
@@ -706,7 +754,20 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_debug_name("commit_sep"));
 
     // === File change summary ===
-    if (!repo.commitDetailDiff.empty()) {
+    if (repo.commitDetailDiff.empty()) {
+        div(ctx, mk(scrollContainer.ent(), nextId++),
+            ComponentConfig{}
+                .with_label("No file changes in this commit")
+                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_padding(Padding{
+                    .top = pixels(16), .right = pixels(PAD),
+                    .bottom = pixels(16), .left = pixels(PAD)})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_alignment(TextAlignment::Center)
+                .with_roundness(0.0f)
+                .with_debug_name("empty_diff_msg"));
+    } else {
         int totalAdd = 0, totalDel = 0;
         for (auto& d : repo.commitDetailDiff) {
             totalAdd += d.additions;

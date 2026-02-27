@@ -1,0 +1,63 @@
+# Regression: commit detail view must not leave blank UI
+# Verifies that clicking commits renders full detail view,
+# switching commits resets properly, and going back works.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Sidebar elements should be visible
+expect_text "Changes"
+expect_text "Commits"
+
+# Click a commit to open detail view
+click_text "Add contributing guidelines"
+wait_frames 5
+
+# Commit detail must render: subject, metadata, files, back button
+expect_text "Add contributing guidelines"
+expect_text "Commit:"
+expect_text "Author:"
+expect_text "Date:"
+expect_text "<- Back"
+expect_text "FILES CHANGED"
+
+# Sidebar must remain visible while viewing commit detail
+expect_text "Changes"
+expect_text "Commits"
+
+screenshot commit_detail_regression_01_first
+
+# Switch to a different commit — detail should update, not go blank
+click_text "Add unit tests for utils"
+wait_frames 5
+
+expect_text "Add unit tests for utils"
+expect_text "Commit:"
+expect_text "Author:"
+expect_text "FILES CHANGED"
+expect_text "<- Back"
+
+screenshot commit_detail_regression_02_second
+
+# Click back — should return to default view
+click_text "<- Back"
+wait_frames 5
+
+# Default view should show "Select a file or commit"
+expect_text "Select a file or commit"
+expect_text "Changes"
+expect_text "Commits"
+
+screenshot commit_detail_regression_03_back
+
+# Re-select a commit after going back — must not leave blank UI
+click_text "Add contributing guidelines"
+wait_frames 5
+
+expect_text "Add contributing guidelines"
+expect_text "Commit:"
+expect_text "Author:"
+expect_text "FILES CHANGED"
+expect_text "<- Back"
+
+screenshot commit_detail_regression_04_reselect
