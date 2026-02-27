@@ -82,9 +82,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string selectedCommitHash;
     std::vector<FileDiff> currentDiff;
 
-    // TODO: When selectedFilePath changes, reset diff scroll position to top.
-    // TODO: Save per-file scroll positions (e.g. std::unordered_map<std::string, float>)
-    //       so switching back to a previously-viewed file restores its scroll offset.
+    std::string cachedFilePath;
 
     // Commit detail cache (T035)
     std::string cachedCommitHash;              // Hash of the commit whose detail is cached

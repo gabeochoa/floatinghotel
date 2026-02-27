@@ -142,6 +142,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             log_info("make_test_repo: switching from '{}' to '{}'", repo.repoPath, repoPath);
             repo.repoPath = repoPath;
             repo.selectedFilePath.clear();
+            repo.cachedFilePath.clear();
             repo.selectedCommitHash.clear();
             repo.cachedCommitHash.clear();
             repo.commitDetailDiff.clear();

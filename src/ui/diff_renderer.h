@@ -175,7 +175,8 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                                 Entity& parent,
                                 const std::vector<ecs::FileDiff>& diffs,
                                 float contentWidth, float contentHeight,
-                                bool embedInParentScroll = false) {
+                                bool embedInParentScroll = false,
+                                bool resetScroll = false) {
     int nextId = diff_detail::BASE_ID;
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
@@ -195,6 +196,9 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                 .with_custom_background(theme::PANEL_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("diff_scroll"));
+        if (resetScroll && scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
+            scrollContainer.ent().get<afterhours::ui::HasScrollView>().scroll_offset = {0, 0};
+        }
         contentParent = &scrollContainer.ent();
     }
 

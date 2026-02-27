@@ -1041,6 +1041,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool hasSelectedCommit = !repo.selectedCommitHash.empty();
 
         if (hasSelectedFile) {
+            bool fileJustChanged = (repo.cachedFilePath != repo.selectedFilePath);
+            if (fileJustChanged) {
+                repo.cachedFilePath = repo.selectedFilePath;
+            }
+
             // Try to find a matching diff from git diff output
             std::vector<FileDiff> selectedDiffs;
             for (auto& d : repo.currentDiff) {
@@ -1064,7 +1069,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
             if (!selectedDiffs.empty()) {
                 ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
-                                       0, 0);
+                                       0, 0, false, fileJustChanged);
             } else {
                 auto noDiffContainer = div(ctx, mk(mainBg.ent(), 3040),
                     ComponentConfig{}

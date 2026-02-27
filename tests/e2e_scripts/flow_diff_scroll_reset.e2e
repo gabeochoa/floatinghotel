@@ -1,0 +1,36 @@
+# Regression: diff scroll position resets when switching files
+# Verifies that selecting a new file resets the diff view to the top,
+# so content is always visible and not hidden by a stale scroll offset.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# Select README.md — diff should show the Development section addition
+click_text "README.md"
+wait_frames 5
+
+expect_text "README.md"
+expect_text "Development"
+screenshot diff_scroll_reset_01_readme
+
+# Scroll down in the diff area
+mouse_move 800 400
+wait_frames 2
+scroll_wheel 0 -10
+wait_frames 5
+screenshot diff_scroll_reset_02_scrolled
+
+# Switch to main.cpp — diff must reset to top, showing its content
+click_text "main.cpp"
+wait_frames 5
+
+expect_text "main.cpp"
+expect_text "floatinghotel"
+screenshot diff_scroll_reset_03_maincpp
+
+# Switch back to README.md — should reset to top again
+click_text "README.md"
+wait_frames 5
+
+expect_text "Development"
+screenshot diff_scroll_reset_04_back_to_readme

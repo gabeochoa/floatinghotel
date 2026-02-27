@@ -1331,6 +1331,7 @@ private:
                 auto& r = rEntities[0].get().get<RepoComponent>();
                 r.selectedCommitHash = commit.hash;
                 r.selectedFilePath.clear();
+                r.cachedFilePath.clear();
             }
         }
     }
