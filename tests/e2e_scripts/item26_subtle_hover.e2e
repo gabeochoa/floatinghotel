@@ -1,0 +1,15 @@
+# Item 26: Subtler hover state
+# HOVER_BG is now closer to SIDEBAR_BG for a gentler highlight
+# This is a visual-only change - verify no layout regressions
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 30
+
+# File list should render correctly
+expect_text "Staged Changes"
+expect_text ".gitignore"
+expect_text "README.md"
+assert_no_overflow
+
+screenshot item26_subtle_hover

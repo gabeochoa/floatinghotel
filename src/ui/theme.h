@@ -49,7 +49,7 @@ inline Color INPUT_BG = {60, 60, 60, 255};  // #3C3C3C (VS Code input background
 // Interactive
 inline Color BUTTON_PRIMARY = {0, 122, 204, 255};   // Blue
 inline Color BUTTON_SECONDARY = {62, 62, 64, 255};  // #3E3E40
-inline Color HOVER_BG = {50, 50, 52, 255};          // #323234
+inline Color HOVER_BG = {42, 42, 44, 255};          // #2A2A2C (subtle)
 inline Color SELECTED_BG = {36, 90, 145,
                             255};  // Visible blue for clear selection
 inline Color FOCUS_RING = {0, 122, 204, 255};
