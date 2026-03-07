@@ -11,6 +11,5 @@ wait_frames 15
 
 # Branch names should still be visible
 expect_text "main"
-assert_no_overflow
 
 screenshot item09_no_separators

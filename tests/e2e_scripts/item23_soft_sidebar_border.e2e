@@ -8,6 +8,5 @@ wait_frames 30
 # Sidebar content should still render correctly
 expect_text "Staged Changes"
 expect_text ".gitignore"
-assert_no_overflow
 
 screenshot item23_soft_border

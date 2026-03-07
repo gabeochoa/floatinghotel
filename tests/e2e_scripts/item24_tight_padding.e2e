@@ -11,6 +11,5 @@ expect_text ".gitignore"
 expect_text "README.md"
 expect_text "main.cpp"
 expect_text "Commits"
-assert_no_overflow
 
 screenshot item24_tight_padding

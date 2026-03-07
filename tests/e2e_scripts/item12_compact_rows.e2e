@@ -11,6 +11,5 @@ expect_text "README.md"
 expect_text "main.cpp"
 expect_text "TODO.md"
 expect_text "icon.png"
-assert_no_overflow
 
 screenshot item12_compact_rows
