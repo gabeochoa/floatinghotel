@@ -1331,12 +1331,8 @@ private:
                 .with_render_layer(1)
                 .with_debug_name("commit_dot"));
 
-        constexpr float HASH_W = 46.0f;
-        constexpr float HASH_AREA = 50.0f;
         constexpr float BADGE_EST_W = 46.0f;
 
-        // Show at most one badge in the row to maximise subject readability.
-        // Pick the most useful one: HEAD > local branch > tag > remote.
         const commit_log_detail::Decoration* bestBadge = nullptr;
         for (auto& b : badges) {
             if (!bestBadge) { bestBadge = &b; continue; }
@@ -1355,8 +1351,7 @@ private:
         bool hasBadge = (bestBadge != nullptr);
         float fixedW = GRAPH_COL_W
                      + (hasBadge ? BADGE_EST_W + 4.0f : 0.0f)
-                     + 4.0f
-                     + HASH_AREA;
+                     + 4.0f;
         float subjectW = sidebarW - 4.0f - fixedW;
         if (subjectW < 30.0f) subjectW = 30.0f;
 
@@ -1398,16 +1393,6 @@ private:
                     .with_font_size(FontSize::Medium)
                     .with_debug_name("commit_badge"));
         }
-
-        // Commit hash (absolute positioned at fixed right position)
-        div(ctx, mk(row.ent(), 30),
-            preset::MetaText(commit.hash.substr(0, 7))
-                .with_size(ComponentSize{pixels(HASH_W), h720(ROW_H)})
-                .with_font_size(FontSize::Medium)
-                .with_alignment(TextAlignment::Right)
-                .with_absolute_position()
-                .with_translate(pixels(sidebarW - HASH_W - 4.0f), pixels(0))
-                .with_debug_name("commit_hash"));
 
         // Click -> select this commit
         if (row.ent().get<HasClickListener>().down) {
