@@ -1051,7 +1051,7 @@ private:
         }
     }
 
-    // Render a section header: "▾ STAGED CHANGES  1"
+    // Render a section header: "Staged Changes  1"
     // isFirst: true for the very first section (no top margin needed)
     void render_section_header(UIContext<InputAction>& ctx,
                                 Entity& parent, int id,
@@ -1059,8 +1059,7 @@ private:
                                 bool isFirst = false) {
         auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        std::string headerText = "\xe2\x96\xbe " + label +
-                                 "  " + std::to_string(count);
+        std::string headerText = label + "  " + std::to_string(count);
         auto config = preset::SectionHeader(headerText)
                 .with_size(ComponentSize{secWidth, children()})
                 .with_debug_name("section_hdr");
