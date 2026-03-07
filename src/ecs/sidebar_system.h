@@ -666,11 +666,6 @@ private:
             }
         }
 
-        // Row separator
-        div(ctx, mk(parent, 2200 + index * 10 + 1),
-            preset::RowSeparator()
-                .with_size(ComponentSize{percent(1.0f), h720(1)})
-                .with_debug_name("branch_sep"));
     }
 
     // ---- New Branch dialog (T031) ----

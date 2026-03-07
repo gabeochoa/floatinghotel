@@ -1,0 +1,16 @@
+# Item 9: No row separator dividers between entries
+# Rows rely on hover state for visual separation, no divider lines
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 30
+
+# Switch to Refs tab to verify branch rows have no separators
+click_text "Refs"
+wait_frames 15
+
+# Branch names should still be visible
+expect_text "main"
+assert_no_overflow
+
+screenshot item09_no_separators
