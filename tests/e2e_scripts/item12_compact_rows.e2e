@@ -1,0 +1,16 @@
+# Item 12: Compact file row height (24px, already at target)
+# Verify file list renders correctly at compact height
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 30
+
+# All file rows should fit and be visible
+expect_text ".gitignore"
+expect_text "README.md"
+expect_text "main.cpp"
+expect_text "TODO.md"
+expect_text "icon.png"
+assert_no_overflow
+
+screenshot item12_compact_rows
