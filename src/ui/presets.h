@@ -101,8 +101,8 @@ inline ComponentConfig SelectableRow(bool selected) {
         .with_cursor(afterhours::ui::CursorType::Pointer)
         .with_padding(Padding{
             .top = pixels(0), .right = pixels(4),
-            .bottom = pixels(0), .left = pixels(10)})
-        .with_gap(pixels(4))
+            .bottom = pixels(0), .left = pixels(8)})
+        .with_gap(pixels(3))
         .with_roundness(0.0f);
 }
 

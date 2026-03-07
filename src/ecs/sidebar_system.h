@@ -1100,9 +1100,9 @@ private:
                                 : theme::TEXT_PRIMARY;
 
         constexpr float STATUS_W = 20.0f;
-        constexpr float PAD_L = 10.0f;
+        constexpr float PAD_L = 8.0f;
         constexpr float PAD_R = 4.0f;
-        constexpr float GAP = 4.0f;
+        constexpr float GAP = 3.0f;
         float totalW = std::max(sidebarPixelWidth_ - PAD_L - PAD_R, 40.0f);
         float nameW, dirW;
         if (dir.empty()) {
@@ -1173,9 +1173,9 @@ private:
                                 : theme::TEXT_PRIMARY;
 
         constexpr float STATUS_W = 20.0f;
-        constexpr float PAD_L = 10.0f;
+        constexpr float PAD_L = 8.0f;
         constexpr float PAD_R = 4.0f;
-        constexpr float GAP = 4.0f;
+        constexpr float GAP = 3.0f;
         float totalW = std::max(sidebarPixelWidth_ - PAD_L - PAD_R, 40.0f);
         float nameW, dirW;
         if (dir.empty()) {

@@ -1,0 +1,16 @@
+# Item 24: Tighter padding throughout
+# Reduced left padding (10->8), gaps (4->3) for denser layout
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 30
+
+# All content should still render correctly with tighter spacing
+expect_text "Staged Changes"
+expect_text ".gitignore"
+expect_text "README.md"
+expect_text "main.cpp"
+expect_text "Commits"
+assert_no_overflow
+
+screenshot item24_tight_padding
