@@ -192,7 +192,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_absolute_position()
                 .with_translate(layout.sidebar.x, layout.sidebar.y)
                 .with_custom_background(theme::SIDEBAR_BG)
-                .with_border_right(theme::BORDER)
+                .with_border_right(afterhours::Color{58, 58, 58, 80})
                 .with_flex_direction(FlexDirection::Column)
                 .with_overflow(Overflow::Hidden, Axis::Y)
                 .with_roundness(0.0f)
