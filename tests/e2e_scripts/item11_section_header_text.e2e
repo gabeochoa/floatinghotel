@@ -2,14 +2,15 @@
 make_test_repo
 resize 1280 720
 wait_for_refresh
-wait_frames 30
+wait_frames 10
 
-# Triangle character should NOT be present
-expect_no_text "\xe2\x96\xbe"
+# Triangle character (▾) should NOT be present in any section header
+expect_no_text "▾"
 
 # Headers should be title case with counts
 expect_text "Staged Changes"
 expect_text "Unstaged Changes"
 expect_text "Untracked"
+expect_text "Commits"
 
 screenshot item11_section_headers

@@ -4,9 +4,9 @@ resize 1280 720
 enable_file_watcher
 wait_frames 5
 
-# Baseline: 1 staged, 2 unstaged, 2 untracked
+# Baseline: 1 staged, 3 unstaged, 2 untracked
 validate staged_count=1
-validate unstaged_count=2
+validate unstaged_count=3
 validate untracked_count=2
 screenshot file_watcher_01_initial
 
@@ -24,8 +24,8 @@ touch_file README.md
 wait 3
 screenshot file_watcher_03_after_edit
 
-# Unstaged count should still be 2 (README.md was already unstaged)
-validate unstaged_count=2
+# Unstaged count should still be 3 (README.md was already unstaged)
+validate unstaged_count=3
 
 # The new file should be visible in the sidebar
 expect_text watcher_test.txt

@@ -2,7 +2,7 @@
 # Covers a representative sample of Tier A items across all categories.
 make_test_repo
 resize 1280 720
-wait_frames 5
+wait_for_refresh
 
 # --- View menu actions ---
 
@@ -73,7 +73,7 @@ screenshot tier_a_01_view_actions_done
 
 # R1: Stage File (select a file first)
 validate staged_count=1
-validate unstaged_count=2
+validate unstaged_count=3
 click_text "README.md"
 wait_frames 5
 click_text "Repository"
@@ -81,7 +81,7 @@ wait_frames 5
 click_text "Stage File"
 wait_for_refresh
 validate staged_count=2
-validate unstaged_count=1
+validate unstaged_count=2
 screenshot tier_a_02_stage_file
 
 # R2: Unstage File
@@ -90,7 +90,7 @@ wait_frames 5
 click_text "Unstage File"
 wait_for_refresh
 validate staged_count=1
-validate unstaged_count=2
+validate unstaged_count=3
 screenshot tier_a_03_unstage_file
 
 # R9: Fetch (no remote, but should not crash)
@@ -109,8 +109,12 @@ click_text "Toggle Sidebar"
 wait_frames 5
 validate sidebar_visible=false
 
+# Render pass so toolbar buttons get valid screen rects
+screenshot tier_a_04b_toolbar
+
 # T2: Stage All
 click_text "Stage All"
+screenshot tier_a_05_stage_click
 wait_for_refresh
 validate unstaged_count=0
 validate untracked_count=0
@@ -118,6 +122,7 @@ screenshot tier_a_05_stage_all
 
 # T3: Unstage All
 click_text "Unstage All"
+screenshot tier_a_06_unstage_click
 wait_for_refresh
 validate staged_count=0
 screenshot tier_a_06_unstage_all
@@ -130,8 +135,10 @@ wait_frames 5
 validate sidebar_visible=true
 
 # --- Help menu ---
+screenshot tier_a_06b_before_help
 click_text "Help"
 wait_frames 5
+screenshot tier_a_06c_help_open
 click_text "Command Log"
 wait_frames 5
 validate command_log_visible=true

@@ -1,5 +1,6 @@
 # Item 23: Sidebar border is softened (low alpha)
 # Visual-only change - verify sidebar renders without layout issues
+# TODO(dump_ui): validate border color alpha in XML
 make_test_repo
 resize 1280 720
 wait_for_refresh

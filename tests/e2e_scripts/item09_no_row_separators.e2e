@@ -1,5 +1,6 @@
 # Item 9: No row separator dividers between entries
 # Rows rely on hover state for visual separation, no divider lines
+# TODO(dump_ui): validate no separator divs exist between rows
 make_test_repo
 resize 1280 720
 wait_for_refresh

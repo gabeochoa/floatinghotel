@@ -34,6 +34,9 @@ DIRTY
 TODOEOF
 
     printf '\x89PNG\r\n' > icon.png
+
+    # Dirty a file in a subdirectory so sidebar shows filename/dir split
+    echo "// modified by test setup" >> src/app.cpp
 }
 
 # Fast path: clone from cached template

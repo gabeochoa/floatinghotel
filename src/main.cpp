@@ -674,6 +674,12 @@ static void app_init() {
     log_info("Startup time: {} ms (from graphics::run to app_init done)", startupMs);
 }
 
+// Deferred screenshot: captured after multiple frames so the window
+// compositor has time to present the rendered content.
+static std::string s_readyScreenshotName;
+static int s_screenshotDelayFrames = 0;
+static constexpr int SCREENSHOT_DELAY = 3;
+
 // Process E2E commands in a tight loop without rendering, breaking when
 // a screenshot is needed or when we must wait for async operations.
 static void e2e_tick_loop(float real_dt) {
@@ -681,6 +687,9 @@ static void e2e_tick_loop(float real_dt) {
     constexpr float SIM_DT = 1.0f / 60.0f;
 
     for (int i = 0; i < MAX_TICKS; ++i) {
+        // Wait for deferred screenshot to be captured before advancing
+        if (!s_readyScreenshotName.empty()) break;
+
         afterhours::testing::test_input::reset_frame();
 
         if (e2e_refresh_gate::triggered) {
@@ -725,21 +734,35 @@ static void e2e_tick_loop(float real_dt) {
     }
 }
 
-// Render one frame and take any pending screenshot.
+// Render one frame and manage deferred screenshots.
+// Screenshots are deferred by one frame so the window compositor
+// has time to present the rendered content before screencapture runs.
 static void e2e_render_and_screenshot(float dt) {
+    // Take deferred screenshot after enough frames for the compositor
+    if (!s_readyScreenshotName.empty()) {
+        if (s_screenshotDelayFrames <= 0) {
+            std::filesystem::path dir =
+                std::filesystem::absolute(app_state::screenshotDir);
+            std::filesystem::create_directories(dir);
+            std::filesystem::path path = dir / (s_readyScreenshotName + ".png");
+            afterhours::graphics::take_screenshot(path.c_str());
+            s_readyScreenshotName.clear();
+        } else {
+            s_screenshotDelayFrames--;
+        }
+    }
+
     afterhours::testing::test_input::reset_frame();
     afterhours::graphics::begin_drawing();
     afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
     app_state::systemManager->run(dt);
     afterhours::graphics::end_drawing();
 
+    // Queue for capture after SCREENSHOT_DELAY frames
     if (!app_state::pendingScreenshotName.empty()) {
-        std::filesystem::path dir =
-            std::filesystem::absolute(app_state::screenshotDir);
-        std::filesystem::create_directories(dir);
-        std::filesystem::path path = dir / (app_state::pendingScreenshotName + ".png");
-        afterhours::graphics::take_screenshot(path.c_str());
+        s_readyScreenshotName = std::move(app_state::pendingScreenshotName);
         app_state::pendingScreenshotName.clear();
+        s_screenshotDelayFrames = SCREENSHOT_DELAY;
     }
 }
 
@@ -747,17 +770,16 @@ static void e2e_render_and_screenshot(float dt) {
 static void app_frame() {
     float dt = afterhours::graphics::get_frame_time();
 
-    if (app_state::testModeEnabled && app_state::e2eRunner.has_commands()) {
+    if (app_state::testModeEnabled &&
+        (app_state::e2eRunner.has_commands() || !s_readyScreenshotName.empty())) {
         e2e_tick_loop(dt);
         e2e_render_and_screenshot(dt);
 
-        if (app_state::e2eRunner.is_finished()) {
+        if (app_state::e2eRunner.is_finished() && s_readyScreenshotName.empty()) {
 #ifdef __APPLE__
             metal_wait_all_screenshots();
 #endif
             app_state::e2eRunner.print_results();
-            // In test mode, exit immediately to avoid waiting for the display
-            // link to fire another frame for the quit sequence.
             _exit(app_state::e2eRunner.has_failed() ? 1 : 0);
         }
         return;

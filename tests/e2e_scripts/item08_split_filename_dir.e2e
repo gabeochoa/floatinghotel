@@ -1,15 +1,23 @@
-# Item 8: Filename and directory are separate labels
-# Directory should appear dimmed (TEXT_SECONDARY) next to the filename
+# Item 8: Filename and directory are rendered as separate labels
+# Directory portion should appear dimmed next to the filename.
+# We modify src/app.cpp so it appears as unstaged with a "src" directory component.
 make_test_repo
 resize 1280 720
 wait_for_refresh
-wait_frames 30
 
-# Verify filenames are visible as standalone text (not concatenated with dir)
-expect_text ".gitignore"
+# Modify a file that lives in a subdirectory
+touch_file src/app.cpp
+wait_for_refresh
+wait_frames 10
+
+# The filename "app.cpp" should appear as visible text
+expect_text "app.cpp"
+
+# The directory "src" should appear as a separate dimmed label
+expect_text "src"
+
+# Root-level files should still work (no directory portion)
 expect_text "README.md"
 expect_text "main.cpp"
-expect_text "TODO.md"
-expect_text "icon.png"
 
 screenshot item08_split_filename_dir

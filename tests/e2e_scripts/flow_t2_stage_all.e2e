@@ -3,22 +3,26 @@
 # The full-width toolbar only appears when sidebar is hidden.
 make_test_repo
 resize 1280 720
-wait_frames 5
+wait_for_refresh
 
-# Baseline: 2 unstaged, 2 untracked
-validate unstaged_count=2
+# Baseline: 3 unstaged, 2 untracked
+validate unstaged_count=3
 validate untracked_count=2
 validate staged_count=1
 
-# Hide sidebar to show full-width toolbar (requires V1 to be implemented)
+# Hide sidebar to show full-width toolbar
 click_text "View"
 wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 validate sidebar_visible=false
 
-# Click Stage All in the toolbar
+# Screenshot forces a render pass so toolbar buttons have was_rendered_to_screen
+screenshot t2_00_toolbar_visible
+
+# Click Stage All
 click_text "Stage All"
+screenshot t2_00_click_done
 wait_for_refresh
 
 # All files should now be staged

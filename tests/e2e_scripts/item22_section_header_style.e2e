@@ -1,5 +1,6 @@
 # Item 22: Section headers have refined styling
 # No distinct background, subtler text, tighter padding
+# TODO(dump_ui): validate header bg color and font size in XML
 make_test_repo
 resize 1280 720
 wait_for_refresh

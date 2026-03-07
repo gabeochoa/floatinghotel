@@ -3,7 +3,7 @@
 # The full-width toolbar only appears when sidebar is hidden.
 make_test_repo
 resize 1280 720
-wait_frames 5
+wait_for_refresh
 
 # Baseline: 1 staged file (.gitignore)
 validate staged_count=1
@@ -15,8 +15,12 @@ click_text "Toggle Sidebar"
 wait_frames 5
 validate sidebar_visible=false
 
+# Render pass so toolbar buttons get valid screen rects
+screenshot t3_00_toolbar_visible
+
 # Click Unstage All in the toolbar
 click_text "Unstage All"
+screenshot t3_00_click_done
 wait_for_refresh
 
 # No files should be staged now

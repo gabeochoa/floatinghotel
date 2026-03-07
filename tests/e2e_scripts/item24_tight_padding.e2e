@@ -1,5 +1,6 @@
 # Item 24: Tighter padding throughout
 # Reduced left padding (10->8), gaps (4->3) for denser layout
+# TODO(dump_ui): validate padding values in XML attributes
 make_test_repo
 resize 1280 720
 wait_for_refresh

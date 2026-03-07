@@ -1,6 +1,6 @@
 # Item 26: Subtler hover state
 # HOVER_BG is now closer to SIDEBAR_BG for a gentler highlight
-# This is a visual-only change - verify no layout regressions
+# TODO(dump_ui): validate hover bg color in XML
 make_test_repo
 resize 1280 720
 wait_for_refresh
