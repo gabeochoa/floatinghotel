@@ -1,0 +1,15 @@
+# Item 8: Filename and directory are separate labels
+# Directory should appear dimmed (TEXT_SECONDARY) next to the filename
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 30
+
+# Verify filenames are visible as standalone text (not concatenated with dir)
+expect_text ".gitignore"
+expect_text "README.md"
+expect_text "main.cpp"
+expect_text "TODO.md"
+expect_text "icon.png"
+
+screenshot item08_split_filename_dir

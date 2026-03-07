@@ -1100,24 +1100,41 @@ private:
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
 
-        // Filename: sidebarW - padL(10) - padR(4) - gap(4) - status(20)
-        float nameW = std::max(sidebarPixelWidth_ - 38.0f, 30.0f);
-
-        std::string label = fname;
-        if (!dir.empty()) label += "  " + dir;
+        constexpr float STATUS_W = 20.0f;
+        constexpr float PAD_L = 10.0f;
+        constexpr float PAD_R = 4.0f;
+        constexpr float GAP = 4.0f;
+        float totalW = std::max(sidebarPixelWidth_ - PAD_L - PAD_R, 40.0f);
+        float nameW, dirW;
+        if (dir.empty()) {
+            nameW = totalW - GAP - STATUS_W;
+            dirW = 0.0f;
+        } else {
+            nameW = totalW * 0.5f;
+            dirW = totalW - nameW - GAP * 2.0f - STATUS_W;
+        }
 
         div(ctx, mk(row.ent(), 1),
-            preset::BodyText(label)
+            preset::BodyText(fname)
                 .with_size(ComponentSize{pixels(nameW), children()})
                 .with_custom_text_color(textCol)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("file_name"));
 
-        // Status letter (right-aligned, vertically centered by AlignItems::Center)
+        if (!dir.empty()) {
+            div(ctx, mk(row.ent(), 2),
+                preset::MetaText(dir)
+                    .with_size(ComponentSize{pixels(dirW), children()})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(FontSize::Small)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("file_dir"));
+        }
+
         auto statusCol = sidebar_detail::status_color(statusChar);
         div(ctx, mk(row.ent(), 3),
             preset::MetaText(statusStr)
-                .with_size(ComponentSize{pixels(20), children()})
+                .with_size(ComponentSize{pixels(STATUS_W), children()})
                 .with_custom_text_color(statusCol)
                 .with_alignment(TextAlignment::Right)
                 .with_debug_name("file_status"));
@@ -1156,22 +1173,40 @@ private:
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
 
-        float nameW = std::max(sidebarPixelWidth_ - 38.0f, 30.0f);
-
-        std::string label = fname;
-        if (!dir.empty()) label += "  " + dir;
+        constexpr float STATUS_W = 20.0f;
+        constexpr float PAD_L = 10.0f;
+        constexpr float PAD_R = 4.0f;
+        constexpr float GAP = 4.0f;
+        float totalW = std::max(sidebarPixelWidth_ - PAD_L - PAD_R, 40.0f);
+        float nameW, dirW;
+        if (dir.empty()) {
+            nameW = totalW - GAP - STATUS_W;
+            dirW = 0.0f;
+        } else {
+            nameW = totalW * 0.5f;
+            dirW = totalW - nameW - GAP * 2.0f - STATUS_W;
+        }
 
         div(ctx, mk(row.ent(), 1),
-            preset::BodyText(label)
+            preset::BodyText(fname)
                 .with_size(ComponentSize{pixels(nameW), children()})
                 .with_custom_text_color(textCol)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("file_name"));
 
-        // Status letter "U" (right-aligned, vertically centered by AlignItems::Center)
+        if (!dir.empty()) {
+            div(ctx, mk(row.ent(), 2),
+                preset::MetaText(dir)
+                    .with_size(ComponentSize{pixels(dirW), children()})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(FontSize::Small)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("file_dir"));
+        }
+
         div(ctx, mk(row.ent(), 3),
             preset::MetaText("U")
-                .with_size(ComponentSize{pixels(20), children()})
+                .with_size(ComponentSize{pixels(STATUS_W), children()})
                 .with_custom_text_color(sidebar_detail::status_color('U'))
                 .with_alignment(TextAlignment::Right)
                 .with_debug_name("file_status"));
