@@ -97,6 +97,9 @@ Preload& Preload::make_singleton() {
             mapping[static_cast<int>(InputAction::WidgetPress)] = {
                 afterhours::keys::ENTER,
             };
+            mapping[static_cast<int>(InputAction::MenuBack)] = {
+                afterhours::keys::ESCAPE,
+            };
             input::add_singleton_components(sophie, mapping);
         }
         {

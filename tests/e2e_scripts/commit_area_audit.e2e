@@ -1,0 +1,23 @@
+# Commit area audit - verify VS Code UI parity items 1, 2, 4, 5
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 30
+
+# 1. Initial state with staged file - commit input + blue button visible
+screenshot 01_commit_area_with_staged
+
+# 2. Click a file in the sidebar to show diff (y~190 = first file row)
+click 160 200
+wait_frames 10
+screenshot 02_file_selected_with_commit_area
+
+# 3. Switch to Refs tab (commit area should disappear)
+click 250 127
+wait_frames 15
+screenshot 03_refs_tab
+
+# 4. Switch back to Changes (commit area reappears)
+click 120 127
+wait_frames 15
+screenshot 04_changes_tab_restored

@@ -204,12 +204,21 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         // === Changes / Refs mode toggle tabs ===
         render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
 
-        // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
-        // NOTE: Use explicit pixels for width (not percent) to avoid framework bug
-        // where percent(1.0f) resolves to screen width in absolute-positioned parents.
+        // === Commit area (always-visible input + button, VS Code style) ===
+        constexpr float COMMIT_AREA_H_720 = 82.0f;
         float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
+        float commitAreaH = 0.0f;
+        if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr) {
+            auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
+            if (editor) {
+                render_commit_area(ctx, sidebarRoot.ent(), *repoPtr, *editor, sidebarW);
+                commitAreaH = resolve_to_pixels(h720(COMMIT_AREA_H_720), sh_for_tab);
+            }
+        }
+
+        // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
         float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab);
-        float filesH = layout.sidebarFiles.height - tabH;
+        float filesH = layout.sidebarFiles.height - tabH - commitAreaH;
         if (filesH < 20.0f) filesH = 20.0f;
         auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
             preset::ScrollPanel()
@@ -408,6 +417,72 @@ private:
 
         makeTab(2091, "Changes", LayoutComponent::SidebarMode::Changes);
         makeTab(2092, "Refs", LayoutComponent::SidebarMode::Refs);
+    }
+
+    // ---- Commit area (VS Code parity: always-visible input + button) ----
+    void render_commit_area(UIContext<InputAction>& ctx,
+                            Entity& parent,
+                            RepoComponent& repo,
+                            CommitEditorComponent& editor,
+                            float sidebarW) {
+        auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
+
+        auto commitArea = div(ctx, mk(parent, 2095),
+            ComponentConfig{}
+                .with_size(ComponentSize{secWidth, children()})
+                .with_flex_direction(FlexDirection::Column)
+                .with_padding(Padding{
+                    .top = h720(4), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(8)})
+                .with_gap(h720(3))
+                .with_custom_background(theme::SIDEBAR_BG)
+                .with_roundness(0.0f)
+                .with_debug_name("commit_area"));
+
+        // Commit message hint (shows branch name)
+        {
+            std::string branch = repo.currentBranch.empty() ? "main" : repo.currentBranch;
+            std::string hint = "Message (Enter to commit on \""
+                               + branch + "\")";
+            div(ctx, mk(commitArea.ent(), 0),
+                ComponentConfig{}
+                    .with_label(hint)
+                    .with_size(ComponentSize{secWidth, h720(16)})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(FontSize::Small)
+                    .with_alignment(TextAlignment::Left)
+                    .with_roundness(0.0f)
+                    .with_debug_name("commit_hint"));
+        }
+
+        auto inputResult = afterhours::text_input::text_input(
+            ctx, mk(commitArea.ent(), 1),
+            editor.subject,
+            ComponentConfig{}
+                .with_size(ComponentSize{secWidth, h720(26)})
+                .with_custom_background(theme::INPUT_BG)
+                .with_roundness(4.0f)
+                .with_debug_name("commit_msg_input"));
+
+        // Wire Enter key to trigger commit
+        inputResult.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>(
+            nullptr,
+            [](Entity&) {
+                auto* ed = find_singleton<CommitEditorComponent, ActiveTab>();
+                if (ed) ed->commitRequested = true;
+            });
+
+        // Full-width blue Commit button
+        bool hasStaged = !repo.stagedFiles.empty();
+        auto commitBtn = button(ctx, mk(commitArea.ent(), 2),
+            preset::Button("Commit", hasStaged)
+                .with_size(ComponentSize{secWidth, h720(24)})
+                .with_font_size(FontSize::Medium)
+                .with_debug_name("commit_btn_inline"));
+
+        if (commitBtn && hasStaged) {
+            editor.commitRequested = true;
+        }
     }
 
     // ---- Refs view (T031) ----

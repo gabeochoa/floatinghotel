@@ -67,7 +67,7 @@ private:
                                 Result& topChrome,
                                 float w, float /*h*/,
                                 RepoComponent* repo,
-                                bool hasRepo, bool /*hasUnstaged*/, bool hasStaged) {
+                                bool hasRepo, bool /*hasUnstaged*/, bool /*hasStaged*/) {
         // Toolbar fills its allocated height
         auto toolbarBg = div(ctx, mk(topChrome.ent(), 1),
             ComponentConfig{}
@@ -113,10 +113,6 @@ private:
             return static_cast<bool>(button(ctx, mk(parent, id), config));
         };
 
-        if (sidebarBtn(row1.ent(), nextId++, "Commit", hasRepo && hasStaged, true)) {
-            auto* editor = ::ecs::find_singleton<CommitEditorComponent, ActiveTab>();
-            if (editor) editor->commitRequested = true;
-        }
         if (sidebarBtn(row1.ent(), nextId++, "Push", hasRepo)) {
             git::git_push(repo->repoPath);
             repo->refreshRequested = true;

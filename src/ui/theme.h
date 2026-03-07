@@ -43,6 +43,9 @@ inline Color GUTTER_DEL_BG = {77, 17, 23, 255};  // #4D1117
 inline Color DISABLED_BG = {90, 90, 90, 255};       // #5A5A5A
 inline Color DISABLED_TEXT = {150, 150, 150, 255};   // #969696
 
+// Input fields
+inline Color INPUT_BG = {60, 60, 60, 255};  // #3C3C3C (VS Code input background)
+
 // Interactive
 inline Color BUTTON_PRIMARY = {0, 122, 204, 255};   // Blue
 inline Color BUTTON_SECONDARY = {62, 62, 64, 255};  // #3E3E40
