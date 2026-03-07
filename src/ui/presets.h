@@ -69,13 +69,13 @@ inline ComponentConfig Button(const std::string& label, bool enabled = true) {
 inline ComponentConfig SectionHeader(const std::string& label) {
     return ComponentConfig{}
         .with_label(label)
-        .with_size(ComponentSize{percent(1.0f), h720(24)})
+        .with_size(ComponentSize{percent(1.0f), h720(22)})
         .with_padding(Padding{
-            .top = h720(4), .right = pixels(10),
-            .bottom = h720(4), .left = pixels(10)})
-        .with_custom_background(theme::SECTION_HEADER_BG)
-        .with_custom_text_color(Color{160, 160, 160, 255})
-        .with_font_size(FontSize::Large)
+            .top = h720(3), .right = pixels(8),
+            .bottom = h720(3), .left = pixels(8)})
+        .with_transparent_bg()
+        .with_custom_text_color(Color{180, 180, 180, 255})
+        .with_font_size(FontSize::Medium)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }

@@ -1,0 +1,13 @@
+# Item 22: Section headers have refined styling
+# No distinct background, subtler text, tighter padding
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 30
+
+# Section headers should still be visible with counts
+expect_text "Staged Changes"
+expect_text "Unstaged Changes"
+expect_text "Untracked"
+
+screenshot item22_section_style
