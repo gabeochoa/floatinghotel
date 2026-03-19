@@ -1071,26 +1071,38 @@ private:
         div(ctx, mk(parent, id), config);
     }
 
-    // Render a file row with Row flex: [filename (expand)] [dir (gray)] [status (colored)]
+    // Render a file row: [filename] [dir (gray)] [status badge]
     void render_file_row(UIContext<InputAction>& ctx,
                          Entity& parent, int id,
                          const FileStatus& file,
                          RepoComponent& repo, bool staged) {
-        bool selected = (file.path == repo.selectedFilePath);
         char statusChar = staged ? file.indexStatus : file.workTreeStatus;
         if (statusChar == ' ' || statusChar == '\0') {
             statusChar = staged ? 'A' : 'M';
         }
+        render_file_row_impl(ctx, parent, id, file.path, statusChar, repo);
+    }
 
+    void render_untracked_row(UIContext<InputAction>& ctx,
+                               Entity& parent, int id,
+                               const std::string& path,
+                               RepoComponent& repo) {
+        render_file_row_impl(ctx, parent, id, path, 'U', repo);
+    }
+
+    void render_file_row_impl(UIContext<InputAction>& ctx,
+                               Entity& parent, int id,
+                               const std::string& path, char statusChar,
+                               RepoComponent& repo) {
+        bool selected = (path == repo.selectedFilePath);
         constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
 
-        std::string fname = sidebar_detail::basename_from_path(file.path);
-        std::string dir = sidebar_detail::dir_from_path(file.path);
+        std::string fname = sidebar_detail::basename_from_path(path);
+        std::string dir = sidebar_detail::dir_from_path(path);
         std::string statusStr(1, statusChar);
 
         auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        // Row container
         auto row = div(ctx, mk(parent, id),
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
@@ -1137,78 +1149,6 @@ private:
             preset::MetaText(statusStr)
                 .with_size(ComponentSize{pixels(STATUS_W), children()})
                 .with_custom_text_color(statusCol)
-                .with_alignment(TextAlignment::Right)
-                .with_debug_name("file_status"));
-
-        // Click -> select this file
-        if (row.ent().get<HasClickListener>().down) {
-            auto* r = find_singleton<RepoComponent, ActiveTab>();
-            if (r) {
-                r->selectedFilePath = file.path;
-                r->selectedCommitHash.clear();
-            }
-        }
-    }
-
-    // Render a row for an untracked file with Row flex: [filename (expand)] [dir (gray)] [U (gray)]
-    void render_untracked_row(UIContext<InputAction>& ctx,
-                               Entity& parent, int id,
-                               const std::string& path,
-                               RepoComponent& repo) {
-        bool selected = (path == repo.selectedFilePath);
-        constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
-
-        std::string fname = sidebar_detail::basename_from_path(path);
-        std::string dir = sidebar_detail::dir_from_path(path);
-
-        auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-
-        // Row container
-        auto row = div(ctx, mk(parent, id),
-            preset::SelectableRow(selected)
-                .with_size(ComponentSize{rowWidth, h720(ROW_H)})
-                .with_debug_name("untracked_row"));
-
-        row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
-
-        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
-                                : theme::TEXT_PRIMARY;
-
-        constexpr float STATUS_W = 20.0f;
-        constexpr float PAD_L = 8.0f;
-        constexpr float PAD_R = 4.0f;
-        constexpr float GAP = 3.0f;
-        float totalW = std::max(sidebarPixelWidth_ - PAD_L - PAD_R, 40.0f);
-        float nameW, dirW;
-        if (dir.empty()) {
-            nameW = totalW - GAP - STATUS_W;
-            dirW = 0.0f;
-        } else {
-            nameW = totalW * 0.5f;
-            dirW = totalW - nameW - GAP * 2.0f - STATUS_W;
-        }
-
-        div(ctx, mk(row.ent(), 1),
-            preset::BodyText(fname)
-                .with_size(ComponentSize{pixels(nameW), children()})
-                .with_custom_text_color(textCol)
-                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_debug_name("file_name"));
-
-        if (!dir.empty()) {
-            div(ctx, mk(row.ent(), 2),
-                preset::MetaText(dir)
-                    .with_size(ComponentSize{pixels(dirW), children()})
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(FontSize::Small)
-                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                    .with_debug_name("file_dir"));
-        }
-
-        div(ctx, mk(row.ent(), 3),
-            preset::MetaText("U")
-                .with_size(ComponentSize{pixels(STATUS_W), children()})
-                .with_custom_text_color(sidebar_detail::status_color('U'))
                 .with_alignment(TextAlignment::Right)
                 .with_debug_name("file_status"));
 
