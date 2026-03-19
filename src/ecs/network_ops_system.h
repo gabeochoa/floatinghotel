@@ -10,6 +10,23 @@
 
 namespace ecs {
 
+// Show a toast via MenuComponent::pendingToast when a git operation fails.
+// Returns true if the operation failed.
+inline bool toast_on_git_failure(const git::GitResult& result,
+                                  const std::string& action) {
+    if (result.success()) return false;
+    std::string msg = action + " failed";
+    auto& err = result.stderr_str();
+    if (!err.empty()) {
+        auto nl = err.find('\n');
+        auto firstLine = err.substr(0, nl);
+        if (!firstLine.empty()) msg += ": " + firstLine;
+    }
+    auto* menu = find_singleton<MenuComponent>();
+    if (menu) menu->pendingToast = msg;
+    return true;
+}
+
 // Enqueue a network git operation to run on a background thread.
 // The NetworkOpsPollingSystem will poll the future, show a toast on
 // completion/failure, and trigger a repo refresh.

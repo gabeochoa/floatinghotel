@@ -9,6 +9,7 @@
 #include "../git/git_runner.h"
 #include "../settings.h"
 #include "../util/git_helpers.h"
+#include "network_ops_system.h"
 #include "ui_imports.h"
 
 #include "../../vendor/afterhours/src/plugins/modal.h"
@@ -94,12 +95,15 @@ inline bool execute_commit(RepoComponent& repo,
                            bool stageAllFirst) {
     if (stageAllFirst) {
         auto stageResult = git::stage_all(repo.repoPath);
-        if (!stageResult.success()) return false;
+        if (!stageResult.success()) {
+            toast_on_git_failure(stageResult, "Stage All");
+            return false;
+        }
     }
 
     std::string message = build_message(editor.subject, editor.body);
     if (message.empty()) {
-        message = "Update"; // Fallback if no message provided
+        message = "Update";
     }
 
     auto result = git::git_commit(repo.repoPath, message);
@@ -110,6 +114,7 @@ inline bool execute_commit(RepoComponent& repo,
         repo.refreshRequested = true;
         return true;
     }
+    toast_on_git_failure(result, "Commit");
     return false;
 }
 
@@ -587,6 +592,7 @@ private:
         // Click -> checkout this branch
         if (rowResult.ent().get<HasClickListener>().down && !isCurrent) {
             auto result = git::checkout_branch(repo.repoPath, branch.name);
+            toast_on_git_failure(result, "Checkout");
             if (result.success()) {
                 repo.refreshRequested = true;
             }
@@ -744,6 +750,7 @@ private:
                 .with_debug_name("create_branch_btn"))) {
             if (canCreate) {
                 auto result = git::create_branch(repo.repoPath, bd.newBranchName);
+                toast_on_git_failure(result, "Create Branch");
                 if (result.success()) {
                     repo.refreshRequested = true;
                 }

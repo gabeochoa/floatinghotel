@@ -207,11 +207,13 @@ private:
             repo->refreshRequested = true;
         }
         if (toolbarButton("Stage All", hasRepo && hasUnstaged)) {
-            git::stage_all(repo->repoPath);
+            auto res = git::stage_all(repo->repoPath);
+            toast_on_git_failure(res, "Stage All");
             repo->refreshRequested = true;
         }
         if (toolbarButton("Unstage All", hasRepo && hasStaged)) {
-            git::unstage_all(repo->repoPath);
+            auto res = git::unstage_all(repo->repoPath);
+            toast_on_git_failure(res, "Unstage All");
             repo->refreshRequested = true;
         }
 
