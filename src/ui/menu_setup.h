@@ -8,6 +8,7 @@
 #include <afterhours/src/ecs.h>
 
 #include "../ecs/components.h"
+#include "../ecs/network_ops_system.h"
 #include "../ecs/query_helpers.h"
 #include "../git/git_commands.h"
 #include "../git/git_runner.h"
@@ -160,15 +161,15 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::separator(),
         MenuItem::item("Push", "Cmd+Shift+P", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r) { git::git_push(r->repoPath); r->refreshRequested = true; }
+            if (r) ecs::enqueue_network_op("Push", git::git_run_async(r->repoPath, {"push"}));
         }),
         MenuItem::item("Pull", "", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r) { git::git_pull(r->repoPath); r->refreshRequested = true; }
+            if (r) ecs::enqueue_network_op("Pull", git::git_run_async(r->repoPath, {"pull"}));
         }),
         MenuItem::item("Fetch", "", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r) { git::git_fetch(r->repoPath); r->refreshRequested = true; }
+            if (r) ecs::enqueue_network_op("Fetch", git::git_run_async(r->repoPath, {"fetch"}));
         }),
     }});
 

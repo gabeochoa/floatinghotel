@@ -33,6 +33,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ecs/status_bar_system.h"
 #include "ecs/tab_bar_system.h"
 #include "ecs/toolbar_system.h"
+#include "ecs/network_ops_system.h"
 #include "ecs/validation_summary_system.h"
 #include "git/git_runner.h"
 #include "git/git_parser.h"
@@ -472,6 +473,7 @@ static void app_init() {
     (void)menuComp;
 
     auto& cmdLog = entity.addComponent<ecs::CommandLogComponent>();
+    entity.addComponent<ecs::NetworkOpsComponent>();
 
     // Create the tab strip singleton
     auto& tabStripEntity = EntityHelper::createEntity();
@@ -591,6 +593,7 @@ static void app_init() {
         }
         sm.register_update_system(std::move(fileWatcherPtr));
         sm.register_update_system(std::make_unique<ecs::AsyncGitDataRefreshSystem>());
+        sm.register_update_system(std::make_unique<ecs::NetworkOpsPollingSystem>());
 
         // Toast notification systems
         ui_imm::registerToastSystems(sm);

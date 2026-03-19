@@ -1,10 +1,13 @@
 #pragma once
 
+#include <future>
 #include <string>
 #include <vector>
 
 #include "../../vendor/afterhours/src/core/base_component.h"
 #include "../../vendor/afterhours/src/core/entity_helper.h"
+
+namespace git { struct GitResult; }
 
 namespace ecs {
 
@@ -191,6 +194,19 @@ struct Tab : public afterhours::BaseComponent {
 
 struct TabStripComponent : public afterhours::BaseComponent {
     std::vector<afterhours::EntityID> tabOrder;
+};
+
+// Tracks in-flight network git operations (push/pull/fetch) so the UI
+// thread is never blocked.  Fire-and-forget: the polling system handles
+// completion, toast notifications, and refresh triggers.
+struct PendingNetworkOp {
+    std::string label;
+    std::future<git::GitResult> future;
+    afterhours::EntityID tabId{0};
+};
+
+struct NetworkOpsComponent : public afterhours::BaseComponent {
+    std::vector<PendingNetworkOp> pending;
 };
 
 } // namespace ecs

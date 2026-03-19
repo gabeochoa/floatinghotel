@@ -2,6 +2,7 @@
 
 #include "../git/git_commands.h"
 #include "../git/git_runner.h"
+#include "network_ops_system.h"
 #include "ui_imports.h"
 
 namespace ecs {
@@ -114,12 +115,10 @@ private:
         };
 
         if (sidebarBtn(row1.ent(), nextId++, "Push", hasRepo)) {
-            git::git_push(repo->repoPath);
-            repo->refreshRequested = true;
+            enqueue_network_op("Push", git::git_run_async(repo->repoPath, {"push"}));
         }
         if (sidebarBtn(row1.ent(), nextId++, "Pull", hasRepo)) {
-            git::git_pull(repo->repoPath);
-            repo->refreshRequested = true;
+            enqueue_network_op("Pull", git::git_run_async(repo->repoPath, {"pull"}));
         }
         if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
             auto* menuComp = ::ecs::find_singleton<MenuComponent>();
@@ -223,16 +222,13 @@ private:
             if (editor) editor->commitRequested = true;
         }
         if (toolbarButton("Push", hasRepo)) {
-            git::git_push(repo->repoPath);
-            repo->refreshRequested = true;
+            enqueue_network_op("Push", git::git_run_async(repo->repoPath, {"push"}));
         }
         if (toolbarButton("Pull", hasRepo)) {
-            git::git_pull(repo->repoPath);
-            repo->refreshRequested = true;
+            enqueue_network_op("Pull", git::git_run_async(repo->repoPath, {"pull"}));
         }
         if (toolbarButton("Fetch", hasRepo)) {
-            git::git_fetch(repo->repoPath);
-            repo->refreshRequested = true;
+            enqueue_network_op("Fetch", git::git_run_async(repo->repoPath, {"fetch"}));
         }
 
         toolbarSeparator();
