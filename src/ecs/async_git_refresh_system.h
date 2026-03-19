@@ -3,6 +3,7 @@
 #include <chrono>
 #include <future>
 #include <optional>
+#include <unordered_map>
 
 #include "../../vendor/afterhours/src/core/system.h"
 #include "../git/git_parser.h"
@@ -11,23 +12,14 @@
 
 namespace ecs {
 
-// AsyncGitDataRefreshSystem: Non-blocking git data refresh.
-//
-// When RepoComponent::refreshRequested is set, this system launches all
-// git queries (status, log, diff, branch-list, rev-parse HEAD) on
-// background threads via std::async.  Each frame it polls the
-// outstanding futures with a zero-timeout wait_for(); when a result is
-// ready it is consumed and written into the RepoComponent on the main
-// thread.  Once every pending operation has completed,
-// RepoComponent::isRefreshing is cleared.
 struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
     void for_each_with(afterhours::Entity& entity,
                        RepoComponent& repo, float) override {
 
-        if (!entity.has<ActiveTab>()) return;
+        auto id = entity.id;
 
-        // ---- Phase 1: kick off async operations ----
+        // Phase 1: kick off async operations for any tab that requests refresh
         if (repo.refreshRequested && !repo.isRefreshing) {
             if (repo.repoPath.empty()) {
                 repo.refreshRequested = false;
@@ -38,31 +30,32 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             repo.isRefreshing = true;
 
             const std::string path = repo.repoPath;
-
-            pendingStatus_ = git::git_status_async(path);
-            pendingLog_    = git::git_log_async(path, 100, 0);
-
-            // Always load diff data so it's ready when a file is selected
-            pendingDiff_ = git::git_diff_async(path);
-
-            pendingBranches_ = git::git_branch_list_async(path);
-            pendingHead_     = git::git_rev_parse_head_async(path);
+            auto& pf = pending_[id];
+            pf.status   = git::git_status_async(path);
+            pf.log      = git::git_log_async(path, 100, 0);
+            pf.diff     = git::git_diff_async(path);
+            pf.branches = git::git_branch_list_async(path);
+            pf.head     = git::git_rev_parse_head_async(path);
         }
 
-        // Nothing in flight -- early out.
         if (!repo.isRefreshing) return;
 
-        // ---- Phase 2: poll each future (non-blocking) ----
+        auto it = pending_.find(id);
+        if (it == pending_.end()) {
+            repo.isRefreshing = false;
+            return;
+        }
+        auto& pf = it->second;
+
+        // Phase 2: poll each future (non-blocking)
         using namespace std::chrono_literals;
 
-        if (pendingStatus_ &&
-            pendingStatus_->wait_for(0s) ==
-                std::future_status::ready) {
-            auto result = pendingStatus_->get();
-            pendingStatus_.reset();
+        if (pf.status &&
+            pf.status->wait_for(0s) == std::future_status::ready) {
+            auto result = pf.status->get();
+            pf.status.reset();
             if (result.success()) {
-                auto parsed =
-                    git::parse_status(result.stdout_str());
+                auto parsed = git::parse_status(result.stdout_str());
                 repo.currentBranch  = parsed.branchName;
                 repo.isDetachedHead = parsed.isDetachedHead;
                 repo.aheadCount     = parsed.aheadCount;
@@ -76,51 +69,43 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             }
         }
 
-        if (pendingLog_ &&
-            pendingLog_->wait_for(0s) ==
-                std::future_status::ready) {
-            auto result = pendingLog_->get();
-            pendingLog_.reset();
+        if (pf.log &&
+            pf.log->wait_for(0s) == std::future_status::ready) {
+            auto result = pf.log->get();
+            pf.log.reset();
             if (result.success()) {
-                repo.commitLog =
-                    git::parse_log(result.stdout_str());
+                repo.commitLog = git::parse_log(result.stdout_str());
                 repo.commitLogLoaded =
                     static_cast<int>(repo.commitLog.size());
-                repo.commitLogHasMore =
-                    (repo.commitLogLoaded >= 100);
+                repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
             }
         }
 
-        if (pendingDiff_ &&
-            pendingDiff_->wait_for(0s) ==
-                std::future_status::ready) {
-            auto result = pendingDiff_->get();
-            pendingDiff_.reset();
+        if (pf.diff &&
+            pf.diff->wait_for(0s) == std::future_status::ready) {
+            auto result = pf.diff->get();
+            pf.diff.reset();
             if (result.success()) {
-                repo.currentDiff =
-                    git::parse_diff(result.stdout_str());
+                repo.currentDiff = git::parse_diff(result.stdout_str());
             }
         }
 
-        if (pendingBranches_ &&
-            pendingBranches_->wait_for(0s) ==
-                std::future_status::ready) {
-            auto result = pendingBranches_->get();
-            pendingBranches_.reset();
+        if (pf.branches &&
+            pf.branches->wait_for(0s) == std::future_status::ready) {
+            auto result = pf.branches->get();
+            pf.branches.reset();
             if (result.success()) {
                 repo.branches =
                     git::parse_branch_list(result.stdout_str());
             }
         }
 
-        if (pendingHead_ &&
-            pendingHead_->wait_for(0s) ==
-                std::future_status::ready) {
-            auto result = pendingHead_->get();
-            pendingHead_.reset();
+        if (pf.head &&
+            pf.head->wait_for(0s) == std::future_status::ready) {
+            auto result = pf.head->get();
+            pf.head.reset();
             if (result.success()) {
                 repo.headCommitHash = result.stdout_str();
-                // Trim trailing newline
                 while (!repo.headCommitHash.empty() &&
                        (repo.headCommitHash.back() == '\n' ||
                         repo.headCommitHash.back() == '\r')) {
@@ -129,22 +114,25 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             }
         }
 
-        // ---- Phase 3: check if all operations completed ----
-        if (!pendingStatus_ && !pendingLog_ && !pendingDiff_ &&
-            !pendingBranches_ && !pendingHead_) {
+        // Phase 3: check if all operations completed
+        if (!pf.status && !pf.log && !pf.diff &&
+            !pf.branches && !pf.head) {
             repo.isRefreshing = false;
             repo.hasLoadedOnce = true;
+            pending_.erase(it);
         }
     }
 
 private:
-    // Pending futures -- one per git query type.  std::nullopt means
-    // either never launched or already consumed.
-    std::optional<std::future<git::GitResult>> pendingStatus_;
-    std::optional<std::future<git::GitResult>> pendingLog_;
-    std::optional<std::future<git::GitResult>> pendingDiff_;
-    std::optional<std::future<git::GitResult>> pendingBranches_;
-    std::optional<std::future<git::GitResult>> pendingHead_;
+    struct PendingFutures {
+        std::optional<std::future<git::GitResult>> status;
+        std::optional<std::future<git::GitResult>> log;
+        std::optional<std::future<git::GitResult>> diff;
+        std::optional<std::future<git::GitResult>> branches;
+        std::optional<std::future<git::GitResult>> head;
+    };
+
+    std::unordered_map<afterhours::EntityID, PendingFutures> pending_;
 };
 
 }  // namespace ecs
