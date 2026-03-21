@@ -140,3 +140,39 @@ extern "C" void metal_take_screenshot(const char* filename) {
 extern "C" void metal_wait_all_screenshots(void) {
     // no-op: screenshots are taken synchronously
 }
+
+static bool _headless_mode = false;
+
+extern "C" void metal_hide_window(void) {
+    @autoreleasepool {
+        _headless_mode = true;
+
+        NSWindow* window = [NSApp mainWindow];
+        if (!window) {
+            NSArray<NSWindow*>* windows = [NSApp windows];
+            for (NSWindow* w in windows) {
+                if ([w isVisible]) { window = w; break; }
+            }
+        }
+        if (window) {
+            // Move off-screen rather than orderOut: so the Metal display
+            // link keeps firing at full speed and screencapture -l still
+            // works (captures the window's backing store by window ID).
+            NSRect frame = [window frame];
+            [window setFrame:NSMakeRect(-20000, -20000, frame.size.width, frame.size.height)
+                     display:YES animate:NO];
+        }
+
+        // Suppress idle sleep throttling even though the window is off-screen
+        if (!_e2e_activity_token) {
+            _e2e_activity_token = [[NSProcessInfo processInfo]
+                beginActivityWithOptions:(NSActivityUserInitiatedAllowingIdleSystemSleep |
+                                         NSActivityLatencyCritical)
+                reason:@"E2E Headless Testing"];
+        }
+    }
+}
+
+extern "C" bool metal_is_headless(void) {
+    return _headless_mode;
+}

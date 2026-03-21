@@ -6,6 +6,7 @@
 
 #ifdef __APPLE__
 extern "C" void metal_activate_app(void);
+extern "C" void metal_hide_window(void);
 extern "C" void metal_wait_all_screenshots(void);
 #endif
 
@@ -76,6 +77,7 @@ std::chrono::high_resolution_clock::time_point startTime;
 // E2E test mode
 bool testModeEnabled = false;
 bool e2eNoResize = false;
+bool headless = false;
 std::string testScriptPath;
 std::string testScriptDir;
 std::string screenshotDir = "output/screenshots";
@@ -342,10 +344,10 @@ static void app_init() {
     log_info("  Systems registration: {} ms",
         std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
 
-    // In test mode, bring the window to the foreground so the Metal display
-    // link runs at full speed instead of being throttled to ~0.5 FPS.
 #ifdef __APPLE__
-    if (app_state::testModeEnabled) {
+    if (app_state::headless) {
+        metal_hide_window();
+    } else if (app_state::testModeEnabled) {
         metal_activate_app();
     }
 #endif
@@ -519,6 +521,7 @@ int main(int argc, char* argv[]) {
     // Parse test mode flags
     app_state::testModeEnabled = cmdl["--test-mode"];
     app_state::e2eNoResize = cmdl["--e2e-no-resize"];
+    app_state::headless = cmdl["--headless"];
     for (auto& [name, value] : cmdl.params()) {
         if (name == "screenshot-dir") {
             app_state::screenshotDir = value;

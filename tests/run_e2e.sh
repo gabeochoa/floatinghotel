@@ -30,6 +30,7 @@ NC='\033[0m'
 TIMEOUT=30
 FILTER=""
 ISOLATE=false
+HEADLESS=true
 
 # Parse arguments
 while [[ $# -gt 0 ]]; do
@@ -37,11 +38,15 @@ while [[ $# -gt 0 ]]; do
         -t|--timeout) TIMEOUT="$2"; shift 2 ;;
         -d|--dir) E2E_SCRIPTS_DIR="$2"; shift 2 ;;
         --isolate) ISOLATE=true; shift ;;
+        --visible) HEADLESS=false; shift ;;
+        --headless) HEADLESS=true; shift ;;
         -h|--help)
             echo "Usage: $0 [OPTIONS] [FILTER]"
             echo "  -t, --timeout SEC   Timeout per script (default: 30)"
             echo "  -d, --dir DIR       Scripts directory"
             echo "  --isolate           Run each script in its own process"
+            echo "  --visible           Show the test window (default: headless)"
+            echo "  --headless          Hide the test window (default)"
             echo "  FILTER              Script name filter"
             exit 0 ;;
         *) FILTER="$1"; shift ;;
@@ -97,7 +102,17 @@ if [ "$ISOLATE" = true ]; then
 else
     echo "Mode: batch (single window)"
 fi
+if [ "$HEADLESS" = true ]; then
+    echo "Window: headless"
+else
+    echo "Window: visible"
+fi
 echo ""
+
+HEADLESS_FLAG=""
+if [ "$HEADLESS" = true ]; then
+    HEADLESS_FLAG="--headless"
+fi
 
 # ============================================================
 # Batch mode: run all scripts in a single process/window
@@ -121,6 +136,7 @@ if [ "$ISOLATE" = false ]; then
 
     if "$EXECUTABLE" "$REPO_PATH" \
         --test-mode \
+        $HEADLESS_FLAG \
         --test-script-dir="$BATCH_DIR" \
         --screenshot-dir="$SCREENSHOT_DIR" \
         --e2e-timeout="$TIMEOUT" \
@@ -171,6 +187,7 @@ for script in "${SCRIPTS[@]}"; do
 
     if "$EXECUTABLE" "$REPO_PATH" \
         --test-mode \
+        $HEADLESS_FLAG \
         --test-script="$script" \
         --screenshot-dir="$SCRIPT_SCREENSHOT_DIR" \
         --e2e-timeout="$TIMEOUT" \
