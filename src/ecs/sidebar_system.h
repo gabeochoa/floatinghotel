@@ -1291,8 +1291,24 @@ private:
         }
 
         bool hasBadge = (bestBadge != nullptr);
+
+        // preset::Badge sizes children()xchildren(), so it grows unbounded to
+        // fit the whole decoration label and overflows the fixed-width row
+        // (e.g. 195px for multiple/long refs). Size it to the label width but
+        // cap at BADGE_MAX_W; the label ellipsizes to stay inside. BADGE_EST_W
+        // is the floor so short badges stay legible.
+        constexpr float BADGE_MAX_W = 120.0f;
+        float badgeW = 0.0f;
+        if (hasBadge) {
+            int badgeFontPx = static_cast<int>(15.0f * shG / 720.0f + 0.5f);
+            if (badgeFontPx < 1) badgeFontPx = 1;
+            float txtW = static_cast<float>(afterhours::graphics::measure_text(
+                bestBadge->label.c_str(), badgeFontPx));
+            badgeW = std::clamp(txtW + 12.0f, BADGE_EST_W, BADGE_MAX_W);
+        }
+
         float fixedW = GRAPH_COL_W
-                     + (hasBadge ? BADGE_EST_W + 4.0f : 0.0f)
+                     + (hasBadge ? badgeW + 4.0f : 0.0f)
                      + 4.0f;
         float subjectW = sidebarW - 4.0f - fixedW;
         if (subjectW < 30.0f) subjectW = 30.0f;
@@ -1332,6 +1348,8 @@ private:
             }
             div(ctx, mk(row.ent(), 10),
                 preset::Badge(bestBadge->label, bg, btxt)
+                    .with_size(ComponentSize{pixels(badgeW), children()})
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_font_size(FontSize::Medium)
                     .with_debug_name("commit_badge"));
         }
