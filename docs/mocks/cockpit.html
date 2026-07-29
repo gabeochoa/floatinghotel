@@ -77,13 +77,16 @@
   .rprog .bar{flex:1;height:5px;border-radius:3px;background:#333;overflow:hidden}.rprog .bar .fill{height:100%;background:var(--ok);transition:width .2s ease}
 
   .frow{display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:13px;cursor:pointer;height:27px}
-  .frow:hover{background:#2A2D2E}.frow:hover .rs{opacity:1}
+  .frow:hover{background:#2A2D2E}.frow:hover .rs{visibility:visible}
   .frow.sel{background:var(--sel);color:#fff}
   .frow .fi{width:15px;text-align:center;font-size:12px;flex:none}
   .frow .dir{color:var(--t3);font-size:11px;margin-left:2px}.frow.sel .dir{color:#b9d2e8}
-  .frow .bdg{margin-left:6px;font-family:var(--mono);font-weight:700;width:14px;text-align:center}
-  .frow .rs{opacity:0;margin-left:auto;color:var(--t2);font-size:15px;width:18px;text-align:center}
-  .frow .rs:hover{color:var(--ok)}
+  .frow .acts2{margin-left:auto;display:flex;gap:9px;visibility:hidden}
+  .frow:hover .acts2{visibility:visible}
+  .frow .acts2 span{cursor:pointer;color:var(--t2);width:15px;text-align:center;font-size:13px}
+  .frow .acts2 .ap:hover{color:var(--ok)}
+  .frow .acts2 .rv:hover{color:var(--warn)}
+  .frow .bdg{margin-left:8px;font-family:var(--mono);font-weight:700;width:14px;text-align:center}
   .frow .chk{margin-left:auto;color:var(--ok);font-size:12px}
   .icpp{color:#519aba}.imd{color:#519aba}.iimg{color:#a074c4}.icfg{color:#cbcb41}.isub{color:var(--sub)}
   .subnote{font-family:var(--mono);font-size:11px;color:var(--t2);padding:0 12px 6px 34px}
@@ -137,6 +140,21 @@
   .hh .right{display:flex;align-items:center;gap:8px}.hh .acts{display:flex;gap:6px;opacity:0}
   .hunk:hover .hh .acts{opacity:1}
   .hunk.staged .hh{box-shadow:inset 3px 0 0 var(--ok)}.hh .state{color:var(--ok);font-family:var(--ui);font-size:11px}
+  /* hovering Approve spotlights the exact chunk being approved (others dim back) */
+  .hunk{transition:opacity .1s ease}
+  .hunks:has(.btn.ok:hover) .hunk{opacity:.35}
+  .hunks:has(.btn.ok:hover) .hunk:has(.btn.ok:hover){opacity:1}
+  .hunk:has(.btn.ok:hover){box-shadow:inset 0 0 0 1px rgba(63,185,80,.55),0 0 22px rgba(63,185,80,.12)}
+  .hunk:has(.btn.ok:hover) .hh{box-shadow:inset 3px 0 0 var(--ok)}
+  .hunk:has(.btn.ok:hover) .dl.add{background:#1d3d27}
+  .hunk:has(.btn.ok:hover) .dl.del{background:#472329}
+  /* keyboard review: the hovered chunk is the a/c target */
+  .hunk:hover:not(:has(.btn.ok:hover)){box-shadow:inset 3px 0 0 var(--accent2)}
+  .kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--border);border-radius:3px;padding:0 4px;margin-left:5px;color:var(--t2)}
+  .approvednote{padding:8px 16px;color:var(--ok);font-size:12px;background:var(--ok-dim);border-bottom:1px solid var(--soft)}
+  .hunk.cur{outline:2px solid var(--accent2);outline-offset:-2px}
+  .keyhint{flex:none;height:26px;display:flex;align-items:center;gap:16px;padding:0 16px;font-size:11px;color:var(--t3);border-top:1px solid var(--border);background:var(--section);font-family:var(--mono)}
+  .keyhint b{color:var(--t2)}
   .btn{background:transparent;color:var(--t2);border:1px solid var(--border);border-radius:5px;font-size:11px;padding:3px 10px;cursor:pointer}
   .btn:hover{background:#2A2D2E;color:var(--text)}
   .btn.ok{color:var(--ok)}.btn.ok:hover{background:var(--ok-dim);border-color:rgba(63,185,80,.4)}
@@ -179,8 +197,8 @@
   body.collapsed .statusbar .wide,body.collapsed .statusbar .seg.right{display:none}
   body.collapsed .statusbar .compact{display:inline}
 
-  .toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#0d3320;border:1px solid var(--ok);color:#c9f5d4;padding:10px 16px;border-radius:8px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s ease,bottom .2s ease;z-index:50;max-width:70%}
-  .toast.show{opacity:1;bottom:54px}
+  .toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--border);color:var(--text);padding:9px 14px;border-radius:7px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .15s ease,bottom .15s ease;z-index:50;max-width:70%;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+  .toast.show{opacity:1;bottom:52px}
   .hidden{display:none!important}
 </style>
 </head>
@@ -211,7 +229,7 @@
         <div class="rp-head" onclick="togglePanel('p-sub')"><span class="chev">▾</span><span class="name">afterhours</span><span class="branch">vendor · ⑂ main<span class="dirty">*</span></span><span class="acts"><span>⟳</span><span>✓</span><span>⋯</span></span></div>
         <div class="rp-body">
           <div class="sec"><span class="chev">▾</span><span class="lbl">Changes</span><span class="pill">1</span></div>
-          <div class="frow" onclick="openTarget('sub-todo')"><span class="fi imd">◔</span><span>todo.md</span><span class="bdg M">M</span><span class="rs">✓</span></div>
+          <div class="frow" onclick="openTarget('sub-todo')"><span class="fi imd">◔</span><span>todo.md</span><span class="acts2"><span class="rv" title="Revert file (⇧ = comment)" onclick="event.stopPropagation();rowRevert('sub-todo','todo.md',event)">↩</span><span class="ap" title="Approve file (⇧ = stage)" onclick="event.stopPropagation();rowApprove('sub-todo','todo.md',event)">✓</span></span><span class="bdg M">M</span></div>
         </div>
       </div>
 
@@ -229,6 +247,7 @@
       </div>
       <div id="bannerwrap"></div>
       <div class="dbody" id="dbody"></div>
+      <div class="keyhint"><span><b>j</b>/<b>k</b> or <b>n</b> move</span><span><b>a</b> approve</span><span><b>c</b> comment</span><span><b>⌘⏎</b> send all</span><span><b>esc</b> hide</span></div>
     </section>
 
     <aside class="basket" id="basket"></aside>
@@ -358,7 +377,7 @@ function renderSidebar(){
   $('wt-list').innerHTML = WT_FILES.map((f,i)=>{
     const selCls = (state.selection===f.id && f.name==='main.cpp') ? ' sel' : '';
     const dir = f.dir?`<span class="dir">${f.dir}</span>`:'';
-    let row = `<div class="frow${selCls}" onclick="openTarget('${f.id}')"><span class="fi ${f.fi}">${f.ic}</span><span>${f.name}</span>${dir}<span class="bdg ${f.badge}">${f.badge}</span><span class="rs" title="Approve">✓</span></div>`;
+    let row = `<div class="frow${selCls}" onclick="openTarget('${f.id}')"><span class="fi ${f.fi}">${f.ic}</span><span>${f.name}</span>${dir}<span class="acts2"><span class="rv" title="Revert file (⇧ = comment instead)" onclick="event.stopPropagation();rowRevert('${f.id}','${f.name}',event)">↩</span><span class="ap" title="Approve file (⇧ = stage only)" onclick="event.stopPropagation();rowApprove('${f.id}','${f.name}',event)">✓</span></span><span class="bdg ${f.badge}">${f.badge}</span></div>`;
     if(f.sub) row += `<div class="subnote"><span class="old">fe9282b</span> → <span class="new">a1b2c3d</span> · +3 commits</div>`;
     return row;
   }).join('');
@@ -381,18 +400,24 @@ function renderCenter(){
   // banner
   const fix = t.kind==='commit'
     ? `<span class="fix commit">✎ comments here → fixup into ${t.sha}</span>`
-    : `<span class="fix wt">✎ approve hunks to stage · comments → agent</span>`;
+    : ``;
   const nw = t.isnew ? `<div class="cnew">Reworked since you last looked — agent responded to your comment.</div>` : '';
   $('bannerwrap').innerHTML = `<div class="banner"><span class="msg">${esc(t.banner)}</span><span class="sha">${t.sha}</span>${fix}</div>${nw}`;
-  // files
-  $('dbody').innerHTML = t.files.map(f=>fileHtml(t,f)).join('');
+  // files — approved hunks are hidden for this review flow (⟳ to reset)
+  const hidden = Object.keys(state.approved).filter(k=>state.approved[k] && k.startsWith(state.selection+'|')).length;
+  const note = hidden ? `<div class="approvednote">✓ ${hidden} approved this session · hidden — ⟳ to reset</div>` : '';
+  const filesHtml = t.files.map(f=>fileHtml(t,f)).join('');
+  $('dbody').innerHTML = note + (filesHtml || `<div class="empty"><div style="font-size:15px">All reviewed here 🎉</div><div>${hidden} approved · ⟳ reset to see them again</div></div>`);
+  collectHunks();
 }
 function fileHtml(t,f){
+  const visible = f.hunks.filter(h=> !state.approved[state.selection+'|'+h.id]);
+  if(visible.length===0) return '';   // fully approved → hidden until reset
   const foldedKey = t.scope==='wt' ? ('wt-main|'+f.name) : (state.selection+'|'+f.name);
   const folded = state.folded[foldedKey];
   const fs = `<span class="fs"></span>`;
   const approveFile = t.kind==='wt' && !f.submodule ? `<button class="btn ok" onclick="event.stopPropagation();approveFile('${t.scope}','${f.name}')">Approve file</button>` : '';
-  const hunks = f.hunks.map(h=>hunkHtml(t,f,h)).join('');
+  const hunks = visible.map(h=>hunkHtml(t,f,h)).join('');
   return `<div class="fileblk${folded?' folded':''}">
     <div class="fhead" onclick="toggleFileFold('${foldedKey}')"><div class="left"><span class="chev">${folded?'▸':'▾'}</span><span class="fi icpp">${f.badge==='A'?'+':'C'}</span><span class="fn">${f.name}</span>${f.dir?`<span class="dir" style="color:var(--t3);font-size:11px">${f.dir}</span>`:''}${fs}</div><div class="acts">${approveFile}</div></div>
     <div class="hunks">${hunks}</div></div>`;
@@ -403,11 +428,9 @@ function hunkHtml(t,f,h){
   let right='';
   if(f.submodule){ right = t.kind==='wt' ? `<div class="acts"><button class="btn ok" onclick="approveHunk('${h.id}')">Approve pointer</button></div>` : ''; }
   else if(t.kind==='wt'){
-    right = staged
-      ? `<span class="state">✓ Approved</span><div class="acts"><button class="btn" onclick="approveHunk('${h.id}')">Reopen</button></div>`
-      : `<div class="acts"><button class="btn ok" onclick="approveHunk('${h.id}')">Approve</button><button class="btn cmt" onclick="startCompose('${t.scope}','${f.name}',${primaryLine(h)},'${h.id}')">Comment</button></div>`;
+    right = `<div class="acts"><button class="btn ok" onclick="approveHunk('${h.id}')">Approve <span class="kbd">a</span></button><button class="btn cmt" onclick="startCompose('${t.scope}','${f.name}',${primaryLine(h)},'${h.id}')">Comment <span class="kbd">c</span></button></div>`;
   } else {
-    right = `<div class="acts"><button class="btn cmt" onclick="startCompose('${t.scope}','${f.name}',${primaryLine(h)},'${h.id}')">Comment</button></div>`;
+    right = `<div class="acts"><button class="btn cmt" onclick="startCompose('${t.scope}','${f.name}',${primaryLine(h)},'${h.id}')">Comment <span class="kbd">c</span></button></div>`;
   }
   const lines = h.lines.map(lineHtml).join('');
   const nums = hunkLineNums(h);
@@ -415,7 +438,7 @@ function hunkHtml(t,f,h){
     .map(c=>`<div class="icmt"><span class="who">You:</span><span>${esc(c.text)}</span><span class="x" onclick="removeComment(${c.id})">×</span></div>`).join('');
   const composing = state.composing && state.composing.hunkId===h.id && state.composing.file===f.name;
   const compose = composing ? `<div class="compose"><textarea id="composeta" rows="2" placeholder="Comment for the agent… (Enter to add, Esc to cancel)" onkeydown="composeKey(event)"></textarea><div class="row"><span class="loc">${f.name}:${state.composing.line} · ${t.kind==='commit'?'commit '+t.sha:'working tree'}</span><button class="btn cmt" onclick="submitCompose()">⏎ Add to feedback</button></div></div>` : '';
-  return `<div class="hunk${staged?' staged':''}"><div class="hh"><span>${esc(h.header)}</span><div class="right">${right}</div></div>${lines}${cmts}${compose}</div>`;
+  return `<div class="hunk" data-hunk="${h.id}" data-file="${f.name}" data-line="${primaryLine(h)}"><div class="hh"><span>${esc(h.header)}</span><div class="right">${right}</div></div>${lines}${cmts}${compose}</div>`;
 }
 function lineHtml(l){
   const cls = l.t==='add'?'add':l.t==='del'?'del':'';
@@ -482,15 +505,25 @@ function renderStatus(){
 
 function renderAll(){ renderSidebar(); renderCenter(); renderBasket(); renderStatus(); }
 
+/* ---------------- chunk cursor (vim / git add -p style) ---------------- */
+let hunkEls=[], curIdx=0;
+function collectHunks(){ hunkEls=[...$('dbody').querySelectorAll('.hunk')]; if(curIdx>=hunkEls.length) curIdx=Math.max(0,hunkEls.length-1); markCur(); }
+function markCur(){ hunkEls.forEach((el,i)=>el.classList.toggle('cur', i===curIdx)); }
+function setCur(i){ if(!hunkEls.length) return; curIdx=Math.max(0,Math.min(i,hunkEls.length-1)); markCur(); const el=hunkEls[curIdx]; if(el) el.scrollIntoView({block:'nearest'}); }
+
 /* ---------------- interactions ---------------- */
 function startReview(){ state.reviewing=true; openTarget('wt-main'); renderStatus(); toast('Review started — baseline snapshotted for "new since you last looked"'); }
-function openTarget(id){ state.selection=id; state.composing=null; document.body.classList.remove('collapsed'); renderAll(); }
+function openTarget(id){ state.selection=id; state.composing=null; curIdx=0; document.body.classList.remove('collapsed'); renderAll(); }
 function closeShelf(){ state.selection=null; state.composing=null; document.body.classList.add('collapsed'); renderSidebar(); }
 function togglePanel(id){ const e=$(id); e.classList.toggle('folded'); e.querySelector('.rp-head .chev').textContent=e.classList.contains('folded')?'▸':'▾'; }
 function toggleFileFold(key){ state.folded[key]=!state.folded[key]; renderCenter(); }
 function toggleBasket(){ state.basketClosed=!state.basketClosed; renderBasket(); }
 function approveHunk(hunkId){ const key=state.selection+'|'+hunkId; state.approved[key]=!state.approved[key]; renderCenter(); renderStatus(); }
 function approveFile(scope,file){ const t=DIFFS[state.selection]; const f=t.files.find(x=>x.name===file); f.hunks.forEach(h=>state.approved[state.selection+'|'+h.id]=true); renderCenter(); renderStatus(); toast('Approved all hunks in '+file); }
+function approveFileByName(tid,name){ const t=DIFFS[tid]; if(!t) return; const f=t.files.find(x=>x.name===name); if(!f) return; f.hunks.forEach(h=>state.approved[tid+'|'+h.id]=true); renderAll(); }
+/* file-row hover actions: ✓ approve (⇧ = stage only), ↩ revert (⇧ = comment) */
+function rowApprove(tid,name,e){ if(e&&e.shiftKey){ toast('Staged '+name+' (git add — not marked approved)'); } else { approveFileByName(tid,name); toast('Approved '+name); } }
+function rowRevert(tid,name,e){ if(e&&e.shiftKey){ openTarget(tid); const t=DIFFS[tid]; const f=t&&t.files.find(x=>x.name===name); if(f&&f.hunks[0]) startCompose(t.scope,name,primaryLine(f.hunks[0]),f.hunks[0].id); } else { toast('Reverted '+name+' (discard changes)'); } }
 function startCompose(scope,file,line,hunkId){ state.composing={scope,file,line,hunkId}; renderCenter(); const ta=$('composeta'); if(ta){ta.focus();} }
 function composeKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); submitCompose(); } else if(e.key==='Escape'){ e.stopPropagation(); state.composing=null; renderCenter(); } }
 function submitCompose(){ const ta=$('composeta'); if(!ta) return; const text=ta.value.trim(); const c=state.composing; if(text){ state.comments.push({id:state.cid++, scope:c.scope, file:c.file, line:c.line, text}); toast('Added to feedback basket'); } state.composing=null; renderAll(); }
@@ -499,9 +532,19 @@ function sendAll(){ if(!state.comments.length) return; toast(`Wrote /tmp/floatin
 function copyAll(){ navigator.clipboard && navigator.clipboard.writeText(previewText()); toast('Copied all feedback to clipboard'); }
 
 document.addEventListener('keydown', e=>{
-  if(e.key==='Escape'){ if(state.composing){ state.composing=null; renderCenter(); } else { closeShelf(); } }
-  if(e.key==='Enter' && (e.metaKey||e.ctrlKey)){ e.preventDefault(); sendAll(); }
+  if(e.key==='Escape'){ if(state.composing){ state.composing=null; renderCenter(); } else { closeShelf(); } return; }
+  if(e.key==='Enter' && (e.metaKey||e.ctrlKey)){ e.preventDefault(); sendAll(); return; }
+  if(/INPUT|TEXTAREA/.test(e.target.tagName||'')) return;
+  if(!state.selection || !hunkEls.length) return;
+  const t=DIFFS[state.selection];
+  if(e.key==='j'||e.key==='n'||e.key===' '){ e.preventDefault(); setCur(curIdx+1); }
+  else if(e.key==='k'||e.key==='p'){ e.preventDefault(); setCur(curIdx-1); }
+  else if(e.key==='a' && t.kind==='wt'){ e.preventDefault(); const el=hunkEls[curIdx]; if(el) approveHunk(el.dataset.hunk); }
+  else if(e.key==='c'){ e.preventDefault(); const el=hunkEls[curIdx]; if(el) startCompose(t.scope, el.dataset.file, +el.dataset.line, el.dataset.hunk); }
 });
+
+// hovering a chunk moves the cursor to it
+document.getElementById('dbody').addEventListener('mouseover', e=>{ const h=e.target.closest('.hunk'); if(h){ const i=hunkEls.indexOf(h); if(i>=0){ curIdx=i; markCur(); } } });
 
 renderAll();
 </script>

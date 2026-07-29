@@ -75,14 +75,37 @@ way (Bear-like). Clicking a file or a commit **slides the diff shelf out**; a
 shelf. Feedback basket rides along on the shelf. See the combined mock
 `docs/mocks/cockpit.html` (opens collapsed).
 
-## Review interaction model (from interactive prototype)
-Prototype: `docs/mocks/cockpit.html` (data-driven; refresh resets). Confirmed:
+## Cockpit mode — interaction model (from interactive prototype)
+"Cockpit mode" = the review flow. Prototype: `docs/mocks/cockpit.html`
+(data-driven; ⟳/refresh resets). Confirmed decisions:
 - **Start review** = click the review-progress strip (no separate button).
+- **Snapshot timing (answer):** take the baseline snapshot **when you Start
+  review**; that baseline is what "new since you last looked" diffs against.
+  **Re-baseline when you Send all feedback**, so the next agent round shows only
+  what changed since your last send.
 - **Approve** a hunk = stage it (working tree). Reject = leave unstaged + Comment.
+- **Approved chunks disappear** from the review screen (inbox-zero) until ⟳/reset
+  — a small "N approved · hidden" note shows the count.
+- **Keyboard / vim nav (git add -p style):** a chunk **cursor**; `j`/`k` or `n`
+  move, `a` approve current, `c` comment current. Hovering a chunk moves the
+  cursor to it. A persistent key-hint footer shows the bindings.
+- **Hover-approve spotlight:** hovering a hunk's Approve rings that chunk green
+  and dims the others, so it's obvious what you're staging.
+- **File-row hover actions:** hovering a file in the sidebar reveals ↩ revert and
+  ✓ approve. Modifiers (proposed): **⇧+approve** = stage only (don't mark
+  approved), **⇧+revert** = open comment instead of discarding.
 - **Comment** = inline textbox; **Enter** adds to basket, **Esc** cancels.
 - **⌘⏎** = Send all feedback (Enter is taken by add-comment).
 - **Esc** = close the diff shelf (cancels an open compose first).
 - Basket **slides** in/out; stack rows show a live comment-count badge.
+- **Status badges (M/S)** right-aligned in file rows.
+- **Toasts** use the normal panel style (neutral), not neon green.
+
+## Theming — extract styles into a theme struct (TODO in real app + mock)
+Pull all colors into a single theme struct so themes are swappable (the mock
+already uses CSS custom properties in `:root`; next step: drive them from a JS
+`THEMES` object / in the real app, a `Theme` struct in `theme.h` with named
+palettes). Ties into "Custom color themes" below.
 
 ## Drop Copy buttons in favor of select-to-copy
 Now that drag-select copies with `file:line` prepended (the `copyWithLocation`
@@ -90,6 +113,22 @@ setting), the explicit per-hunk "Copy" and per-file "Copy Diff" buttons are
 redundant clutter. Remove them from the diff UI; rely on highlight→copy. Keep
 "Comment" (adds to basket) and "Approve" (working tree) as the hunk actions.
 Applies to the real app diff_renderer + the mocks.
+
+## Chunk granularity — auto-split + select-to-chunk
+Make chunks small enough to approve confidently. Git has NO "chunk type" concept
+— a hunk is just a line range, and you can synthesize any patch, so we control
+granularity ourselves:
+- **Auto-split:** diff with `--unified=0` so each contiguous change is its own
+  hunk; then in the UI break any block >~20 lines into ≤20-line sub-hunks, each
+  independently approvable by generating a per-sub-hunk patch → `git apply
+  --cached`.
+- **Select-to-chunk (line-level approve):** drag-select lines in the diff →
+  "Approve selection" → build a patch covering exactly those lines and apply it
+  to the index. Same mechanism as `stage_hunk` (already exists), generalized to
+  arbitrary line sets.
+- **Constraint:** the synthesized patch must apply cleanly — can't partially
+  stage two edits on the same line; offsets/context must be correct. `git add -p`
+  can only split at unchanged-line seams, which is why we build patches directly.
 
 ## Submodules (real gap — no handling today)
 - [ ] Detect submodules and show submodule changes in the status list
