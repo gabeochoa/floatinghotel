@@ -114,10 +114,20 @@ private:
             return static_cast<bool>(button(ctx, mk(parent, id), config));
         };
 
-        if (sidebarBtn(row1.ent(), nextId++, "Push", hasRepo)) {
+        // Show ahead/behind counts on the labels (VS Code/Fork parity):
+        // "Push (2)" when local is ahead, "Pull (1)" when behind. Plain ASCII
+        // because the font atlas only covers Basic Latin (no arrow glyphs).
+        std::string pushLabel = "Push";
+        std::string pullLabel = "Pull";
+        if (repo && repo->aheadCount > 0)
+            pushLabel += " (" + std::to_string(repo->aheadCount) + ")";
+        if (repo && repo->behindCount > 0)
+            pullLabel += " (" + std::to_string(repo->behindCount) + ")";
+
+        if (sidebarBtn(row1.ent(), nextId++, pushLabel, hasRepo)) {
             enqueue_network_op("Push", git::git_run_async(repo->repoPath, {"push"}));
         }
-        if (sidebarBtn(row1.ent(), nextId++, "Pull", hasRepo)) {
+        if (sidebarBtn(row1.ent(), nextId++, pullLabel, hasRepo)) {
             enqueue_network_op("Pull", git::git_run_async(repo->repoPath, {"pull"}));
         }
         if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
