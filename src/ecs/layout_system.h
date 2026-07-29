@@ -48,6 +48,18 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
         float topY = actualTabStripH + menuH;
 
+        // Shelf: collapse the diff pane (sidebar fills the window) whenever
+        // nothing is selected. Selecting a file/commit expands it; clearing the
+        // selection (Esc) collapses it again.
+        auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
+        bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
+        bool nothingSelected =
+            hasRepoForShelf && shelfRepo->selectedFilePath.empty() &&
+            shelfRepo->selectedCommitHash.empty();
+        layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
+        if (layout.shelfCollapsed)
+            scaledSidebarW = sw; // sidebar fills the window
+
         if (layout.sidebarVisible) {
             float sidebarToolbarH = std::max(rpxH(38.0f), 24.0f);
             layout.toolbar = {0, topY, scaledSidebarW, sidebarToolbarH};
@@ -77,7 +89,11 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             float mainContentY = topY;
             float mainContentH = std::max(sh - topY - statusH, 20.0f);
 
-            if (layout.commandLogVisible) {
+            if (layout.shelfCollapsed) {
+                // Diff pane hidden — sidebar owns the whole window.
+                layout.mainContent = {0, 0, 0, 0};
+                layout.commandLog = {0, 0, 0, 0};
+            } else if (layout.commandLogVisible) {
                 float scaledLogH = rpxH(layout.commandLogHeight);
                 float logH = std::clamp(scaledLogH, rpxH(80.0f), mainContentH * 0.6f);
                 layout.commandLogHeight = logH * 720.0f / sh;

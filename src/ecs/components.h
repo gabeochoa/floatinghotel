@@ -151,6 +151,10 @@ struct LayoutComponent : public afterhours::BaseComponent {
 
     bool sidebarVisible = true;
     bool commandLogVisible = false;
+    // Shelf: when collapsed, the diff pane is hidden and the sidebar fills the
+    // window (Bear-like). Derived each frame from whether anything is selected;
+    // set by LayoutUpdateSystem and read by the sidebar/main-content renderers.
+    bool shelfCollapsed = false;
 
     float commandLogHeight = 200.0f;
 

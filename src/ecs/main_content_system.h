@@ -35,6 +35,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
 
+        // Shelf collapsed → diff pane hidden (sidebar fills the window).
+        if (layout.shelfCollapsed) {
+            if (layout.commandLogVisible)
+                render_command_log(ctx, uiRoot, layout);
+            return;
+        }
+
         if (!hasRepo) {
             render_welcome_screen(ctx, mainBg.ent(), layout);
 
