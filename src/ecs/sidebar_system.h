@@ -293,8 +293,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label("No repository open")
                         .with_size(ComponentSize{percent(1.0f), h720(32)})
                         .with_padding(Padding{
-                            .top = h720(16), .right = w1280(8),
-                            .bottom = h720(8), .left = w1280(8)})
+                            .top = h720(16), .right = pixels(8),
+                            .bottom = h720(8), .left = pixels(8)})
                         .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
@@ -310,8 +310,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label("No repository open")
                         .with_size(ComponentSize{percent(1.0f), h720(32)})
                         .with_padding(Padding{
-                            .top = h720(16), .right = w1280(8),
-                            .bottom = h720(8), .left = w1280(8)})
+                            .top = h720(16), .right = pixels(8),
+                            .bottom = h720(8), .left = pixels(8)})
                         .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
@@ -394,8 +394,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_label("No repository open")
                     .with_size(ComponentSize{percent(1.0f), h720(32)})
                     .with_padding(Padding{
-                        .top = h720(16), .right = w1280(8),
-                        .bottom = h720(8), .left = w1280(8)})
+                        .top = h720(16), .right = pixels(8),
+                        .bottom = h720(8), .left = pixels(8)})
                     .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -444,8 +444,8 @@ private:
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(8)})
+                    .top = h720(2), .right = pixels(8),
+                    .bottom = h720(2), .left = pixels(8)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_mode_tabs"));
@@ -461,11 +461,11 @@ private:
             auto config = preset::Button(label)
                 .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(7),
-                    .bottom = h720(2), .left = w1280(7)})
+                    .top = h720(2), .right = pixels(7),
+                    .bottom = h720(2), .left = pixels(7)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(3)})
+                    .left = {}, .right = pixels(3)})
                 .with_font_size(FontSize::Medium)
                 .with_debug_name("tab_" + label);
             if (!active) {
@@ -521,8 +521,8 @@ private:
                 .with_font_size(FontSize::Large)
                 .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(10),
-                    .bottom = h720(2), .left = w1280(10)})
+                    .top = h720(4), .right = pixels(10),
+                    .bottom = h720(2), .left = pixels(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("repo_header"));
@@ -550,8 +550,8 @@ private:
                 .with_align_items(AlignItems::Center)
                 .with_gap(pixels(8))
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(10),
-                    .bottom = h720(2), .left = w1280(10)})
+                    .top = h720(2), .right = pixels(10),
+                    .bottom = h720(2), .left = pixels(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("review_progress"));
@@ -590,8 +590,8 @@ private:
                 .with_size(ComponentSize{secWidth, children()})
                 .with_flex_direction(FlexDirection::Column)
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(8)})
+                    .top = h720(4), .right = pixels(8),
+                    .bottom = h720(2), .left = pixels(8)})
                 .with_gap(h720(3))
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
@@ -656,8 +656,8 @@ private:
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(4), .left = w1280(8)})
+                    .top = h720(4), .right = pixels(8),
+                    .bottom = h720(4), .left = pixels(8)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("refs_header"));
@@ -674,8 +674,8 @@ private:
             preset::Button("+ New")
                 .with_size(ComponentSize{children(), h720(18)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(8)})
+                    .top = h720(2), .right = pixels(8),
+                    .bottom = h720(2), .left = pixels(8)})
                 .with_font_size(h720(16))
                 .with_debug_name("new_branch_btn"));
 
@@ -704,8 +704,8 @@ private:
                     .with_label("No branches found")
                     .with_size(ComponentSize{percent(1.0f), h720(32)})
                     .with_padding(Padding{
-                        .top = h720(16), .right = w1280(8),
-                        .bottom = h720(8), .left = w1280(8)})
+                        .top = h720(16), .right = pixels(8),
+                        .bottom = h720(8), .left = pixels(8)})
                     .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -735,8 +735,8 @@ private:
                 .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
                 .with_custom_background(rowBg)
                 .with_padding(Padding{
-                    .top = h720(0), .right = w1280(8),
-                    .bottom = h720(0), .left = w1280(0)})
+                    .top = h720(0), .right = pixels(8),
+                    .bottom = h720(0), .left = pixels(0)})
                 .with_roundness(0.0f)
                 .with_debug_name("branch_row"));
 
@@ -755,7 +755,7 @@ private:
         if (isCurrent) {
             div(ctx, mk(rowResult.ent(), 1),
                 ComponentConfig{}
-                    .with_size(ComponentSize{w1280(3), h720(ROW_H)})
+                    .with_size(ComponentSize{pixels(3), h720(ROW_H)})
                     .with_custom_background(theme::STATUS_ADDED)
                     .with_roundness(0.0f)
                     .with_debug_name("current_indicator"));
@@ -767,14 +767,14 @@ private:
         div(ctx, mk(rowResult.ent(), 2),
             preset::Badge(branch.isLocal ? "L" : "R", badgeBg,
                           afterhours::Color{255, 255, 255, 255})
-                .with_size(ComponentSize{w1280(20), h720(16)})
+                .with_size(ComponentSize{pixels(20), h720(16)})
                 .with_padding(Padding{
-                    .top = h720(1), .right = w1280(3),
-                    .bottom = h720(1), .left = w1280(3)})
+                    .top = h720(1), .right = pixels(3),
+                    .bottom = h720(1), .left = pixels(3)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = w1280(isCurrent ? 5.0f : 8.0f),
-                    .right = w1280(6)})
+                    .left = pixels(isCurrent ? 5.0f : 8.0f),
+                    .right = pixels(6)})
                 .with_debug_name("branch_badge"));
 
         // Branch name
@@ -798,8 +798,8 @@ private:
                     .with_label(branch.tracking)
                     .with_size(ComponentSize{children(), h720(ROW_H)})
                     .with_padding(Padding{
-                        .top = h720(0), .right = w1280(4),
-                        .bottom = h720(0), .left = w1280(4)})
+                        .top = h720(0), .right = pixels(4),
+                        .bottom = h720(0), .left = pixels(4)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_font_size(FontSize::Medium)
                     .with_alignment(TextAlignment::Right)
@@ -811,7 +811,7 @@ private:
         if (!isCurrent) {
             auto deleteBtn = button(ctx, mk(rowResult.ent(), 5),
                 preset::Button("x")
-                    .with_size(ComponentSize{w1280(20), h720(20)})
+                    .with_size(ComponentSize{pixels(20), h720(20)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::STATUS_DELETED)
                     .with_debug_name("delete_branch_btn"));
@@ -843,7 +843,7 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, MODAL_ID), bd.showNewBranchDialog,
             ModalConfig{}
-                .with_size(w1280(380), h720(180))
+                .with_size(pixels(380), h720(180))
                 .with_title("New Branch")
                 .with_show_close_button(false));
 
@@ -856,8 +856,8 @@ private:
                 .with_label("Branch name:")
                 .with_size(ComponentSize{percent(1.0f), h720(20)})
                 .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(4), .left = w1280(16)})
+                    .top = h720(8), .right = pixels(16),
+                    .bottom = h720(4), .left = pixels(16)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_alignment(TextAlignment::Left)
                 .with_render_layer(CONTENT_LAYER)
@@ -869,8 +869,8 @@ private:
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), h720(32)})
                 .with_padding(Padding{
-                    .top = h720(0), .right = w1280(16),
-                    .bottom = h720(0), .left = w1280(16)})
+                    .top = h720(0), .right = pixels(16),
+                    .bottom = h720(0), .left = pixels(16)})
                 .with_background(afterhours::ui::Theme::Usage::Surface)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("new_branch_input"));
@@ -886,7 +886,7 @@ private:
             preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(8)})
+                    .left = {}, .right = pixels(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
@@ -933,7 +933,7 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, MODAL_ID), bd.showDeleteBranchDialog,
             ModalConfig{}
-                .with_size(w1280(420), h720(180))
+                .with_size(pixels(420), h720(180))
                 .with_title("Delete Branch")
                 .with_show_close_button(false));
 
@@ -957,7 +957,7 @@ private:
             preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(8)})
+                    .left = {}, .right = pixels(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
@@ -1006,7 +1006,7 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, MODAL_ID), bd.showForceDeleteDialog,
             ModalConfig{}
-                .with_size(w1280(420), h720(200))
+                .with_size(pixels(420), h720(200))
                 .with_title("Force Delete Branch")
                 .with_show_close_button(false));
 
@@ -1031,7 +1031,7 @@ private:
             preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(8)})
+                    .left = {}, .right = pixels(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
@@ -1070,8 +1070,8 @@ private:
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(10),
-                    .bottom = h720(2), .left = w1280(10)})
+                    .top = h720(2), .right = pixels(10),
+                    .bottom = h720(2), .left = pixels(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("view_mode_tabs"));
@@ -1083,11 +1083,11 @@ private:
             auto config = preset::Button(label)
                 .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(TAB_HPAD),
-                    .bottom = h720(2), .left = w1280(TAB_HPAD)})
+                    .top = h720(2), .right = pixels(TAB_HPAD),
+                    .bottom = h720(2), .left = pixels(TAB_HPAD)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(4)})
+                    .left = {}, .right = pixels(4)})
                 .with_debug_name("tab_" + label);
             if (!active) {
                 config = config.with_custom_background(theme::BUTTON_SECONDARY)
@@ -1136,8 +1136,8 @@ private:
                         .with_label(label)
                         .with_size(ComponentSize{percent(1.0f), h720(28)})
                         .with_padding(Padding{
-                            .top = h720(20), .right = w1280(8),
-                            .bottom = h720(4), .left = w1280(8)})
+                            .top = h720(20), .right = pixels(8),
+                            .bottom = h720(4), .left = pixels(8)})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
@@ -1147,8 +1147,8 @@ private:
                     preset::EmptyStateText("\xe2\x9c\x93 No changes")
                         .with_size(ComponentSize{percent(1.0f), h720(28)})
                         .with_padding(Padding{
-                            .top = h720(20), .right = w1280(8),
-                            .bottom = h720(4), .left = w1280(8)})
+                            .top = h720(20), .right = pixels(8),
+                            .bottom = h720(4), .left = pixels(8)})
                         .with_debug_name("empty_changes"));
 
                 div(ctx, mk(scrollParent, 2501),
@@ -1156,8 +1156,8 @@ private:
                         .with_label("Working tree clean")
                         .with_size(ComponentSize{percent(1.0f), h720(22)})
                         .with_padding(Padding{
-                            .top = h720(0), .right = w1280(8),
-                            .bottom = h720(8), .left = w1280(8)})
+                            .top = h720(0), .right = pixels(8),
+                            .bottom = h720(8), .left = pixels(8)})
                         .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
@@ -1197,8 +1197,8 @@ private:
                     .with_label(emptyMsg)
                     .with_size(ComponentSize{percent(1.0f), h720(24)})
                     .with_padding(Padding{
-                        .top = h720(12), .right = w1280(8),
-                        .bottom = h720(4), .left = w1280(8)})
+                        .top = h720(12), .right = pixels(8),
+                        .bottom = h720(4), .left = pixels(8)})
                     .with_custom_text_color(afterhours::Color{110, 110, 110, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -1353,8 +1353,8 @@ private:
                 preset::EmptyStateText("No commits yet")
                     .with_size(ComponentSize{percent(1.0f), h720(32)})
                     .with_padding(Padding{
-                        .top = h720(16), .right = w1280(8),
-                        .bottom = h720(8), .left = w1280(8)})
+                        .top = h720(16), .right = pixels(8),
+                        .bottom = h720(8), .left = pixels(8)})
                     .with_debug_name("empty_log"));
             return;
         }
@@ -1375,8 +1375,8 @@ private:
                     .with_label("\xe2\x97\x8b Loading more...")
                     .with_size(ComponentSize{percent(1.0f), h720(20)})
                     .with_padding(Padding{
-                        .top = h720(3), .right = w1280(8),
-                        .bottom = h720(3), .left = w1280(8)})
+                        .top = h720(3), .right = pixels(8),
+                        .bottom = h720(3), .left = pixels(8)})
                     .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
                     .with_font_size(FontSize::Medium)
                     .with_alignment(TextAlignment::Center)
@@ -1619,7 +1619,7 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, DIALOG_ID), editor.showUnstagedDialog,
             ModalConfig{}
-                .with_size(w1280(480), h720(380))
+                .with_size(pixels(480), h720(380))
                 .with_title("Unstaged Changes")
                 .with_show_close_button(false));
 
@@ -1640,8 +1640,8 @@ private:
                     .with_label("Staged files:")
                     .with_size(ComponentSize{percent(1.0f), h720(16)})
                     .with_padding(Padding{
-                        .top = h720(4), .right = w1280(16),
-                        .bottom = h720(2), .left = w1280(16)})
+                        .top = h720(4), .right = pixels(16),
+                        .bottom = h720(2), .left = pixels(16)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Left)
                     .with_render_layer(CONTENT_LAYER)
@@ -1653,8 +1653,8 @@ private:
                     .with_size(ComponentSize{percent(1.0f), children()})
                     .with_flex_direction(FlexDirection::Column)
                     .with_padding(Padding{
-                        .top = h720(2), .right = w1280(16),
-                        .bottom = h720(4), .left = w1280(19)})
+                        .top = h720(2), .right = pixels(16),
+                        .bottom = h720(4), .left = pixels(19)})
                     .with_render_layer(CONTENT_LAYER)
                     .with_debug_name("staged_list"));
 
@@ -1695,8 +1695,8 @@ private:
                     .with_label("Unstaged files:")
                     .with_size(ComponentSize{percent(1.0f), h720(16)})
                     .with_padding(Padding{
-                        .top = h720(8), .right = w1280(16),
-                        .bottom = h720(2), .left = w1280(16)})
+                        .top = h720(8), .right = pixels(16),
+                        .bottom = h720(2), .left = pixels(16)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Left)
                     .with_render_layer(CONTENT_LAYER)
@@ -1707,8 +1707,8 @@ private:
                     .with_size(ComponentSize{percent(1.0f), children()})
                     .with_flex_direction(FlexDirection::Column)
                     .with_padding(Padding{
-                        .top = h720(2), .right = w1280(16),
-                        .bottom = h720(4), .left = w1280(19)})
+                        .top = h720(2), .right = pixels(16),
+                        .bottom = h720(4), .left = pixels(19)})
                     .with_render_layer(CONTENT_LAYER)
                     .with_debug_name("unstaged_list"));
 
@@ -1758,8 +1758,8 @@ private:
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(8), .right = w1280(16),
-                    .bottom = h720(4), .left = w1280(16)})
+                    .top = h720(8), .right = pixels(16),
+                    .bottom = h720(4), .left = pixels(16)})
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("remember_row"));
 
@@ -1783,7 +1783,7 @@ private:
             preset::Button("Cancel")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(8)})
+                    .left = {}, .right = pixels(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
@@ -1798,7 +1798,7 @@ private:
             preset::Button("Commit Staged Only")
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(8)})
+                    .left = {}, .right = pixels(8)})
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("staged_only_btn"));
 
