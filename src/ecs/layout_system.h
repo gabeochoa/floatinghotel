@@ -23,12 +23,11 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float sw = static_cast<float>(screenW);
         float sh = static_cast<float>(screenH);
 
-        // ---- Shelf state: grow/shrink the OS window on collapse toggle ----
-        // A single instant resize per toggle, NOT a per-frame tween. Resizing the
-        // Metal window every frame makes the drawable lag the window by a frame,
-        // so the whole content (including the fixed sidebar) is stretched while it
-        // catches up — that's the "sidebar moving/changing size" the tween caused.
-        // One resize = at most one stretched frame, imperceptible.
+        // ---- Shelf state ----
+        // The OS window is NEVER resized on toggle: any window resize makes the
+        // Metal drawable stretch content for a frame, which visibly moves/resizes
+        // the sidebar. Instead the window stays put; collapsing just hides the
+        // diff pane (the sidebar keeps its fixed width on the left).
         {
             auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
@@ -36,22 +35,6 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                                    shelfRepo->selectedFilePath.empty() &&
                                    shelfRepo->selectedCommitHash.empty();
             layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
-
-            if (!app_state::testModeEnabled &&
-                layout.shelfCollapsed != layout.lastShelfCollapsed) {
-                float collapsedW = layout.sidebarWidth + 4.0f;
-                if (layout.shelfCollapsed && sw > collapsedW + 40.f)
-                    layout.expandedWidth = static_cast<int>(sw);
-                float targetW =
-                    layout.shelfCollapsed
-                        ? collapsedW
-                        : (layout.expandedWidth > 0
-                               ? static_cast<float>(layout.expandedWidth)
-                               : 1200.f);
-                metal_set_window_size(static_cast<int>(targetW),
-                                      static_cast<int>(sh));
-                layout.lastShelfCollapsed = layout.shelfCollapsed;
-            }
         }
 
         auto rpxH = [sh](float design_px) {
