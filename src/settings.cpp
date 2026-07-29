@@ -20,6 +20,7 @@ struct Settings::Data {
     std::vector<std::string> openRepos;
     std::string lastActiveRepo;
     std::string unstagedPolicy = "ask";
+    bool copyWithLocation = true;
     std::vector<std::string> recentRepos;
 };
 
@@ -57,6 +58,7 @@ bool Settings::load_save_file() {
             j.value("open_repos", std::vector<std::string>{});
         data_->lastActiveRepo = j.value("last_active_repo", std::string{});
         data_->unstagedPolicy = j.value("commit_unstaged_policy", std::string{"ask"});
+        data_->copyWithLocation = j.value("copy_with_location", true);
         data_->recentRepos =
             j.value("recent_repos", std::vector<std::string>{});
 
@@ -80,6 +82,7 @@ void Settings::write_save_file() {
     j["open_repos"] = data_->openRepos;
     j["last_active_repo"] = data_->lastActiveRepo;
     j["commit_unstaged_policy"] = data_->unstagedPolicy;
+    j["copy_with_location"] = data_->copyWithLocation;
     j["recent_repos"] = data_->recentRepos;
 
     std::string path = get_settings_path();
@@ -176,6 +179,16 @@ void Settings::set_unstaged_policy(const std::string& policy) {
     } else {
         data_->unstagedPolicy = "ask";
     }
+    save_if_auto();
+}
+
+// Copy-with-location
+bool Settings::get_copy_with_location() const {
+    return data_->copyWithLocation;
+}
+
+void Settings::set_copy_with_location(bool v) {
+    data_->copyWithLocation = v;
     save_if_auto();
 }
 

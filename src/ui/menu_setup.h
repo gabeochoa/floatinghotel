@@ -12,6 +12,8 @@
 #include "../ecs/query_helpers.h"
 #include "../git/git_commands.h"
 #include "../git/git_runner.h"
+#include "../settings.h"
+#include "diff_renderer.h"
 
 namespace menu_setup {
 
@@ -68,7 +70,20 @@ inline std::vector<Menu> createMenuBar() {
     // Edit menu
     menus.push_back({"Edit", {
         MenuItem::item("Copy", "Cmd+C", [] {
-            set_pending_toast("Copy is not yet implemented");
+            std::string txt = ui::diff_sel::build_copy_text(
+                ui::diff_sel::state(), Settings::get().get_copy_with_location());
+            if (txt.empty()) {
+                set_pending_toast("No diff selection to copy");
+                return;
+            }
+            afterhours::clipboard::set_text(txt);
+            set_pending_toast("Copied selection");
+        }),
+        MenuItem::item("Copy With Location (toggle)", "", [] {
+            bool v = !Settings::get().get_copy_with_location();
+            Settings::get().set_copy_with_location(v);
+            set_pending_toast(v ? "Copy now includes file:line"
+                                : "Copy now excludes location");
         }),
         MenuItem::item("Select All", "Cmd+A", [] {
             set_pending_toast("Select All is not yet implemented");

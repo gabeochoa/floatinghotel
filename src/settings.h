@@ -47,6 +47,11 @@ struct Settings {
     std::string get_unstaged_policy() const;
     void set_unstaged_policy(const std::string& policy);
 
+    // When copying a diff selection, prepend a "path:line" location line so the
+    // copied text is ready to paste into an AI review conversation.
+    bool get_copy_with_location() const;
+    void set_copy_with_location(bool v);
+
     // Recent repos (for welcome screen)
     std::vector<std::string> get_recent_repos() const;
     void add_recent_repo(const std::string& path);

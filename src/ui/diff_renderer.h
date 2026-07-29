@@ -2,10 +2,188 @@
 
 #include "../ecs/ui_imports.h"
 #include "../git/git_commands.h"
+#include "../settings.h"
+#include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
 #include <afterhours/src/plugins/toast.h>
+#include <cmath>
+#include <unordered_map>
 
 namespace ui {
+
+// ============================================================================
+// Diff text selection (drag to select code, copy with file:line for AI review)
+// ============================================================================
+// Inline-mode only for now. Each diff line is a single mono-font label div;
+// we hit-test the mouse against the prior frame's resolved line rects and map x
+// to a character column via exact prefix measurement (works for any font, and
+// mono makes it stable). Selection endpoints are stored as (line-entity, col)
+// so they survive across frames; highlights are drawn as translucent child divs
+// on each covered line.
+namespace diff_sel {
+
+// Index in the inline label where the code content begins:
+//   [oldNum:5][space][newNum:5][2 spaces][sign][space] = 15 chars, then content.
+constexpr int CONTENT_START = 15;
+
+struct Pos {
+    afterhours::EntityID ent = 0;
+    int col = 0;
+    bool operator==(const Pos& o) const { return ent == o.ent && col == o.col; }
+};
+
+// One selectable line, rebuilt each frame. rect/contentX0 come from the prior
+// frame's layout (this system runs before autolayout), which is stable while
+// the diff is just being viewed.
+struct Rec {
+    afterhours::EntityID ent = 0;
+    std::string content;   // the code text (no gutter/sign)
+    std::string filePath;
+    int lineNo = 0;        // display line number, for the copy location header
+    Rectangle rect{};
+    float contentX0 = 0.f; // screen x where content[0] starts
+};
+
+struct State {
+    bool dragging = false;
+    bool hasSel = false;
+    Pos anchor, head;
+    std::vector<Rec> lastLines; // prior frame (used for hit-test + copy)
+    std::vector<Rec> curLines;  // being built this frame
+    std::unordered_map<afterhours::EntityID, std::pair<int, int>> hl; // ent -> [a,b)
+};
+
+inline State& state() {
+    static State s;
+    return s;
+}
+
+// Per-render context passed down to render_diff_line so it can register lines
+// and draw highlights. Disabled for side-by-side and embedded (commit-detail).
+struct Session {
+    bool enabled = false;
+    afterhours::ui::TextMeasureCache* tmc = nullptr;
+    float fontSize = 0.f;
+    float padLeftPx = 0.f;
+};
+
+inline float mw(const Session& s, const std::string& t) {
+    return s.tmc ? s.tmc->measure_width(t, "mono", s.fontSize) : 0.f;
+}
+
+// Resolve anchor/head into an ordered span (i1,c1) <= (i2,c2) as indices into
+// `lines`. Returns false if either endpoint's line is no longer present.
+inline bool ordered_span(const std::vector<Rec>& lines, Pos anchor, Pos head,
+                         int& i1, int& c1, int& i2, int& c2) {
+    int ai = -1, hi = -1;
+    for (int i = 0; i < (int)lines.size(); ++i) {
+        if (lines[i].ent == anchor.ent) ai = i;
+        if (lines[i].ent == head.ent) hi = i;
+    }
+    if (ai < 0 || hi < 0) return false;
+    i1 = ai; c1 = anchor.col; i2 = hi; c2 = head.col;
+    if (i1 > i2 || (i1 == i2 && c1 > c2)) { std::swap(i1, i2); std::swap(c1, c2); }
+    return true;
+}
+
+inline void recompute_highlight(State& st) {
+    st.hl.clear();
+    if (!st.hasSel) return;
+    int i1, c1, i2, c2;
+    if (!ordered_span(st.lastLines, st.anchor, st.head, i1, c1, i2, c2)) return;
+    for (int k = i1; k <= i2; ++k) {
+        int a = (k == i1) ? c1 : 0;
+        int b = (k == i2) ? c2 : (int)st.lastLines[k].content.size();
+        if (k == i1 && k == i2 && a == b) continue;
+        st.hl[st.lastLines[k].ent] = {a, b};
+    }
+}
+
+// Build the clipboard text for the current selection. Optionally prepends a
+// "path:Lstart[-Lend]" location so it's ready to paste into an AI review chat.
+inline std::string build_copy_text(State& st, bool withLocation) {
+    int i1, c1, i2, c2;
+    if (!ordered_span(st.lastLines, st.anchor, st.head, i1, c1, i2, c2)) return "";
+    std::string out;
+    if (withLocation) {
+        const Rec& r = st.lastLines[i1];
+        int endNo = st.lastLines[i2].lineNo;
+        out += r.filePath + ":L" + std::to_string(r.lineNo);
+        if (endNo != r.lineNo) out += "-" + std::to_string(endNo);
+        out += "\n";
+    }
+    for (int k = i1; k <= i2; ++k) {
+        const std::string& c = st.lastLines[k].content;
+        int a = std::min((k == i1) ? c1 : 0, (int)c.size());
+        int b = std::min((k == i2) ? c2 : (int)c.size(), (int)c.size());
+        out += c.substr(a, b - a);
+        if (k != i2) out += "\n";
+    }
+    return out;
+}
+
+// Update the selection from this frame's mouse against the prior frame's lines.
+inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
+    State& st = state();
+    if (st.lastLines.empty()) { recompute_highlight(st); return; }
+    const auto& mouse = ctx.mouse;
+    float mx = mouse.pos.x, my = mouse.pos.y;
+
+    auto colAt = [&](const Rec& r) -> int {
+        float rel = mx - r.contentX0;
+        if (rel <= 0) return 0;
+        int n = (int)r.content.size();
+        float best = 1e30f; int bc = 0;
+        for (int c = 0; c <= n; ++c) {
+            float d = std::fabs(mw(sess, r.content.substr(0, c)) - rel);
+            if (d < best) { best = d; bc = c; }
+        }
+        return bc;
+    };
+    auto lineUnder = [&]() -> int {
+        for (int i = 0; i < (int)st.lastLines.size(); ++i) {
+            const Rectangle& rc = st.lastLines[i].rect;
+            if (my >= rc.y && my <= rc.y + rc.height) return i;
+        }
+        return -1;
+    };
+    auto nearestLine = [&]() -> int {
+        int nn = -1; float bd = 1e30f;
+        for (int i = 0; i < (int)st.lastLines.size(); ++i) {
+            const Rectangle& rc = st.lastLines[i].rect;
+            float d = std::fabs(my - (rc.y + rc.height / 2.f));
+            if (d < bd) { bd = d; nn = i; }
+        }
+        return nn;
+    };
+
+    if (mouse.just_pressed) {
+        int li = lineUnder();
+        if (li >= 0) {
+            // Press on a line: start a new selection. (A press+release with no
+            // drag collapses anchor==head on release, which clears it.)
+            st.anchor = st.head = {st.lastLines[li].ent, colAt(st.lastLines[li])};
+            st.dragging = true; st.hasSel = false;
+        }
+        // Press off a line (header, Copy button, sidebar): leave any existing
+        // selection intact so the Copy button stays clickable.
+    }
+    if (mouse.left_down && st.dragging) {
+        int li = lineUnder();
+        if (li < 0) li = nearestLine();
+        if (li >= 0) {
+            st.head = {st.lastLines[li].ent, colAt(st.lastLines[li])};
+            if (!(st.head == st.anchor)) st.hasSel = true;
+        }
+    }
+    if (mouse.just_released) {
+        st.dragging = false;
+        if (st.head == st.anchor) st.hasSel = false;
+    }
+    recompute_highlight(st);
+}
+
+} // namespace diff_sel
 
 namespace diff_detail {
 
@@ -56,10 +234,13 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               const std::string& line,
                               int& oldLine,
                               int& newLine,
-                              float contentWidth = 0) {
+                              float contentWidth = 0,
+                              const std::string& filePath = "",
+                              diff_sel::Session* sel = nullptr) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
+    char sign;
 
     // Determine line type from prefix character
     char prefix = line.empty() ? ' ' : line[0];
@@ -69,15 +250,18 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         bgColor   = diff_detail::DIFF_ADD_BG;
         textColor = theme::DIFF_ADD_TEXT;
         newNum    = std::to_string(newLine++);
+        sign      = '+';
     } else if (prefix == '-') {
         bgColor   = diff_detail::DIFF_DEL_BG;
         textColor = theme::DIFF_DEL_TEXT;
         oldNum    = std::to_string(oldLine++);
+        sign      = '-';
     } else {
         bgColor   = theme::PANEL_BG;
         textColor = theme::TEXT_PRIMARY;
         oldNum    = std::to_string(oldLine++);
         newNum    = std::to_string(newLine++);
+        sign      = ' ';
     }
 
     // Right-pad line numbers for alignment
@@ -87,10 +271,14 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         return std::string(width - n.size(), ' ') + n;
     };
 
-    std::string label = padNum(oldNum, 5) + " " + padNum(newNum, 5) + "  " + content;
+    // Format: "OldLn NewLn  <sign> content"
+    // The dedicated sign column makes add/del/context scannable without
+    // relying on background color alone.
+    std::string label = padNum(oldNum, 5) + " " + padNum(newNum, 5)
+                      + "  " + sign + " " + content;
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
-    div(ctx, mk(parent, id),
+    auto lineDiv = div(ctx, mk(parent, id),
         ComponentConfig{}
             .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
             .with_custom_background(bgColor)
@@ -103,6 +291,38 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                 .bottom = h720(0), .left = w1280(diff_detail::CODE_PAD_LEFT)})
             .with_roundness(0.0f)
             .with_debug_name("diff_line"));
+
+    if (sel && sel->enabled) {
+        // Register this line (using the prior frame's resolved rect) so the next
+        // frame can hit-test drags and the copy action can extract text.
+        Rectangle r = lineDiv.ent().get<afterhours::ui::UIComponent>().rect();
+        float prefixW = diff_sel::mw(*sel, label.substr(0, diff_sel::CONTENT_START));
+        float cx0 = r.x + sel->padLeftPx + prefixW;
+        int lno = !newNum.empty() ? std::stoi(newNum)
+                                  : (!oldNum.empty() ? std::stoi(oldNum) : 0);
+        diff_sel::state().curLines.push_back(
+            {lineDiv.ent().id, content, filePath, lno, r, cx0});
+
+        // Draw the selection highlight for the covered column range, if any.
+        auto it = diff_sel::state().hl.find(lineDiv.ent().id);
+        if (it != diff_sel::state().hl.end()) {
+            int n = static_cast<int>(content.size());
+            int a = std::min(it->second.first, n);
+            int b = std::min(it->second.second, n);
+            float x0 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, a));
+            float x1 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, b));
+            if (x1 > x0) {
+                div(ctx, mk(lineDiv.ent(), 90001),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{pixels(x1 - x0),
+                                                 h720(diff_detail::LINE_HEIGHT)})
+                        .with_absolute_position(x0, 0.f)
+                        .with_custom_background(afterhours::Color{70, 130, 240, 90})
+                        .with_roundness(0.0f)
+                        .with_debug_name("diff_sel_hl"));
+            }
+        }
+    }
 }
 
 // Render a single hunk with its header and all diff lines.
@@ -111,8 +331,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                          const ecs::FileDiff& fileDiff,
                          const ecs::DiffHunk& hunk,
                          int& nextId,
-                         float contentWidth = 0) {
-    (void)fileDiff; // Kept for future stage/discard functionality
+                         float contentWidth = 0,
+                         diff_sel::Session* sel = nullptr) {
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
@@ -163,21 +383,215 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     int newLine = hunk.newStart;
 
     for (auto& line : hunk.lines) {
-        render_diff_line(ctx, parent, nextId++, line, oldLine, newLine, contentWidth);
+        render_diff_line(ctx, parent, nextId++, line, oldLine, newLine,
+                         contentWidth, fileDiff.filePath, sel);
     }
 }
 
-// Render the complete inline diff view for all file diffs.
+namespace diff_detail {
+
+// Right-pad a line number into a fixed-width gutter string.
+inline std::string pad_gutter(const std::string& n, size_t width = 5) {
+    if (n.empty()) return std::string(width, ' ');
+    if (n.size() >= width) return n;
+    return std::string(width - n.size(), ' ') + n;
+}
+
+enum class SbsKind { Context, Add, Del, Empty };
+
+// Render one side (left or right) of a side-by-side row as a single baked
+// label ("<gutter>  <sign> <content>"). We bake gutter+content into one label
+// to sidestep the afterhours Row-flex expand() bug (see docs/afterhours-gaps.md).
+inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
+                            const std::string& num, const std::string& content,
+                            SbsKind kind, bool leftBorder) {
+    afterhours::Color bg, fg;
+    char sign = ' ';
+    switch (kind) {
+        case SbsKind::Add:
+            bg = DIFF_ADD_BG; fg = theme::DIFF_ADD_TEXT; sign = '+'; break;
+        case SbsKind::Del:
+            bg = DIFF_DEL_BG; fg = theme::DIFF_DEL_TEXT; sign = '-'; break;
+        case SbsKind::Empty:
+            // Slightly darker than the panel to read as "no line here".
+            bg = afterhours::Color{26, 26, 26, 255};
+            fg = theme::TEXT_SECONDARY; break;
+        default:
+            bg = theme::PANEL_BG; fg = theme::TEXT_PRIMARY; break;
+    }
+
+    std::string label = pad_gutter(num) + "  " + sign + " " + content;
+
+    auto cfg = ComponentConfig{}
+        .with_size(ComponentSize{percent(0.5f), h720(LINE_HEIGHT)})
+        .with_custom_background(bg)
+        .with_custom_text_color(fg)
+        .with_label(label)
+        .with_font("mono", h720(theme::layout::FONT_CODE))
+        .with_alignment(TextAlignment::Left)
+        .with_padding(Padding{
+            .top = h720(0), .right = w1280(0),
+            .bottom = h720(0), .left = w1280(CODE_PAD_LEFT)})
+        .with_roundness(0.0f)
+        .with_debug_name("sbs_cell");
+    if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
+    div(ctx, mk(row, id), cfg);
+}
+
+} // namespace diff_detail
+
+// Render a single hunk in side-by-side mode: deletions on the left, additions
+// on the right, context on both. Runs of -/+ are paired row-by-row; the shorter
+// side is padded with empty cells.
+inline void render_sbs_hunk(UIContext<InputAction>& ctx,
+                            Entity& parent,
+                            const ecs::FileDiff& fileDiff,
+                            const ecs::DiffHunk& hunk,
+                            int& nextId,
+                            float contentWidth = 0) {
+    (void)fileDiff;
+    using diff_detail::SbsKind;
+
+    auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
+
+    // Hunk header row (same look as inline: label + copy button)
+    auto hunkRow = div(ctx, mk(parent, nextId++),
+        ComponentConfig{}
+            .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
+            .with_flex_direction(FlexDirection::Row)
+            .with_justify_content(JustifyContent::SpaceBetween)
+            .with_align_items(AlignItems::Center)
+            .with_custom_background(diff_detail::HUNK_HEADER_BG)
+            .with_roundness(0.0f)
+            .with_debug_name("sbs_hunk_header_row"));
+    div(ctx, mk(hunkRow.ent(), 0),
+        ComponentConfig{}
+            .with_label(hunk.header)
+            .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+            .with_custom_text_color(theme::DIFF_HUNK_HEADER)
+            .with_font("mono", h720(theme::layout::FONT_CODE))
+            .with_alignment(TextAlignment::Left)
+            .with_padding(Padding{
+                .top = h720(4), .right = w1280(0),
+                .bottom = h720(4), .left = w1280(12)})
+            .with_debug_name("sbs_hunk_header_label"));
+    {
+        std::string hunkText = diff_detail::hunk_to_text(hunk);
+        auto copyBtn = button(ctx, mk(hunkRow.ent(), 1),
+            preset::Button("Copy")
+                .with_size(ComponentSize{children(), h720(18)})
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(8)})
+                .with_custom_background(afterhours::Color{60, 60, 65, 255})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_debug_name("copy_sbs_hunk_btn"));
+        if (copyBtn) {
+            afterhours::clipboard::set_text(hunkText);
+            afterhours::toast::send_info(ctx, "Copied hunk to clipboard", 1.5f);
+        }
+    }
+
+    int oldLine = hunk.oldStart;
+    int newLine = hunk.newStart;
+
+    // Buffers of pending deletions/additions to pair up at each flush point.
+    std::vector<std::pair<std::string, std::string>> dels; // (num, content)
+    std::vector<std::pair<std::string, std::string>> adds;
+
+    auto emitRow = [&](const std::string& lNum, const std::string& lContent,
+                       SbsKind lKind, const std::string& rNum,
+                       const std::string& rContent, SbsKind rKind) {
+        auto rowDiv = div(ctx, mk(parent, nextId++),
+            ComponentConfig{}
+                .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_roundness(0.0f)
+                .with_debug_name("sbs_row"));
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true);
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false);
+    };
+
+    auto flush = [&]() {
+        size_t n = std::max(dels.size(), adds.size());
+        for (size_t i = 0; i < n; ++i) {
+            bool hasDel = i < dels.size();
+            bool hasAdd = i < adds.size();
+            emitRow(hasDel ? dels[i].first : "",
+                    hasDel ? dels[i].second : "",
+                    hasDel ? SbsKind::Del : SbsKind::Empty,
+                    hasAdd ? adds[i].first : "",
+                    hasAdd ? adds[i].second : "",
+                    hasAdd ? SbsKind::Add : SbsKind::Empty);
+        }
+        dels.clear();
+        adds.clear();
+    };
+
+    for (auto& line : hunk.lines) {
+        char prefix = line.empty() ? ' ' : line[0];
+        std::string content = line.size() > 1 ? line.substr(1) : "";
+        if (prefix == '-') {
+            dels.emplace_back(std::to_string(oldLine++), content);
+        } else if (prefix == '+') {
+            adds.emplace_back(std::to_string(newLine++), content);
+        } else {
+            flush();
+            emitRow(std::to_string(oldLine), content, SbsKind::Context,
+                    std::to_string(newLine), content, SbsKind::Context);
+            ++oldLine;
+            ++newLine;
+        }
+    }
+    flush();
+}
+
+
+// Render the complete diff view for all file diffs. Shared by inline and
+// side-by-side modes; only the per-hunk rendering differs.
 // This is the main entry point called by MainContentSystem.
 // When embedInParentScroll is true, diff content is added directly to the parent
 // without creating a nested scroll container (used by commit detail view).
-inline void render_inline_diff(UIContext<InputAction>& ctx,
-                                Entity& parent,
-                                const std::vector<ecs::FileDiff>& diffs,
-                                float contentWidth, float contentHeight,
-                                bool embedInParentScroll = false,
-                                bool resetScroll = false) {
+inline void render_diff(UIContext<InputAction>& ctx,
+                        Entity& parent,
+                        const std::vector<ecs::FileDiff>& diffs,
+                        float contentWidth, float contentHeight,
+                        bool embedInParentScroll = false,
+                        bool resetScroll = false,
+                        bool sideBySide = false) {
     int nextId = diff_detail::BASE_ID;
+
+    // Text selection is only offered on the main inline diff (not side-by-side,
+    // not the embedded commit-detail diff).
+    diff_sel::Session sess;
+    bool selEnabled = !sideBySide && !embedInParentScroll;
+    if (selEnabled) {
+        sess.enabled = true;
+        sess.tmc = &EntityHelper::get_singleton_cmp_enforce<
+            afterhours::ui::TextMeasureCache>();
+        float screenH = (float)afterhours::graphics::get_screen_height();
+        float screenW = (float)afterhours::graphics::get_screen_width();
+        sess.fontSize = resolve_to_pixels(h720(theme::layout::FONT_CODE), screenH);
+        sess.padLeftPx =
+            resolve_to_pixels(w1280(diff_detail::CODE_PAD_LEFT), screenW);
+        diff_sel::handle_mouse(ctx, sess); // update selection from prior frame
+
+        // Cmd+C copies the current selection (keyboard path; the header button
+        // is the mouse path). 343/347 = L/R Super, 67 = 'C' (GLFW keycodes).
+        bool superDown = afterhours::graphics::is_key_down(343) ||
+                         afterhours::graphics::is_key_down(347);
+        if (superDown && afterhours::graphics::is_key_pressed(67) &&
+            diff_sel::state().hasSel) {
+            std::string txt = diff_sel::build_copy_text(
+                diff_sel::state(), Settings::get().get_copy_with_location());
+            if (!txt.empty()) {
+                afterhours::clipboard::set_text(txt);
+                afterhours::toast::send_info(ctx, "Copied selection", 1.5f);
+            }
+        }
+        diff_sel::state().curLines.clear();
+    }
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
@@ -214,19 +628,97 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
             + std::to_string(totalAdditions) + "  -"
             + std::to_string(totalDeletions);
 
-        div(ctx, mk(*contentParent, nextId++),
+        // Header row: stats label on the left, Inline/Side-by-Side segmented
+        // toggle on the right. The toggle is only shown in the main diff view
+        // (not the embedded commit-detail diff).
+        auto statsRow = div(ctx, mk(*contentParent, nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), h720(diff_detail::DIFF_HEADER_H)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_justify_content(JustifyContent::SpaceBetween)
+                .with_align_items(AlignItems::Center)
+                .with_custom_background(afterhours::Color{35, 35, 38, 255})
+                .with_roundness(0.0f)
+                .with_debug_name("diff_stats_header"));
+
+        div(ctx, mk(statsRow.ent(), 0),
+            ComponentConfig{}
+                .with_size(ComponentSize{children(), percent(1.0f)})
                 .with_padding(Padding{
                     .top = h720(6), .right = w1280(12),
                     .bottom = h720(4), .left = w1280(12)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_custom_background(afterhours::Color{35, 35, 38, 255})
                 .with_label(stats)
                 .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
-                .with_debug_name("diff_stats_header"));
+                .with_debug_name("diff_stats_label"));
+
+        if (!embedInParentScroll) {
+            auto toggle = div(ctx, mk(statsRow.ent(), 1),
+                ComponentConfig{}
+                    .with_size(ComponentSize{children(), h720(diff_detail::DIFF_HEADER_H - 6)})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_margin(Margin{.right = w1280(10)})
+                    .with_transparent_bg()
+                    .with_roundness(0.0f)
+                    .with_debug_name("diff_mode_toggle"));
+
+            // "Copy selection" appears left of the mode toggle when the user has
+            // a text selection. Copies with an optional file:line header for
+            // pasting into an AI review conversation.
+            if (selEnabled && diff_sel::state().hasSel) {
+                auto cp = button(ctx, mk(toggle.ent(), 2),
+                    preset::Button("Copy selection")
+                        .with_size(ComponentSize{children(), percent(1.0f)})
+                        .with_padding(Padding{
+                            .top = h720(2), .right = w1280(12),
+                            .bottom = h720(2), .left = w1280(12)})
+                        .with_margin(Margin{.right = w1280(8)})
+                        .with_custom_background(theme::BUTTON_PRIMARY)
+                        .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
+                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_roundness(0.0f)
+                        .with_debug_name("copy_selection_btn"));
+                if (cp) {
+                    std::string txt = diff_sel::build_copy_text(
+                        diff_sel::state(), Settings::get().get_copy_with_location());
+                    if (!txt.empty()) {
+                        afterhours::clipboard::set_text(txt);
+                        afterhours::toast::send_info(ctx, "Copied selection", 1.5f);
+                    }
+                }
+            }
+
+            auto segBtn = [&](int id, const char* label, bool active) -> bool {
+                afterhours::Color bg = active ? theme::BUTTON_PRIMARY
+                                              : theme::BUTTON_SECONDARY;
+                afterhours::Color fg = active ? afterhours::Color{255, 255, 255, 255}
+                                              : theme::TEXT_SECONDARY;
+                return (bool)button(ctx, mk(toggle.ent(), id),
+                    preset::Button(label)
+                        .with_size(ComponentSize{children(), percent(1.0f)})
+                        .with_padding(Padding{
+                            .top = h720(2), .right = w1280(12),
+                            .bottom = h720(2), .left = w1280(12)})
+                        .with_custom_background(bg)
+                        .with_custom_text_color(fg)
+                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_roundness(0.0f)
+                        .with_debug_name(active ? "diff_mode_active"
+                                                : "diff_mode_inactive"));
+            };
+
+            bool inlineClicked = segBtn(0, "Inline", !sideBySide);
+            bool sbsClicked = segBtn(1, "Side-by-Side", sideBySide);
+            if (inlineClicked || sbsClicked) {
+                if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {
+                    l->diffViewMode = inlineClicked
+                        ? ecs::LayoutComponent::DiffViewMode::Inline
+                        : ecs::LayoutComponent::DiffViewMode::SideBySide;
+                }
+            }
+        }
     }
 
     for (auto& fileDiff : diffs) {
@@ -318,8 +810,13 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
 
         // Render each hunk (passing contentWidth for proper sizing)
         for (auto& hunk : fileDiff.hunks) {
-            render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
-                        contentWidth);
+            if (sideBySide) {
+                render_sbs_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
+                                contentWidth);
+            } else {
+                render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
+                            contentWidth, selEnabled ? &sess : nullptr);
+            }
         }
 
         // Spacer between files
@@ -332,6 +829,33 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                     .with_debug_name("file_spacer"));
         }
     }
+
+    // This frame's registry becomes next frame's hit-test source.
+    if (selEnabled) {
+        diff_sel::state().lastLines = std::move(diff_sel::state().curLines);
+    }
+}
+
+// Backward-compatible entry points. render_inline_diff keeps its original
+// signature so existing callers (commit detail) are unaffected.
+inline void render_inline_diff(UIContext<InputAction>& ctx,
+                               Entity& parent,
+                               const std::vector<ecs::FileDiff>& diffs,
+                               float contentWidth, float contentHeight,
+                               bool embedInParentScroll = false,
+                               bool resetScroll = false) {
+    render_diff(ctx, parent, diffs, contentWidth, contentHeight,
+                embedInParentScroll, resetScroll, /*sideBySide=*/false);
+}
+
+inline void render_side_by_side_diff(UIContext<InputAction>& ctx,
+                                     Entity& parent,
+                                     const std::vector<ecs::FileDiff>& diffs,
+                                     float contentWidth, float contentHeight,
+                                     bool embedInParentScroll = false,
+                                     bool resetScroll = false) {
+    render_diff(ctx, parent, diffs, contentWidth, contentHeight,
+                embedInParentScroll, resetScroll, /*sideBySide=*/true);
 }
 
 } // namespace ui
