@@ -74,9 +74,7 @@ emsdk/
 .cursor/
 
 # Claude (local config)
-.claude/commands/
-.claude/plugins/
-.claude/skills/
+.claude/
 
 # Claw town (local orchestration state)
 .claw_town/
