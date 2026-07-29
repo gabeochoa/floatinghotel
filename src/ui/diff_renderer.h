@@ -406,7 +406,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .bottom = h720(4), .left = w1280(12)})
             .with_debug_name("hunk_header_label"));
 
-    {
+    // Copy button only where drag-select-to-copy isn't available (i.e. the
+    // embedded commit-detail diff). In the working-tree diff, select-to-copy
+    // (with file:line) replaces it.
+    if (!(sel && sel->enabled)) {
         std::string hunkText = diff_detail::hunk_to_text(hunk);
         auto copyBtn = button(ctx, mk(hunkRow.ent(), 1),
             preset::Button("Copy")
