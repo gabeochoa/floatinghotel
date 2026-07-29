@@ -71,7 +71,10 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
 
         float sw = static_cast<float>(afterhours::graphics::get_screen_width());
         float padX = afterhours::ui::resolve_to_pixels(w1280(8), sw);
-        float btnW = afterhours::ui::resolve_to_pixels(w1280(80), sw);
+        // Log button: fixed width so it stays readable even in a narrow window;
+        // label shortens when the window is too tight to fit "Show Log".
+        bool narrow = w < 520.0f;
+        float btnW = narrow ? 44.0f : 80.0f;
 
         // Status info label (absolute, rendered at correct position)
         div(ctx, mk(uiRoot, 4010),
@@ -91,8 +94,9 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_render_layer(5)
                 .with_debug_name("status_info"));
 
-        // Right-aligned counts, sitting just left of the log toggle button
-        if (!rightText.empty()) {
+        // Right-aligned counts, sitting just left of the log toggle button.
+        // Hidden when the window is too narrow to fit them.
+        if (!rightText.empty() && !narrow) {
             float countsW = w - btnW - 24.0f;
             if (countsW < 20.0f) countsW = 20.0f;
             div(ctx, mk(uiRoot, 4020),
@@ -114,7 +118,8 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         // === Right section: command log toggle button (absolute) ===
-        std::string logLabel = layout->commandLogVisible ? "Hide Log" : "Show Log";
+        std::string logLabel = narrow ? (layout->commandLogVisible ? "Hide" : "Log")
+                               : (layout->commandLogVisible ? "Hide Log" : "Show Log");
         auto logBtn = button(ctx, mk(uiRoot, 4050),
             preset::Button(logLabel)
                 .with_size(ComponentSize{pixels(btnW), pixels(h - 4)})

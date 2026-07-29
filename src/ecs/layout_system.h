@@ -40,14 +40,12 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         layout.tabStrip = {0, 0, sw, actualTabStripH};
         layout.menuBar = {0, actualTabStripH, sw, menuH};
 
-        float scaledSidebarW = rpxW(layout.sidebarWidth);
-        float scaledSidebarMinW = rpxW(layout.sidebarMinWidth);
-
-        float pctMinW = sw * theme::layout::SIDEBAR_MIN_PCT;
-        if (pctMinW > scaledSidebarMinW) scaledSidebarMinW = pctMinW;
-
-        float maxSidebarW = sw * 0.5f;
-        scaledSidebarW = std::clamp(scaledSidebarW, std::min(scaledSidebarMinW, maxSidebarW), maxSidebarW);
+        // Sidebar is a FIXED logical-pixel width so it never relayouts when the
+        // window resizes (the tray/diff grows into the extra space instead).
+        // Only clamped to not exceed the window itself (narrow/collapsed case).
+        float scaledSidebarW = std::min(layout.sidebarWidth, sw);
+        if (scaledSidebarW < layout.sidebarMinWidth)
+            scaledSidebarW = std::min(layout.sidebarMinWidth, sw);
 
         float dividerW = rpxW(4.0f);
 
@@ -81,9 +79,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             }
             layout.lastShelfCollapsed = layout.shelfCollapsed;
         }
-
-        if (layout.shelfCollapsed)
-            scaledSidebarW = sw; // sidebar fills the window
+        // Note: sidebar keeps its fixed width when collapsed (no relayout); the
+        // window itself shrinks to ~sidebar width, so the sidebar fills it.
 
         if (layout.sidebarVisible) {
             float sidebarToolbarH = std::max(rpxH(38.0f), 24.0f);

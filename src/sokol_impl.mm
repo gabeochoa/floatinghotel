@@ -61,7 +61,7 @@ extern "C" void metal_set_window_size(int width, int height) {
         CGFloat deltaH = newHeight - frame.size.height;
         NSRect newFrame = NSMakeRect(frame.origin.x, frame.origin.y - deltaH,
                                      newWidth, newHeight);
-        [window setFrame:newFrame display:YES animate:NO];
+        [window setFrame:newFrame display:YES animate:YES];
     }
 }
 
