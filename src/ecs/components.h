@@ -1,6 +1,7 @@
 #pragma once
 
 #include <future>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -99,6 +100,30 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     std::string commitDetailBody;
     std::string commitDetailAuthorEmail;
     std::string commitDetailParents;
+};
+
+// Per-tab "Ballroom" review state (see docs/mocks/ballroom.html).
+// Approve/fold sets are keyed by content (filePath + "\n" + hunk.header) so they
+// survive the diff being rebuilt on every git refresh (hunks have no stable id).
+struct ReviewComponent : public afterhours::BaseComponent {
+    struct Comment {
+        std::string scope;  // "wt" for working tree, or a commit SHA
+        std::string file;
+        int line = 0;
+        std::string text;
+    };
+    bool reviewing = false;
+    std::vector<Comment> comments;
+    std::set<std::string> approvedHunks;
+    std::set<std::string> foldedHunks;
+    // Baseline snapshot for "new since you last looked" (Phase 6).
+    std::string baselineHead;     // HEAD sha captured on Embark
+    std::string baselineDiffSig;  // signature of the working diff on Embark
+
+    static std::string hunk_key(const std::string& filePath,
+                                const std::string& header) {
+        return filePath + "\n" + header;
+    }
 };
 
 struct BranchDialogState : public afterhours::BaseComponent {

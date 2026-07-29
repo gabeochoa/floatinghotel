@@ -180,6 +180,7 @@ static void app_init() {
 
         tab.addComponent<ecs::CommitDetailCache>();
         tab.addComponent<ecs::BranchDialogState>();
+        tab.addComponent<ecs::ReviewComponent>();
 
         auto& editor = tab.addComponent<ecs::CommitEditorComponent>();
         if (savedPolicy == "stage_all") {
