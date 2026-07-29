@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <fstream>
 
 #include "../settings.h"
 #include "../ui/command_log.h"
@@ -10,6 +11,87 @@
 #include "ui_imports.h"
 
 namespace ecs {
+
+// Write the review basket to /tmp/floatinghotel-review.md + clipboard.
+inline void send_review(UIContext<InputAction>& ctx, ReviewComponent& review,
+                        RepoComponent* repo) {
+    std::string branch = (repo && !repo->currentBranch.empty())
+                             ? repo->currentBranch : "HEAD";
+    std::string md = build_review_markdown(review, branch);
+    if (md.empty()) return;
+    const char* path = "/tmp/floatinghotel-review.md";
+    std::ofstream f(path);
+    if (f.good()) f << md;
+    afterhours::clipboard::set_text(md);
+    afterhours::toast::send_info(
+        ctx, "Sent " + std::to_string(review.comments.size()) +
+                 " comment(s) -> /tmp/floatinghotel-review.md",
+        2.5f);
+}
+
+// The feedback basket: an absolute panel on the right listing queued comments.
+inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
+                          ReviewComponent& review, RepoComponent* repo) {
+    float sw = static_cast<float>(afterhours::graphics::get_screen_width());
+    float sh = static_cast<float>(afterhours::graphics::get_screen_height());
+    float panelW = std::min(sw * 0.28f, 360.0f);
+    float x = sw - panelW;
+    float y = resolve_to_pixels(h720(70.0f), sh);
+    float hgt = sh - y - resolve_to_pixels(h720(28.0f), sh);
+
+    auto panel = div(ctx, mk(uiRoot, 7700),
+        ComponentConfig{}
+            .with_size(ComponentSize{pixels(panelW), pixels(hgt)})
+            .with_absolute_position()
+            .with_translate(x, y)
+            .with_custom_background(theme::SIDEBAR_BG)
+            .with_flex_direction(FlexDirection::Column)
+            .with_padding(Padding{
+                .top = h720(8), .right = w1280(10),
+                .bottom = h720(8), .left = w1280(10)})
+            .with_render_layer(6)
+            .with_roundness(0.0f)
+            .with_debug_name("feedback_basket"));
+
+    div(ctx, mk(panel.ent(), 0),
+        ComponentConfig{}
+            .with_label("Feedback basket  " + std::to_string(review.comments.size()))
+            .with_size(ComponentSize{percent(1.0f), h720(22)})
+            .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+            .with_font_size(afterhours::ui::FontSize::Medium)
+            .with_debug_name("basket_title"));
+
+    int id = 1;
+    for (const auto& c : review.comments) {
+        div(ctx, mk(panel.ent(), id++),
+            ComponentConfig{}
+                .with_label(c.file + ":" + std::to_string(c.line) + "  " + c.text)
+                .with_size(ComponentSize{percent(1.0f), h720(20)})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_debug_name("basket_item"));
+    }
+
+    auto sendBtn = button(ctx, mk(panel.ent(), 900),
+        preset::Button("\xe2\x8c\x98\xe2\x8f\x8e Send all feedback")
+            .with_size(ComponentSize{percent(1.0f), h720(28)})
+            .with_debug_name("basket_send_btn"));
+    if (sendBtn) send_review(ctx, review, repo);
+
+    auto copyBtn = button(ctx, mk(panel.ent(), 901),
+        preset::Button("Copy all")
+            .with_size(ComponentSize{percent(1.0f), h720(24)})
+            .with_custom_background(afterhours::Color{60, 60, 65, 255})
+            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_debug_name("basket_copy_btn"));
+    if (copyBtn) {
+        std::string branch = (repo && !repo->currentBranch.empty())
+                                 ? repo->currentBranch : "HEAD";
+        afterhours::clipboard::set_text(build_review_markdown(review, branch));
+        afterhours::toast::send_info(ctx, "Copied all feedback", 1.5f);
+    }
+}
 
 struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
@@ -45,6 +127,16 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("main_content"));
 
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
+
+        // Feedback basket + ⌘⏎ send-all (available whenever comments are queued).
+        auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
+        if (reviewPtr && !reviewPtr->comments.empty()) {
+            bool superDown = afterhours::graphics::is_key_down(343) ||
+                             afterhours::graphics::is_key_down(347);
+            if (superDown && afterhours::graphics::is_key_pressed(257))
+                send_review(ctx, *reviewPtr, repoPtr);
+            render_basket(ctx, uiRoot, *reviewPtr, repoPtr);
+        }
 
         // Shelf collapsed → diff pane hidden (sidebar fills the window).
         if (layout.shelfCollapsed) {

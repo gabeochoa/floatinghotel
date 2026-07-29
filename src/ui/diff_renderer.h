@@ -6,6 +6,7 @@
 #include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
 #include <afterhours/src/plugins/toast.h>
+#include <afterhours/src/plugins/ui/text_input/text_input.h>
 #include <cmath>
 #include <unordered_map>
 
@@ -341,11 +342,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
-    // Approved hunks are hidden from the review view until reset (⟳/refresh).
-    if (sel && sel->reviewActions && sel->review) {
-        std::string k =
-            ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header);
-        if (sel->review->approvedHunks.count(k))
+    // Review state for this hunk (working-tree diff only).
+    bool reviewOn = sel && sel->reviewActions && sel->review;
+    std::string hkey;
+    if (reviewOn) {
+        hkey = ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header);
+        // Approved hunks are hidden until reset (⟳/refresh).
+        if (sel->review->approvedHunks.count(hkey))
             return;
     }
 
@@ -392,7 +395,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     }
 
     // Approve = stage this hunk (git apply --cached) and hide it until reset.
-    if (sel && sel->reviewActions && sel->review) {
+    // Comment = open an inline compose row and add the note to the basket.
+    if (reviewOn) {
         auto approveBtn = button(ctx, mk(hunkRow.ent(), 2),
             preset::Button("Approve")
                 .with_size(ComponentSize{children(), h720(18)})
@@ -406,8 +410,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         if (approveBtn) {
             auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
             if (res.success()) {
-                sel->review->approvedHunks.insert(
-                    ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header));
+                sel->review->approvedHunks.insert(hkey);
                 auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
                 if (r) r->refreshRequested = true;
                 afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
@@ -416,6 +419,71 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     ctx, "Approve failed: " + res.stderr_str(), 2.5f);
             }
         }
+        auto commentBtn = button(ctx, mk(hunkRow.ent(), 3),
+            preset::Button("Comment")
+                .with_size(ComponentSize{children(), h720(18)})
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(8)})
+                .with_custom_background(afterhours::Color{70, 60, 30, 255})
+                .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_debug_name("comment_hunk_btn"));
+        if (commentBtn) {
+            sel->review->composingKey = hkey;
+            sel->review->composingText.clear();
+            sel->review->composingFile = fileDiff.filePath;
+            sel->review->composingScope = "wt";
+            sel->review->composingLine = hunk.newStart;
+        }
+    }
+
+    // Inline compose row for this hunk.
+    if (reviewOn && sel->review->composingKey == hkey) {
+        auto composeRow = div(ctx, mk(parent, nextId++),
+            ComponentConfig{}
+                .with_size(ComponentSize{w, h720(28)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_custom_background(afterhours::Color{35, 35, 39, 255})
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(12)})
+                .with_debug_name("comment_compose_row"));
+        auto inp = afterhours::text_input::text_input(
+            ctx, mk(composeRow.ent(), 0), sel->review->composingText,
+            ComponentConfig{}
+                .with_size(ComponentSize{percent(0.8f), h720(22)})
+                .with_custom_background(theme::INPUT_BG)
+                .with_roundness(4.0f)
+                .with_debug_name("comment_input"));
+        inp.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>(
+            nullptr, [](Entity&) {
+                auto* rv = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+                if (rv) ecs::commit_pending_comment(*rv);
+            });
+        auto addBtn = button(ctx, mk(composeRow.ent(), 1),
+            preset::Button("Add")
+                .with_size(ComponentSize{children(), h720(18)})
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_debug_name("comment_add_btn"));
+        if (addBtn)
+            ecs::commit_pending_comment(*sel->review);
+    }
+
+    // Folded (commented) hunks collapse — show a marker instead of the lines.
+    if (reviewOn && sel->review->foldedHunks.count(hkey)) {
+        div(ctx, mk(parent, nextId++),
+            ComponentConfig{}
+                .with_label("\xe2\x9c\x8e commented \xc2\xb7 click to expand")
+                .with_size(ComponentSize{w, h720(20)})
+                .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(52)})
+                .with_debug_name("hunk_folded_marker"));
+        return;
     }
 
     // Render each line in the hunk

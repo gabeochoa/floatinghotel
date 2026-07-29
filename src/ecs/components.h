@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <future>
 #include <set>
 #include <string>
@@ -116,6 +117,12 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::vector<Comment> comments;
     std::set<std::string> approvedHunks;
     std::set<std::string> foldedHunks;
+    // Inline compose state: the hunk currently being commented on + its buffer.
+    std::string composingKey;    // hunk key being commented, empty if none
+    std::string composingText;   // in-progress comment text
+    std::string composingFile;   // file the comment targets
+    std::string composingScope;  // "wt" or a commit SHA
+    int composingLine = 0;       // line the comment targets
     // Baseline snapshot for "new since you last looked" (Phase 6).
     std::string baselineHead;     // HEAD sha captured on Embark
     std::string baselineDiffSig;  // signature of the working diff on Embark
@@ -125,6 +132,47 @@ struct ReviewComponent : public afterhours::BaseComponent {
         return filePath + "\n" + header;
     }
 };
+
+// Commit the in-progress comment into the basket and auto-fold its hunk.
+inline void commit_pending_comment(ReviewComponent& r) {
+    if (r.composingKey.empty()) return;
+    if (!r.composingText.empty()) {
+        r.comments.push_back({r.composingScope, r.composingFile,
+                              r.composingLine, r.composingText});
+        r.foldedHunks.insert(r.composingKey);
+    }
+    r.composingKey.clear();
+    r.composingText.clear();
+    r.composingFile.clear();
+    r.composingScope.clear();
+    r.composingLine = 0;
+}
+
+// Build the batch-review markdown written to /tmp/floatinghotel-review.md and
+// copied to the clipboard. Groups comments by scope (working tree vs commit SHA)
+// so the agent knows exactly which diff each comment targets.
+inline std::string build_review_markdown(const ReviewComponent& review,
+                                         const std::string& branch) {
+    if (review.comments.empty())
+        return "";
+    std::string out = "## Review of " + branch + "\n";
+    // working-tree comments first, then per-commit groups (stable order).
+    std::vector<std::string> scopes;
+    for (const auto& c : review.comments)
+        if (std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
+            scopes.push_back(c.scope);
+    for (const auto& scope : scopes) {
+        out += (scope == "wt") ? "\n### working tree (uncommitted)\n"
+                               : "\n### commit " + scope + "\n";
+        for (const auto& c : review.comments)
+            if (c.scope == scope)
+                out += "- " + c.file + ":" + std::to_string(c.line) + " \xe2\x80\x94 " +
+                       c.text + "\n";
+    }
+    out += "\n(agent: apply each as a fixup to the named commit, not on top of "
+           "the stack)\n";
+    return out;
+}
 
 struct BranchDialogState : public afterhours::BaseComponent {
     bool showNewBranchDialog = false;
