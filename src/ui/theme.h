@@ -3,6 +3,7 @@
 #include <afterhours/src/drawing_helpers.h>
 
 #include <bitset>
+#include <string>
 
 namespace theme {
 
@@ -163,6 +164,33 @@ inline Color statusColor(char status) {
         default:
             return TEXT_SECONDARY;
     }
+}
+
+// Helper: colored "type dot" for a file, keyed off its extension. Used by the
+// sidebar file list and the commit-detail file summary. Colored badges (not
+// glyphs/atlas) per the icon-strategy decision.
+inline Color fileTypeColor(const std::string& path) {
+    auto slash = path.find_last_of('/');
+    std::string name = (slash == std::string::npos) ? path : path.substr(slash + 1);
+    auto dot = name.find_last_of('.');
+    std::string ext = (dot == std::string::npos || dot == 0) ? "" : name.substr(dot + 1);
+    for (auto& c : ext) c = static_cast<char>((c >= 'A' && c <= 'Z') ? c + 32 : c);
+
+    if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "h" ||
+        ext == "hpp" || ext == "c")
+        return Color{81, 154, 186, 255};    // blue — C/C++
+    if (ext == "md" || ext == "markdown" || ext == "txt" || ext == "rst")
+        return Color{120, 170, 200, 255};   // light blue — docs
+    if (ext == "json" || ext == "yaml" || ext == "yml" || ext == "toml" ||
+        ext == "ini" || ext == "cfg" || ext == "conf" || ext == "gitignore")
+        return Color{203, 203, 65, 255};    // yellow — config
+    if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" ||
+        ext == "ico" || ext == "svg" || ext == "webp")
+        return Color{160, 116, 196, 255};   // purple — images
+    if (ext == "sh" || ext == "bash" || ext == "py" || ext == "rb" ||
+        ext == "js" || ext == "ts")
+        return Color{115, 201, 145, 255};   // green — scripts
+    return Color{109, 128, 134, 255};       // neutral gray
 }
 
 }  // namespace theme

@@ -416,11 +416,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         constexpr float STATS_W = 55.0f;
         constexpr float BAR_W = 50.0f;
         constexpr float BADGE_W = 20.0f;
+        constexpr float TYPE_DOT_W = 8.0f;
 
         int totalChanges = totalAdd + totalDel;
         if (totalChanges == 0) totalChanges = 1;
 
-        float fileNameW = contentW - PAD * 2 - BADGE_W - STATS_W - BAR_W - 8.0f * 3;
+        float fileNameW = contentW - PAD * 2 - BADGE_W - TYPE_DOT_W - STATS_W - BAR_W - 8.0f * 4;
         if (fileNameW < 80.0f) fileNameW = 80.0f;
 
         for (size_t fi = 0; fi < detailCache.commitDetailDiff.size(); ++fi) {
@@ -456,6 +457,15 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("file_badge"));
+
+            // Colored file-type dot (consistent with the sidebar file list).
+            div(ctx, mk(fileRow.ent(), 5),
+                ComponentConfig{}
+                    .with_size(ComponentSize{pixels(TYPE_DOT_W), pixels(TYPE_DOT_W)})
+                    .with_custom_background(theme::fileTypeColor(fd.filePath))
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(0.5f)
+                    .with_debug_name("file_type_dot"));
 
             std::string fname = fd.filePath;
             if (fd.isRenamed && !fd.oldPath.empty()) {
