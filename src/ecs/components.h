@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <future>
+#include <map>
 #include <set>
 #include <string>
 #include <vector>
@@ -128,6 +129,8 @@ struct ReviewComponent : public afterhours::BaseComponent {
     int hunkCount = 0;           // visible hunks last frame (for clamping)
     bool cursorApprove = false;  // request: approve the cursor hunk
     bool cursorComment = false;  // request: comment on the cursor hunk
+    // "New since you last looked": diff signature of each file when last viewed.
+    std::map<std::string, std::string> seenSig;
     // Baseline snapshot for "new since you last looked" (Phase 6).
     std::string baselineHead;     // HEAD sha captured on Embark
     std::string baselineDiffSig;  // signature of the working diff on Embark
@@ -137,6 +140,15 @@ struct ReviewComponent : public afterhours::BaseComponent {
         return filePath + "\n" + header;
     }
 };
+
+// A coarse signature of a file's diff — changes when the agent reworks it.
+inline std::string diff_signature(const FileDiff& f) {
+    std::string s = std::to_string(f.additions) + "," +
+                    std::to_string(f.deletions) + "," +
+                    std::to_string(f.hunks.size());
+    for (const auto& h : f.hunks) s += "|" + h.header;
+    return s;
+}
 
 // Commit the in-progress comment into the basket and auto-fold its hunk.
 inline void commit_pending_comment(ReviewComponent& r) {

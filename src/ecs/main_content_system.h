@@ -208,6 +208,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             if (!selectedDiffs.empty()) {
+                // Viewing this file marks it "seen" at its current content.
+                if (reviewPtr)
+                    reviewPtr->seenSig[repo.selectedFilePath] =
+                        diff_signature(selectedDiffs[0]);
                 bool sideBySide = (layout.diffViewMode ==
                     LayoutComponent::DiffViewMode::SideBySide);
                 if (sideBySide) {

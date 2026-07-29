@@ -1154,6 +1154,24 @@ private:
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
                                 : theme::TEXT_PRIMARY;
 
+        // "New since you last looked": if this file's diff changed since it was
+        // last viewed, tint the name blue so reworked files stand out.
+        {
+            auto* review = find_singleton<ReviewComponent, ActiveTab>();
+            if (review) {
+                auto it = review->seenSig.find(path);
+                if (it != review->seenSig.end()) {
+                    for (auto& fd : repo.currentDiff) {
+                        if (fd.filePath == path) {
+                            if (diff_signature(fd) != it->second)
+                                textCol = afterhours::Color{78, 161, 255, 255};
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
         constexpr float STATUS_W = 20.0f;
         constexpr float PAD_L = 8.0f;
         constexpr float PAD_R = 4.0f;
