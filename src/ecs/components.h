@@ -207,6 +207,9 @@ struct LayoutComponent : public afterhours::BaseComponent {
 
     enum class SidebarMode { Changes, Refs };
     SidebarMode sidebarMode = SidebarMode::Changes;
+    // Review tabs within the Changes view (mock: To review / Approved / Untracked).
+    enum class ReviewTab { ToReview, Approved, Untracked };
+    ReviewTab reviewTab = ReviewTab::ToReview;
 
     enum class FileViewMode { Flat, Tree, All };
     FileViewMode fileViewMode = FileViewMode::Flat;

@@ -431,35 +431,48 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_mode_tabs"));
 
-        auto makeTab = [&](int id, const std::string& label,
-                           LayoutComponent::SidebarMode mode) {
-            bool active = (layout.sidebarMode == mode);
+        auto* countRepo = find_singleton<RepoComponent, ActiveTab>();
+        int nReview = countRepo ? static_cast<int>(countRepo->unstagedFiles.size()) : 0;
+        int nApproved = countRepo ? static_cast<int>(countRepo->stagedFiles.size()) : 0;
+        int nUntracked = countRepo ? static_cast<int>(countRepo->untrackedFiles.size()) : 0;
 
+        // Emit one tab. `active` highlights it; on click, `apply` mutates layout.
+        auto makeTab = [&](int id, const std::string& label, bool active,
+                           void (*apply)(LayoutComponent&)) {
             auto config = preset::Button(label)
                 .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(TAB_HPAD),
-                    .bottom = h720(2), .left = w1280(TAB_HPAD)})
+                    .top = h720(2), .right = w1280(7),
+                    .bottom = h720(2), .left = w1280(7)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = w1280(4)})
-                .with_font_size(FontSize::Large)
-                .with_debug_name("mode_" + label);
+                    .left = {}, .right = w1280(3)})
+                .with_font_size(FontSize::Medium)
+                .with_debug_name("tab_" + label);
             if (!active) {
                 config = config.with_custom_background(theme::BUTTON_SECONDARY)
                                .with_custom_text_color(theme::TEXT_PRIMARY);
             }
-
-            auto result = button(ctx, mk(tabRow.ent(), id), config);
-
-            if (result) {
+            if (button(ctx, mk(tabRow.ent(), id), config)) {
                 auto* lc = find_singleton<LayoutComponent>();
-                if (lc) lc->sidebarMode = mode;
+                if (lc) apply(*lc);
             }
         };
 
-        makeTab(2091, "Changes", LayoutComponent::SidebarMode::Changes);
-        makeTab(2092, "Refs", LayoutComponent::SidebarMode::Refs);
+        using SM = LayoutComponent::SidebarMode;
+        using RT = LayoutComponent::ReviewTab;
+        bool inChanges = (layout.sidebarMode == SM::Changes);
+        makeTab(2091, "To review " + std::to_string(nReview),
+                inChanges && layout.reviewTab == RT::ToReview,
+                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::ToReview; });
+        makeTab(2092, "Approved " + std::to_string(nApproved),
+                inChanges && layout.reviewTab == RT::Approved,
+                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Approved; });
+        makeTab(2093, "Untracked " + std::to_string(nUntracked),
+                inChanges && layout.reviewTab == RT::Untracked,
+                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Untracked; });
+        makeTab(2094, "Refs", layout.sidebarMode == SM::Refs,
+                [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
     }
 
     // ---- Commit area (VS Code parity: always-visible input + button) ----
@@ -1051,43 +1064,43 @@ private:
             return;
         }
 
+        // Review-tab filtered list (mock: To review / Approved / Untracked).
+        auto* lc = find_singleton<LayoutComponent>();
+        auto tab = lc ? lc->reviewTab : LayoutComponent::ReviewTab::ToReview;
         int nextId = 2600;
-        bool firstSection = true;
-
-        // === Staged Changes section ===
-        if (!repo.stagedFiles.empty()) {
-            render_section_header(ctx, scrollParent, nextId++,
-                "Staged Changes", repo.stagedFiles.size(), firstSection);
-            firstSection = false;
-
-            for (int i = 0; i < static_cast<int>(repo.stagedFiles.size()); ++i) {
+        size_t shown = 0;
+        const char* emptyMsg = "";
+        if (tab == LayoutComponent::ReviewTab::ToReview) {
+            for (int i = 0; i < static_cast<int>(repo.unstagedFiles.size()); ++i)
                 render_file_row(ctx, scrollParent, nextId++,
-                    repo.stagedFiles[i], repo, true);
-            }
-        }
-
-        // === Changes (unstaged) section ===
-        if (!repo.unstagedFiles.empty()) {
-            render_section_header(ctx, scrollParent, nextId++,
-                "Unstaged Changes", repo.unstagedFiles.size(), firstSection);
-            firstSection = false;
-
-            for (int i = 0; i < static_cast<int>(repo.unstagedFiles.size()); ++i) {
+                                repo.unstagedFiles[i], repo, false);
+            shown = repo.unstagedFiles.size();
+            emptyMsg = "Nothing to review";
+        } else if (tab == LayoutComponent::ReviewTab::Approved) {
+            for (int i = 0; i < static_cast<int>(repo.stagedFiles.size()); ++i)
                 render_file_row(ctx, scrollParent, nextId++,
-                    repo.unstagedFiles[i], repo, false);
-            }
-        }
-
-        // === Untracked section ===
-        if (!repo.untrackedFiles.empty()) {
-            render_section_header(ctx, scrollParent, nextId++,
-                "Untracked", repo.untrackedFiles.size(), firstSection);
-            firstSection = false;
-
-            for (int i = 0; i < static_cast<int>(repo.untrackedFiles.size()); ++i) {
+                                repo.stagedFiles[i], repo, true);
+            shown = repo.stagedFiles.size();
+            emptyMsg = "Nothing approved yet";
+        } else {
+            for (int i = 0; i < static_cast<int>(repo.untrackedFiles.size()); ++i)
                 render_untracked_row(ctx, scrollParent, nextId++,
-                    repo.untrackedFiles[i], repo);
-            }
+                                     repo.untrackedFiles[i], repo);
+            shown = repo.untrackedFiles.size();
+            emptyMsg = "No untracked files";
+        }
+        if (shown == 0) {
+            div(ctx, mk(scrollParent, 2599),
+                ComponentConfig{}
+                    .with_label(emptyMsg)
+                    .with_size(ComponentSize{percent(1.0f), h720(24)})
+                    .with_padding(Padding{
+                        .top = h720(12), .right = w1280(8),
+                        .bottom = h720(4), .left = w1280(8)})
+                    .with_custom_text_color(afterhours::Color{110, 110, 110, 255})
+                    .with_alignment(TextAlignment::Center)
+                    .with_roundness(0.0f)
+                    .with_debug_name("tab_empty"));
         }
     }
 
