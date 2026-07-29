@@ -73,12 +73,12 @@ app is just the width of the sidebar (repo panels + stack) so it stays out of th
 way (Bear-like). Clicking a file or a commit **slides the diff shelf out**; a
 "‹ hide" control collapses it back to sidebar-only, and **Escape** closes the
 shelf. Feedback basket rides along on the shelf. See the combined mock
-`docs/mocks/cockpit.html` (opens collapsed).
+`docs/mocks/ballroom.html` (opens collapsed).
 
 ## Ballroom mode — interaction model (from interactive prototype)
 **Ballroom** = the review flow (named after the floatinghotel poem — see memory);
 you **Embark** to enter it ("Embark to ballroom"). Prototype:
-`docs/mocks/cockpit.html` (data-driven; ⟳/refresh resets). Confirmed decisions:
+`docs/mocks/ballroom.html` (data-driven; ⟳/refresh resets). Confirmed decisions:
 - **Embark** (start review) = click the review-progress strip (no separate button).
 - A chunk with a comment **auto-folds** (▸ + `✎ N`); click to reopen.
 - **Snapshot timing (answer):** take the baseline snapshot **when you Start
