@@ -101,8 +101,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ui::render_side_by_side_diff(ctx, mainBg.ent(), selectedDiffs,
                                                  0, 0, false, fileJustChanged);
                 } else {
+                    auto* review = find_singleton<ReviewComponent, ActiveTab>();
                     ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
-                                           0, 0, false, fileJustChanged);
+                                           0, 0, false, fileJustChanged,
+                                           repo.repoPath, review);
                 }
             } else {
                 // Even with no textual diff, make it obvious which file is

@@ -65,6 +65,11 @@ struct Session {
     afterhours::ui::TextMeasureCache* tmc = nullptr;
     float fontSize = 0.f;
     float padLeftPx = 0.f;
+    // Ballroom review (working-tree diff only): Approve a hunk (= stage it) and
+    // hide it until reset; Comment adds to the feedback basket.
+    bool reviewActions = false;
+    std::string repoPath;
+    ecs::ReviewComponent* review = nullptr;
 };
 
 inline float mw(const Session& s, const std::string& t) {
@@ -336,6 +341,14 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
+    // Approved hunks are hidden from the review view until reset (⟳/refresh).
+    if (sel && sel->reviewActions && sel->review) {
+        std::string k =
+            ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header);
+        if (sel->review->approvedHunks.count(k))
+            return;
+    }
+
     // Hunk header row: label + copy button
     int hunkHeaderId = nextId++;
     auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
@@ -375,6 +388,33 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         if (copyBtn) {
             afterhours::clipboard::set_text(hunkText);
             afterhours::toast::send_info(ctx, "Copied hunk to clipboard", 1.5f);
+        }
+    }
+
+    // Approve = stage this hunk (git apply --cached) and hide it until reset.
+    if (sel && sel->reviewActions && sel->review) {
+        auto approveBtn = button(ctx, mk(hunkRow.ent(), 2),
+            preset::Button("Approve")
+                .with_size(ComponentSize{children(), h720(18)})
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(8),
+                    .bottom = h720(2), .left = w1280(8)})
+                .with_custom_background(afterhours::Color{40, 80, 50, 255})
+                .with_custom_text_color(afterhours::Color{120, 220, 140, 255})
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_debug_name("approve_hunk_btn"));
+        if (approveBtn) {
+            auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
+            if (res.success()) {
+                sel->review->approvedHunks.insert(
+                    ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header));
+                auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                if (r) r->refreshRequested = true;
+                afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
+            } else {
+                afterhours::toast::send_info(
+                    ctx, "Approve failed: " + res.stderr_str(), 2.5f);
+            }
         }
     }
 
@@ -560,7 +600,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         float contentWidth, float contentHeight,
                         bool embedInParentScroll = false,
                         bool resetScroll = false,
-                        bool sideBySide = false) {
+                        bool sideBySide = false,
+                        const std::string& repoPath = "",
+                        ecs::ReviewComponent* review = nullptr) {
     int nextId = diff_detail::BASE_ID;
 
     // Text selection is only offered on the main inline diff (not side-by-side,
@@ -576,6 +618,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
         sess.fontSize = resolve_to_pixels(h720(theme::layout::FONT_CODE), screenH);
         sess.padLeftPx =
             resolve_to_pixels(w1280(diff_detail::CODE_PAD_LEFT), screenW);
+        sess.reviewActions = (review != nullptr);
+        sess.repoPath = repoPath;
+        sess.review = review;
         diff_sel::handle_mouse(ctx, sess); // update selection from prior frame
 
         // Cmd+C copies the current selection (keyboard path; the header button
@@ -818,9 +863,12 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                                const std::vector<ecs::FileDiff>& diffs,
                                float contentWidth, float contentHeight,
                                bool embedInParentScroll = false,
-                               bool resetScroll = false) {
+                               bool resetScroll = false,
+                               const std::string& repoPath = "",
+                               ecs::ReviewComponent* review = nullptr) {
     render_diff(ctx, parent, diffs, contentWidth, contentHeight,
-                embedInParentScroll, resetScroll, /*sideBySide=*/false);
+                embedInParentScroll, resetScroll, /*sideBySide=*/false,
+                repoPath, review);
 }
 
 inline void render_side_by_side_diff(UIContext<InputAction>& ctx,
