@@ -1462,9 +1462,20 @@ private:
             }
         }
 
+        // Queued review comments on this commit → amber count badge (mock).
+        int commentCount = 0;
+        {
+            auto* rv = find_singleton<ReviewComponent, ActiveTab>();
+            if (rv)
+                for (const auto& c : rv->comments)
+                    if (c.scope == commit.hash) commentCount++;
+        }
+        float cbW = commentCount > 0 ? 22.0f : 0.0f;
+
         float fixedW = GRAPH_COL_W
                      + (hasBadge ? badgeW + 4.0f : 0.0f)
                      + (ageW > 0.0f ? ageW + 4.0f : 0.0f)
+                     + (cbW > 0.0f ? cbW + 4.0f : 0.0f)
                      + 4.0f;
         float subjectW = sidebarW - 4.0f - fixedW;
         if (subjectW < 30.0f) subjectW = 30.0f;
@@ -1477,6 +1488,16 @@ private:
                 .with_custom_text_color(textCol)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("commit_subject"));
+
+        if (commentCount > 0) {
+            div(ctx, mk(row.ent(), 12),
+                preset::Badge(std::to_string(commentCount),
+                              afterhours::Color{227, 179, 65, 255},
+                              afterhours::Color{26, 26, 26, 255})
+                    .with_size(ComponentSize{pixels(cbW), children()})
+                    .with_font_size(FontSize::Small)
+                    .with_debug_name("commit_comment_badge"));
+        }
 
         if (bestBadge) {
             afterhours::Color bg, btxt;
