@@ -33,3 +33,33 @@
       truncation, empty states).
 - [ ] Settings boilerplate: collapse the per-setting getter/setter/Data/load/save
       plumbing into a generic key-value store.
+
+## Theming & panels
+- [ ] Custom color themes (user-supplied theme files; light/dark + custom).
+- [ ] Resizable panels generally. Sidebar drag-resize + persist exists; extend
+      to the commit-log split and the main/diff split, and persist their sizes.
+
+## Editor features (aspirational — large)
+- [ ] Syntax highlighting for many languages (ties into config-driven highlighting).
+- [ ] IntelliSense: autocomplete, parameter hints, type info.
+- [ ] Code navigation: go-to-definition, find references, symbol search.
+- [ ] Safe rename, multi-cursor, column/block selection.
+- [ ] Code folding, integrated search & replace across the project.
+
+## Git-client feature reference (competitive union)
+Captured from Fork / Tower / GitKraken / Sourcetree / VS Code+GitLens /
+LazyGit / GitHub Desktop, for prioritization later. Most are well beyond the
+current viewer+committer scope — this is a menu, not a plan.
+- History/graph: commit graph, file history, line history, blame, commit search,
+  branch comparison, commit compare.
+- Branching: create/rename/delete/switch, drag-and-drop branches, Git Flow.
+- Rewrite/apply: interactive rebase, squash/fixup, cherry-pick, merge, revert,
+  reset (soft/mixed/hard), amend, undo git actions, action previews.
+- Staging: partial/hunk/line staging from anywhere.
+- Stash & tags: full stash and tag management.
+- Remotes: remote management, multiple remotes/accounts.
+- Diff: side-by-side, syntax-highlighted, image diffs, conflict-resolution tools.
+- Repo: submodules, worktrees, Git LFS, hooks, cleanup, clone/create/publish.
+- Collaboration: PR creation/management, code review, GitHub/GitLab/Bitbucket/
+  Azure DevOps integration, issue/Jira linking, team workspaces.
+- AI (our niche): AI code review, commit messages, git explanations.
