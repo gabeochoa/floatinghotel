@@ -1,0 +1,26 @@
+# floatinghotel — TODO
+
+## Ideas
+- **Render markdown** in the diff/file viewer (e.g. `.md` files shown formatted,
+  toggle raw/rendered).
+
+## Diff viewer backlog (from review session)
+- [ ] Multi-file view: see all files' changes together in one scroll.
+- [ ] Stage / unstage from the multi-file view (per-file + per-hunk).
+- [ ] Fold / collapse a file in the multi-file view.
+- [ ] Unfold hidden context lines around a hunk to see more of the file
+      (VS Code-style "N hidden lines" expander).
+- [ ] Sticky file-name header: pin the current file's name at the top of the
+      scroll view as you scroll through its hunks.
+- [ ] "No diff available for file": still show the file name at the top, plus
+      file size and whether it changed vs the previous diff.
+
+## Bugs
+- [ ] File-list scroll: text scrolled off-screen stops rendering, but the rows
+      are still present and clickable (render/cull mismatch in the scroll view).
+
+## Polish
+- [ ] UI audit: find and fix ~25 small UI issues (spacing, alignment, contrast,
+      truncation, empty states).
+- [ ] Settings boilerplate: collapse the per-setting getter/setter/Data/load/save
+      plumbing into a generic key-value store.
