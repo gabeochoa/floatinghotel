@@ -115,23 +115,27 @@ $(MAIN_EXE): $(MAIN_OBJS) | $(OUTPUT_DIR)/.stamp
 # Include dependency files
 -include $(MAIN_DEPS)
 
+# Use -MD (not -MMD): afterhours is included via -isystem, so -MMD would treat
+# its headers as system headers and omit them from the .d files. Incremental
+# builds would then miss afterhours changes (e.g. a submodule bump), leaving
+# stale objects with a mismatched struct layout -> hard-to-diagnose crashes.
 # Compile main object files
 $(OBJ_DIR)/main/%.o: src/%.cpp | $(OBJ_DIR)/main
 	@echo "Compiling $<..."
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MMD -MP -MF $(@:.o=.d) -MT $@
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
 
 # Compile Objective-C++ files (sokol Metal implementation)
 $(OBJ_DIR)/main/%.o: src/%.mm | $(OBJ_DIR)/main
 	@echo "Compiling (ObjC++) $<..."
 	@mkdir -p $(dir $@)
-	$(CXX) -ObjC++ $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MMD -MP -MF $(@:.o=.d) -MT $@
+	$(CXX) -ObjC++ $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
 
 # Compile afterhours files.cpp
 $(OBJ_DIR)/main/vendor_afterhours_files.o: vendor/afterhours/src/plugins/files.cpp | $(OBJ_DIR)/main
 	@echo "Compiling vendor/afterhours/src/plugins/files.cpp..."
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MMD -MP -MF $(@:.o=.d) -MT $@
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
 
 # Force dependency regeneration
 deps:
