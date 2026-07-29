@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>floatinghotel — Review Cockpit (interactive prototype)</title>
+<style>
+  :root{
+    --bg:#1E1E1E; --panel:#232327; --side:#252526; --chrome:#2D2D30; --chrome-hi:#333336;
+    --section:#1F1F1F; --tab-in:#2D2D2D; --border:#333336; --soft:#2A2A2C;
+    --text:#D4D4D4; --t2:#8A8A8A; --t3:#5A5A5A;
+    --add-bg:#17311F; --del-bg:#3A1D20; --add-g:#12401F; --del-g:#4A1E22; --hunk:#182231; --hunkc:#7FB4E6;
+    --accent:#0E639C; --accent2:#1B80CC; --ok:#3FB950; --ok-dim:#16351f;
+    --warn:#E2C08D; --danger:#F14C4C; --sub:#C792EA; --dot:#A371F7; --new:#4EA1FF; --cmt:#E3B341;
+    --sel:#094771; --input:#3C3C3C; --pill:#37373A;
+    --mono:"SF Mono","JetBrains Mono","Menlo",monospace; --ui:-apple-system,"Segoe UI",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  html{background:#141414}
+  body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px;display:flex;flex-direction:column;height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased;width:100%;transition:width .14s ease}
+  body.collapsed{width:301px;box-shadow:0 0 40px rgba(0,0,0,.5)}
+  body.collapsed .center,body.collapsed .basket{display:none}
+  body.collapsed .titlebar .title,body.collapsed .repo-tab .close{display:none}
+  body.collapsed .repo-tab{white-space:nowrap;overflow:hidden}
+  .badge{font-family:var(--mono);font-weight:700}
+  .M{color:var(--warn)}.A{color:var(--ok)}.U{color:#8DB9E2}.S{color:var(--sub)}
+
+  .titlebar{height:30px;background:var(--chrome);display:flex;align-items:center;padding:0 12px;flex:none;border-bottom:1px solid var(--soft)}
+  .traffic{display:flex;gap:8px;margin-right:14px}.traffic span{width:12px;height:12px;border-radius:50%}
+  .traffic span:nth-child(1){background:#FF5F57}.traffic span:nth-child(2){background:#FEBC2E}.traffic span:nth-child(3){background:#28C840}
+  .titlebar .title{color:var(--t2);font-weight:500;margin:0 auto}
+  .tabstrip{height:34px;background:var(--tab-in);display:flex;flex:none}
+  .repo-tab{background:var(--bg);display:flex;align-items:center;gap:8px;padding:0 16px;font-size:12.5px;border-right:1px solid var(--border);box-shadow:inset 0 2px 0 var(--accent2)}
+  .repo-tab .close{color:var(--t3)}
+  .new-tab{display:flex;align-items:center;padding:0 12px;color:var(--t2);font-size:15px}
+  .menubar{height:30px;flex:none;background:var(--chrome);display:flex;align-items:center;gap:4px;padding:0 8px;color:var(--t2);font-size:13px;border-bottom:1px solid var(--soft)}
+  .menubar span{padding:4px 10px;border-radius:5px}.menubar span:hover{background:var(--chrome-hi);color:var(--text)}
+
+  .main{flex:1;display:flex;min-height:0}
+
+  .sidebar{width:300px;flex:none;background:var(--side);border-right:1px solid var(--border);overflow-y:auto}
+  .toolbar{display:flex;align-items:center;gap:2px;padding:7px 8px 5px}
+  .toolbar .ib{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border-radius:6px;color:var(--t2);cursor:pointer;font-size:15px}
+  .toolbar .ib:hover{background:#2A2D2E;color:var(--text)}.toolbar .sp{flex:1}
+  .toolbar .pill{font-size:12px;padding:4px 10px;border-radius:6px;color:var(--text);background:var(--chrome-hi);cursor:pointer}
+  .toolbar .pill .n{color:var(--accent2);font-weight:700}
+
+  .repo-panel{border-bottom:1px solid var(--border)}
+  .rp-head{display:flex;align-items:center;gap:8px;padding:7px 10px;cursor:pointer}
+  .rp-head:hover{background:#2A2D2E}
+  .rp-head .chev{color:var(--t2);font-size:10px;width:10px}
+  .rp-head .name{font-weight:600}.rp-head .branch{color:var(--t2);font-size:11px;font-family:var(--mono)}
+  .rp-head .dirty{color:var(--warn)}
+  .rp-head .acts{margin-left:auto;display:flex;gap:10px;color:var(--t2)}
+  .repo-panel.folded .rp-body{display:none}
+  .repo-panel.sub .rp-body{box-shadow:inset 2px 0 0 var(--border)}
+
+  .commit-box{padding:4px 10px 10px}
+  .ci{width:100%;background:var(--input);border:1px solid transparent;border-radius:5px;color:var(--text);padding:8px 10px;font-family:var(--ui);font-size:13px}
+  .ci::placeholder{color:var(--t2)}
+  .cbtn{width:100%;margin-top:8px;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:8px;font-size:13px;cursor:pointer}
+  .cbtn:hover{background:#1177BB}
+
+  .rtabs{display:flex;gap:4px;padding:4px 10px 0}
+  .rtab{flex:1;text-align:center;padding:6px 4px;font-size:12px;color:var(--t2);background:transparent;border:none;border-bottom:2px solid transparent;cursor:pointer}
+  .rtab:hover{color:var(--text)}
+  .rtab.active{color:var(--text);border-bottom-color:var(--accent2)}
+  .rtab.approved.active{border-bottom-color:var(--ok)}
+  .rtab .c{font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px;background:var(--pill);color:var(--t2);margin-left:5px}
+  .rtab.active .c{background:var(--accent);color:#fff}
+  .rtab.approved.active .c{background:var(--ok-dim);color:var(--ok)}
+
+  .rprog{display:flex;align-items:center;gap:8px;padding:8px 12px;font-size:11px;color:var(--t2);cursor:pointer;border-radius:6px;margin:2px 6px}
+  .rprog:hover{background:#2A2D2E;color:var(--text)}
+  .rprog .play{color:var(--ok);font-size:10px}
+  .rprog.on .play{color:var(--cmt)}
+  .rprog .bar{flex:1;height:5px;border-radius:3px;background:#333;overflow:hidden}.rprog .bar .fill{height:100%;background:var(--ok);transition:width .2s ease}
+
+  .frow{display:flex;align-items:center;gap:8px;padding:4px 12px;font-size:13px;cursor:pointer;height:27px}
+  .frow:hover{background:#2A2D2E}.frow:hover .rs{opacity:1}
+  .frow.sel{background:var(--sel);color:#fff}
+  .frow .fi{width:15px;text-align:center;font-size:12px;flex:none}
+  .frow .dir{color:var(--t3);font-size:11px;margin-left:2px}.frow.sel .dir{color:#b9d2e8}
+  .frow .bdg{margin-left:6px;font-family:var(--mono);font-weight:700;width:14px;text-align:center}
+  .frow .rs{opacity:0;margin-left:auto;color:var(--t2);font-size:15px;width:18px;text-align:center}
+  .frow .rs:hover{color:var(--ok)}
+  .frow .chk{margin-left:auto;color:var(--ok);font-size:12px}
+  .icpp{color:#519aba}.imd{color:#519aba}.iimg{color:#a074c4}.icfg{color:#cbcb41}.isub{color:var(--sub)}
+  .subnote{font-family:var(--mono);font-size:11px;color:var(--t2);padding:0 12px 6px 34px}
+  .subnote .old{color:var(--danger)}.subnote .new{color:var(--ok)}
+  .sec{display:flex;align-items:center;gap:6px;padding:6px 12px 4px}
+  .sec .chev{color:var(--t2);font-size:10px}.sec .lbl{color:var(--t2);font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+  .sec .pill{margin-left:auto;background:var(--pill);color:var(--t2);font-size:10px;font-weight:600;padding:1px 6px;border-radius:9px}
+
+  .commits{position:relative;padding-bottom:8px}
+  .commits .rail{position:absolute;left:19px;top:12px;bottom:16px;width:2px;background:#4A4A4A}
+  .crow{display:flex;align-items:center;gap:12px;padding:5px 12px;font-size:13px;cursor:pointer;position:relative;height:28px}
+  .crow:hover{background:#2A2D2E}.crow.sel{background:var(--sel);color:#fff}
+  .crow .dot{width:9px;height:9px;border-radius:50%;background:var(--dot);flex:none;z-index:1;margin-left:2px;box-shadow:0 0 0 3px var(--side)}
+  .crow.sel .dot{box-shadow:0 0 0 3px var(--sel)}
+  .crow .dot.head{background:transparent;border:2px solid #4EC94E}
+  .crow.base{color:var(--t3);cursor:default}.crow.base .dot{background:transparent;border:2px solid #555}
+  .crow .subj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .crow .age{margin-left:auto;font-size:11px;color:var(--t3)}.crow.sel .age{color:#b9d2e8}
+  .crow .cb{margin-left:auto;background:var(--cmt);color:#1a1a1a;font-size:10px;font-weight:700;border-radius:9px;padding:1px 7px}
+  .crow .cb:empty{display:none}
+  .crow.sel .cb{margin-left:8px}
+
+  .center{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+  .dhead{height:32px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:12.5px;color:var(--t2);border-bottom:1px solid var(--border)}
+  .dhead .add{color:var(--ok)}.dhead .del{color:var(--danger)}
+  .dhead .right{display:flex;gap:8px;align-items:center}
+  .hidebtn{color:var(--t2);cursor:pointer;font-size:12px;padding:2px 8px;border-radius:5px}
+  .hidebtn:hover{background:#2A2D2E;color:var(--text)}
+  .toggle{display:flex;gap:2px;background:#2A2A2C;border-radius:6px;padding:2px}
+  .toggle button{background:transparent;border:none;color:var(--t2);font-size:12px;padding:3px 12px;border-radius:5px;cursor:pointer}
+  .toggle button.active{background:var(--accent2);color:#fff}
+  .basket-toggle{font-size:12px;color:var(--cmt);background:#332a18;border:1px solid rgba(227,179,65,.3);border-radius:6px;padding:3px 10px;cursor:pointer}
+
+  .banner{padding:10px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--section)}
+  .banner .msg{font-weight:600;font-size:14px}.banner .sha{font-family:var(--mono);color:var(--t2);font-size:12px}
+  .banner .fix{margin-left:auto;font-size:11px;border-radius:6px;padding:3px 9px}
+  .banner .fix.commit{color:var(--ok);background:var(--ok-dim);border:1px solid rgba(63,185,80,.35)}
+  .banner .fix.wt{color:var(--warn);background:#332a18;border:1px solid rgba(226,192,141,.35)}
+  .cnew{margin:10px 16px 0;padding:7px 11px;background:rgba(78,161,255,.08);border-left:2px solid var(--new);border-radius:4px;font-size:12px;color:#bcd8ff}
+
+  .dbody{flex:1;overflow:auto;padding-bottom:24px}
+  .empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--t3);gap:6px}
+  .fileblk{border-bottom:1px solid var(--soft)}
+  .fhead{height:34px;background:var(--section);border-bottom:1px solid var(--soft);display:flex;align-items:center;justify-content:space-between;padding:0 14px;cursor:pointer}
+  .fhead .left{display:flex;align-items:center;gap:8px}.fhead .chev{color:var(--t2);font-size:11px;width:12px}
+  .fhead .fn{font-weight:600}.fhead .fs{font-family:var(--mono);font-size:12px}
+  .fhead .fs .add{color:var(--ok)}.fhead .fs .del{color:var(--danger)}
+  .fhead .acts{display:flex;gap:6px;opacity:0}.fhead:hover .acts{opacity:1}
+  .fileblk.folded .hunks{display:none}
+  .hh{background:var(--hunk);color:var(--hunkc);height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-family:var(--mono);font-size:12px}
+  .hh .right{display:flex;align-items:center;gap:8px}.hh .acts{display:flex;gap:6px;opacity:0}
+  .hunk:hover .hh .acts{opacity:1}
+  .hunk.staged .hh{box-shadow:inset 3px 0 0 var(--ok)}.hh .state{color:var(--ok);font-family:var(--ui);font-size:11px}
+  .btn{background:transparent;color:var(--t2);border:1px solid var(--border);border-radius:5px;font-size:11px;padding:3px 10px;cursor:pointer}
+  .btn:hover{background:#2A2D2E;color:var(--text)}
+  .btn.ok{color:var(--ok)}.btn.ok:hover{background:var(--ok-dim);border-color:rgba(63,185,80,.4)}
+  .btn.cmt{color:var(--cmt)}
+  .fold{display:flex;align-items:center;gap:8px;height:22px;padding:0 12px 0 52px;font-family:var(--mono);font-size:11px;color:var(--t3);background:#1C1C1F;cursor:pointer}
+  .fold:hover{color:var(--t2)}
+  .dl{display:flex;height:20px;line-height:20px;font-family:var(--mono);font-size:12.5px;white-space:pre;color:var(--text)}
+  .dl .g{width:50px;text-align:right;padding-right:10px;color:var(--t3);user-select:none}
+  .dl .s{width:16px;text-align:center;color:var(--t2)}
+  .dl.add{background:var(--add-bg)}.dl.add .g{background:var(--add-g)}
+  .dl.del{background:var(--del-bg)}.dl.del .g{background:var(--del-g)}
+  .dl.newrun{box-shadow:inset 3px 0 0 var(--new)}.dl.newrun .g{background:rgba(78,161,255,.14)}
+  .icmt{display:flex;gap:9px;margin:5px 0 5px 62px;padding:7px 11px;background:var(--panel);border:1px solid var(--border);border-left:2px solid var(--cmt);border-radius:8px;font-size:12px;max-width:680px}
+  .icmt .who{color:var(--cmt);font-weight:600;white-space:nowrap}
+  .icmt .x{margin-left:auto;color:var(--t3);cursor:pointer}.icmt .x:hover{color:var(--danger)}
+  .compose{margin:6px 0 8px 62px;max-width:680px;background:var(--panel);border:1px solid var(--accent2);border-radius:8px;padding:8px 10px}
+  .compose textarea{width:100%;background:transparent;border:none;color:var(--text);font-family:var(--ui);font-size:12.5px;resize:none;outline:none}
+  .compose .row{display:flex;gap:8px;margin-top:8px;align-items:center}.compose .loc{font-family:var(--mono);font-size:11px;color:var(--t2);margin-right:auto}
+
+  .basket{width:330px;flex:none;background:var(--side);border-left:1px solid var(--border);display:flex;flex-direction:column;transition:margin-right .2s ease,opacity .2s ease}
+  .basket.closed{margin-right:-331px;opacity:0;pointer-events:none}
+  .bh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .bh .t{font-weight:600}.bh .n{margin-left:auto;background:var(--cmt);color:#1a1a1a;font-weight:700;border-radius:9px;padding:1px 8px;font-size:11px}
+  .bkbody{flex:1;overflow:auto;padding:6px 0}
+  .bkempty{color:var(--t3);font-size:12px;text-align:center;padding:30px 20px;line-height:1.6}
+  .bkg{padding:6px 14px 2px}.bkg .gh{font-size:11px;color:var(--t2);margin-bottom:4px}.bkg .gh .sha{font-family:var(--mono);color:var(--dot)}
+  .bkg.wt .gh .sha{color:var(--warn)}
+  .bki{display:flex;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px}.bki:hover{background:#2A2D2E}
+  .bki .loc{font-family:var(--mono);font-size:11px;color:var(--accent2);white-space:nowrap}.bki .x{margin-left:auto;color:var(--t3);cursor:pointer}.bki .x:hover{color:var(--danger)}
+  .bkprev{margin:8px 14px;border:1px solid var(--soft);border-radius:8px;background:#1A1A1C;padding:8px 10px;font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.5;white-space:pre-wrap;max-height:180px;overflow:auto}
+  .bkact{padding:10px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+  .bkact .primary{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;cursor:pointer}.bkact .primary:hover{background:#1177BB}
+  .bkact .primary:disabled{background:#2a2a2e;color:var(--t3);cursor:default}
+  .bkact .rowbtns{display:flex;gap:8px}.bkact .rowbtns .btn{flex:1;text-align:center;padding:7px}
+  .bkact .path{font-family:var(--mono);font-size:10.5px;color:var(--t3);text-align:center}
+
+  .statusbar{height:24px;flex:none;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 12px;font-size:12px;overflow:hidden}
+  .statusbar .seg{display:flex;gap:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+  .statusbar .compact{display:none}
+  body.collapsed .statusbar .wide,body.collapsed .statusbar .seg.right{display:none}
+  body.collapsed .statusbar .compact{display:inline}
+
+  .toast{position:fixed;left:50%;bottom:44px;transform:translateX(-50%);background:#0d3320;border:1px solid var(--ok);color:#c9f5d4;padding:10px 16px;border-radius:8px;font-size:12.5px;opacity:0;pointer-events:none;transition:opacity .2s ease,bottom .2s ease;z-index:50;max-width:70%}
+  .toast.show{opacity:1;bottom:54px}
+  .hidden{display:none!important}
+</style>
+</head>
+<body class="collapsed">
+  <div class="titlebar"><div class="traffic"><span></span><span></span><span></span></div><div class="title">floatinghotel — reviewing agent work · feature/agent-work</div></div>
+  <div class="tabstrip"><div class="repo-tab">floatinghotel (feature/agent-work)<span class="close">×</span></div><div class="new-tab">+</div></div>
+  <div class="menubar"><span>File</span><span>Edit</span><span>View</span><span>Repository</span><span>Help</span></div>
+
+  <div class="main">
+    <aside class="sidebar">
+      <div class="toolbar"><div class="ib" title="Refresh (F5 to reset)" onclick="location.reload()">⟳</div><div class="ib">◧</div><div class="ib">⑂</div><div class="sp"></div><div class="pill">Push<span class="n"> 2</span></div><div class="pill">Pull</div><div class="ib">⋯</div></div>
+
+      <div class="repo-panel" id="p-root">
+        <div class="rp-head" onclick="togglePanel('p-root')"><span class="chev">▾</span><span class="name">floatinghotel</span><span class="branch">⑂ feature<span class="dirty">*</span></span><span class="acts"><span>⟳</span><span>✓</span><span>⋯</span></span></div>
+        <div class="rp-body">
+          <div class="commit-box"><input class="ci" placeholder='Message (⌘⏎ to commit)'><button class="cbtn" id="commitbtn">✓ Commit</button></div>
+          <div class="rtabs">
+            <button class="rtab active">To review<span class="c" id="tab-review">3</span></button>
+            <button class="rtab approved">Approved<span class="c" id="tab-approved">0</span></button>
+            <button class="rtab">Untracked<span class="c">2</span></button>
+          </div>
+          <div class="rprog" id="rprog" onclick="startReview()"><span class="play">▶</span><div class="bar"><div class="fill" id="progfill" style="width:0%"></div></div><span id="progtxt">Start review · 3 to review</span></div>
+          <div id="wt-list"></div>
+        </div>
+      </div>
+
+      <div class="repo-panel sub" id="p-sub">
+        <div class="rp-head" onclick="togglePanel('p-sub')"><span class="chev">▾</span><span class="name">afterhours</span><span class="branch">vendor · ⑂ main<span class="dirty">*</span></span><span class="acts"><span>⟳</span><span>✓</span><span>⋯</span></span></div>
+        <div class="rp-body">
+          <div class="sec"><span class="chev">▾</span><span class="lbl">Changes</span><span class="pill">1</span></div>
+          <div class="frow" onclick="openTarget('sub-todo')"><span class="fi imd">◔</span><span>todo.md</span><span class="bdg M">M</span><span class="rs">✓</span></div>
+        </div>
+      </div>
+
+      <div class="sec"><span class="chev">▾</span><span class="lbl">Stack · feature/agent-work</span><span class="pill">3</span></div>
+      <div class="commits" id="stack"></div>
+    </aside>
+
+    <section class="center">
+      <div class="dhead">
+        <div style="display:flex;gap:10px;align-items:center"><span class="hidebtn" onclick="closeShelf()">‹ hide</span><span id="dstats"></span></div>
+        <div class="right">
+          <div class="toggle"><button class="active">Inline</button><button>Side-by-Side</button></div>
+          <div class="basket-toggle" id="baskettoggle" onclick="toggleBasket()">◧ Feedback</div>
+        </div>
+      </div>
+      <div id="bannerwrap"></div>
+      <div class="dbody" id="dbody"></div>
+    </section>
+
+    <aside class="basket" id="basket"></aside>
+  </div>
+
+  <div class="statusbar">
+    <span class="seg"><span>⑂ feature/agent-work</span><span class="wide">↑2 ↓0</span><span class="wide" id="sb-wide"></span><span class="compact" id="sb-compact"></span></span>
+    <span class="seg right">Show Log</span>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+/* ---------------- data ---------------- */
+const DIFFS = {
+  'wt-main': { kind:'wt', scope:'wt', banner:'Working tree', sha:'uncommitted',
+    files:[
+      {name:'main.cpp', dir:'', badge:'M', folded:false, hunks:[
+        {id:'m1', header:'@@ -1,5 +1,7 @@', lines:[
+          {t:'ctx',o:1,n:1,c:'#include <iostream>'},
+          {t:'add',n:2,c:'#include <string>'},
+          {t:'add',n:3,c:'#include <cstdlib>'},
+          {t:'ctx',o:2,n:4,c:''},
+          {t:'ctx',o:3,n:5,c:'int main(int argc, char** argv) {'},
+        ]},
+        {id:'m2', header:'@@ -6,4 +8,5 @@ int main()', lines:[
+          {t:'del',o:6,c:'    std::cout << "Hello, world!" << std::endl;'},
+          {t:'del',o:7,c:'    return 0;'},
+          {t:'add',n:9,c:'    std::string name = argc > 1 ? argv[1] : "world";'},
+          {t:'add',n:10,c:'    std::cout << "Hello, " << name << "!\\n";'},
+          {t:'add',n:11,c:'    return 0;'},
+        ]},
+      ]},
+      {name:'app.cpp', dir:'src', badge:'M', folded:true, hunks:[
+        {id:'a1', header:'@@ -10,4 +10,6 @@ void App::run()', lines:[
+          {t:'ctx',o:10,n:10,c:'void App::run() {'},
+          {t:'add',n:11,c:'    log_info("starting up");'},
+          {t:'ctx',o:11,n:12,c:'    init();'},
+          {t:'del',o:12,c:'    loop();'},
+          {t:'add',n:14,c:'    main_loop();'},
+          {t:'ctx',o:13,n:15,c:'}'},
+        ]},
+      ]},
+      {name:'afterhours', dir:'vendor', badge:'S', folded:false, submodule:true, hunks:[
+        {id:'s1', header:'Subproject commit', lines:[
+          {t:'del',c:'-Subproject commit fe9282b'},
+          {t:'add',c:'+Subproject commit a1b2c3d'},
+        ]},
+      ]},
+    ]},
+  'sub-todo': { kind:'wt', scope:'wt', banner:'todo.md', sha:'vendor/afterhours',
+    files:[ {name:'todo.md', dir:'vendor/afterhours', badge:'M', folded:false, hunks:[
+      {id:'t1', header:'@@ -1,3 +1,5 @@', lines:[
+        {t:'ctx',o:1,n:1,c:'# afterhours TODO'},
+        {t:'add',n:2,c:'- [ ] with_on_draw callbacks'},
+        {t:'add',n:3,c:'- [ ] expand() = remaining space'},
+      ]} ]} ]},
+  'c-tests': { kind:'commit', scope:'a1b2c3d', banner:'Add unit tests', sha:'a1b2c3d', isnew:false,
+    files:[ {name:'test_utils.cpp', dir:'tests', badge:'A', folded:false, hunks:[
+      {id:'ut1', header:'@@ -0,0 +1,9 @@ (new file)', lines:[
+        {t:'add',n:1,c:'#include "../greeter.h"'},
+        {t:'add',n:2,c:'#include <cassert>'},
+        {t:'add',n:3,c:''},
+        {t:'add',n:4,c:'int main() {'},
+        {t:'add',n:5,c:'    assert(hello("Alice") == "Hello, Alice!");'},
+        {t:'add',n:6,c:'    assert(hello("") == "Hello, !");'},
+        {t:'add',n:7,c:'    return 0;'},
+        {t:'add',n:8,c:'}'},
+      ]} ]} ]},
+  'c-greeting': { kind:'commit', scope:'d4e5f6b', banner:'Add greeting', sha:'d4e5f6b', isnew:true,
+    files:[ {name:'greeter.cpp', dir:'src', badge:'M', folded:false, hunks:[
+      {id:'g1', header:'@@ -3,4 +3,5 @@ namespace {', lines:[
+        {t:'ctx',o:3,n:3,c:'std::string greet(const std::string& n) {'},
+        {t:'del',o:4,c:'    return "Hello, world!";',newrun:true},
+        {t:'add',n:4,c:'    return "Hello, " + n + "!";',newrun:true},
+        {t:'ctx',o:5,n:5,c:'}'},
+      ]},
+      {id:'g2', header:'@@ -10,3 +11,4 @@', lines:[
+        {t:'ctx',o:10,n:11,c:'void banner() {'},
+        {t:'add',n:12,c:'    std::cout << greet("floatinghotel");'},
+      ]},
+    ]} ]},
+  'c-refactor': { kind:'commit', scope:'9f3ca10', banner:'Refactor greeter', sha:'9f3ca10', isnew:false,
+    files:[ {name:'greeter.h', dir:'src', badge:'M', folded:false, hunks:[
+      {id:'r1', header:'@@ -8 +8 @@', lines:[
+        {t:'del',o:8,c:'std::string greet(const std::string&);'},
+        {t:'add',n:8,c:'std::string hello(const std::string&);'},
+      ]} ]} ]},
+};
+const STACK = [
+  {id:'c-tests',    subj:'Add unit tests',   scope:'a1b2c3d', head:true, age:'2m'},
+  {id:'c-greeting', subj:'Add greeting',     scope:'d4e5f6b', age:'5m'},
+  {id:'c-refactor', subj:'Refactor greeter', scope:'9f3ca10', age:'1h'},
+];
+const WT_FILES = [
+  {id:'wt-main', name:'README.md', fi:'imd', ic:'◔', badge:'M'},
+  {id:'wt-main', name:'main.cpp',  fi:'icpp', ic:'C', badge:'M'},
+  {id:'wt-main', name:'app.cpp', dir:'src', fi:'icpp', ic:'C', badge:'M'},
+  {id:'wt-main', name:'afterhours', dir:'vendor', fi:'isub', ic:'◈', badge:'S', sub:true},
+];
+
+/* ---------------- state ---------------- */
+let state = {
+  reviewing:false,
+  selection:null,
+  basketClosed:false,
+  comments:[
+    {id:1, scope:'d4e5f6b', file:'greeter.cpp', line:4, text:'not utf-8 safe — use fmt::format'},
+    {id:2, scope:'9f3ca10', file:'greeter.h', line:8, text:'keep the old signature as a deprecated alias'},
+  ],
+  approved:{},      // "target|hunkId" -> true
+  folded:{},        // fileName -> true
+  composing:null,   // {scope,file,line,hunkId}
+  cid:3,
+};
+DIFFS['wt-main'].files.forEach(f=>{ if(f.folded) state.folded['wt-main|'+f.name]=true; });
+
+/* ---------------- helpers ---------------- */
+const esc = s => (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const $ = id => document.getElementById(id);
+function hunkLineNums(h){ const s=new Set(); h.lines.forEach(l=>{ if(l.n)s.add(l.n); if(l.o)s.add(l.o); }); return s; }
+function primaryLine(h){ const l=h.lines.find(x=>x.t==='add')||h.lines.find(x=>x.t==='del')||h.lines[0]; return l.n||l.o||0; }
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),2600); }
+
+/* ---------------- render: sidebar ---------------- */
+function renderSidebar(){
+  // working tree file list
+  $('wt-list').innerHTML = WT_FILES.map((f,i)=>{
+    const selCls = (state.selection===f.id && f.name==='main.cpp') ? ' sel' : '';
+    const dir = f.dir?`<span class="dir">${f.dir}</span>`:'';
+    let row = `<div class="frow${selCls}" onclick="openTarget('${f.id}')"><span class="fi ${f.fi}">${f.ic}</span><span>${f.name}</span>${dir}<span class="bdg ${f.badge}">${f.badge}</span><span class="rs" title="Approve">✓</span></div>`;
+    if(f.sub) row += `<div class="subnote"><span class="old">fe9282b</span> → <span class="new">a1b2c3d</span> · +3 commits</div>`;
+    return row;
+  }).join('');
+  // stack
+  $('stack').innerHTML = `<div class="rail"></div>` + STACK.map(c=>{
+    const n = state.comments.filter(x=>x.scope===c.scope).length;
+    const badge = n? `<span class="cb">${n}</span>` : `<span class="age">${c.age}</span>`;
+    const sel = state.selection===c.id?' sel':'';
+    return `<div class="crow${sel}" onclick="openTarget('${c.id}')"><span class="dot${c.head?' head':''}"></span><span class="subj">${c.subj}</span>${badge}</div>`;
+  }).join('') + `<div class="crow base"><span class="dot"></span><span class="subj">base · origin/main</span></div>`;
+}
+
+/* ---------------- render: center ---------------- */
+function renderCenter(){
+  const t = state.selection && DIFFS[state.selection];
+  if(!t){ $('bannerwrap').innerHTML=''; $('dstats').textContent=''; $('dbody').innerHTML=`<div class="empty"><div style="font-size:15px">Select a file or a commit in the stack</div><div>then Approve hunks or leave comments · Esc to hide</div></div>`; return; }
+  // stats
+  let add=0,del=0; t.files.forEach(f=>f.hunks.forEach(h=>h.lines.forEach(l=>{if(l.t==='add')add++;if(l.t==='del')del++;})));
+  $('dstats').innerHTML = `${t.files.length} file${t.files.length>1?'s':''} changed&nbsp;&nbsp;<span class="add">+${add}</span> <span class="del">−${del}</span>`;
+  // banner
+  const fix = t.kind==='commit'
+    ? `<span class="fix commit">✎ comments here → fixup into ${t.sha}</span>`
+    : `<span class="fix wt">✎ approve hunks to stage · comments → agent</span>`;
+  const nw = t.isnew ? `<div class="cnew">Reworked since you last looked — agent responded to your comment.</div>` : '';
+  $('bannerwrap').innerHTML = `<div class="banner"><span class="msg">${esc(t.banner)}</span><span class="sha">${t.sha}</span>${fix}</div>${nw}`;
+  // files
+  $('dbody').innerHTML = t.files.map(f=>fileHtml(t,f)).join('');
+}
+function fileHtml(t,f){
+  const foldedKey = t.scope==='wt' ? ('wt-main|'+f.name) : (state.selection+'|'+f.name);
+  const folded = state.folded[foldedKey];
+  const fs = `<span class="fs"></span>`;
+  const approveFile = t.kind==='wt' && !f.submodule ? `<button class="btn ok" onclick="event.stopPropagation();approveFile('${t.scope}','${f.name}')">Approve file</button>` : '';
+  const hunks = f.hunks.map(h=>hunkHtml(t,f,h)).join('');
+  return `<div class="fileblk${folded?' folded':''}">
+    <div class="fhead" onclick="toggleFileFold('${foldedKey}')"><div class="left"><span class="chev">${folded?'▸':'▾'}</span><span class="fi icpp">${f.badge==='A'?'+':'C'}</span><span class="fn">${f.name}</span>${f.dir?`<span class="dir" style="color:var(--t3);font-size:11px">${f.dir}</span>`:''}${fs}</div><div class="acts">${approveFile}</div></div>
+    <div class="hunks">${hunks}</div></div>`;
+}
+function hunkHtml(t,f,h){
+  const key = state.selection+'|'+h.id;
+  const staged = !!state.approved[key];
+  let right='';
+  if(f.submodule){ right = t.kind==='wt' ? `<div class="acts"><button class="btn ok" onclick="approveHunk('${h.id}')">Approve pointer</button></div>` : ''; }
+  else if(t.kind==='wt'){
+    right = staged
+      ? `<span class="state">✓ Approved</span><div class="acts"><button class="btn" onclick="approveHunk('${h.id}')">Reopen</button></div>`
+      : `<div class="acts"><button class="btn ok" onclick="approveHunk('${h.id}')">Approve</button><button class="btn cmt" onclick="startCompose('${t.scope}','${f.name}',${primaryLine(h)},'${h.id}')">Comment</button></div>`;
+  } else {
+    right = `<div class="acts"><button class="btn cmt" onclick="startCompose('${t.scope}','${f.name}',${primaryLine(h)},'${h.id}')">Comment</button></div>`;
+  }
+  const lines = h.lines.map(lineHtml).join('');
+  const nums = hunkLineNums(h);
+  const cmts = state.comments.filter(c=>c.scope===t.scope && c.file===f.name && nums.has(c.line))
+    .map(c=>`<div class="icmt"><span class="who">You:</span><span>${esc(c.text)}</span><span class="x" onclick="removeComment(${c.id})">×</span></div>`).join('');
+  const composing = state.composing && state.composing.hunkId===h.id && state.composing.file===f.name;
+  const compose = composing ? `<div class="compose"><textarea id="composeta" rows="2" placeholder="Comment for the agent… (Enter to add, Esc to cancel)" onkeydown="composeKey(event)"></textarea><div class="row"><span class="loc">${f.name}:${state.composing.line} · ${t.kind==='commit'?'commit '+t.sha:'working tree'}</span><button class="btn cmt" onclick="submitCompose()">⏎ Add to feedback</button></div></div>` : '';
+  return `<div class="hunk${staged?' staged':''}"><div class="hh"><span>${esc(h.header)}</span><div class="right">${right}</div></div>${lines}${cmts}${compose}</div>`;
+}
+function lineHtml(l){
+  const cls = l.t==='add'?'add':l.t==='del'?'del':'';
+  const g = l.t==='del' ? (l.o??'') : (l.n??'');
+  const sign = l.t==='add'?'+':l.t==='del'?'−':'';
+  return `<div class="dl ${cls}${l.newrun?' newrun':''}"><span class="g">${g}</span><span class="s">${sign}</span><span class="code">${esc(l.c)}</span></div>`;
+}
+
+/* ---------------- render: basket ---------------- */
+function renderBasket(){
+  const b=$('basket');
+  b.classList.toggle('closed', state.basketClosed);
+  const n = state.comments.length;
+  $('baskettoggle').textContent = `◧ Feedback${n?' ('+n+')':''}`;
+  const byScope={};
+  state.comments.forEach(c=>{(byScope[c.scope]=byScope[c.scope]||[]).push(c);});
+  let groups='';
+  Object.keys(byScope).forEach(s=>{
+    const st = STACK.find(x=>x.scope===s);
+    const gh = s==='wt' ? `working tree <span class="sha">uncommitted</span>` : `commit <span class="sha">${s}</span> · ${st?st.subj:''}`;
+    const wt = s==='wt'?' wt':'';
+    groups += `<div class="bkg${wt}"><div class="gh">${gh}</div>` + byScope[s].map(c=>
+      `<div class="bki"><span class="loc">${c.file}:${c.line}</span><span>${esc(c.text)}</span><span class="x" onclick="removeComment(${c.id})">×</span></div>`).join('') + `</div>`;
+  });
+  const body = n ? groups : `<div class="bkempty">No comments yet.<br>Hover a hunk → <b>Comment</b>, or drag-select code.<br>Approve the good chunks; comment on the rest.</div>`;
+  b.innerHTML = `<div class="bh"><span class="t">Feedback basket</span><span class="n">${n}</span></div>
+    <div class="bkbody">${body}</div>
+    <div class="bkprev">${esc(previewText())}</div>
+    <div class="bkact">
+      <button class="primary" ${n?'':'disabled'} onclick="sendAll()">⌘⏎ Send all feedback</button>
+      <div class="rowbtns"><button class="btn" onclick="copyAll()">Copy all</button><button class="btn" onclick="sendAll()">Send to terminal</button></div>
+      <div class="path">writes /tmp/floatinghotel-review.md</div>
+    </div>`;
+}
+function previewText(){
+  if(!state.comments.length) return '/tmp/floatinghotel-review.md\n(empty — nothing to send yet)';
+  const byScope={}; state.comments.forEach(c=>{(byScope[c.scope]=byScope[c.scope]||[]).push(c);});
+  let out='/tmp/floatinghotel-review.md\n\n## Review of feature/agent-work\n';
+  Object.keys(byScope).forEach(s=>{
+    const st=STACK.find(x=>x.scope===s);
+    out += s==='wt' ? `### working tree (uncommitted)\n` : `### ${s} "${st?st.subj:''}"\n`;
+    byScope[s].forEach(c=> out += `- ${c.file}:${c.line} — ${c.text}\n`);
+  });
+  out += `(agent: apply each as a fixup to the named commit, not on top of the stack)`;
+  return out;
+}
+
+/* ---------------- render: status + progress ---------------- */
+function renderStatus(){
+  const approvedCount = Object.values(state.approved).filter(Boolean).length;
+  const n = state.comments.length;
+  $('tab-approved').textContent = approvedCount;
+  $('sb-wide').textContent = `${approvedCount} approved · ${n} comment${n===1?'':'s'} queued`;
+  $('sb-compact').textContent = `${approvedCount}✓ · ${n}✎`;
+  $('commitbtn').textContent = approvedCount? `✓ Commit ${approvedCount} approved` : '✓ Commit';
+  // progress strip
+  const totalHunks = 6;
+  const pct = Math.min(100, Math.round((approvedCount/totalHunks)*100));
+  $('progfill').style.width = (state.reviewing?Math.max(pct,4):0)+'%';
+  const rp=$('rprog');
+  if(state.reviewing){ rp.classList.add('on'); $('progtxt').textContent = `Reviewing · ${approvedCount} approved · ${n} to send`; }
+  else { rp.classList.remove('on'); $('progtxt').textContent = 'Start review · 3 to review'; }
+}
+
+function renderAll(){ renderSidebar(); renderCenter(); renderBasket(); renderStatus(); }
+
+/* ---------------- interactions ---------------- */
+function startReview(){ state.reviewing=true; openTarget('wt-main'); renderStatus(); toast('Review started — baseline snapshotted for "new since you last looked"'); }
+function openTarget(id){ state.selection=id; state.composing=null; document.body.classList.remove('collapsed'); renderAll(); }
+function closeShelf(){ state.selection=null; state.composing=null; document.body.classList.add('collapsed'); renderSidebar(); }
+function togglePanel(id){ const e=$(id); e.classList.toggle('folded'); e.querySelector('.rp-head .chev').textContent=e.classList.contains('folded')?'▸':'▾'; }
+function toggleFileFold(key){ state.folded[key]=!state.folded[key]; renderCenter(); }
+function toggleBasket(){ state.basketClosed=!state.basketClosed; renderBasket(); }
+function approveHunk(hunkId){ const key=state.selection+'|'+hunkId; state.approved[key]=!state.approved[key]; renderCenter(); renderStatus(); }
+function approveFile(scope,file){ const t=DIFFS[state.selection]; const f=t.files.find(x=>x.name===file); f.hunks.forEach(h=>state.approved[state.selection+'|'+h.id]=true); renderCenter(); renderStatus(); toast('Approved all hunks in '+file); }
+function startCompose(scope,file,line,hunkId){ state.composing={scope,file,line,hunkId}; renderCenter(); const ta=$('composeta'); if(ta){ta.focus();} }
+function composeKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); submitCompose(); } else if(e.key==='Escape'){ e.stopPropagation(); state.composing=null; renderCenter(); } }
+function submitCompose(){ const ta=$('composeta'); if(!ta) return; const text=ta.value.trim(); const c=state.composing; if(text){ state.comments.push({id:state.cid++, scope:c.scope, file:c.file, line:c.line, text}); toast('Added to feedback basket'); } state.composing=null; renderAll(); }
+function removeComment(id){ state.comments=state.comments.filter(c=>c.id!==id); renderAll(); }
+function sendAll(){ if(!state.comments.length) return; toast(`Wrote /tmp/floatinghotel-review.md — sent ${state.comments.length} comment(s) to the agent`); }
+function copyAll(){ navigator.clipboard && navigator.clipboard.writeText(previewText()); toast('Copied all feedback to clipboard'); }
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){ if(state.composing){ state.composing=null; renderCenter(); } else { closeShelf(); } }
+  if(e.key==='Enter' && (e.metaKey||e.ctrlKey)){ e.preventDefault(); sendAll(); }
+});
+
+renderAll();
+</script>
+</body>
+</html>

@@ -67,6 +67,23 @@ the tip. Requirements:
       - test_utils.cpp:8 — add an empty-string case
       (agent: apply each as a fixup to the named commit, not on top)
 
+## Diff pane as a hidden shelf (minimalist default)
+The code/diff viewer should be a **shelf that's hidden by default** — the whole
+app is just the width of the sidebar (repo panels + stack) so it stays out of the
+way (Bear-like). Clicking a file or a commit **slides the diff shelf out**; a
+"‹ hide" control collapses it back to sidebar-only, and **Escape** closes the
+shelf. Feedback basket rides along on the shelf. See the combined mock
+`docs/mocks/cockpit.html` (opens collapsed).
+
+## Review interaction model (from interactive prototype)
+Prototype: `docs/mocks/cockpit.html` (data-driven; refresh resets). Confirmed:
+- **Start review** = click the review-progress strip (no separate button).
+- **Approve** a hunk = stage it (working tree). Reject = leave unstaged + Comment.
+- **Comment** = inline textbox; **Enter** adds to basket, **Esc** cancels.
+- **⌘⏎** = Send all feedback (Enter is taken by add-comment).
+- **Esc** = close the diff shelf (cancels an open compose first).
+- Basket **slides** in/out; stack rows show a live comment-count badge.
+
 ## Drop Copy buttons in favor of select-to-copy
 Now that drag-select copies with `file:line` prepended (the `copyWithLocation`
 setting), the explicit per-hunk "Copy" and per-file "Copy Diff" buttons are
