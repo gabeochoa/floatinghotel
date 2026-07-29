@@ -75,10 +75,12 @@ way (Bear-like). Clicking a file or a commit **slides the diff shelf out**; a
 shelf. Feedback basket rides along on the shelf. See the combined mock
 `docs/mocks/cockpit.html` (opens collapsed).
 
-## Cockpit mode — interaction model (from interactive prototype)
-"Cockpit mode" = the review flow. Prototype: `docs/mocks/cockpit.html`
-(data-driven; ⟳/refresh resets). Confirmed decisions:
-- **Start review** = click the review-progress strip (no separate button).
+## Ballroom mode — interaction model (from interactive prototype)
+**Ballroom** = the review flow (named after the floatinghotel poem — see memory);
+you **Embark** to enter it ("Embark to ballroom"). Prototype:
+`docs/mocks/cockpit.html` (data-driven; ⟳/refresh resets). Confirmed decisions:
+- **Embark** (start review) = click the review-progress strip (no separate button).
+- A chunk with a comment **auto-folds** (▸ + `✎ N`); click to reopen.
 - **Snapshot timing (answer):** take the baseline snapshot **when you Start
   review**; that baseline is what "new since you last looked" diffs against.
   **Re-baseline when you Send all feedback**, so the next agent round shows only

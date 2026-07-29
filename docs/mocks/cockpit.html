@@ -225,7 +225,7 @@
             <button class="rtab approved">Approved<span class="c" id="tab-approved">0</span></button>
             <button class="rtab">Untracked<span class="c">2</span></button>
           </div>
-          <div class="rprog" id="rprog" onclick="startReview()"><span class="play">▶</span><div class="bar"><div class="fill" id="progfill" style="width:0%"></div></div><span id="progtxt">Start review · 3 to review</span></div>
+          <div class="rprog" id="rprog" onclick="startReview()"><span class="play">▶</span><div class="bar"><div class="fill" id="progfill" style="width:0%"></div></div><span id="progtxt">Embark to ballroom · 3 to review</span></div>
           <div id="wt-list"></div>
         </div>
       </div>
@@ -509,8 +509,8 @@ function renderStatus(){
   const pct = Math.min(100, Math.round((approvedCount/totalHunks)*100));
   $('progfill').style.width = (state.reviewing?Math.max(pct,4):0)+'%';
   const rp=$('rprog');
-  if(state.reviewing){ rp.classList.add('on'); $('progtxt').textContent = `Reviewing · ${approvedCount} approved · ${n} to send`; }
-  else { rp.classList.remove('on'); $('progtxt').textContent = 'Start review · 3 to review'; }
+  if(state.reviewing){ rp.classList.add('on'); $('progtxt').textContent = `In the ballroom · ${approvedCount} approved · ${n} to send`; }
+  else { rp.classList.remove('on'); $('progtxt').textContent = 'Embark to ballroom · 3 to review'; }
 }
 
 function renderAll(){ renderSidebar(); renderCenter(); renderBasket(); renderStatus(); }
@@ -522,7 +522,7 @@ function markCur(){ hunkEls.forEach((el,i)=>el.classList.toggle('cur', i===curId
 function setCur(i){ if(!hunkEls.length) return; curIdx=Math.max(0,Math.min(i,hunkEls.length-1)); markCur(); const el=hunkEls[curIdx]; if(el) el.scrollIntoView({block:'nearest'}); }
 
 /* ---------------- interactions ---------------- */
-function startReview(){ state.reviewing=true; openTarget('wt-main'); renderStatus(); toast('Review started — baseline snapshotted for "new since you last looked"'); }
+function startReview(){ state.reviewing=true; openTarget('wt-main'); renderStatus(); toast('Embarked — baseline snapshotted for "new since you last looked"'); }
 function openTarget(id){ state.selection=id; state.composing=null; curIdx=0; document.body.classList.remove('collapsed'); renderAll(); }
 function closeShelf(){ state.selection=null; state.composing=null; document.body.classList.add('collapsed'); renderSidebar(); }
 function togglePanel(id){ const e=$(id); e.classList.toggle('folded'); e.querySelector('.rp-head .chev').textContent=e.classList.contains('folded')?'▸':'▾'; }
