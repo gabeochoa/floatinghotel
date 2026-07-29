@@ -77,25 +77,111 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             if (!selectedDiffs.empty()) {
-                ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
-                                       0, 0, false, fileJustChanged);
+                bool sideBySide = (layout.diffViewMode ==
+                    LayoutComponent::DiffViewMode::SideBySide);
+                if (sideBySide) {
+                    ui::render_side_by_side_diff(ctx, mainBg.ent(), selectedDiffs,
+                                                 0, 0, false, fileJustChanged);
+                } else {
+                    ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
+                                           0, 0, false, fileJustChanged);
+                }
             } else {
-                auto noDiffContainer = div(ctx, mk(mainBg.ent(), 3040),
+                // Even with no textual diff, make it obvious which file is
+                // selected: show its name at the top, plus size and change
+                // status (vs HEAD) so it's clear why there's nothing to show.
+                const std::string& rel = repo.selectedFilePath;
+
+                auto human_size = [](uintmax_t b) -> std::string {
+                    if (b < 1024) return std::to_string(b) + " B";
+                    if (b < 1024 * 1024)
+                        return std::to_string((b + 512) / 1024) + " KB";
+                    return std::to_string((b + 512 * 1024) / (1024 * 1024)) + " MB";
+                };
+                auto same_file = [](const std::string& a, const std::string& b) {
+                    return a == b || a.ends_with("/" + b) ||
+                           b.ends_with("/" + a) || a.ends_with(b) ||
+                           b.ends_with(a);
+                };
+                auto status_name = [](char c) -> std::string {
+                    switch (c) {
+                        case 'M': return "Modified";
+                        case 'A': return "Added";
+                        case 'D': return "Deleted";
+                        case 'R': return "Renamed";
+                        case 'C': return "Copied";
+                        default: return "Changed";
+                    }
+                };
+
+                std::error_code ec;
+                std::filesystem::path full =
+                    std::filesystem::path(repo.repoPath) / rel;
+                uintmax_t bytes = std::filesystem::file_size(full, ec);
+                std::string sizeStr = ec ? "size unavailable" : human_size(bytes);
+
+                std::string changeStatus;
+                for (auto& f : repo.unstagedFiles)
+                    if (same_file(f.path, rel)) {
+                        changeStatus = status_name(f.workTreeStatus) + " (unstaged)";
+                        break;
+                    }
+                if (changeStatus.empty())
+                    for (auto& f : repo.stagedFiles)
+                        if (same_file(f.path, rel)) {
+                            changeStatus = status_name(f.indexStatus) + " (staged)";
+                            break;
+                        }
+                if (changeStatus.empty())
+                    for (auto& u : repo.untrackedFiles)
+                        if (same_file(u, rel)) { changeStatus = "Untracked"; break; }
+                if (changeStatus.empty()) changeStatus = "No changes vs HEAD";
+
+                // File header bar (matches the diff view's file header).
+                auto hdr = div(ctx, mk(mainBg.ent(), 3040),
                     ComponentConfig{}
-                        .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
-                        .with_flex_direction(FlexDirection::Column)
-                        .with_justify_content(JustifyContent::Center)
+                        .with_size(ComponentSize{percent(1.0f), h720(28)})
+                        .with_flex_direction(FlexDirection::Row)
                         .with_align_items(AlignItems::Center)
-                        .with_transparent_bg()
+                        .with_custom_background(theme::SIDEBAR_BG)
+                        .with_border_bottom(theme::BORDER)
                         .with_roundness(0.0f)
-                        .with_debug_name("no_diff_container"));
-                div(ctx, mk(noDiffContainer.ent(), 3041),
+                        .with_debug_name("no_diff_header"));
+                div(ctx, mk(hdr.ent(), 0),
+                    ComponentConfig{}
+                        .with_label(rel)
+                        .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                        .with_custom_text_color(theme::TEXT_PRIMARY)
+                        .with_font_size(afterhours::ui::FontSize::XL)
+                        .with_alignment(TextAlignment::Left)
+                        .with_padding(Padding{
+                            .top = h720(8), .right = w1280(0),
+                            .bottom = h720(8), .left = w1280(16)})
+                        .with_debug_name("no_diff_filename"));
+
+                div(ctx, mk(mainBg.ent(), 3042),
+                    ComponentConfig{}
+                        .with_label(sizeStr + "   ·   " + changeStatus)
+                        .with_size(ComponentSize{percent(1.0f), children()})
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_alignment(TextAlignment::Left)
+                        .with_padding(Padding{
+                            .top = h720(10), .right = w1280(16),
+                            .bottom = h720(2), .left = w1280(16)})
+                        .with_roundness(0.0f)
+                        .with_debug_name("no_diff_detail"));
+
+                div(ctx, mk(mainBg.ent(), 3043),
                     ComponentConfig{}
                         .with_label("No diff available for this file")
-                        .with_size(ComponentSize{children(), children()})
+                        .with_size(ComponentSize{percent(1.0f), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font_size(afterhours::ui::FontSize::Large)
-                        .with_transparent_bg()
+                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_alignment(TextAlignment::Left)
+                        .with_padding(Padding{
+                            .top = h720(6), .right = w1280(16),
+                            .bottom = h720(6), .left = w1280(16)})
                         .with_roundness(0.0f)
                         .with_debug_name("no_diff_msg"));
             }
