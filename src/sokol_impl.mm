@@ -57,11 +57,20 @@ extern "C" void metal_set_window_size(int width, int height) {
         CGFloat newHeight = (CGFloat)height + titleBarHeight;
         CGFloat newWidth = (CGFloat)width;
 
-        // Anchor top-left: adjust origin.y so the top edge stays put
+        // Dark window background so any area exposed during a resize doesn't
+        // flash white before the app redraws it.
+        window.backgroundColor = [NSColor colorWithSRGBRed:0.1176
+                                                     green:0.1176
+                                                      blue:0.1176
+                                                     alpha:1.0];
+
+        // Anchor top-left: adjust origin.y so the top edge stays put.
+        // Instant (animate:NO): the animated variant desyncs from the Metal
+        // drawable, causing a white flash on grow and content-snap on shrink.
         CGFloat deltaH = newHeight - frame.size.height;
         NSRect newFrame = NSMakeRect(frame.origin.x, frame.origin.y - deltaH,
                                      newWidth, newHeight);
-        [window setFrame:newFrame display:YES animate:YES];
+        [window setFrame:newFrame display:YES animate:NO];
     }
 }
 

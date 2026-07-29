@@ -79,25 +79,10 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         };
         float charW = rpx(10.0f);   // ~10px per char at 720p, 18px font
         float hdrPad = rpx(24.0f);  // padding in screen pixels
-        float startPad = rpx(static_cast<float>(theme::layout::PADDING));
-        float hdrFontPx = rpx(18.0f);  // XL ~= 18 design px
-
-        // Fit-to-width: if the headers would overflow a narrow window, scale the
-        // spacing + font down so the whole menu bar fits.
-        float needW = startPad;
-        for (const auto& m : menus_)
-            needW += static_cast<float>(m.label.length()) * charW + hdrPad;
-        if (needW > barW && needW > 0.f) {
-            float fit = barW / needW;
-            charW *= fit;
-            hdrPad *= fit;
-            startPad *= fit;
-            hdrFontPx *= fit;
-        }
 
         headerRects_.clear();
         headerRects_.resize(menus_.size());
-        float headerX = startPad;
+        float headerX = rpx(static_cast<float>(theme::layout::PADDING));
         bool headerInteracted = false;
 
         for (int i = 0; i < static_cast<int>(menus_.size()); ++i) {
@@ -123,7 +108,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_translate(headerX, barY)
                     .with_custom_background(highlighted ? menu_colors::ACTIVE_BG : menu_colors::BAR_BG)
                     .with_custom_text_color(highlighted ? menu_colors::ACTIVE_TEXT : menu_colors::HEADER_TEXT)
-                    .with_font_size(pixels(hdrFontPx))
+                    .with_font_size(afterhours::ui::FontSize::XL)
                     .with_alignment(TextAlignment::Center)
                     .with_justify_content(JustifyContent::Center)
                     .with_align_items(AlignItems::Center)
