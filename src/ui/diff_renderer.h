@@ -72,6 +72,7 @@ struct Session {
     std::string repoPath;
     std::string reviewScope = "wt";  // "wt" (working tree) or a commit SHA
     ecs::ReviewComponent* review = nullptr;
+    int hunkOrdinal = 0;  // running index of visible hunks (for the cursor)
 };
 
 inline float mw(const Session& s, const std::string& t) {
@@ -346,12 +347,38 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     // Review state for this hunk (working-tree diff only).
     bool reviewOn = sel && sel->reviewActions && sel->review;
     std::string hkey;
+    bool isCursor = false;
     if (reviewOn) {
         hkey = sel->reviewScope + "\n" +
                ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header);
         // Approved hunks are hidden until reset (⟳/refresh).
         if (sel->review->approvedHunks.count(hkey))
             return;
+        // Keyboard chunk cursor + pending vim actions (a=approve, c=comment).
+        int ord = sel->hunkOrdinal++;
+        isCursor = (ord == sel->review->cursor);
+        if (isCursor && sel->review->cursorApprove) {
+            sel->review->cursorApprove = false;
+            if (sel->reviewScope == "wt") {
+                auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
+                if (res.success()) {
+                    sel->review->approvedHunks.insert(hkey);
+                    auto* r =
+                        ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                    if (r) r->refreshRequested = true;
+                    afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
+                    return;
+                }
+            }
+        }
+        if (isCursor && sel->review->cursorComment) {
+            sel->review->cursorComment = false;
+            sel->review->composingKey = hkey;
+            sel->review->composingText.clear();
+            sel->review->composingFile = fileDiff.filePath;
+            sel->review->composingScope = sel->reviewScope;
+            sel->review->composingLine = hunk.newStart;
+        }
     }
 
     // Hunk header row: label + copy button
@@ -362,7 +389,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_flex_direction(FlexDirection::Row)
             .with_justify_content(JustifyContent::SpaceBetween)
             .with_align_items(AlignItems::Center)
-            .with_custom_background(diff_detail::HUNK_HEADER_BG)
+            .with_custom_background(isCursor ? afterhours::Color{46, 58, 82, 255}
+                                             : diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
 
@@ -933,6 +961,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
     if (selEnabled) {
         diff_sel::state().lastLines = std::move(diff_sel::state().curLines);
     }
+    // Record visible-hunk count for keyboard cursor clamping.
+    if (review) review->hunkCount = sess.hunkOrdinal;
 }
 
 // Backward-compatible entry points. render_inline_diff keeps its original

@@ -123,6 +123,11 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::string composingFile;   // file the comment targets
     std::string composingScope;  // "wt" or a commit SHA
     int composingLine = 0;       // line the comment targets
+    // Keyboard chunk cursor (vim-style j/k/n nav; a approve, c comment).
+    int cursor = 0;              // index of the highlighted visible hunk
+    int hunkCount = 0;           // visible hunks last frame (for clamping)
+    bool cursorApprove = false;  // request: approve the cursor hunk
+    bool cursorComment = false;  // request: comment on the cursor hunk
     // Baseline snapshot for "new since you last looked" (Phase 6).
     std::string baselineHead;     // HEAD sha captured on Embark
     std::string baselineDiffSig;  // signature of the working diff on Embark

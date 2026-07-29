@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <filesystem>
+#include <algorithm>
 #include <fstream>
 
 #include "../settings.h"
@@ -128,8 +129,28 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
 
-        // Feedback basket + ⌘⏎ send-all (available whenever comments are queued).
+        // Vim-style chunk cursor: j/k/n move, a approve, c comment. Gated on
+        // no text input being focused so it never eats typed characters.
         auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
+        if (reviewPtr && ctx.focus_id == ctx.ROOT &&
+            reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
+            bool superDown = afterhours::graphics::is_key_down(343) ||
+                             afterhours::graphics::is_key_down(347);
+            if (!superDown) {
+                if (afterhours::graphics::is_key_pressed(74) ||   // J
+                    afterhours::graphics::is_key_pressed(78))     // N
+                    reviewPtr->cursor =
+                        std::min(reviewPtr->cursor + 1, reviewPtr->hunkCount - 1);
+                if (afterhours::graphics::is_key_pressed(75))     // K
+                    reviewPtr->cursor = std::max(reviewPtr->cursor - 1, 0);
+                if (afterhours::graphics::is_key_pressed(65))     // A
+                    reviewPtr->cursorApprove = true;
+                if (afterhours::graphics::is_key_pressed(67))     // C
+                    reviewPtr->cursorComment = true;
+            }
+        }
+
+        // Feedback basket + ⌘⏎ send-all (available whenever comments are queued).
         if (reviewPtr && !reviewPtr->comments.empty()) {
             bool superDown = afterhours::graphics::is_key_down(343) ||
                              afterhours::graphics::is_key_down(347);
