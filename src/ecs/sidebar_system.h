@@ -259,9 +259,17 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
 
+        // === Review-progress strip ("In the ballroom") ===
+        float progressH = 0.0f;
+        if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr) {
+            auto* rv = find_singleton<ReviewComponent, ActiveTab>();
+            render_review_progress(ctx, sidebarRoot.ent(), *repoPtr, rv);
+            progressH = resolve_to_pixels(h720(24.0f), sh_for_tab);
+        }
+
         // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
         float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab);
-        float filesH = layout.sidebarFiles.height - tabH - commitAreaH;
+        float filesH = layout.sidebarFiles.height - tabH - commitAreaH - progressH;
         if (filesH < 20.0f) filesH = 20.0f;
         auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
             preset::ScrollPanel()
@@ -346,10 +354,15 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         auto logW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         {
             size_t commitCount = 0;
+            std::string branch;
             if (repoPtr) {
                 commitCount = repoPtr->commitLog.size();
+                branch = repoPtr->currentBranch;
             }
-            std::string logHeaderText = "COMMITS  " + std::to_string(commitCount);
+            std::string logHeaderText =
+                branch.empty() ? ("STACK  " + std::to_string(commitCount))
+                               : ("STACK \xc2\xb7 " + branch + "  " +
+                                  std::to_string(commitCount));
             div(ctx, mk(logBg.ent(), 2310),
                 preset::SectionHeader(logHeaderText)
                     .with_size(ComponentSize{logW, children()})
@@ -473,6 +486,55 @@ private:
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Untracked; });
         makeTab(2094, "Refs", layout.sidebarMode == SM::Refs,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
+    }
+
+    // "In the ballroom" review-progress strip (mock): a bar + approved/to-review
+    // counts, plus how many comments are queued to send.
+    void render_review_progress(UIContext<InputAction>& ctx, Entity& parent,
+                                RepoComponent& repo, ReviewComponent* review) {
+        int approved = static_cast<int>(repo.stagedFiles.size());
+        int toReview = static_cast<int>(repo.unstagedFiles.size());
+        int total = approved + toReview;
+        float frac = total > 0 ? static_cast<float>(approved) / total : 0.f;
+        int queued = review ? static_cast<int>(review->comments.size()) : 0;
+
+        std::string txt = "In the ballroom \xc2\xb7 " + std::to_string(approved) +
+                          " approved \xc2\xb7 " + std::to_string(toReview) + " to review";
+        if (queued > 0) txt += " \xc2\xb7 " + std::to_string(queued) + " queued";
+
+        auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
+        auto row = div(ctx, mk(parent, 2085),
+            ComponentConfig{}
+                .with_size(ComponentSize{w, h720(22)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_gap(pixels(8))
+                .with_padding(Padding{
+                    .top = h720(2), .right = w1280(10),
+                    .bottom = h720(2), .left = w1280(10)})
+                .with_custom_background(theme::SIDEBAR_BG)
+                .with_roundness(0.0f)
+                .with_debug_name("review_progress"));
+        auto bar = div(ctx, mk(row.ent(), 0),
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(56), h720(5)})
+                .with_custom_background(afterhours::Color{51, 51, 51, 255})
+                .with_roundness(2.0f)
+                .with_debug_name("prog_bar"));
+        div(ctx, mk(bar.ent(), 0),
+            ComponentConfig{}
+                .with_size(ComponentSize{percent(frac), percent(1.0f)})
+                .with_custom_background(afterhours::Color{63, 185, 80, 255})
+                .with_roundness(2.0f)
+                .with_debug_name("prog_fill"));
+        div(ctx, mk(row.ent(), 1),
+            ComponentConfig{}
+                .with_label(txt)
+                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(FontSize::Small)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_debug_name("prog_text"));
     }
 
     // ---- Commit area (VS Code parity: always-visible input + button) ----
