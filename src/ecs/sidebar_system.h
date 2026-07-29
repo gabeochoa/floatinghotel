@@ -20,17 +20,24 @@ namespace ecs {
 
 namespace sidebar_detail {
 
-// Extract just the filename (basename) from a path
+// Extract just the filename (basename) from a path. Git reports untracked
+// directories with a trailing slash (e.g. "docs/mocks/"); return the folder
+// name with the slash kept so it reads as a directory rather than blank.
 inline std::string basename_from_path(const std::string& path) {
-    auto slashPos = path.find_last_of('/');
-    return (slashPos == std::string::npos) ? path : path.substr(slashPos + 1);
+    bool isDir = !path.empty() && path.back() == '/';
+    std::string p = isDir ? path.substr(0, path.size() - 1) : path;
+    auto slashPos = p.find_last_of('/');
+    std::string name = (slashPos == std::string::npos) ? p : p.substr(slashPos + 1);
+    return isDir ? name + "/" : name;
 }
 
 // Extract short directory context: just the immediate parent dir
 inline std::string dir_from_path(const std::string& path) {
-    auto slashPos = path.find_last_of('/');
+    std::string base = (!path.empty() && path.back() == '/')
+                           ? path.substr(0, path.size() - 1) : path;
+    auto slashPos = base.find_last_of('/');
     if (slashPos == std::string::npos) return "";
-    std::string dir = path.substr(0, slashPos);
+    std::string dir = base.substr(0, slashPos);
     // Remove leading "./" or "../" prefixes for cleaner display
     while (dir.size() >= 2 && dir[0] == '.' && (dir[1] == '/' || (dir[1] == '.' && dir.size() >= 3 && dir[2] == '/'))) {
         dir = (dir[1] == '/') ? dir.substr(2) : dir.substr(3);
