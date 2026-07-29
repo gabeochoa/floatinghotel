@@ -175,8 +175,7 @@ static void app_init() {
         if (!path.empty()) {
             repo.refreshRequested = true;
             Settings::get().add_recent_repo(path);
-            std::filesystem::path p(path);
-            tab.get<ecs::Tab>().label = p.filename().string();
+            tab.get<ecs::Tab>().label = ecs::repo_display_name(path);
         }
 
         tab.addComponent<ecs::CommitDetailCache>();

@@ -7,6 +7,18 @@
 
 namespace ecs {
 
+// Human-friendly repo name for tab labels: resolves "." / relative / trailing-
+// slash paths to the actual folder name (e.g. "." -> "floatinghotel").
+inline std::string repo_display_name(const std::string& path) {
+    std::error_code ec;
+    std::filesystem::path p = std::filesystem::weakly_canonical(path, ec);
+    if (ec || p.empty()) p = std::filesystem::absolute(path, ec);
+    std::string base = p.filename().string();
+    if (base.empty()) base = p.parent_path().filename().string();
+    if (base.empty() || base == ".") base = path;
+    return base;
+}
+
 namespace tab_colors {
     constexpr afterhours::Color STRIP_BG     = {25, 25, 25, 255};
     constexpr afterhours::Color TAB_ACTIVE   = {45, 45, 45, 255};
@@ -306,8 +318,7 @@ struct TabSyncSystem : afterhours::System<> {
         if (activeEnt->has<RepoComponent>()) {
             auto& repo = activeEnt->get<RepoComponent>();
             if (!repo.repoPath.empty()) {
-                std::filesystem::path p(repo.repoPath);
-                std::string base = p.filename().string();
+                std::string base = repo_display_name(repo.repoPath);
                 if (!repo.currentBranch.empty()) {
                     tab.label = base + " (" + repo.currentBranch + ")";
                 } else {
