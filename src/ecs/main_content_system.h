@@ -20,6 +20,17 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
 
+        // Esc collapses the shelf (clears the current selection) unless a menu
+        // is open. Mirrors the mock's "Esc closes the diff shelf".
+        if (afterhours::graphics::is_key_pressed(afterhours::keys::ESCAPE)) {
+            auto* menu = find_singleton<MenuComponent>();
+            bool menuOpen = menu && menu->activeMenuIndex >= 0;
+            if (!menuOpen && repoPtr) {
+                repoPtr->selectedFilePath.clear();
+                repoPtr->selectedCommitHash.clear();
+            }
+        }
+
         Entity& uiRoot = ui_imm::getUIRootEntity();
 
         auto mainBg = div(ctx, mk(uiRoot, 3000),
