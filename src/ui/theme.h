@@ -41,8 +41,8 @@ inline Color GUTTER_ADD_BG = {13, 51, 23, 255};  // #0D3317
 inline Color GUTTER_DEL_BG = {77, 17, 23, 255};  // #4D1117
 
 // Disabled state (unified across all interactive elements)
-inline Color DISABLED_BG = {90, 90, 90, 255};       // #5A5A5A
-inline Color DISABLED_TEXT = {150, 150, 150, 255};   // #969696
+inline Color DISABLED_BG = {48, 48, 52, 255};        // #303034 (reads as inactive vs dark UI)
+inline Color DISABLED_TEXT = {140, 140, 146, 255};   // #8C8C92 (legible label on the darker bg)
 
 // Input fields
 inline Color INPUT_BG = {60, 60, 60, 255};  // #3C3C3C (VS Code input background)
