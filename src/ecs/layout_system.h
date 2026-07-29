@@ -6,6 +6,11 @@
 #include <afterhours/src/logging.h>
 #include "ui_imports.h"
 
+// Real OS window resize (Metal backend, defined in sokol_impl.mm) + test-mode
+// flag (defined in main.cpp) so we never resize the window during e2e.
+extern "C" void metal_set_window_size(int width, int height);
+namespace app_state { extern bool testModeEnabled; }
+
 namespace ecs {
 
 // LayoutUpdateSystem: Recalculates all panel rectangles each frame based on
@@ -57,6 +62,26 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             hasRepoForShelf && shelfRepo->selectedFilePath.empty() &&
             shelfRepo->selectedCommitHash.empty();
         layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
+
+        // The collapsed window's max width = the natural sidebar width. On the
+        // collapse/expand transition, resize the real OS window: shrink to the
+        // sidebar (tray closed), grow back on expand (tray slides out). Never in
+        // test mode (would fight the e2e `resize` + screenshots).
+        if (!app_state::testModeEnabled &&
+            layout.shelfCollapsed != layout.lastShelfCollapsed) {
+            int collapsedW = static_cast<int>(scaledSidebarW + dividerW);
+            int curH = static_cast<int>(sh);
+            if (layout.shelfCollapsed) {
+                if (static_cast<int>(sw) > collapsedW + 40)
+                    layout.expandedWidth = static_cast<int>(sw);
+                metal_set_window_size(collapsedW, curH);
+            } else {
+                int target = layout.expandedWidth > 0 ? layout.expandedWidth : 1200;
+                metal_set_window_size(target, curH);
+            }
+            layout.lastShelfCollapsed = layout.shelfCollapsed;
+        }
+
         if (layout.shelfCollapsed)
             scaledSidebarW = sw; // sidebar fills the window
 

@@ -220,6 +220,8 @@ struct LayoutComponent : public afterhours::BaseComponent {
     // window (Bear-like). Derived each frame from whether anything is selected;
     // set by LayoutUpdateSystem and read by the sidebar/main-content renderers.
     bool shelfCollapsed = false;
+    bool lastShelfCollapsed = false;  // for detecting collapse/expand transitions
+    int expandedWidth = 0;            // window width to restore when expanding
 
     float commandLogHeight = 200.0f;
 
