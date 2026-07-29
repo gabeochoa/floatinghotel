@@ -246,19 +246,19 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     char prefix = line.empty() ? ' ' : line[0];
     content = line.size() > 1 ? line.substr(1) : "";
 
+    // Only the background carries add/del color; text stays one color so the
+    // code reads consistently.
+    textColor = theme::TEXT_PRIMARY;
     if (prefix == '+') {
         bgColor   = diff_detail::DIFF_ADD_BG;
-        textColor = theme::DIFF_ADD_TEXT;
         newNum    = std::to_string(newLine++);
         sign      = '+';
     } else if (prefix == '-') {
         bgColor   = diff_detail::DIFF_DEL_BG;
-        textColor = theme::DIFF_DEL_TEXT;
         oldNum    = std::to_string(oldLine++);
         sign      = '-';
     } else {
         bgColor   = theme::PANEL_BG;
-        textColor = theme::TEXT_PRIMARY;
         oldNum    = std::to_string(oldLine++);
         newNum    = std::to_string(newLine++);
         sign      = ' ';
@@ -407,11 +407,12 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                             SbsKind kind, bool leftBorder) {
     afterhours::Color bg, fg;
     char sign = ' ';
+    // Only the background carries add/del color; text stays one color.
     switch (kind) {
         case SbsKind::Add:
-            bg = DIFF_ADD_BG; fg = theme::DIFF_ADD_TEXT; sign = '+'; break;
+            bg = DIFF_ADD_BG; fg = theme::TEXT_PRIMARY; sign = '+'; break;
         case SbsKind::Del:
-            bg = DIFF_DEL_BG; fg = theme::DIFF_DEL_TEXT; sign = '-'; break;
+            bg = DIFF_DEL_BG; fg = theme::TEXT_PRIMARY; sign = '-'; break;
         case SbsKind::Empty:
             // Slightly darker than the panel to read as "no line here".
             bg = afterhours::Color{26, 26, 26, 255};
