@@ -1126,8 +1126,12 @@ private:
             nameW = totalW - GAP - STATUS_W;
             dirW = 0.0f;
         } else {
-            nameW = totalW * 0.5f;
-            dirW = totalW - nameW - GAP * 2.0f - STATUS_W;
+            // Keep the dir column compact and right-aligned (next to the status
+            // letter) so the filename gets the rest instead of both floating in
+            // the middle with big gaps.
+            dirW = std::min(totalW * 0.4f, 90.0f);
+            nameW = totalW - dirW - GAP * 2.0f - STATUS_W;
+            if (nameW < 40.0f) { nameW = 40.0f; dirW = totalW - nameW - GAP * 2.0f - STATUS_W; }
         }
 
         div(ctx, mk(row.ent(), 1),
@@ -1143,6 +1147,7 @@ private:
                     .with_size(ComponentSize{pixels(dirW), children()})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_font_size(FontSize::Small)
+                    .with_alignment(TextAlignment::Right)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("file_dir"));
         }
