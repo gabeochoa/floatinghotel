@@ -295,7 +295,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .top = h720(16), .right = w1280(8),
                         .bottom = h720(0), .left = w1280(8)})
                     .with_transparent_bg()
-                    .with_custom_text_color(afterhours::Color{60, 60, 60, 255})
+                    .with_custom_text_color(afterhours::Color{125, 125, 125, 255})
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("empty_shortcuts"));
