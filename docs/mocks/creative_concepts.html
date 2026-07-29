@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>floatinghotel — Creative review concepts</title>
+<style>
+  :root{
+    --editor-bg:#1E1E1E; --sidebar-bg:#252526; --chrome-bg:#2D2D30; --panel:#232327;
+    --border:#333336; --border-soft:#2A2A2C;
+    --text:#D4D4D4; --text2:#8A8A8A; --text3:#5A5A5A;
+    --add-bg:#17311F; --del-bg:#3A1D20; --add-g:#12401F; --del-g:#4A1E22;
+    --accent:#0E639C; --accent2:#1B80CC; --ok:#3FB950; --ok-dim:#16351f;
+    --warn:#E2C08D; --danger:#F14C4C; --sub:#C792EA; --dot:#A371F7;
+    --new:#4EA1FF; --changed:#E3B341;
+    --mono:"SF Mono","JetBrains Mono","Menlo",monospace; --ui:-apple-system,"Segoe UI",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--editor-bg);color:var(--text);font-family:var(--ui);font-size:13px;display:flex;flex-direction:column;height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
+  .mock-switcher{background:#111;border-bottom:1px solid #000;display:flex;gap:6px;padding:6px 10px;flex:none;flex-wrap:wrap}
+  .mock-switcher button{background:#2A2A2C;color:var(--text2);border:1px solid var(--border);border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer}
+  .mock-switcher button.active{background:var(--accent2);color:#fff;border-color:var(--accent2)}
+  .mock-switcher .label{color:#666;font-size:11px;align-self:center;margin-right:8px}
+  .titlebar{height:30px;background:var(--chrome-bg);display:flex;align-items:center;padding:0 12px;flex:none;border-bottom:1px solid var(--border-soft)}
+  .traffic{display:flex;gap:8px;margin-right:14px}
+  .traffic span{width:12px;height:12px;border-radius:50%}
+  .traffic span:nth-child(1){background:#FF5F57}.traffic span:nth-child(2){background:#FEBC2E}.traffic span:nth-child(3){background:#28C840}
+  .titlebar .title{color:var(--text2);font-weight:500;margin:0 auto}
+  .stage{flex:1;position:relative;overflow:hidden}
+  .view{position:absolute;inset:0;display:none}
+  .view.on{display:flex}
+  .mono{font-family:var(--mono)}
+  .code{font-family:var(--mono);font-size:12.5px;white-space:pre;color:var(--text)}
+  .badge{font-family:var(--mono);font-weight:700}
+  .M{color:var(--warn)}.A{color:var(--ok)}.U{color:#8DB9E2}.S{color:var(--sub)}
+  .diffline{display:flex;height:20px;line-height:20px}
+  .diffline .g{width:44px;text-align:right;padding-right:10px;color:var(--text3);user-select:none}
+  .diffline .s{width:16px;text-align:center;color:var(--text2)}
+  .diffline.add{background:var(--add-bg)}.diffline.add .g{background:var(--add-g)}
+  .diffline.del{background:var(--del-bg)}.diffline.del .g{background:var(--del-g)}
+
+  /* ============ 1. REVIEW QUEUE ============ */
+  #queue{flex-direction:column;align-items:center}
+  .q-top{width:100%;display:flex;align-items:center;gap:16px;padding:16px 28px;color:var(--text2);font-size:13px}
+  .q-top .pbar{flex:1;height:6px;background:#333;border-radius:4px;overflow:hidden}
+  .q-top .pbar .fill{height:100%;width:33%;background:var(--ok);border-radius:4px}
+  .q-wrap{flex:1;display:flex;align-items:center;justify-content:center;gap:26px;width:100%}
+  .q-side{width:210px;align-self:center}
+  .q-side .h{color:var(--text3);font-size:11px;text-transform:uppercase;letter-spacing:.05em;margin:8px 0}
+  .q-item{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;color:var(--text2);font-size:12.5px}
+  .q-item.done{color:var(--text3);text-decoration:line-through}
+  .q-item.now{background:var(--panel);color:var(--text);border-left:2px solid var(--accent2)}
+  .q-stack{position:relative;width:620px;height:340px}
+  .q-card{position:absolute;inset:0;background:var(--panel);border:1px solid var(--border);border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.45);overflow:hidden;display:flex;flex-direction:column}
+  .q-card.b1{transform:translateY(14px) scale(.96);opacity:.5;z-index:1}
+  .q-card.b2{transform:translateY(26px) scale(.92);opacity:.28;z-index:0}
+  .q-card.top{z-index:2}
+  .q-card .hd{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border-soft);font-size:13px}
+  .q-card .hd .where{color:var(--text2);font-family:var(--mono);font-size:12px;margin-left:auto}
+  .q-card .body{flex:1;padding:8px 0}
+  .q-actions{display:flex;gap:12px;margin-top:24px}
+  .q-btn{padding:11px 22px;border-radius:9px;border:1px solid var(--border);background:var(--panel);color:var(--text);font-size:13px;cursor:pointer;display:flex;gap:8px;align-items:center}
+  .q-btn.ok{background:var(--ok-dim);border-color:rgba(63,185,80,.5);color:var(--ok)}
+  .q-btn.no{background:#331a1c;border-color:rgba(241,76,76,.4);color:#ff9c99}
+  .q-btn .k{font-family:var(--mono);font-size:11px;color:var(--text3);border:1px solid var(--border);border-radius:4px;padding:0 5px}
+
+  /* ============ 2. DIFF-OF-DIFF TIMELINE ============ */
+  #timeline{flex-direction:column}
+  .tl-bar{display:flex;align-items:center;gap:14px;padding:16px 26px 10px}
+  .tl-bar .lbl{color:var(--text2);font-size:12px}
+  .tl-track{flex:1;height:2px;background:var(--border);position:relative}
+  .tl-dot{position:absolute;top:-6px;width:14px;height:14px;border-radius:50%;background:#3a3a3a;border:2px solid var(--editor-bg);cursor:pointer}
+  .tl-dot .cap{position:absolute;top:16px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--text3);white-space:nowrap}
+  .tl-dot.now{background:var(--new);box-shadow:0 0 0 4px rgba(78,161,255,.2)}
+  .tl-legend{display:flex;gap:18px;padding:2px 26px 12px;font-size:11px;color:var(--text2)}
+  .tl-legend .k{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:middle}
+  .tl-note{margin:0 26px 10px;padding:8px 12px;background:rgba(78,161,255,.08);border-left:2px solid var(--new);border-radius:4px;font-size:12px;color:#bcd8ff}
+  .tl-body{flex:1;overflow:auto;padding-bottom:20px}
+  .tl-file{padding:6px 26px;color:var(--text2);font-size:12.5px;border-bottom:1px solid var(--border-soft);margin-bottom:2px}
+  .diffline.newrun{box-shadow:inset 3px 0 0 var(--new)}
+  .diffline.newrun .g{background:rgba(78,161,255,.14)}
+  .diffline.changed{box-shadow:inset 3px 0 0 var(--changed)}
+  .diffline.changed .g{background:rgba(227,179,65,.14)}
+  .cmt{display:flex;gap:8px;margin:4px 0 4px 60px;padding:7px 11px;background:var(--panel);border:1px solid var(--border);border-radius:8px;font-size:12px;color:var(--text2);max-width:640px}
+  .cmt .you{color:var(--accent2);font-weight:600}
+
+  /* ============ 3. SPATIAL CANVAS ============ */
+  #canvas{flex-direction:column}
+  .cv-area{flex:1;position:relative;background:
+     radial-gradient(circle at 1px 1px, #2a2a2e 1px, transparent 0) 0 0/26px 26px, var(--editor-bg)}
+  .cv-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+  .node{position:absolute;width:150px;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:10px 12px;font-size:12.5px}
+  .node .fn{font-weight:600;display:flex;align-items:center;gap:6px}
+  .node .st{font-family:var(--mono);font-size:11px;color:var(--text2);margin-top:4px}
+  .node .st .a{color:var(--ok)}.node .st .d{color:var(--danger)}
+  .node.changed{border-color:rgba(63,185,80,.5);box-shadow:0 0 0 1px rgba(63,185,80,.3),0 0 26px rgba(63,185,80,.25)}
+  .node.risk{border-color:rgba(241,76,76,.55);box-shadow:0 0 0 1px rgba(241,76,76,.3),0 0 30px rgba(241,76,76,.28)}
+  .node.big{width:190px}
+  .node.unchanged{opacity:.5}
+  .node .peek{margin-top:8px;border-top:1px solid var(--border-soft);padding-top:6px;font-family:var(--mono);font-size:10.5px;color:var(--text2);white-space:pre;line-height:15px}
+  .cv-legend{position:absolute;right:16px;bottom:16px;background:rgba(20,20,22,.9);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;color:var(--text2);display:flex;flex-direction:column;gap:6px}
+  .cv-legend .row{display:flex;align-items:center;gap:8px}
+  .cv-legend .sw{width:14px;height:14px;border-radius:4px}
+  .cv-zoom{position:absolute;left:16px;bottom:16px;display:flex;gap:6px}
+  .cv-zoom div{width:30px;height:30px;background:rgba(20,20,22,.9);border:1px solid var(--border);border-radius:7px;display:flex;align-items:center;justify-content:center;color:var(--text2);font-size:16px}
+  .cv-title{position:absolute;left:16px;top:14px;color:var(--text2);font-size:12px}
+
+  /* ============ 4. SEMANTIC CLUSTERS ============ */
+  #clusters{flex-direction:row}
+  .cl-list{width:360px;border-right:1px solid var(--border);overflow:auto;padding:8px 0}
+  .cl-head{padding:12px 18px 6px;color:var(--text2);font-size:12px}
+  .cluster{margin:2px 8px;border:1px solid var(--border-soft);border-radius:9px;overflow:hidden}
+  .cluster .ch{display:flex;align-items:center;gap:10px;padding:10px 12px;cursor:pointer}
+  .cluster .ch:hover{background:var(--panel)}
+  .cluster .ch .ic{width:20px;text-align:center}
+  .cluster .ch .t{font-weight:600}
+  .cluster .ch .n{margin-left:auto;color:var(--text2);font-size:11px;background:#37373a;border-radius:9px;padding:1px 8px}
+  .cluster.sel{border-color:var(--accent2);background:rgba(14,99,156,.12)}
+  .cluster .files{padding:2px 0 8px}
+  .cluster .f{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 44px;font-size:12.5px;color:var(--text2)}
+  .cluster.collapsed .files{display:none}
+  .cluster .approve-all{margin:2px 12px 10px 44px;font-size:11px;color:var(--ok);border:1px solid rgba(63,185,80,.4);background:var(--ok-dim);border-radius:6px;padding:4px 10px;display:inline-block;cursor:pointer}
+  .risk-tag{font-size:10px;padding:0 6px;border-radius:8px;margin-left:6px}
+  .risk-tag.low{background:rgba(63,185,80,.14);color:var(--ok)}
+  .risk-tag.med{background:rgba(227,179,65,.14);color:var(--changed)}
+  .risk-tag.high{background:rgba(241,76,76,.14);color:#ff9c99}
+  .cl-diff{flex:1;overflow:auto}
+  .cl-diff .dh{padding:14px 20px 6px;font-size:14px;font-weight:600}
+  .cl-diff .sub{padding:0 20px 12px;color:var(--text2);font-size:12px}
+  .cl-diff .fhead{padding:8px 20px;background:#1F1F1F;border-top:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text2);font-family:var(--mono)}
+</style>
+</head>
+<body>
+  <div class="mock-switcher">
+    <span class="label">CREATIVE CONCEPT:</span>
+    <button class="active" data-view="queue" onclick="setView(this)">1 · Review Queue</button>
+    <button data-view="timeline" onclick="setView(this)">2 · Diff-of-diff Timeline</button>
+    <button data-view="canvas" onclick="setView(this)">3 · Spatial Canvas Map</button>
+    <button data-view="clusters" onclick="setView(this)">4 · Semantic Clusters</button>
+  </div>
+  <div class="titlebar"><div class="traffic"><span></span><span></span><span></span></div><div class="title">floatinghotel — reviewing agent changes on main</div></div>
+
+  <div class="stage">
+
+    <!-- ============ 1. REVIEW QUEUE ============ -->
+    <div class="view on" id="queue">
+      <div class="q-top">
+        <span>Reviewing agent changes</span>
+        <div class="pbar"><div class="fill"></div></div>
+        <span>2 of 6 hunks · 1 approved · 1 sent back</span>
+      </div>
+      <div class="q-wrap">
+        <div class="q-side">
+          <div class="h">Queue</div>
+          <div class="q-item done">✓ main.cpp · include</div>
+          <div class="q-item now">◐ main.cpp · greet body</div>
+          <div class="q-item">app.cpp · run()</div>
+          <div class="q-item">utils.h · new helper</div>
+          <div class="q-item">tests · add case</div>
+          <div class="q-item S">afterhours · pointer</div>
+        </div>
+        <div>
+          <div class="q-stack">
+            <div class="q-card b2"></div>
+            <div class="q-card b1"></div>
+            <div class="q-card top">
+              <div class="hd"><span class="badge M">M</span><span>main.cpp</span><span class="where">hunk 2 / 6 · @@ line 6</span></div>
+              <div class="body">
+                <div class="diffline"><span class="g">5</span><span class="s"></span><span class="code">int main() {</span></div>
+                <div class="diffline del"><span class="g">6</span><span class="s">−</span><span class="code">    std::cout << "Hello, world!" << std::endl;</span></div>
+                <div class="diffline del"><span class="g">7</span><span class="s">−</span><span class="code">    return 0;</span></div>
+                <div class="diffline add"><span class="g">7</span><span class="s">+</span><span class="code">    std::string name = "floatinghotel";</span></div>
+                <div class="diffline add"><span class="g">8</span><span class="s">+</span><span class="code">    std::cout << "Hello, " << name << "!";</span></div>
+                <div class="diffline add"><span class="g">9</span><span class="s">+</span><span class="code">    return 0;</span></div>
+                <div class="diffline"><span class="g">10</span><span class="s"></span><span class="code">}</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="q-actions">
+            <div class="q-btn ok">✓ Approve <span class="k">A</span></div>
+            <div class="q-btn no">✕ Send back + comment <span class="k">R</span></div>
+            <div class="q-btn">↷ Skip <span class="k">S</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 2. DIFF-OF-DIFF TIMELINE ============ -->
+    <div class="view" id="timeline">
+      <div style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div class="tl-bar">
+        <span class="lbl">Agent runs</span>
+        <div class="tl-track">
+          <div class="tl-dot" style="left:6%"><span class="cap">v1</span></div>
+          <div class="tl-dot" style="left:34%"><span class="cap">v2 · your review</span></div>
+          <div class="tl-dot" style="left:62%"><span class="cap">v3</span></div>
+          <div class="tl-dot now" style="left:94%"><span class="cap">v4 · now</span></div>
+        </div>
+        <span class="lbl">◀ scrub ▶</span>
+      </div>
+      <div class="tl-legend">
+        <span><span class="k" style="background:var(--new)"></span>new since you last looked (v2)</span>
+        <span><span class="k" style="background:var(--changed)"></span>changed after your comment</span>
+        <span><span class="k" style="background:#333"></span>unchanged</span>
+      </div>
+      <div class="tl-note">Since your last review (v2): <b>3 lines new</b>, <b>1 hunk</b> reworked in response to your comment. Everything else is unchanged — skip it.</div>
+      <div class="tl-body">
+        <div class="tl-file">C  main.cpp</div>
+        <div class="diffline"><span class="g">1</span><span class="s"></span><span class="code">#include &lt;iostream&gt;</span></div>
+        <div class="diffline newrun add"><span class="g">2</span><span class="s">+</span><span class="code">#include &lt;string&gt;</span></div>
+        <div class="diffline"><span class="g">3</span><span class="s"></span><span class="code"></span></div>
+        <div class="diffline"><span class="g">4</span><span class="s"></span><span class="code">int main() {</span></div>
+        <div class="cmt"><span class="you">You (v2):</span> don't hardcode the name, read it from argv</div>
+        <div class="diffline changed"><span class="g">5</span><span class="s"></span><span class="code">    std::string name = argc > 1 ? argv[1] : "world";</span></div>
+        <div class="diffline changed add"><span class="g">6</span><span class="s">+</span><span class="code">    std::cout << "Hello, " << name << "!";</span></div>
+        <div class="diffline"><span class="g">7</span><span class="s"></span><span class="code">    return 0;</span></div>
+        <div class="diffline"><span class="g">8</span><span class="s"></span><span class="code">}</span></div>
+      </div>
+      </div>
+    </div>
+
+    <!-- ============ 3. SPATIAL CANVAS ============ -->
+    <div class="view" id="canvas">
+      <div class="cv-area">
+        <div class="cv-title">Shape of the agent's change — 6 files touched · zoom to read</div>
+        <svg class="cv-svg">
+          <line x1="230" y1="150" x2="560" y2="120" stroke="#3a3a3e" stroke-width="1.5"/>
+          <line x1="230" y1="180" x2="330" y2="330" stroke="#3a3a3e" stroke-width="1.5"/>
+          <line x1="560" y1="160" x2="620" y2="330" stroke="#3a3a3e" stroke-width="1.5"/>
+          <line x1="640" y1="360" x2="900" y2="360" stroke="#3a3a3e" stroke-width="1.5"/>
+          <line x1="330" y1="360" x2="600" y2="360" stroke="#3a3a3e" stroke-width="1.5"/>
+        </svg>
+        <div class="node changed big" style="left:80px;top:110px">
+          <div class="fn"><span class="badge M">M</span> main.cpp</div>
+          <div class="st"><span class="a">+4</span> <span class="d">−2</span> · greet()</div>
+          <div class="peek">+ std::string name =
++ cout &lt;&lt; "Hello," &lt;&lt; name</div>
+        </div>
+        <div class="node changed" style="left:520px;top:96px">
+          <div class="fn"><span class="badge A">A</span> utils.h</div>
+          <div class="st"><span class="a">+8</span> · new helper</div>
+        </div>
+        <div class="node risk" style="left:250px;top:320px">
+          <div class="fn"><span class="badge M">M</span> app.cpp</div>
+          <div class="st"><span class="a">+2</span> <span class="d">−1</span> · public API ⚠</div>
+        </div>
+        <div class="node changed" style="left:560px;top:330px">
+          <div class="fn"><span class="badge A">A</span> test_utils.cpp</div>
+          <div class="st"><span class="a">+8</span> · new tests</div>
+        </div>
+        <div class="node unchanged" style="left:870px;top:330px">
+          <div class="fn">config.h</div>
+          <div class="st">unchanged</div>
+        </div>
+        <div class="node changed" style="left:840px;top:120px">
+          <div class="fn"><span class="badge S">S</span> afterhours</div>
+          <div class="st">pointer +3</div>
+        </div>
+        <div class="cv-zoom"><div>−</div><div>+</div></div>
+        <div class="cv-legend">
+          <div class="row"><span class="sw" style="box-shadow:0 0 10px rgba(63,185,80,.6);background:var(--panel);border:1px solid var(--ok)"></span> changed (glow = size)</div>
+          <div class="row"><span class="sw" style="box-shadow:0 0 10px rgba(241,76,76,.6);background:var(--panel);border:1px solid var(--danger)"></span> risk: public API / no tests</div>
+          <div class="row"><span class="sw" style="background:var(--panel);border:1px solid var(--border);opacity:.5"></span> unchanged neighbor</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ 4. SEMANTIC CLUSTERS ============ -->
+    <div class="view" id="clusters">
+      <div class="cl-list">
+        <div class="cl-head">Agent change grouped by <b>intent</b> — 14 files, 4 ideas</div>
+
+        <div class="cluster sel">
+          <div class="ch"><span class="ic">✎</span><span class="t">Rename greet() → hello()</span><span class="risk-tag med">review</span><span class="n">5 files</span></div>
+          <div class="files">
+            <div class="f"><span class="badge M">M</span> main.cpp</div>
+            <div class="f"><span class="badge M">M</span> app.cpp <span style="color:var(--text3)">src</span></div>
+            <div class="f"><span class="badge M">M</span> greeter.h <span style="color:var(--text3)">src</span></div>
+            <div class="f"><span class="badge M">M</span> greeter.cpp <span style="color:var(--text3)">src</span></div>
+            <div class="f"><span class="badge M">M</span> test_utils.cpp <span style="color:var(--text3)">tests</span></div>
+          </div>
+        </div>
+
+        <div class="cluster collapsed">
+          <div class="ch"><span class="ic">🛡</span><span class="t">Add error handling</span><span class="risk-tag high">risk</span><span class="n">3 files</span></div>
+          <div class="files"></div>
+        </div>
+
+        <div class="cluster collapsed">
+          <div class="ch"><span class="ic">✓</span><span class="t">New tests</span><span class="risk-tag low">safe</span><span class="n">2 files</span></div>
+          <div class="files"></div>
+        </div>
+
+        <div class="cluster collapsed">
+          <div class="ch"><span class="ic">↹</span><span class="t">Formatting only</span><span class="risk-tag low">safe</span><span class="n">4 files</span></div>
+          <span class="approve-all">✓ Approve all 4 — no logic change</span>
+        </div>
+      </div>
+      <div class="cl-diff">
+        <div class="dh">Rename greet() → hello()</div>
+        <div class="sub">One logical change across 5 files · the agent renamed the greeting API</div>
+        <div class="fhead">main.cpp</div>
+        <div class="diffline del"><span class="g">5</span><span class="s">−</span><span class="code">    std::cout << greet(name);</span></div>
+        <div class="diffline add"><span class="g">5</span><span class="s">+</span><span class="code">    std::cout << hello(name);</span></div>
+        <div class="fhead">greeter.h</div>
+        <div class="diffline del"><span class="g">8</span><span class="s">−</span><span class="code">std::string greet(const std::string&amp;);</span></div>
+        <div class="diffline add"><span class="g">8</span><span class="s">+</span><span class="code">std::string hello(const std::string&amp;);</span></div>
+        <div class="fhead">greeter.cpp</div>
+        <div class="diffline del"><span class="g">3</span><span class="s">−</span><span class="code">std::string greet(const std::string&amp; n) {</span></div>
+        <div class="diffline add"><span class="g">3</span><span class="s">+</span><span class="code">std::string hello(const std::string&amp; n) {</span></div>
+      </div>
+    </div>
+
+  </div>
+  <script>
+    function setView(btn){
+      document.querySelectorAll('.mock-switcher button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      const v=btn.dataset.view;
+      document.querySelectorAll('.view').forEach(el=>el.classList.toggle('on', el.id===v));
+    }
+  </script>
+</body>
+</html>

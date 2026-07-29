@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>floatinghotel — Review Cockpit Mock (target design)</title>
+<style>
+  /* ===================================================================
+     TARGET design mock for floatinghotel — the "review cockpit".
+     Screenshot via tests/shot_mock.sh, compare to the live app to build
+     the polish punch-list. Palette maps to src/ui/theme.h.
+
+     RULES this mock honors (match the shipped app):
+       * Diff BODY text is ONE color; add/del is shown by BACKGROUND +
+         gutter tint only. Never recolor diff code text.
+       * Keep it cheap to render (immediate-mode friendly): no effect
+         here needs a retained tree or per-frame re-diff.
+     =================================================================== */
+  :root {
+    --editor-bg:      #1E1E1E;
+    --sidebar-bg:     #252526;
+    --chrome-bg:      #2D2D30;
+    --chrome-hi:      #333336;
+    --section-bg:     #1F1F1F;
+    --tab-active:     #1E1E1E;
+    --tab-inactive:   #2D2D2D;
+    --border:         #333336;
+    --border-soft:    #2A2A2C;
+
+    --text-primary:   #D4D4D4;
+    --text-secondary: #8A8A8A;
+    --text-tertiary:  #5A5A5A;
+
+    /* Diff — BACKGROUND tint only; code text stays --text-primary */
+    --diff-add-bg:    #17311F;
+    --diff-del-bg:    #3A1D20;
+    --diff-add-gutter:#12401F;
+    --diff-del-gutter:#4A1E22;
+    --diff-add-edge:  #2EA043;   /* left accent bar on add rows */
+    --diff-del-edge:  #C74848;
+    --hunk-header:    #7FB4E6;
+    --hunk-bg:        #182231;
+
+    --gutter-bg:      #1E1E1E;
+
+    --accent:         #0E639C;
+    --accent-bright:  #1B80CC;
+    --accent-hover:   #1177BB;
+    --hover-bg:       #2A2D2E;
+    --selected-bg:    #094771;
+    --selected-fg:    #FFFFFF;
+    --input-bg:       #3C3C3C;
+
+    --ok:             #3FB950;   /* approved / staged */
+    --ok-dim:         #1B3326;
+
+    --status-modified:#E2C08D;
+    --status-added:   #73C991;
+    --status-deleted: #F14C4C;
+    --status-untracked:#8DB9E2;
+    --status-sub:     #C792EA;   /* submodule */
+    --badge-head:     #4EC94E;
+    --graph-line:     #4A4A4A;
+    --graph-dot:      #A371F7;
+    --pill-bg:        #37373A;
+
+    --mono: "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+    --ui: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+
+    --line-h: 19px;
+    --font-code: 12.5px;
+    --gutter-w: 52px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--editor-bg); color: var(--text-primary);
+    font-family: var(--ui); font-size: 13px;
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* mock-only view switcher */
+  .mock-switcher { background: #111; border-bottom: 1px solid #000; display: flex; gap: 6px; padding: 6px 10px; flex: none; flex-wrap: wrap; }
+  .mock-switcher button { background: #2A2A2C; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 4px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+  .mock-switcher button.active { background: var(--accent-bright); color: #fff; border-color: var(--accent-bright); }
+  .mock-switcher .label { color: #666; font-size: 11px; align-self: center; margin-right: 8px; }
+
+  /* title bar */
+  .titlebar { height: 30px; background: var(--chrome-bg); display: flex; align-items: center; padding: 0 12px; flex: none; border-bottom: 1px solid var(--border-soft); }
+  .traffic { display: flex; gap: 8px; margin-right: 14px; }
+  .traffic span { width: 12px; height: 12px; border-radius: 50%; }
+  .traffic span:nth-child(1){background:#FF5F57;} .traffic span:nth-child(2){background:#FEBC2E;} .traffic span:nth-child(3){background:#28C840;}
+  .titlebar .title { color: var(--text-secondary); font-weight: 500; font-size: 13px; margin: 0 auto; }
+
+  /* tab strip */
+  .tabstrip { height: 34px; background: var(--tab-inactive); display: flex; align-items: stretch; flex: none; }
+  .tabstrip .repo-tab { background: var(--tab-active); display: flex; align-items: center; gap: 8px; padding: 0 16px; font-size: 12.5px; border-right: 1px solid var(--border); box-shadow: inset 0 2px 0 var(--accent-bright); }
+  .tabstrip .repo-tab .close { color: var(--text-tertiary); font-size: 14px; }
+  .tabstrip .new-tab { display: flex; align-items: center; padding: 0 12px; color: var(--text-secondary); font-size: 15px; }
+
+  /* menu bar */
+  .menubar { height: 30px; flex: none; background: var(--chrome-bg); display: flex; align-items: center; gap: 4px; padding: 0 8px; color: var(--text-secondary); font-size: 13px; border-bottom: 1px solid var(--border-soft); }
+  .menubar span { padding: 4px 10px; border-radius: 5px; }
+  .menubar span:hover { background: var(--chrome-hi); color: var(--text-primary); }
+
+  .main { flex: 1; display: flex; min-height: 0; }
+
+  /* sidebar */
+  .sidebar { width: 300px; flex: none; background: var(--sidebar-bg); display: flex; flex-direction: column; overflow-y: auto; border-right: 1px solid var(--border); }
+  .sidebar::-webkit-scrollbar { width: 10px; } .sidebar::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 5px; }
+
+  /* toolbar row */
+  .toolbar { display: flex; align-items: center; gap: 2px; padding: 7px 8px 5px; }
+  .toolbar .icon-btn { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; color: var(--text-secondary); cursor: pointer; font-size: 15px; }
+  .toolbar .icon-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+  .toolbar .spacer { flex: 1; }
+  .toolbar .pill-btn { font-size: 12px; padding: 4px 10px; border-radius: 6px; color: var(--text-primary); background: var(--chrome-hi); cursor: pointer; display:flex; gap:5px; align-items:center; }
+  .toolbar .pill-btn .n { color: var(--accent-bright); font-weight: 700; }
+
+  /* commit box */
+  .commit-box { padding: 4px 10px 10px; }
+  .commit-input { width: 100%; background: var(--input-bg); border: 1px solid transparent; border-radius: 5px; color: var(--text-primary); padding: 8px 10px; font-family: var(--ui); font-size: 13px; }
+  .commit-input::placeholder { color: var(--text-secondary); }
+  .commit-btn { width: 100%; margin-top: 8px; background: var(--accent); color: #fff; border: none; border-radius: 5px; padding: 8px; font-size: 13px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .commit-btn:hover { background: var(--accent-hover); }
+
+  /* ===== per-repo panel (root + each submodule is its own foldable repo) ===== */
+  .repo-panel { border-bottom: 1px solid var(--border); }
+  .repo-panel-header { display: flex; align-items: center; gap: 8px; padding: 7px 10px; cursor: pointer; }
+  .repo-panel-header:hover { background: var(--hover-bg); }
+  .repo-panel-header .chev { color: var(--text-secondary); font-size: 10px; width: 10px; }
+  .repo-panel-header .name { font-weight: 600; font-size: 13px; }
+  .repo-panel-header .branch { color: var(--text-secondary); font-size: 11px; font-family: var(--mono); }
+  .repo-panel-header .dirty { color: var(--status-modified); }
+  .repo-panel-header .acts { margin-left: auto; display: flex; gap: 10px; color: var(--text-secondary); font-size: 13px; }
+  .repo-panel-header .acts span:hover { color: var(--text-primary); }
+  .repo-panel.folded .repo-panel-body { display: none; }
+  .repo-panel.folded .repo-panel-header .chev { }
+  .repo-panel.sub .repo-panel-body { box-shadow: inset 2px 0 0 var(--border); }
+
+  /* ===== review tabs (Changes / Approved / Untracked) ===== */
+  .review-tabs { display: flex; gap: 4px; padding: 4px 10px 0; }
+  .rtab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 4px; font-size: 12px; color: var(--text-secondary); background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; }
+  .rtab:hover { color: var(--text-primary); }
+  .rtab.active { color: var(--text-primary); border-bottom-color: var(--accent-bright); }
+  .rtab .c { font-size: 10px; font-weight: 700; min-width: 16px; text-align: center; padding: 1px 5px; border-radius: 8px; background: var(--pill-bg); color: var(--text-secondary); }
+  .rtab.active .c { background: var(--accent); color: #fff; }
+  .rtab.approved.active { border-bottom-color: var(--ok); }
+  .rtab.approved.active .c { background: var(--ok-dim); color: var(--ok); }
+
+  /* review progress strip */
+  .review-progress { display: flex; align-items: center; gap: 8px; padding: 8px 12px 4px; font-size: 11px; color: var(--text-secondary); }
+  .review-progress .bar { flex: 1; height: 5px; border-radius: 3px; background: #333; overflow: hidden; }
+  .review-progress .bar .fill { height: 100%; background: var(--ok); border-radius: 3px; }
+
+  /* section header + file rows */
+  .section-header { display: flex; align-items: center; gap: 6px; padding: 6px 12px 4px; cursor: pointer; user-select: none; }
+  .section-header .chev { color: var(--text-secondary); font-size: 10px; width: 10px; }
+  .section-header .lbl { color: var(--text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  .section-header .pill { margin-left: auto; background: var(--pill-bg); color: var(--text-secondary); font-size: 10px; font-weight: 600; min-width: 18px; text-align: center; padding: 1px 6px; border-radius: 9px; }
+
+  .file-row { display: flex; align-items: center; gap: 8px; padding: 4px 12px; font-size: 13px; cursor: pointer; height: 27px; }
+  .file-row:hover { background: var(--hover-bg); }
+  .file-row:hover .row-stage { opacity: 1; }
+  .file-row.selected { background: var(--selected-bg); color: var(--selected-fg); }
+  .file-row .ficon { width: 15px; text-align: center; font-size: 12px; flex: none; }
+  .file-row .dir { color: var(--text-tertiary); font-size: 11px; margin-left: 2px; }
+  .file-row.selected .dir { color: #b9d2e8; }
+  .file-row .row-stage { opacity: 0; margin-left: auto; color: var(--text-secondary); font-size: 15px; width: 18px; text-align: center; }
+  .file-row .row-stage:hover { color: var(--ok); }
+  .file-row .badge { margin-left: 6px; font-family: var(--mono); font-weight: 700; font-size: 12px; width: 14px; text-align: center; }
+  .badge.M { color: var(--status-modified); } .badge.A { color: var(--status-added); }
+  .badge.D { color: var(--status-deleted); } .badge.U { color: var(--status-untracked); } .badge.S { color: var(--status-sub); }
+  .icon-cpp,.icon-h { color: #519aba; } .icon-md { color: #519aba; } .icon-img { color: #a074c4; } .icon-cfg { color: #cbcb41; } .icon-sub { color: var(--status-sub); } .icon-file { color: #6d8086; }
+  .file-row.approved .ficon, .file-row.approved .fname { opacity: .8; }
+  .file-row .check { color: var(--ok); margin-left: auto; font-size: 12px; }
+
+  /* submodule sub-line under a row */
+  .sub-note { font-family: var(--mono); font-size: 11px; color: var(--text-secondary); padding: 0 12px 6px 35px; }
+  .sub-note .old { color: var(--status-deleted); } .sub-note .new { color: var(--status-added); }
+
+  /* commit graph */
+  .commits { position: relative; margin-top: 2px; padding-bottom: 8px; }
+  .commits .rail { position: absolute; left: 19px; top: 12px; bottom: 16px; width: 2px; background: var(--graph-line); }
+  .commit-row { display: flex; align-items: center; gap: 12px; padding: 5px 12px; font-size: 13px; cursor: pointer; position: relative; height: 28px; }
+  .commit-row:hover { background: var(--hover-bg); }
+  .commit-row.selected { background: var(--selected-bg); color: var(--selected-fg); }
+  .commit-row .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--graph-dot); flex: none; z-index: 1; margin-left: 2px; box-shadow: 0 0 0 3px var(--sidebar-bg); }
+  .commit-row.selected .dot { box-shadow: 0 0 0 3px var(--selected-bg); }
+  .commit-row .dot.head { background: transparent; border: 2px solid var(--badge-head); width: 10px; height: 10px; }
+  .commit-row .subj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .commit-row .age { color: var(--text-tertiary); font-size: 11px; margin-left: auto; padding-left: 10px; white-space: nowrap; }
+  .commit-row.selected .age { color: #b9d2e8; }
+  .head-badge { background: rgba(78,201,78,.16); color: var(--badge-head); font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 9px; margin-left: auto; }
+  .ref-badge { background: rgba(14,99,156,.4); color: #9cd0f5; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 9px; margin-left: auto; }
+
+  /* branches */
+  .branch-row { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 13px; cursor: pointer; height: 28px; }
+  .branch-row:hover { background: var(--hover-bg); }
+  .branch-row.selected { background: var(--selected-bg); color: var(--selected-fg); }
+  .branch-row .bicon { color: var(--text-secondary); font-size: 13px; width: 16px; text-align: center; }
+  .branch-row .track { margin-left: auto; color: var(--text-tertiary); font-size: 11px; font-family: var(--mono); }
+
+  /* diff pane */
+  .diff-pane { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--editor-bg); }
+  .diff-stats-header { height: 32px; flex: none; background: var(--editor-bg); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; font-size: 12.5px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+  .diff-stats-header .add { color: var(--status-added); } .diff-stats-header .del { color: var(--status-deleted); }
+  .mode-toggle { display: flex; gap: 2px; background: #2A2A2C; border-radius: 6px; padding: 2px; }
+  .mode-toggle button { background: transparent; border: none; color: var(--text-secondary); font-size: 12px; padding: 3px 12px; border-radius: 5px; cursor: pointer; }
+  .mode-toggle button.active { background: var(--accent-bright); color: #fff; }
+
+  /* per-file block (foldable) */
+  .file-block { border-bottom: 1px solid var(--border-soft); }
+  .file-header { height: 36px; flex: none; background: var(--section-bg); border-bottom: 1px solid var(--border-soft); display: flex; align-items: center; justify-content: space-between; padding: 0 14px; cursor: pointer; }
+  .file-header .left { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .file-header .chev { color: var(--text-secondary); font-size: 11px; width: 12px; transition: none; }
+  .file-block.folded .chev { color: var(--text-secondary); }
+  .file-header .fname { font-size: 13.5px; font-weight: 600; }
+  .file-header .fstats { font-family: var(--mono); font-size: 12px; }
+  .file-header .fstats .add { color: var(--status-added); } .file-header .fstats .del { color: var(--status-deleted); }
+  /* actions are calm at rest — revealed on hover / text-selection (.focused) */
+  .file-header .actions { display: flex; gap: 6px; align-items: center; opacity: 0; }
+  .file-header:hover .actions, .file-block.focused > .file-header .actions { opacity: 1; }
+  .file-block.folded .hunk-wrap { display: none; }
+
+  .btn { background: transparent; color: var(--text-secondary); border: 1px solid var(--border); border-radius: 5px; font-size: 11px; padding: 3px 10px; cursor: pointer; }
+  .btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+  .btn.approve { color: var(--text-secondary); }
+  .btn.approve:hover { background: var(--ok-dim); color: var(--ok); border-color: rgba(63,185,80,.4); }
+  .btn.unstage { color: var(--text-secondary); }
+
+  .diff-body { flex: 1; overflow: auto; }
+  .diff-body::-webkit-scrollbar { width: 12px; height: 12px; } .diff-body::-webkit-scrollbar-thumb { background: #424242; border-radius: 6px; }
+
+  .hunk-header { background: var(--hunk-bg); color: var(--hunk-header); height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-family: var(--mono); font-size: 12px; }
+  .hunk-header .right { display: flex; align-items: center; gap: 8px; }
+  .hunk-header .actions { display: flex; gap: 6px; opacity: 0; }
+  .hunk-header:hover .actions, .hunk.focused > .hunk-header .actions { opacity: 1; }
+  .hunk.staged .hunk-header { box-shadow: inset 3px 0 0 var(--ok); }
+  .hunk-header .state { color: var(--ok); font-family: var(--ui); font-size: 11px; }
+
+  /* fold-context expander row — quiet by default */
+  .fold-row { display: flex; align-items: center; gap: 8px; height: 22px; padding: 0 12px 0 var(--gutter-w); font-family: var(--mono); font-size: 11px; color: var(--text-tertiary); background: #1C1C1F; cursor: pointer; }
+  .fold-row:hover { color: var(--text-secondary); background: #222226; }
+  .fold-row .ex { color: var(--text-tertiary); }
+
+  /* inline diff — code text ONE color, bg carries meaning */
+  .inline-line { display: flex; height: var(--line-h); line-height: var(--line-h); white-space: pre; font-family: var(--mono); font-size: var(--font-code); color: var(--text-primary); }
+  .inline-line .gutter { width: var(--gutter-w); flex: none; text-align: right; padding-right: 10px; color: var(--text-tertiary); background: var(--gutter-bg); user-select: none; }
+  .inline-line .sign { width: 16px; flex: none; text-align: center; color: var(--text-secondary); user-select: none; }
+  .inline-line .code { padding-left: 6px; flex: 1; }
+  .inline-line.add { background: var(--diff-add-bg); }
+  .inline-line.add .gutter { background: var(--diff-add-gutter); }
+  .inline-line.del { background: var(--diff-del-bg); }
+  .inline-line.del .gutter { background: var(--diff-del-gutter); }
+
+  /* side-by-side */
+  .sbs-row { display: flex; height: var(--line-h); line-height: var(--line-h); white-space: pre; font-family: var(--mono); font-size: var(--font-code); color: var(--text-primary); }
+  .sbs-side { flex: 1; display: flex; min-width: 0; overflow: hidden; }
+  .sbs-side.left { border-right: 1px solid var(--border); }
+  .sbs-side .gutter { width: 42px; flex: none; text-align: right; padding-right: 8px; color: var(--text-tertiary); background: var(--gutter-bg); user-select: none; }
+  .sbs-side .code { padding-left: 8px; flex: 1; }
+  .sbs-side.add { background: var(--diff-add-bg); } .sbs-side.add .gutter { background: var(--diff-add-gutter); }
+  .sbs-side.del { background: var(--diff-del-bg); } .sbs-side.del .gutter { background: var(--diff-del-gutter); }
+  .sbs-side.empty { background: #191919; }
+
+  /* submodule diff */
+  .sub-diff { padding: 22px 26px; }
+  .sub-diff .sub-head { font-family: var(--mono); font-size: 13px; margin-bottom: 6px; }
+  .sub-diff .sub-head .old { color: var(--status-deleted); } .sub-diff .sub-head .new { color: var(--status-added); }
+  .sub-diff .cnt { color: var(--text-secondary); font-size: 12px; margin: 14px 0 8px; }
+  .sub-commit { display: flex; align-items: center; gap: 12px; padding: 6px 0; font-size: 13px; position: relative; padding-left: 22px; }
+  .sub-commit .dot { position: absolute; left: 3px; width: 8px; height: 8px; border-radius: 50%; background: var(--graph-dot); }
+  .sub-commit .rail { position:absolute; left:6px; top:0; bottom:0; width:2px; background: var(--graph-line); }
+  .sub-commit .h { font-family: var(--mono); color: var(--text-tertiary); font-size: 11px; }
+  .sub-diff .stage-sub { margin-top: 20px; }
+
+  /* commit detail */
+  .commit-detail { flex: 1; overflow: auto; padding: 20px 28px; }
+  .cd-back { color: var(--accent-bright); font-size: 13px; cursor: pointer; margin-bottom: 14px; display: inline-block; }
+  .cd-title { font-size: 19px; font-weight: 600; margin-bottom: 16px; }
+  .cd-meta { background: var(--sidebar-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px 18px; margin-bottom: 22px; font-size: 12.5px; }
+  .cd-meta .row { display: flex; gap: 12px; padding: 3px 0; }
+  .cd-meta .k { color: var(--text-secondary); width: 62px; text-align: right; }
+  .cd-meta .v { color: var(--text-primary); font-family: var(--mono); }
+  .cd-meta .link { color: var(--accent-bright); }
+  .cd-files-label { color: var(--text-secondary); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; font-weight: 700; margin-bottom: 10px; }
+  .cd-file { display: flex; align-items: center; gap: 10px; padding: 5px 0; font-size: 13px; }
+  .cd-file .bar { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .cd-file .bar .add { color: var(--status-added); font-family: var(--mono); font-size: 12px; }
+  .cd-file .bar .barfill { width: 60px; height: 7px; background: var(--status-added); border-radius: 2px; }
+
+  .hidden { display: none !important; }
+  .statusbar { height: 24px; flex: none; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; font-size: 12px; }
+  .statusbar .seg { display: flex; align-items: center; gap: 14px; }
+</style>
+</head>
+<body>
+  <div class="mock-switcher">
+    <span class="label">MOCK VIEW:</span>
+    <button class="active" data-view="review" onclick="setView(this)">Review · Changes</button>
+    <button data-view="staged" onclick="setView(this)">Review · Staged (approved)</button>
+    <button data-view="sbs" onclick="setView(this)">Side-by-side</button>
+    <button data-view="submodule" onclick="setView(this)">Submodule change</button>
+    <button data-view="refs" onclick="setView(this)">Refs</button>
+    <button data-view="commit" onclick="setView(this)">Commit detail</button>
+  </div>
+
+  <div class="titlebar">
+    <div class="traffic"><span></span><span></span><span></span></div>
+    <div class="title">floatinghotel — main</div>
+  </div>
+
+  <div class="tabstrip">
+    <div class="repo-tab">floatinghotel (main)<span class="close">×</span></div>
+    <div class="new-tab">+</div>
+  </div>
+
+  <div class="menubar">
+    <span>File</span><span>Edit</span><span>View</span><span>Repository</span><span>Help</span>
+  </div>
+
+  <div class="main">
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar">
+      <div class="toolbar">
+        <div class="icon-btn" title="Refresh">⟳</div>
+        <div class="icon-btn" title="Changes">◧</div>
+        <div class="icon-btn" title="Branches">⑂</div>
+        <div class="spacer"></div>
+        <div class="pill-btn" title="Push">Push<span class="n">2</span></div>
+        <div class="pill-btn" title="Pull">Pull</div>
+        <div class="icon-btn" title="More">⋯</div>
+      </div>
+
+      <!-- Each repo (root + each submodule) is its own foldable panel -->
+      <div id="sidebar-changes">
+
+        <!-- ROOT REPO panel -->
+        <div class="repo-panel" id="panel-root">
+          <div class="repo-panel-header" onclick="togglePanel('panel-root')">
+            <span class="chev">▾</span><span class="name">floatinghotel</span>
+            <span class="branch">⑂ main<span class="dirty">*</span></span>
+            <span class="acts"><span title="Fetch">⟳</span><span title="Commit">✓</span><span title="More">⋯</span></span>
+          </div>
+          <div class="repo-panel-body">
+            <div class="commit-box">
+              <input class="commit-input" placeholder='Message (⌘⏎ to commit on "main")'>
+              <button class="commit-btn">✓ Commit 1 approved</button>
+            </div>
+
+            <!-- review tabs: To review / Approved / Untracked -->
+            <div class="review-tabs">
+              <button class="rtab active" data-rtab="changes" onclick="setRtab(this)">To review<span class="c">3</span></button>
+              <button class="rtab approved" data-rtab="staged" onclick="setRtab(this)">Approved<span class="c">1</span></button>
+              <button class="rtab" data-rtab="untracked" onclick="setRtab(this)">Untracked<span class="c">2</span></button>
+            </div>
+            <div class="review-progress">
+              <div class="bar"><div class="fill" style="width:25%"></div></div>
+              <span id="progress-caption">1 approved · 3 to review</span>
+            </div>
+
+            <!-- TO REVIEW list -->
+            <div id="rlist-changes">
+              <div class="file-row"><span class="ficon icon-md">◔</span><span class="fname">README.md</span><span class="badge M">M</span><span class="row-stage" title="Approve">✓</span></div>
+              <div class="file-row selected" id="sel-file"><span class="ficon icon-cpp">C</span><span class="fname">main.cpp</span><span class="badge M">M</span><span class="row-stage" title="Approve">✓</span></div>
+              <div class="file-row"><span class="ficon icon-cpp">C</span><span class="fname">app.cpp</span><span class="dir">src</span><span class="badge M">M</span><span class="row-stage" title="Approve">✓</span></div>
+              <div class="file-row"><span class="ficon icon-sub">◈</span><span class="fname">afterhours</span><span class="dir">vendor</span><span class="badge S">S</span><span class="row-stage" title="Approve pointer">✓</span></div>
+              <div class="sub-note"><span class="old">fe9282b</span> → <span class="new">a1b2c3d</span> · +3 commits</div>
+            </div>
+
+            <!-- APPROVED list -->
+            <div id="rlist-staged" class="hidden">
+              <div class="file-row approved"><span class="ficon icon-cfg">◆</span><span class="fname">.gitignore</span><span class="badge A">A</span><span class="check">✓ approved</span></div>
+            </div>
+
+            <!-- UNTRACKED list -->
+            <div id="rlist-untracked" class="hidden">
+              <div class="file-row"><span class="ficon icon-md">◔</span><span class="fname">TODO.md</span><span class="badge U">U</span><span class="row-stage" title="Approve">✓</span></div>
+              <div class="file-row"><span class="ficon icon-img">◈</span><span class="fname">icon.png</span><span class="badge U">U</span><span class="row-stage" title="Approve">✓</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SUBMODULE REPO panel (its own repo: own branch, commit box, changes) -->
+        <div class="repo-panel sub" id="panel-sub">
+          <div class="repo-panel-header" onclick="togglePanel('panel-sub')">
+            <span class="chev">▾</span><span class="name">afterhours</span>
+            <span class="branch">vendor · ⑂ main<span class="dirty">*</span></span>
+            <span class="acts"><span title="Fetch">⟳</span><span title="Commit">✓</span><span title="More">⋯</span></span>
+          </div>
+          <div class="repo-panel-body">
+            <div class="commit-box">
+              <input class="commit-input" placeholder='Message (⌘⏎ to commit on "main")'>
+              <button class="commit-btn">✓ Commit</button>
+            </div>
+            <div class="section-header"><span class="chev">▾</span><span class="lbl">Changes</span><span class="pill">1</span></div>
+            <div class="file-row"><span class="ficon icon-md">◔</span><span class="fname">todo.md</span><span class="badge M">M</span><span class="row-stage" title="Approve">✓</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REFS -->
+      <div id="sidebar-refs" class="hidden">
+        <div class="section-header"><span class="chev">▾</span><span class="lbl">Branches</span><span class="pill">2</span></div>
+        <div class="branch-row selected"><span class="bicon">⑂</span>main<span class="track">↑2</span></div>
+        <div class="branch-row"><span class="bicon">⑂</span>feature/add-logging</div>
+        <div class="section-header"><span class="chev">▾</span><span class="lbl">Remotes</span><span class="pill">1</span></div>
+        <div class="branch-row"><span class="bicon">☁</span>origin/main</div>
+        <div class="section-header"><span class="chev">▸</span><span class="lbl">Tags</span><span class="pill">0</span></div>
+      </div>
+
+      <div class="section-header"><span class="chev">▾</span><span class="lbl">Commits</span><span class="pill">55</span></div>
+      <div class="commits">
+        <div class="rail"></div>
+        <div class="commit-row"><span class="dot head"></span><span class="subj">Add contributing guidelines</span><span class="head-badge">HEAD</span></div>
+        <div class="commit-row" id="sel-commit"><span class="dot"></span><span class="subj">Add unit tests for utils</span><span class="age">2m</span></div>
+        <div class="commit-row"><span class="dot"></span><span class="subj">Iteration 53: update app logic</span><span class="age">1h</span></div>
+        <div class="commit-row"><span class="dot"></span><span class="subj">Iteration 52: update app logic</span><span class="ref-badge">origin/main</span></div>
+        <div class="commit-row"><span class="dot"></span><span class="subj">Iteration 51: update app logic</span><span class="age">3h</span></div>
+        <div class="commit-row"><span class="dot"></span><span class="subj">Iteration 50: update app logic</span><span class="age">3h</span></div>
+      </div>
+    </aside>
+
+    <!-- ================= RIGHT PANE ================= -->
+    <section class="diff-pane">
+      <!-- DIFF (review + staged + sbs share this shell) -->
+      <div id="pane-diff" style="display:flex;flex-direction:column;flex:1;min-height:0;">
+        <div class="diff-stats-header">
+          <span id="stats-line">2 files changed&nbsp;&nbsp;<span class="add">+6</span>&nbsp;<span class="del">−3</span></span>
+          <div class="mode-toggle">
+            <button id="btn-inline" class="active" onclick="setMode('inline')">Inline</button>
+            <button id="btn-sbs" onclick="setMode('sbs')">Side&#8209;by&#8209;Side</button>
+          </div>
+        </div>
+
+        <div class="diff-body">
+          <!-- INLINE (multi-file + folding + hunk staging) -->
+          <div id="view-inline">
+
+            <!-- File 1: main.cpp — has one staged hunk + one to-review hunk -->
+            <div class="file-block" id="fb-main">
+              <div class="file-header" onclick="toggleFold('fb-main')">
+                <div class="left"><span class="chev">▾</span><span class="ficon icon-cpp">C</span><span class="fname">main.cpp</span><span class="fstats"><span class="add">+4</span> <span class="del">−2</span></span></div>
+                <div class="actions"><button class="btn approve">Approve file</button><button class="btn">Copy Diff</button></div>
+              </div>
+              <div class="hunk-wrap">
+
+                <!-- collapsed context above -->
+                <div class="fold-row"><span class="ex">⋯</span> 12 unchanged lines</div>
+
+                <!-- hunk A: focused (text selected → actions revealed) -->
+                <div class="hunk focused">
+                  <div class="hunk-header"><span>@@ -1,4 +1,5 @@ int main()</span><div class="right"><div class="actions"><button class="btn approve">Approve</button><button class="btn">Copy</button></div></div></div>
+                  <div class="inline-line"><span class="gutter">1</span><span class="sign"></span><span class="code">#include &lt;iostream&gt;</span></div>
+                  <div class="inline-line add"><span class="gutter">2</span><span class="sign">+</span><span class="code">#include &lt;string&gt;</span></div>
+                  <div class="inline-line"><span class="gutter">3</span><span class="sign"></span><span class="code"></span></div>
+                  <div class="inline-line"><span class="gutter">4</span><span class="sign"></span><span class="code">int main() {</span></div>
+                </div>
+
+                <!-- hunk B: already approved (staged) -->
+                <div class="hunk staged">
+                  <div class="hunk-header"><span>@@ -6,3 +7,4 @@</span><div class="right"><span class="state">✓ Approved</span><div class="actions"><button class="btn unstage">Reopen</button></div></div></div>
+                  <div class="inline-line del"><span class="gutter">6</span><span class="sign">−</span><span class="code">    std::cout &lt;&lt; "Hello, world!" &lt;&lt; std::endl;</span></div>
+                  <div class="inline-line del"><span class="gutter">7</span><span class="sign">−</span><span class="code">    return 0;</span></div>
+                  <div class="inline-line add"><span class="gutter">7</span><span class="sign">+</span><span class="code">    std::string name = "floatinghotel";</span></div>
+                  <div class="inline-line add"><span class="gutter">8</span><span class="sign">+</span><span class="code">    std::cout &lt;&lt; "Hello, " &lt;&lt; name &lt;&lt; "!" &lt;&lt; std::endl;</span></div>
+                  <div class="inline-line add"><span class="gutter">9</span><span class="sign">+</span><span class="code">    return 0;</span></div>
+                </div>
+
+                <div class="fold-row"><span class="ex">⋯</span> 40 unchanged lines</div>
+              </div>
+            </div>
+
+            <!-- File 2: app.cpp — FOLDED (collapsed) to show file-level folding -->
+            <div class="file-block folded" id="fb-app">
+              <div class="file-header" onclick="toggleFold('fb-app')">
+                <div class="left"><span class="chev">▸</span><span class="ficon icon-cpp">C</span><span class="fname">app.cpp</span><span class="dir" style="color:var(--text-tertiary);font-size:11px;">src</span><span class="fstats"><span class="add">+2</span> <span class="del">−1</span></span></div>
+                <div class="actions"><button class="btn approve">Approve file</button><button class="btn">Copy Diff</button></div>
+              </div>
+              <div class="hunk-wrap">
+                <div class="hunk">
+                  <div class="hunk-header"><span>@@ -10,3 +10,4 @@ void run()</span><div class="right"><div class="actions"><button class="btn approve">Approve</button><button class="btn">Copy</button></div></div></div>
+                  <div class="inline-line"><span class="gutter">10</span><span class="sign"></span><span class="code">void run() {</span></div>
+                  <div class="inline-line add"><span class="gutter">11</span><span class="sign">+</span><span class="code">    log("starting");</span></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- SIDE-BY-SIDE -->
+          <div id="view-sbs" class="hidden">
+            <div class="file-block">
+              <div class="file-header">
+                <div class="left"><span class="chev">▾</span><span class="ficon icon-cpp">C</span><span class="fname">main.cpp</span><span class="fstats"><span class="add">+4</span> <span class="del">−2</span></span></div>
+                <div class="actions"><button class="btn approve">Approve file</button><button class="btn">Copy Diff</button></div>
+              </div>
+              <div class="hunk-header"><span>@@ -1,9 +1,11 @@ int main()</span><div class="right"><div class="actions"><button class="btn approve">Approve</button><button class="btn">Copy</button></div></div></div>
+              <div class="sbs-row">
+                <div class="sbs-side left"><span class="gutter">1</span><span class="code">#include &lt;iostream&gt;</span></div>
+                <div class="sbs-side right"><span class="gutter">1</span><span class="code">#include &lt;iostream&gt;</span></div>
+              </div>
+              <div class="sbs-row">
+                <div class="sbs-side left empty"><span class="gutter"></span><span class="code"></span></div>
+                <div class="sbs-side right add"><span class="gutter">2</span><span class="code">#include &lt;string&gt;</span></div>
+              </div>
+              <div class="sbs-row">
+                <div class="sbs-side left"><span class="gutter">3</span><span class="code">int main() {</span></div>
+                <div class="sbs-side right"><span class="gutter">4</span><span class="code">int main() {</span></div>
+              </div>
+              <div class="sbs-row">
+                <div class="sbs-side left del"><span class="gutter">4</span><span class="code">    std::cout &lt;&lt; "Hello, world!" &lt;&lt; std::endl;</span></div>
+                <div class="sbs-side right add"><span class="gutter">5</span><span class="code">    std::string name = "floatinghotel";</span></div>
+              </div>
+              <div class="sbs-row">
+                <div class="sbs-side left del"><span class="gutter">5</span><span class="code">    return 0;</span></div>
+                <div class="sbs-side right add"><span class="gutter">6</span><span class="code">    std::cout &lt;&lt; "Hello, " &lt;&lt; name &lt;&lt; "!" &lt;&lt; std::endl;</span></div>
+              </div>
+              <div class="sbs-row">
+                <div class="sbs-side left empty"><span class="gutter"></span><span class="code"></span></div>
+                <div class="sbs-side right add"><span class="gutter">7</span><span class="code">    return 0;</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- SUBMODULE change view -->
+          <div id="view-submodule" class="hidden">
+            <div class="sub-diff">
+              <div class="sub-head"><span class="ficon icon-sub">◈</span> vendor/afterhours &nbsp; <span class="old">fe9282b</span> → <span class="new">a1b2c3d</span></div>
+              <div class="cnt">Pointer moved forward 3 commits:</div>
+              <div style="position:relative;">
+                <div class="sub-commit"><span class="rail"></span><span class="dot"></span><span>with_on_draw callbacks + expand fix</span><span class="h" style="margin-left:auto;">a1b2c3d</span></div>
+                <div class="sub-commit"><span class="dot"></span><span>modal review: RenderLayer enum naming</span><span class="h" style="margin-left:auto;">9f3ca10</span></div>
+                <div class="sub-commit"><span class="dot"></span><span>perf: pathfinding + collision passes</span><span class="h" style="margin-left:auto;">fe9282b</span></div>
+              </div>
+              <button class="btn approve stage-sub">Approve submodule pointer</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- COMMIT DETAIL -->
+      <div id="pane-commit" class="commit-detail hidden">
+        <span class="cd-back">← Back</span>
+        <div class="cd-title">Add unit tests for utils</div>
+        <div class="cd-meta">
+          <div class="row"><span class="k">Commit</span><span class="v">429f73fa1b0ea0a0e0e9d1d0f68752f8f7b784a4</span></div>
+          <div class="row"><span class="k">Author</span><span class="v">Test User &lt;test@floatinghotel.dev&gt;</span></div>
+          <div class="row"><span class="k">Date</span><span class="v">2026-07-29 01:12 (2m ago)</span></div>
+          <div class="row"><span class="k">Parents</span><span class="v link">da674ad</span></div>
+        </div>
+        <div class="cd-files-label">Files changed · 1 file&nbsp;&nbsp;<span style="color:var(--status-added)">+8</span> <span style="color:var(--status-deleted)">−0</span></div>
+        <div class="cd-file"><span class="badge A" style="width:14px;text-align:center;font-family:var(--mono);font-weight:700">A</span><span class="ficon icon-cpp">C</span>tests/test_utils.cpp<span class="bar"><span class="add">+8</span><span class="barfill"></span></span></div>
+
+        <div style="margin-top:18px;border:1px solid var(--border);border-radius:8px;overflow:hidden;">
+          <div class="file-header" style="cursor:default;">
+            <div class="left"><span class="ficon icon-cpp">C</span><span class="fname">tests/test_utils.cpp</span><span class="fstats"><span class="add">+8</span></span> <span style="color:var(--text-secondary);font-size:12px;">new file</span></div>
+            <button class="btn">Copy Diff</button>
+          </div>
+          <div class="hunk-header"><span>@@ -0,0 +1,8 @@</span><button class="btn">Copy</button></div>
+          <div class="inline-line add"><span class="gutter">1</span><span class="sign">+</span><span class="code">#include "../utils.h"</span></div>
+          <div class="inline-line add"><span class="gutter">2</span><span class="sign">+</span><span class="code">#include &lt;cassert&gt;</span></div>
+          <div class="inline-line add"><span class="gutter">3</span><span class="sign">+</span><span class="code"></span></div>
+          <div class="inline-line add"><span class="gutter">4</span><span class="sign">+</span><span class="code">int main() {</span></div>
+          <div class="inline-line add"><span class="gutter">5</span><span class="sign">+</span><span class="code">    assert(greet("Alice") == "Hello, Alice!");</span></div>
+          <div class="inline-line add"><span class="gutter">6</span><span class="sign">+</span><span class="code">    return 0;</span></div>
+          <div class="inline-line add"><span class="gutter">7</span><span class="sign">+</span><span class="code">}</span></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="statusbar">
+    <span class="seg"><span>⑂ main</span><span>↑2 ↓0</span><span id="sb-counts">1 approved · 3 to review</span></span>
+    <span class="seg">Show Log</span>
+  </div>
+
+  <script>
+    function setMode(mode) {
+      const inline = mode === 'inline';
+      document.getElementById('view-inline').classList.toggle('hidden', !inline);
+      document.getElementById('view-sbs').classList.toggle('hidden', inline);
+      document.getElementById('btn-inline').classList.toggle('active', inline);
+      document.getElementById('btn-sbs').classList.toggle('active', !inline);
+    }
+    function togglePanel(id) {
+      const el = document.getElementById(id);
+      el.classList.toggle('folded');
+      const chev = el.querySelector('.repo-panel-header .chev');
+      chev.textContent = el.classList.contains('folded') ? '▸' : '▾';
+    }
+    function toggleFold(id) {
+      const el = document.getElementById(id);
+      el.classList.toggle('folded');
+      const chev = el.querySelector('.chev');
+      chev.textContent = el.classList.contains('folded') ? '▸' : '▾';
+    }
+    function setRtab(btn) {
+      document.querySelectorAll('.rtab').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const t = btn.dataset.rtab;
+      document.getElementById('rlist-changes').classList.toggle('hidden', t !== 'changes');
+      document.getElementById('rlist-staged').classList.toggle('hidden', t !== 'staged');
+      document.getElementById('rlist-untracked').classList.toggle('hidden', t !== 'untracked');
+    }
+    function setView(btn) {
+      document.querySelectorAll('.mock-switcher button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const v = btn.dataset.view;
+      const refs = v === 'refs';
+      const commit = v === 'commit';
+      const sub = v === 'submodule';
+      document.getElementById('sidebar-changes').classList.toggle('hidden', refs);
+      document.getElementById('sidebar-refs').classList.toggle('hidden', !refs);
+      document.getElementById('pane-diff').style.display = commit ? 'none' : 'flex';
+      document.getElementById('pane-commit').classList.toggle('hidden', !commit);
+      // sub-view routing inside the diff body
+      document.getElementById('view-submodule').classList.toggle('hidden', !sub);
+      document.getElementById('view-inline').classList.toggle('hidden', sub || v === 'sbs');
+      document.getElementById('view-sbs').classList.toggle('hidden', v !== 'sbs');
+      document.getElementById('btn-inline').classList.toggle('active', v !== 'sbs');
+      document.getElementById('btn-sbs').classList.toggle('active', v === 'sbs');
+      // sidebar tab state per view
+      if (v === 'staged') setRtab(document.querySelector('.rtab[data-rtab="staged"]'));
+      if (v === 'review') setRtab(document.querySelector('.rtab[data-rtab="changes"]'));
+      document.getElementById('sel-file').classList.toggle('selected', !commit && !refs);
+      document.getElementById('sel-commit').classList.toggle('selected', commit);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>floatinghotel — Stack review + feedback basket (proposal)</title>
+<style>
+  :root{
+    --bg:#1E1E1E; --panel:#232327; --side:#252526; --chrome:#2D2D30;
+    --border:#333336; --soft:#2A2A2C;
+    --text:#D4D4D4; --t2:#8A8A8A; --t3:#5A5A5A;
+    --add-bg:#17311F; --del-bg:#3A1D20; --add-g:#12401F; --del-g:#4A1E22;
+    --accent:#0E639C; --accent2:#1B80CC; --ok:#3FB950; --ok-dim:#16351f;
+    --warn:#E2C08D; --danger:#F14C4C; --sub:#C792EA; --dot:#A371F7;
+    --new:#4EA1FF; --cmt:#E3B341;
+    --mono:"SF Mono","JetBrains Mono","Menlo",monospace; --ui:-apple-system,"Segoe UI",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:13px;display:flex;flex-direction:column;height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
+  .titlebar{height:30px;background:var(--chrome);display:flex;align-items:center;padding:0 12px;flex:none;border-bottom:1px solid var(--soft)}
+  .traffic{display:flex;gap:8px;margin-right:14px}
+  .traffic span{width:12px;height:12px;border-radius:50%}
+  .traffic span:nth-child(1){background:#FF5F57}.traffic span:nth-child(2){background:#FEBC2E}.traffic span:nth-child(3){background:#28C840}
+  .titlebar .title{color:var(--t2);font-weight:500;margin:0 auto}
+  .rv{flex:1;display:flex;min-height:0}
+  .badge{font-family:var(--mono);font-weight:700}
+  .M{color:var(--warn)}.A{color:var(--ok)}.U{color:#8DB9E2}.S{color:var(--sub)}
+
+  /* ===== LEFT: the stack ===== */
+  .stack{width:290px;flex:none;background:var(--side);border-right:1px solid var(--border);overflow:auto}
+  .stack .hd{padding:12px 14px 6px;color:var(--t2);font-size:12px}
+  .stack .hd b{color:var(--text)}
+  .stk-item{position:relative;display:flex;align-items:center;gap:10px;padding:9px 14px 9px 26px;cursor:pointer;font-size:13px}
+  .stk-item:hover{background:#2A2D2E}
+  .stk-item.sel{background:var(--accent);color:#fff}
+  .stk-item .rail{position:absolute;left:17px;top:0;bottom:0;width:2px;background:#4A4A4A}
+  .stk-item .dot{position:absolute;left:12px;width:9px;height:9px;border-radius:50%;background:var(--dot);box-shadow:0 0 0 3px var(--side)}
+  .stk-item.sel .dot{box-shadow:0 0 0 3px var(--accent)}
+  .stk-item.wt .dot{background:var(--warn)}
+  .stk-item.base{color:var(--t3);cursor:default}
+  .stk-item.base .dot{background:transparent;border:2px solid #555}
+  .stk-item .sha{font-family:var(--mono);font-size:11px;color:var(--t3)}
+  .stk-item.sel .sha{color:#cfe6f7}
+  .stk-item .subj{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .stk-item .age{margin-left:auto;font-size:11px;color:var(--t3)}
+  .stk-item.sel .age{color:#cfe6f7}
+  .cb{margin-left:auto;background:var(--cmt);color:#1a1a1a;font-size:10px;font-weight:700;border-radius:9px;padding:1px 7px}
+  .stk-item.sel .cb{margin-left:8px}
+  .stk-legend{padding:12px 14px;color:var(--t3);font-size:11px;line-height:1.5;border-top:1px solid var(--soft);margin-top:6px}
+
+  /* ===== CENTER: commit diff ===== */
+  .center{flex:1;display:flex;flex-direction:column;min-width:0;background:var(--bg)}
+  .cbanner{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px}
+  .cbanner .msg{font-weight:600;font-size:14px}
+  .cbanner .sha{font-family:var(--mono);color:var(--t2);font-size:12px}
+  .cbanner .fixnote{margin-left:auto;font-size:11px;color:var(--ok);background:var(--ok-dim);border:1px solid rgba(63,185,80,.35);border-radius:6px;padding:3px 9px}
+  .cbanner .fixnote.wt{color:var(--warn);background:#332a18;border-color:rgba(226,192,141,.35)}
+  .cnew{margin:10px 18px 0;padding:7px 11px;background:rgba(78,161,255,.08);border-left:2px solid var(--new);border-radius:4px;font-size:12px;color:#bcd8ff}
+  .diffwrap{flex:1;overflow:auto;padding-bottom:24px}
+  .fhead{display:flex;align-items:center;gap:10px;padding:10px 18px 6px;font-size:13px}
+  .hunk{margin:6px 0}
+  .hh{background:#182231;color:#7FB4E6;height:26px;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-family:var(--mono);font-size:12px}
+  .hh .acts{display:flex;gap:6px;opacity:0}
+  .hunk:hover .hh .acts,.hunk.focused .hh .acts{opacity:1}
+  .btn{background:transparent;color:var(--t2);border:1px solid var(--border);border-radius:5px;font-size:11px;padding:3px 10px;cursor:pointer}
+  .btn:hover{background:#2A2D2E;color:var(--text)}
+  .btn.ok{color:var(--ok)}.btn.ok:hover{background:var(--ok-dim);border-color:rgba(63,185,80,.4)}
+  .btn.cmt{color:var(--cmt)}
+  .dl{display:flex;height:20px;line-height:20px;font-family:var(--mono);font-size:12.5px;white-space:pre;color:var(--text)}
+  .dl .g{width:46px;text-align:right;padding-right:10px;color:var(--t3);user-select:none}
+  .dl .s{width:16px;text-align:center;color:var(--t2)}
+  .dl.add{background:var(--add-bg)}.dl.add .g{background:var(--add-g)}
+  .dl.del{background:var(--del-bg)}.dl.del .g{background:var(--del-g)}
+  .dl.sel-line{outline:1px solid var(--accent2);outline-offset:-1px}
+  .dl.newrun{box-shadow:inset 3px 0 0 var(--new)} .dl.newrun .g{background:rgba(78,161,255,.14)}
+  /* inline comment chip */
+  .icmt{display:flex;gap:9px;margin:5px 0 5px 62px;padding:7px 11px;background:var(--panel);border:1px solid var(--border);border-left:2px solid var(--cmt);border-radius:8px;font-size:12px;max-width:680px}
+  .icmt .who{color:var(--cmt);font-weight:600;white-space:nowrap}
+  /* compose box */
+  .compose{margin:6px 0 8px 62px;max-width:680px;background:var(--panel);border:1px solid var(--accent2);border-radius:8px;padding:8px 10px}
+  .compose .ta{color:var(--text);font-size:12.5px;min-height:20px}
+  .compose .ph{color:var(--t3)}
+  .compose .row{display:flex;gap:8px;margin-top:8px;align-items:center}
+  .compose .loc{font-family:var(--mono);font-size:11px;color:var(--t2);margin-right:auto}
+
+  /* ===== RIGHT: feedback basket ===== */
+  .basket{width:340px;flex:none;background:var(--side);border-left:1px solid var(--border);display:flex;flex-direction:column}
+  .basket .bh{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px}
+  .basket .bh .t{font-weight:600}
+  .basket .bh .n{margin-left:auto;background:var(--cmt);color:#1a1a1a;font-weight:700;border-radius:9px;padding:1px 8px;font-size:11px}
+  .bk-body{flex:1;overflow:auto;padding:6px 0}
+  .bk-group{padding:6px 14px 2px}
+  .bk-group .gh{font-size:11px;color:var(--t2);display:flex;gap:8px;align-items:center;margin-bottom:4px}
+  .bk-group .gh .sha{font-family:var(--mono);color:var(--dot)}
+  .bk-group.wt .gh .sha{color:var(--warn)}
+  .bk-item{display:flex;gap:8px;padding:6px 8px;border-radius:7px;font-size:12px}
+  .bk-item:hover{background:#2A2D2E}
+  .bk-item .loc{font-family:var(--mono);font-size:11px;color:var(--accent2);white-space:nowrap}
+  .bk-item .x{margin-left:auto;color:var(--t3);cursor:pointer}
+  .bk-preview{margin:8px 14px;border:1px solid var(--soft);border-radius:8px;background:#1A1A1C;padding:8px 10px;font-family:var(--mono);font-size:10.5px;color:var(--t2);line-height:1.5;white-space:pre-wrap}
+  .bk-actions{padding:10px 14px;border-top:1px solid var(--border);display:flex;flex-direction:column;gap:8px}
+  .bk-actions .primary{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:9px;font-size:13px;cursor:pointer;display:flex;justify-content:center;gap:8px}
+  .bk-actions .primary:hover{background:#1177BB}
+  .bk-actions .rowbtns{display:flex;gap:8px}
+  .bk-actions .rowbtns .btn{flex:1;text-align:center;padding:7px}
+  .bk-actions .path{font-family:var(--mono);font-size:10.5px;color:var(--t3);text-align:center}
+</style>
+</head>
+<body>
+  <div class="titlebar"><div class="traffic"><span></span><span></span><span></span></div><div class="title">floatinghotel — reviewing agent stack · feature/agent-work</div></div>
+
+  <div class="rv">
+
+    <!-- LEFT: STACK -->
+    <div class="stack">
+      <div class="hd"><b>feature/agent-work</b> · 3 commits + working tree<br><span style="color:var(--t3)">agent is still working ↑</span></div>
+
+      <div class="stk-item wt" onclick="pick('wt',this)"><span class="rail"></span><span class="dot"></span><span class="subj">Working tree</span><span class="age">now</span></div>
+      <div class="stk-item" onclick="pick('c1',this)"><span class="rail"></span><span class="dot"></span><span class="subj">Add unit tests</span><span class="sha">a1b2c3d</span><span class="age">2m</span></div>
+      <div class="stk-item sel" onclick="pick('c2',this)"><span class="rail"></span><span class="dot"></span><span class="subj">Add greeting</span><span class="cb">2</span></div>
+      <div class="stk-item" onclick="pick('c3',this)"><span class="rail"></span><span class="dot"></span><span class="subj">Refactor greeter</span><span class="cb">1</span></div>
+      <div class="stk-item base"><span class="rail" style="bottom:50%"></span><span class="dot"></span><span class="subj">base · origin/main</span></div>
+
+      <div class="stk-legend">
+        Comment on <b>any</b> commit in the stack. Fixes land <b>in that commit</b>
+        (fixup + autosquash), not on top. The <span style="color:var(--cmt)">●</span>
+        badge = comments waiting to send.
+      </div>
+    </div>
+
+    <!-- CENTER: selected commit diff -->
+    <div class="center">
+      <div class="cbanner">
+        <span class="msg" id="c-msg">Add greeting</span>
+        <span class="sha" id="c-sha">d4e5f6b</span>
+        <span class="fixnote" id="c-fix">✎ comments here → fixup into d4e5f6b</span>
+      </div>
+      <div class="cnew" id="c-new">2 hunks changed since you last looked at this commit (agent reworked it after v2).</div>
+
+      <div class="diffwrap" id="diff">
+        <div class="fhead"><span class="badge M">M</span><span style="font-weight:600">greeter.cpp</span><span style="font-family:var(--mono);font-size:12px;color:var(--t2)">src</span></div>
+
+        <div class="hunk focused">
+          <div class="hh"><span>@@ -3,4 +3,5 @@ std::string greet()</span><div class="acts"><button class="btn cmt">Comment</button></div></div>
+          <div class="dl"><span class="g">3</span><span class="s"></span><span class="code">std::string greet(const std::string& n) {</span></div>
+          <div class="dl del newrun"><span class="g">4</span><span class="s">−</span><span class="code">    return "Hello, world!";</span></div>
+          <div class="dl add newrun sel-line"><span class="g">4</span><span class="s">+</span><span class="code">    return "Hello, " + n + "!";</span></div>
+          <!-- an existing comment already in the basket -->
+          <div class="icmt"><span class="who">You:</span><span>this concatenation isn't utf-8 safe — use fmt::format</span></div>
+        </div>
+
+        <div class="hunk">
+          <div class="hh"><span>@@ -10,3 +11,4 @@</span><div class="acts"><button class="btn cmt">Comment</button></div></div>
+          <div class="dl"><span class="g">10</span><span class="s"></span><span class="code">void banner() {</span></div>
+          <div class="dl add"><span class="g">11</span><span class="s">+</span><span class="code">    std::cout << greet("floatinghotel");</span></div>
+          <!-- an open compose box (what happens when you select + Comment) -->
+          <div class="compose">
+            <div class="ta"><span class="ph">Leave a comment for the agent…</span></div>
+            <div class="row"><span class="loc">greeter.cpp:11 · commit d4e5f6b</span><button class="btn cmt">Add to feedback</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: FEEDBACK BASKET -->
+    <div class="basket">
+      <div class="bh"><span class="t">Feedback basket</span><span class="n">3</span></div>
+      <div class="bk-body">
+        <div class="bk-group">
+          <div class="gh">commit <span class="sha">d4e5f6b</span> · Add greeting</div>
+          <div class="bk-item"><span class="loc">greeter.cpp:4</span><span>not utf-8 safe — use fmt::format</span><span class="x">×</span></div>
+          <div class="bk-item"><span class="loc">greeter.cpp:11</span><span>banner shouldn't hardcode the app name</span><span class="x">×</span></div>
+        </div>
+        <div class="bk-group">
+          <div class="gh">commit <span class="sha">9f3ca10</span> · Refactor greeter</div>
+          <div class="bk-item"><span class="loc">greeter.h:8</span><span>keep the old signature as a deprecated alias</span><span class="x">×</span></div>
+        </div>
+        <div class="bk-group wt">
+          <div class="gh">working tree <span class="sha">uncommitted</span></div>
+          <div style="color:var(--t3);font-size:12px;padding:2px 8px">no comments — 1 hunk approved (staged)</div>
+        </div>
+      </div>
+
+      <div class="bk-preview">/tmp/floatinghotel-review.md
+
+## Review of feature/agent-work
+### d4e5f6b "Add greeting"
+- greeter.cpp:4 — not utf-8 safe…
+- greeter.cpp:11 — banner shouldn't…
+### 9f3ca10 "Refactor greeter"
+- greeter.h:8 — keep old sig…
+(agent: apply each as a fixup to the
+named commit, not on top of the stack)</div>
+
+      <div class="bk-actions">
+        <button class="primary">⏎ Send all feedback to agent</button>
+        <div class="rowbtns"><button class="btn">Copy all</button><button class="btn">Send to terminal</button></div>
+        <div class="path">writes /tmp/floatinghotel-review.md</div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const DIFFS = {
+      wt:  {msg:'Working tree', sha:'uncommitted', fix:'✎ approve hunks to stage · comments go to agent', wt:true},
+      c1:  {msg:'Add unit tests', sha:'a1b2c3d', fix:'✎ comments here → fixup into a1b2c3d'},
+      c2:  {msg:'Add greeting', sha:'d4e5f6b', fix:'✎ comments here → fixup into d4e5f6b'},
+      c3:  {msg:'Refactor greeter', sha:'9f3ca10', fix:'✎ comments here → fixup into 9f3ca10'},
+    };
+    function pick(id, el){
+      document.querySelectorAll('.stk-item').forEach(i=>i.classList.remove('sel'));
+      el.classList.add('sel');
+      const d = DIFFS[id];
+      document.getElementById('c-msg').textContent = d.msg;
+      document.getElementById('c-sha').textContent = d.sha;
+      const fn = document.getElementById('c-fix');
+      fn.textContent = d.fix; fn.className = 'fixnote' + (d.wt ? ' wt' : '');
+      document.getElementById('c-new').style.display = d.wt ? 'none' : 'block';
+      // (mock: the diff body stays the same sample; real app swaps it per commit)
+    }
+  </script>
+</body>
+</html>
