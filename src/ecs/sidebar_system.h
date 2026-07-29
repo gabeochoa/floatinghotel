@@ -244,12 +244,14 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float sidebarW = layout.sidebar.width;
         sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
 
-        // === Changes / Refs mode toggle tabs ===
-        render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
+        float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
+
+        // === Repo header (name · branch) — mock's repo-panel header ===
+        render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
+        float repoHeaderH = resolve_to_pixels(h720(26.0f), sh_for_tab);
 
         // === Commit area (always-visible input + button, VS Code style) ===
         constexpr float COMMIT_AREA_H_720 = 82.0f;
-        float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
         float commitAreaH = 0.0f;
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr) {
             auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
@@ -258,6 +260,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 commitAreaH = resolve_to_pixels(h720(COMMIT_AREA_H_720), sh_for_tab);
             }
         }
+
+        // === Review tabs (To review / Approved / Untracked / Refs) ===
+        render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
+        float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab);
 
         // === Review-progress strip ("In the ballroom") ===
         float progressH = 0.0f;
@@ -268,8 +274,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
-        float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab);
-        float filesH = layout.sidebarFiles.height - tabH - commitAreaH - progressH;
+        float filesH = layout.sidebarFiles.height - tabH - commitAreaH - progressH -
+                       repoHeaderH;
         if (filesH < 20.0f) filesH = 20.0f;
         auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
             preset::ScrollPanel()
@@ -486,6 +492,40 @@ private:
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Untracked; });
         makeTab(2094, "Refs", layout.sidebarMode == SM::Refs,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
+    }
+
+    // Repo-panel header (mock): "<repo name> · <branch>[*]". A single panel for
+    // now; nesting per-submodule panels needs submodule support.
+    void render_repo_header(UIContext<InputAction>& ctx, Entity& parent,
+                            RepoComponent* repo) {
+        std::string name = "No repository", branch;
+        bool dirty = false;
+        if (repo && !repo->repoPath.empty()) {
+            name = repo->repoPath;
+            auto slash = name.find_last_of('/');
+            if (slash != std::string::npos) name = name.substr(slash + 1);
+            if (name.empty() || name == ".") name = "repo";
+            branch = repo->currentBranch;
+            dirty = repo->isDirty;
+        }
+        std::string txt = name;
+        if (!branch.empty())
+            txt += "  \xc2\xb7  " + branch + (dirty ? "*" : "");
+
+        auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
+        div(ctx, mk(parent, 2079),
+            ComponentConfig{}
+                .with_label(txt)
+                .with_size(ComponentSize{w, h720(24)})
+                .with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_font_size(FontSize::Large)
+                .with_alignment(TextAlignment::Left)
+                .with_padding(Padding{
+                    .top = h720(4), .right = w1280(10),
+                    .bottom = h720(2), .left = w1280(10)})
+                .with_custom_background(theme::SIDEBAR_BG)
+                .with_roundness(0.0f)
+                .with_debug_name("repo_header"));
     }
 
     // "In the ballroom" review-progress strip (mock): a bar + approved/to-review
