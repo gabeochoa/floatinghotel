@@ -755,8 +755,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(8)})
-                    .with_custom_background(afterhours::Color{60, 60, 65, 255})
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_custom_background(afterhours::Color{78, 78, 86, 255})
+                    .with_custom_text_color(afterhours::Color{210, 210, 214, 255})
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("copy_file_diff_btn"));
             if (fileCopyBtn) {
