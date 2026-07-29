@@ -665,32 +665,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_roundness(0.0f)
                     .with_debug_name("diff_mode_toggle"));
 
-            // "Copy selection" appears left of the mode toggle when the user has
-            // a text selection. Copies with an optional file:line header for
-            // pasting into an AI review conversation.
-            if (selEnabled && diff_sel::state().hasSel) {
-                auto cp = button(ctx, mk(toggle.ent(), 2),
-                    preset::Button("Copy selection")
-                        .with_size(ComponentSize{children(), percent(1.0f)})
-                        .with_padding(Padding{
-                            .top = h720(2), .right = w1280(12),
-                            .bottom = h720(2), .left = w1280(12)})
-                        .with_margin(Margin{.right = w1280(8)})
-                        .with_custom_background(theme::BUTTON_PRIMARY)
-                        .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
-                        .with_font_size(afterhours::ui::FontSize::Small)
-                        .with_roundness(0.0f)
-                        .with_debug_name("copy_selection_btn"));
-                if (cp) {
-                    std::string txt = diff_sel::build_copy_text(
-                        diff_sel::state(), Settings::get().get_copy_with_location());
-                    if (!txt.empty()) {
-                        afterhours::clipboard::set_text(txt);
-                        afterhours::toast::send_info(ctx, "Copied selection", 1.5f);
-                    }
-                }
-            }
-
             auto segBtn = [&](int id, const char* label, bool active) -> bool {
                 afterhours::Color bg = active ? theme::BUTTON_PRIMARY
                                               : theme::BUTTON_SECONDARY;
