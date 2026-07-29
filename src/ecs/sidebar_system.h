@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdlib>
 #include <ctime>
 #include <string>
 #include <vector>
@@ -77,6 +78,36 @@ inline afterhours::Color status_color(char status) {
 
 // Commit log helpers now live in src/util/git_helpers.h
 namespace commit_log_detail = git_helpers;
+
+// Compact relative age ("now", "5m", "3h", "2d", "6w", "4mo", "2y") from a
+// git %aI ISO-8601 timestamp (e.g. "2026-07-28T23:15:00-07:00"). The tz offset
+// is ignored, so results can be off by a few hours -- fine for coarse display.
+inline std::string relative_time(const std::string& iso) {
+    if (iso.size() < 19) return "";
+    std::tm tm{};
+    tm.tm_year = std::atoi(iso.substr(0, 4).c_str()) - 1900;
+    tm.tm_mon  = std::atoi(iso.substr(5, 2).c_str()) - 1;
+    tm.tm_mday = std::atoi(iso.substr(8, 2).c_str());
+    tm.tm_hour = std::atoi(iso.substr(11, 2).c_str());
+    tm.tm_min  = std::atoi(iso.substr(14, 2).c_str());
+    tm.tm_sec  = std::atoi(iso.substr(17, 2).c_str());
+    tm.tm_isdst = -1;
+    std::time_t t = std::mktime(&tm);
+    if (t == static_cast<std::time_t>(-1)) return "";
+    double secs = std::difftime(std::time(nullptr), t);
+    if (secs < 0) secs = 0;
+    long s = static_cast<long>(secs);
+    if (s < 60) return "now";
+    long m = s / 60;
+    if (m < 60) return std::to_string(m) + "m";
+    long h = m / 60;
+    if (h < 24) return std::to_string(h) + "h";
+    long d = h / 24;
+    if (d < 7) return std::to_string(d) + "d";
+    if (d < 30) return std::to_string(d / 7) + "w";
+    if (d < 365) return std::to_string(d / 30) + "mo";
+    return std::to_string(d / 365) + "y";
+}
 
 // ---- Commit workflow helpers (T030) ----
 namespace commit_workflow {
@@ -1315,8 +1346,23 @@ private:
             badgeW = std::clamp(txtW + 12.0f, BADGE_EST_W, BADGE_MAX_W);
         }
 
+        // When there's no ref badge, show a compact relative age in that slot
+        // (mirrors Fork/Tower: the badge replaces the date on tip commits).
+        std::string ageText;
+        float ageW = 0.0f;
+        if (!hasBadge) {
+            ageText = relative_time(commit.authorDate);
+            if (!ageText.empty()) {
+                int ageFontPx = static_cast<int>(15.0f * shG / 720.0f + 0.5f);
+                if (ageFontPx < 1) ageFontPx = 1;
+                ageW = static_cast<float>(afterhours::graphics::measure_text(
+                           ageText.c_str(), ageFontPx)) + 4.0f;
+            }
+        }
+
         float fixedW = GRAPH_COL_W
                      + (hasBadge ? badgeW + 4.0f : 0.0f)
+                     + (ageW > 0.0f ? ageW + 4.0f : 0.0f)
                      + 4.0f;
         float subjectW = sidebarW - 4.0f - fixedW;
         if (subjectW < 30.0f) subjectW = 30.0f;
@@ -1360,6 +1406,18 @@ private:
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_font_size(FontSize::Medium)
                     .with_debug_name("commit_badge"));
+        }
+
+        if (ageW > 0.0f) {
+            auto ageCol = selected ? afterhours::Color{200, 200, 205, 255}
+                                   : theme::TEXT_SECONDARY;
+            div(ctx, mk(row.ent(), 11),
+                preset::BodyText(ageText)
+                    .with_size(ComponentSize{pixels(ageW), children()})
+                    .with_custom_text_color(ageCol)
+                    .with_font_size(FontSize::Medium)
+                    .with_alignment(TextAlignment::Right)
+                    .with_debug_name("commit_age"));
         }
 
         // Click -> select this commit
