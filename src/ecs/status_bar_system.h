@@ -38,16 +38,16 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_render_layer(5)
                 .with_debug_name("status_bar_bg"));
 
-        // === Compose status text as a single string ===
-        std::string statusText;
+        // === Left text: branch (or detached HEAD) ===
+        std::string leftText;
+        std::string rightText;
         if (repo) {
-            // Branch name
             if (detached) {
                 std::string shortHash = repo->headCommitHash.substr(
                     0, std::min<size_t>(7, repo->headCommitHash.size()));
-                statusText = "HEAD " + shortHash;
+                leftText = "HEAD " + shortHash;
             } else {
-                statusText = repo->currentBranch.empty() ? "main" : repo->currentBranch;
+                leftText = repo->currentBranch.empty() ? "main" : repo->currentBranch;
             }
 
             // File counts (staged, unstaged)
@@ -55,7 +55,6 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
             int unstagedCount = static_cast<int>(
                 repo->unstagedFiles.size() + repo->untrackedFiles.size());
 
-            std::string rightText;
             if (stagedCount > 0 || unstagedCount > 0) {
                 if (stagedCount > 0)
                     rightText += std::to_string(stagedCount) + " staged";
@@ -66,20 +65,19 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
             } else {
                 rightText = "clean";
             }
-
-            // Pad with spaces to push right text toward the right side
-            statusText += "                    " + rightText;
         } else {
-            statusText = "No repository";
+            leftText = "No repository";
         }
 
-        // Status info label (absolute, rendered at correct position)
         float sw = static_cast<float>(afterhours::graphics::get_screen_width());
         float padX = afterhours::ui::resolve_to_pixels(w1280(8), sw);
+        float btnW = afterhours::ui::resolve_to_pixels(w1280(80), sw);
+
+        // Status info label (absolute, rendered at correct position)
         div(ctx, mk(uiRoot, 4010),
             ComponentConfig{}
-                .with_label(statusText)
-                .with_size(ComponentSize{pixels(w * 0.7f), pixels(h)})
+                .with_label(leftText)
+                .with_size(ComponentSize{pixels(w * 0.5f), pixels(h)})
                 .with_absolute_position()
                 .with_translate(padX, y)
                 .with_padding(Padding{
@@ -93,9 +91,30 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_render_layer(5)
                 .with_debug_name("status_info"));
 
+        // Right-aligned counts, sitting just left of the log toggle button
+        if (!rightText.empty()) {
+            float countsW = w - btnW - 24.0f;
+            if (countsW < 20.0f) countsW = 20.0f;
+            div(ctx, mk(uiRoot, 4020),
+                ComponentConfig{}
+                    .with_label(rightText)
+                    .with_size(ComponentSize{pixels(countsW), pixels(h)})
+                    .with_absolute_position()
+                    .with_translate(0, y)
+                    .with_padding(Padding{
+                        .top = h720(4), .right = w1280(8),
+                        .bottom = h720(4), .left = w1280(8)})
+                    .with_transparent_bg()
+                    .with_custom_text_color(theme::STATUS_BAR_TEXT)
+                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_alignment(TextAlignment::Right)
+                    .with_roundness(0.0f)
+                    .with_render_layer(5)
+                    .with_debug_name("status_counts"));
+        }
+
         // === Right section: command log toggle button (absolute) ===
         std::string logLabel = layout->commandLogVisible ? "Hide Log" : "Show Log";
-        float btnW = afterhours::ui::resolve_to_pixels(w1280(80), sw);
         auto logBtn = button(ctx, mk(uiRoot, 4050),
             preset::Button(logLabel)
                 .with_size(ComponentSize{pixels(btnW), pixels(h - 4)})
