@@ -17,11 +17,57 @@ namespace ecs {
 // current screen size, sidebar width, and commit log ratio.
 struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
     void for_each_with(Entity& /*entity*/, LayoutComponent& layout,
-                       float) override {
+                       float dt) override {
         int screenW = afterhours::graphics::get_screen_width();
         int screenH = afterhours::graphics::get_screen_height();
         float sw = static_cast<float>(screenW);
         float sh = static_cast<float>(screenH);
+
+        // ---- Shelf state + smooth tray animation ----
+        // Computed first so the animated width drives the WHOLE layout (chrome
+        // bars + sidebar + diff) this frame. The window is resized frame-by-frame
+        // (each step instant) and content is laid out at the same width, so the
+        // window and UI move together — the HTML mock's CSS-transition feel.
+        {
+            auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
+            bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
+            bool nothingSelected = hasRepoForShelf &&
+                                   shelfRepo->selectedFilePath.empty() &&
+                                   shelfRepo->selectedCommitHash.empty();
+            layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
+
+            if (!app_state::testModeEnabled) {
+                float collapsedW = layout.sidebarWidth + 4.0f;
+                if (layout.shelfCollapsed != layout.lastShelfCollapsed) {
+                    if (layout.shelfCollapsed && sw > collapsedW + 40.f)
+                        layout.expandedWidth = static_cast<int>(sw);
+                    layout.animFrom = sw;
+                    layout.animTarget =
+                        layout.shelfCollapsed
+                            ? collapsedW
+                            : (layout.expandedWidth > 0
+                                   ? static_cast<float>(layout.expandedWidth)
+                                   : 1200.f);
+                    layout.animT = 0.f;
+                    layout.animating = true;
+                    layout.lastShelfCollapsed = layout.shelfCollapsed;
+                }
+                if (layout.animating) {
+                    layout.animT += (dt > 0.f ? dt : 0.016f) / 0.18f;
+                    if (layout.animT >= 1.f) {
+                        layout.animT = 1.f;
+                        layout.animating = false;
+                    }
+                    float t = layout.animT;
+                    float ease = t * t * (3.f - 2.f * t); // smoothstep
+                    float curW = layout.animFrom +
+                                 (layout.animTarget - layout.animFrom) * ease;
+                    metal_set_window_size(static_cast<int>(curW),
+                                          static_cast<int>(sh));
+                    sw = curW; // lay out this frame at the animated width
+                }
+            }
+        }
 
         auto rpxH = [sh](float design_px) {
             return resolve_to_pixels(h720(design_px), sh);
@@ -50,37 +96,6 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float dividerW = rpxW(4.0f);
 
         float topY = actualTabStripH + menuH;
-
-        // Shelf: collapse the diff pane (sidebar fills the window) whenever
-        // nothing is selected. Selecting a file/commit expands it; clearing the
-        // selection (Esc) collapses it again.
-        auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
-        bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
-        bool nothingSelected =
-            hasRepoForShelf && shelfRepo->selectedFilePath.empty() &&
-            shelfRepo->selectedCommitHash.empty();
-        layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
-
-        // The collapsed window's max width = the natural sidebar width. On the
-        // collapse/expand transition, resize the real OS window: shrink to the
-        // sidebar (tray closed), grow back on expand (tray slides out). Never in
-        // test mode (would fight the e2e `resize` + screenshots).
-        if (!app_state::testModeEnabled &&
-            layout.shelfCollapsed != layout.lastShelfCollapsed) {
-            int collapsedW = static_cast<int>(scaledSidebarW + dividerW);
-            int curH = static_cast<int>(sh);
-            if (layout.shelfCollapsed) {
-                if (static_cast<int>(sw) > collapsedW + 40)
-                    layout.expandedWidth = static_cast<int>(sw);
-                metal_set_window_size(collapsedW, curH);
-            } else {
-                int target = layout.expandedWidth > 0 ? layout.expandedWidth : 1200;
-                metal_set_window_size(target, curH);
-            }
-            layout.lastShelfCollapsed = layout.shelfCollapsed;
-        }
-        // Note: sidebar keeps its fixed width when collapsed (no relayout); the
-        // window itself shrinks to ~sidebar width, so the sidebar fills it.
 
         if (layout.sidebarVisible) {
             float sidebarToolbarH = std::max(rpxH(38.0f), 24.0f);
