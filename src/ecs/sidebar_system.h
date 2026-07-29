@@ -1173,10 +1173,12 @@ private:
                 .with_debug_name("file_name"));
 
         if (!dir.empty()) {
+            auto dirCol = selected ? afterhours::Color{205, 205, 210, 255}
+                                   : theme::TEXT_SECONDARY;
             div(ctx, mk(row.ent(), 2),
                 preset::MetaText(dir)
                     .with_size(ComponentSize{pixels(dirW), children()})
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_custom_text_color(dirCol)
                     .with_font_size(FontSize::Small)
                     .with_alignment(TextAlignment::Right)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
