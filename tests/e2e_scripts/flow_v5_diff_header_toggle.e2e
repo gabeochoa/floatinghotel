@@ -1,0 +1,23 @@
+# V5: Diff header segmented toggle
+# Verifies the Inline / Side-by-Side toggle in the diff stats header switches
+# the view mode without using the View menu.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+click_text "main.cpp"
+wait_frames 5
+validate diff_view_mode=Inline
+screenshot v5_01_inline_with_toggle
+
+# Click the "Side-by-Side" segment in the diff header
+click_text "Side-by-Side"
+wait_frames 5
+validate diff_view_mode=SideBySide
+screenshot v5_02_after_toggle_sbs
+
+# Click "Inline" segment to switch back
+click_text "Inline"
+wait_frames 5
+validate diff_view_mode=Inline
+screenshot v5_03_back_to_inline

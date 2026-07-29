@@ -7,7 +7,7 @@ wait_for_refresh
 wait_frames 30
 
 # File list should render correctly
-expect_text "Staged Changes"
+expect_text "STAGED CHANGES"
 expect_text ".gitignore"
 expect_text "README.md"
 

@@ -8,9 +8,9 @@ wait_frames 10
 expect_no_text "▾"
 
 # Headers should be title case with counts
-expect_text "Staged Changes"
-expect_text "Unstaged Changes"
-expect_text "Untracked"
-expect_text "Commits"
+expect_text "STAGED CHANGES"
+expect_text "UNSTAGED CHANGES"
+expect_text "UNTRACKED"
+expect_text "COMMITS"
 
 screenshot item11_section_headers

@@ -7,10 +7,10 @@ wait_for_refresh
 wait_frames 30
 
 # All content should still render correctly with tighter spacing
-expect_text "Staged Changes"
+expect_text "STAGED CHANGES"
 expect_text ".gitignore"
 expect_text "README.md"
 expect_text "main.cpp"
-expect_text "Commits"
+expect_text "COMMITS"
 
 screenshot item24_tight_padding

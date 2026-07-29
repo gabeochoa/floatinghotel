@@ -311,7 +311,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (repoPtr) {
                 commitCount = repoPtr->commitLog.size();
             }
-            std::string logHeaderText = "\xe2\x96\xbe Commits  " + std::to_string(commitCount);
+            std::string logHeaderText = "COMMITS  " + std::to_string(commitCount);
             div(ctx, mk(logBg.ent(), 2310),
                 preset::SectionHeader(logHeaderText)
                     .with_size(ComponentSize{logW, children()})
@@ -1061,7 +1061,10 @@ private:
                                 bool isFirst = false) {
         auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
-        std::string headerText = label + "  " + std::to_string(count);
+        std::string upper = label;
+        for (auto& c : upper)
+            c = static_cast<char>((c >= 'a' && c <= 'z') ? c - 32 : c);
+        std::string headerText = upper + "  " + std::to_string(count);
         auto config = preset::SectionHeader(headerText)
                 .with_size(ComponentSize{secWidth, children()})
                 .with_debug_name("section_hdr");

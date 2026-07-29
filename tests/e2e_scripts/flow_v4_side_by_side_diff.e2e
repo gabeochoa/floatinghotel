@@ -1,11 +1,17 @@
 # V4: View > Side-by-Side Diff
-# Verifies clicking Side-by-Side Diff sets the diff view mode.
+# Verifies clicking Side-by-Side Diff sets the diff view mode AND that a
+# selected file renders in two-column side-by-side layout.
 make_test_repo
 resize 1280 720
 wait_frames 5
 
 # Default is Inline
 validate diff_view_mode=Inline
+
+# Select a file first so there is a diff to render
+click_text "main.cpp"
+wait_frames 5
+screenshot v4_00_inline_selected
 
 # Switch to Side-by-Side via menu
 click_text "View"

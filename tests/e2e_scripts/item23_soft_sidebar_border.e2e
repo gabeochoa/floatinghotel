@@ -7,7 +7,7 @@ wait_for_refresh
 wait_frames 30
 
 # Sidebar content should still render correctly
-expect_text "Staged Changes"
+expect_text "STAGED CHANGES"
 expect_text ".gitignore"
 
 screenshot item23_soft_border
