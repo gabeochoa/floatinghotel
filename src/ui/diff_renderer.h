@@ -317,7 +317,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                         .with_size(ComponentSize{pixels(x1 - x0),
                                                  h720(diff_detail::LINE_HEIGHT)})
                         .with_absolute_position(x0, 0.f)
-                        .with_custom_background(afterhours::Color{70, 130, 240, 90})
+                        .with_custom_background(afterhours::Color{70, 130, 240, 45})
                         .with_roundness(0.0f)
                         .with_debug_name("diff_sel_hl"));
             }
