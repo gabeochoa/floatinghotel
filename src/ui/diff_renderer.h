@@ -70,6 +70,7 @@ struct Session {
     // hide it until reset; Comment adds to the feedback basket.
     bool reviewActions = false;
     std::string repoPath;
+    std::string reviewScope = "wt";  // "wt" (working tree) or a commit SHA
     ecs::ReviewComponent* review = nullptr;
 };
 
@@ -346,7 +347,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     bool reviewOn = sel && sel->reviewActions && sel->review;
     std::string hkey;
     if (reviewOn) {
-        hkey = ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header);
+        hkey = sel->reviewScope + "\n" +
+               ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header);
         // Approved hunks are hidden until reset (⟳/refresh).
         if (sel->review->approvedHunks.count(hkey))
             return;
@@ -397,26 +399,30 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     // Approve = stage this hunk (git apply --cached) and hide it until reset.
     // Comment = open an inline compose row and add the note to the basket.
     if (reviewOn) {
-        auto approveBtn = button(ctx, mk(hunkRow.ent(), 2),
-            preset::Button("Approve")
-                .with_size(ComponentSize{children(), h720(18)})
-                .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(8)})
-                .with_custom_background(afterhours::Color{40, 80, 50, 255})
-                .with_custom_text_color(afterhours::Color{120, 220, 140, 255})
-                .with_font_size(afterhours::ui::FontSize::Small)
-                .with_debug_name("approve_hunk_btn"));
-        if (approveBtn) {
-            auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
-            if (res.success()) {
-                sel->review->approvedHunks.insert(hkey);
-                auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-                if (r) r->refreshRequested = true;
-                afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
-            } else {
-                afterhours::toast::send_info(
-                    ctx, "Approve failed: " + res.stderr_str(), 2.5f);
+        // Approve = stage (working-tree only; committed hunks can't be staged).
+        if (sel->reviewScope == "wt") {
+            auto approveBtn = button(ctx, mk(hunkRow.ent(), 2),
+                preset::Button("Approve")
+                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_padding(Padding{
+                        .top = h720(2), .right = w1280(8),
+                        .bottom = h720(2), .left = w1280(8)})
+                    .with_custom_background(afterhours::Color{40, 80, 50, 255})
+                    .with_custom_text_color(afterhours::Color{120, 220, 140, 255})
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_debug_name("approve_hunk_btn"));
+            if (approveBtn) {
+                auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
+                if (res.success()) {
+                    sel->review->approvedHunks.insert(hkey);
+                    auto* r =
+                        ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                    if (r) r->refreshRequested = true;
+                    afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
+                } else {
+                    afterhours::toast::send_info(
+                        ctx, "Approve failed: " + res.stderr_str(), 2.5f);
+                }
             }
         }
         auto commentBtn = button(ctx, mk(hunkRow.ent(), 3),
@@ -433,7 +439,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             sel->review->composingKey = hkey;
             sel->review->composingText.clear();
             sel->review->composingFile = fileDiff.filePath;
-            sel->review->composingScope = "wt";
+            sel->review->composingScope = sel->reviewScope;
             sel->review->composingLine = hunk.newStart;
         }
     }
@@ -670,12 +676,19 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         bool resetScroll = false,
                         bool sideBySide = false,
                         const std::string& repoPath = "",
-                        ecs::ReviewComponent* review = nullptr) {
+                        ecs::ReviewComponent* review = nullptr,
+                        const std::string& reviewScope = "wt") {
     int nextId = diff_detail::BASE_ID;
 
     // Text selection is only offered on the main inline diff (not side-by-side,
     // not the embedded commit-detail diff).
     diff_sel::Session sess;
+    // Review actions work in both the working-tree diff and the embedded
+    // commit-detail diff (comment-only for commits), independent of selection.
+    sess.reviewActions = (review != nullptr);
+    sess.repoPath = repoPath;
+    sess.review = review;
+    sess.reviewScope = reviewScope;
     bool selEnabled = !sideBySide && !embedInParentScroll;
     if (selEnabled) {
         sess.enabled = true;
@@ -686,9 +699,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
         sess.fontSize = resolve_to_pixels(h720(theme::layout::FONT_CODE), screenH);
         sess.padLeftPx =
             resolve_to_pixels(w1280(diff_detail::CODE_PAD_LEFT), screenW);
-        sess.reviewActions = (review != nullptr);
-        sess.repoPath = repoPath;
-        sess.review = review;
         diff_sel::handle_mouse(ctx, sess); // update selection from prior frame
 
         // Cmd+C copies the current selection (keyboard path; the header button
@@ -903,7 +913,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                                 contentWidth);
             } else {
                 render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
-                            contentWidth, selEnabled ? &sess : nullptr);
+                            contentWidth,
+                            (selEnabled || sess.reviewActions) ? &sess : nullptr);
             }
         }
 
@@ -933,10 +944,11 @@ inline void render_inline_diff(UIContext<InputAction>& ctx,
                                bool embedInParentScroll = false,
                                bool resetScroll = false,
                                const std::string& repoPath = "",
-                               ecs::ReviewComponent* review = nullptr) {
+                               ecs::ReviewComponent* review = nullptr,
+                               const std::string& reviewScope = "wt") {
     render_diff(ctx, parent, diffs, contentWidth, contentHeight,
                 embedInParentScroll, resetScroll, /*sideBySide=*/false,
-                repoPath, review);
+                repoPath, review, reviewScope);
 }
 
 inline void render_side_by_side_diff(UIContext<InputAction>& ctx,

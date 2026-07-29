@@ -300,7 +300,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         } else if (hasSelectedCommit) {
             auto* detailCache = find_singleton<CommitDetailCache, ActiveTab>();
             if (detailCache) {
-                render_commit_detail(ctx, mainBg.ent(), repo, *detailCache, layout);
+                render_commit_detail(ctx, mainBg.ent(), repo, *detailCache, layout,
+                                     reviewPtr);
             }
         } else {
             auto emptyContainer = div(ctx, mk(mainBg.ent(), 3060),

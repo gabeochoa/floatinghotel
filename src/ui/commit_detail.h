@@ -73,7 +73,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                                   Entity& parent,
                                   RepoComponent& repo,
                                   CommitDetailCache& detailCache,
-                                  LayoutComponent& layout) {
+                                  LayoutComponent& layout,
+                                  ReviewComponent* review = nullptr) {
     namespace cdv = commit_detail_view;
 
     const CommitEntry* selectedCommit = nullptr;
@@ -550,7 +551,9 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                                detailCache.commitDetailDiff,
                                layout.mainContent.width,
                                layout.mainContent.height,
-                               /*embedInParentScroll=*/true);
+                               /*embedInParentScroll=*/true,
+                               /*resetScroll=*/false, repo.repoPath, review,
+                               /*reviewScope=*/repo.selectedCommitHash);
     }
 }
 
