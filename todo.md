@@ -19,6 +19,15 @@
 - [ ] File-list scroll: text scrolled off-screen stops rendering, but the rows
       are still present and clickable (render/cull mismatch in the scroll view).
 
+## Refactoring
+- [ ] Config-driven syntax / file-type highlighting. Current approach is
+      hardcoded in code (e.g. `theme::fileTypeColor()` extension→color switch,
+      and diff coloring baked into `diff_renderer`). Rework it so highlighting
+      is defined by per-file-type **config files** — adding highlighting for a
+      new language/file type should be "drop in a new config file", no code
+      changes or recompile. Decide config format (JSON?), where they live
+      (resources/highlight/*.json?), and how they're discovered/loaded.
+
 ## Polish
 - [ ] UI audit: find and fix ~25 small UI issues (spacing, alignment, contrast,
       truncation, empty states).
