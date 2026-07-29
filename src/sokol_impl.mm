@@ -23,6 +23,10 @@
 #define SOKOL_FONTSTASH_IMPL
 #include <sokol/sokol_fontstash.h>
 
+// Image decoding (stb_image) rides along with this SOKOL_IMPL TU, and this also
+// defines the afterhours sokol-impl sentinel that graphics::run() references.
+#include <afterhours/src/backends/sokol/image_decode.h>
+
 // Screenshot support (macOS screencapture via window ID)
 #import <AppKit/AppKit.h>
 
