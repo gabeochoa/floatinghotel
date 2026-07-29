@@ -152,6 +152,11 @@
   .hunk:hover:not(:has(.btn.ok:hover)){box-shadow:inset 3px 0 0 var(--accent2)}
   .kbd{font-family:var(--mono);font-size:10px;border:1px solid var(--border);border-radius:3px;padding:0 4px;margin-left:5px;color:var(--t2)}
   .approvednote{padding:8px 16px;color:var(--ok);font-size:12px;background:var(--ok-dim);border-bottom:1px solid var(--soft)}
+  /* a commented chunk can fold away (auto-folds when you comment) */
+  .hunk.folded .dl,.hunk.folded .icmt,.hunk.folded .compose{display:none}
+  .hh .foldchev{cursor:pointer;color:var(--t2);margin-right:6px}
+  .hh .foldchev:hover{color:var(--text)}
+  .hh .cmtcount{color:var(--cmt);font-size:11px;margin-right:8px}
   .hunk.cur{outline:2px solid var(--accent2);outline-offset:-2px}
   .keyhint{flex:none;height:26px;display:flex;align-items:center;gap:16px;padding:0 16px;font-size:11px;color:var(--t3);border-top:1px solid var(--border);background:var(--section);font-family:var(--mono)}
   .keyhint b{color:var(--t2)}
@@ -359,6 +364,7 @@ let state = {
   ],
   approved:{},      // "target|hunkId" -> true
   folded:{},        // fileName -> true
+  hunkFolded:{},    // "target|hunkId" -> true (commented chunks fold away)
   composing:null,   // {scope,file,line,hunkId}
   cid:3,
 };
@@ -434,11 +440,15 @@ function hunkHtml(t,f,h){
   }
   const lines = h.lines.map(lineHtml).join('');
   const nums = hunkLineNums(h);
-  const cmts = state.comments.filter(c=>c.scope===t.scope && c.file===f.name && nums.has(c.line))
-    .map(c=>`<div class="icmt"><span class="who">You:</span><span>${esc(c.text)}</span><span class="x" onclick="removeComment(${c.id})">×</span></div>`).join('');
+  const cmtArr = state.comments.filter(c=>c.scope===t.scope && c.file===f.name && nums.has(c.line));
+  const cmts = cmtArr.map(c=>`<div class="icmt"><span class="who">You:</span><span>${esc(c.text)}</span><span class="x" onclick="removeComment(${c.id})">×</span></div>`).join('');
+  const hasCmt = cmtArr.length>0;
+  const folded = hasCmt && !!state.hunkFolded[state.selection+'|'+h.id];
+  const chev = hasCmt ? `<span class="foldchev" onclick="event.stopPropagation();toggleHunkFold('${h.id}')">${folded?'▸':'▾'}</span>` : '';
+  const count = hasCmt ? `<span class="cmtcount">✎ ${cmtArr.length}</span>` : '';
   const composing = state.composing && state.composing.hunkId===h.id && state.composing.file===f.name;
   const compose = composing ? `<div class="compose"><textarea id="composeta" rows="2" placeholder="Comment for the agent… (Enter to add, Esc to cancel)" onkeydown="composeKey(event)"></textarea><div class="row"><span class="loc">${f.name}:${state.composing.line} · ${t.kind==='commit'?'commit '+t.sha:'working tree'}</span><button class="btn cmt" onclick="submitCompose()">⏎ Add to feedback</button></div></div>` : '';
-  return `<div class="hunk" data-hunk="${h.id}" data-file="${f.name}" data-line="${primaryLine(h)}"><div class="hh"><span>${esc(h.header)}</span><div class="right">${right}</div></div>${lines}${cmts}${compose}</div>`;
+  return `<div class="hunk${folded?' folded':''}" data-hunk="${h.id}" data-file="${f.name}" data-line="${primaryLine(h)}"><div class="hh"><span>${chev}${esc(h.header)}</span><div class="right">${count}${right}</div></div>${lines}${cmts}${compose}</div>`;
 }
 function lineHtml(l){
   const cls = l.t==='add'?'add':l.t==='del'?'del':'';
@@ -517,6 +527,7 @@ function openTarget(id){ state.selection=id; state.composing=null; curIdx=0; doc
 function closeShelf(){ state.selection=null; state.composing=null; document.body.classList.add('collapsed'); renderSidebar(); }
 function togglePanel(id){ const e=$(id); e.classList.toggle('folded'); e.querySelector('.rp-head .chev').textContent=e.classList.contains('folded')?'▸':'▾'; }
 function toggleFileFold(key){ state.folded[key]=!state.folded[key]; renderCenter(); }
+function toggleHunkFold(id){ const k=state.selection+'|'+id; state.hunkFolded[k]=!state.hunkFolded[k]; renderCenter(); }
 function toggleBasket(){ state.basketClosed=!state.basketClosed; renderBasket(); }
 function approveHunk(hunkId){ const key=state.selection+'|'+hunkId; state.approved[key]=!state.approved[key]; renderCenter(); renderStatus(); }
 function approveFile(scope,file){ const t=DIFFS[state.selection]; const f=t.files.find(x=>x.name===file); f.hunks.forEach(h=>state.approved[state.selection+'|'+h.id]=true); renderCenter(); renderStatus(); toast('Approved all hunks in '+file); }
@@ -526,7 +537,7 @@ function rowApprove(tid,name,e){ if(e&&e.shiftKey){ toast('Staged '+name+' (git 
 function rowRevert(tid,name,e){ if(e&&e.shiftKey){ openTarget(tid); const t=DIFFS[tid]; const f=t&&t.files.find(x=>x.name===name); if(f&&f.hunks[0]) startCompose(t.scope,name,primaryLine(f.hunks[0]),f.hunks[0].id); } else { toast('Reverted '+name+' (discard changes)'); } }
 function startCompose(scope,file,line,hunkId){ state.composing={scope,file,line,hunkId}; renderCenter(); const ta=$('composeta'); if(ta){ta.focus();} }
 function composeKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); submitCompose(); } else if(e.key==='Escape'){ e.stopPropagation(); state.composing=null; renderCenter(); } }
-function submitCompose(){ const ta=$('composeta'); if(!ta) return; const text=ta.value.trim(); const c=state.composing; if(text){ state.comments.push({id:state.cid++, scope:c.scope, file:c.file, line:c.line, text}); toast('Added to feedback basket'); } state.composing=null; renderAll(); }
+function submitCompose(){ const ta=$('composeta'); if(!ta) return; const text=ta.value.trim(); const c=state.composing; if(text){ state.comments.push({id:state.cid++, scope:c.scope, file:c.file, line:c.line, text}); state.hunkFolded[state.selection+'|'+c.hunkId]=true; toast('Added to basket · chunk folded'); } state.composing=null; renderAll(); }
 function removeComment(id){ state.comments=state.comments.filter(c=>c.id!==id); renderAll(); }
 function sendAll(){ if(!state.comments.length) return; toast(`Wrote /tmp/floatinghotel-review.md — sent ${state.comments.length} comment(s) to the agent`); }
 function copyAll(){ navigator.clipboard && navigator.clipboard.writeText(previewText()); toast('Copied all feedback to clipboard'); }
