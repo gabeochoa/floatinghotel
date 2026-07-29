@@ -1,8 +1,139 @@
 # floatinghotel — TODO
 
+## Review workflow (P0 — this is the product)
+The core loop: review AI-produced changes, **stage = "approved for commit"**,
+leave the rest unstaged ("still has my comments"), focus on the unstaged pile.
+- [ ] **Hunk / chunk staging** (git add -p). Backend ALREADY EXISTS
+      (`git::stage_hunk`/`unstage_hunk` → patch + `git apply --cached`); it is
+      just not wired to the UI. Add per-hunk "Stage hunk"/"Unstage" buttons on
+      each hunk header in the working-tree diff. Stretch: line-level staging.
+- [ ] **Staged/Changes/Untracked as tabs** in the sidebar (not stacked
+      sections). Default to "Changes" (to-review). Show counts per tab.
+- [ ] **Review progress** signal: "everything staged is good to go, N files
+      still to review" — e.g. a progress strip / count so the approved pile is
+      visibly "done" and focus goes to unstaged.
+- [ ] Per-file / per-hunk review state carried through refresh (which hunks are
+      already approved).
+
+## Review UX — decisions from concept mocks (2026-07-29)
+Concepts mocked in `docs/mocks/creative_concepts.html`. Verdicts:
+- **Chunk-by-chunk queue (concept 1) — YES.** Like `git add -p` but in the UI.
+  Approve a hunk → stage it. Reject → stays unstaged (+ attach a comment).
+  Decision per hunk; progress to zero.
+- **Per-piece comments + "new since you last looked" (concept 2) — YES.** Each
+  hunk/piece can carry a small comment. Show what's new since last review so you
+  can "mark viewed" without staging — OK to leverage staging as the viewed
+  signal.
+- **Feedback basket (VALIDATED — the centerpiece).** The confirmed core of the
+  review UX. Comments collect into a basket instead of being sent one at a time;
+  it's the SAME mechanism for working-tree review and for stack/commit review.
+  Each entry is tagged with `file:line` (+ commit SHA in stack mode), grouped by
+  commit. Output them together — write `/tmp/floatinghotel-review.md` and offer
+  **Send all to agent** / **Copy all** / **Send to terminal**. One round-trip
+  carries the whole review. See mock `docs/mocks/review_stack.html`.
+- **Spatial canvas (concept 3) — NO.** Drop it.
+- **Semantic clusters (concept 4) — maybe.** Interesting for triage; user
+  already does this mentally. Keep as optional grouping, not core.
+
+## Stacked-commit review + in-place fixups (P0 — hardest real pain)
+Today the AI agent commits and keeps working, building a STACK of commits on a
+branch; the user wants to give feedback on a commit EARLY in the stack, not just
+the tip. Requirements:
+- AI works on a branch; floatinghotel shows the **commit stack** (commits ahead
+  of base), selectable.
+- User comments on hunks of ANY commit in the stack.
+- Exported feedback is **tagged with the commit SHA** (+ file:line) so the agent
+  knows exactly WHICH diff each comment targets.
+- The agent must apply fixes **into the commented commit** (e.g.
+  `git commit --fixup=<sha>` + `rebase --autosquash`, or edit-in-place), NOT as a
+  new commit on top of the stack.
+- **Comment live AND on the stack (both).** The Working-tree entry (top of the
+  stack) is for in-progress, uncommitted changes the agent is writing right now;
+  the commits below are the settled stack. Both feed the same basket. Live
+  nuances to handle:
+  - File-watch refresh updates the working tree as the agent edits — a comment's
+    location should **anchor to the code (content/hunk), not a raw line number**,
+    so it survives the diff shifting under it.
+  - When the agent commits a hunk you'd commented on in the working tree, the
+    comment should **migrate to that new commit** (re-tag with the new SHA) so the
+    basket stays coherent instead of pointing at a now-committed line.
+  - New commits appear at the top of the stack as the agent makes them; existing
+    comments keep their SHA tags.
+- Feedback file format (draft):
+      ## Review of branch feature/x
+      ### commit a1b2c3d "Add greeting"
+      - greeter.cpp:12 — don't hardcode; read from argv
+      ### commit d4e5f6 "Add tests"
+      - test_utils.cpp:8 — add an empty-string case
+      (agent: apply each as a fixup to the named commit, not on top)
+
+## Drop Copy buttons in favor of select-to-copy
+Now that drag-select copies with `file:line` prepended (the `copyWithLocation`
+setting), the explicit per-hunk "Copy" and per-file "Copy Diff" buttons are
+redundant clutter. Remove them from the diff UI; rely on highlight→copy. Keep
+"Comment" (adds to basket) and "Approve" (working tree) as the hunk actions.
+Applies to the real app diff_renderer + the mocks.
+
+## Submodules (real gap — no handling today)
+- [ ] Detect submodules and show submodule changes in the status list
+      (`git status` reports gitlink `M`; need `--` handling + old→new subcommit).
+- [ ] Submodule diff view: show `Subproject commit <old> → <new>` and the list
+      of commits the pointer moved across.
+- [ ] Stage/commit submodule pointer changes; ideally drill into the submodule.
+
+## Polish pass — match the mock (menu bar, chrome, spacing)
+The HTML mock (`docs/mocks/diff_view_mock.html`) reads much cleaner than the
+shipped app. Do a full visual pass to close the gap: menu bar, title/tab chrome,
+toolbar, section headers (count pills), row spacing/contrast.
+- [ ] Compare mock screenshot vs live-app screenshot, build a punch-list.
+- [ ] NOTE: the app font atlas only renders ASCII (see memory), so mock icon
+      glyphs (⟳ ◧ ⑂ ↑ ↓) need a real icon font before they can ship.
+
+## Performance (keep it snappy — a core feature)
+- [ ] Preserve instant open + snappy feel. Guardrail: any new feature (folding,
+      hunk staging, multi-file view) must stay cheap per frame — no full re-diff
+      or re-parse on interaction; cache git output; windowed rendering for big
+      diffs/logs (virtual_list). Never regress the fast startup.
+
 ## Ideas
 - **Render markdown** in the diff/file viewer (e.g. `.md` files shown formatted,
   toggle raw/rendered).
+- **Integrated terminal → agent bridge (long-term, aspirational).** Embed a
+  terminal panel in the app so you can select text and right-click → "send to
+  agent" (Cursor-style). Ties the review loop shut: select a diff region or
+  terminal output, fire it to the agent, watch the file-watch refresh bring back
+  the fix — all without leaving floatinghotel.
+
+  Architecture (fits our stack — Sokol/Metal + afterhours UI, same shape as VS
+  Code / Neovim GUIs / most terminal widgets):
+
+      app (floatinghotel)
+        └─ afterhours UI + Sokol/Metal renderer
+             └─ terminal widget
+                  └─ VT parser (escape/ANSI/cursor/modes)
+                       └─ PTY
+                            └─ bash / zsh / powershell
+
+  Our terminal widget only has to: maintain a grid of cells, and render
+  (monospace font, cursor, selection, scrollback). The VT parser handles the
+  hard parts (escape parsing, ANSI colors, cursor state, terminal modes).
+
+      struct Cell { char32_t glyph; Color fg; Color bg; uint8_t attributes; };
+
+  VT parser options:
+  - **libvterm** — was the obvious pick (parser-only, renderer-agnostic), BUT it
+    is no longer maintained standalone; it's been absorbed into the Neovim tree
+    (github.com/neovim/libvterm is a mirror). Could still vendor a snapshot.
+  - **libtsm** — another parser-only lib, also fairly stale.
+  - **Write our own** — a VT100/xterm subset parser is self-contained and matches
+    "vendor as little as possible." Open question: effort. A usable subset
+    (CSI/SGR colors, cursor moves, erase, scroll region, basic modes) is
+    tractable; full xterm compat (mouse, alt-screen, DEC modes, wide chars,
+    combining) is a long tail. Prototype: spike a minimal parser against `ls`,
+    `vim`, and a REPL to gauge scope before committing.
+
+  Also needs: PTY (forkpty/openpty on macOS), text selection + right-click
+  context menu in the widget, and an agent transport for "send selection".
 
 ## Diff viewer backlog (from review session)
 - [ ] Multi-file view: see all files' changes together in one scroll.
