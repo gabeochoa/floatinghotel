@@ -27,6 +27,10 @@
 // defines the afterhours sokol-impl sentinel that graphics::run() references.
 #include <afterhours/src/backends/sokol/image_decode.h>
 
+// Metal texture readback -> PNG + headless MTLDevice creation. Must follow the
+// sokol_gfx impl above (uses sg_mtl_* accessors).
+#include <afterhours/src/backends/sokol/capture_impl.h>
+
 // Screenshot support (macOS screencapture via window ID)
 #import <AppKit/AppKit.h>
 
