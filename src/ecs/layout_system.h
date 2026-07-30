@@ -23,10 +23,12 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float sw = static_cast<float>(screenW);
         float sh = static_cast<float>(screenH);
 
-        // ---- Shelf state: grow/shrink the OS window on collapse toggle ----
-        // One instant resize per toggle. metal_set_window_size pins the Metal
-        // view's layer to the top-left before resizing, so the sidebar (top-left)
-        // stays pixel-stable while the window grows to the right for the diff pane.
+        // ---- Shelf state + smooth tray animation ----
+        // The window width is tweened frame-by-frame; each step resizes the OS
+        // window and lays out the whole UI at the animated width, so the window
+        // and diff pane grow together (HTML mock's CSS-transition feel).
+        // metal_set_window_size pins the Metal view's layer to the top-left, so
+        // the sidebar stays pixel-stable through every step instead of stretching.
         {
             auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
@@ -35,20 +37,36 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                                    shelfRepo->selectedCommitHash.empty();
             layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
 
-            if (!app_state::testModeEnabled &&
-                layout.shelfCollapsed != layout.lastShelfCollapsed) {
+            if (!app_state::testModeEnabled) {
                 float collapsedW = layout.sidebarWidth + 4.0f;
-                if (layout.shelfCollapsed && sw > collapsedW + 40.f)
-                    layout.expandedWidth = static_cast<int>(sw);
-                float targetW =
-                    layout.shelfCollapsed
-                        ? collapsedW
-                        : (layout.expandedWidth > 0
-                               ? static_cast<float>(layout.expandedWidth)
-                               : 1200.f);
-                metal_set_window_size(static_cast<int>(targetW),
-                                      static_cast<int>(sh));
-                layout.lastShelfCollapsed = layout.shelfCollapsed;
+                if (layout.shelfCollapsed != layout.lastShelfCollapsed) {
+                    if (layout.shelfCollapsed && sw > collapsedW + 40.f)
+                        layout.expandedWidth = static_cast<int>(sw);
+                    layout.animFrom = sw;
+                    layout.animTarget =
+                        layout.shelfCollapsed
+                            ? collapsedW
+                            : (layout.expandedWidth > 0
+                                   ? static_cast<float>(layout.expandedWidth)
+                                   : 1200.f);
+                    layout.animT = 0.f;
+                    layout.animating = true;
+                    layout.lastShelfCollapsed = layout.shelfCollapsed;
+                }
+                if (layout.animating) {
+                    layout.animT += (dt > 0.f ? dt : 0.016f) / 0.18f;
+                    if (layout.animT >= 1.f) {
+                        layout.animT = 1.f;
+                        layout.animating = false;
+                    }
+                    float t = layout.animT;
+                    float ease = t * t * (3.f - 2.f * t); // smoothstep
+                    float curW = layout.animFrom +
+                                 (layout.animTarget - layout.animFrom) * ease;
+                    metal_set_window_size(static_cast<int>(curW),
+                                          static_cast<int>(sh));
+                    sw = curW; // lay out this frame at the animated width
+                }
             }
         }
 
