@@ -85,7 +85,6 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float actualTabStripH = tabStripH;
 
         layout.tabStrip = {0, 0, sw, actualTabStripH};
-        layout.menuBar = {0, actualTabStripH, sw, menuH};
 
         // Sidebar is a FIXED logical-pixel width so it never relayouts when the
         // window resizes (the tray/diff grows into the extra space instead).
@@ -94,16 +93,24 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         if (scaledSidebarW < layout.sidebarMinWidth)
             scaledSidebarW = std::min(layout.sidebarMinWidth, sw);
 
+        // Menu bar spans the sidebar width so File/Edit/View/... fit the sidebar
+        // column (overflow collapses into a "More" menu); full width only when
+        // the sidebar is hidden.
+        float menuBarW = layout.sidebarVisible ? scaledSidebarW : sw;
+        layout.menuBar = {0, actualTabStripH, menuBarW, menuH};
+
         float dividerW = rpxW(4.0f);
 
         float topY = actualTabStripH + menuH;
 
         if (layout.sidebarVisible) {
-            float sidebarToolbarH = std::max(rpxH(38.0f), 24.0f);
-            layout.toolbar = {0, topY, scaledSidebarW, sidebarToolbarH};
+            // Sync actions (Push/Pull/Stash) now live inside the sidebar body
+            // (SidebarSystem::render_sync_row), so there is no toolbar strip
+            // above the sidebar — the sidebar starts right under the menu bar.
+            layout.toolbar = {0, 0, 0, 0};
 
-            float sidebarContentY = topY + sidebarToolbarH;
-            float sidebarContentH = std::max(sh - topY - sidebarToolbarH - statusH, 40.0f);
+            float sidebarContentY = topY;
+            float sidebarContentH = std::max(sh - topY - statusH, 40.0f);
             layout.sidebar = {0, sidebarContentY, scaledSidebarW, sidebarContentH};
 
             float dividerH = rpxH(5.0f);

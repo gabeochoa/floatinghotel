@@ -80,16 +80,62 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         float charW = rpx(10.0f);   // ~10px per char at 720p, 18px font
         float hdrPad = rpx(24.0f);  // padding in screen pixels
 
+        // Collapse menus that don't fit the (sidebar-width) bar into a trailing
+        // "More" menu, so the whole bar always fits the sidebar. The "More"
+        // dropdown lists the overflowed menus' items (with a disabled section
+        // label per menu when more than one overflows).
+        auto headerWidth = [&](const std::string& label) {
+            return static_cast<float>(label.length()) * charW + hdrPad;
+        };
+        std::vector<menu_setup::Menu> renderMenus;
+        {
+            float startX = rpx(static_cast<float>(theme::layout::PADDING));
+            float total = startX;
+            for (auto& m : menus_) total += headerWidth(m.label);
+            if (total <= barW) {
+                renderMenus = menus_;
+            } else {
+                float moreW = headerWidth("More");
+                float x = startX;
+                std::vector<int> overflow;
+                for (int i = 0; i < static_cast<int>(menus_.size()); ++i) {
+                    float wi = headerWidth(menus_[i].label);
+                    if (x + wi + moreW <= barW) {
+                        renderMenus.push_back(menus_[i]);
+                        x += wi;
+                    } else {
+                        for (int j = i; j < static_cast<int>(menus_.size()); ++j)
+                            overflow.push_back(j);
+                        break;
+                    }
+                }
+                menu_setup::Menu more;
+                more.label = "More";
+                bool multi = overflow.size() > 1;
+                for (size_t k = 0; k < overflow.size(); ++k) {
+                    const auto& m = menus_[overflow[k]];
+                    if (multi) {
+                        if (k > 0) more.items.push_back(menu_setup::MenuItem::separator());
+                        // Disabled section label (enabled=false => no action).
+                        more.items.push_back(
+                            menu_setup::MenuItem{m.label, "", false, false, nullptr});
+                    }
+                    for (const auto& it : m.items) more.items.push_back(it);
+                }
+                renderMenus.push_back(std::move(more));
+            }
+        }
+
         headerRects_.clear();
-        headerRects_.resize(menus_.size());
+        headerRects_.resize(renderMenus.size());
         float headerX = rpx(static_cast<float>(theme::layout::PADDING));
         bool headerInteracted = false;
 
-        for (int i = 0; i < static_cast<int>(menus_.size()); ++i) {
+        for (int i = 0; i < static_cast<int>(renderMenus.size()); ++i) {
             bool isActive = (menu.activeMenuIndex == i);
 
             // Header width in screen pixels (scaled with font)
-            float headerW = static_cast<float>(menus_[i].label.length()) * charW + hdrPad;
+            float headerW = headerWidth(renderMenus[i].label);
 
             headerRects_[i] = {headerX, barY, headerW, barH};
 
@@ -102,7 +148,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
 
             auto headerResult = button(ctx, mk(uiRoot, 1010 + i),
                 ComponentConfig{}
-                    .with_label(menus_[i].label)
+                    .with_label(renderMenus[i].label)
                     .with_size(ComponentSize{pixels(headerW), pixels(barH)})
                     .with_absolute_position()
                     .with_translate(headerX, barY)
@@ -115,7 +161,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_click_activation(ClickActivationMode::Press)
                     .with_roundness(0.0f)
                     .with_render_layer(10)
-                    .with_debug_name("menu_header_" + menus_[i].label));
+                    .with_debug_name("menu_header_" + renderMenus[i].label));
 
             // Handle header click: toggle this menu
             // Use direct mouse-position check against known header rect.
@@ -144,9 +190,9 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
 
         // Render dropdown for the active menu
         bool itemInteracted = false;
-        if (menu.activeMenuIndex >= 0 && menu.activeMenuIndex < static_cast<int>(menus_.size())) {
+        if (menu.activeMenuIndex >= 0 && menu.activeMenuIndex < static_cast<int>(renderMenus.size())) {
             int menuIdx = menu.activeMenuIndex;
-            const auto& menuDef = menus_[menuIdx];
+            const auto& menuDef = renderMenus[menuIdx];
 
             // Calculate dropdown position (below the header)
             float dropdownX = headerRects_[menuIdx].x;
@@ -224,7 +270,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                             .with_translate(itemX, itemY)
                             .with_custom_background(hovered ? menu_colors::ITEM_HOVER_BG : menu_colors::DROPDOWN_BG)
                             .with_custom_text_color(labelColor)
-                            .with_font_size(afterhours::ui::FontSize::Large)
+                            .with_font_size(afterhours::ui::FontSize::Medium)
                             .with_alignment(TextAlignment::Left)
                             .with_justify_content(JustifyContent::Center)
                             .with_click_activation(ClickActivationMode::Press)
@@ -294,18 +340,18 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 }
 
                 // Check dropdown rect (using same scaled metrics)
-                if (!clickInMenu && menu.activeMenuIndex >= 0 && menu.activeMenuIndex < static_cast<int>(menus_.size())) {
+                if (!clickInMenu && menu.activeMenuIndex >= 0 && menu.activeMenuIndex < static_cast<int>(renderMenus.size())) {
                     int menuIdx = menu.activeMenuIndex;
                     float dropdownX = headerRects_[menuIdx].x;
                     float dropdownY = barY + barH;
 
                     float dropdownHeight = rpx(8.0f); // padding
-                    for (const auto& item : menus_[menuIdx].items) {
+                    for (const auto& item : renderMenus[menuIdx].items) {
                         dropdownHeight += item.isSeparator ? rpx(9.0f) : rpx(24.0f);
                     }
 
                     float maxWidth = rpx(180.0f);
-                    for (const auto& item : menus_[menuIdx].items) {
+                    for (const auto& item : renderMenus[menuIdx].items) {
                         if (item.isSeparator) continue;
                         float totalW = static_cast<float>(item.label.length()) * charW +
                                        (item.shortcut.empty() ? 0.0f : static_cast<float>(item.shortcut.length()) * charW + rpx(32.0f)) + rpx(40.0f);

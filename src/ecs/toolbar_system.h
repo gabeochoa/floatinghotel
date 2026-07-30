@@ -32,13 +32,17 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
 
+        // In sidebar mode the sync actions (Push/Pull/Stash) live inside the
+        // sidebar under the repo header (SidebarSystem::render_sync_row), so
+        // there's no separate top toolbar strip. Only the sidebar-hidden layout
+        // shows a full-width toolbar.
+        if (layout.sidebarVisible) return;
+
         Entity& uiRoot = ui_imm::getUIRootEntity();
         float toolbarX = layout.toolbar.x;
         float w = layout.toolbar.width;
         float h = layout.toolbar.height;
         float toolbarY = layout.toolbar.y;
-
-        bool inSidebar = layout.sidebarVisible;
 
         // Outer chrome container (absolute positioned)
         auto topChrome = div(ctx, mk(uiRoot, 5000),
@@ -52,91 +56,12 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_render_layer(1)
                 .with_debug_name("top_chrome"));
 
-        if (inSidebar) {
-            render_sidebar_toolbar(ctx, topChrome, w, h,
-                                   repo, hasRepo, hasUnstaged, hasStaged);
-        } else {
-            render_fullwidth_toolbar(ctx, topChrome, w, h,
-                                     repo, hasRepo, hasUnstaged, hasStaged,
-                                     branchName);
-        }
+        render_fullwidth_toolbar(ctx, topChrome, w, h,
+                                 repo, hasRepo, hasUnstaged, hasStaged,
+                                 branchName);
     }
 
 private:
-    template<typename Result>
-    void render_sidebar_toolbar(UIContext<InputAction>& ctx,
-                                Result& topChrome,
-                                float w, float /*h*/,
-                                RepoComponent* repo,
-                                bool hasRepo, bool /*hasUnstaged*/, bool /*hasStaged*/) {
-        // Toolbar fills its allocated height
-        auto toolbarBg = div(ctx, mk(topChrome.ent(), 1),
-            ComponentConfig{}
-                .with_size(ComponentSize{pixels(w), percent(1.0f)})
-                .with_custom_background(theme::TOOLBAR_BG)
-                .with_border_bottom(theme::BORDER)
-                .with_flex_direction(FlexDirection::Column)
-                .with_align_items(AlignItems::FlexStart)
-                .with_padding(Padding{
-                    .top = pixels(6), .right = pixels(8),
-                    .bottom = pixels(6), .left = pixels(8)})
-                .with_roundness(0.0f)
-                .with_debug_name("toolbar_sidebar"));
-
-        int nextId = 1100;
-
-        // Single row: Commit | Push | Pull | Stash (gap: 4px between buttons)
-        auto row1 = div(ctx, mk(toolbarBg.ent(), 10),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_gap(pixels(4))
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-                .with_debug_name("toolbar_row1"));
-
-        auto sidebarBtn = [&](Entity& parent, int id,
-                              const std::string& label, bool enabled,
-                              bool primary = false) -> bool {
-            auto config = preset::Button(label, enabled)
-                .with_size(ComponentSize{children(), children()})
-                .with_padding(Padding{
-                    .top = pixels(4), .right = pixels(14),
-                    .bottom = pixels(4), .left = pixels(14)})
-                .with_font_size(afterhours::ui::FontSize::Medium)
-                .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_debug_name("toolbar_btn");
-            if (enabled && !primary) {
-                config = config.with_custom_background(theme::BUTTON_SECONDARY)
-                               .with_custom_text_color(afterhours::Color{204, 204, 204, 255});
-            }
-            return static_cast<bool>(button(ctx, mk(parent, id), config));
-        };
-
-        // Show ahead/behind counts on the labels (VS Code/Fork parity):
-        // "Push (2)" when local is ahead, "Pull (1)" when behind. Plain ASCII
-        // because the font atlas only covers Basic Latin (no arrow glyphs).
-        std::string pushLabel = "Push";
-        std::string pullLabel = "Pull";
-        if (repo && repo->aheadCount > 0)
-            pushLabel += " (" + std::to_string(repo->aheadCount) + ")";
-        if (repo && repo->behindCount > 0)
-            pullLabel += " (" + std::to_string(repo->behindCount) + ")";
-
-        if (sidebarBtn(row1.ent(), nextId++, pushLabel, hasRepo)) {
-            enqueue_network_op("Push", git::git_run_async(repo->repoPath, {"push"}));
-        }
-        if (sidebarBtn(row1.ent(), nextId++, pullLabel, hasRepo)) {
-            enqueue_network_op("Pull", git::git_run_async(repo->repoPath, {"pull"}));
-        }
-        if (sidebarBtn(row1.ent(), nextId++, "Stash", hasRepo)) {
-            auto* menuComp = ::ecs::find_singleton<MenuComponent>();
-            if (menuComp)
-                menuComp->pendingToast = "Stash is not yet implemented";
-        }
-    }
-
     template<typename Result>
     void render_fullwidth_toolbar(UIContext<InputAction>& ctx,
                                   Result& topChrome,

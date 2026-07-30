@@ -371,7 +371,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label("Loading repository\xe2\x80\xa6")
                         .with_size(ComponentSize{children(), children()})
-                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_font_size(afterhours::ui::FontSize::Medium)
                         .with_padding(Padding{
                             .top = h720(0), .right = w1280(8),
                             .bottom = h720(6), .left = w1280(8)})
@@ -413,7 +413,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label("to view changes")
                         .with_size(ComponentSize{children(), children()})
-                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_font_size(afterhours::ui::FontSize::Medium)
                         .with_padding(Padding{
                             .top = h720(0), .right = w1280(8),
                             .bottom = h720(4), .left = w1280(8)})
@@ -510,7 +510,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}
                 .with_label("Welcome to floatinghotel")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(pixels(22))
+                .with_font_size(afterhours::ui::FontSize::Large)
                 .with_padding(Padding{.bottom = h720(6)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_PRIMARY)
@@ -522,7 +522,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}
                 .with_label("Open a repository to get started")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_padding(Padding{.bottom = h720(24)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
@@ -607,7 +607,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label(basename)
                         .with_size(ComponentSize{percent(1.0f), children()})
-                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_font_size(afterhours::ui::FontSize::Medium)
                         .with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY)
                         .with_alignment(TextAlignment::Left)
@@ -618,7 +618,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label(dirPath)
                         .with_size(ComponentSize{percent(1.0f), children()})
-                        .with_font_size(afterhours::ui::h720(16))
+                        .with_font_size(afterhours::ui::FontSize::Small)
                         .with_transparent_bg()
                         .with_custom_text_color(afterhours::Color{100, 100, 100, 255})
                         .with_alignment(TextAlignment::Left)

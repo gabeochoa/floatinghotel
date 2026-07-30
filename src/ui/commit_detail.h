@@ -115,7 +115,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_margin(Margin{.top = pixels(12)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::BUTTON_PRIMARY)
-                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_debug_name("commit_not_found_back"));
 
         if (goBackBtn) {
@@ -179,7 +179,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .left = pixels(PAD), .right = {}})
             .with_transparent_bg()
             .with_custom_text_color(theme::BUTTON_PRIMARY)
-            .with_font_size(afterhours::ui::FontSize::Large)
+            .with_font_size(afterhours::ui::FontSize::Medium)
             .with_debug_name("commit_back_btn"));
 
     if (backBtn) {
@@ -196,7 +196,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .top = pixels(8), .right = pixels(PAD),
                 .bottom = pixels(4), .left = pixels(PAD)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font_size(pixels(20.0f))
+            .with_font_size(afterhours::ui::FontSize::Large)
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("commit_subject"));
@@ -210,7 +210,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = pixels(4), .right = pixels(PAD),
                     .bottom = pixels(8), .left = pixels(PAD)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(pixels(14.0f))
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("commit_body"));
@@ -251,7 +251,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(LABEL_W), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(13.0f))
+                .with_font_size(afterhours::ui::FontSize::Small)
                 .with_alignment(TextAlignment::Right)
                 .with_padding(Padding{
                     .top = pixels(2), .right = pixels(8),
@@ -265,7 +265,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(metaValueW), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(valueColor)
-                .with_font_size(pixels(13.0f))
+                .with_font_size(afterhours::ui::FontSize::Small)
                 .with_alignment(TextAlignment::Left)
                 .with_padding(Padding{
                     .top = pixels(2), .bottom = pixels(2)})
@@ -325,7 +325,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(LABEL_W), children()})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(13.0f))
+                .with_font_size(afterhours::ui::FontSize::Small)
                 .with_alignment(TextAlignment::Right)
                 .with_padding(Padding{
                     .top = pixels(2), .right = pixels(8),
@@ -384,7 +384,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = pixels(16), .right = pixels(PAD),
                     .bottom = pixels(16), .left = pixels(PAD)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name("empty_diff_msg"));
@@ -408,7 +408,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = pixels(4), .right = pixels(PAD),
                     .bottom = pixels(4), .left = pixels(PAD)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(13.0f))
+                .with_font_size(afterhours::ui::FontSize::Small)
                 .with_letter_spacing(0.5f)
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
@@ -454,7 +454,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_size(ComponentSize{pixels(BADGE_W), children()})
                     .with_transparent_bg()
                     .with_custom_text_color(badgeColor)
-                    .with_font_size(pixels(14.0f))
+                    .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("file_badge"));
@@ -478,7 +478,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_size(ComponentSize{pixels(fileNameW), children()})
                     .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(pixels(14.0f))
+                    .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_roundness(0.0f)
@@ -496,7 +496,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_size(ComponentSize{pixels(STATS_W), children()})
                     .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(12.0f))
+                    .with_font_size(afterhours::ui::FontSize::Small)
                     .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
                     .with_debug_name("file_stats"));

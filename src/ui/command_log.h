@@ -95,7 +95,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label("GIT COMMAND LOG")
             .with_size(ComponentSize{percent(1.0f), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(afterhours::ui::h720(16))
+            .with_font_size(afterhours::ui::FontSize::Medium)
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_title"));
@@ -134,7 +134,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(8), .right = w1280(8),
                     .bottom = h720(8), .left = w1280(8)})
                 .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name("cmdlog_empty"));
