@@ -396,24 +396,44 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             totalDel += d.deletions;
         }
 
-        std::string summaryLabel = "FILES CHANGED (" +
+        // "FILES CHANGED (N files, +A -D)" — split into colored spans so the
+        // additions read green and deletions red, matching the per-file rows.
+        std::string summaryPrefix = "FILES CHANGED (" +
             std::to_string(detailCache.commitDetailDiff.size()) + " file" +
-            (detailCache.commitDetailDiff.size() != 1 ? "s" : "") +
-            ", +" + std::to_string(totalAdd) + " -" + std::to_string(totalDel) + ")";
+            (detailCache.commitDetailDiff.size() != 1 ? "s" : "") + ", ";
 
-        div(ctx, mk(scrollContainer.ent(), nextId++),
+        auto summaryRow = div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
-                .with_label(summaryLabel)
                 .with_size(ComponentSize{percent(1.0f), children()})
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_gap(pixels(4))
                 .with_padding(Padding{
                     .top = pixels(4), .right = pixels(PAD),
                     .bottom = pixels(4), .left = pixels(PAD)})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(afterhours::ui::FontSize::Small)
-                .with_letter_spacing(0.5f)
-                .with_alignment(TextAlignment::Left)
+                .with_transparent_bg()
                 .with_roundness(0.0f)
                 .with_debug_name("files_changed_header"));
+
+        auto summarySpan = [&](int id, const std::string& text,
+                               afterhours::Color color) {
+            div(ctx, mk(summaryRow.ent(), id),
+                ComponentConfig{}
+                    .with_label(text)
+                    .with_size(ComponentSize{children(), children()})
+                    .with_transparent_bg()
+                    .with_custom_text_color(color)
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_letter_spacing(0.5f)
+                    .with_alignment(TextAlignment::Left)
+                    .with_roundness(0.0f)
+                    .with_debug_name("files_changed_span"));
+        };
+
+        summarySpan(1, summaryPrefix, theme::TEXT_SECONDARY);
+        summarySpan(2, "+" + std::to_string(totalAdd), theme::STATUS_ADDED);
+        summarySpan(3, "-" + std::to_string(totalDel), theme::STATUS_DELETED);
+        summarySpan(4, ")", theme::TEXT_SECONDARY);
 
         constexpr float STATS_W = 55.0f;
         constexpr float BAR_W = 50.0f;
