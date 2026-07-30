@@ -59,6 +59,8 @@ StatusResult parse_status(const std::string& output) {
             ecs::FileStatus fs;
             fs.indexStatus = line[2];
             fs.workTreeStatus = line[3];
+            // porcelain v2 'sub' field (index 5): "S..." for a submodule gitlink.
+            fs.isSubmodule = line.size() > 5 && line[5] == 'S';
 
             if (line[0] == '1') {
                 // Ordinary changed entry: path starts after the 8th space
@@ -190,6 +192,11 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
                 }
                 currentFile->filePath = a_path;
                 currentFile->oldPath = a_path;
+            }
+        } else if (line.starts_with("index ") && currentFile) {
+            // "index <old>..<new> 160000" marks a submodule (gitlink) change.
+            if (line.find(" 160000") != std::string::npos) {
+                currentFile->isSubmodule = true;
             }
         } else if (line.starts_with("--- ")) {
             if (currentFile) {

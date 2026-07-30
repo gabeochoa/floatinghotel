@@ -23,6 +23,7 @@ struct FileStatus {
     std::string origPath;      // For renames
     int additions = 0;
     int deletions = 0;
+    bool isSubmodule = false;  // gitlink (porcelain v2 'sub' field starts 'S')
 };
 
 struct CommitEntry {
@@ -51,6 +52,7 @@ struct FileDiff {
     bool isDeleted = false;
     bool isRenamed = false;
     bool isBinary = false;
+    bool isSubmodule = false;  // gitlink change (index mode 160000)
     std::vector<DiffHunk> hunks;
 };
 

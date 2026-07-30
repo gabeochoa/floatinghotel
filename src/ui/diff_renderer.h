@@ -443,7 +443,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("approve_hunk_btn"));
             if (approveBtn) {
-                auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
+                // A submodule hunk is a gitlink pointer change; build_patch can't
+                // represent it, so stage the whole path instead of a hunk patch.
+                auto res = fileDiff.isSubmodule
+                    ? git::stage_file(sel->repoPath, fileDiff.filePath)
+                    : git::stage_hunk(sel->repoPath, fileDiff, hunk);
                 if (res.success()) {
                     sel->review->approvedHunks.insert(hkey);
                     auto* r =

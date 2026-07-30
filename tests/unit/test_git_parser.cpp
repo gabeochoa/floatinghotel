@@ -90,6 +90,29 @@ TEST(status_ordinary_unstaged_file) {
     ASSERT_STREQ(r.unstagedFiles[0].path, "README.md");
 }
 
+TEST(status_submodule_pointer_change) {
+    // porcelain v2 'sub' field "SC.." => submodule with a changed commit.
+    // (real output from `git status --porcelain=v2` on a moved gitlink)
+    std::string input =
+        "1 .M SC.. 160000 160000 160000 "
+        "4571d62169cf921c00ad504b334c09c24aced554 "
+        "4571d62169cf921c00ad504b334c09c24aced554 vendored\n";
+    auto r = git::parse_status(input);
+    ASSERT_EQ(r.unstagedFiles.size(), static_cast<size_t>(1));
+    ASSERT_STREQ(r.unstagedFiles[0].path, "vendored");
+    ASSERT_TRUE(r.unstagedFiles[0].isSubmodule);
+}
+
+TEST(status_ordinary_file_not_submodule) {
+    std::string input =
+        "1 .M N... 100644 100644 100644 "
+        "abc1234abc1234abc1234abc1234abc1234abc1234 "
+        "def5678def5678def5678def5678def5678def5678 README.md\n";
+    auto r = git::parse_status(input);
+    ASSERT_EQ(r.unstagedFiles.size(), static_cast<size_t>(1));
+    ASSERT_FALSE(r.unstagedFiles[0].isSubmodule);
+}
+
 TEST(status_both_staged_and_unstaged) {
     // MM = staged modification AND worktree modification
     std::string input =
@@ -342,6 +365,23 @@ TEST(diff_simple_modification) {
     ASSERT_EQ(diffs[0].hunks[0].newStart, 10);
     ASSERT_EQ(diffs[0].hunks[0].newCount, 4);
     ASSERT_EQ(diffs[0].hunks[0].lines.size(), static_cast<size_t>(4));
+}
+
+TEST(diff_submodule_pointer_change) {
+    // Default `git diff` for a gitlink: index line ends in 160000, hunk holds
+    // the "Subproject commit" lines. (real output from the fixture)
+    std::string input =
+        "diff --git a/vendored b/vendored\n"
+        "index 4571d62..fe41444 160000\n"
+        "--- a/vendored\n"
+        "+++ b/vendored\n"
+        "@@ -1 +1 @@\n"
+        "-Subproject commit 4571d62169cf921c00ad504b334c09c24aced554\n"
+        "+Subproject commit fe41444737ac27577c5f2ce700df2cabff52d1df\n";
+    auto diffs = git::parse_diff(input);
+    ASSERT_EQ(diffs.size(), static_cast<size_t>(1));
+    ASSERT_STREQ(diffs[0].filePath, "vendored");
+    ASSERT_TRUE(diffs[0].isSubmodule);
 }
 
 TEST(diff_new_file) {

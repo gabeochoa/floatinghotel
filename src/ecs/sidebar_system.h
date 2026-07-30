@@ -1236,26 +1236,28 @@ private:
         if (statusChar == ' ' || statusChar == '\0') {
             statusChar = staged ? 'A' : 'M';
         }
-        render_file_row_impl(ctx, parent, id, file.path, statusChar, repo);
+        render_file_row_impl(ctx, parent, id, file.path, statusChar, repo,
+                             file.isSubmodule);
     }
 
     void render_untracked_row(UIContext<InputAction>& ctx,
                                Entity& parent, int id,
                                const std::string& path,
                                RepoComponent& repo) {
-        render_file_row_impl(ctx, parent, id, path, 'U', repo);
+        render_file_row_impl(ctx, parent, id, path, 'U', repo, false);
     }
 
     void render_file_row_impl(UIContext<InputAction>& ctx,
                                Entity& parent, int id,
                                const std::string& path, char statusChar,
-                               RepoComponent& repo) {
+                               RepoComponent& repo, bool isSubmodule) {
         bool selected = (path == repo.selectedFilePath);
         constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
 
         std::string fname = sidebar_detail::basename_from_path(path);
         std::string dir = sidebar_detail::dir_from_path(path);
-        std::string statusStr(1, statusChar);
+        // Submodules show "S" (gitlink pointer change) rather than the raw M/A.
+        std::string statusStr(1, isSubmodule ? 'S' : statusChar);
 
         auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
@@ -1325,7 +1327,8 @@ private:
                     .with_debug_name("file_dir"));
         }
 
-        auto statusCol = sidebar_detail::status_color(statusChar);
+        auto statusCol = isSubmodule ? afterhours::Color{170, 140, 230, 255}
+                                     : sidebar_detail::status_color(statusChar);
         div(ctx, mk(row.ent(), 3),
             preset::MetaText(statusStr)
                 .with_size(ComponentSize{pixels(STATUS_W), children()})
