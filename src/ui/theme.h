@@ -101,6 +101,135 @@ inline Color SELECTED_BG_SOLID = {36, 90, 145,
 // Tertiary text
 inline Color TEXT_TERTIARY = {90, 90, 90, 255};  // #5A5A5A
 
+// ---- Swappable themes ----
+// The inline Color globals above are the LIVE palette the immediate-mode UI
+// reads every frame. A Theme bundles a full palette; apply_theme() copies one
+// into those globals, so switching is instant with zero call-site churn.
+struct Theme {
+    Color window_bg, sidebar_bg, panel_bg, border;
+    Color text_primary, text_secondary, text_accent, text_tertiary;
+    Color status_modified, status_added, status_deleted, status_renamed,
+          status_untracked, status_conflict;
+    Color diff_add_bg, diff_add_text, diff_del_bg, diff_del_text,
+          diff_hunk_header, diff_hunk_bg;
+    Color gutter_bg, gutter_border, gutter_add_bg, gutter_del_bg;
+    Color disabled_bg, disabled_text, input_bg;
+    Color button_primary, button_secondary, hover_bg, selected_bg, focus_ring;
+    Color toolbar_bg, toolbar_btn_hover, toolbar_btn_active, toolbar_btn_disabled;
+    Color badge_branch_bg, badge_head_bg, badge_remote_bg, badge_tag_bg,
+          badge_tag_text;
+    Color graph_dot, graph_line;
+    Color row_separator, sidebar_divider, empty_state_text;
+    Color status_bar_bg, status_bar_text, status_bar_clean, status_bar_dirty,
+          status_bar_detached_bg, status_bar_btn_hover;
+    Color section_header_bg, selected_bg_solid;
+};
+
+// Snapshot the live globals into a Theme (used to capture the default palette).
+inline Theme capture_current() {
+    return Theme{
+        WINDOW_BG, SIDEBAR_BG, PANEL_BG, BORDER,
+        TEXT_PRIMARY, TEXT_SECONDARY, TEXT_ACCENT, TEXT_TERTIARY,
+        STATUS_MODIFIED, STATUS_ADDED, STATUS_DELETED, STATUS_RENAMED,
+        STATUS_UNTRACKED, STATUS_CONFLICT,
+        DIFF_ADD_BG, DIFF_ADD_TEXT, DIFF_DEL_BG, DIFF_DEL_TEXT,
+        DIFF_HUNK_HEADER, DIFF_HUNK_BG,
+        GUTTER_BG, GUTTER_BORDER, GUTTER_ADD_BG, GUTTER_DEL_BG,
+        DISABLED_BG, DISABLED_TEXT, INPUT_BG,
+        BUTTON_PRIMARY, BUTTON_SECONDARY, HOVER_BG, SELECTED_BG, FOCUS_RING,
+        TOOLBAR_BG, TOOLBAR_BTN_HOVER, TOOLBAR_BTN_ACTIVE, TOOLBAR_BTN_DISABLED,
+        BADGE_BRANCH_BG, BADGE_HEAD_BG, BADGE_REMOTE_BG, BADGE_TAG_BG,
+        BADGE_TAG_TEXT,
+        GRAPH_DOT, GRAPH_LINE,
+        ROW_SEPARATOR, SIDEBAR_DIVIDER, EMPTY_STATE_TEXT,
+        STATUS_BAR_BG, STATUS_BAR_TEXT, STATUS_BAR_CLEAN, STATUS_BAR_DIRTY,
+        STATUS_BAR_DETACHED_BG, STATUS_BAR_BTN_HOVER,
+        SECTION_HEADER_BG, SELECTED_BG_SOLID,
+    };
+}
+
+inline void apply_theme(const Theme& t) {
+    WINDOW_BG = t.window_bg; SIDEBAR_BG = t.sidebar_bg; PANEL_BG = t.panel_bg;
+    BORDER = t.border;
+    TEXT_PRIMARY = t.text_primary; TEXT_SECONDARY = t.text_secondary;
+    TEXT_ACCENT = t.text_accent; TEXT_TERTIARY = t.text_tertiary;
+    STATUS_MODIFIED = t.status_modified; STATUS_ADDED = t.status_added;
+    STATUS_DELETED = t.status_deleted; STATUS_RENAMED = t.status_renamed;
+    STATUS_UNTRACKED = t.status_untracked; STATUS_CONFLICT = t.status_conflict;
+    DIFF_ADD_BG = t.diff_add_bg; DIFF_ADD_TEXT = t.diff_add_text;
+    DIFF_DEL_BG = t.diff_del_bg; DIFF_DEL_TEXT = t.diff_del_text;
+    DIFF_HUNK_HEADER = t.diff_hunk_header; DIFF_HUNK_BG = t.diff_hunk_bg;
+    GUTTER_BG = t.gutter_bg; GUTTER_BORDER = t.gutter_border;
+    GUTTER_ADD_BG = t.gutter_add_bg; GUTTER_DEL_BG = t.gutter_del_bg;
+    DISABLED_BG = t.disabled_bg; DISABLED_TEXT = t.disabled_text;
+    INPUT_BG = t.input_bg;
+    BUTTON_PRIMARY = t.button_primary; BUTTON_SECONDARY = t.button_secondary;
+    HOVER_BG = t.hover_bg; SELECTED_BG = t.selected_bg; FOCUS_RING = t.focus_ring;
+    TOOLBAR_BG = t.toolbar_bg; TOOLBAR_BTN_HOVER = t.toolbar_btn_hover;
+    TOOLBAR_BTN_ACTIVE = t.toolbar_btn_active;
+    TOOLBAR_BTN_DISABLED = t.toolbar_btn_disabled;
+    BADGE_BRANCH_BG = t.badge_branch_bg; BADGE_HEAD_BG = t.badge_head_bg;
+    BADGE_REMOTE_BG = t.badge_remote_bg; BADGE_TAG_BG = t.badge_tag_bg;
+    BADGE_TAG_TEXT = t.badge_tag_text;
+    GRAPH_DOT = t.graph_dot; GRAPH_LINE = t.graph_line;
+    ROW_SEPARATOR = t.row_separator; SIDEBAR_DIVIDER = t.sidebar_divider;
+    EMPTY_STATE_TEXT = t.empty_state_text;
+    STATUS_BAR_BG = t.status_bar_bg; STATUS_BAR_TEXT = t.status_bar_text;
+    STATUS_BAR_CLEAN = t.status_bar_clean; STATUS_BAR_DIRTY = t.status_bar_dirty;
+    STATUS_BAR_DETACHED_BG = t.status_bar_detached_bg;
+    STATUS_BAR_BTN_HOVER = t.status_bar_btn_hover;
+    SECTION_HEADER_BG = t.section_header_bg;
+    SELECTED_BG_SOLID = t.selected_bg_solid;
+}
+
+// DARK = the default palette captured from the globals above (no re-listing).
+inline const Theme DARK = capture_current();
+
+inline const Theme LIGHT = {
+    .window_bg = {246, 246, 246, 255}, .sidebar_bg = {236, 236, 236, 255},
+    .panel_bg = {255, 255, 255, 255}, .border = {200, 200, 200, 255},
+    .text_primary = {30, 30, 30, 255}, .text_secondary = {110, 110, 110, 255},
+    .text_accent = {60, 120, 20, 255}, .text_tertiary = {150, 150, 150, 255},
+    .status_modified = {180, 120, 0, 255}, .status_added = {40, 130, 50, 255},
+    .status_deleted = {200, 50, 45, 255}, .status_renamed = {40, 110, 190, 255},
+    .status_untracked = {130, 130, 130, 255}, .status_conflict = {200, 110, 30, 255},
+    .diff_add_bg = {225, 245, 225, 255}, .diff_add_text = {20, 110, 40, 255},
+    .diff_del_bg = {250, 225, 228, 255}, .diff_del_text = {180, 40, 40, 255},
+    .diff_hunk_header = {40, 110, 190, 255}, .diff_hunk_bg = {225, 235, 250, 255},
+    .gutter_bg = {246, 246, 246, 255}, .gutter_border = {200, 200, 200, 255},
+    .gutter_add_bg = {210, 240, 215, 255}, .gutter_del_bg = {250, 215, 218, 255},
+    .disabled_bg = {225, 225, 228, 255}, .disabled_text = {160, 160, 165, 255},
+    .input_bg = {255, 255, 255, 255},
+    .button_primary = {0, 122, 204, 255}, .button_secondary = {225, 225, 228, 255},
+    .hover_bg = {230, 230, 232, 255}, .selected_bg = {180, 205, 235, 255},
+    .focus_ring = {0, 122, 204, 255},
+    .toolbar_bg = {230, 230, 232, 255}, .toolbar_btn_hover = {220, 220, 222, 255},
+    .toolbar_btn_active = {0, 122, 204, 255}, .toolbar_btn_disabled = {200, 200, 200, 255},
+    .badge_branch_bg = {0, 122, 204, 255}, .badge_head_bg = {57, 166, 74, 255},
+    .badge_remote_bg = {78, 154, 220, 255}, .badge_tag_bg = {200, 200, 200, 255},
+    .badge_tag_text = {40, 40, 40, 255},
+    .graph_dot = {130, 90, 200, 255}, .graph_line = {170, 150, 200, 255},
+    .row_separator = {220, 220, 220, 255}, .sidebar_divider = {200, 200, 200, 255},
+    .empty_state_text = {150, 150, 150, 255},
+    .status_bar_bg = {0, 122, 204, 255}, .status_bar_text = {255, 255, 255, 255},
+    .status_bar_clean = {30, 150, 70, 255}, .status_bar_dirty = {180, 130, 0, 255},
+    .status_bar_detached_bg = {204, 102, 51, 255}, .status_bar_btn_hover = {0, 0, 0, 25},
+    .section_header_bg = {235, 235, 236, 255}, .selected_bg_solid = {180, 205, 235, 255},
+};
+
+enum class ThemeName { Dark, Light };
+inline ThemeName current_theme_name = ThemeName::Dark;
+
+inline void set_theme(ThemeName n) {
+    current_theme_name = n;
+    apply_theme(n == ThemeName::Light ? LIGHT : DARK);
+}
+
+inline void cycle_theme() {
+    set_theme(current_theme_name == ThemeName::Dark ? ThemeName::Light
+                                                    : ThemeName::Dark);
+}
+
 // Layout constants
 namespace layout {
 constexpr int MENU_BAR_HEIGHT = 24;
