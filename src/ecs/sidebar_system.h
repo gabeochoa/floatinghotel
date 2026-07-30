@@ -688,8 +688,9 @@ private:
             ctx, mk(commitArea.ent(), 1),
             editor.subject,
             ComponentConfig{}
-                .with_size(ComponentSize{secWidth, h720(26)})
+                .with_size(ComponentSize{secWidth, h720(28)})
                 .with_custom_background(theme::INPUT_BG)
+                .with_border(theme::BORDER, h720(1.0f))
                 .with_roundness(4.0f)
                 .with_debug_name("commit_msg_input"));
 

@@ -196,7 +196,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .top = pixels(8), .right = pixels(PAD),
                 .bottom = pixels(4), .left = pixels(PAD)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font_size(afterhours::ui::FontSize::Large)
+            .with_font_size(h720(24.0f))  // display: commit-detail page title
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("commit_subject"));
@@ -228,8 +228,9 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .top = pixels(10), .right = pixels(PAD),
                 .bottom = pixels(10), .left = pixels(PAD)})
             .with_margin(Margin{
-                .top = pixels(4), .bottom = pixels(4),
+                .top = pixels(8), .bottom = pixels(8),
                 .left = pixels(PAD), .right = pixels(PAD)})
+            .with_border(theme::BORDER, h720(1.0f))
             .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
             .with_roundness(theme::layout::ROUNDNESS_BOX)
             .with_debug_name("commit_meta_box"));
@@ -458,15 +459,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("file_badge"));
-
-            // Colored file-type dot (consistent with the sidebar file list).
-            div(ctx, mk(fileRow.ent(), 5),
-                ComponentConfig{}
-                    .with_size(ComponentSize{pixels(TYPE_DOT_W), pixels(TYPE_DOT_W)})
-                    .with_custom_background(theme::fileTypeColor(fd.filePath))
-                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_roundness(0.5f)
-                    .with_debug_name("file_type_dot"));
 
             std::string fname = fd.filePath;
             if (fd.isRenamed && !fd.oldPath.empty()) {
