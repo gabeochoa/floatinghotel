@@ -465,19 +465,25 @@ private:
         // Emit one tab. `active` highlights it; on click, `apply` mutates layout.
         auto makeTab = [&](int id, const std::string& label, bool active,
                            void (*apply)(LayoutComponent&)) {
+            // Mock: tabs are transparent text with an accent underline on the
+            // active one (not filled pills).
             auto config = preset::Button(label)
-                .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
+                .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 4)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(7),
-                    .bottom = h720(2), .left = pixels(7)})
+                    .top = h720(2), .right = pixels(8),
+                    .bottom = h720(2), .left = pixels(8)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = pixels(3)})
+                    .left = {}, .right = pixels(4)})
                 .with_font_size(FontSize::Medium)
+                .with_transparent_bg()
+                .with_roundness(0.0f)
                 .with_debug_name("tab_" + label);
-            if (!active) {
-                config = config.with_custom_background(theme::BUTTON_SECONDARY)
-                               .with_custom_text_color(theme::TEXT_PRIMARY);
+            if (active) {
+                config = config.with_custom_text_color(theme::TEXT_PRIMARY)
+                               .with_border_bottom(theme::BUTTON_PRIMARY, h720(2.0f));
+            } else {
+                config = config.with_custom_text_color(theme::TEXT_SECONDARY);
             }
             if (button(ctx, mk(tabRow.ent(), id), config)) {
                 auto* lc = find_singleton<LayoutComponent>();
