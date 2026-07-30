@@ -76,7 +76,7 @@ validate staged_count=1
 validate unstaged_count=3
 click_text "README.md"
 wait_frames 5
-click_text "Repository"
+click_text "More"
 wait_frames 5
 click_text "Stage File"
 wait_for_refresh
@@ -85,7 +85,7 @@ validate unstaged_count=2
 screenshot tier_a_02_stage_file
 
 # R2: Unstage File
-click_text "Repository"
+click_text "More"
 wait_frames 5
 click_text "Unstage File"
 wait_for_refresh
@@ -94,7 +94,7 @@ validate unstaged_count=3
 screenshot tier_a_03_unstage_file
 
 # R9: Fetch (no remote, but should not crash)
-click_text "Repository"
+click_text "More"
 wait_frames 5
 click_text "Fetch"
 wait_for_refresh
@@ -136,7 +136,7 @@ validate sidebar_visible=true
 
 # --- Help menu ---
 screenshot tier_a_06b_before_help
-click_text "Help"
+click_text "More"
 wait_frames 5
 screenshot tier_a_06c_help_open
 click_text "Command Log"

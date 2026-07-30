@@ -31,6 +31,6 @@ screenshot txaudit_05_view_menu
 
 escape
 wait_frames 5
-click_text Repository
+click_text More
 wait_frames 5
 screenshot txaudit_06_repository_menu

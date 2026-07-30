@@ -32,7 +32,7 @@ click 640 400
 wait_frames 5
 
 # Open Git menu
-click_text "Repository"
+click_text "More"
 wait_frames 5
 screenshot flow_menu_04_git_open
 
@@ -41,6 +41,6 @@ click 640 400
 wait_frames 5
 
 # Open Help menu
-click_text Help
+click_text More
 wait_frames 5
 screenshot flow_menu_05_help_open

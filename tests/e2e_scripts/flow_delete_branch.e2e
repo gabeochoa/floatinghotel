@@ -9,7 +9,7 @@ wait_frames 5
 screenshot flow_delbranch_01_initial
 
 # Open Git menu to check for delete branch option
-click_text "Repository"
+click_text "More"
 wait_frames 5
 screenshot flow_delbranch_02_git_menu
 

@@ -6,14 +6,14 @@ resize 1280 720
 wait_frames 5
 
 # Open Repository menu and verify Pull is present but has no shortcut
-click_text "Repository"
+click_text "More"
 wait_frames 5
 expect_text "Pull"
 screenshot shortcut_01_repo_menu_open
 
 # Verify Toggle Command Log still owns Cmd+Shift+L
 # Close Repository menu first
-click_text "Repository"
+click_text "More"
 wait_frames 5
 
 click_text "View"

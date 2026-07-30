@@ -9,7 +9,7 @@ wait_frames 5
 validate staged_count=1
 
 # Trigger commit via Repository menu
-click_text "Repository"
+click_text "More"
 wait_frames 5
 click_text "Commit..."
 wait_frames 5
