@@ -146,14 +146,32 @@ if [ "$ISOLATE" = false ]; then
         EXIT_CODE=$?
     fi
 
-    # Parse results from the framework's batch summary
-    PASSED=$(grep 'Scripts passed:' "$BATCH_LOG" 2>/dev/null | grep -o '[0-9]*' || echo "0")
-    FAILED=$(grep 'Scripts failed:' "$BATCH_LOG" 2>/dev/null | grep -o '[0-9]*' || echo "0")
-    TOTAL_RUN=$(grep 'Scripts run:' "$BATCH_LOG" 2>/dev/null | grep -o '[0-9]*' || echo "0")
+    # Parse per-script counts from the framework's batch summary when the log
+    # captured them. The exit code is authoritative for overall pass/fail
+    # (the summary lines don't reach stdout in every environment).
+    PASSED=$(grep 'Scripts passed:' "$BATCH_LOG" 2>/dev/null | grep -o '[0-9]*' | head -1)
+    FAILED=$(grep 'Scripts failed:' "$BATCH_LOG" 2>/dev/null | grep -o '[0-9]*' | head -1)
+    TOTAL_RUN=$(grep 'Scripts run:' "$BATCH_LOG" 2>/dev/null | grep -o '[0-9]*' | head -1)
+
+    # Fallback when the log has no summary: derive from the exit code so a green
+    # run isn't reported as "Total: 0". #scripts is known from the glob.
+    if [ -z "$TOTAL_RUN" ]; then
+        TOTAL_RUN=${#SCRIPTS[@]}
+        if [ "$EXIT_CODE" -eq 0 ]; then
+            PASSED=$TOTAL_RUN
+            FAILED=0
+        else
+            # Exit code says at least one failed; exact split is in the log.
+            FAILED="?"
+            PASSED="?"
+            echo -e "${YELLOW}(per-script counts unavailable; see $BATCH_LOG)${NC}"
+        fi
+    fi
+    : "${PASSED:=0}" "${FAILED:=0}"
 
     echo ""
     echo "=============================================="
-    echo "   E2E Test Summary"
+    echo "   E2E Test Summary (single window)"
     echo "=============================================="
     echo ""
     echo "  Total:   $TOTAL_RUN"
@@ -164,10 +182,8 @@ if [ "$ISOLATE" = false ]; then
     TOTAL_SC=$(find "$SCREENSHOT_DIR" -name "*.png" 2>/dev/null | wc -l | tr -d ' ')
     echo "Screenshots: $TOTAL_SC saved to $SCREENSHOT_DIR"
 
-    if [ "$FAILED" -gt 0 ] || [ "$EXIT_CODE" -ne 0 ]; then
-        exit 1
-    fi
-    exit 0
+    # Exit code from the single-window run is authoritative.
+    exit "$EXIT_CODE"
 fi
 
 # ============================================================
