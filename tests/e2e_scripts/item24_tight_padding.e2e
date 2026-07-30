@@ -6,11 +6,16 @@ resize 1280 720
 wait_for_refresh
 wait_frames 30
 
-# All content should still render correctly with tighter spacing
-expect_text "STAGED CHANGES"
-expect_text ".gitignore"
+# All content should still render correctly with tighter spacing.
+# Default "To review" tab shows unstaged files; commit header is "stack".
+expect_text "To review"
 expect_text "README.md"
 expect_text "main.cpp"
-expect_text "COMMITS"
+expect_text "stack"
+
+# Staged files (.gitignore) live under the "Approved" tab
+click_text "Approved"
+wait_frames 5
+expect_text ".gitignore"
 
 screenshot item24_tight_padding

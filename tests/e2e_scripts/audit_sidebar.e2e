@@ -18,8 +18,8 @@ wait_frames 5
 screenshot sidebar_refs.png
 wait_frames 5
 
-# Switch back to Changes
-click_text "Changes"
+# Switch back to the changes file view (now the "To review" tab)
+click_text "To review"
 wait_frames 5
 
 # Click a commit

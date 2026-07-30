@@ -6,8 +6,11 @@ resize 1280 720
 wait_for_refresh
 wait_frames 30
 
-# Sidebar content should still render correctly
-expect_text "STAGED CHANGES"
+# Sidebar content should still render correctly. Staged files (.gitignore)
+# now live under the "Approved" review tab.
+expect_text "Approved"
+click_text "Approved"
+wait_frames 5
 expect_text ".gitignore"
 
 screenshot item23_soft_border

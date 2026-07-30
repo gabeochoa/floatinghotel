@@ -17,12 +17,16 @@ click_text "main.cpp"
 wait_frames 5
 screenshot flow_browse_03_maincpp_diff
 
-# Click the staged file
+# Click the staged file (staged files live under the "Approved" tab)
+click_text "Approved"
+wait_frames 5
 click_text ".gitignore"
 wait_frames 5
 screenshot flow_browse_04_staged_diff
 
-# Click an untracked file
+# Click an untracked file (untracked files live under the "Untracked" tab)
+click_text "Untracked"
+wait_frames 5
 click_text "TODO.md"
 wait_frames 5
 screenshot flow_browse_05_untracked

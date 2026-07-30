@@ -35,12 +35,16 @@ click_text main.cpp
 wait_frames 5
 screenshot baseline_04_sidebar_file_unstaged_second
 
-# Select the staged file (.gitignore)
+# Select the staged file (.gitignore) - staged files under "Approved" tab
+click_text "Approved"
+wait_frames 5
 click_text .gitignore
 wait_frames 5
 screenshot baseline_05_sidebar_file_staged_selected
 
-# Select an untracked file (TODO.md)
+# Select an untracked file (TODO.md) - untracked files under "Untracked" tab
+click_text "Untracked"
+wait_frames 5
 click_text TODO.md
 wait_frames 5
 screenshot baseline_06_sidebar_file_untracked_selected
@@ -49,7 +53,9 @@ screenshot baseline_06_sidebar_file_untracked_selected
 # 4. DIFF VIEWS (inline diff for different file types)
 # =============================================================================
 
-# Unstaged modification diff (README.md)
+# Unstaged modification diff (README.md) - unstaged files under "To review"
+click_text "To review"
+wait_frames 5
 click_text README.md
 wait_frames 5
 screenshot baseline_07_diff_unstaged_modification
@@ -59,12 +65,16 @@ click_text main.cpp
 wait_frames 5
 screenshot baseline_08_diff_unstaged_code
 
-# Staged file diff (.gitignore - new file)
+# Staged file diff (.gitignore - new file) - staged files under "Approved"
+click_text "Approved"
+wait_frames 5
 click_text .gitignore
 wait_frames 5
 screenshot baseline_09_diff_staged_new_file
 
-# Untracked file (TODO.md)
+# Untracked file (TODO.md) - untracked files under "Untracked"
+click_text "Untracked"
+wait_frames 5
 click_text TODO.md
 wait_frames 5
 screenshot baseline_10_diff_untracked_file
@@ -92,7 +102,9 @@ screenshot baseline_13_commit_detail_initial
 # 6. SIDEBAR TOOLBAR (Commit, Push, Pull, Stash buttons in sidebar mode)
 # =============================================================================
 
-# Go back to file view first
+# Go back to file view first (unstaged files under "To review")
+click_text "To review"
+wait_frames 5
 click_text README.md
 wait_frames 5
 screenshot baseline_14_sidebar_toolbar
@@ -106,8 +118,8 @@ click_button Refs
 wait_frames 5
 screenshot baseline_15_refs_tab
 
-# Switch back to Changes tab
-click_button Changes
+# Switch back to the changes file view (now the "To review" tab)
+click_text "To review"
 wait_frames 5
 
 # =============================================================================

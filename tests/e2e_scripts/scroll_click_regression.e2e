@@ -26,6 +26,9 @@ screenshot scroll_click_02_small_window
 # With the small window, TODO.md or icon.png may be below the fold.
 # Even if still visible, the scroll panel is active and the offset
 # math must be correct for the click to register.
+# Untracked files live under the "Untracked" review tab.
+click_text "Untracked"
+wait_frames 5
 click_text TODO.md
 wait_frames 5
 screenshot scroll_click_03_click_todo
@@ -39,6 +42,9 @@ wait_frames 5
 screenshot scroll_click_04_after_scroll
 
 # Click a file that has shifted due to scrolling
+# main.cpp is an unstaged file under the "To review" tab.
+click_text "To review"
+wait_frames 5
 click_text main.cpp
 wait_frames 5
 screenshot scroll_click_05_click_after_scroll
@@ -60,7 +66,7 @@ click_button Refs
 wait_frames 5
 screenshot scroll_click_07_refs_tab
 
-click_button Changes
+click_text "To review"
 wait_frames 5
 screenshot scroll_click_08_changes_tab
 
@@ -68,7 +74,7 @@ screenshot scroll_click_08_changes_tab
 resize 1280 720
 wait_frames 5
 # Re-select Changes tab (resize can reset sidebar mode)
-click_button Changes
+click_text "To review"
 wait_frames 5
 click_text README.md
 wait_frames 5
