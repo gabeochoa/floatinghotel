@@ -9,7 +9,7 @@ wait_frames 5
 screenshot flow_cherrypick_01_commit_log
 
 # Open Git menu to check for cherry-pick option
-click_text "Repository"
+click_text "More"
 wait_frames 5
 screenshot flow_cherrypick_02_git_menu
 
