@@ -16,6 +16,7 @@
 #include "components.h"
 #include "query_helpers.h"
 #include "tab_bar_system.h"
+#include "../ui/diff_renderer.h"
 #include "../git/git_parser.h"
 #include "../git/git_runner.h"
 #include "../util/process.h"
@@ -131,6 +132,13 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
                 branchDialog->deleteBranchName.clear();
                 branchDialog->showForceDeleteDialog = false;
             }
+
+            auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+            if (review) {
+                ecs::reset_review(*review);
+            }
+
+            ui::diff_sel::reset();
 
             auto editorEntities = afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<ecs::CommitEditorComponent>()
