@@ -1,18 +1,46 @@
 # floatinghotel — TODO
 
-## Review workflow (P0 — this is the product)
+## Status (reconciled 2026-07-29, after the `feat/ballroom` merge)
+Most of the P0 review workflow SHIPPED on `main`. What's left splits into
+bounded features and multi-week/aspirational work — "do all" is not one sitting.
+
+**✅ Shipped (Ballroom branch):** hunk Approve (=stage) + per-hunk review state
+through refresh · Changes/Approved/Untracked tabs w/ counts · review-progress
+strip ("In the ballroom · N approved · M to review") · feedback basket + Send
+all / Copy all / `/tmp/floatinghotel-review.md` · stack review w/ SHA-tagged
+fixup export · diff shelf (collapse-to-sidebar, Esc to close) w/ smooth
+window-resize animation · Embark · comment auto-fold · Embark/send-all snapshot
+baseline · approved-chunks-hidden · vim nav (j/k/n/a/c) · inline comment (Enter
+adds, Esc cancels) · ⌘⏎ send-all · right-aligned M/S badges · neutral toasts ·
+fixed-pixel sidebar (no reflow on resize).
+
+**🔨 Bounded, still open:** submodule detection + diff (below) · chunk auto-split
+<20 lines + select-to-chunk · Theme struct extraction · file-list scroll cull bug
+(afterhours ScrollPanel) · render markdown files · multi-file view · resizable
+panels (log/diff splits) · config-driven syntax highlighting · settings kv-store.
+
+**🌋 Multi-week / aspirational (NOT cramming):** integrated terminal + VT parser ·
+IntelliSense / code-nav / editor features · full git-client feature union.
+
+**Partially done — needs a dependency first:** "drop Copy buttons" — already
+removed from the working-tree diff (select-to-copy replaces it); the commit-detail
+Copy is intentionally kept until drag-select is enabled there. Not a free removal.
+
+---
+
+## Review workflow (P0 — this is the product) — ✅ SHIPPED
 The core loop: review AI-produced changes, **stage = "approved for commit"**,
 leave the rest unstaged ("still has my comments"), focus on the unstaged pile.
-- [ ] **Hunk / chunk staging** (git add -p). Backend ALREADY EXISTS
+- [x] **Hunk / chunk staging** (git add -p). Backend ALREADY EXISTS
       (`git::stage_hunk`/`unstage_hunk` → patch + `git apply --cached`); it is
       just not wired to the UI. Add per-hunk "Stage hunk"/"Unstage" buttons on
       each hunk header in the working-tree diff. Stretch: line-level staging.
-- [ ] **Staged/Changes/Untracked as tabs** in the sidebar (not stacked
+- [x] **Staged/Changes/Untracked as tabs** in the sidebar (not stacked
       sections). Default to "Changes" (to-review). Show counts per tab.
-- [ ] **Review progress** signal: "everything staged is good to go, N files
+- [x] **Review progress** signal: "everything staged is good to go, N files
       still to review" — e.g. a progress strip / count so the approved pile is
       visibly "done" and focus goes to unstaged.
-- [ ] Per-file / per-hunk review state carried through refresh (which hunks are
+- [x] Per-file / per-hunk review state carried through refresh (which hunks are
       already approved).
 
 ## Review UX — decisions from concept mocks (2026-07-29)
