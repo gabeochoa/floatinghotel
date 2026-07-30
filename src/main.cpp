@@ -1,8 +1,11 @@
 #include <argh.h>
 
 #include <chrono>
+#include <iterator>
+#include <mutex>
 #include <string>
 #include <unistd.h>
+#include <vector>
 
 #ifdef __APPLE__
 extern "C" void metal_activate_app(void);
@@ -64,6 +67,27 @@ struct HandleWaitForRefresh : afterhours::System<afterhours::testing::PendingE2E
 };
 
 // Shared state between main() and the run() callbacks
+// Git command logging is invoked from detached git worker threads (git_run in
+// git_runner.cpp), but the CommandLogComponent it feeds is read by the UI on the
+// main thread. Writing the ECS component directly from a worker races with those
+// reads and corrupts the heap (surfaces as a bad Entity pointer during tick).
+// Stage entries under a mutex on the worker side, then drain them into the
+// component on the main thread once per frame.
+static std::mutex g_gitLogMutex;
+static std::vector<ecs::CommandLogComponent::Entry> g_pendingGitLog;
+static ecs::CommandLogComponent* g_cmdLogSink = nullptr;
+
+static void drain_git_log() {
+    if (!g_cmdLogSink) return;
+    std::lock_guard<std::mutex> lock(g_gitLogMutex);
+    if (g_pendingGitLog.empty()) return;
+    auto& dst = g_cmdLogSink->entries;
+    dst.insert(dst.end(),
+               std::make_move_iterator(g_pendingGitLog.begin()),
+               std::make_move_iterator(g_pendingGitLog.end()));
+    g_pendingGitLog.clear();
+}
+
 namespace app_state {
 
 afterhours::SystemManager* systemManager = nullptr;
@@ -91,6 +115,16 @@ std::string pendingScreenshotName;
 std::string validationReportPath;
 
 }  // namespace app_state
+
+// Write the current rendered frame to a PNG. Headless has no window, so read
+// back the offscreen render texture; windowed uses the macOS window capture.
+static void write_screenshot(const std::string& path) {
+    if (afterhours::graphics::is_headless()) {
+        afterhours::graphics::capture_frame(path);
+    } else {
+        afterhours::graphics::take_screenshot(path.c_str());
+    }
+}
 
 struct HandleFileWatcherToggle : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
@@ -222,16 +256,21 @@ static void app_init() {
         }
     }
 
-    // Wire git log callback to record all git commands in the CommandLogComponent
-    git::set_log_callback([&cmdLog](const std::string& cmd,
-                                     const std::string& out,
-                                     const std::string& err,
-                                     bool success) {
+    // Wire git log callback to record all git commands in the CommandLogComponent.
+    // The callback fires on detached git worker threads, so it must NOT touch the
+    // ECS directly (see drain_git_log): stage entries under a mutex and let the
+    // main thread drain them into cmdLog each frame.
+    g_cmdLogSink = &cmdLog;
+    git::set_log_callback([](const std::string& cmd,
+                            const std::string& out,
+                            const std::string& err,
+                            bool success) {
         auto now = std::chrono::system_clock::now();
         double ts = static_cast<double>(
             std::chrono::duration_cast<std::chrono::seconds>(
                 now.time_since_epoch()).count());
-        cmdLog.entries.push_back({cmd, out, err, success, ts});
+        std::lock_guard<std::mutex> lock(g_gitLogMutex);
+        g_pendingGitLog.push_back({cmd, out, err, success, ts});
     });
 
     // Setup SystemManager with all systems
@@ -304,7 +343,7 @@ static void app_init() {
                             std::filesystem::absolute(app_state::screenshotDir);
                         std::filesystem::create_directories(dir);
                         std::filesystem::path path = dir / (name + ".png");
-                        afterhours::graphics::take_screenshot(path.c_str());
+                        write_screenshot(path.string());
                         log_info("Screenshot: {}", path.string());
                     }));
             afterhours::testing::ui_commands::register_ui_commands<InputAction>(sm);
@@ -345,9 +384,9 @@ static void app_init() {
         std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count());
 
 #ifdef __APPLE__
-    if (app_state::headless) {
-        metal_hide_window();
-    } else if (app_state::testModeEnabled) {
+    // Headless is now truly windowless (offscreen Metal, no sokol_app), so there
+    // is no window to hide/activate. Only the windowed test path needs focus.
+    if (!app_state::headless && app_state::testModeEnabled) {
         metal_activate_app();
     }
 #endif
@@ -432,7 +471,7 @@ static void e2e_render_and_screenshot(float dt) {
                 std::filesystem::absolute(app_state::screenshotDir);
             std::filesystem::create_directories(dir);
             std::filesystem::path path = dir / (s_readyScreenshotName + ".png");
-            afterhours::graphics::take_screenshot(path.c_str());
+            write_screenshot(path.string());
             s_readyScreenshotName.clear();
         } else {
             s_screenshotDelayFrames--;
@@ -455,6 +494,10 @@ static void e2e_render_and_screenshot(float dt) {
 
 // Frame callback: runs every frame
 static void app_frame() {
+    // Move any git-worker-staged log entries into the ECS on the main thread
+    // before any system reads them this frame.
+    drain_git_log();
+
     float dt = afterhours::graphics::get_frame_time();
 
     if (app_state::testModeEnabled &&
@@ -684,6 +727,42 @@ int main(int argc, char* argv[]) {
     cfg.init = app_init;
     cfg.frame = app_frame;
     cfg.cleanup = app_cleanup;
+
+    if (app_state::headless) {
+        // True windowless rendering: no sokol_app, no WindowServer. Bootstrap an
+        // offscreen Metal context and pump frames manually (graphics::run would
+        // create a window via sapp_run).
+        afterhours::graphics::Config gc;
+        gc.display = afterhours::graphics::DisplayMode::Headless;
+        gc.width = cfg.width;
+        gc.height = cfg.height;
+        if (!afterhours::graphics::init(gc)) {
+            fprintf(stderr, "Error: headless graphics init failed\n");
+            return 1;
+        }
+        app_init();
+
+        if (app_state::testModeEnabled) {
+            // app_frame drives the e2e runner and calls _exit() on completion.
+            // The frame budget is a hang backstop; reaching the end is a failure.
+            constexpr int kMaxHeadlessFrames = 200000;
+            for (int i = 0; i < kMaxHeadlessFrames; ++i) {
+                app_frame();
+            }
+            fprintf(stderr,
+                    "Error: headless e2e did not finish within frame budget\n");
+            return 1;
+        }
+
+        // No test script: render a few frames so the offscreen texture holds a
+        // real frame (useful for a one-off manual capture), then exit cleanly.
+        for (int i = 0; i < 3; ++i) {
+            app_frame();
+        }
+        app_cleanup();
+        afterhours::graphics::shutdown();
+        return 0;
+    }
 
     afterhours::graphics::run(cfg);
 
