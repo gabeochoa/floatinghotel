@@ -449,15 +449,19 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_roundness(0.0f)
                     .with_debug_name("file_summary_row"));
 
+            // Status letter in a filled colored circle (mock style).
             div(ctx, mk(fileRow.ent(), 1),
                 ComponentConfig{}
                     .with_label(badge)
-                    .with_size(ComponentSize{pixels(BADGE_W), children()})
-                    .with_transparent_bg()
-                    .with_custom_text_color(badgeColor)
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_size(ComponentSize{pixels(18), pixels(18)})
+                    .with_custom_background(badgeColor)
+                    .with_custom_text_color(theme::WINDOW_BG)
+                    .with_font_size(afterhours::ui::FontSize::Small)
                     .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
+                    .with_justify_content(JustifyContent::Center)
+                    .with_align_items(AlignItems::Center)
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_roundness(1.0f)
                     .with_debug_name("file_badge"));
 
             std::string fname = fd.filePath;
