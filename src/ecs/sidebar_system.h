@@ -526,19 +526,38 @@ private:
             txt += "  \xc2\xb7  " + branch + (dirty ? "*" : "");
 
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-        div(ctx, mk(parent, 2079),
+        // Row: [status dot] repo · branch  (mock has a leading status dot).
+        auto row = div(ctx, mk(parent, 2079),
             ComponentConfig{}
-                .with_label(txt)
                 .with_size(ComponentSize{w, h720(24)})
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(FontSize::Large)
-                .with_alignment(TextAlignment::Left)
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_gap(pixels(8))
                 .with_padding(Padding{
                     .top = h720(4), .right = pixels(10),
                     .bottom = h720(2), .left = pixels(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("repo_header"));
+        div(ctx, mk(row.ent(), 1),
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(8), pixels(8)})
+                .with_custom_background(dirty ? theme::STATUS_BAR_DIRTY
+                                              : theme::STATUS_BAR_CLEAN)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_roundness(1.0f)
+                .with_debug_name("repo_status_dot"));
+        div(ctx, mk(row.ent(), 2),
+            ComponentConfig{}
+                .with_label(txt)
+                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_font_size(FontSize::Large)
+                .with_alignment(TextAlignment::Left)
+                .with_transparent_bg()
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_roundness(0.0f)
+                .with_debug_name("repo_header_label"));
     }
 
     // Sync actions (Push / Pull / Stash) grouped under the repo header so they
