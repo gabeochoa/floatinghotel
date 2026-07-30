@@ -145,14 +145,15 @@ Preload& Preload::make_singleton() {
             .set_theme_color(ui::Theme::Usage::Accent,
                              afterhours::Color{0, 122, 204, 255});
 
-        // Configure font sizing tiers (values are h720 reference pixels)
-        // Small=10 (badges, hashes, meta), Medium=12 (row content),
-        // Large=14 (section headers, toolbar/tabs), XL=17 (menu bar)
+        // Three-tier typography (values are h720 reference pixels).
+        // Only 3 distinct sizes app-wide: Caption/Small=12, Body/Medium=14,
+        // Heading/Large=18. XL folds into Heading (== Large) so legacy XL
+        // call sites resolve to the heading size.
         auto& theme = ui::imm::ThemeDefaults::get().theme;
-        theme.font_sizing.small = 10.0f;
-        theme.font_sizing.medium = 12.0f;
-        theme.font_sizing.large = 14.0f;
-        theme.font_sizing.xl = 17.0f;
+        theme.font_sizing.small = 12.0f;
+        theme.font_sizing.medium = 14.0f;
+        theme.font_sizing.large = 18.0f;
+        theme.font_sizing.xl = 18.0f;
 
         ui::imm::UIStylingDefaults::get().set_grid_snapping(true);
     }

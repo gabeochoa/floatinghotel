@@ -248,17 +248,11 @@ constexpr int FILE_ROW_HEIGHT = 24;
 constexpr int COMMIT_ROW_HEIGHT = 26;
 constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
-// Text hierarchy (values are h720 reference pixels at 720p)
-// Actual rendering uses FontSize tiers set in preload.cpp:
-// Small=12, Medium=15, Large=17, XL=19
-constexpr float FONT_HERO = 20.0f;     // Empty state title
-constexpr float FONT_HEADING = 18.0f;  // Diff file headers, section titles
-constexpr float FONT_BODY = 15.0f;     // Sidebar file names, commit detail meta
-constexpr float FONT_CHROME = 19.0f;   // Menu bar
-constexpr float FONT_CODE = 16.0f;     // Diff code text, line numbers
-constexpr float FONT_META = 12.0f;     // Hashes, status badges, shortcut keys
-constexpr float FONT_CAPTION = 17.0f;  // Section headers (Staged Changes)
-constexpr float FONT_TOOLBAR = 17.0f;  // Toolbar buttons, tabs
+// Typography: 3 tiers only, set in preload.cpp as FontSize:
+//   Small/Caption = 12, Medium/Body = 14, Large/Heading = 18 (XL == Large).
+// All UI text uses the FontSize enum tiers. The one exception is monospace
+// diff code, which needs a fixed size decoupled from the UI tiers:
+constexpr float FONT_CODE = 14.0f;     // Diff code text (mono), == body size
 
 // Rounded corners (enable all four corners)
 const std::bitset<4> ROUNDED_CORNERS = std::bitset<4>(0b1111);
@@ -267,11 +261,6 @@ const std::bitset<4> ROUNDED_CORNERS = std::bitset<4>(0b1111);
 constexpr float ROUNDNESS_BUTTON = 0.4f;  // Toolbar & dialog buttons
 constexpr float ROUNDNESS_BADGE = 0.6f;   // Commit/branch badge pills
 constexpr float ROUNDNESS_BOX = 0.3f;     // Metadata boxes, containers
-
-// Legacy aliases
-constexpr float FONT_SIZE_MONO = FONT_CODE;
-constexpr float FONT_SIZE_UI = FONT_BODY;
-constexpr float FONT_SIZE_SMALL = FONT_META;
 }  // namespace layout
 
 // Helper: get status badge color for a file status character

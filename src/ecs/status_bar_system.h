@@ -71,10 +71,8 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
 
         float sw = static_cast<float>(afterhours::graphics::get_screen_width());
         float padX = afterhours::ui::resolve_to_pixels(w1280(8), sw);
-        // Log button: fixed width so it stays readable even in a narrow window;
-        // label shortens when the window is too tight to fit "Show Log".
+        // Counts are hidden when the window is too narrow to fit them.
         bool narrow = w < 520.0f;
-        float btnW = narrow ? 44.0f : 80.0f;
 
         // Status info label (absolute, rendered at correct position)
         div(ctx, mk(uiRoot, 4010),
@@ -97,7 +95,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         // Right-aligned counts, sitting just left of the log toggle button.
         // Hidden when the window is too narrow to fit them.
         if (!rightText.empty() && !narrow) {
-            float countsW = w - btnW - 24.0f;
+            float countsW = w - 24.0f;
             if (countsW < 20.0f) countsW = 20.0f;
             div(ctx, mk(uiRoot, 4020),
                 ComponentConfig{}
@@ -117,27 +115,8 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_debug_name("status_counts"));
         }
 
-        // === Right section: command log toggle button (absolute) ===
-        std::string logLabel = narrow ? (layout->commandLogVisible ? "Hide" : "Log")
-                               : (layout->commandLogVisible ? "Hide Log" : "Show Log");
-        auto logBtn = button(ctx, mk(uiRoot, 4050),
-            preset::Button(logLabel)
-                .with_size(ComponentSize{pixels(btnW), pixels(h - 4)})
-                .with_absolute_position()
-                .with_translate(w - btnW - 8, y + 2)
-                .with_padding(Padding{
-                    .top = h720(2), .right = w1280(10),
-                    .bottom = h720(2), .left = w1280(10)})
-                .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_size(afterhours::ui::FontSize::Medium)
-                .with_transparent_bg()
-                .with_custom_hover_bg(theme::STATUS_BAR_BTN_HOVER)
-                .with_render_layer(5)
-                .with_debug_name("status_log_toggle"));
-
-        if (logBtn) {
-            layout->commandLogVisible = !layout->commandLogVisible;
-        }
+        // The command-log pane is toggled from the View menu (see menu_setup.h),
+        // not from the status bar.
     }
 };
 

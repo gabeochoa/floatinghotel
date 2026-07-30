@@ -250,6 +250,13 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
         float repoHeaderH = resolve_to_pixels(h720(26.0f), sh_for_tab);
 
+        // === Sync row (Push / Pull / Stash), grouped under the repo header ===
+        float syncRowH = 0.0f;
+        if (repoPtr && !repoPtr->repoPath.empty()) {
+            render_sync_row(ctx, sidebarRoot.ent(), repoPtr);
+            syncRowH = resolve_to_pixels(h720(34.0f), sh_for_tab);
+        }
+
         // === Commit area (always-visible input + button, VS Code style) ===
         constexpr float COMMIT_AREA_H_720 = 82.0f;
         float commitAreaH = 0.0f;
@@ -275,7 +282,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
         // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
         float filesH = layout.sidebarFiles.height - tabH - commitAreaH - progressH -
-                       repoHeaderH;
+                       repoHeaderH - syncRowH;
         if (filesH < 20.0f) filesH = 20.0f;
         auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
             preset::ScrollPanel()
@@ -366,8 +373,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 branch = repoPtr->currentBranch;
             }
             std::string logHeaderText =
-                branch.empty() ? ("STACK  " + std::to_string(commitCount))
-                               : ("STACK \xc2\xb7 " + branch + "  " +
+                branch.empty() ? ("stack  " + std::to_string(commitCount))
+                               : ("stack \xc2\xb7 " + branch + "  " +
                                   std::to_string(commitCount));
             div(ctx, mk(logBg.ent(), 2310),
                 preset::SectionHeader(logHeaderText)
@@ -528,6 +535,70 @@ private:
                 .with_debug_name("repo_header"));
     }
 
+    // Sync actions (Push / Pull / Stash) grouped under the repo header so they
+    // read as repo-scoped actions rather than floating chrome.
+    void render_sync_row(UIContext<InputAction>& ctx, Entity& parent,
+                         RepoComponent* repo) {
+        bool hasRepo = repo && !repo->repoPath.empty();
+        auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
+        auto row = div(ctx, mk(parent, 2085),
+            ComponentConfig{}
+                .with_size(ComponentSize{w, h720(34)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_gap(pixels(6))
+                .with_custom_background(theme::SIDEBAR_BG)
+                .with_padding(Padding{
+                    .top = h720(2), .right = pixels(10),
+                    .bottom = h720(6), .left = pixels(10)})
+                .with_roundness(0.0f)
+                .with_debug_name("sync_row"));
+
+        div(ctx, mk(row.ent(), 2086),
+            ComponentConfig{}
+                .with_label("Sync")
+                .with_size(ComponentSize{children(), children()})
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font_size(FontSize::Small)
+                .with_transparent_bg()
+                .with_roundness(0.0f)
+                .with_debug_name("sync_caption"));
+
+        auto syncBtn = [&](int id, const std::string& label, bool enabled) -> bool {
+            auto config = preset::Button(label, enabled)
+                .with_size(ComponentSize{children(), children()})
+                .with_padding(Padding{
+                    .top = pixels(3), .right = pixels(12),
+                    .bottom = pixels(3), .left = pixels(12)})
+                .with_font_size(FontSize::Medium)
+                .with_cursor(afterhours::ui::CursorType::Pointer)
+                .with_debug_name("sync_btn");
+            if (enabled)
+                config = config.with_custom_background(theme::BUTTON_SECONDARY)
+                               .with_custom_text_color(theme::TEXT_PRIMARY);
+            return static_cast<bool>(button(ctx, mk(row.ent(), id), config));
+        };
+
+        // Plain ASCII labels (font atlas has no arrow glyphs); show ahead/behind
+        // counts like the old toolbar did.
+        std::string pushLabel = "Push";
+        std::string pullLabel = "Pull";
+        if (repo && repo->aheadCount > 0)
+            pushLabel += " (" + std::to_string(repo->aheadCount) + ")";
+        if (repo && repo->behindCount > 0)
+            pullLabel += " (" + std::to_string(repo->behindCount) + ")";
+
+        if (syncBtn(2087, pushLabel, hasRepo))
+            enqueue_network_op("Push", git::git_run_async(repo->repoPath, {"push"}));
+        if (syncBtn(2088, pullLabel, hasRepo))
+            enqueue_network_op("Pull", git::git_run_async(repo->repoPath, {"pull"}));
+        if (syncBtn(2089, "Stash", hasRepo)) {
+            auto* menuComp = find_singleton<MenuComponent>();
+            if (menuComp)
+                menuComp->pendingToast = "Stash is not yet implemented";
+        }
+    }
+
     // "In the ballroom" review-progress strip (mock): a bar + approved/to-review
     // counts, plus how many comments are queued to send.
     void render_review_progress(UIContext<InputAction>& ctx, Entity& parent,
@@ -676,7 +747,7 @@ private:
                 .with_padding(Padding{
                     .top = h720(2), .right = pixels(8),
                     .bottom = h720(2), .left = pixels(8)})
-                .with_font_size(h720(16))
+                .with_font_size(FontSize::Medium)
                 .with_debug_name("new_branch_btn"));
 
         if (newBranchBtn) {
@@ -1484,7 +1555,7 @@ private:
         constexpr float BADGE_MAX_W = 120.0f;
         float badgeW = 0.0f;
         if (hasBadge) {
-            int badgeFontPx = static_cast<int>(15.0f * shG / 720.0f + 0.5f);
+            int badgeFontPx = static_cast<int>(14.0f * shG / 720.0f + 0.5f);  // match FontSize::Medium (badge/age render size)
             if (badgeFontPx < 1) badgeFontPx = 1;
             float txtW = static_cast<float>(afterhours::graphics::measure_text(
                 bestBadge->label.c_str(), badgeFontPx));
@@ -1498,7 +1569,7 @@ private:
         if (!hasBadge) {
             ageText = relative_time(commit.authorDate);
             if (!ageText.empty()) {
-                int ageFontPx = static_cast<int>(15.0f * shG / 720.0f + 0.5f);
+                int ageFontPx = static_cast<int>(14.0f * shG / 720.0f + 0.5f);  // match FontSize::Medium (badge/age render size)
                 if (ageFontPx < 1) ageFontPx = 1;
                 ageW = static_cast<float>(afterhours::graphics::measure_text(
                            ageText.c_str(), ageFontPx)) + 4.0f;
