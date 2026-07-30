@@ -4,12 +4,12 @@ make_test_repo
 resize 1280 720
 wait_frames 5
 
-# E1: Copy shows toast
+# E1: Copy is now wired; with no diff selection it reports so via toast
 click_text "Edit"
 wait_frames 5
 click_text "Copy"
 wait_frames 5
-expect_text "not yet implemented"
+expect_text "No diff selection to copy"
 screenshot stub_toast_edit_01_copy
 
 wait_frames 5

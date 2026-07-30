@@ -17,7 +17,9 @@ click_text "main.cpp"
 wait_frames 5
 screenshot flow_diffsel_03_maincpp
 
-# Select staged file
+# Select staged file (staged files live under the "Approved" tab)
+click_text "Approved"
+wait_frames 5
 click_text ".gitignore"
 wait_frames 5
 screenshot flow_diffsel_04_gitignore

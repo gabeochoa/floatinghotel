@@ -6,9 +6,9 @@ resize 1280 720
 wait_for_refresh
 wait_frames 30
 
-# Section headers should still be visible with counts
-expect_text "STAGED CHANGES"
-expect_text "UNSTAGED CHANGES"
-expect_text "UNTRACKED"
+# Section headers should still be visible with counts (now review tabs)
+expect_text "To review"
+expect_text "Approved"
+expect_text "Untracked"
 
 screenshot item22_section_style

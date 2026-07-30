@@ -6,8 +6,8 @@ resize 1280 720
 wait_frames 5
 
 # Sidebar elements should be visible
-expect_text "Changes"
-expect_text "COMMITS"
+expect_text "To review"
+expect_text "stack"
 
 # Click a commit to open detail view
 click_text "Add contributing guidelines"
@@ -22,8 +22,8 @@ expect_text "<- Back"
 expect_text "FILES CHANGED"
 
 # Sidebar must remain visible while viewing commit detail
-expect_text "Changes"
-expect_text "COMMITS"
+expect_text "To review"
+expect_text "stack"
 
 screenshot commit_detail_regression_01_first
 
@@ -43,10 +43,12 @@ screenshot commit_detail_regression_02_second
 click_text "<- Back"
 wait_frames 5
 
-# Default view should show "Select a file or commit"
-expect_text "Select a file or commit"
-expect_text "Changes"
-expect_text "COMMITS"
+# Back returns to the default view: the commit detail (and its "<- Back"
+# button) must be dismissed. The diff shelf collapses when nothing is selected,
+# so assert the detail is gone rather than the collapse-sensitive empty hint.
+expect_no_text "<- Back"
+expect_text "To review"
+expect_text "stack"
 
 screenshot commit_detail_regression_03_back
 

@@ -6,10 +6,19 @@ resize 1280 720
 wait_for_refresh
 wait_frames 30
 
-# All file rows should fit and be visible
-expect_text ".gitignore"
+# All file rows should fit and render compactly. Files are now grouped into
+# review tabs, so visit each tab and verify its rows.
+click_text "To review"
+wait_frames 5
 expect_text "README.md"
 expect_text "main.cpp"
+
+click_text "Approved"
+wait_frames 5
+expect_text ".gitignore"
+
+click_text "Untracked"
+wait_frames 5
 expect_text "TODO.md"
 expect_text "icon.png"
 

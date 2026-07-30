@@ -7,10 +7,11 @@ wait_frames 10
 # Triangle character (▾) should NOT be present in any section header
 expect_no_text "▾"
 
-# Headers should be title case with counts
-expect_text "STAGED CHANGES"
-expect_text "UNSTAGED CHANGES"
-expect_text "UNTRACKED"
-expect_text "COMMITS"
+# Headers should be title case with counts. The changes area is now split
+# into review tabs; commit log header is "stack".
+expect_text "To review"
+expect_text "Approved"
+expect_text "Untracked"
+expect_text "stack"
 
 screenshot item11_section_headers
