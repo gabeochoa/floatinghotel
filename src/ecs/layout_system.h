@@ -23,11 +23,10 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float sw = static_cast<float>(screenW);
         float sh = static_cast<float>(screenH);
 
-        // ---- Shelf state ----
-        // The OS window is NEVER resized on toggle: any window resize makes the
-        // Metal drawable stretch content for a frame, which visibly moves/resizes
-        // the sidebar. Instead the window stays put; collapsing just hides the
-        // diff pane (the sidebar keeps its fixed width on the left).
+        // ---- Shelf state: grow/shrink the OS window on collapse toggle ----
+        // One instant resize per toggle. metal_set_window_size pins the Metal
+        // view's layer to the top-left before resizing, so the sidebar (top-left)
+        // stays pixel-stable while the window grows to the right for the diff pane.
         {
             auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
@@ -35,6 +34,22 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                                    shelfRepo->selectedFilePath.empty() &&
                                    shelfRepo->selectedCommitHash.empty();
             layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
+
+            if (!app_state::testModeEnabled &&
+                layout.shelfCollapsed != layout.lastShelfCollapsed) {
+                float collapsedW = layout.sidebarWidth + 4.0f;
+                if (layout.shelfCollapsed && sw > collapsedW + 40.f)
+                    layout.expandedWidth = static_cast<int>(sw);
+                float targetW =
+                    layout.shelfCollapsed
+                        ? collapsedW
+                        : (layout.expandedWidth > 0
+                               ? static_cast<float>(layout.expandedWidth)
+                               : 1200.f);
+                metal_set_window_size(static_cast<int>(targetW),
+                                      static_cast<int>(sh));
+                layout.lastShelfCollapsed = layout.shelfCollapsed;
+            }
         }
 
         auto rpxH = [sh](float design_px) {

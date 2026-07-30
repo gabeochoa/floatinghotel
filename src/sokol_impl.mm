@@ -64,6 +64,19 @@ extern "C" void metal_set_window_size(int width, int height) {
                                                       blue:0.1176
                                                      alpha:1.0];
 
+        // CRITICAL: pin the Metal view's layer to the top-left corner (no scale)
+        // for this resize. Sokol renders into an MTKView whose layerContentsPlacement
+        // defaults to a *scaling* value, so on a programmatic setFrame AppKit
+        // stretches the last-drawn frame (sidebar included) to fill the new bounds
+        // until the next frame is drawn — that's the sidebar "moving/resizing".
+        // Anchoring top-left keeps the old frame 1:1 where the sidebar lives; the
+        // newly exposed strip just shows the dark bg until the next redraw.
+        // (Same workaround sokol applies for user drags; see sokol #700/#727.)
+        NSView* contentView = [window contentView];
+        if (contentView.layer) {
+            contentView.layerContentsPlacement = NSViewLayerContentsPlacementTopLeft;
+        }
+
         // Anchor top-left: adjust origin.y so the top edge stays put.
         // Instant (animate:NO): the animated variant desyncs from the Metal
         // drawable, causing a white flash on grow and content-snap on shrink.
