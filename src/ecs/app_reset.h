@@ -10,6 +10,7 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.sidebarVisible = true;
     layout.commandLogVisible = false;
     layout.sidebarMode = LayoutComponent::SidebarMode::Changes;
+    layout.reviewTab = LayoutComponent::ReviewTab::ToReview;
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
 }
@@ -36,6 +37,25 @@ inline void reset_commit_editor(CommitEditorComponent& editor) {
     editor.commitRequested = false;
     editor.showUnstagedDialog = false;
     editor.rememberChoice = false;
+}
+
+inline void reset_review(ReviewComponent& review) {
+    review.reviewing = false;
+    review.comments.clear();
+    review.approvedHunks.clear();
+    review.foldedHunks.clear();
+    review.composingKey.clear();
+    review.composingText.clear();
+    review.composingFile.clear();
+    review.composingScope.clear();
+    review.composingLine = 0;
+    review.cursor = 0;
+    review.hunkCount = 0;
+    review.cursorApprove = false;
+    review.cursorComment = false;
+    review.seenSig.clear();
+    review.baselineHead.clear();
+    review.baselineDiffSig.clear();
 }
 
 inline void reset_menus(MenuComponent& menu) {

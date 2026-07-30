@@ -59,6 +59,19 @@ inline State& state() {
     return s;
 }
 
+// Clear any active text selection. Used when resetting to a fresh repo (e.g.
+// make_test_repo) so a stale selection can't bleed into the next context.
+inline void reset() {
+    State& s = state();
+    s.dragging = false;
+    s.hasSel = false;
+    s.anchor = {};
+    s.head = {};
+    s.lastLines.clear();
+    s.curLines.clear();
+    s.hl.clear();
+}
+
 // Per-render context passed down to render_diff_line so it can register lines
 // and draw highlights. Disabled for side-by-side and embedded (commit-detail).
 struct Session {
