@@ -211,6 +211,13 @@ constexpr float FILE_HEADER_H = 28.0f;
 constexpr float DIFF_HEADER_H = 28.0f;
 constexpr float CODE_PAD_LEFT = 8.0f;
 
+// Space reserved on the right of a header row for its action buttons, so the
+// left-hand label doesn't take 100% width and shove the buttons off-screen
+// (SpaceBetween can't shrink a percent(1.0) child). File header: "Copy Diff".
+// Hunk header: "Copy" + "Comment"/"Approve".
+constexpr float FILE_HEADER_BTN_RESERVE = 110.0f;
+constexpr float HUNK_HEADER_BTN_RESERVE = 170.0f;
+
 // ID ranges for diff elements to avoid collision with other systems.
 // MainContentSystem uses 3000-3999. We use 4000-59999.
 constexpr int BASE_ID = 4000;
@@ -394,10 +401,15 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
 
+    // Reserve room on the right for the action buttons (Copy/Comment/Approve)
+    // so the label doesn't take 100% width and push them off-screen.
+    auto hunkLabelW = contentWidth > 0
+        ? pixels(contentWidth - diff_detail::HUNK_HEADER_BTN_RESERVE)
+        : percent(1.0f);
     div(ctx, mk(hunkRow.ent(), 0),
         ComponentConfig{}
             .with_label(hunk.header)
-            .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+            .with_size(ComponentSize{hunkLabelW, percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
@@ -406,12 +418,25 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .bottom = h720(4), .left = w1280(12)})
             .with_debug_name("hunk_header_label"));
 
+    // Buttons live in a right-aligned group so they cluster together instead of
+    // being spread apart by the row's SpaceBetween.
+    auto hunkBtns = div(ctx, mk(hunkRow.ent(), 9),
+        ComponentConfig{}
+            .with_size(ComponentSize{children(), percent(1.0f)})
+            .with_flex_direction(FlexDirection::Row)
+            .with_align_items(AlignItems::Center)
+            .with_gap(pixels(6))
+            .with_margin(Margin{.right = w1280(8)})
+            .with_transparent_bg()
+            .with_roundness(0.0f)
+            .with_debug_name("hunk_header_btns"));
+
     // Copy button only where drag-select-to-copy isn't available (i.e. the
     // embedded commit-detail diff). In the working-tree diff, select-to-copy
     // (with file:line) replaces it.
     if (!(sel && sel->enabled)) {
         std::string hunkText = diff_detail::hunk_to_text(hunk);
-        auto copyBtn = button(ctx, mk(hunkRow.ent(), 1),
+        auto copyBtn = button(ctx, mk(hunkBtns.ent(), 1),
             preset::Button("Copy")
                 .with_size(ComponentSize{children(), h720(18)})
                 .with_padding(Padding{
@@ -432,7 +457,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     if (reviewOn) {
         // Approve = stage (working-tree only; committed hunks can't be staged).
         if (sel->reviewScope == "wt") {
-            auto approveBtn = button(ctx, mk(hunkRow.ent(), 2),
+            auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
                 preset::Button("Approve")
                     .with_size(ComponentSize{children(), h720(18)})
                     .with_padding(Padding{
@@ -460,7 +485,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 }
             }
         }
-        auto commentBtn = button(ctx, mk(hunkRow.ent(), 3),
+        auto commentBtn = button(ctx, mk(hunkBtns.ent(), 3),
             preset::Button("Comment")
                 .with_size(ComponentSize{children(), h720(18)})
                 .with_padding(Padding{
@@ -614,10 +639,13 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("sbs_hunk_header_row"));
+    auto sbsLabelW = contentWidth > 0
+        ? pixels(contentWidth - diff_detail::HUNK_HEADER_BTN_RESERVE)
+        : percent(1.0f);
     div(ctx, mk(hunkRow.ent(), 0),
         ComponentConfig{}
             .with_label(hunk.header)
-            .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+            .with_size(ComponentSize{sbsLabelW, percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
@@ -630,6 +658,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         auto copyBtn = button(ctx, mk(hunkRow.ent(), 1),
             preset::Button("Copy")
                 .with_size(ComponentSize{children(), h720(18)})
+                .with_margin(Margin{.right = w1280(8)})
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
@@ -893,13 +922,19 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
                 .with_debug_name("file_header_row"));
 
+        // Reserve room on the right for the Copy Diff button instead of letting
+        // the label eat 100% width (which would push the button off-screen).
+        auto fileLabelW = contentWidth > 0
+            ? pixels(contentWidth - diff_detail::FILE_HEADER_BTN_RESERVE)
+            : percent(1.0f);
         div(ctx, mk(fileHeaderRow.ent(), 0),
             ComponentConfig{}
                 .with_label(fileLabel)
-                .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                .with_size(ComponentSize{fileLabelW, percent(1.0f)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(afterhours::ui::FontSize::XL)
                 .with_alignment(TextAlignment::Left)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_padding(Padding{
                     .top = h720(8), .right = w1280(0),
                     .bottom = h720(8), .left = w1280(16)})
@@ -910,6 +945,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             auto fileCopyBtn = button(ctx, mk(fileHeaderRow.ent(), 1),
                 preset::Button("Copy Diff")
                     .with_size(ComponentSize{children(), h720(18)})
+                    .with_margin(Margin{.right = w1280(12)})
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(8)})
