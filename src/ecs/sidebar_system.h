@@ -1542,17 +1542,24 @@ private:
                     .with_debug_name("graph_line"));
         }
 
-        // Dot: absolute, centered both ways
+        // Dot: absolute, centered both ways. HEAD is a hollow green ring
+        // (mock); other commits are filled purple dots.
+        bool isHead = commit.decorations.find("HEAD") != std::string::npos;
         float dotX = (GRAPH_COL_W - DOT_SIZE) / 2.0f;
         float dotY = (rowPx - DOT_SIZE) / 2.0f;
-        div(ctx, mk(graphWrap.ent(), 2),
-            ComponentConfig{}
-                .with_size(ComponentSize{pixels(DOT_SIZE), pixels(DOT_SIZE)})
-                .with_absolute_position(dotX, dotY)
-                .with_custom_background(theme::GRAPH_DOT)
-                .with_roundness(1.0f)
-                .with_render_layer(1)
-                .with_debug_name("commit_dot"));
+        auto dotCfg = ComponentConfig{}
+            .with_size(ComponentSize{pixels(DOT_SIZE), pixels(DOT_SIZE)})
+            .with_absolute_position(dotX, dotY)
+            .with_roundness(1.0f)
+            .with_render_layer(1)
+            .with_debug_name("commit_dot");
+        if (isHead) {
+            dotCfg = dotCfg.with_custom_background(theme::SIDEBAR_BG)
+                           .with_border(theme::BADGE_HEAD_BG, pixels(2.0f));
+        } else {
+            dotCfg = dotCfg.with_custom_background(theme::GRAPH_DOT);
+        }
+        div(ctx, mk(graphWrap.ent(), 2), dotCfg);
 
         constexpr float BADGE_EST_W = 46.0f;
 

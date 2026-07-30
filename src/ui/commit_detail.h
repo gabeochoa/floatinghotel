@@ -476,22 +476,39 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_roundness(0.0f)
                     .with_debug_name("file_name"));
 
-            std::string statsStr;
-            if (fd.additions > 0) statsStr += "+" + std::to_string(fd.additions);
-            if (fd.deletions > 0) {
-                if (!statsStr.empty()) statsStr += " ";
-                statsStr += "-" + std::to_string(fd.deletions);
-            }
-            div(ctx, mk(fileRow.ent(), 3),
+            // Colored +N / -N counts (green / red), right-aligned (mock style).
+            auto statsBox = div(ctx, mk(fileRow.ent(), 3),
                 ComponentConfig{}
-                    .with_label(statsStr)
                     .with_size(ComponentSize{pixels(STATS_W), children()})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_justify_content(JustifyContent::FlexEnd)
+                    .with_align_items(AlignItems::Center)
+                    .with_gap(pixels(4))
                     .with_transparent_bg()
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(afterhours::ui::FontSize::Small)
-                    .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
                     .with_debug_name("file_stats"));
+            if (fd.additions > 0) {
+                div(ctx, mk(statsBox.ent(), 1),
+                    ComponentConfig{}
+                        .with_label("+" + std::to_string(fd.additions))
+                        .with_size(ComponentSize{children(), children()})
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::STATUS_ADDED)
+                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_roundness(0.0f)
+                        .with_debug_name("file_add"));
+            }
+            if (fd.deletions > 0) {
+                div(ctx, mk(statsBox.ent(), 2),
+                    ComponentConfig{}
+                        .with_label("-" + std::to_string(fd.deletions))
+                        .with_size(ComponentSize{children(), children()})
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::STATUS_DELETED)
+                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_roundness(0.0f)
+                        .with_debug_name("file_del"));
+            }
 
             int fileTotal = fd.additions + fd.deletions;
             float filePct = static_cast<float>(fileTotal) / static_cast<float>(totalChanges);
