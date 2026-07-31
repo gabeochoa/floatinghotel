@@ -33,6 +33,22 @@ Each item: what bit us, and what would make it better.
 
 ## Layout / sizing
 
+4b. **`FlexWrap` defaults to `Wrap`, so any Column taller than its viewport
+    wraps its children into a *second column* to the right.** This is the single
+    nastiest default we hit. A vertical scroll list (commit body, diff lines,
+    file/commit/refs lists, command log) whose content exceeds the visible
+    height silently starts a new column off-screen instead of scrolling — you
+    see stray text fragments hugging the right edge. Every scroll container and
+    every stacking Column needs an explicit `.with_no_wrap()`. Compounding traps
+    while debugging this: (a) `measure_text` returns *physical* px on a HiDPI /
+    headless framebuffer while layout rects are logical, so a `measure_text`-based
+    word-wrap wraps at half width; (b) a nested container with `children()` height
+    inside a fixed-height scroll parent has its height clamped to the remaining
+    viewport, so siblings below it overlap — add lines as *direct* children of
+    the scroll column instead.
+    *Wish:* default `FlexWrap::NoWrap` (or at least for `Overflow::Scroll/Auto`
+    containers); document that the default wraps.
+
 5. **`expand()` is buggy in Row flex.** There's a known Row-flex `expand()` bug
    (referenced in the repo's own `docs/afterhours-gaps.md`); you can't reliably
    use `expand()` to fill remaining space, so we compute explicit pixel heights
