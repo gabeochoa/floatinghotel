@@ -256,7 +256,17 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }
 
-            if (selectedDiffs.empty()) {
+            bool reviewing = reviewPtr && reviewPtr->reviewing;
+            bool selUntracked = false;
+            for (auto& u : repo.untrackedFiles)
+                if (u == repo.selectedFilePath ||
+                    u.ends_with("/" + repo.selectedFilePath) ||
+                    repo.selectedFilePath.ends_with(u)) { selUntracked = true; break; }
+
+            // Synthesize a whole-file "new" diff only for genuinely new/untracked
+            // files. During review, a tracked file with no working-tree diff was
+            // just approved (staged) — don't fake a new-file diff for it.
+            if (selectedDiffs.empty() && (!reviewing || selUntracked)) {
                 auto synth = build_new_file_diff(repo.repoPath,
                                                   repo.selectedFilePath);
                 if (synth.has_value()) {
@@ -283,6 +293,38 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                                            diffW, 0, false, fileJustChanged,
                                            repo.repoPath, review);
                 }
+            } else if (reviewing && !selUntracked) {
+                // Reviewed file fully approved (staged) — celebrate instead of
+                // faking a "new file" diff. (No auto-advance: the sidebar still
+                // lists what's left, so the reviewer picks the next file.)
+                int approvedN = reviewPtr
+                    ? static_cast<int>(reviewPtr->approvedHunks.size()) : 0;
+                auto done = div(ctx, mk(mainBg.ent(), 3070),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                        .with_flex_direction(FlexDirection::Column)
+                        .with_justify_content(JustifyContent::Center)
+                        .with_align_items(AlignItems::Center)
+                        .with_transparent_bg()
+                        .with_roundness(0.0f)
+                        .with_debug_name("all_reviewed"));
+                div(ctx, mk(done.ent(), 1),
+                    ComponentConfig{}
+                        .with_label("All reviewed here")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_custom_text_color(theme::STATUS_ADDED)
+                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_transparent_bg()
+                        .with_debug_name("all_reviewed_msg"));
+                div(ctx, mk(done.ent(), 2),
+                    ComponentConfig{}
+                        .with_label(std::to_string(approvedN) +
+                                    " approved this session \xc2\xb7 refresh to reset")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_transparent_bg()
+                        .with_debug_name("all_reviewed_sub"));
             } else {
                 // Even with no textual diff, make it obvious which file is
                 // selected: show its name at the top, plus size and change
