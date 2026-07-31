@@ -87,5 +87,6 @@ tests/fixture_repo/
 tests/screenshots/
 *.png
 !resources/**/*.png
+!docs/screenshots/*.png
 
 # Note: vendor/afterhours should be a symlink, not ignored
