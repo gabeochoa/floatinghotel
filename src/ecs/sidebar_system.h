@@ -651,15 +651,30 @@ private:
     // counts, plus how many comments are queued to send.
     void render_review_progress(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, ReviewComponent* review) {
-        int approved = static_cast<int>(repo.stagedFiles.size());
+        bool reviewing = review && review->reviewing;
         int toReview = static_cast<int>(repo.unstagedFiles.size());
-        int total = approved + toReview;
-        float frac = total > 0 ? static_cast<float>(approved) / total : 0.f;
+        int approvedHunks = review ? static_cast<int>(review->approvedHunks.size()) : 0;
         int queued = review ? static_cast<int>(review->comments.size()) : 0;
 
-        std::string txt = "In the ballroom \xc2\xb7 " + std::to_string(approved) +
-                          " approved \xc2\xb7 " + std::to_string(toReview) + " to review";
-        if (queued > 0) txt += " \xc2\xb7 " + std::to_string(queued) + " queued";
+        // Progress = approved hunks / (approved + still-visible hunks). Approved
+        // hunks get staged and drop out of the working diff, so this climbs to 1.
+        int remainingHunks = 0;
+        for (auto& fd : repo.currentDiff)
+            remainingHunks += static_cast<int>(fd.hunks.size());
+        int totalHunks = approvedHunks + remainingHunks;
+        float frac = (reviewing && totalHunks > 0)
+                         ? static_cast<float>(approvedHunks) / totalHunks : 0.f;
+
+        // ASCII play marker (the font atlas has no ▶ glyph). Pre-embark = green
+        // "go"; in the ballroom = amber "active".
+        std::string txt = std::string("> ");
+        if (reviewing) {
+            txt += "In the ballroom \xc2\xb7 " + std::to_string(approvedHunks) +
+                   " approved \xc2\xb7 " + std::to_string(queued) + " to send";
+        } else {
+            txt += "Embark to ballroom \xc2\xb7 " + std::to_string(toReview) +
+                   " to review";
+        }
 
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto row = div(ctx, mk(parent, 2085),
@@ -674,9 +689,37 @@ private:
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("review_progress"));
-        // Nothing to review: the track alone reads as a stray gray dash, so hide
-        // the whole bar when there's no progress to show (#11).
-        if (total > 0) {
+
+        // Click the strip to embark / disembark the ballroom review.
+        if (review) {
+            row.ent().addComponentIfMissing<HasClickListener>([](Entity&) {});
+            if (row.ent().get<HasClickListener>().down) {
+                review->reviewing = !review->reviewing;
+                if (review->reviewing) {
+                    // Snapshot the baseline for "new since you last looked" and
+                    // open the first file to review.
+                    review->baselineHead =
+                        repo.commitLog.empty() ? "" : repo.commitLog[0].hash;
+                    review->baselineDiffSig.clear();
+                    for (auto& fd : repo.currentDiff) {
+                        review->seenSig[fd.filePath] = diff_signature(fd);
+                        review->baselineDiffSig += diff_signature(fd) + ";";
+                    }
+                    if (!repo.unstagedFiles.empty()) {
+                        repo.selectedFilePath = repo.unstagedFiles[0].path;
+                        repo.selectedCommitHash.clear();
+                        repo.cachedFilePath.clear();
+                    }
+                    afterhours::toast::send_info(
+                        ctx, "Embarked \xc2\xb7 baseline snapshotted", 2.0f);
+                } else {
+                    afterhours::toast::send_info(ctx, "Left the ballroom", 1.5f);
+                }
+            }
+        }
+
+        // Show the bar while reviewing or when there's something to review.
+        if (reviewing || toReview > 0) {
             auto bar = div(ctx, mk(row.ent(), 0),
                 ComponentConfig{}
                     .with_size(ComponentSize{pixels(56), h720(5)})

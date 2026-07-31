@@ -214,13 +214,16 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         diff_signature(selectedDiffs[0]);
                 bool sideBySide = (layout.diffViewMode ==
                     LayoutComponent::DiffViewMode::SideBySide);
+                // Pass the pane width so hunk-header action buttons
+                // (Approve/Comment) reserve room instead of overflowing off-screen.
+                float diffW = layout.mainContent.width;
                 if (sideBySide) {
                     ui::render_side_by_side_diff(ctx, mainBg.ent(), selectedDiffs,
-                                                 0, 0, false, fileJustChanged);
+                                                 diffW, 0, false, fileJustChanged);
                 } else {
                     auto* review = find_singleton<ReviewComponent, ActiveTab>();
                     ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
-                                           0, 0, false, fileJustChanged,
+                                           diffW, 0, false, fileJustChanged,
                                            repo.repoPath, review);
                 }
             } else {
