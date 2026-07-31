@@ -213,7 +213,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                              afterhours::graphics::is_key_down(347);
             if (superDown && afterhours::graphics::is_key_pressed(257))
                 send_review(ctx, *reviewPtr, repoPtr);
-            render_basket(ctx, uiRoot, *reviewPtr, repoPtr);
+            if (reviewPtr->basketOpen)
+                render_basket(ctx, uiRoot, *reviewPtr, repoPtr);
         }
 
         // Shelf collapsed → diff pane hidden (sidebar fills the window).

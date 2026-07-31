@@ -903,6 +903,27 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         : ecs::LayoutComponent::DiffViewMode::SideBySide;
                 }
             }
+
+            // Feedback basket show/hide toggle (only when comments are queued).
+            if (review && !review->comments.empty()) {
+                bool open = review->basketOpen;
+                auto fbBtn = button(ctx, mk(toggle.ent(), 2),
+                    preset::Button("Feedback (" +
+                        std::to_string(review->comments.size()) + ")")
+                        .with_size(ComponentSize{children(), percent(1.0f)})
+                        .with_margin(Margin{.left = w1280(8)})
+                        .with_padding(Padding{
+                            .top = h720(2), .right = w1280(12),
+                            .bottom = h720(2), .left = w1280(12)})
+                        .with_custom_background(open
+                            ? afterhours::Color{51, 42, 24, 255}
+                            : theme::BUTTON_SECONDARY)
+                        .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_roundness(0.0f)
+                        .with_debug_name("basket_toggle_btn"));
+                if (fbBtn) review->basketOpen = !review->basketOpen;
+            }
         }
     }
 

@@ -117,6 +117,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
         std::string text;
     };
     bool reviewing = false;
+    bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
     std::vector<Comment> comments;
     std::set<std::string> approvedHunks;
     std::set<std::string> foldedHunks;
