@@ -93,10 +93,12 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         if (scaledSidebarW < layout.sidebarMinWidth)
             scaledSidebarW = std::min(layout.sidebarMinWidth, sw);
 
-        // Menu bar spans the sidebar width so File/Edit/View/... fit the sidebar
-        // column (overflow collapses into a "More" menu); full width only when
-        // the sidebar is hidden.
-        float menuBarW = layout.sidebarVisible ? scaledSidebarW : sw;
+        // Menu bar spans the full window so File/Edit/View/... expand normally.
+        // Only in sidebar-only mode (diff pane collapsed, sidebar owns the
+        // window) does it shrink to the sidebar column and collapse overflow
+        // into a "More" menu.
+        bool sidebarOnly = layout.sidebarVisible && layout.shelfCollapsed;
+        float menuBarW = sidebarOnly ? scaledSidebarW : sw;
         layout.menuBar = {0, actualTabStripH, menuBarW, menuH};
 
         float dividerW = rpxW(4.0f);

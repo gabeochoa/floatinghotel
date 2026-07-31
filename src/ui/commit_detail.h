@@ -176,8 +176,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .top = pixels(3), .right = pixels(12),
                 .bottom = pixels(3), .left = pixels(12)})
             .with_margin(Margin{
+                // left = PAD - button padding so the "<- Back" TEXT lines up
+                // with the title/body left edge (which start at PAD).
                 .top = pixels(8), .bottom = pixels(4),
-                .left = pixels(PAD), .right = {}})
+                .left = pixels(PAD - 12.0f), .right = {}})
             .with_transparent_bg()
             .with_custom_text_color(theme::BUTTON_PRIMARY)
             .with_font_size(afterhours::ui::FontSize::Medium)
@@ -284,20 +286,26 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         }
     }
 
-    float metaValueW = contentW - PAD * 4 - LABEL_W - 8.0f;
+    // Cap the card width: percent(1.0f) + margins overflows the pane off-screen,
+    // and stretching a 4-line info card across a wide window looks broken. Fixed
+    // max width, left-aligned.
+    float cardW = std::min(contentW - PAD * 2.0f, 680.0f);
+    if (cardW < 160.0f) cardW = std::max(contentW - PAD * 2.0f, 120.0f);
+    float metaValueW = cardW - PAD * 2.0f - LABEL_W - 8.0f;
     if (metaValueW < 100.0f) metaValueW = 100.0f;
 
     auto metaBox = div(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f), children()})
+            .with_size(ComponentSize{pixels(cardW), children()})
             .with_custom_background(theme::SIDEBAR_BG)
             .with_flex_direction(FlexDirection::Column)
+            .with_no_wrap()  // else the rows wrap into a 2nd column
             .with_padding(Padding{
                 .top = pixels(10), .right = pixels(PAD),
                 .bottom = pixels(10), .left = pixels(PAD)})
             .with_margin(Margin{
                 .top = pixels(8), .bottom = pixels(8),
-                .left = pixels(PAD), .right = pixels(PAD)})
+                .left = pixels(PAD), .right = {}})
             .with_border(theme::BORDER, h720(1.0f))
             .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
             .with_roundness(theme::layout::ROUNDNESS_BOX)
@@ -564,7 +572,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             div(ctx, mk(fileRow.ent(), 2),
                 ComponentConfig{}
                     .with_label(fname)
-                    .with_size(ComponentSize{pixels(fileNameW), children()})
+                    // Match the badge box height + vertical-center so the name
+                    // sits on the same center as the M/A/D badge circle.
+                    .with_size(ComponentSize{pixels(fileNameW), pixels(18)})
+                    .with_align_items(AlignItems::Center)
                     .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font_size(afterhours::ui::FontSize::Medium)

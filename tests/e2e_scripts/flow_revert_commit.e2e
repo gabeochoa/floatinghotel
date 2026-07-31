@@ -10,8 +10,8 @@ click_text "Add contributing guidelines"
 wait_frames 5
 screenshot flow_revert_01_commit_selected
 
-# Open Git menu to check for revert option
-click_text "More"
+# Open Git menu to check for revert option (full-width bar: real header)
+click_text "Repository"
 wait_frames 5
 screenshot flow_revert_02_git_menu
 

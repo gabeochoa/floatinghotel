@@ -154,7 +154,7 @@ escape
 wait_frames 5
 
 # Repository menu
-click_text More
+click_text "Repository"
 wait_frames 5
 screenshot baseline_19_menu_repository
 
@@ -163,7 +163,7 @@ escape
 wait_frames 5
 
 # Help menu
-click_text More
+click_text "Help"
 wait_frames 5
 screenshot baseline_20_menu_help
 
@@ -205,8 +205,8 @@ wait_frames 5
 # 11. NEW BRANCH DIALOG
 # =============================================================================
 
-# Open via Repository menu
-click_text More
+# Open via Repository menu (full-width menu bar: click the real header)
+click_text "Repository"
 wait_frames 5
 click_text "New Branch"
 wait_frames 5

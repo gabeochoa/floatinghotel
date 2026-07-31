@@ -14,8 +14,8 @@ click_text "main.cpp"
 wait_frames 5
 screenshot r1_01_file_selected
 
-# Stage it via Repository menu
-click_text "More"
+# Stage it via Repository menu (full-width menu bar: click the real header)
+click_text "Repository"
 wait_frames 5
 click_text "Stage File"
 wait_frames 5
