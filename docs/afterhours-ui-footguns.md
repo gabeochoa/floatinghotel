@@ -123,6 +123,22 @@ Each item: what bit us, and what would make it better.
     `FixScrollViewPositions` from resolved child heights — if heights aren't
     resolved on a frame, scroll silently disables. Hard to debug.
 
+13b. **A `button()`/clickable nested inside a row that has its own
+    `HasClickListener` never receives the click — the row's listener wins.**
+    Tried adding a per-file-row "Approve" button inside the selectable file row
+    (which already has a HasClickListener for select-on-click); clicking the
+    button only ever fired the row's select, never the button. There's no
+    `stopPropagation`, and render order/child-ness didn't change hit priority.
+    Workaround attempt via `get_mouse_position()` X against the button's zone
+    also failed: the e2e `click x y` injection space and `get_mouse_position()`
+    return space don't agree (same class of coordinate-space mismatch as
+    `measure_text` reading 2x on HiDPI-headless), so a positional test in the row
+    handler mis-fires. Net: reliable "control inside a clickable row" isn't
+    achievable today.
+    *Wish:* click consumption/propagation control, or hit-test priority by
+    render layer / child depth; and one consistent coordinate space for
+    `get_mouse_position()`, e2e click injection, layout rects, and `measure_text`.
+
 ## Ergonomics / wishlist
 
 14. Many call sites bypass the `FontSize` tier enum with raw `h720(px)` /
