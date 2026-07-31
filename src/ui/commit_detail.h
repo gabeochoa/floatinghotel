@@ -160,6 +160,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
+            .with_no_wrap()  // a scroll list must stack, never wrap into columns
             .with_custom_background(theme::WINDOW_BG)
             .with_roundness(0.0f)
             .with_debug_name("commit_detail_scroll"));
@@ -198,22 +199,89 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_custom_text_color(theme::TEXT_PRIMARY)
             .with_font_size(h720(24.0f))  // display: commit-detail page title
             .with_alignment(TextAlignment::Left)
+            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_roundness(0.0f)
             .with_debug_name("commit_subject"));
 
     if (!detailCache.commitDetailBody.empty()) {
-        div(ctx, mk(scrollContainer.ent(), nextId++),
-            ComponentConfig{}
-                .with_label(detailCache.commitDetailBody)
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_padding(Padding{
-                    .top = pixels(4), .right = pixels(PAD),
-                    .bottom = pixels(8), .left = pixels(PAD)})
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(afterhours::ui::FontSize::Medium)
-                .with_alignment(TextAlignment::Left)
-                .with_roundness(0.0f)
-                .with_debug_name("commit_body"));
+        // Plain labels don't word-wrap, so a long body runs off the right edge.
+        // Greedy-wrap by an estimated char width in the SAME (logical) space as
+        // contentW — measure_text reads 2x on the HiDPI-headless path, so a
+        // deterministic estimate avoids the wasted-half-width wrap. Keep hard
+        // newlines and cap runaway bodies.
+        // ponytail: ~6.8px/char for FontSize::Medium; tune if the font changes.
+        constexpr float BODY_CHAR_W = 6.8f;
+        float bodyAvailW = contentW - PAD * 2.0f;
+        if (bodyAvailW < 80.0f) bodyAvailW = 80.0f;
+        size_t maxChars = static_cast<size_t>(bodyAvailW / BODY_CHAR_W);
+        if (maxChars < 8) maxChars = 8;
+
+        constexpr size_t MAX_BODY_LINES = 40;
+        std::vector<std::string> bodyLines;
+        const std::string& src = detailCache.commitDetailBody;
+        size_t pos = 0;
+        bool truncated = false;
+        while (!truncated) {
+            size_t nl = src.find('\n', pos);
+            std::string hard = src.substr(
+                pos, nl == std::string::npos ? std::string::npos : nl - pos);
+            if (!hard.empty() && hard.back() == '\r') hard.pop_back();
+
+            if (hard.empty()) {
+                bodyLines.push_back("");
+            } else {
+                std::string cur;
+                size_t wp = 0;
+                while (wp < hard.size()) {
+                    size_t sp = hard.find(' ', wp);
+                    std::string word = hard.substr(
+                        wp, sp == std::string::npos ? std::string::npos : sp - wp);
+                    wp = (sp == std::string::npos) ? hard.size() : sp + 1;
+                    std::string cand = cur.empty() ? word : cur + " " + word;
+                    if (cur.empty() || cand.size() <= maxChars) {
+                        cur = cand;
+                    } else {
+                        bodyLines.push_back(cur);
+                        cur = word;
+                        if (bodyLines.size() >= MAX_BODY_LINES) { truncated = true; break; }
+                    }
+                }
+                if (!truncated && !cur.empty()) bodyLines.push_back(cur);
+            }
+            if (bodyLines.size() >= MAX_BODY_LINES) truncated = true;
+            if (nl == std::string::npos) break;
+            pos = nl + 1;
+        }
+        if (truncated) {
+            if (bodyLines.size() > MAX_BODY_LINES) bodyLines.resize(MAX_BODY_LINES);
+            if (!bodyLines.empty()) bodyLines.back() += " ...";
+        }
+
+        // Add body lines as DIRECT children of the scroll column (like
+        // command_log stacks its entries). A nested container would have its
+        // children() height clamped to the remaining viewport, so the meta box
+        // below would be positioned too high and overlap the body tail.
+        for (size_t i = 0; i < bodyLines.size(); ++i) {
+            const auto& bl = bodyLines[i];
+            div(ctx, mk(scrollContainer.ent(), nextId++),
+                ComponentConfig{}
+                    .with_label(bl.empty() ? " " : bl)
+                    // Explicit line height: children() slightly under-measures
+                    // text height and the error accumulates across many lines.
+                    .with_size(ComponentSize{percent(1.0f), h720(18.0f)})
+                    .with_padding(Padding{
+                        .top = (i == 0 ? pixels(4) : pixels(0)),
+                        .right = pixels(PAD),
+                        .bottom = (i + 1 == bodyLines.size() ? pixels(8) : pixels(0)),
+                        .left = pixels(PAD)})
+                    .with_transparent_bg()
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
+                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_alignment(TextAlignment::Left)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_roundness(0.0f)
+                    .with_debug_name("commit_body_line"));
+        }
     }
 
     float metaValueW = contentW - PAD * 4 - LABEL_W - 8.0f;
@@ -283,7 +351,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     }
     metaRow("Author:", authorStr);
 
+    // Humanize the ISO timestamp ("2026-07-30T01:27:43-04:00" -> "2026-07-30 01:27")
+    // while keeping the recorded wall-clock time; append the relative suffix below.
     std::string dateStr = selectedCommit->authorDate;
+    if (dateStr.size() >= 16 && dateStr[10] == 'T') {
+        dateStr = dateStr.substr(0, 10) + " " + dateStr.substr(11, 5);
+    }
     std::string relTime = cdv::relative_time(selectedCommit->authorDate);
     if (!relTime.empty()) {
         dateStr += " (" + relTime + ")";
@@ -438,12 +511,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         constexpr float STATS_W = 55.0f;
         constexpr float BAR_W = 50.0f;
         constexpr float BADGE_W = 20.0f;
-        constexpr float TYPE_DOT_W = 8.0f;
+        constexpr float BAR_MARGIN = 6.0f;  // keep change bars off the right edge
 
         int totalChanges = totalAdd + totalDel;
         if (totalChanges == 0) totalChanges = 1;
 
-        float fileNameW = contentW - PAD * 2 - BADGE_W - TYPE_DOT_W - STATS_W - BAR_W - 8.0f * 4;
+        float fileNameW = contentW - PAD * 2 - BADGE_W - BAR_MARGIN - STATS_W - BAR_W - 8.0f * 4;
         if (fileNameW < 80.0f) fileNameW = 80.0f;
 
         for (size_t fi = 0; fi < detailCache.commitDetailDiff.size(); ++fi) {
@@ -548,6 +621,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 ComponentConfig{}
                     .with_size(ComponentSize{pixels(BAR_W), pixels(8)})
                     .with_flex_direction(FlexDirection::Row)
+                    .with_margin(Margin{.right = pixels(BAR_MARGIN)})
                     .with_custom_background(theme::BORDER)
                     .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                     .with_roundness(theme::layout::ROUNDNESS_BADGE)

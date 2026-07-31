@@ -28,11 +28,14 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         auto barBg = detached ? theme::STATUS_BAR_DETACHED_BG : theme::STATUS_BAR_BG;
 
         // === Status bar background (render_layer 5 so it draws above content) ===
+        // Extend 1px upward so the bar fully seals the seam with the main
+        // content above it (content ends exactly at statusBar.y; a subpixel
+        // rasterization seam let a thin diff-deletion sliver show through).
         div(ctx, mk(uiRoot, 4000),
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(w), pixels(h)})
+                .with_size(ComponentSize{pixels(w), pixels(h + 1.0f)})
                 .with_absolute_position()
-                .with_translate(0, y)
+                .with_translate(0, y - 1.0f)
                 .with_custom_background(barBg)
                 .with_roundness(0.0f)
                 .with_render_layer(5)
@@ -92,10 +95,10 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_render_layer(5)
                 .with_debug_name("status_info"));
 
-        // Right-aligned counts, sitting just left of the log toggle button.
+        // Right-aligned counts, flush to the window edge (padding aside).
         // Hidden when the window is too narrow to fit them.
         if (!rightText.empty() && !narrow) {
-            float countsW = w - 24.0f;
+            float countsW = w;
             if (countsW < 20.0f) countsW = 20.0f;
             div(ctx, mk(uiRoot, 4020),
                 ComponentConfig{}

@@ -225,6 +225,12 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
 
+        // Working tree clean = nothing staged/unstaged/untracked. Used to hide
+        // the commit area and shrink the empty files pane (#8, #24).
+        bool treeClean = repoPtr && repoPtr->stagedFiles.empty() &&
+                         repoPtr->unstagedFiles.empty() &&
+                         repoPtr->untrackedFiles.empty();
+
         Entity& uiRoot = ui_imm::getUIRootEntity();
 
         // === Sidebar background (absolute, contains all sidebar sections via flow) ===
@@ -260,10 +266,12 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         // === Commit area (always-visible input + button, VS Code style) ===
         constexpr float COMMIT_AREA_H_720 = 82.0f;
         float commitAreaH = 0.0f;
-        if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr) {
+        // Hide the commit input + button when there is nothing to commit (#24).
+        if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
+            !treeClean) {
             auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
             if (editor) {
-                render_commit_area(ctx, sidebarRoot.ent(), *repoPtr, *editor, sidebarW);
+                render_commit_area(ctx, sidebarRoot.ent(), *repoPtr, *editor);
                 commitAreaH = resolve_to_pixels(h720(COMMIT_AREA_H_720), sh_for_tab);
             }
         }
@@ -284,6 +292,14 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float filesH = layout.sidebarFiles.height - tabH - commitAreaH - progressH -
                        repoHeaderH - syncRowH;
         if (filesH < 20.0f) filesH = 20.0f;
+        // Clean tree: size the empty-state ("No changes") pane to its content
+        // instead of the full remaining height, and hand the reclaimed space to
+        // the commit log below so there is no dead void (#8).
+        float reclaimedH = 0.0f;
+        if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && treeClean) {
+            float compactH = resolve_to_pixels(h720(88.0f), sh_for_tab);
+            if (compactH < filesH) { reclaimedH = filesH - compactH; filesH = compactH; }
+        }
         auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
             preset::ScrollPanel()
                 .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
@@ -353,7 +369,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         // === Commit Log section (flow child of sidebar, fills remaining space) ===
-        float commitsH = layout.sidebarLog.height;
+        float commitsH = layout.sidebarLog.height + reclaimedH;
         auto logBg = div(ctx, mk(sidebarRoot.ent(), 2300),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(sidebarW), pixels(commitsH)})
@@ -442,7 +458,6 @@ private:
                                    Entity& parent,
                                    LayoutComponent& layout) {
         constexpr float TAB_HEIGHT = 28.0f;
-        constexpr float TAB_HPAD = 14.0f;
 
         auto tabRowW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto tabRow = div(ctx, mk(parent, 2090),
@@ -461,6 +476,7 @@ private:
         int nReview = countRepo ? static_cast<int>(countRepo->unstagedFiles.size()) : 0;
         int nApproved = countRepo ? static_cast<int>(countRepo->stagedFiles.size()) : 0;
         int nUntracked = countRepo ? static_cast<int>(countRepo->untrackedFiles.size()) : 0;
+        int nRefs = countRepo ? static_cast<int>(countRepo->branches.size()) : 0;
 
         // Emit one tab. `active` highlights it; on click, `apply` mutates layout.
         auto makeTab = [&](int id, const std::string& label, bool active,
@@ -503,7 +519,7 @@ private:
         makeTab(2093, "Untracked " + std::to_string(nUntracked),
                 inChanges && layout.reviewTab == RT::Untracked,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Untracked; });
-        makeTab(2094, "Refs", layout.sidebarMode == SM::Refs,
+        makeTab(2094, "Refs " + std::to_string(nRefs), layout.sidebarMode == SM::Refs,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
     }
 
@@ -582,7 +598,9 @@ private:
         div(ctx, mk(row.ent(), 2086),
             ComponentConfig{}
                 .with_label("Sync")
-                .with_size(ComponentSize{children(), children()})
+                // Match the button-row height so the caption text sits on the
+                // same vertical center as the Push/Pull/Stash buttons (#23).
+                .with_size(ComponentSize{children(), h720(22)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_font_size(FontSize::Small)
                 .with_transparent_bg()
@@ -651,18 +669,22 @@ private:
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("review_progress"));
-        auto bar = div(ctx, mk(row.ent(), 0),
-            ComponentConfig{}
-                .with_size(ComponentSize{pixels(56), h720(5)})
-                .with_custom_background(afterhours::Color{51, 51, 51, 255})
-                .with_roundness(2.0f)
-                .with_debug_name("prog_bar"));
-        div(ctx, mk(bar.ent(), 0),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(frac), percent(1.0f)})
-                .with_custom_background(afterhours::Color{63, 185, 80, 255})
-                .with_roundness(2.0f)
-                .with_debug_name("prog_fill"));
+        // Nothing to review: the track alone reads as a stray gray dash, so hide
+        // the whole bar when there's no progress to show (#11).
+        if (total > 0) {
+            auto bar = div(ctx, mk(row.ent(), 0),
+                ComponentConfig{}
+                    .with_size(ComponentSize{pixels(56), h720(5)})
+                    .with_custom_background(afterhours::Color{51, 51, 51, 255})
+                    .with_roundness(2.0f)
+                    .with_debug_name("prog_bar"));
+            div(ctx, mk(bar.ent(), 0),
+                ComponentConfig{}
+                    .with_size(ComponentSize{percent(frac), percent(1.0f)})
+                    .with_custom_background(afterhours::Color{63, 185, 80, 255})
+                    .with_roundness(2.0f)
+                    .with_debug_name("prog_fill"));
+        }
         div(ctx, mk(row.ent(), 1),
             ComponentConfig{}
                 .with_label(txt)
@@ -677,8 +699,7 @@ private:
     void render_commit_area(UIContext<InputAction>& ctx,
                             Entity& parent,
                             RepoComponent& repo,
-                            CommitEditorComponent& editor,
-                            float sidebarW) {
+                            CommitEditorComponent& editor) {
         auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
 
         auto commitArea = div(ctx, mk(parent, 2095),
@@ -1511,13 +1532,16 @@ private:
         constexpr float DOT_SIZE = 8.0f;
         constexpr float LINE_W = 2.0f;
         constexpr float GRAPH_COL_W = 22.0f;
+        // Small left inset so the graph line/dots/HEAD ring aren't flush against
+        // the window edge (#26).
+        constexpr float ROW_INSET_L = 6.0f;
 
         auto row = div(ctx, mk(parent, baseId),
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{pixels(sidebarW), h720(ROW_H)})
                 .with_padding(Padding{
                     .top = pixels(0), .right = pixels(4),
-                    .bottom = pixels(0), .left = pixels(0)})
+                    .bottom = pixels(0), .left = pixels(ROW_INSET_L)})
                 .with_gap(pixels(4))
                 .with_debug_name("commit_row"));
 
@@ -1632,7 +1656,7 @@ private:
                      + (ageW > 0.0f ? ageW + 4.0f : 0.0f)
                      + (cbW > 0.0f ? cbW + 4.0f : 0.0f)
                      + 4.0f;
-        float subjectW = sidebarW - 4.0f - fixedW;
+        float subjectW = sidebarW - 4.0f - fixedW - ROW_INSET_L;
         if (subjectW < 30.0f) subjectW = 30.0f;
 
         auto textCol = selected ? afterhours::Color{255, 255, 255, 255}

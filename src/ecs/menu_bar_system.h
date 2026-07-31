@@ -50,14 +50,17 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
-        float barW = layout.menuBar.width;
+        float barW = layout.menuBar.width;   // sidebar-width column for item/overflow math
         float barH = layout.menuBar.height;
         float barY = layout.menuBar.y;
+        // Background spans the full window so there's no L-shaped chrome gap to
+        // the right of the sidebar column; items still lay out within barW.
+        float barBgW = static_cast<float>(afterhours::graphics::get_screen_width());
 
         // Menu bar background (render_layer 10 so it draws above sidebar/toolbar)
         div(ctx, mk(uiRoot, 1000),
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(barW), pixels(barH)})
+                .with_size(ComponentSize{pixels(barBgW), pixels(barH)})
                 .with_absolute_position()
                 .with_translate(0, barY)
                 .with_custom_background(menu_colors::BAR_BG)
@@ -79,6 +82,9 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         };
         float charW = rpx(10.0f);   // ~10px per char at 720p, 18px font
         float hdrPad = rpx(24.0f);  // padding in screen pixels
+                                    // (keep 24: smaller values let all menus fit
+                                    //  the sidebar bar, removing the "More"
+                                    //  overflow the menu-nav e2e flows depend on)
 
         // Collapse menus that don't fit the (sidebar-width) bar into a trailing
         // "More" menu, so the whole bar always fits the sidebar. The "More"
