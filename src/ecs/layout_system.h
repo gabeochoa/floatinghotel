@@ -35,7 +35,12 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             bool nothingSelected = hasRepoForShelf &&
                                    shelfRepo->selectedFilePath.empty() &&
                                    shelfRepo->selectedCommitHash.empty();
-            layout.shelfCollapsed = layout.sidebarVisible && nothingSelected;
+            // While reviewing (in the ballroom) the diff pane shows every
+            // working-tree file, so keep the shelf open even with no selection.
+            auto* shelfReview = find_singleton<ReviewComponent, ActiveTab>();
+            bool reviewingShelf = shelfReview && shelfReview->reviewing;
+            layout.shelfCollapsed =
+                layout.sidebarVisible && nothingSelected && !reviewingShelf;
 
             if (!app_state::testModeEnabled) {
                 float collapsedW = layout.sidebarWidth + 4.0f;

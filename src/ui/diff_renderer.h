@@ -765,9 +765,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // Text selection is only offered on the main inline diff (not side-by-side,
     // not the embedded commit-detail diff).
     diff_sel::Session sess;
-    // Review actions (Approve/Comment) only appear once you've embarked the
-    // ballroom review; embedded commit-detail diffs stay comment-only/read-only.
-    sess.reviewActions = (review != nullptr && review->reviewing);
+    // Working-tree diffs always open in the approve-chunk flow (Approve/Comment
+    // per hunk). Committed diffs are read-only unless you've embarked a review,
+    // in which case they become comment-only (comments become fixups).
+    sess.reviewActions =
+        (review != nullptr) && (reviewScope == "wt" || review->reviewing);
     sess.embedded = embedInParentScroll;
     sess.repoPath = repoPath;
     sess.review = review;
@@ -943,10 +945,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
                 .with_debug_name("file_header_row"));
 
-        // Reserve room on the right for the Copy Diff button instead of letting
-        // the label eat 100% width (which would push the button off-screen).
+        // Working-tree file header gets an "Approve file" button (stages the
+        // whole file); reserve extra room for it so it clusters with Copy Diff.
+        bool showApproveFile = sess.reviewActions && sess.reviewScope == "wt";
+        float fileReserve = showApproveFile
+            ? diff_detail::FILE_HEADER_BTN_RESERVE + 110.0f
+            : diff_detail::FILE_HEADER_BTN_RESERVE;
         auto fileLabelW = contentWidth > 0
-            ? pixels(contentWidth - diff_detail::FILE_HEADER_BTN_RESERVE)
+            ? pixels(contentWidth - fileReserve)
             : percent(1.0f);
         div(ctx, mk(fileHeaderRow.ent(), 0),
             ComponentConfig{}
@@ -961,12 +967,48 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .bottom = h720(8), .left = w1280(16)})
                 .with_debug_name("file_header_label"));
 
+        // Right-aligned action cluster: [Approve file] [Copy Diff].
+        auto fileBtns = div(ctx, mk(fileHeaderRow.ent(), 1),
+            ComponentConfig{}
+                .with_size(ComponentSize{children(), percent(1.0f)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_no_wrap()
+                .with_gap(pixels(6))
+                .with_margin(Margin{.right = w1280(12)})
+                .with_transparent_bg()
+                .with_roundness(0.0f)
+                .with_debug_name("file_header_btns"));
+
+        if (showApproveFile) {
+            auto approveFileBtn = button(ctx, mk(fileBtns.ent(), 0),
+                preset::Button("Approve file")
+                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_padding(Padding{
+                        .top = h720(2), .right = w1280(8),
+                        .bottom = h720(2), .left = w1280(8)})
+                    .with_custom_background(afterhours::Color{40, 80, 50, 255})
+                    .with_custom_text_color(afterhours::Color{120, 220, 140, 255})
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_debug_name("approve_file_btn"));
+            if (approveFileBtn) {
+                auto res = git::stage_file(repoPath, fileDiff.filePath);
+                if (res.success()) {
+                    auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                    if (r) r->refreshRequested = true;
+                    afterhours::toast::send_info(ctx, "Approved file (staged)", 1.5f);
+                } else {
+                    afterhours::toast::send_info(
+                        ctx, "Approve failed: " + res.stderr_str(), 2.5f);
+                }
+            }
+        }
+
         {
             std::string diffText = diff_detail::file_diff_to_text(fileDiff);
-            auto fileCopyBtn = button(ctx, mk(fileHeaderRow.ent(), 1),
+            auto fileCopyBtn = button(ctx, mk(fileBtns.ent(), 1),
                 preset::Button("Copy Diff")
                     .with_size(ComponentSize{children(), h720(18)})
-                    .with_margin(Margin{.right = w1280(12)})
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(8)})

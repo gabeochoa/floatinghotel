@@ -705,11 +705,11 @@ private:
                         review->seenSig[fd.filePath] = diff_signature(fd);
                         review->baselineDiffSig += diff_signature(fd) + ";";
                     }
-                    if (!repo.unstagedFiles.empty()) {
-                        repo.selectedFilePath = repo.unstagedFiles[0].path;
-                        repo.selectedCommitHash.clear();
-                        repo.cachedFilePath.clear();
-                    }
+                    // The ballroom shows every working-tree file stacked, so
+                    // don't pin a single selection — just clear it.
+                    repo.selectedFilePath.clear();
+                    repo.selectedCommitHash.clear();
+                    repo.cachedFilePath.clear();
                     afterhours::toast::send_info(
                         ctx, "Embarked \xc2\xb7 baseline snapshotted", 2.0f);
                 } else {

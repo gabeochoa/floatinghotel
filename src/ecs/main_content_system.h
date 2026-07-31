@@ -239,6 +239,49 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool hasSelectedFile = !repo.selectedFilePath.empty();
         bool hasSelectedCommit = !repo.selectedCommitHash.empty();
 
+        // In the ballroom: show EVERY working-tree file stacked in one scroll so
+        // you can approve -> scroll -> approve without reopening files. A selected
+        // commit still takes over (to review/comment that commit's diff).
+        if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit) {
+            float diffW = layout.mainContent.width;
+            if (repo.currentDiff.empty()) {
+                auto done = div(ctx, mk(mainBg.ent(), 3080),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                        .with_flex_direction(FlexDirection::Column)
+                        .with_justify_content(JustifyContent::Center)
+                        .with_align_items(AlignItems::Center)
+                        .with_transparent_bg()
+                        .with_roundness(0.0f)
+                        .with_debug_name("ballroom_done"));
+                div(ctx, mk(done.ent(), 1),
+                    ComponentConfig{}
+                        .with_label("All reviewed")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_custom_text_color(theme::STATUS_ADDED)
+                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_transparent_bg()
+                        .with_debug_name("ballroom_done_msg"));
+                div(ctx, mk(done.ent(), 2),
+                    ComponentConfig{}
+                        .with_label(std::to_string(
+                            static_cast<int>(reviewPtr->approvedHunks.size())) +
+                            " approved this session \xc2\xb7 refresh to reset")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_transparent_bg()
+                        .with_debug_name("ballroom_done_sub"));
+            } else {
+                ui::render_inline_diff(ctx, mainBg.ent(), repo.currentDiff,
+                                       diffW, 0, false, /*resetScroll=*/false,
+                                       repo.repoPath, reviewPtr);
+            }
+            if (layout.commandLogVisible) render_command_log(ctx, uiRoot, layout);
+            if (layout.sidebarVisible) render_sidebar_divider(ctx, uiRoot, layout);
+            return;
+        }
+
         if (hasSelectedFile) {
             bool fileJustChanged = (repo.cachedFilePath != repo.selectedFilePath);
             if (fileJustChanged) {
