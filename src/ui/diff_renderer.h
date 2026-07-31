@@ -814,6 +814,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{w, h})
                 .with_overflow(Overflow::Scroll, Axis::Y)
                 .with_flex_direction(FlexDirection::Column)
+                .with_no_wrap()  // scroll list stacks; never wrap into a 2nd column
                 .with_custom_background(theme::PANEL_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("diff_scroll"));

@@ -211,6 +211,10 @@ inline ComponentConfig ScrollPanel() {
         .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
         .with_overflow(Overflow::Auto, Axis::Y)
         .with_flex_direction(FlexDirection::Column)
+        // ComponentConfig defaults to FlexWrap::Wrap, so a scroll list taller
+        // than its viewport wraps rows into a second column. A scroll list must
+        // always stack vertically and let the viewport scroll.
+        .with_no_wrap()
         .with_custom_background(theme::SIDEBAR_BG)
         .with_roundness(0.0f);
 }

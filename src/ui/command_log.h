@@ -121,6 +121,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_size(ComponentSize{percent(1.0f), pixels(cmdLogScrollH)})
             .with_overflow(Overflow::Auto, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
+            .with_no_wrap()  // scroll list stacks; never wrap into a 2nd column
             .with_custom_background(theme::SIDEBAR_BG)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_scroll"));
