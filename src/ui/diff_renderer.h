@@ -765,9 +765,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // Text selection is only offered on the main inline diff (not side-by-side,
     // not the embedded commit-detail diff).
     diff_sel::Session sess;
-    // Review actions work in both the working-tree diff and the embedded
-    // commit-detail diff (comment-only for commits), independent of selection.
-    sess.reviewActions = (review != nullptr);
+    // Review actions (Approve/Comment) only appear once you've embarked the
+    // ballroom review; embedded commit-detail diffs stay comment-only/read-only.
+    sess.reviewActions = (review != nullptr && review->reviewing);
     sess.embedded = embedInParentScroll;
     sess.repoPath = repoPath;
     sess.review = review;

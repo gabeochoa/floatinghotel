@@ -5,6 +5,9 @@ wait_for_refresh
 wait_frames 15
 # Collapsed by default (nothing selected) -> diff pane has zero width
 assert_ui main_content w=0
+# Embark the ballroom review -> enables the per-hunk Approve/Comment actions
+click_text "Embark to ballroom"
+wait_frames 10
 # Click a file -> shelf expands, diff renders
 click_text main.cpp
 wait_frames 15
