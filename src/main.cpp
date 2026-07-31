@@ -318,7 +318,9 @@ static void app_init() {
         sm.register_update_system(std::make_unique<ecs::AsyncGitDataRefreshSystem>());
         sm.register_update_system(std::make_unique<ecs::NetworkOpsPollingSystem>());
 
-        // Toast notification systems
+        // Toast notification systems. Lift toasts above the bottom status bar
+        // so they don't overlap it (afterhours' default sits at the very edge).
+        afterhours::toast::PADDING = afterhours::ui::h720(40.0f);
         ui_imm::registerToastSystems(sm);
 
         // Modal dialog systems
