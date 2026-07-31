@@ -16,8 +16,8 @@ click_text ".gitignore"
 wait_frames 5
 screenshot r2_01_staged_file_selected
 
-# Unstage it via Repository menu
-click_text "More"
+# Unstage it via Repository menu (full-width menu bar: click the real header)
+click_text "Repository"
 wait_frames 5
 click_text "Unstage File"
 wait_for_refresh

@@ -563,10 +563,15 @@ private:
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                 .with_roundness(1.0f)
                 .with_debug_name("repo_status_dot"));
+        // Bounded width (dot + gap + h-padding reserved): percent(1.0f) in a Row
+        // resolves to the full row width and overlaps the status dot.
+        auto labelW = sidebarPixelWidth_ > 0
+                          ? pixels(sidebarPixelWidth_ - 20.0f - 8.0f - 8.0f)
+                          : percent(1.0f);
         div(ctx, mk(row.ent(), 2),
             ComponentConfig{}
                 .with_label(txt)
-                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_size(ComponentSize{labelW, children()})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(FontSize::Large)
                 .with_alignment(TextAlignment::Left)
