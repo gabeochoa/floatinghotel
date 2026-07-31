@@ -37,7 +37,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     float sh = static_cast<float>(afterhours::graphics::get_screen_height());
     float panelW = std::min(sw * 0.28f, 360.0f);
     float x = sw - panelW;
-    float y = resolve_to_pixels(h720(70.0f), sh);
+    // Start below the diff header (Inline/Side-by-Side toggle) so we don't cover it.
+    float y = resolve_to_pixels(h720(100.0f), sh);
     float hgt = sh - y - resolve_to_pixels(h720(28.0f), sh);
 
     auto panel = div(ctx, mk(uiRoot, 7700),
@@ -47,6 +48,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_translate(x, y)
             .with_custom_background(theme::SIDEBAR_BG)
             .with_flex_direction(FlexDirection::Column)
+            .with_no_wrap()
             .with_padding(Padding{
                 .top = h720(8), .right = w1280(10),
                 .bottom = h720(8), .left = w1280(10)})
@@ -62,17 +64,61 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_font_size(afterhours::ui::FontSize::Medium)
             .with_debug_name("basket_title"));
 
+    // Comments grouped by scope (working tree vs commit SHA) so it's clear which
+    // diff each note targets — mirrors the review markdown that gets sent.
+    float itemW = panelW - resolve_to_pixels(w1280(20.0f), sw);
+    float txtW = itemW - resolve_to_pixels(w1280(22.0f), sw);
+    std::vector<std::string> scopes;
+    for (const auto& c : review.comments)
+        if (std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
+            scopes.push_back(c.scope);
+
     int id = 1;
-    for (const auto& c : review.comments) {
+    int removeIdx = -1;
+    for (const auto& scope : scopes) {
+        std::string gh = (scope == "wt") ? "working tree (uncommitted)"
+                                         : "commit " + scope.substr(0, 7);
         div(ctx, mk(panel.ent(), id++),
             ComponentConfig{}
-                .with_label(c.file + ":" + std::to_string(c.line) + "  " + c.text)
-                .with_size(ComponentSize{percent(1.0f), h720(20)})
+                .with_label(gh)
+                .with_size(ComponentSize{percent(1.0f), h720(18)})
+                .with_padding(Padding{.top = h720(4)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_debug_name("basket_item"));
+                .with_debug_name("basket_group"));
+
+        for (int i = 0; i < static_cast<int>(review.comments.size()); ++i) {
+            const auto& c = review.comments[i];
+            if (c.scope != scope) continue;
+            auto itemRow = div(ctx, mk(panel.ent(), id++),
+                ComponentConfig{}
+                    .with_size(ComponentSize{pixels(itemW), h720(20)})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_align_items(AlignItems::Center)
+                    .with_no_wrap()
+                    .with_transparent_bg()
+                    .with_debug_name("basket_item"));
+            div(ctx, mk(itemRow.ent(), 0),
+                ComponentConfig{}
+                    .with_label(c.file + ":" + std::to_string(c.line) + "  " + c.text)
+                    .with_size(ComponentSize{pixels(txtW), h720(20)})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("basket_item_text"));
+            auto rmBtn = button(ctx, mk(itemRow.ent(), 1),
+                preset::Button("x")
+                    .with_size(ComponentSize{pixels(18), h720(18)})
+                    .with_custom_background(afterhours::Color{60, 60, 65, 255})
+                    .with_custom_text_color(theme::STATUS_DELETED)
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_debug_name("basket_item_remove"));
+            if (rmBtn) removeIdx = i;
+        }
     }
+    if (removeIdx >= 0 && removeIdx < static_cast<int>(review.comments.size()))
+        review.comments.erase(review.comments.begin() + removeIdx);
 
     auto sendBtn = button(ctx, mk(panel.ent(), 900),
         preset::Button("\xe2\x8c\x98\xe2\x8f\x8e Send all feedback")
@@ -92,6 +138,17 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         afterhours::clipboard::set_text(build_review_markdown(review, branch));
         afterhours::toast::send_info(ctx, "Copied all feedback", 1.5f);
     }
+
+    div(ctx, mk(panel.ent(), 902),
+        ComponentConfig{}
+            .with_label("writes /tmp/floatinghotel-review.md")
+            .with_size(ComponentSize{percent(1.0f), h720(16)})
+            .with_padding(Padding{.top = h720(4)})
+            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_font_size(afterhours::ui::FontSize::Small)
+            .with_alignment(TextAlignment::Center)
+            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_debug_name("basket_path_hint"));
 }
 
 struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
