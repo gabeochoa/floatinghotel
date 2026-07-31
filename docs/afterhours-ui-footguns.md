@@ -50,6 +50,18 @@ Each item: what bit us, and what would make it better.
    tall card vs a short button.
    *Wish:* a pixel-based radius option.
 
+7b. **A nested `ScrollPanel` (or any nested container) inside another scroll
+    container silently stops rendering its children once the UI has been
+    exercised.** Bit us twice: the sidebar file list and the Refs branch list both
+    put their rows inside a `ScrollPanel` nested in the outer files panel, and the
+    rows vanished after a few interactions (the branch case shipped as a bug — the
+    checkout click had no row to land on). Workaround both times: render rows
+    directly into the *outer* panel instead of a nested one. Likely related to the
+    `content_size` gating in item 13 — the nested panel's children stop resolving
+    heights, so it reports empty and clips everything.
+    *Wish:* nested scroll containers that keep rendering children; or a diagnostic
+    when a container resolves to zero content while it has children.
+
 ## ECS / systems
 
 8. **`find_singleton(force_merge=true)` during a system tick can invalidate
