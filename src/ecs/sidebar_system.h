@@ -784,19 +784,13 @@ private:
             }
         }
 
-        // Scrollable branch list
-        float shR = static_cast<float>(afterhours::graphics::get_screen_height());
-        float refsHeaderConsumed = resolve_to_pixels(h720(24.0f + 28.0f), shR);
-        float refsScrollH = layout.sidebarFiles.height - refsHeaderConsumed;
-        if (refsScrollH < 20.0f) refsScrollH = 20.0f;
-
-        auto scrollArea = div(ctx, mk(parent, 2170),
-            preset::ScrollPanel()
-                .with_size(ComponentSize{percent(1.0f), pixels(refsScrollH)})
-                .with_debug_name("refs_scroll"));
-
+        // Branch list. Render rows directly into `parent` (the outer files
+        // ScrollPanel), NOT into a nested ScrollPanel — see render_file_list:
+        // a container nested inside filesBg fails to render its children after
+        // the UI has been exercised (framework nested-container bug).
+        (void)layout;
         if (repo.branches.empty()) {
-            div(ctx, mk(scrollArea.ent(), 0),
+            div(ctx, mk(parent, 2170),
                 ComponentConfig{}
                     .with_label("No branches found")
                     .with_size(ComponentSize{percent(1.0f), h720(32)})
@@ -812,7 +806,7 @@ private:
 
         // Render each branch row
         for (int i = 0; i < static_cast<int>(repo.branches.size()); ++i) {
-            render_branch_row(ctx, scrollArea.ent(), i, repo.branches[i], repo);
+            render_branch_row(ctx, parent, i, repo.branches[i], repo);
         }
     }
 
@@ -874,13 +868,27 @@ private:
                     .right = pixels(6)})
                 .with_debug_name("branch_badge"));
 
-        // Branch name
+        // Branch name. percent(1.0f) resolves to the full row width without
+        // subtracting siblings in a Row flex, so it overflows the badge/delete
+        // button — mirror render_file_row and thread an explicit pixel width.
         auto nameColor = isCurrent ? afterhours::Color{255, 255, 255, 255}
                                    : theme::TEXT_PRIMARY;
+        float branchNameW;
+        {
+            constexpr float ROW_PAD_R = 8.0f;   // row right padding
+            constexpr float BADGE_W = 20.0f + 14.0f;  // badge + L/R margins
+            constexpr float DELETE_W = 20.0f;   // delete button (non-current)
+            constexpr float INDICATOR_W = 3.0f; // green left border (current)
+            float base = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;
+            branchNameW = base - ROW_PAD_R - BADGE_W
+                        - (isCurrent ? INDICATOR_W : DELETE_W)
+                        - (branch.tracking.empty() ? 0.0f : 44.0f);
+            if (branchNameW < 40.0f) branchNameW = 40.0f;
+        }
         div(ctx, mk(rowResult.ent(), 3),
             ComponentConfig{}
                 .with_label(branch.name)
-                .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
+                .with_size(ComponentSize{pixels(branchNameW), h720(ROW_H)})
                 .with_custom_text_color(nameColor)
                 .with_font_size(FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
