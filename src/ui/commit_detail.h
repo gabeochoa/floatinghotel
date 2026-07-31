@@ -205,6 +205,28 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("commit_subject"));
 
+    // While reviewing, comments on a commit's hunks are scoped to its SHA and
+    // meant to be applied as fixups — make that explicit (mock's fixup banner).
+    if (review && review->reviewing) {
+        div(ctx, mk(scrollContainer.ent(), nextId++),
+            ComponentConfig{}
+                .with_label("comments here -> fixup into " +
+                            selectedCommit->hash.substr(0, 7))
+                .with_size(ComponentSize{children(), children()})
+                .with_padding(Padding{
+                    .top = pixels(3), .right = pixels(8),
+                    .bottom = pixels(3), .left = pixels(8)})
+                .with_margin(Margin{
+                    .top = pixels(2), .bottom = pixels(6),
+                    .left = pixels(PAD), .right = {}})
+                .with_custom_background(afterhours::Color{51, 42, 24, 255})
+                .with_custom_text_color(afterhours::Color{226, 192, 141, 255})
+                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_roundness(theme::layout::ROUNDNESS_BOX)
+                .with_debug_name("commit_fixup_banner"));
+    }
+
     if (!detailCache.commitDetailBody.empty()) {
         // Plain labels don't word-wrap, so a long body runs off the right edge.
         // Greedy-wrap by an estimated char width in the SAME (logical) space as
