@@ -82,6 +82,8 @@ struct Session {
     // Ballroom review (working-tree diff only): Approve a hunk (= stage it) and
     // hide it until reset; Comment adds to the feedback basket.
     bool reviewActions = false;
+    // Embedded (commit-detail) diffs are read-only: no keyboard review cursor.
+    bool embedded = false;
     std::string repoPath;
     std::string reviewScope = "wt";  // "wt" (working tree) or a commit SHA
     ecs::ReviewComponent* review = nullptr;
@@ -317,6 +319,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_padding(Padding{
                 .top = h720(0), .right = w1280(0),
                 .bottom = h720(0), .left = w1280(diff_detail::CODE_PAD_LEFT)})
+            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_roundness(0.0f)
             .with_debug_name("diff_line"));
 
@@ -376,7 +379,9 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             return;
         // Keyboard chunk cursor + pending vim actions (a=approve, c=comment).
         int ord = sel->hunkOrdinal++;
-        isCursor = (ord == sel->review->cursor);
+        // Read-only embedded (commit-detail) diff has no review cursor, so the
+        // first hunk must not pick up the cursor highlight.
+        isCursor = !sel->embedded && (ord == sel->review->cursor);
         if (isCursor && sel->review->cursorApprove) {
             sel->review->cursorApprove = false;
             if (sel->reviewScope == "wt") {
@@ -455,8 +460,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
-                .with_custom_background(afterhours::Color{60, 60, 65, 255})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_custom_background(afterhours::Color{78, 78, 86, 255})
+                .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_debug_name("copy_hunk_btn"));
         if (copyBtn) {
@@ -504,8 +509,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
-                .with_custom_background(afterhours::Color{70, 60, 30, 255})
-                .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+                .with_custom_background(afterhours::Color{92, 78, 38, 255})
+                .with_custom_text_color(afterhours::Color{245, 210, 110, 255})
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_debug_name("comment_hunk_btn"));
         if (commentBtn) {
@@ -763,6 +768,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // Review actions work in both the working-tree diff and the embedded
     // commit-detail diff (comment-only for commits), independent of selection.
     sess.reviewActions = (review != nullptr);
+    sess.embedded = embedInParentScroll;
     sess.repoPath = repoPath;
     sess.review = review;
     sess.reviewScope = reviewScope;
@@ -817,8 +823,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
         contentParent = &scrollContainer.ent();
     }
 
-    // Stats summary header inside scroll
-    {
+    // Stats summary header inside scroll. Suppressed when embedded in the
+    // commit-detail view, which already renders its own "FILES CHANGED" summary.
+    if (!embedInParentScroll) {
         int totalAdditions = 0, totalDeletions = 0;
         for (auto& d : diffs) {
             totalAdditions += d.additions;
@@ -962,8 +969,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(8)})
-                    .with_custom_background(afterhours::Color{78, 78, 86, 255})
-                    .with_custom_text_color(afterhours::Color{210, 210, 214, 255})
+                    .with_custom_background(afterhours::Color{92, 92, 100, 255})
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("copy_file_diff_btn"));
             if (fileCopyBtn) {
