@@ -343,6 +343,9 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             float x0 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, a));
             float x1 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, b));
             if (x1 > x0) {
+                // TODO: make the selection highlight actually translucent once
+                // afterhours alpha-blends div backgrounds (see the "Div
+                // backgrounds render opaque" gap in docs/afterhours-gaps.md).
                 // The backend renders div backgrounds opaquely (no alpha blend
                 // over already-drawn text), so a translucent overlay would hide
                 // the selected text. Instead: draw an opaque selection box, then
