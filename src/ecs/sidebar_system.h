@@ -828,7 +828,7 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("refs_header"));
 
-        std::string branchLabel = "\xe2\x96\xbe Branches  " +
+        std::string branchLabel = "BRANCHES  " +
             std::to_string(repo.branches.size());
         div(ctx, mk(headerRow.ent(), 1),
             preset::SectionHeader(branchLabel)

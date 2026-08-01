@@ -152,8 +152,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     auto copyBtn = button(ctx, mk(panel.ent(), 901),
         preset::Button("Copy all")
             .with_size(ComponentSize{percent(1.0f), h720(24)})
-            .with_custom_background(afterhours::Color{60, 60, 65, 255})
-            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_custom_background(afterhours::Color{62, 62, 64, 255})
+            .with_custom_text_color(theme::TEXT_PRIMARY)
             .with_debug_name("basket_copy_btn"));
     if (copyBtn) {
         std::string branch = (repo && !repo->currentBranch.empty())
