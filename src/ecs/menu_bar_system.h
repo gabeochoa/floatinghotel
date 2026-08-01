@@ -11,7 +11,7 @@ namespace ecs {
 // Colors from the mockup spec
 namespace menu_colors {
     constexpr afterhours::Color BAR_BG        = {30, 30, 30, 255};       // #1E1E1E (matches WINDOW_BG)
-    constexpr afterhours::Color HEADER_TEXT    = {128, 128, 128, 255};   // #808080 (secondary text)
+    constexpr afterhours::Color HEADER_TEXT    = {170, 170, 170, 255};   // brighter than secondary so menus don't read disabled
     constexpr afterhours::Color ACTIVE_BG      = {45, 45, 45, 255};     // #2D2D2D
     constexpr afterhours::Color ACTIVE_TEXT    = {255, 255, 255, 255};   // #FFFFFF
     constexpr afterhours::Color DROPDOWN_BG    = {45, 45, 45, 255};     // #2D2D2D

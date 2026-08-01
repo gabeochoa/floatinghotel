@@ -481,8 +481,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(8)})
-                    .with_custom_background(afterhours::Color{40, 80, 50, 255})
-                    .with_custom_text_color(afterhours::Color{120, 220, 140, 255})
+                    .with_custom_background(theme::BUTTON_SECONDARY)
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("approve_hunk_btn"));
             if (approveBtn) {
@@ -509,8 +509,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
-                .with_custom_background(afterhours::Color{92, 78, 38, 255})
-                .with_custom_text_color(afterhours::Color{245, 210, 110, 255})
+                .with_custom_background(theme::BUTTON_SECONDARY)
+                .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_debug_name("comment_hunk_btn"));
         if (commentBtn) {
@@ -1008,8 +1008,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(8)})
-                    .with_custom_background(afterhours::Color{40, 80, 50, 255})
-                    .with_custom_text_color(afterhours::Color{120, 220, 140, 255})
+                    .with_custom_background(theme::BUTTON_SECONDARY)
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("approve_file_btn"));
             if (approveFileBtn) {

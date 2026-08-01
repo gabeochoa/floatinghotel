@@ -104,12 +104,8 @@ inline std::vector<Menu> createMenuBar() {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->commandLogVisible = !l->commandLogVisible;
         }),
-        MenuItem::item("Cycle Theme (Dark/Light)", "", [] {
-            theme::cycle_theme();
-            set_pending_toast(theme::current_theme_name == theme::ThemeName::Light
-                                  ? "Theme: Light"
-                                  : "Theme: Dark");
-        }),
+        // Light theme is not fully supported yet (main pane stays dark), so the
+        // theme toggle is hidden until it's fixed — dark-only for now.
         MenuItem::separator(),
         MenuItem::item("Inline Diff", "Cmd+Shift+I", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
