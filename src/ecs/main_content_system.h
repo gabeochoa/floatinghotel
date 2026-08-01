@@ -112,10 +112,20 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_no_wrap()
                     .with_transparent_bg()
                     .with_debug_name("basket_item"));
+            // Colored monospace file:line token, then the comment text (mock).
+            float locW = resolve_to_pixels(w1280(96.0f), sw);
+            div(ctx, mk(itemRow.ent(), 3),
+                ComponentConfig{}
+                    .with_label(c.file + ":" + std::to_string(c.line))
+                    .with_size(ComponentSize{pixels(locW), h720(20)})
+                    .with_custom_text_color(theme::BUTTON_PRIMARY)
+                    .with_font("mono", h720(11.0f))
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("basket_item_loc"));
             div(ctx, mk(itemRow.ent(), 0),
                 ComponentConfig{}
-                    .with_label(c.file + ":" + std::to_string(c.line) + "  " + c.text)
-                    .with_size(ComponentSize{pixels(txtW), h720(20)})
+                    .with_label(c.text)
+                    .with_size(ComponentSize{pixels(txtW - locW), h720(20)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
