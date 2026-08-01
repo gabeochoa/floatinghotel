@@ -76,8 +76,21 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     int id = 1;
     int removeIdx = -1;
     for (const auto& scope : scopes) {
-        std::string gh = (scope == "wt") ? "working tree (uncommitted)"
-                                         : "commit " + scope.substr(0, 7);
+        std::string gh;
+        if (scope == "wt") {
+            gh = "working tree (uncommitted)";
+        } else {
+            gh = "commit " + scope.substr(0, 7);
+            // Enrich with the commit subject so multi-commit reviews are legible.
+            if (repo) {
+                for (const auto& ce : repo->commitLog) {
+                    if (ce.hash == scope || ce.hash.rfind(scope, 0) == 0) {
+                        gh += " \xc2\xb7 " + ce.subject;
+                        break;
+                    }
+                }
+            }
+        }
         div(ctx, mk(panel.ent(), id++),
             ComponentConfig{}
                 .with_label(gh)
@@ -274,9 +287,29 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_transparent_bg()
                         .with_debug_name("ballroom_done_sub"));
             } else {
+                // Reserve a keyboard-hint footer under the diff (mock cockpit).
+                float shH = static_cast<float>(afterhours::graphics::get_screen_height());
+                float keyhintH = resolve_to_pixels(h720(24.0f), shH);
+                float diffH = layout.mainContent.height - keyhintH;
+                if (diffH < 40.0f) diffH = layout.mainContent.height;
                 ui::render_inline_diff(ctx, mainBg.ent(), repo.currentDiff,
-                                       diffW, 0, false, /*resetScroll=*/false,
+                                       diffW, diffH, false, /*resetScroll=*/false,
                                        repo.repoPath, reviewPtr);
+                div(ctx, mk(mainBg.ent(), 3090),
+                    ComponentConfig{}
+                        .with_label("j/k move    a approve    c comment    "
+                                    "Cmd+Enter send all    esc hide")
+                        .with_size(ComponentSize{percent(1.0f), pixels(keyhintH)})
+                        .with_flex_direction(FlexDirection::Row)
+                        .with_align_items(AlignItems::Center)
+                        .with_padding(Padding{
+                            .top = h720(0), .right = pixels(theme::layout::SPACE_4),
+                            .bottom = h720(0), .left = pixels(theme::layout::SPACE_4)})
+                        .with_custom_background(theme::SECTION_HEADER_BG)
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_font("mono", h720(11.0f))
+                        .with_roundness(0.0f)
+                        .with_debug_name("diff_keyhint"));
             }
             if (layout.commandLogVisible) render_command_log(ctx, uiRoot, layout);
             if (layout.sidebarVisible) render_sidebar_divider(ctx, uiRoot, layout);
