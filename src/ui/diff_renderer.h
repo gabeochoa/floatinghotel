@@ -414,7 +414,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_flex_direction(FlexDirection::Row)
             .with_justify_content(JustifyContent::SpaceBetween)
             .with_align_items(AlignItems::Center)
-            .with_custom_background(isCursor ? afterhours::Color{46, 58, 82, 255}
+            .with_custom_background(isCursor ? afterhours::Color{38, 79, 140, 255}
                                              : diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
