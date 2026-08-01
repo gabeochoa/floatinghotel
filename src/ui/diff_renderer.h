@@ -343,14 +343,30 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             float x0 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, a));
             float x1 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, b));
             if (x1 > x0) {
+                // The backend renders div backgrounds opaquely (no alpha blend
+                // over already-drawn text), so a translucent overlay would hide
+                // the selected text. Instead: draw an opaque selection box, then
+                // re-draw the line's text on top so it stays readable — same
+                // font/padding/position as the base line, so it aligns exactly.
                 div(ctx, mk(lineDiv.ent(), 90001),
                     ComponentConfig{}
                         .with_size(ComponentSize{pixels(x1 - x0),
                                                  h720(diff_detail::LINE_HEIGHT)})
                         .with_absolute_position(x0, 0.f)
-                        .with_custom_background(afterhours::Color{70, 130, 240, 45})
+                        .with_custom_background(theme::SELECTED_BG)
                         .with_roundness(0.0f)
                         .with_debug_name("diff_sel_hl"));
+                div(ctx, mk(lineDiv.ent(), 90002),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{pixels(x1 - x0),
+                                                 h720(diff_detail::LINE_HEIGHT)})
+                        .with_absolute_position(x0, 0.f)
+                        .with_label(content.substr(a, b - a))
+                        .with_font("mono", h720(theme::layout::FONT_CODE))
+                        .with_custom_text_color(textColor)
+                        .with_alignment(TextAlignment::Left)
+                        .with_transparent_bg()
+                        .with_debug_name("diff_sel_text"));
             }
         }
     }

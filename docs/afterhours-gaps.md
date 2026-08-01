@@ -64,6 +64,30 @@ Tracking afterhours features/bugs that floatinghotel needs but are not yet imple
 
 ---
 
+### Div backgrounds render opaque — no alpha blend for overlays — OPEN
+
+**Problem:** A `div` background does not alpha-blend over already-drawn content.
+Neither `with_custom_background(Color{r,g,b,45})` (low alpha in the color) nor
+`with_opacity(0.32f)` produces a translucent overlay — both render fully opaque,
+covering whatever is underneath. (Toast fade-in via `HasOpacity` works, but a
+plain overlay div drawn on top of sibling text does not composite over it.)
+
+**Impact:** The diff drag-to-select highlight (`src/ui/diff_renderer.h`,
+`diff_sel`) is an overlay box drawn on top of the diff line's text. A
+"translucent selection" is impossible this way — the box just hid the selected
+text entirely.
+
+**Workaround:** Draw an *opaque* selection box (`theme::SELECTED_BG`), then
+re-draw just the selected substring of text on top of it (same mono font,
+positioned at the selection's start x), so the text stays readable — editor
+style (solid selection color, text on top) rather than a translucent wash.
+
+**Suggested fix:** Honor `Color` alpha (and/or `with_opacity`) for div
+backgrounds so overlays can be genuinely translucent, or provide a
+selection/highlight primitive that renders behind text within an element.
+
+---
+
 ### No Font Weight Support — OPEN
 
 **Problem:** `ComponentConfig` has `with_font()` and `with_font_size()` but no `with_font_weight()`. The mockup uses `font-weight: 600` on diff file headers and status letters. The only way to approximate bold text is to load a separate bold font file and switch font names per-component, which is cumbersome.
