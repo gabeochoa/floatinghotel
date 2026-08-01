@@ -219,7 +219,7 @@ const auto& GUTTER_BORDER  = theme::GUTTER_BORDER;
 const auto& GUTTER_ADD_BG  = theme::GUTTER_ADD_BG;
 const auto& GUTTER_DEL_BG  = theme::GUTTER_DEL_BG;
 
-constexpr float LINE_HEIGHT   = 20.0f;
+constexpr float LINE_HEIGHT   = 18.0f;  // denser diff rows (mock)
 constexpr float GUTTER_WIDTH  = 40.0f;
 constexpr float HUNK_HEADER_H = 24.0f;
 constexpr float FILE_HEADER_H = 28.0f;

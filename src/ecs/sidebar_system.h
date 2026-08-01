@@ -389,8 +389,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 branch = repoPtr->currentBranch;
             }
             std::string logHeaderText =
-                branch.empty() ? ("stack  " + std::to_string(commitCount))
-                               : ("stack \xc2\xb7 " + branch + "  " +
+                branch.empty() ? ("STACK  " + std::to_string(commitCount))
+                               : ("STACK \xc2\xb7 " + branch + "  " +
                                   std::to_string(commitCount));
             div(ctx, mk(logBg.ent(), 2310),
                 preset::SectionHeader(logHeaderText)

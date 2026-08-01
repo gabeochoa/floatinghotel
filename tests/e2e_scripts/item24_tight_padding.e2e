@@ -11,7 +11,7 @@ wait_frames 30
 expect_text "To review"
 expect_text "README.md"
 expect_text "main.cpp"
-expect_text "stack"
+expect_text "STACK"
 
 # Staged files (.gitignore) live under the "Approved" tab
 click_text "Approved"

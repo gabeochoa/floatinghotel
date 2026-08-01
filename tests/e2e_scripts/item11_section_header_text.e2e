@@ -12,6 +12,6 @@ expect_no_text "▾"
 expect_text "To review"
 expect_text "Approved"
 expect_text "Untracked"
-expect_text "stack"
+expect_text "STACK"
 
 screenshot item11_section_headers
