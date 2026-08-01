@@ -980,7 +980,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_label(fileLabel)
                 .with_size(ComponentSize{fileLabelW, percent(1.0f)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(afterhours::ui::FontSize::XL)
+                .with_font_size(afterhours::ui::FontSize::Large)
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_padding(Padding{

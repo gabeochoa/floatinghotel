@@ -52,11 +52,30 @@ inline ComponentConfig Button(const std::string& label, bool enabled = true) {
             .bottom = h720(0), .left = w1280(16)})
         .with_custom_background(bg)
         .with_custom_text_color(text)
+        .with_font_size(FontSize::Medium)
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
         .with_roundness(theme::layout::ROUNDNESS_BUTTON)
         .with_alignment(TextAlignment::Center);
     config.disabled = !enabled;
     return config;
+}
+
+// ============================================================================
+// Card — bordered surface (metadata boxes, panels). bg + hairline border +
+// rounded corners + standard inner padding. Replaces ad-hoc bordered boxes.
+// Default size: children() x children(); callers set an explicit size.
+// ============================================================================
+inline ComponentConfig Card() {
+    return ComponentConfig{}
+        .with_custom_background(theme::SIDEBAR_BG)
+        .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
+        .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+        .with_roundness(theme::layout::ROUNDNESS_BOX)
+        .with_padding(Padding{
+            .top = h720(theme::layout::SPACE_3),
+            .right = pixels(theme::layout::SPACE_4),
+            .bottom = h720(theme::layout::SPACE_3),
+            .left = pixels(theme::layout::SPACE_4)});
 }
 
 // ============================================================================
@@ -69,12 +88,15 @@ inline ComponentConfig Button(const std::string& label, bool enabled = true) {
 inline ComponentConfig SectionHeader(const std::string& label) {
     return ComponentConfig{}
         .with_label(label)
-        .with_size(ComponentSize{percent(1.0f), h720(22)})
+        .with_size(ComponentSize{percent(1.0f),
+            h720(static_cast<float>(theme::layout::SECTION_HEADER_HEIGHT))})
         .with_padding(Padding{
-            .top = h720(3), .right = pixels(8),
-            .bottom = h720(3), .left = pixels(8)})
+            .top = h720(theme::layout::SMALL_PADDING / 2),
+            .right = pixels(theme::layout::SPACE_2),
+            .bottom = h720(theme::layout::SMALL_PADDING / 2),
+            .left = pixels(theme::layout::SPACE_2)})
         .with_transparent_bg()
-        .with_custom_text_color(Color{180, 180, 180, 255})
+        .with_custom_text_color(theme::SECTION_HEADER_TEXT)
         .with_font_size(FontSize::Medium)
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);

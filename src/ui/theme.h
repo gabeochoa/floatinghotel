@@ -19,6 +19,7 @@ inline Color BORDER = {58, 58, 58, 255};      // #3A3A3A
 inline Color TEXT_PRIMARY = {204, 204, 204, 255};    // #CCCCCC
 inline Color TEXT_SECONDARY = {128, 128, 128, 255};  // #808080
 inline Color TEXT_ACCENT = {78, 154, 6, 255};
+inline Color SECTION_HEADER_TEXT = {180, 180, 180, 255};  // uppercase group labels
 
 // Status badges
 inline Color STATUS_MODIFIED = {227, 179, 65, 255};    // Yellow
@@ -244,10 +245,22 @@ constexpr int STATUS_BAR_HEIGHT = 22;
 constexpr int SIDEBAR_DEFAULT_WIDTH = 300;
 constexpr int SIDEBAR_MIN_WIDTH = 200;
 constexpr float SIDEBAR_MIN_PCT = 0.18f;  // Min 18% of window width
-constexpr int FILE_ROW_HEIGHT = 24;
-constexpr int COMMIT_ROW_HEIGHT = 26;
+constexpr int ROW_HEIGHT = 24;          // unified list-row height
+constexpr int FILE_ROW_HEIGHT = ROW_HEIGHT;
+constexpr int COMMIT_ROW_HEIGHT = ROW_HEIGHT;
+constexpr int SECTION_HEADER_HEIGHT = 22;
+constexpr int ICON_LG = 32;             // large decorative empty-state glyph
 constexpr int PADDING = 12;
 constexpr int SMALL_PADDING = 6;
+
+// Spacing scale (h720 reference px). Prefer these over ad-hoc literals so gaps
+// stay on a consistent 4px rhythm.
+constexpr int SPACE_1 = 4;
+constexpr int SPACE_2 = 8;
+constexpr int SPACE_3 = 12;
+constexpr int SPACE_4 = 16;
+constexpr int SPACE_6 = 24;
+constexpr float BORDER_WIDTH = 1.0f;    // hairline border width (h720)
 // Typography: 3 tiers only, set in preload.cpp as FontSize:
 //   Small/Caption = 12, Medium/Body = 14, Large/Heading = 18 (XL == Large).
 // All UI text uses the FontSize enum tiers. The one exception is monospace

@@ -160,7 +160,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_translate(headerX, barY)
                     .with_custom_background(highlighted ? menu_colors::ACTIVE_BG : menu_colors::BAR_BG)
                     .with_custom_text_color(highlighted ? menu_colors::ACTIVE_TEXT : menu_colors::HEADER_TEXT)
-                    .with_font_size(afterhours::ui::FontSize::XL)
+                    .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_alignment(TextAlignment::Center)
                     .with_justify_content(JustifyContent::Center)
                     .with_align_items(AlignItems::Center)

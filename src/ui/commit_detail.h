@@ -199,7 +199,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .top = pixels(8), .right = pixels(PAD),
                 .bottom = pixels(4), .left = pixels(PAD)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font_size(h720(24.0f))  // display: commit-detail page title
+            .with_font_size(afterhours::ui::FontSize::XL)  // Display tier (22)
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_roundness(0.0f)

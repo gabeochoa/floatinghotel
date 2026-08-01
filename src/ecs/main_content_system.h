@@ -435,7 +435,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label(rel)
                         .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
                         .with_custom_text_color(theme::TEXT_PRIMARY)
-                        .with_font_size(afterhours::ui::FontSize::XL)
+                        .with_font_size(afterhours::ui::FontSize::Large)
                         .with_alignment(TextAlignment::Left)
                         .with_padding(Padding{
                             .top = h720(8), .right = w1280(0),
@@ -656,7 +656,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}
                 .with_label("Welcome to floatinghotel")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_font_size(afterhours::ui::FontSize::XL)
                 .with_padding(Padding{.bottom = h720(6)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_PRIMARY)
