@@ -134,7 +134,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_padding(Padding{
                     .top = h720(8), .right = w1280(8),
                     .bottom = h720(8), .left = w1280(8)})
-                .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                .with_custom_text_color(theme::TEXT_TERTIARY)
                 .with_font_size(afterhours::ui::FontSize::Medium)
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)

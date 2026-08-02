@@ -60,7 +60,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         ComponentConfig{}
             .with_label("Feedback basket  " + std::to_string(review.comments.size()))
             .with_size(ComponentSize{percent(1.0f), h720(22)})
-            .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+            .with_custom_text_color(theme::STATUS_MODIFIED)
             .with_font_size(afterhours::ui::FontSize::Medium)
             .with_debug_name("basket_title"));
 
@@ -212,10 +212,12 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Vim-style chunk cursor: j/k/n move, a approve, c comment. Gated on
         // no text input being focused so it never eats typed characters.
         auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
+        // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
+        // gate and the ⌘⏎ send-all shortcut below.
+        bool superDown = afterhours::graphics::is_key_down(343) ||
+                         afterhours::graphics::is_key_down(347);
         if (reviewPtr && ctx.focus_id == ctx.ROOT &&
             reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
-            bool superDown = afterhours::graphics::is_key_down(343) ||
-                             afterhours::graphics::is_key_down(347);
             if (!superDown) {
                 if (afterhours::graphics::is_key_pressed(74) ||   // J
                     afterhours::graphics::is_key_pressed(78))     // N
@@ -232,8 +234,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         // Feedback basket + ⌘⏎ send-all (available whenever comments are queued).
         if (reviewPtr && !reviewPtr->comments.empty()) {
-            bool superDown = afterhours::graphics::is_key_down(343) ||
-                             afterhours::graphics::is_key_down(347);
             if (superDown && afterhours::graphics::is_key_pressed(257))
                 send_review(ctx, *reviewPtr, repoPtr);
             if (reviewPtr->basketOpen)
@@ -607,7 +607,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .top = h720(0), .right = w1280(8),
                             .bottom = h720(4), .left = w1280(8)})
                         .with_transparent_bg()
-                        .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                        .with_custom_text_color(theme::TEXT_TERTIARY)
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
                         .with_debug_name("empty_hint_2"));

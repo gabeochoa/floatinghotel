@@ -22,6 +22,16 @@ std::string build_command_string(
     return result;
 }
 
+// Run a sync git_* function on a detached background thread. Keeps the async
+// wrappers as one-liners so argument lists live in one place (the sync fns).
+template <class Fn, class... Args>
+std::future<GitResult> spawn(Fn fn, Args... args) {
+    std::packaged_task<GitResult()> task([=] { return fn(args...); });
+    auto fut = task.get_future();
+    std::thread(std::move(task)).detach();
+    return fut;
+}
+
 }  // namespace
 
 GitResult git_run(const std::string& repo_path,
@@ -116,43 +126,29 @@ GitResult git_show_commit_info(const std::string& repo_path,
 }
 
 // --- Async convenience wrappers ---
+// Each runs its sync counterpart on a background thread (see spawn()).
 
 std::future<GitResult> git_status_async(const std::string& repo_path) {
-    return git_run_async(repo_path,
-                         {"status", "--porcelain=v2", "--branch"});
+    return spawn(git_status, repo_path);
 }
 
 std::future<GitResult> git_log_async(const std::string& repo_path,
                                       int max_count, int skip) {
-    std::vector<std::string> args = {
-        "log",
-        "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P",
-    };
-    if (max_count > 0) {
-        args.push_back("-" + std::to_string(max_count));
-    }
-    if (skip > 0) {
-        args.push_back("--skip=" + std::to_string(skip));
-    }
-    return git_run_async(repo_path, args);
+    return spawn(git_log, repo_path, max_count, skip);
 }
 
 std::future<GitResult> git_diff_async(const std::string& repo_path) {
-    return git_run_async(repo_path, {"diff"});
+    return spawn(git_diff, repo_path);
 }
 
 std::future<GitResult> git_branch_list_async(
     const std::string& repo_path) {
-    return git_run_async(
-        repo_path,
-        {"branch", "--list",
-         "--format=%(refname:short)|%(objectname:short)"
-                   "|%(HEAD)|%(upstream:short)|%(upstream:track)"});
+    return spawn(git_branch_list, repo_path);
 }
 
 std::future<GitResult> git_rev_parse_head_async(
     const std::string& repo_path) {
-    return git_run_async(repo_path, {"rev-parse", "HEAD"});
+    return spawn(git_rev_parse_head, repo_path);
 }
 
 }  // namespace git

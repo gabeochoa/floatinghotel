@@ -20,6 +20,18 @@ size_t skip_fields(const std::string& line, int count) {
     return pos;
 }
 
+// Split on a single-char delimiter, keeping empty fields (incl. a trailing one).
+std::vector<std::string> split(const std::string& s, char delim) {
+    std::vector<std::string> out;
+    size_t prev = 0, pos;
+    while ((pos = s.find(delim, prev)) != std::string::npos) {
+        out.push_back(s.substr(prev, pos - prev));
+        prev = pos + 1;
+    }
+    out.push_back(s.substr(prev));
+    return out;
+}
+
 }  // namespace
 
 // ---- Status Parser (T012) ----
@@ -88,10 +100,8 @@ StatusResult parse_status(const std::string& output) {
                 result.stagedFiles.push_back(fs);
             }
             if (fs.workTreeStatus != '.') {
-                // For unstaged entries, create a copy so staged/unstaged
-                // lists are independent
-                ecs::FileStatus unstaged_fs = fs;
-                result.unstagedFiles.push_back(unstaged_fs);
+                // push_back copies, so staged/unstaged lists stay independent.
+                result.unstagedFiles.push_back(fs);
             }
         } else if (line.starts_with("u ")) {
             // Unmerged entry
@@ -134,14 +144,7 @@ std::vector<ecs::CommitEntry> parse_log(const std::string& log_output) {
         // Format: hash\0shortHash\0subject\0author\0date\0decorations
         // Fields separated by NUL character (\0, from %x00 in git format)
         ecs::CommitEntry entry;
-        std::vector<std::string> fields;
-        size_t prev = 0;
-        size_t pos = 0;
-        while ((pos = line.find('\0', prev)) != std::string::npos) {
-            fields.push_back(line.substr(prev, pos - prev));
-            prev = pos + 1;
-        }
-        fields.push_back(line.substr(prev));  // last field
+        std::vector<std::string> fields = split(line, '\0');
 
         if (fields.size() >= 5) {
             entry.hash = fields[0];
@@ -296,14 +299,7 @@ std::vector<ecs::BranchInfo> parse_branch_list(const std::string& output) {
         // e.g. "main|abc1234|*|origin/main|[ahead 1]"
         // or   "feature|def5678| |origin/feature|"
         ecs::BranchInfo info;
-        std::vector<std::string> fields;
-        size_t prev = 0;
-        size_t pos = 0;
-        while ((pos = line.find('|', prev)) != std::string::npos) {
-            fields.push_back(line.substr(prev, pos - prev));
-            prev = pos + 1;
-        }
-        fields.push_back(line.substr(prev));
+        std::vector<std::string> fields = split(line, '|');
 
         if (fields.size() < 3) continue;
 
@@ -320,7 +316,7 @@ std::vector<ecs::BranchInfo> parse_branch_list(const std::string& output) {
         }
 
         // Skip detached HEAD entries
-        if (info.name == "(HEAD detached" || info.name.find("(HEAD") == 0) {
+        if (info.name.starts_with("(HEAD")) {
             continue;
         }
 

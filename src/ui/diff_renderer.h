@@ -576,7 +576,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             ComponentConfig{}
                 .with_label("\xe2\x9c\x8e commented \xc2\xb7 click to expand")
                 .with_size(ComponentSize{w, h720(20)})
-                .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+                .with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_padding(Padding{
                     .top = h720(2), .right = w1280(8),
@@ -926,7 +926,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         .with_custom_background(open
                             ? afterhours::Color{51, 42, 24, 255}
                             : theme::BUTTON_SECONDARY)
-                        .with_custom_text_color(afterhours::Color{227, 179, 65, 255})
+                        .with_custom_text_color(theme::STATUS_MODIFIED)
                         .with_font_size(afterhours::ui::FontSize::Small)
                         .with_roundness(0.0f)
                         .with_debug_name("basket_toggle_btn"));

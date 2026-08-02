@@ -275,34 +275,14 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (repoPtr) {
                 render_file_list(ctx, filesBg.ent(), *repoPtr);
             } else {
-                div(ctx, mk(filesBg.ent(), 2150),
-                    ComponentConfig{}
-                        .with_label("No repository open")
-                        .with_size(ComponentSize{percent(1.0f), h720(32)})
-                        .with_padding(Padding{
-                            .top = h720(16), .right = pixels(8),
-                            .bottom = h720(8), .left = pixels(8)})
-                        .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                        .with_alignment(TextAlignment::Center)
-                        .with_roundness(0.0f)
-                        .with_debug_name("no_repo"));
+                render_no_repo(ctx, filesBg.ent(), 2150, "no_repo");
             }
         } else {
             // === Refs view (T031) ===
             if (repoPtr) {
                 render_refs_view(ctx, filesBg.ent(), *repoPtr, layout);
             } else {
-                div(ctx, mk(filesBg.ent(), 2150),
-                    ComponentConfig{}
-                        .with_label("No repository open")
-                        .with_size(ComponentSize{percent(1.0f), h720(32)})
-                        .with_padding(Padding{
-                            .top = h720(16), .right = pixels(8),
-                            .bottom = h720(8), .left = pixels(8)})
-                        .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                        .with_alignment(TextAlignment::Center)
-                        .with_roundness(0.0f)
-                        .with_debug_name("no_repo_refs"));
+                render_no_repo(ctx, filesBg.ent(), 2150, "no_repo_refs");
             }
         }
 
@@ -376,17 +356,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         if (repoPtr) {
             render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
         } else {
-            div(ctx, mk(logScroll.ent(), 0),
-                ComponentConfig{}
-                    .with_label("No repository open")
-                    .with_size(ComponentSize{percent(1.0f), h720(32)})
-                    .with_padding(Padding{
-                        .top = h720(16), .right = pixels(8),
-                        .bottom = h720(8), .left = pixels(8)})
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("no_repo_log"));
+            render_no_repo(ctx, logScroll.ent(), 0, "no_repo_log");
         }
 
         // === Commit workflow + Unstaged Changes Dialog (T030) ===
@@ -609,6 +579,23 @@ private:
             if (menuComp)
                 menuComp->pendingToast = "Stash is not yet implemented";
         }
+    }
+
+    // Centered "No repository open" placeholder, shown in each sidebar pane
+    // (files / refs / commit log) when no repo is loaded.
+    void render_no_repo(UIContext<InputAction>& ctx, Entity& parent, int id,
+                        const std::string& debugName) {
+        div(ctx, mk(parent, id),
+            ComponentConfig{}
+                .with_label("No repository open")
+                .with_size(ComponentSize{percent(1.0f), h720(32)})
+                .with_padding(Padding{
+                    .top = h720(16), .right = pixels(8),
+                    .bottom = h720(8), .left = pixels(8)})
+                .with_custom_text_color(theme::TEXT_TERTIARY)
+                .with_alignment(TextAlignment::Center)
+                .with_roundness(0.0f)
+                .with_debug_name(debugName));
     }
 
     // "In the ballroom" review-progress strip (mock): a bar + approved/to-review
@@ -846,7 +833,7 @@ private:
                     .with_padding(Padding{
                         .top = h720(16), .right = pixels(8),
                         .bottom = h720(8), .left = pixels(8)})
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                    .with_custom_text_color(theme::TEXT_TERTIARY)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("no_branches"));
@@ -1312,7 +1299,7 @@ private:
                         .with_padding(Padding{
                             .top = h720(0), .right = pixels(8),
                             .bottom = h720(8), .left = pixels(8)})
-                        .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                        .with_custom_text_color(theme::TEXT_TERTIARY)
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
                         .with_debug_name("empty_clean"));
@@ -1516,7 +1503,7 @@ private:
                     .with_padding(Padding{
                         .top = h720(3), .right = pixels(8),
                         .bottom = h720(3), .left = pixels(8)})
-                    .with_custom_text_color(afterhours::Color{90, 90, 90, 255})
+                    .with_custom_text_color(theme::TEXT_TERTIARY)
                     .with_font_size(FontSize::Medium)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -1681,7 +1668,7 @@ private:
         if (commentCount > 0) {
             div(ctx, mk(row.ent(), 12),
                 preset::Badge(std::to_string(commentCount),
-                              afterhours::Color{227, 179, 65, 255},
+                              theme::STATUS_MODIFIED,
                               afterhours::Color{26, 26, 26, 255})
                     .with_size(ComponentSize{pixels(cbW), children()})
                     .with_font_size(FontSize::Small)

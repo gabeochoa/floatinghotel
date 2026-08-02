@@ -55,43 +55,41 @@ static std::string write_temp_patch(const std::string& patch_content) {
     return path;
 }
 
-GitResult stage_hunk(const std::string& repo_path,
-                     const ecs::FileDiff& file_diff,
-                     const ecs::DiffHunk& hunk) {
-    std::string patch = build_patch(file_diff, hunk);
-    std::string tmp_path = write_temp_patch(patch);
+// Write the hunk to a temp patch and `git apply` it with the given flags,
+// cleaning up the temp file. Shared by stage/unstage/discard (they differ only
+// in the apply flags).
+static GitResult apply_hunk_patch(const std::string& repo_path,
+                                  const ecs::FileDiff& file_diff,
+                                  const ecs::DiffHunk& hunk,
+                                  std::vector<std::string> flags) {
+    std::string tmp_path = write_temp_patch(build_patch(file_diff, hunk));
     if (tmp_path.empty()) {
         return GitResult{{.stdout_str = "", .stderr_str = "Failed to create temp patch file", .exit_code = -1}};
     }
-    auto result = git_run(repo_path, {"apply", "--cached", tmp_path});
+    std::vector<std::string> args = {"apply"};
+    args.insert(args.end(), flags.begin(), flags.end());
+    args.push_back(tmp_path);
+    auto result = git_run(repo_path, args);
     std::filesystem::remove(tmp_path);
     return result;
+}
+
+GitResult stage_hunk(const std::string& repo_path,
+                     const ecs::FileDiff& file_diff,
+                     const ecs::DiffHunk& hunk) {
+    return apply_hunk_patch(repo_path, file_diff, hunk, {"--cached"});
 }
 
 GitResult unstage_hunk(const std::string& repo_path,
                        const ecs::FileDiff& file_diff,
                        const ecs::DiffHunk& hunk) {
-    std::string patch = build_patch(file_diff, hunk);
-    std::string tmp_path = write_temp_patch(patch);
-    if (tmp_path.empty()) {
-        return GitResult{{.stdout_str = "", .stderr_str = "Failed to create temp patch file", .exit_code = -1}};
-    }
-    auto result = git_run(repo_path, {"apply", "--cached", "--reverse", tmp_path});
-    std::filesystem::remove(tmp_path);
-    return result;
+    return apply_hunk_patch(repo_path, file_diff, hunk, {"--cached", "--reverse"});
 }
 
 GitResult discard_hunk(const std::string& repo_path,
                        const ecs::FileDiff& file_diff,
                        const ecs::DiffHunk& hunk) {
-    std::string patch = build_patch(file_diff, hunk);
-    std::string tmp_path = write_temp_patch(patch);
-    if (tmp_path.empty()) {
-        return GitResult{{.stdout_str = "", .stderr_str = "Failed to create temp patch file", .exit_code = -1}};
-    }
-    auto result = git_run(repo_path, {"apply", "--reverse", tmp_path});
-    std::filesystem::remove(tmp_path);
-    return result;
+    return apply_hunk_patch(repo_path, file_diff, hunk, {"--reverse"});
 }
 
 GitResult stage_file(const std::string& repo_path,

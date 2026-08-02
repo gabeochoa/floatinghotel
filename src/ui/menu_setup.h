@@ -44,17 +44,22 @@ inline void set_pending_toast(const std::string& msg) {
     if (menu) menu->pendingToast = msg;
 }
 
+// Placeholder toast for menu items that aren't wired up yet.
+inline void notImpl(const std::string& what) {
+    set_pending_toast(what + " is not yet implemented");
+}
+
 inline std::vector<Menu> createMenuBar() {
     std::vector<Menu> menus;
 
     // File menu
     menus.push_back({"File", {
         MenuItem::item("Open Repository...", "Cmd+O", [] {
-            set_pending_toast("Open Repository is not yet implemented");
+            notImpl("Open Repository");
         }),
         MenuItem::separator(),
         MenuItem::item("Close Tab", "Cmd+W", [] {
-            set_pending_toast("Close Tab is not yet implemented");
+            notImpl("Close Tab");
         }),
         MenuItem::separator(),
         MenuItem::item("Quit", "Cmd+Q", [] {
@@ -81,11 +86,11 @@ inline std::vector<Menu> createMenuBar() {
                                 : "Copy now excludes location");
         }),
         MenuItem::item("Select All", "Cmd+A", [] {
-            set_pending_toast("Select All is not yet implemented");
+            notImpl("Select All");
         }),
         MenuItem::separator(),
         MenuItem::item("Find...", "Cmd+F", [] {
-            set_pending_toast("Find is not yet implemented");
+            notImpl("Find");
         }),
     }});
 
@@ -125,13 +130,13 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::separator(),
         MenuItem::item("Zoom In", "Cmd+=", [] {
-            set_pending_toast("Zoom In is not yet implemented");
+            notImpl("Zoom In");
         }),
         MenuItem::item("Zoom Out", "Cmd+-", [] {
-            set_pending_toast("Zoom Out is not yet implemented");
+            notImpl("Zoom Out");
         }),
         MenuItem::item("Reset Zoom", "Cmd+0", [] {
-            set_pending_toast("Reset Zoom is not yet implemented");
+            notImpl("Reset Zoom");
         }),
     }});
 
@@ -195,14 +200,14 @@ inline std::vector<Menu> createMenuBar() {
     // Help menu
     menus.push_back({"Help", {
         MenuItem::item("Keyboard Shortcuts", "Cmd+?", [] {
-            set_pending_toast("Keyboard Shortcuts is not yet implemented");
+            notImpl("Keyboard Shortcuts");
         }),
         MenuItem::item("Command Log", "", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->commandLogVisible = !l->commandLogVisible;
         }),
         MenuItem::item("About floatinghotel", "", [] {
-            set_pending_toast("About floatinghotel is not yet implemented");
+            notImpl("About floatinghotel");
         }),
     }});
 
