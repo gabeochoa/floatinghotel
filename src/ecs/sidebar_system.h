@@ -1481,6 +1481,17 @@ private:
             if (nameW < 40.0f) { nameW = 40.0f; dirW = totalW - nameW - GAP * 2.0f - STATUS_W; }
         }
 
+        // Leading status glyph (left column) — matches the commit-detail file
+        // rows and the mock, and gives every filename a consistent start x.
+        auto statusCol = isSubmodule ? afterhours::Color{170, 140, 230, 255}
+                                     : sidebar_detail::status_color(statusChar);
+        div(ctx, mk(row.ent(), 3),
+            preset::MetaText(statusStr)
+                .with_size(ComponentSize{pixels(STATUS_W), children()})
+                .with_custom_text_color(statusCol)
+                .with_alignment(TextAlignment::Center)
+                .with_debug_name("file_status"));
+
         div(ctx, mk(row.ent(), 1),
             preset::BodyText(fname)
                 .with_size(ComponentSize{pixels(nameW), children()})
@@ -1488,6 +1499,7 @@ private:
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("file_name"));
 
+        // Directory hint sits right after the filename (not floated far-right).
         if (!dir.empty()) {
             auto dirCol = selected ? afterhours::Color{205, 205, 210, 255}
                                    : theme::TEXT_SECONDARY;
@@ -1496,19 +1508,10 @@ private:
                     .with_size(ComponentSize{pixels(dirW), children()})
                     .with_custom_text_color(dirCol)
                     .with_font_size(FontSize::Small)
-                    .with_alignment(TextAlignment::Right)
+                    .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("file_dir"));
         }
-
-        auto statusCol = isSubmodule ? afterhours::Color{170, 140, 230, 255}
-                                     : sidebar_detail::status_color(statusChar);
-        div(ctx, mk(row.ent(), 3),
-            preset::MetaText(statusStr)
-                .with_size(ComponentSize{pixels(STATUS_W), children()})
-                .with_custom_text_color(statusCol)
-                .with_alignment(TextAlignment::Right)
-                .with_debug_name("file_status"));
 
         if (row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
