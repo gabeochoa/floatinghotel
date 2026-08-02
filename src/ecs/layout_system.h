@@ -127,15 +127,6 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.sidebarFiles = {0, sidebarContentY, scaledSidebarW, filesH};
             layout.sidebarLog = {0, sidebarContentY + filesH, scaledSidebarW, commitsH};
 
-            float scaledEditorH = rpxH(layout.commitEditorHeight);
-            if (scaledEditorH > 0.0f) {
-                layout.sidebarCommitEditor = {
-                    0, sidebarContentY + sidebarContentH - scaledEditorH,
-                    scaledSidebarW, scaledEditorH};
-            } else {
-                layout.sidebarCommitEditor = {0, 0, 0, 0};
-            }
-
             float mainX = scaledSidebarW + dividerW;
             float mainW = std::max(sw - scaledSidebarW - dividerW, 20.0f);
             float mainContentY = topY;
@@ -160,7 +151,6 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.sidebar = {0, 0, 0, 0};
             layout.sidebarFiles = {0, 0, 0, 0};
             layout.sidebarLog = {0, 0, 0, 0};
-            layout.sidebarCommitEditor = {0, 0, 0, 0};
 
             float contentY = topY + toolbarH;
             float contentH = std::max(sh - topY - toolbarH - statusH, 20.0f);

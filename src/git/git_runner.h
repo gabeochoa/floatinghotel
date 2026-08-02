@@ -36,9 +36,6 @@ std::future<GitResult> git_run_async(
     const std::string& repo_path,
     const std::vector<std::string>& args);
 
-// Check if git is available on the system
-bool is_git_available();
-
 // --- Convenience wrappers ---
 
 // git status --porcelain=v2
@@ -53,16 +50,6 @@ GitResult git_log(const std::string& repo_path, int max_count = 100,
 // git diff (unstaged changes)
 GitResult git_diff(const std::string& repo_path);
 
-// git diff --staged
-GitResult git_diff_staged(const std::string& repo_path);
-
-// git add <paths>
-GitResult git_add(const std::string& repo_path,
-                  const std::vector<std::string>& paths);
-
-// git add --all
-GitResult git_add_all(const std::string& repo_path);
-
 // git commit -m <message>
 GitResult git_commit(const std::string& repo_path,
                      const std::string& message);
@@ -70,31 +57,8 @@ GitResult git_commit(const std::string& repo_path,
 // git branch --list --format (machine-readable)
 GitResult git_branch_list(const std::string& repo_path);
 
-// git checkout <branch>
-GitResult git_checkout(const std::string& repo_path,
-                       const std::string& branch);
-
-// git checkout -b <branch>
-GitResult git_checkout_new(const std::string& repo_path,
-                           const std::string& branch);
-
-// git push
-GitResult git_push(const std::string& repo_path);
-
-// git pull
-GitResult git_pull(const std::string& repo_path);
-
-// git fetch
-GitResult git_fetch(const std::string& repo_path);
-
-// git init
-GitResult git_init(const std::string& repo_path);
-
 // git rev-parse HEAD (get current commit hash)
 GitResult git_rev_parse_head(const std::string& repo_path);
-
-// git rev-parse --abbrev-ref HEAD (get current branch name)
-GitResult git_current_branch(const std::string& repo_path);
 
 // git show <hash> --format="" (diff for a specific commit)
 GitResult git_show(const std::string& repo_path,
@@ -118,20 +82,9 @@ std::future<GitResult> git_log_async(const std::string& repo_path,
 
 std::future<GitResult> git_diff_async(const std::string& repo_path);
 
-std::future<GitResult> git_diff_staged_async(const std::string& repo_path);
-
 std::future<GitResult> git_branch_list_async(const std::string& repo_path);
 
 std::future<GitResult> git_rev_parse_head_async(
     const std::string& repo_path);
-
-std::future<GitResult> git_current_branch_async(
-    const std::string& repo_path);
-
-std::future<GitResult> git_show_async(const std::string& repo_path,
-                                       const std::string& commit_hash);
-
-std::future<GitResult> git_show_commit_info_async(
-    const std::string& repo_path, const std::string& commit_hash);
 
 }  // namespace git

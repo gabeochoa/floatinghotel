@@ -3,11 +3,7 @@
 #include <afterhours/src/plugins/files.h>
 #include <afterhours/src/plugins/ui/theme.h>
 
-#include <cassert>
 #include <filesystem>
-#include <iostream>
-#include <sstream>
-#include <vector>
 
 #ifdef __APPLE__
 #include <mach-o/dyld.h>

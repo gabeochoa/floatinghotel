@@ -1,8 +1,6 @@
 #include "git_commands.h"
 
-#include <cstdio>
 #include <filesystem>
-#include <fstream>
 #include <unistd.h>
 
 namespace git {

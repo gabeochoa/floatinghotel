@@ -44,11 +44,6 @@ inline void set_pending_toast(const std::string& msg) {
     if (menu) menu->pendingToast = msg;
 }
 
-inline bool toast_on_git_failure(const git::GitResult& result,
-                                  const std::string& action) {
-    return ecs::toast_on_git_failure(result, action);
-}
-
 inline std::vector<Menu> createMenuBar() {
     std::vector<Menu> menus;
 
@@ -146,7 +141,7 @@ inline std::vector<Menu> createMenuBar() {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (r && !r->selectedFilePath.empty()) {
                 auto res = git::stage_file(r->repoPath, r->selectedFilePath);
-                toast_on_git_failure(res, "Stage");
+                ecs::toast_on_git_failure(res, "Stage");
                 r->refreshRequested = true;
             }
         }),
@@ -154,7 +149,7 @@ inline std::vector<Menu> createMenuBar() {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (r && !r->selectedFilePath.empty()) {
                 auto res = git::unstage_file(r->repoPath, r->selectedFilePath);
-                toast_on_git_failure(res, "Unstage");
+                ecs::toast_on_git_failure(res, "Unstage");
                 r->refreshRequested = true;
             }
         }),

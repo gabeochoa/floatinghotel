@@ -184,11 +184,8 @@ static void app_init() {
     auto& entity = EntityHelper::createEntity();
     app_state::editorEntity = &entity;
 
-    auto& layoutComp = entity.addComponent<ecs::LayoutComponent>();
-    (void)layoutComp;
-
-    auto& menuComp = entity.addComponent<ecs::MenuComponent>();
-    (void)menuComp;
+    entity.addComponent<ecs::LayoutComponent>();
+    entity.addComponent<ecs::MenuComponent>();
 
     auto& cmdLog = entity.addComponent<ecs::CommandLogComponent>();
     entity.addComponent<ecs::NetworkOpsComponent>();

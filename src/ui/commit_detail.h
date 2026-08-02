@@ -21,18 +21,12 @@ using git_helpers::DecorationType;
 using git_helpers::Decoration;
 using git_helpers::parse_decorations;
 
-inline std::string relative_time(const std::string& isoDate) {
-    return git_helpers::relative_time(isoDate, /*suffix=*/true);
-}
-
+// Only the fields render_commit_detail actually reads are kept; the git --format
+// still emits the others (they're just skipped by index below).
 struct CommitInfo {
-    std::string subject;
     std::string body;
-    std::string author;
     std::string authorEmail;
-    std::string date;
     std::string parents;
-    std::string decorations;
 };
 
 inline CommitInfo parse_commit_info(const std::string& output) {
@@ -53,17 +47,15 @@ inline CommitInfo parse_commit_info(const std::string& output) {
             last.pop_back();
     }
 
-    if (fields.size() > 0) info.subject = fields[0];
+    // Fields (git --format order): 0=subject 1=body 2=author 3=email
+    // 4=date 5=parents 6=decorations. Only body/email/parents are used.
     if (fields.size() > 1) {
         info.body = fields[1];
         while (!info.body.empty() && (info.body.back() == '\n' || info.body.back() == '\r'))
             info.body.pop_back();
     }
-    if (fields.size() > 2) info.author = fields[2];
     if (fields.size() > 3) info.authorEmail = fields[3];
-    if (fields.size() > 4) info.date = fields[4];
     if (fields.size() > 5) info.parents = fields[5];
-    if (fields.size() > 6) info.decorations = fields[6];
     return info;
 }
 
@@ -387,7 +379,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     if (dateStr.size() >= 16 && dateStr[10] == 'T') {
         dateStr = dateStr.substr(0, 10) + " " + dateStr.substr(11, 5);
     }
-    std::string relTime = cdv::relative_time(selectedCommit->authorDate);
+    std::string relTime =
+        git_helpers::relative_time(selectedCommit->authorDate, /*suffix=*/true);
     if (!relTime.empty()) {
         dateStr += " (" + relTime + ")";
     }

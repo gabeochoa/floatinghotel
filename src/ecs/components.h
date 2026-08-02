@@ -206,7 +206,6 @@ struct LayoutComponent : public afterhours::BaseComponent {
     float sidebarWidth = 340.0f;
     float sidebarMinWidth = 200.0f;
     float commitLogRatio = 0.4f;
-    float commitEditorHeight = 0.0f;
 
     enum class SidebarMode { Changes, Refs };
     SidebarMode sidebarMode = SidebarMode::Changes;
@@ -245,7 +244,6 @@ struct LayoutComponent : public afterhours::BaseComponent {
     Rect sidebar{};
     Rect sidebarFiles{};
     Rect sidebarLog{};
-    Rect sidebarCommitEditor{};
     Rect mainContent{};
     Rect commandLog{};
     Rect statusBar{};
@@ -256,8 +254,6 @@ struct CommitEditorComponent : public afterhours::BaseComponent {
     std::string body;
     bool isVisible = false;
     bool isAmend = false;
-    std::string activeTemplate;
-    std::string conventionalPrefix;
 
     enum class UnstagedPolicy { Ask, StageAll, CommitStagedOnly };
     UnstagedPolicy unstagedPolicy = UnstagedPolicy::Ask;

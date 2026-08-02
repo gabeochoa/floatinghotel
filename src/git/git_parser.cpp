@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <sstream>
-#include <string_view>
 
 namespace git {
 

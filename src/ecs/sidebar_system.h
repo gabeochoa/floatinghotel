@@ -45,42 +45,6 @@ inline std::string dir_from_path(const std::string& path) {
     return dir;
 }
 
-// Legacy: combined "dir/file" format
-inline std::string filename_from_path(const std::string& path, size_t maxChars = 28) {
-    auto slashPos = path.find_last_of('/');
-    std::string name = (slashPos == std::string::npos) ? path : path.substr(slashPos + 1);
-    if (slashPos != std::string::npos && slashPos > 0) {
-        auto prevSlash = path.find_last_of('/', slashPos - 1);
-        std::string parent = (prevSlash == std::string::npos)
-            ? path.substr(0, slashPos)
-            : path.substr(prevSlash + 1, slashPos - prevSlash - 1);
-        std::string full = parent + "/" + name;
-        if (full.size() <= maxChars) return full;
-    }
-    if (name.size() > maxChars) {
-        return name.substr(0, maxChars - 1) + "\xe2\x80\xa6";
-    }
-    return name;
-}
-
-// Format change stats string: "+N -N", "+N", or "-N"
-inline std::string format_stats(int additions, int deletions) {
-    std::string s;
-    if (additions > 0) {
-        s += "+" + std::to_string(additions);
-    }
-    if (deletions > 0) {
-        if (!s.empty()) s += " ";
-        s += "-" + std::to_string(deletions);
-    }
-    return s;
-}
-
-// Color for a status character — uses theme colors for consistency
-inline afterhours::Color status_color(char status) {
-    return theme::statusColor(status);
-}
-
 } // namespace sidebar_detail
 
 // Commit log helpers now live in src/util/git_helpers.h
@@ -1396,27 +1360,6 @@ private:
         }
     }
 
-    // Render a section header: "Staged Changes  1"
-    // isFirst: true for the very first section (no top margin needed)
-    void render_section_header(UIContext<InputAction>& ctx,
-                                Entity& parent, int id,
-                                const std::string& label, size_t count,
-                                bool isFirst = false) {
-        auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-
-        std::string upper = label;
-        for (auto& c : upper)
-            c = static_cast<char>((c >= 'a' && c <= 'z') ? c - 32 : c);
-        std::string headerText = upper + "  " + std::to_string(count);
-        auto config = preset::SectionHeader(headerText)
-                .with_size(ComponentSize{secWidth, children()})
-                .with_debug_name("section_hdr");
-        if (!isFirst) {
-            config = config.with_margin(Margin{.top = pixels(6)});
-        }
-        div(ctx, mk(parent, id), config);
-    }
-
     // Render a file row: [filename] [dir (gray)] [status badge]
     void render_file_row(UIContext<InputAction>& ctx,
                          Entity& parent, int id,
@@ -1500,7 +1443,7 @@ private:
         // Leading status glyph (left column) — matches the commit-detail file
         // rows and the mock, and gives every filename a consistent start x.
         auto statusCol = isSubmodule ? afterhours::Color{170, 140, 230, 255}
-                                     : sidebar_detail::status_color(statusChar);
+                                     : theme::statusColor(statusChar);
         div(ctx, mk(row.ent(), 3),
             preset::MetaText(statusStr)
                 .with_size(ComponentSize{pixels(STATUS_W), children()})

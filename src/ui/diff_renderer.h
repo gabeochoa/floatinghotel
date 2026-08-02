@@ -214,13 +214,8 @@ namespace diff_detail {
 const auto& DIFF_ADD_BG    = theme::DIFF_ADD_BG;
 const auto& DIFF_DEL_BG    = theme::DIFF_DEL_BG;
 const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
-const auto& GUTTER_BG      = theme::GUTTER_BG;
-const auto& GUTTER_BORDER  = theme::GUTTER_BORDER;
-const auto& GUTTER_ADD_BG  = theme::GUTTER_ADD_BG;
-const auto& GUTTER_DEL_BG  = theme::GUTTER_DEL_BG;
 
 constexpr float LINE_HEIGHT   = 18.0f;  // denser diff rows (mock)
-constexpr float GUTTER_WIDTH  = 40.0f;
 constexpr float HUNK_HEADER_H = 24.0f;
 constexpr float FILE_HEADER_H = 28.0f;
 constexpr float DIFF_HEADER_H = 28.0f;
@@ -236,6 +231,13 @@ constexpr float HUNK_HEADER_BTN_RESERVE = 170.0f;
 // ID ranges for diff elements to avoid collision with other systems.
 // MainContentSystem uses 3000-3999. We use 4000-59999.
 constexpr int BASE_ID = 4000;
+
+// Right-pad a line number into a fixed-width gutter string.
+inline std::string pad_gutter(const std::string& n, size_t width = 5) {
+    if (n.empty()) return std::string(width, ' ');
+    if (n.size() >= width) return n;
+    return std::string(width - n.size(), ' ') + n;
+}
 
 inline std::string hunk_to_text(const ecs::DiffHunk& hunk) {
     std::string text = hunk.header + "\n";
@@ -294,17 +296,11 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         sign      = ' ';
     }
 
-    // Right-pad line numbers for alignment
-    auto padNum = [](const std::string& n, size_t width) -> std::string {
-        if (n.empty()) return std::string(width, ' ');
-        if (n.size() >= width) return n;
-        return std::string(width - n.size(), ' ') + n;
-    };
-
     // Format: "OldLn NewLn  <sign> content"
     // The dedicated sign column makes add/del/context scannable without
     // relying on background color alone.
-    std::string label = padNum(oldNum, 5) + " " + padNum(newNum, 5)
+    std::string label = diff_detail::pad_gutter(oldNum) + " "
+                      + diff_detail::pad_gutter(newNum)
                       + "  " + sign + " " + content;
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
@@ -600,13 +596,6 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 }
 
 namespace diff_detail {
-
-// Right-pad a line number into a fixed-width gutter string.
-inline std::string pad_gutter(const std::string& n, size_t width = 5) {
-    if (n.empty()) return std::string(width, ' ');
-    if (n.size() >= width) return n;
-    return std::string(width - n.size(), ' ') + n;
-}
 
 enum class SbsKind { Context, Add, Del, Empty };
 

@@ -55,11 +55,6 @@ std::future<GitResult> git_run_async(
     return future;
 }
 
-bool is_git_available() {
-    auto result = run_process("", {"git", "--version"});
-    return result.success();
-}
-
 // --- Convenience wrappers ---
 
 GitResult git_status(const std::string& repo_path) {
@@ -87,21 +82,6 @@ GitResult git_diff(const std::string& repo_path) {
     return git_run(repo_path, {"diff"});
 }
 
-GitResult git_diff_staged(const std::string& repo_path) {
-    return git_run(repo_path, {"diff", "--staged"});
-}
-
-GitResult git_add(const std::string& repo_path,
-                  const std::vector<std::string>& paths) {
-    std::vector<std::string> args = {"add"};
-    args.insert(args.end(), paths.begin(), paths.end());
-    return git_run(repo_path, args);
-}
-
-GitResult git_add_all(const std::string& repo_path) {
-    return git_run(repo_path, {"add", "--all"});
-}
-
 GitResult git_commit(const std::string& repo_path,
                      const std::string& message) {
     return git_run(repo_path, {"commit", "-m", message});
@@ -117,39 +97,8 @@ GitResult git_branch_list(const std::string& repo_path) {
                    "|%(HEAD)|%(upstream:short)|%(upstream:track)"});
 }
 
-GitResult git_checkout(const std::string& repo_path,
-                       const std::string& branch) {
-    return git_run(repo_path, {"checkout", branch});
-}
-
-GitResult git_checkout_new(const std::string& repo_path,
-                           const std::string& branch) {
-    return git_run(repo_path, {"checkout", "-b", branch});
-}
-
-GitResult git_push(const std::string& repo_path) {
-    return git_run(repo_path, {"push"});
-}
-
-GitResult git_pull(const std::string& repo_path) {
-    return git_run(repo_path, {"pull"});
-}
-
-GitResult git_fetch(const std::string& repo_path) {
-    return git_run(repo_path, {"fetch"});
-}
-
-GitResult git_init(const std::string& repo_path) {
-    return git_run(repo_path, {"init"});
-}
-
 GitResult git_rev_parse_head(const std::string& repo_path) {
     return git_run(repo_path, {"rev-parse", "HEAD"});
-}
-
-GitResult git_current_branch(const std::string& repo_path) {
-    return git_run(repo_path,
-                   {"rev-parse", "--abbrev-ref", "HEAD"});
 }
 
 GitResult git_show(const std::string& repo_path,
@@ -192,11 +141,6 @@ std::future<GitResult> git_diff_async(const std::string& repo_path) {
     return git_run_async(repo_path, {"diff"});
 }
 
-std::future<GitResult> git_diff_staged_async(
-    const std::string& repo_path) {
-    return git_run_async(repo_path, {"diff", "--staged"});
-}
-
 std::future<GitResult> git_branch_list_async(
     const std::string& repo_path) {
     return git_run_async(
@@ -209,26 +153,6 @@ std::future<GitResult> git_branch_list_async(
 std::future<GitResult> git_rev_parse_head_async(
     const std::string& repo_path) {
     return git_run_async(repo_path, {"rev-parse", "HEAD"});
-}
-
-std::future<GitResult> git_current_branch_async(
-    const std::string& repo_path) {
-    return git_run_async(repo_path,
-                         {"rev-parse", "--abbrev-ref", "HEAD"});
-}
-
-std::future<GitResult> git_show_async(const std::string& repo_path,
-                                       const std::string& commit_hash) {
-    return git_run_async(repo_path,
-                         {"show", commit_hash, "--format="});
-}
-
-std::future<GitResult> git_show_commit_info_async(
-    const std::string& repo_path, const std::string& commit_hash) {
-    return git_run_async(repo_path, {
-        "show", commit_hash, "--no-patch",
-        "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"
-    });
 }
 
 }  // namespace git
