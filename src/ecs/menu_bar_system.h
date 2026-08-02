@@ -53,9 +53,11 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         float barW = layout.menuBar.width;   // sidebar-width column for item/overflow math
         float barH = layout.menuBar.height;
         float barY = layout.menuBar.y;
-        // Background spans the full window so there's no L-shaped chrome gap to
-        // the right of the sidebar column; items still lay out within barW.
-        float barBgW = static_cast<float>(afterhours::graphics::get_screen_width());
+        // Background spans the menu-bar rect width (full window when not in
+        // sidebar-only mode). Use the layout-resolved width, NOT a direct
+        // get_screen_width() — that returns physical px on retina and made the
+        // full-width bar mis-size / drop the menu on HiDPI displays.
+        float barBgW = barW;
 
         // Menu bar background (render_layer 10 so it draws above sidebar/toolbar)
         div(ctx, mk(uiRoot, 1000),
