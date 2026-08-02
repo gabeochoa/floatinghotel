@@ -665,15 +665,23 @@ private:
         float frac = (reviewing && totalHunks > 0)
                          ? static_cast<float>(approvedHunks) / totalHunks : 0.f;
 
+        // While reviewing, clicking a commit in the stack takes the diff pane
+        // over (you leave the stacked view but stay embarked). In that "aside"
+        // state the strip is a way back INTO the ballroom, not out of it.
+        bool aside = reviewing && !repo.selectedCommitHash.empty();
+
         // ASCII play marker (the font atlas has no ▶ glyph). Pre-embark = green
         // "go"; in the ballroom = amber "active".
         std::string txt = std::string("> ");
-        if (reviewing) {
-            txt += "In the ballroom \xc2\xb7 " + std::to_string(approvedHunks) +
-                   " approved \xc2\xb7 " + std::to_string(queued) + " to send";
-        } else {
+        if (!reviewing) {
             txt += "Embark to ballroom \xc2\xb7 " + std::to_string(toReview) +
                    " to review";
+        } else if (aside) {
+            txt += "Back to the ballroom \xc2\xb7 " + std::to_string(approvedHunks) +
+                   " approved";
+        } else {
+            txt += "In the ballroom \xc2\xb7 " + std::to_string(approvedHunks) +
+                   " approved \xc2\xb7 " + std::to_string(queued) + " to send";
         }
 
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
@@ -694,26 +702,34 @@ private:
         if (review) {
             row.ent().addComponentIfMissing<HasClickListener>([](Entity&) {});
             if (row.ent().get<HasClickListener>().down) {
-                review->reviewing = !review->reviewing;
-                if (review->reviewing) {
-                    // Snapshot the baseline for "new since you last looked" and
-                    // open the first file to review.
-                    review->baselineHead =
-                        repo.commitLog.empty() ? "" : repo.commitLog[0].hash;
-                    review->baselineDiffSig.clear();
-                    for (auto& fd : repo.currentDiff) {
-                        review->seenSig[fd.filePath] = diff_signature(fd);
-                        review->baselineDiffSig += diff_signature(fd) + ";";
-                    }
-                    // The ballroom shows every working-tree file stacked, so
-                    // don't pin a single selection — just clear it.
-                    repo.selectedFilePath.clear();
+                if (aside) {
+                    // Return to the stacked ballroom view without disembarking.
                     repo.selectedCommitHash.clear();
+                    repo.selectedFilePath.clear();
                     repo.cachedFilePath.clear();
-                    afterhours::toast::send_info(
-                        ctx, "Embarked \xc2\xb7 baseline snapshotted", 2.0f);
                 } else {
-                    afterhours::toast::send_info(ctx, "Left the ballroom", 1.5f);
+                    review->reviewing = !review->reviewing;
+                    if (review->reviewing) {
+                        // Snapshot the baseline for "new since you last looked"
+                        // and open the first file to review.
+                        review->baselineHead =
+                            repo.commitLog.empty() ? "" : repo.commitLog[0].hash;
+                        review->baselineDiffSig.clear();
+                        for (auto& fd : repo.currentDiff) {
+                            review->seenSig[fd.filePath] = diff_signature(fd);
+                            review->baselineDiffSig += diff_signature(fd) + ";";
+                        }
+                        // The ballroom shows every working-tree file stacked, so
+                        // don't pin a single selection — just clear it.
+                        repo.selectedFilePath.clear();
+                        repo.selectedCommitHash.clear();
+                        repo.cachedFilePath.clear();
+                        afterhours::toast::send_info(
+                            ctx, "Embarked \xc2\xb7 baseline snapshotted", 2.0f);
+                    } else {
+                        afterhours::toast::send_info(ctx, "Left the ballroom",
+                                                     1.5f);
+                    }
                 }
             }
         }
