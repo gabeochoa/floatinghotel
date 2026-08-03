@@ -74,6 +74,7 @@ public:
         }
 
         FSEventStreamRef stream = stream_;
+        finished_.store(false, std::memory_order_release);
         run_loop_thread_ = std::thread([this, stream] {
             CFRunLoopRef rl = CFRunLoopGetCurrent();
             run_loop_.store(rl, std::memory_order_release);
@@ -85,6 +86,7 @@ public:
 
             FSEventStreamStop(stream);
             FSEventStreamInvalidate(stream);
+            finished_.store(true, std::memory_order_release);
         });
     }
 
@@ -92,13 +94,17 @@ public:
         if (!stream_) return;
 
         if (run_loop_thread_.joinable()) {
-            // Wait for the run loop to be set (thread may not have started yet)
-            for (int i = 0; i < 500 && !run_loop_.load(std::memory_order_acquire); ++i) {
+            // Keep asking the run loop to stop until the thread actually exits.
+            // A single CFRunLoopStop can race the thread: if it lands before
+            // CFRunLoopRun() has entered, it's a no-op and the loop would run
+            // forever, hanging join() (a real freeze). Retrying until finished_
+            // is set closes that window (once the loop enters, a later stop
+            // takes). Bounded so a pathological case can't spin indefinitely.
+            for (int i = 0; i < 2000 && !finished_.load(std::memory_order_acquire);
+                 ++i) {
+                CFRunLoopRef rl = run_loop_.load(std::memory_order_acquire);
+                if (rl) CFRunLoopStop(rl);
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            }
-            CFRunLoopRef rl = run_loop_.load(std::memory_order_acquire);
-            if (rl) {
-                CFRunLoopStop(rl);
             }
             run_loop_thread_.join();
         }
@@ -125,6 +131,7 @@ private:
     }
 
     std::atomic<bool> changed_{false};
+    std::atomic<bool> finished_{false}; // set by the thread after CFRunLoopRun
     FSEventStreamRef stream_{nullptr};
     std::atomic<CFRunLoopRef> run_loop_{nullptr};
     std::thread run_loop_thread_;

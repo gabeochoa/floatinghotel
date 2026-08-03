@@ -701,10 +701,18 @@ private:
                     .with_roundness(2.0f)
                     .with_debug_name("prog_fill"));
         }
+        // Fill the space left of the row after the optional progress bar. Use an
+        // explicit remaining width (not percent(1.0), which is the whole row and
+        // overflows past the bar now that FlexWrap defaults to NoWrap).
+        float contentW = (sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 320.0f)
+                         - 20.0f;  // row left+right padding
+        float textW = (reviewing || toReview > 0) ? (contentW - 56.0f - 8.0f)
+                                                   : contentW;  // bar + gap
+        if (textW < 40.0f) textW = 40.0f;
         div(ctx, mk(row.ent(), 1),
             ComponentConfig{}
                 .with_label(txt)
-                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_size(ComponentSize{pixels(textW), children()})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_font_size(FontSize::Small)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -717,6 +725,11 @@ private:
                             RepoComponent& repo,
                             CommitEditorComponent& editor) {
         auto secWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
+        // Children must fit the commit_area content box (its width minus the 8px
+        // left/right padding); using the full sidebar width overflows it now that
+        // FlexWrap defaults to NoWrap.
+        auto childW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_ - 16.0f)
+                                             : percent(1.0f);
 
         auto commitArea = div(ctx, mk(parent, 2095),
             ComponentConfig{}
@@ -738,7 +751,7 @@ private:
             div(ctx, mk(commitArea.ent(), 0),
                 ComponentConfig{}
                     .with_label(hint)
-                    .with_size(ComponentSize{secWidth, h720(16)})
+                    .with_size(ComponentSize{childW, h720(16)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_font_size(FontSize::Small)
                     .with_alignment(TextAlignment::Left)
@@ -750,7 +763,7 @@ private:
             ctx, mk(commitArea.ent(), 1),
             editor.subject,
             ComponentConfig{}
-                .with_size(ComponentSize{secWidth, h720(28)})
+                .with_size(ComponentSize{childW, h720(28)})
                 .with_custom_background(theme::INPUT_BG)
                 .with_border(theme::BORDER, h720(1.0f))
                 .with_roundness(4.0f)
@@ -768,7 +781,7 @@ private:
         bool hasStaged = !repo.stagedFiles.empty();
         auto commitBtn = button(ctx, mk(commitArea.ent(), 2),
             preset::Button("Commit", hasStaged)
-                .with_size(ComponentSize{secWidth, h720(24)})
+                .with_size(ComponentSize{childW, h720(24)})
                 .with_font_size(FontSize::Medium)
                 .with_debug_name("commit_btn_inline"));
 
