@@ -345,7 +345,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         // === Scrollable commit log entries ===
         float sh2 = static_cast<float>(afterhours::graphics::get_screen_height());
         float logHeaderConsumed = resolve_to_pixels(h720(28.0f), sh2);
-        float logScrollH = layout.sidebarLog.height - logHeaderConsumed;
+        // Fill the whole log container (commitsH), which includes reclaimedH
+        // handed down from a compacted clean-tree files pane — otherwise the
+        // scroll list stops short and leaves dead space below it.
+        float logScrollH = commitsH - logHeaderConsumed;
         if (logScrollH < 20.0f) logScrollH = 20.0f;
 
         auto logScroll = div(ctx, mk(logBg.ent(), 2320),
