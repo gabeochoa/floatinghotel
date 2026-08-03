@@ -237,12 +237,17 @@ $(TEST_DIR)/test_context_menu: tests/unit/test_context_menu.cpp src/ui/context_m
 	@echo "Compiling test_context_menu..."
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
+$(TEST_DIR)/test_review_store: tests/unit/test_review_store.cpp src/review_store.cpp vendor/afterhours/src/plugins/files.cpp | $(TEST_DIR)
+	@echo "Compiling test_review_store..."
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
+
 TEST_EXES := $(TEST_DIR)/test_git_parser \
     $(TEST_DIR)/test_error_humanizer \
     $(TEST_DIR)/test_process \
     $(TEST_DIR)/test_settings \
     $(TEST_DIR)/test_git_commands \
-    $(TEST_DIR)/test_context_menu
+    $(TEST_DIR)/test_context_menu \
+    $(TEST_DIR)/test_review_store
 
 test: $(TEST_EXES)
 	@echo "Running unit tests..."

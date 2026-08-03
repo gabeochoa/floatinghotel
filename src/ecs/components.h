@@ -132,6 +132,9 @@ struct ReviewComponent : public afterhours::BaseComponent {
     int hunkCount = 0;           // visible hunks last frame (for clamping)
     bool cursorApprove = false;  // request: approve the cursor hunk
     bool cursorComment = false;  // request: comment on the cursor hunk
+    // Set by any durable-state mutation; drained by MainContentSystem which
+    // persists the review to disk (see review_store). Not serialized.
+    bool dirty = false;
     // "New since you last looked": diff signature of each file when last viewed.
     std::map<std::string, std::string> seenSig;
     // Baseline snapshot for "new since you last looked" (Phase 6).
@@ -160,6 +163,7 @@ inline void commit_pending_comment(ReviewComponent& r) {
         r.comments.push_back({r.composingScope, r.composingFile,
                               r.composingLine, r.composingText});
         r.foldedHunks.insert(r.composingKey);
+        r.dirty = true;
     }
     r.composingKey.clear();
     r.composingText.clear();

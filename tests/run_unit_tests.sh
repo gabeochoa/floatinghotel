@@ -80,6 +80,14 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_settings" ]; then
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 
+# --- test_review_store ---
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
+    run_test "test_review_store" \
+        "tests/unit/test_review_store.cpp" \
+        "src/review_store.cpp" \
+        "vendor/afterhours/src/plugins/files.cpp"
+fi
+
 echo "========================================"
 echo "Results: $PASSED/$TOTAL passed, $FAILED failed"
 echo "========================================"

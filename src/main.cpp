@@ -17,6 +17,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "preload.h"
 #include "rl.h"
 #include "settings.h"
+#include "review_store.h"
 #include "ui_context.h"
 #include <afterhours/src/plugins/ui/validation_systems.h>
 #include "util/process.h"
@@ -211,7 +212,10 @@ static void app_init() {
 
         tab.addComponent<ecs::CommitDetailCache>();
         tab.addComponent<ecs::BranchDialogState>();
-        tab.addComponent<ecs::ReviewComponent>();
+        auto& review = tab.addComponent<ecs::ReviewComponent>();
+        // Restore any saved ballroom review for this repo (survives restart).
+        if (!path.empty() && !app_state::testModeEnabled)
+            review_store::load_review(path, review);
 
         auto& editor = tab.addComponent<ecs::CommitEditorComponent>();
         if (savedPolicy == "stage_all") {

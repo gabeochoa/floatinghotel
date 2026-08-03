@@ -6,27 +6,35 @@
 #include <fstream>
 
 #include "../settings.h"
+#include "../review_store.h"
 #include "../ui/command_log.h"
 #include "../ui/commit_detail.h"
 #include "../ui/diff_renderer.h"
 #include "ui_imports.h"
 
+namespace app_state { extern bool testModeEnabled; }
+
 namespace ecs {
 
-// Write the review basket to /tmp/floatinghotel-review.md + clipboard.
+// Export the review basket: durable markdown file (survives reboot / a failed
+// AI round-trip) + clipboard.
+// TODO(local-first): also sync review comments as git notes / a
+// refs/floatinghotel/reviews/* ref so they replicate peer-to-peer via git with
+// no server (see docs/afterhours-persistence-proposal.md).
 inline void send_review(UIContext<InputAction>& ctx, ReviewComponent& review,
                         RepoComponent* repo) {
     std::string branch = (repo && !repo->currentBranch.empty())
                              ? repo->currentBranch : "HEAD";
     std::string md = build_review_markdown(review, branch);
     if (md.empty()) return;
-    const char* path = "/tmp/floatinghotel-review.md";
-    std::ofstream f(path);
-    if (f.good()) f << md;
+    if (repo && !repo->repoPath.empty()) {
+        std::ofstream f(review_store::markdown_path(repo->repoPath, branch));
+        if (f.good()) f << md;
+    }
     afterhours::clipboard::set_text(md);
     afterhours::toast::send_info(
-        ctx, "Sent " + std::to_string(review.comments.size()) +
-                 " comment(s) -> /tmp/floatinghotel-review.md",
+        ctx, "Copied " + std::to_string(review.comments.size()) +
+                 " comment(s) \xe2\x80\x94 leaves your device when you paste it",
         2.5f);
 }
 
@@ -158,13 +166,19 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     if (copyBtn) {
         std::string branch = (repo && !repo->currentBranch.empty())
                                  ? repo->currentBranch : "HEAD";
-        afterhours::clipboard::set_text(build_review_markdown(review, branch));
-        afterhours::toast::send_info(ctx, "Copied all feedback", 1.5f);
+        std::string md = build_review_markdown(review, branch);
+        if (repo && !repo->repoPath.empty()) {
+            std::ofstream f(review_store::markdown_path(repo->repoPath, branch));
+            if (f.good()) f << md;
+        }
+        afterhours::clipboard::set_text(md);
+        afterhours::toast::send_info(
+            ctx, "Copied \xe2\x80\x94 leaves your device when you paste it", 1.5f);
     }
 
     div(ctx, mk(panel.ent(), 902),
         ComponentConfig{}
-            .with_label("writes /tmp/floatinghotel-review.md")
+            .with_label("saved to your local review folder")
             .with_size(ComponentSize{percent(1.0f), h720(16)})
             .with_padding(Padding{.top = h720(4)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
@@ -212,6 +226,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Vim-style chunk cursor: j/k/n move, a approve, c comment. Gated on
         // no text input being focused so it never eats typed characters.
         auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
+        // Drain the review's dirty flag to durable per-repo storage. Gated off in
+        // test mode so make_test_repo runs stay deterministic.
+        if (reviewPtr && reviewPtr->dirty && hasRepo &&
+            !app_state::testModeEnabled) {
+            review_store::save_review(repoPtr->repoPath, *reviewPtr);
+            reviewPtr->dirty = false;
+        }
         // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
         // gate and the ⌘⏎ send-all shortcut below.
         bool superDown = afterhours::graphics::is_key_down(343) ||
@@ -363,9 +384,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
             if (!selectedDiffs.empty()) {
                 // Viewing this file marks it "seen" at its current content.
-                if (reviewPtr)
-                    reviewPtr->seenSig[repo.selectedFilePath] =
-                        diff_signature(selectedDiffs[0]);
+                // Only flag dirty when the signature actually changes, else we'd
+                // re-save every frame while a file is open.
+                if (reviewPtr) {
+                    std::string sig = diff_signature(selectedDiffs[0]);
+                    std::string& slot = reviewPtr->seenSig[repo.selectedFilePath];
+                    if (slot != sig) { slot = sig; reviewPtr->dirty = true; }
+                }
                 bool sideBySide = (layout.diffViewMode ==
                     LayoutComponent::DiffViewMode::SideBySide);
                 // Pass the pane width so hunk-header action buttons
@@ -821,6 +846,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         activeRepo->repoPath = recentRepos[ri];
                         activeRepo->refreshRequested = true;
                         Settings::get().add_recent_repo(recentRepos[ri]);
+                        // Restore any saved review for the newly-opened repo.
+                        auto* rv = find_singleton<ReviewComponent, ActiveTab>();
+                        if (rv && !app_state::testModeEnabled)
+                            review_store::load_review(activeRepo->repoPath, *rv);
                     }
                 }
             }

@@ -403,6 +403,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
                 if (res.success()) {
                     sel->review->approvedHunks.insert(hkey);
+                    sel->review->dirty = true;
                     auto* r =
                         ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
                     if (r) r->refreshRequested = true;
@@ -508,6 +509,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     : git::stage_hunk(sel->repoPath, fileDiff, hunk);
                 if (res.success()) {
                     sel->review->approvedHunks.insert(hkey);
+                    sel->review->dirty = true;
                     auto* r =
                         ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
                     if (r) r->refreshRequested = true;

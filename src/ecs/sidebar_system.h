@@ -660,6 +660,7 @@ private:
                     repo.cachedFilePath.clear();
                 } else {
                     review->reviewing = !review->reviewing;
+                    review->dirty = true;
                     if (review->reviewing) {
                         // Snapshot the baseline for "new since you last looked"
                         // and open the first file to review.
@@ -1471,6 +1472,10 @@ private:
     // ---- Commit log rendering (T021) ----
 
     // Render all commit log entries in a scrollable list
+    // TODO(local-first): a time-travel scrubber over this commit stack — step
+    // the diff/repo view back through history with recently-arrived changes
+    // highlighted (Ink & Switch "visualizing document history"). See
+    // docs/afterhours-persistence-proposal.md.
     void render_commit_log_entries(UIContext<InputAction>& ctx,
                                    Entity& scrollParent,
                                    RepoComponent& repo) {
