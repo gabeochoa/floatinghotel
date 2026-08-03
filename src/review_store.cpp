@@ -2,8 +2,8 @@
 
 #include <cctype>
 #include <filesystem>
-#include <fstream>
 #include <functional>
+#include <optional>
 
 #include <nlohmann/json.hpp>
 
@@ -15,27 +15,6 @@
 namespace review_store {
 
 namespace {
-
-// Atomic replace: write to a sibling temp file then rename over the target, so
-// a crash mid-write can't truncate an existing review. (Same routine proposed
-// for afterhours::files in docs/afterhours-persistence-proposal.md — once that
-// lands, delete this and call the shared helper.)
-bool write_atomic(const std::filesystem::path& path, const std::string& content) {
-    std::error_code ec;
-    std::filesystem::create_directories(path.parent_path(), ec);
-    std::filesystem::path tmp = path;
-    tmp += ".tmp";
-    {
-        std::ofstream f(tmp, std::ios::binary | std::ios::trunc);
-        if (!f.good()) return false;
-        f << content;
-        f.flush();
-        if (!f.good()) { std::filesystem::remove(tmp, ec); return false; }
-    }
-    std::filesystem::rename(tmp, path, ec);
-    if (ec) { std::filesystem::remove(tmp, ec); return false; }
-    return true;
-}
 
 // The reviews/ dir under the afterhours save path (created on demand).
 std::filesystem::path reviews_dir() {
@@ -92,18 +71,18 @@ void save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["baseline_diff_sig"] = review.baselineDiffSig;
 
     std::string path = review_path(repoPath);
-    if (!write_atomic(path, j.dump(2)))
+    if (!afterhours::files::write_string_atomic(path, j.dump(2)))
         log_warn("Failed to save review to {}", path);
 }
 
 void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
     if (repoPath.empty()) return;
     std::string path = review_path(repoPath);
-    if (!std::filesystem::exists(path)) return;
+    std::optional<std::string> contents = afterhours::files::read_string(path);
+    if (!contents) return;  // missing/unreadable -> fresh review
 
     try {
-        std::ifstream f(path);
-        nlohmann::json j = nlohmann::json::parse(f);
+        nlohmann::json j = nlohmann::json::parse(*contents);
 
         review.reviewing = j.value("reviewing", false);
         review.basketOpen = j.value("basket_open", true);
