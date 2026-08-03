@@ -256,6 +256,58 @@ inline std::string file_diff_to_text(const ecs::FileDiff& diff) {
     return text;
 }
 
+// ----------------------------------------------------------------------------
+// Row virtualization (inline diff only)
+// ----------------------------------------------------------------------------
+// A large diff builds one div per line EVERY frame — afterhours culls the draw
+// but the build + autolayout + text-measure is O(total lines), the freeze
+// cliff. We track a running content-Y as rows are emitted and only build the
+// rows whose span intersects the visible scroll window (+1 screen overscan);
+// skipped runs collapse into a single spacer div of equal height so the
+// scroll container's content_size (and thus scrollbar) stays exact.
+//
+// Units: scroll_offset/content_size are in real pixels, but row heights are
+// authored in 720-space (h720). We resolve each to px so curY matches the
+// scroll offset. Only the inline, non-embedded path is virtualized; SBS and
+// embedded (commit-detail) diffs build fully (vp.active == false).
+struct DiffViewport {
+    bool active = false;
+    float screenH = 720.f;
+    float contentWidth = 0.f;   // for spacer width; <=0 -> percent(1.0)
+    float top = 0.f, bottom = 1e30f; // visible content-Y window (px, w/ overscan)
+    float curY = 0.f;           // running content-Y of the next row (px)
+    float pending = 0.f;        // height of skipped rows not yet flushed (px)
+
+    float px(float raw720) const { return resolve_to_pixels(h720(raw720), screenH); }
+
+    // Is a row of height raw720 at curY within the visible window?
+    bool visible(float raw720) const {
+        if (!active) return true;
+        float h = px(raw720);
+        return (curY + h >= top) && (curY <= bottom);
+    }
+    void built(float raw720) { if (active) curY += px(raw720); }
+    void skipped(float raw720) {
+        if (!active) return;
+        float h = px(raw720);
+        pending += h;
+        curY += h;
+    }
+    // Emit one spacer div for the accumulated skipped height, if any. Called
+    // before building any real row so the row lands at the right column offset.
+    void flush(UIContext<InputAction>& ctx, Entity& parent, int& nextId) {
+        if (!active || pending <= 0.5f) return;
+        auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
+        div(ctx, mk(parent, nextId++),
+            ComponentConfig{}
+                .with_size(ComponentSize{w, pixels(pending)})
+                .with_custom_background(theme::PANEL_BG)
+                .with_roundness(0.0f)
+                .with_debug_name("diff_virt_spacer"));
+        pending = 0.f;
+    }
+};
+
 } // namespace diff_detail
 
 // Render a single diff line as a composed label.
@@ -363,7 +415,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                          const ecs::DiffHunk& hunk,
                          int& nextId,
                          float contentWidth = 0,
-                         diff_sel::Session* sel = nullptr) {
+                         diff_sel::Session* sel = nullptr,
+                         diff_detail::DiffViewport* vp = nullptr) {
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
@@ -408,6 +461,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     }
 
     // Hunk header row: label + copy button
+    if (vp) vp->flush(ctx, parent, nextId);
     int hunkHeaderId = nextId++;
     auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
         ComponentConfig{}
@@ -419,6 +473,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                                              : diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
+    if (vp) vp->built(diff_detail::HUNK_HEADER_H);
 
     // Reserve room on the right for the action buttons (Copy/Comment/Approve)
     // so the label doesn't take 100% width and push them off-screen.
@@ -526,6 +581,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     // Inline compose row for this hunk.
     if (reviewOn && sel->review->composingKey == hkey) {
+        if (vp) { vp->flush(ctx, parent, nextId); vp->built(28.0f); }
         auto composeRow = div(ctx, mk(parent, nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{w, h720(28)})
@@ -559,6 +615,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     // Folded (commented) hunks collapse — show a marker instead of the lines.
     if (reviewOn && sel->review->foldedHunks.count(hkey)) {
+        if (vp) { vp->flush(ctx, parent, nextId); vp->built(20.0f); }
         div(ctx, mk(parent, nextId++),
             ComponentConfig{}
                 .with_label("\xe2\x9c\x8e commented \xc2\xb7 click to expand")
@@ -577,8 +634,26 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     int newLine = hunk.newStart;
 
     for (auto& line : hunk.lines) {
-        render_diff_line(ctx, parent, nextId++, line, oldLine, newLine,
-                         contentWidth, fileDiff.filePath, sel);
+        // Always consume an id per line so a given line keeps a stable entity
+        // id across frames whether or not it's built (avoids scroll churn).
+        int lineId = nextId++;
+        if (!vp || !vp->active) {
+            render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
+                             contentWidth, fileDiff.filePath, sel);
+        } else if (vp->visible(diff_detail::LINE_HEIGHT)) {
+            vp->flush(ctx, parent, nextId);
+            render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
+                             contentWidth, fileDiff.filePath, sel);
+            vp->built(diff_detail::LINE_HEIGHT);
+        } else {
+            // Offscreen: advance line-number counters so gutters stay correct
+            // when this line scrolls into view, but don't build the div.
+            char prefix = line.empty() ? ' ' : line[0];
+            if (prefix == '+') ++newLine;
+            else if (prefix == '-') ++oldLine;
+            else { ++oldLine; ++newLine; }
+            vp->skipped(diff_detail::LINE_HEIGHT);
+        }
     }
 }
 
@@ -821,6 +896,29 @@ inline void render_diff(UIContext<InputAction>& ctx,
         contentParent = &scrollContainer.ent();
     }
 
+    // Virtualize the inline diff: only build rows in the visible scroll window
+    // (+1 screen overscan). Read the prior frame's scroll offset/viewport from
+    // the persistent scroll container. SBS/embedded diffs build fully.
+    diff_detail::DiffViewport vp;
+    if (!embedInParentScroll && !sideBySide) {
+        vp.active = true;
+        vp.screenH = (float)afterhours::graphics::get_screen_height();
+        vp.contentWidth = contentWidth;
+        float scrollY = 0.f, viewportH = 0.f;
+        if (contentParent->has<afterhours::ui::HasScrollView>()) {
+            auto& sv = contentParent->get<afterhours::ui::HasScrollView>();
+            scrollY = sv.scroll_offset.y;
+            viewportH = sv.viewport_size.y;
+        }
+        if (viewportH <= 0.f)
+            viewportH = contentHeight > 0
+                            ? (contentHeight - diff_detail::DIFF_HEADER_H)
+                            : vp.screenH;
+        float overscan = viewportH; // one screen of pre-built rows each side
+        vp.top = scrollY - overscan;
+        vp.bottom = scrollY + viewportH + overscan;
+    }
+
     // Stats summary header inside scroll. Suppressed when embedded in the
     // commit-detail view, which already renders its own "FILES CHANGED" summary.
     if (!embedInParentScroll) {
@@ -837,6 +935,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         // Header row: stats label on the left, Inline/Side-by-Side segmented
         // toggle on the right. The toggle is only shown in the main diff view
         // (not the embedded commit-detail diff).
+        vp.flush(ctx, *contentParent, nextId);
         auto statsRow = div(ctx, mk(*contentParent, nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), h720(diff_detail::DIFF_HEADER_H)})
@@ -846,6 +945,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_custom_background(afterhours::Color{35, 35, 38, 255})
                 .with_roundness(0.0f)
                 .with_debug_name("diff_stats_header"));
+        vp.built(diff_detail::DIFF_HEADER_H);
 
         div(ctx, mk(statsRow.ent(), 0),
             ComponentConfig{}
@@ -949,6 +1049,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             fileLabel += "  (binary)";
         }
 
+        vp.flush(ctx, *contentParent, nextId);
         int fileHeaderRowId = nextId++;
         auto fileHeaderRow = div(ctx, mk(*contentParent, fileHeaderRowId),
             ComponentConfig{}
@@ -960,6 +1061,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_border_bottom(theme::BORDER)
                 .with_roundness(0.0f)
                 .with_debug_name("file_header_row"));
+        vp.built(diff_detail::FILE_HEADER_H);
 
         // Working-tree file header gets an "Approve file" button (stages the
         // whole file); reserve extra room for it so it clusters with Copy Diff.
@@ -1040,6 +1142,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
         // Binary files: just show the header, no hunks
         if (fileDiff.isBinary) {
+            vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++),
                 ComponentConfig{}
                     .with_size(ComponentSize{w, h720(24)})
@@ -1053,6 +1156,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         .bottom = h720(4), .left = w1280(8)})
                     .with_roundness(0.0f)
                     .with_debug_name("binary_notice"));
+            vp.built(24.0f);
             continue;
         }
 
@@ -1064,20 +1168,27 @@ inline void render_diff(UIContext<InputAction>& ctx,
             } else {
                 render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
                             contentWidth,
-                            (selEnabled || sess.reviewActions) ? &sess : nullptr);
+                            (selEnabled || sess.reviewActions) ? &sess : nullptr,
+                            &vp);
             }
         }
 
         // Spacer between files
         if (&fileDiff != &diffs.back()) {
+            vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++),
                 ComponentConfig{}
                     .with_size(ComponentSize{w, h720(8)})
                     .with_custom_background(theme::PANEL_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_spacer"));
+            vp.built(8.0f);
         }
     }
+
+    // Flush any trailing skipped rows so the content_size (scrollbar extent)
+    // reflects the full diff height, not just what was built.
+    vp.flush(ctx, *contentParent, nextId);
 
     // This frame's registry becomes next frame's hit-test source.
     if (selEnabled) {
