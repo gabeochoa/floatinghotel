@@ -222,6 +222,15 @@ constexpr float DIFF_HEADER_H = 28.0f;
 constexpr float CODE_PAD_LEFT = 8.0f;
 constexpr float COMMENT_COMPOSE_H = 56.0f;  // multi-line comment box + padding
 
+// A human-visible reason for a failed git op. Some failures (e.g. a lost
+// index.lock race) leave stderr empty, which rendered as a bare "Approve
+// failed:" with no cause; fall back to stdout, then the exit code.
+inline std::string git_err(const git::GitResult& r) {
+    if (!r.stderr_str().empty()) return r.stderr_str();
+    if (!r.stdout_str().empty()) return r.stdout_str();
+    return "git exit " + std::to_string(r.exit_code());
+}
+
 // Space reserved on the right of a header row for its action buttons, so the
 // left-hand label doesn't take 100% width and shove the buttons off-screen
 // (SpaceBetween can't shrink a percent(1.0) child). File header: "Copy Diff".
@@ -557,7 +566,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
                 } else {
                     afterhours::toast::send_info(
-                        ctx, "Approve failed: " + res.stderr_str(), 2.5f);
+                        ctx, "Approve failed: " + diff_detail::git_err(res), 2.5f);
                 }
             }
         }
@@ -1117,7 +1126,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     afterhours::toast::send_info(ctx, "Approved file (staged)", 1.5f);
                 } else {
                     afterhours::toast::send_info(
-                        ctx, "Approve failed: " + res.stderr_str(), 2.5f);
+                        ctx, "Approve failed: " + diff_detail::git_err(res), 2.5f);
                 }
             }
         }

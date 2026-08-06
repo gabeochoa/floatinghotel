@@ -8,6 +8,14 @@ namespace git {
 static LogCallback g_log_callback = nullptr;
 static std::mutex g_log_mutex;
 
+// Serializes every git subprocess against the repo. Reads run async on
+// detached threads (git_run_async, the refresh systems) while writes like
+// `git apply --cached` (Approve) run on the main thread; without this they
+// race on .git/index.lock and the write fails ("Unable to create index.lock").
+// Each git command is short, so holding this per-command doesn't stall the UI
+// beyond one in-flight command.
+static std::mutex g_git_mutex;
+
 void set_log_callback(LogCallback cb) { g_log_callback = cb; }
 
 namespace {
@@ -44,7 +52,10 @@ GitResult git_run(const std::string& repo_path,
     cmd.insert(cmd.end(), args.begin(), args.end());
 
     GitResult result;
-    result.raw = run_process("", cmd);
+    {
+        std::lock_guard<std::mutex> lock(g_git_mutex);
+        result.raw = run_process("", cmd);
+    }
 
     if (g_log_callback) {
         std::lock_guard lock(g_log_mutex);
