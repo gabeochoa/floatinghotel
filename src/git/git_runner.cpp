@@ -1,5 +1,6 @@
 #include "git_runner.h"
 
+#include <cstdlib>
 #include <mutex>
 #include <thread>
 
@@ -15,6 +16,22 @@ static std::mutex g_log_mutex;
 // Each git command is short, so holding this per-command doesn't stall the UI
 // beyond one in-flight command.
 static std::mutex g_git_mutex;
+
+// Backstop so a wedged git (e.g. a network op stuck mid-connection) can't hold
+// g_git_mutex forever and freeze the app. Generous enough for normal
+// push/pull/fetch; local ops finish in well under a second.
+static constexpr int GIT_TIMEOUT_MS = 60000;
+
+// The usual "hang" is git blocking on an interactive credential prompt; with no
+// TTY it would wait out the whole timeout. Turn prompts into immediate failures
+// so the user gets a toast right away instead of a 60s stall.
+static void disable_git_prompts_once() {
+    static std::once_flag flag;
+    std::call_once(flag, [] {
+        setenv("GIT_TERMINAL_PROMPT", "0", 1);
+        setenv("GIT_SSH_COMMAND", "ssh -oBatchMode=yes", 0);  // don't override
+    });
+}
 
 void set_log_callback(LogCallback cb) { g_log_callback = cb; }
 
@@ -51,10 +68,12 @@ GitResult git_run(const std::string& repo_path,
     }
     cmd.insert(cmd.end(), args.begin(), args.end());
 
+    disable_git_prompts_once();
+
     GitResult result;
     {
         std::lock_guard<std::mutex> lock(g_git_mutex);
-        result.raw = run_process("", cmd);
+        result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
     }
 
     if (g_log_callback) {
