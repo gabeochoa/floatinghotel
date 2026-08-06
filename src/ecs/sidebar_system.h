@@ -228,7 +228,9 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         // === Commit area (always-visible input + button, VS Code style) ===
-        constexpr float COMMIT_AREA_H_720 = 82.0f;
+        // hint(16) + input + button(24) + gaps(6) + padding(6) + slack, tracked
+        // against the actual multi-line input height.
+        const float COMMIT_AREA_H_720 = 54.0f + COMMIT_INPUT_H_720;
         float commitAreaH = 0.0f;
         // Hide the commit input + button when there is nothing to commit (#24).
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
@@ -722,6 +724,10 @@ private:
                 .with_debug_name("prog_text"));
     }
 
+    // Height of the multi-line commit message box (720-space). Kept in sync
+    // with COMMIT_AREA_H_720, which reserves the whole commit area's space.
+    static constexpr float COMMIT_INPUT_H_720 = 60.0f;
+
     // ---- Commit area (VS Code parity: always-visible input + button) ----
     void render_commit_area(UIContext<InputAction>& ctx,
                             Entity& parent,
@@ -762,23 +768,29 @@ private:
                     .with_debug_name("commit_hint"));
         }
 
-        auto inputResult = afterhours::text_input::text_input(
+        // Multi-line message: Enter commits (submit_on_enter), Shift+Enter adds
+        // a body line. The whole string is the commit message — build_message
+        // passes a multi-line subject through as subject + body.
+        auto inputResult = afterhours::text_input::text_area(
             ctx, mk(commitArea.ent(), 1),
             editor.subject,
             ComponentConfig{}
-                .with_size(ComponentSize{childW, h720(28)})
+                .with_size(ComponentSize{childW, h720(COMMIT_INPUT_H_720)})
                 .with_custom_background(theme::INPUT_BG)
                 .with_border(theme::BORDER, h720(1.0f))
                 .with_roundness(4.0f)
+                .with_line_height(h720(18.0f))
+                .with_submit_on_enter()
                 .with_debug_name("commit_msg_input"));
 
-        // Wire Enter key to trigger commit
-        inputResult.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>(
-            nullptr,
-            [](Entity&) {
+        // Enter fires on_submit -> request a commit.
+        inputResult.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>();
+        inputResult.ent()
+            .get<afterhours::text_input::HasTextInputListener>()
+            .on_submit = [](Entity&) {
                 auto* ed = find_singleton<CommitEditorComponent, ActiveTab>();
                 if (ed) ed->commitRequested = true;
-            });
+            };
 
         // Full-width blue Commit button
         bool hasStaged = !repo.stagedFiles.empty();

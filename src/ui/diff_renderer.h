@@ -220,6 +220,7 @@ constexpr float HUNK_HEADER_H = 24.0f;
 constexpr float FILE_HEADER_H = 28.0f;
 constexpr float DIFF_HEADER_H = 28.0f;
 constexpr float CODE_PAD_LEFT = 8.0f;
+constexpr float COMMENT_COMPOSE_H = 56.0f;  // multi-line comment box + padding
 
 // Space reserved on the right of a header row for its action buttons, so the
 // left-hand label doesn't take 100% width and shove the buttons off-screen
@@ -581,10 +582,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     // Inline compose row for this hunk.
     if (reviewOn && sel->review->composingKey == hkey) {
-        if (vp) { vp->flush(ctx, parent, nextId); vp->built(28.0f); }
+        if (vp) { vp->flush(ctx, parent, nextId); vp->built(diff_detail::COMMENT_COMPOSE_H); }
         auto composeRow = div(ctx, mk(parent, nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{w, h720(28)})
+                .with_size(ComponentSize{w, h720(diff_detail::COMMENT_COMPOSE_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_custom_background(afterhours::Color{35, 35, 39, 255})
@@ -592,18 +593,17 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(12)})
                 .with_debug_name("comment_compose_row"));
-        auto inp = afterhours::text_input::text_input(
+        // Multi-line review comment: Enter inserts a newline; the Add button (or
+        // Comment on another hunk) commits it. Wrap keeps long notes readable.
+        afterhours::text_input::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
             ComponentConfig{}
-                .with_size(ComponentSize{percent(0.8f), h720(22)})
+                .with_size(ComponentSize{percent(0.8f),
+                                         h720(diff_detail::COMMENT_COMPOSE_H - 6.0f)})
                 .with_custom_background(theme::INPUT_BG)
+                .with_line_height(h720(16.0f))
                 .with_roundness(4.0f)
                 .with_debug_name("comment_input"));
-        inp.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>(
-            nullptr, [](Entity&) {
-                auto* rv = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
-                if (rv) ecs::commit_pending_comment(*rv);
-            });
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
             preset::Button("Add")
                 .with_size(ComponentSize{children(), h720(18)})
