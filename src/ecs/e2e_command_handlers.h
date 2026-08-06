@@ -35,22 +35,32 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
 
     bool ensure_template() {
         namespace fs = std::filesystem;
-        if (fs::exists(fs::path(TEMPLATE_PATH) / ".git")) return true;
+        // A bare `.git` existence check also passes for a half-created/corrupt
+        // template (e.g. an interrupted setup), after which every make_test_repo
+        // copies an empty repo and the whole flow suite fails. Require a real
+        // repo with a resolvable HEAD; otherwise wipe and rebuild it.
+        if (fs::exists(fs::path(TEMPLATE_PATH) / ".git")) {
+            auto ok = run_process("", {"git", "-C", TEMPLATE_PATH,
+                                       "rev-parse", "--verify", "HEAD"});
+            if (ok.success()) return true;
+            std::error_code ec;
+            fs::remove_all(TEMPLATE_PATH, ec);
+        }
         auto result = run_process("", {"bash", "scripts/setup_test_repo.sh"});
         return result.success();
     }
 
     bool reset_repo_fast() {
         namespace fs = std::filesystem;
-        static unsigned trash_counter = 0;
-        std::string trashPath = std::string("/tmp/fh_trash_") +
-            std::to_string(::getpid()) + "_" + std::to_string(++trash_counter);
-
+        // Delete the old fixture outright. An earlier version renamed it to a
+        // /tmp/fh_trash_* dir "to be fast" but never removed those, leaking
+        // thousands of dirs over a suite's lifetime; the fixture is tiny (a
+        // handful of files) so remove_all is plenty fast.
         if (fs::exists(REPO_PATH)) {
             std::error_code ec;
-            fs::rename(REPO_PATH, trashPath, ec);
+            fs::remove_all(REPO_PATH, ec);
             if (ec) {
-                log_warn("make_test_repo: rename failed: {}", ec.message());
+                log_warn("make_test_repo: remove failed: {}", ec.message());
                 return false;
             }
         }
