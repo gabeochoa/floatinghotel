@@ -13,6 +13,10 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.reviewTab = LayoutComponent::ReviewTab::ToReview;
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
+    // A script that drags the divider otherwise hands its last width to every
+    // script after it, and the menu bar collapses into "More" at narrow
+    // widths -- so the leak reads as "No UI with text: View" ten files later.
+    layout.sidebarWidth = LayoutComponent::kDefaultSidebarWidth;
 }
 
 inline void reset_tabs(TabStripComponent& tabStrip, LayoutComponent& layout) {

@@ -7,6 +7,8 @@
 #include <afterhours/src/graphics.h>
 #include <afterhours/src/ecs.h>
 
+#include "zoom.h"
+
 #include "../ecs/components.h"
 #include "../ecs/network_ops_system.h"
 #include "../ecs/query_helpers.h"
@@ -129,15 +131,9 @@ inline std::vector<Menu> createMenuBar() {
             if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::All;
         }),
         MenuItem::separator(),
-        MenuItem::item("Zoom In", "Cmd+=", [] {
-            notImpl("Zoom In");
-        }),
-        MenuItem::item("Zoom Out", "Cmd+-", [] {
-            notImpl("Zoom Out");
-        }),
-        MenuItem::item("Reset Zoom", "Cmd+0", [] {
-            notImpl("Reset Zoom");
-        }),
+        MenuItem::item("Zoom In", "Cmd+=", [] { ui::zoom::step(ui::zoom::kStep); }),
+        MenuItem::item("Zoom Out", "Cmd+-", [] { ui::zoom::step(-ui::zoom::kStep); }),
+        MenuItem::item("Reset Zoom", "Cmd+0", [] { ui::zoom::reset(); }),
     }});
 
     // Git menu

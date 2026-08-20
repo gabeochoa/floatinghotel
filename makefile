@@ -7,7 +7,11 @@ ifeq ($(UNAME_S),Darwin)
     EXT := .exe
     MACOS_FLAGS :=
     FRAMEWORKS := -framework CoreFoundation -framework CoreServices \
-        -framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore
+        -framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore \
+        -framework AppKit
+    # Trackpad pinch: afterhours' NSEvent monitor is a block, and the whole
+    # thing is opt-in so a machine with no trackpad is not paying for it.
+    MACOS_FLAGS := -fblocks -DAFTER_HOURS_ENABLE_MACOS_GESTURES
 else ifeq ($(OS),Windows_NT)
     CXX := g++
     EXT := .exe

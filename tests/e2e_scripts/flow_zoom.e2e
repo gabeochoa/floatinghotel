@@ -1,0 +1,25 @@
+# Zoom: trackpad pinch and Cmd+0 both drive Theme::ui_scale, and Adaptive
+# scaling means that one value resizes the whole UI.
+make_test_repo
+resize 1280 720
+wait_frames 5
+validate ui_scale=1.00
+screenshot zoom_01_default
+
+# +0.4 magnification == grow 40%, the units NSEvent reports. Composed as a
+# multiplier, so this is 1.00 * 1.4.
+pinch 0.4
+wait_frames 5
+validate ui_scale=1.40
+screenshot zoom_02_pinched_in
+
+# 1.40 * 0.7
+pinch -0.3
+wait_frames 5
+validate ui_scale=0.98
+screenshot zoom_03_pinched_out
+
+key CMD+0
+wait_frames 5
+validate ui_scale=1.00
+screenshot zoom_04_reset

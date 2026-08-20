@@ -12,7 +12,9 @@
 #include "../util/git_helpers.h"
 #include "network_ops_system.h"
 #include "ui_imports.h"
+#include "../ui/context_menu.h"
 
+#include "../../vendor/afterhours/src/plugins/clipboard.h"
 #include "../../vendor/afterhours/src/plugins/modal.h"
 #include "../../vendor/afterhours/src/plugins/ui/text_input/text_input.h"
 
@@ -1386,20 +1388,21 @@ private:
             statusChar = staged ? 'A' : 'M';
         }
         render_file_row_impl(ctx, parent, id, file.path, statusChar, repo,
-                             file.isSubmodule);
+                             file.isSubmodule, staged);
     }
 
     void render_untracked_row(UIContext<InputAction>& ctx,
                                Entity& parent, int id,
                                const std::string& path,
                                RepoComponent& repo) {
-        render_file_row_impl(ctx, parent, id, path, 'U', repo, false);
+        render_file_row_impl(ctx, parent, id, path, 'U', repo, false, false);
     }
 
     void render_file_row_impl(UIContext<InputAction>& ctx,
                                Entity& parent, int id,
                                const std::string& path, char statusChar,
-                               RepoComponent& repo, bool isSubmodule) {
+                               RepoComponent& repo, bool isSubmodule,
+                               bool staged) {
         bool selected = (path == repo.selectedFilePath);
         constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
 
@@ -1495,6 +1498,47 @@ private:
                 r->selectedCommitHash.clear();
             }
         }
+
+        if (ctx.is_right_click(row.ent().id))
+            open_file_context_menu(ctx, path, repo, staged);
+    }
+
+    // Whichever of stage/unstage applies, plus the path. No Discard: there is
+    // no discard_file command yet, and a destructive one wants a confirm.
+    void open_file_context_menu(UIContext<InputAction>& ctx,
+                                const std::string& path,
+                                RepoComponent& repo, bool staged) {
+        const std::string repoPath = repo.repoPath;
+
+        std::vector<ui::ContextMenuItem> items;
+        if (staged) {
+            items.push_back(ui::ContextMenuItem::item(
+                "Unstage", [repoPath, path] {
+                    run_file_git_op(git::unstage_file(repoPath, path),
+                                    "Unstage");
+                }));
+        } else {
+            items.push_back(ui::ContextMenuItem::item(
+                "Stage", [repoPath, path] {
+                    run_file_git_op(git::stage_file(repoPath, path), "Stage");
+                }));
+        }
+        items.push_back(ui::ContextMenuItem::separator());
+        items.push_back(ui::ContextMenuItem::item("Copy Path", [path] {
+            afterhours::clipboard::set_text(path);
+        }));
+
+        ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y,
+                              std::move(items));
+    }
+
+    // Toast the failure, then refresh either way -- a partial failure still
+    // moved the index.
+    static void run_file_git_op(const git::GitResult& result,
+                                const std::string& what) {
+        if (!result.success()) toast_on_git_failure(result, what);
+        auto* r = find_singleton<RepoComponent, ActiveTab>();
+        if (r) r->refreshRequested = true;
     }
 
     // ---- Commit log rendering (T021) ----

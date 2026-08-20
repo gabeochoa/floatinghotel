@@ -1,0 +1,27 @@
+# Right-click a file row opens a context menu, and its action runs.
+# "Copy Path" is the marker to assert on: "Stage" is a substring of the
+# "Stage All" toolbar button, so it proves nothing on its own.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+validate staged_count=1
+expect_text "README.md"
+expect_no_text "Copy Path"
+
+# README.md is unstaged, so the menu offers Stage rather than Unstage.
+right_click 70 283
+wait_frames 5
+screenshot context_menu_01_open
+expect_text "Copy Path"
+
+# Click the Stage item.
+click 100 300
+wait_frames 5
+wait_for_refresh
+screenshot context_menu_02_staged
+
+# The action ran (README.md joined .gitignore in the index) and the menu closed.
+validate staged_count=2
+screenshot context_menu_03_dismissed
+expect_no_text "Copy Path"

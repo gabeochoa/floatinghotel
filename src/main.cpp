@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <cstdio>
+#include <format>
+#include <cstdlib>
 #include <iterator>
 #include <mutex>
 #include <string>
@@ -14,12 +16,16 @@ extern "C" void metal_hide_window(void);
 extern "C" void metal_wait_all_screenshots(void);
 #endif
 
+#include <afterhours/src/gestures_macos.h>
 #include <afterhours/src/logging.h>
+#include <afterhours/src/shutdown.h>
 #include "preload.h"
 #include "rl.h"
 #include "settings.h"
 #include "review_store.h"
 #include "ui_context.h"
+#include "ui/context_menu.h"
+#include "ui/zoom.h"
 #include <afterhours/src/plugins/ui/validation_systems.h>
 #include "util/process.h"
 
@@ -38,6 +44,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ecs/toolbar_system.h"
 #include "ecs/network_ops_system.h"
 #include "ecs/validation_summary_system.h"
+#include "ecs/zoom_system.h"
 #include "git/git_runner.h"
 #include "git/git_parser.h"
 
@@ -145,6 +152,10 @@ struct HandleFileWatcherToggle : afterhours::System<afterhours::testing::Pending
 static void app_init() {
     using namespace afterhours;
     auto t0 = std::chrono::high_resolution_clock::now();
+
+    // Needs the window to exist; idempotent, and a no-op without the build
+    // opt-in or off macOS.
+    afterhours::gestures::install_pinch_monitor();
 
     {
         Preload::get().init("floatinghotel").make_singleton();
@@ -294,6 +305,9 @@ static void app_init() {
         // Layout calculation must run before UI systems so panel rects
         // (toolbar, sidebar, status bar, etc.) have correct sizes when
         // the UI-creating systems read them.
+        // Before LayoutUpdateSystem: ui_scale feeds every size it resolves,
+        // so a zoom applied after it lands one frame late.
+        sm.register_update_system(std::make_unique<ecs::ZoomSystem>());
         sm.register_update_system(std::make_unique<ecs::LayoutUpdateSystem>());
 
         // UI-creating systems (order determines visual stacking;
@@ -514,11 +528,14 @@ static void app_frame() {
             metal_wait_all_screenshots();
 #endif
             app_state::e2eRunner.print_results();
-            // _exit skips static destructors (which is the point -- Metal
-            // teardown crashes) but also skips flushing stdio, so the summary
-            // and any failure message we just printed never reach the log.
-            fflush(nullptr);
-            _exit(app_state::e2eRunner.has_failed() ? 1 : 0);
+            const int code = app_state::e2eRunner.has_failed() ? 1 : 0;
+            // Entities before the backend: left to static destruction the
+            // backend goes first and entity destructors that still call into
+            // it throw bad_variant_access. This is what _exit() used to be
+            // dodging -- and _exit() also skipped flushing stdio, so the
+            // summary printed one line above never reached the log.
+            afterhours::shutdown();
+            std::exit(code);
         }
         return;
     }
@@ -617,6 +634,10 @@ int main(int argc, char* argv[]) {
         if (!menuQ.empty()) {
             ecs::reset_menus(menuQ[0].get().get<ecs::MenuComponent>());
         }
+        // Global, so nothing above owns it: a script that zooms and does not
+        // zoom back would resize the UI for every script after it.
+        ui::zoom::reset();
+        ui::close_context_menu();
     });
     app_state::e2eRunner.set_property_getter([](const std::string& key) -> std::string {
         auto layoutQ = afterhours::EntityQuery({.force_merge = true})
@@ -648,6 +669,11 @@ int main(int argc, char* argv[]) {
                     default: return "Unknown";
                 }
             }
+        } else if (key == "sidebar_width") {
+            if (!layoutQ.empty())
+                return std::format(
+                    "{:.0f}",
+                    layoutQ[0].get().get<ecs::LayoutComponent>().sidebarWidth);
         } else if (key == "sidebar_mode") {
             if (!layoutQ.empty()) {
                 auto m = layoutQ[0].get().get<ecs::LayoutComponent>().sidebarMode;
@@ -670,6 +696,10 @@ int main(int argc, char* argv[]) {
         } else if (key == "selected_file") {
             if (!repoQ.empty())
                 return repoQ[0].get().get<ecs::RepoComponent>().selectedFilePath;
+        } else if (key == "ui_scale") {
+            // Two decimals: the value is a float the pinch multiplies into, so
+            // an exact-match assertion needs a rounded, stable spelling.
+            return std::format("{:.2f}", ui::zoom::get());
         } else if (key == "selected_commit") {
             if (!repoQ.empty())
                 return repoQ[0].get().get<ecs::RepoComponent>().selectedCommitHash;
@@ -771,7 +801,7 @@ int main(int argc, char* argv[]) {
             app_frame();
         }
         app_cleanup();
-        afterhours::graphics::shutdown();
+        afterhours::shutdown();
         return 0;
     }
 

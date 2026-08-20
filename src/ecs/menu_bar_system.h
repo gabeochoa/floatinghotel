@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "../../vendor/afterhours/src/plugins/toast.h"
+#include "../ui/context_menu_render.h"
 #include "../ui/menu_setup.h"
 #include "ui_imports.h"
 
@@ -384,6 +385,10 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             ctx.mouse.just_pressed = false;
             ctx.mouse.just_released = false;
         }
+
+        // Last thing this system builds, and this system runs last, so the
+        // context menu lands above every other overlay.
+        ui::render_context_menu(ctx, uiRoot);
     }
 };
 

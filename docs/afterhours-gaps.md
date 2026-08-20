@@ -4,24 +4,39 @@ Tracking afterhours features/bugs that floatinghotel needs but are not yet imple
 
 **Policy:** Never edit `vendor/afterhours/` directly. Build workarounds in `src/ui/` and document gaps here so the afterhours maintainer can address them upstream.
 
-**Reviewed against the 2d6f23d bump.** Several entries here were stale — the
+**Reviewed against the cf3e0f1 bump.** Several entries here were stale — the
 API had shipped and nobody came back to the doc. Anything below still marked
 OPEN was checked against that revision.
+
+Adopted in that pass: `with_corner_radius`, `imm::divider`,
+`ctx.is_right_click` + a real context menu, `afterhours::shutdown()`,
+`ui::measure_text_line`, trackpad pinch and `Theme::ui_scale` zoom.
+
+Deliberately not adopted, with reasons in the entries below:
+`with_styled_label` (child divs already do it better here),
+`hsplit_pane`/`vsplit_pane` (panels are absolutely positioned, no container to
+wrap), `animation::set_instant` (the animation plugin is not registered — the
+toast plugin does not use it), `with_font_weight` (needs bold font files).
 
 ---
 
 ## Missing Primitives
 
-### 1. Draggable Divider — RESOLVED upstream (48f808d)
+### 1. Draggable Divider — RESOLVED upstream (48f808d), adopted
 `imm::divider(ctx, mk(...), Axis)` is truthy on the frames it moved, and
 `.as<float>()` is that frame's travel in `rect()` space.
 
-### 2. Split Pane — RESOLVED upstream (48f808d)
+`render_sidebar_divider` uses it. The hand-rolled version polled the raw
+backend mouse position and undid letterboxing itself
+(`mouseX * 1280.0f / sw`), and jumped whenever you grabbed the bar off centre,
+because it set the width from the cursor position instead of accumulating a
+delta. Covered by `flow_sidebar_resize.e2e`.
+
+### 2. Split Pane — RESOLVED upstream (48f808d), not needed
 `imm::hsplit_pane` / `vsplit_pane` wrap a divider around two regions, taking a
-`float&` ratio the drag updates in place and returning
-`{first, divider, second}`. There is also plain `hsplit`/`vsplit` for a fixed
-(non-draggable) split. Nothing in floatinghotel uses these yet — the app has no
-`src/ui/split_panel.h`, so the workaround this entry described is long gone.
+`float&` ratio the drag updates in place. floatinghotel positions its panels
+absolutely from `LayoutComponent` rather than nesting them, so there is no
+container to hand to a split pane. The divider alone is the part it needed.
 
 ### 3. Tree Node
 - **What's missing:** No collapsible tree node widget for hierarchical list views.
@@ -37,15 +52,22 @@ OPEN was checked against that revision.
 - **Workaround:** Built app-local in `src/ui/menu_setup.h` using `div()` + `button()` with absolute positioning. Manages open/close state, hover-to-switch between adjacent menus, and click-outside-to-close.
 - **Upstream request:** Add `dropdown_menu()` to afterhours UI plugin with configurable items (label, shortcut text, separator, disabled state, callback).
 
-### 5. Context Menu — trigger RESOLVED upstream (176ea8f)
-- **Now available:** `ctx.is_right_click(id)` answers "a secondary click
-  finished over this element or something inside it". The target needs a click
-  or drag listener, since that is what hit-testing resolves against; asking
-  about a plain `div` warns instead of silently never firing. e2e has
-  `right_click x y`.
-- **Still app-side:** `src/ui/context_menu.h` exists but has **no callers** —
-  it was never wired up, because there was no right-click to wire it to. That
-  is the remaining work, not an upstream gap.
+### 5. Context Menu — RESOLVED (176ea8f upstream + app), adopted
+`ctx.is_right_click(id)` answers "a secondary click finished over this element
+or something inside it". The target needs a click or drag listener, since that
+is what hit-testing resolves against; asking about a plain `div` warns rather
+than silently never firing.
+
+`src/ui/context_menu.{h,cpp}` had sat with no callers since there was no
+right-click to wire it to. It now renders (`render_context_menu`, called last
+from `MenuBarSystem` so it lands above the menu dropdowns) and file rows open
+it with Stage/Unstage plus Copy Path. Covered by
+`flow_context_menu_file.e2e`, which clicks the item and checks the file was
+actually staged.
+
+Still to do: menus on commits (copy hash, cherry-pick, revert) and branches.
+No Discard yet — there is no `discard_file` git command, and a destructive one
+wants a confirmation step.
 
 ### 6. Anchored Popup / Popover
 - **What's missing:** No anchored popup that appears relative to a trigger element (above, below, left, right).
@@ -92,12 +114,16 @@ selection/highlight primitive that renders behind text within an element.
 
 ---
 
-### No Rich Text / Multi-Color Text in a Single Label — RESOLVED upstream
+### No Rich Text / Multi-Color Text in a Single Label — RESOLVED, and moot
 
 `with_styled_label({{"M ", STATUS_MODIFIED}, {"theme.h ", TEXT_PRIMARY}, ...})`
-is on `ComponentConfig` (`component_config.h:658`) and does exactly what this
-entry asked for. Nothing in floatinghotel uses it yet; the status-letter colour
-sacrificed in the workaround below can be taken back.
+is on `ComponentConfig` (`component_config.h:658`).
+
+Deliberately not adopted: `render_file_row_impl` already solved this with three
+sized child divs (status glyph, filename, dir), which is what gives each column
+its own width and ellipsis. A styled label would trade that away to save two
+entities. The workaround described below — baking everything into one string
+and losing the coloured status letter — has not been the code for a while.
 
 <details><summary>original entry</summary>
 
@@ -119,12 +145,16 @@ sacrificed in the workaround below can be taken back.
 
 ---
 
-### `with_font_weight` exists, but needs a registered variant
+### `with_font_weight` — BLOCKED on font files, not on API
 
 `with_font_weight` is on `ComponentConfig`. It looks up a font registered as
-`"<font>@bold"`; with no such variant it falls back to the base font, which is
-why this reads as "no font weight support". Since `90f8ae8` the fallback warns
-once instead of being silent. Register the bold face under that name to get it.
+`"<font>@bold"` and falls back to the base font when there is none, which is
+why this read as "no font weight support"; since `90f8ae8` that fallback warns
+once instead of being silent.
+
+Adopting it needs `Roboto-Bold.ttf` and `JetBrainsMono-Bold.ttf` in
+`resources/fonts/` and two more `fontMgr.load_font(... "@bold")` calls in
+`preload.cpp`. That is a licensing/asset decision, so it is left alone here.
 
 ---
 
@@ -173,6 +203,23 @@ floatinghotel already uses everywhere. Nothing to do.
 | 12 | Adaptive scaling mode | SUPERSEDED |
 
 ---
+
+## App bugs found while adopting the above
+
+### The last item of a menu dropdown does not respond to clicks
+
+Clicking it closes the dropdown (so it looks like it worked) but never runs the
+item's action. Reproduced with `View > Reset Zoom`: the identical click
+sequence ending on `Zoom Out` (second to last) changes `ui_scale`, and ending
+on `Reset Zoom` leaves it untouched. `MenuBarSystem` computes each item's hover
+rect by accumulating `itemY`, and the same `itemY` positions the button, so the
+two ought to agree -- they do not for the final entry.
+
+It went unnoticed because the tests covering those items assert on a toast, and
+toasts outlive the click: `flow_stub_toast_view_menu` clicked three items in a
+row that all toast the same "not yet implemented" string, so the third
+assertion matched the first item's toast. `flow_stub_toast_edit_menu` has the
+same shape on `Find...`, which is the last Edit item -- suspect that one too.
 
 ## Known Vendor Bugs
 

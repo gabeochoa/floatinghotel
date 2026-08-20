@@ -207,7 +207,8 @@ struct BranchDialogState : public afterhours::BaseComponent {
 };
 
 struct LayoutComponent : public afterhours::BaseComponent {
-    float sidebarWidth = 340.0f;
+    static constexpr float kDefaultSidebarWidth = 340.0f;
+    float sidebarWidth = kDefaultSidebarWidth;
     float sidebarMinWidth = 200.0f;
     float commitLogRatio = 0.4f;
 

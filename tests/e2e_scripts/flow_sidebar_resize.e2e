@@ -1,0 +1,34 @@
+# Drag the sidebar divider. imm::divider reports the frame's travel in rect()
+# space, already letterbox-corrected, so the call site just accumulates it --
+# a 100px drag is exactly 100px of sidebar.
+#
+# mouse_down/move/up, not `drag`: that command clicks and then teleports the
+# cursor, so the button is already up before the move and nothing is dragging.
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+# The divider only renders once the diff shelf is open, which needs a selection.
+click_text "README.md"
+wait_frames 5
+validate sidebar_width=340
+screenshot sidebar_resize_01_default
+
+mouse_down 341 400
+wait_frames 3
+mouse_move 441 400
+wait_frames 3
+mouse_up
+wait_frames 3
+validate sidebar_width=440
+screenshot sidebar_resize_02_wider
+
+# Past the minimum it clamps rather than inverting the panes.
+mouse_down 441 400
+wait_frames 3
+mouse_move 60 400
+wait_frames 3
+mouse_up
+wait_frames 3
+validate sidebar_width=200
+screenshot sidebar_resize_03_clamped

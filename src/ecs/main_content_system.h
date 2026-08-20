@@ -670,29 +670,31 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
         float dividerY = layout.toolbar.y;
         float fullDividerH = dividerH + (layout.mainContent.y - layout.toolbar.y);
-        auto vDivider = div(ctx, mk(uiRoot, 3100),
+        // imm::divider handles the drag: it reports this frame's travel in
+        // rect() space, which is already letterbox-corrected. The old form
+        // read the raw backend mouse position and undid letterboxing by hand,
+        // and jumped the bar whenever you grabbed it off centre.
+        auto vDivider = afterhours::ui::imm::divider(
+            ctx, mk(uiRoot, 3100), afterhours::ui::Axis::X,
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(2), pixels(fullDividerH)})
                 .with_absolute_position()
                 .with_translate(layout.sidebar.width, dividerY)
                 .with_custom_background(theme::BORDER)
-                .with_cursor(afterhours::ui::CursorType::ResizeH)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_divider"));
 
-        vDivider.ent().addComponentIfMissing<HasDragListener>(
-            [](Entity& /*e*/) {});
-        auto& vDrag = vDivider.ent().get<HasDragListener>();
-        if (vDrag.down) {
-            auto mousePos = afterhours::graphics::get_mouse_position();
-            float mouseX = static_cast<float>(mousePos.x);
-            float sw = static_cast<float>(afterhours::graphics::get_screen_width());
-            float maxW = sw * 0.5f;
-            float newWidth1280 = mouseX * 1280.0f / sw;
-            float newWidth = std::clamp(newWidth1280, layout.sidebarMinWidth, maxW * 1280.0f / sw);
-
+        if (vDivider) {
+            const float sw =
+                static_cast<float>(afterhours::graphics::get_screen_width());
+            // sidebarWidth is in 1280-normalised units, the travel is in
+            // screen pixels.
+            const float delta1280 = vDivider.as<float>() * 1280.0f / sw;
             auto* lc = find_singleton<LayoutComponent>();
-            if (lc) lc->sidebarWidth = newWidth;
+            if (lc)
+                lc->sidebarWidth =
+                    std::clamp(lc->sidebarWidth + delta1280,
+                               layout.sidebarMinWidth, 640.0f);
         }
     }
 
