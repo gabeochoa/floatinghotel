@@ -697,13 +697,13 @@ private:
                 ComponentConfig{}
                     .with_size(ComponentSize{pixels(56), h720(5)})
                     .with_custom_background(afterhours::Color{51, 51, 51, 255})
-                    .with_roundness(2.0f)
+                    .with_corner_radius(2.0f)
                     .with_debug_name("prog_bar"));
             div(ctx, mk(bar.ent(), 0),
                 ComponentConfig{}
                     .with_size(ComponentSize{percent(frac), percent(1.0f)})
                     .with_custom_background(afterhours::Color{63, 185, 80, 255})
-                    .with_roundness(2.0f)
+                    .with_corner_radius(2.0f)
                     .with_debug_name("prog_fill"));
         }
         // Fill the space left of the row after the optional progress bar. Use an
@@ -778,7 +778,7 @@ private:
                 .with_size(ComponentSize{childW, h720(COMMIT_INPUT_H_720)})
                 .with_custom_background(theme::INPUT_BG)
                 .with_border(theme::BORDER, h720(1.0f))
-                .with_roundness(4.0f)
+                .with_corner_radius(4.0f)
                 .with_line_height(h720(18.0f))
                 .with_submit_on_enter()
                 .with_debug_name("commit_msg_input"));

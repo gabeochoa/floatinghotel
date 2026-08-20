@@ -812,7 +812,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .bottom = h720(4), .left = w1280(12)})
                         .with_custom_background(REPO_ROW_BG)
                         .with_custom_hover_bg(REPO_ROW_HOVER)
-                        .with_roundness(4.0f)
+                        .with_corner_radius(4.0f)
                         .with_margin(Margin{.bottom = h720(2)})
                         .with_cursor(afterhours::ui::CursorType::Pointer)
                         .with_debug_name("recent_repo_" + basename));

@@ -43,14 +43,19 @@ screenshot commit_detail_regression_02_second
 click_text "<- Back"
 wait_frames 5
 
+# Screenshot first: it is the only command that forces a render, and
+# expect_no_text reads the visible-text registry, which only a render refills.
+# e2e_tick_loop drains `wait_frames` without rendering, so asserting straight
+# after the wait tests the frame the click was made on -- where the button is
+# still drawn. Remove this once the tick loop renders per waited frame.
+screenshot commit_detail_regression_03_back
+
 # Back returns to the default view: the commit detail (and its "<- Back"
 # button) must be dismissed. The diff shelf collapses when nothing is selected,
 # so assert the detail is gone rather than the collapse-sensitive empty hint.
 expect_no_text "<- Back"
 expect_text "To review"
 expect_text "STACK"
-
-screenshot commit_detail_regression_03_back
 
 # Re-select a commit after going back — must not leave blank UI
 click_text "Add contributing guidelines"

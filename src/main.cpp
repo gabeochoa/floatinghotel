@@ -1,6 +1,7 @@
 #include <argh.h>
 
 #include <chrono>
+#include <cstdio>
 #include <iterator>
 #include <mutex>
 #include <string>
@@ -513,6 +514,10 @@ static void app_frame() {
             metal_wait_all_screenshots();
 #endif
             app_state::e2eRunner.print_results();
+            // _exit skips static destructors (which is the point -- Metal
+            // teardown crashes) but also skips flushing stdio, so the summary
+            // and any failure message we just printed never reach the log.
+            fflush(nullptr);
             _exit(app_state::e2eRunner.has_failed() ? 1 : 0);
         }
         return;
@@ -665,6 +670,9 @@ int main(int argc, char* argv[]) {
         } else if (key == "selected_file") {
             if (!repoQ.empty())
                 return repoQ[0].get().get<ecs::RepoComponent>().selectedFilePath;
+        } else if (key == "selected_commit") {
+            if (!repoQ.empty())
+                return repoQ[0].get().get<ecs::RepoComponent>().selectedCommitHash;
         } else if (key == "is_amend") {
             if (!editorQ.empty())
                 return editorQ[0].get().get<ecs::CommitEditorComponent>().isAmend ? "true" : "false";

@@ -611,7 +611,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                                          h720(diff_detail::COMMENT_COMPOSE_H - 6.0f)})
                 .with_custom_background(theme::INPUT_BG)
                 .with_line_height(h720(16.0f))
-                .with_roundness(4.0f)
+                .with_corner_radius(4.0f)
                 .with_debug_name("comment_input"));
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
             preset::Button("Add")

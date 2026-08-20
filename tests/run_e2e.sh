@@ -10,6 +10,10 @@
 #   SCRIPT_FILTER        Only run scripts matching this pattern
 
 set -e
+# Every run below pipes the app into `tee`, and a pipeline's status is the last
+# command's -- tee always exits 0. Without this the suite reported a green
+# "Failed: 0" no matter how many scripts failed.
+set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"

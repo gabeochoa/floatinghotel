@@ -157,7 +157,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                         .with_justify_content(JustifyContent::Center)
                         .with_align_items(AlignItems::Center)
                         .with_click_activation(ClickActivationMode::Press)
-                        .with_roundness(rpx(2.0f))
+                        .with_corner_radius(rpx(2.0f))
                         .with_render_layer(7)
                         .with_debug_name("tab_close"));
 
