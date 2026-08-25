@@ -100,25 +100,19 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
 
         std::string repoPath = REPO_PATH;
 
-        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::LayoutComponent>().gen();
-        if (!layoutQ.empty()) {
-            ecs::reset_layout_defaults(layoutQ[0].get().get<ecs::LayoutComponent>());
+        auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+        if (layout) {
+            ecs::reset_layout_defaults(*layout);
         }
 
-        auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::TabStripComponent>().gen();
-        if (!tabStripQ.empty() && !layoutQ.empty()) {
-            ecs::reset_tabs(tabStripQ[0].get().get<ecs::TabStripComponent>(),
-                            layoutQ[0].get().get<ecs::LayoutComponent>());
+        auto* tabStrip = ecs::find_singleton<ecs::TabStripComponent>();
+        if (tabStrip && layout) {
+            ecs::reset_tabs(*tabStrip, *layout);
         }
 
-        auto repoEntities = afterhours::EntityQuery({.force_merge = true})
-                                .whereHasComponent<ecs::RepoComponent>()
-                                .whereHasComponent<ecs::ActiveTab>()
-                                .gen();
-        if (!repoEntities.empty()) {
-            auto& repo = repoEntities[0].get().get<ecs::RepoComponent>();
+        auto* repoPtr = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        if (repoPtr) {
+            auto& repo = *repoPtr;
             log_info("make_test_repo: switching from '{}' to '{}'", repo.repoPath, repoPath);
             repo.repoPath = repoPath;
             repo.selectedFilePath.clear();
@@ -150,19 +144,13 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
 
             ui::diff_sel::reset();
 
-            auto editorEntities = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::CommitEditorComponent>()
-                .whereHasComponent<ecs::ActiveTab>()
-                .gen();
-            if (!editorEntities.empty()) {
-                ecs::reset_commit_editor(editorEntities[0].get().get<ecs::CommitEditorComponent>());
+            if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent,
+                                                   ecs::ActiveTab>()) {
+                ecs::reset_commit_editor(*editor);
             }
 
-            auto menuEntities = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::MenuComponent>()
-                .gen();
-            if (!menuEntities.empty()) {
-                ecs::reset_menus(menuEntities[0].get().get<ecs::MenuComponent>());
+            if (auto* menu = ecs::find_singleton<ecs::MenuComponent>()) {
+                ecs::reset_menus(*menu);
             }
 
             repo.refreshRequested = true;
@@ -229,17 +217,14 @@ struct HandleResetUI : afterhours::System<afterhours::testing::PendingE2ECommand
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("reset_ui")) return;
 
-        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::LayoutComponent>().gen();
-        auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::TabStripComponent>().gen();
+        auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+        auto* tabStrip = ecs::find_singleton<ecs::TabStripComponent>();
 
-        if (!layoutQ.empty()) {
-            ecs::reset_layout_defaults(layoutQ[0].get().get<ecs::LayoutComponent>());
+        if (layout) {
+            ecs::reset_layout_defaults(*layout);
         }
-        if (!tabStripQ.empty() && !layoutQ.empty()) {
-            ecs::reset_tabs(tabStripQ[0].get().get<ecs::TabStripComponent>(),
-                            layoutQ[0].get().get<ecs::LayoutComponent>());
+        if (tabStrip && layout) {
+            ecs::reset_tabs(*tabStrip, *layout);
         }
 
         cmd.consume();
@@ -251,32 +236,26 @@ struct HandleTabCommands : afterhours::System<afterhours::testing::PendingE2ECom
         if (cmd.is_consumed()) return;
 
         if (cmd.is("new_tab")) {
-            auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::TabStripComponent>().gen();
-            auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (tabStripQ.empty() || layoutQ.empty()) {
+            auto* tabStrip = ecs::find_singleton<ecs::TabStripComponent>();
+            auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+            if (!tabStrip || !layout) {
                 cmd.fail("new_tab: missing TabStripComponent or LayoutComponent");
                 return;
             }
-            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
-            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
-            ecs::TabBarSystem::create_new_tab(tabStrip, layout);
+            ecs::TabBarSystem::create_new_tab(*tabStrip, *layout);
             cmd.consume();
             return;
         }
 
         if (cmd.is("close_tab")) {
-            auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::TabStripComponent>().gen();
-            auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (tabStripQ.empty() || layoutQ.empty()) {
+            auto* tabStripPtr = ecs::find_singleton<ecs::TabStripComponent>();
+            auto* layoutPtr = ecs::find_singleton<ecs::LayoutComponent>();
+            if (!tabStripPtr || !layoutPtr) {
                 cmd.fail("close_tab: missing TabStripComponent or LayoutComponent");
                 return;
             }
-            auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
-            auto& layout = layoutQ[0].get().get<ecs::LayoutComponent>();
+            auto& tabStrip = *tabStripPtr;
+            auto& layout = *layoutPtr;
             if (tabStrip.tabOrder.size() <= 1) {
                 cmd.fail("close_tab: cannot close the last tab");
                 return;
@@ -293,16 +272,13 @@ struct HandleTabCommands : afterhours::System<afterhours::testing::PendingE2ECom
         }
 
         if (cmd.is("reset_tabs")) {
-            auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::TabStripComponent>().gen();
-            auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::LayoutComponent>().gen();
-            if (tabStripQ.empty() || layoutQ.empty()) {
+            auto* tabStrip = ecs::find_singleton<ecs::TabStripComponent>();
+            auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+            if (!tabStrip || !layout) {
                 cmd.fail("reset_tabs: missing TabStripComponent or LayoutComponent");
                 return;
             }
-            ecs::reset_tabs(tabStripQ[0].get().get<ecs::TabStripComponent>(),
-                            layoutQ[0].get().get<ecs::LayoutComponent>());
+            ecs::reset_tabs(*tabStrip, *layout);
             cmd.consume();
             return;
         }
@@ -317,15 +293,13 @@ struct HandleTouchFile : afterhours::System<afterhours::testing::PendingE2EComma
             return;
         }
 
-        auto repoQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::RepoComponent>()
-            .whereHasComponent<ecs::ActiveTab>().gen();
-        if (repoQ.empty()) {
+        auto* repoPtr = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        if (!repoPtr) {
             cmd.fail("touch_file: no active repo");
             return;
         }
 
-        auto& repo = repoQ[0].get().get<ecs::RepoComponent>();
+        auto& repo = *repoPtr;
         std::filesystem::path filePath = std::filesystem::path(repo.repoPath) / cmd.args[0];
 
         std::ofstream ofs(filePath, std::ios::app);

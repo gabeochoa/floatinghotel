@@ -446,13 +446,9 @@ static void e2e_tick_loop(float real_dt) {
             app_state::refreshWaitElapsed += real_dt;
             constexpr float MAX_REFRESH_WAIT = 5.0f;
             bool refreshDone = true;
-            auto repoQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::RepoComponent>()
-                .whereHasComponent<ecs::ActiveTab>()
-                .gen();
-            if (!repoQ.empty()) {
-                auto& repo = repoQ[0].get().get<ecs::RepoComponent>();
-                refreshDone = !repo.refreshRequested && !repo.isRefreshing;
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (repo) {
+                refreshDone = !repo->refreshRequested && !repo->isRefreshing;
             }
             if (refreshDone || app_state::refreshWaitElapsed > MAX_REFRESH_WAIT) {
                 app_state::waitingForRefresh = false;
@@ -472,9 +468,9 @@ static void e2e_tick_loop(float real_dt) {
 
         // A surviving pending command (e.g. expect_text retrying) needs a
         // render pass to update VisibleTextRegistry before it can succeed.
-        if (!afterhours::EntityQuery()
+        if (afterhours::EntityQuery()
                 .whereHasComponent<afterhours::testing::PendingE2ECommand>()
-                .gen().empty()) break;
+                .has_values()) break;
     }
 }
 
@@ -552,10 +548,9 @@ static void app_cleanup() {
     // Batch all cleanup mutations into a single disk write
     Settings::get().auto_save_enabled = false;
 
-    auto tabStripQ = afterhours::EntityQuery({.force_merge = true})
-        .whereHasComponent<ecs::TabStripComponent>().gen();
-    if (!tabStripQ.empty()) {
-        auto& tabStrip = tabStripQ[0].get().get<ecs::TabStripComponent>();
+    auto* tabStripPtr = ecs::find_singleton<ecs::TabStripComponent>();
+    if (tabStripPtr) {
+        auto& tabStrip = *tabStripPtr;
         std::vector<std::string> openRepos;
         std::string activeRepo;
         for (auto tabId : tabStrip.tabOrder) {
@@ -618,21 +613,15 @@ int main(int argc, char* argv[]) {
     }
     app_state::e2eRunner.set_timeout(app_state::e2eTimeout);
     app_state::e2eRunner.set_reset_callback([] {
-        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::LayoutComponent>().gen();
-        if (!layoutQ.empty()) {
-            ecs::reset_layout_defaults(layoutQ[0].get().get<ecs::LayoutComponent>());
+        if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
+            ecs::reset_layout_defaults(*layout);
         }
-        auto editorQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::CommitEditorComponent>()
-            .whereHasComponent<ecs::ActiveTab>().gen();
-        if (!editorQ.empty()) {
-            ecs::reset_commit_editor(editorQ[0].get().get<ecs::CommitEditorComponent>());
+        if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent,
+                                               ecs::ActiveTab>()) {
+            ecs::reset_commit_editor(*editor);
         }
-        auto menuQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::MenuComponent>().gen();
-        if (!menuQ.empty()) {
-            ecs::reset_menus(menuQ[0].get().get<ecs::MenuComponent>());
+        if (auto* menu = ecs::find_singleton<ecs::MenuComponent>()) {
+            ecs::reset_menus(*menu);
         }
         // Global, so nothing above owns it: a script that zooms and does not
         // zoom back would resize the UI for every script after it.
@@ -640,29 +629,24 @@ int main(int argc, char* argv[]) {
         ui::close_context_menu();
     });
     app_state::e2eRunner.set_property_getter([](const std::string& key) -> std::string {
-        auto layoutQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::LayoutComponent>().gen();
-        auto repoQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::RepoComponent>()
-            .whereHasComponent<ecs::ActiveTab>().gen();
-        auto editorQ = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<ecs::CommitEditorComponent>()
-            .whereHasComponent<ecs::ActiveTab>().gen();
+        // Looked up per key rather than up front: "ui_scale" needs none of
+        // these, and each lookup stops at the first match.
+        auto layout = [] { return ecs::find_singleton<ecs::LayoutComponent>(); };
+        auto repo = [] {
+            return ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        };
 
         if (key == "sidebar_visible") {
-            if (!layoutQ.empty())
-                return layoutQ[0].get().get<ecs::LayoutComponent>().sidebarVisible ? "true" : "false";
+            if (auto* l = layout()) return l->sidebarVisible ? "true" : "false";
         } else if (key == "command_log_visible") {
-            if (!layoutQ.empty())
-                return layoutQ[0].get().get<ecs::LayoutComponent>().commandLogVisible ? "true" : "false";
+            if (auto* l = layout()) return l->commandLogVisible ? "true" : "false";
         } else if (key == "diff_view_mode") {
-            if (!layoutQ.empty()) {
-                auto m = layoutQ[0].get().get<ecs::LayoutComponent>().diffViewMode;
-                return m == ecs::LayoutComponent::DiffViewMode::Inline ? "Inline" : "SideBySide";
-            }
+            if (auto* l = layout())
+                return l->diffViewMode == ecs::LayoutComponent::DiffViewMode::Inline
+                           ? "Inline" : "SideBySide";
         } else if (key == "file_view_mode") {
-            if (!layoutQ.empty()) {
-                switch (layoutQ[0].get().get<ecs::LayoutComponent>().fileViewMode) {
+            if (auto* l = layout()) {
+                switch (l->fileViewMode) {
                     case ecs::LayoutComponent::FileViewMode::Flat: return "Flat";
                     case ecs::LayoutComponent::FileViewMode::Tree: return "Tree";
                     case ecs::LayoutComponent::FileViewMode::All: return "All";
@@ -670,57 +654,40 @@ int main(int argc, char* argv[]) {
                 }
             }
         } else if (key == "sidebar_width") {
-            if (!layoutQ.empty())
-                return std::format(
-                    "{:.0f}",
-                    layoutQ[0].get().get<ecs::LayoutComponent>().sidebarWidth);
+            if (auto* l = layout())
+                return std::format("{:.0f}", l->sidebarWidth);
         } else if (key == "sidebar_mode") {
-            if (!layoutQ.empty()) {
-                auto m = layoutQ[0].get().get<ecs::LayoutComponent>().sidebarMode;
-                return m == ecs::LayoutComponent::SidebarMode::Changes ? "Changes" : "Refs";
-            }
+            if (auto* l = layout())
+                return l->sidebarMode == ecs::LayoutComponent::SidebarMode::Changes
+                           ? "Changes" : "Refs";
         } else if (key == "staged_count") {
-            if (!repoQ.empty())
-                return std::to_string(repoQ[0].get().get<ecs::RepoComponent>().stagedFiles.size());
+            if (auto* r = repo()) return std::to_string(r->stagedFiles.size());
         } else if (key == "unstaged_count") {
-            if (!repoQ.empty()) {
-                auto& r = repoQ[0].get().get<ecs::RepoComponent>();
-                return std::to_string(r.unstagedFiles.size());
-            }
+            if (auto* r = repo()) return std::to_string(r->unstagedFiles.size());
         } else if (key == "untracked_count") {
-            if (!repoQ.empty())
-                return std::to_string(repoQ[0].get().get<ecs::RepoComponent>().untrackedFiles.size());
+            if (auto* r = repo()) return std::to_string(r->untrackedFiles.size());
         } else if (key == "branch") {
-            if (!repoQ.empty())
-                return repoQ[0].get().get<ecs::RepoComponent>().currentBranch;
+            if (auto* r = repo()) return r->currentBranch;
         } else if (key == "selected_file") {
-            if (!repoQ.empty())
-                return repoQ[0].get().get<ecs::RepoComponent>().selectedFilePath;
+            if (auto* r = repo()) return r->selectedFilePath;
         } else if (key == "ui_scale") {
             // Two decimals: the value is a float the pinch multiplies into, so
             // an exact-match assertion needs a rounded, stable spelling.
             return std::format("{:.2f}", ui::zoom::get());
         } else if (key == "selected_commit") {
-            if (!repoQ.empty())
-                return repoQ[0].get().get<ecs::RepoComponent>().selectedCommitHash;
+            if (auto* r = repo()) return r->selectedCommitHash;
         } else if (key == "is_amend") {
-            if (!editorQ.empty())
-                return editorQ[0].get().get<ecs::CommitEditorComponent>().isAmend ? "true" : "false";
+            if (auto* e = ecs::find_singleton<ecs::CommitEditorComponent,
+                                              ecs::ActiveTab>())
+                return e->isAmend ? "true" : "false";
         } else if (key == "refresh_requested") {
-            if (!repoQ.empty())
-                return repoQ[0].get().get<ecs::RepoComponent>().refreshRequested ? "true" : "false";
+            if (auto* r = repo()) return r->refreshRequested ? "true" : "false";
         } else if (key == "tab_count") {
-            auto tabQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::TabStripComponent>().gen();
-            if (!tabQ.empty())
-                return std::to_string(tabQ[0].get().get<ecs::TabStripComponent>().tabOrder.size());
-            return "0";
+            auto* ts = ecs::find_singleton<ecs::TabStripComponent>();
+            return ts ? std::to_string(ts->tabOrder.size()) : "0";
         } else if (key == "active_tab_label") {
-            auto tabQ = afterhours::EntityQuery({.force_merge = true})
-                .whereHasComponent<ecs::Tab>()
-                .whereHasComponent<ecs::ActiveTab>().gen();
-            if (!tabQ.empty())
-                return tabQ[0].get().get<ecs::Tab>().label;
+            if (auto* t = ecs::find_singleton<ecs::Tab, ecs::ActiveTab>())
+                return t->label;
         }
         return "";
     });

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "query_helpers.h"
 #include "tab_bar_system.h"
 
 #include <afterhours/src/plugins/e2e_testing/e2e_testing.h>
@@ -70,18 +71,17 @@ inline void reset_menus(MenuComponent& menu) {
 }
 
 inline void reset_ui_transient_state() {
-    auto scrollEntities = afterhours::EntityQuery({.force_merge = true})
-        .whereHasComponent<afterhours::ui::HasScrollView>().gen();
-    for (auto& ref : scrollEntities) {
-        auto& sv = ref.get().get<afterhours::ui::HasScrollView>();
-        sv.scroll_offset = {0.0f, 0.0f};
-    }
+    // for_each_stream: these only flip fields, so there is no reason to
+    // materialize a ref vector first.
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<afterhours::ui::HasScrollView>()
+        .for_each_stream([](afterhours::Entity& e) {
+            e.get<afterhours::ui::HasScrollView>().scroll_offset = {0.0f, 0.0f};
+        });
 
-    auto toastEntities = afterhours::EntityQuery({.force_merge = true})
-        .whereHasComponent<afterhours::toast::Toast>().gen();
-    for (auto& ref : toastEntities) {
-        ref.get().cleanup = true;
-    }
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<afterhours::toast::Toast>()
+        .for_each_stream([](afterhours::Entity& e) { e.cleanup = true; });
 
     auto* modalRoot = afterhours::EntityHelper::get_singleton_cmp<
         afterhours::modal::ModalRoot>();
@@ -89,10 +89,9 @@ inline void reset_ui_transient_state() {
         modalRoot->modal_stack.clear();
     }
 
-    auto ctxEntities = afterhours::EntityQuery({.force_merge = true})
-        .whereHasComponent<afterhours::ui::UIContext<InputAction>>().gen();
-    if (!ctxEntities.empty()) {
-        auto& ctx = ctxEntities[0].get().get<afterhours::ui::UIContext<InputAction>>();
+    auto* ctxPtr = find_singleton<afterhours::ui::UIContext<InputAction>>();
+    if (ctxPtr) {
+        auto& ctx = *ctxPtr;
         ctx.hot_id = ctx.ROOT;
         ctx.prev_hot_id = ctx.ROOT;
         ctx.focus_id = ctx.ROOT;

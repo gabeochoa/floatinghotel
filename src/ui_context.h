@@ -25,13 +25,14 @@ inline void initUIContext(int screenWidth, int screenHeight) {
 
 // Get the root entity for parenting UI elements
 inline afterhours::Entity& getUIRootEntity() {
-    auto roots = afterhours::EntityQuery({.force_merge = true})
-                     .whereHasComponent<afterhours::ui::AutoLayoutRoot>()
-                     .gen();
-    if (roots.empty()) {
+    afterhours::OptEntity root =
+        afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<afterhours::ui::AutoLayoutRoot>()
+            .gen_first();
+    if (!root) {
         throw std::runtime_error("No UI root found");
     }
-    return roots[0].get();
+    return root.asE();
 }
 
 inline void registerUIPreLayoutSystems(

@@ -752,17 +752,15 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             return ec ? p : cp.string();
         };
 
-        auto allTabs = afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<Tab>()
-            .whereHasComponent<RepoComponent>().gen();
-
         std::vector<std::string> openPaths;
-        for (auto& t : allTabs) {
-            auto& r = t.get().get<RepoComponent>();
-            if (!r.repoPath.empty()) {
-                openPaths.push_back(canonicalize(r.repoPath));
-            }
-        }
+        afterhours::EntityQuery({.force_merge = true})
+            .whereHasComponent<Tab, RepoComponent>()
+            .for_each_stream([&](afterhours::Entity& t) {
+                auto& r = t.get<RepoComponent>();
+                if (!r.repoPath.empty()) {
+                    openPaths.push_back(canonicalize(r.repoPath));
+                }
+            });
 
         std::vector<std::string> recentRepos;
         auto savedRecent = Settings::get().get_recent_repos();
