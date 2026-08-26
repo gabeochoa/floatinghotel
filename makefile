@@ -50,7 +50,10 @@ CXXFLAGS_BASE := -g \
     -Wwrite-strings -Warray-bounds \
     -pipe \
     -fno-stack-protector \
-    -fno-common
+    -fno-common \
+    -fno-sanitize=null
+# zig c++ defaults to Debug, which traps UBSan's null check; afterhours' singleton
+# lookups downcast a null entity to report "not registered", so startup aborted.
 
 # Warning suppressions
 CXXFLAGS_SUPPRESS := -Wno-deprecated-volatile -Wno-missing-field-initializers \
