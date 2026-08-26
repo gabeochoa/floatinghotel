@@ -3,7 +3,7 @@ UNAME_S := $(shell uname -s)
 
 # Compiler settings
 ifeq ($(UNAME_S),Darwin)
-    CXX := clang++
+    CXX := zig c++
     EXT := .exe
     MACOS_FLAGS :=
     FRAMEWORKS := -framework CoreFoundation -framework CoreServices \
@@ -13,12 +13,16 @@ ifeq ($(UNAME_S),Darwin)
     # thing is opt-in so a machine with no trackpad is not paying for it.
     MACOS_FLAGS := -fblocks -DAFTER_HOURS_ENABLE_MACOS_GESTURES
 else ifeq ($(OS),Windows_NT)
+    # Still host detection, not a zig cross-compile target. sokol is header-only
+    # so there is no library to vendor, but the backend is picked at compile
+    # time and CXXFLAGS hardcodes -DAFTER_HOURS_USE_METAL. Windows needs a D3D11
+    # or GL backend selected here first; until then there is nothing to build.
     CXX := g++
     EXT := .exe
     MACOS_FLAGS :=
     FRAMEWORKS :=
 else
-    CXX := clang++
+    CXX := zig c++
     EXT :=
     MACOS_FLAGS :=
     FRAMEWORKS :=
