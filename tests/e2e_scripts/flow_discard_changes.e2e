@@ -13,7 +13,11 @@ click_text "README.md"
 wait_frames 5
 screenshot flow_discard_02_file_selected
 
-# TODO: context menu with discard not yet implemented
-# right_click_text README.md
-# click_text "Discard Changes"
+# The context menu opens, but it has no Discard: there is no discard_file git
+# command yet, and a destructive one wants a confirm first. Assert on what the
+# menu does offer so this notices the day Discard lands.
+right_click_text "README.md"
+wait_frames 5
+expect_text "Copy Path"
+expect_no_text "Discard Changes"
 screenshot flow_discard_03_current_state

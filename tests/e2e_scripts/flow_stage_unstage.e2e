@@ -30,9 +30,13 @@ wait_frames 5
 click_text "Toggle Sidebar"
 wait_frames 5
 
-# Stage a single file by right-clicking (context menu)
-# TODO: right-click context menu not implemented yet
-# right_click_text README.md
-# click_text "Stage File"
-# wait 2
-# screenshot flow_stage_04_single_staged
+# Stage a single file by right-clicking (context menu). The menu item is
+# "Stage", not the menu bar's "Stage File", and it is clicked by debug name
+# because "Stage" also matches the "Stage All" toolbar button.
+right_click_text "README.md"
+wait_frames 5
+expect_text "Copy Path"
+click_ui context_menu_item_Stage
+wait_for_refresh
+screenshot flow_stage_04_single_staged
+validate staged_count=1

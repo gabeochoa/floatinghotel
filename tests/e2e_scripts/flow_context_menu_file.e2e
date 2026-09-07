@@ -10,13 +10,14 @@ expect_text "README.md"
 expect_no_text "Copy Path"
 
 # README.md is unstaged, so the menu offers Stage rather than Unstage.
-right_click 70 283
+right_click_text "README.md"
 wait_frames 5
 screenshot context_menu_01_open
 expect_text "Copy Path"
 
-# Click the Stage item.
-click 100 300
+# By debug name, not by text: "Stage" is a substring of the "Stage All"
+# toolbar button, and coordinates go stale the moment the row moves.
+click_ui context_menu_item_Stage
 wait_frames 5
 wait_for_refresh
 screenshot context_menu_02_staged

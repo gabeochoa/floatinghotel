@@ -754,7 +754,9 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("commit_area"));
 
-        // Commit message hint (shows branch name)
+        // Commit message hint (shows branch name). Stays a label above the
+        // field rather than the field's own placeholder: with_placeholder is
+        // read by text_field only, and text_area ignores it without a word.
         {
             std::string branch = repo.currentBranch.empty() ? "main" : repo.currentBranch;
             std::string hint = "Message (Enter to commit on \""

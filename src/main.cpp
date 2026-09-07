@@ -344,6 +344,11 @@ static void app_init() {
 
         // E2E testing systems (only in test mode)
         if (app_state::testModeEnabled) {
+            // Land every animation on its final value on the first update, so
+            // a screenshot is of a settled frame and a scroll assertion reads
+            // where the view IS rather than where it is easing to. Scripts can
+            // still say enable_animations to test an animation itself.
+            afterhours::animation::set_instant(true);
             if (app_state::e2eNoResize) {
                 sm.register_update_system(std::make_unique<SkipResizeCommand>());
             }
