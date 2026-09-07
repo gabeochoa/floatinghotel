@@ -1446,20 +1446,14 @@ private:
         constexpr float STATUS_W = 20.0f;
         constexpr float PAD_L = 8.0f;
         constexpr float PAD_R = 4.0f;
-        constexpr float GAP = 3.0f;
+        // The filename column is expand(), so autolayout hands it whatever the
+        // status letter and dir column leave. This used to be arithmetic here
+        // because expand() in a Row took the full parent width instead of the
+        // remainder; that is fixed, so only the dir column needs a size. Keep
+        // it compact and right-aligned so the name gets the rest rather than
+        // both columns floating in the middle with big gaps.
         float totalW = std::max(sidebarPixelWidth_ - PAD_L - PAD_R, 40.0f);
-        float nameW, dirW;
-        if (dir.empty()) {
-            nameW = totalW - GAP - STATUS_W;
-            dirW = 0.0f;
-        } else {
-            // Keep the dir column compact and right-aligned (next to the status
-            // letter) so the filename gets the rest instead of both floating in
-            // the middle with big gaps.
-            dirW = std::min(totalW * 0.4f, 90.0f);
-            nameW = totalW - dirW - GAP * 2.0f - STATUS_W;
-            if (nameW < 40.0f) { nameW = 40.0f; dirW = totalW - nameW - GAP * 2.0f - STATUS_W; }
-        }
+        float dirW = dir.empty() ? 0.0f : std::min(totalW * 0.4f, 90.0f);
 
         // Leading status glyph (left column) — matches the commit-detail file
         // rows and the mock, and gives every filename a consistent start x.
@@ -1474,7 +1468,7 @@ private:
 
         div(ctx, mk(row.ent(), 1),
             preset::BodyText(fname)
-                .with_size(ComponentSize{pixels(nameW), children()})
+                .with_size(ComponentSize{afterhours::ui::expand(), children()})
                 .with_custom_text_color(textCol)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("file_name"));

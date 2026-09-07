@@ -215,7 +215,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_custom_text_color(afterhours::Color{226, 192, 141, 255})
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_roundness(theme::layout::ROUNDNESS_BOX)
+                .with_corner_radius(theme::layout::RADIUS_BOX)
                 .with_debug_name("commit_fixup_banner"));
     }
 
@@ -322,7 +322,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .left = pixels(PAD), .right = {}})
             .with_border(theme::BORDER, h720(1.0f))
             .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-            .with_roundness(theme::layout::ROUNDNESS_BOX)
+            .with_corner_radius(theme::layout::RADIUS_BOX)
             .with_debug_name("commit_meta_box"));
 
     auto metaRow = [&](const std::string& label, const std::string& value,

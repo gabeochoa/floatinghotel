@@ -54,7 +54,7 @@ inline ComponentConfig Button(const std::string& label, bool enabled = true) {
         .with_custom_text_color(text)
         .with_font_size(FontSize::Medium)
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-        .with_roundness(theme::layout::ROUNDNESS_BUTTON)
+        .with_corner_radius(theme::layout::RADIUS_BUTTON)
         .with_alignment(TextAlignment::Center);
     config.disabled = !enabled;
     return config;
@@ -70,7 +70,7 @@ inline ComponentConfig Card() {
         .with_custom_background(theme::SIDEBAR_BG)
         .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-        .with_roundness(theme::layout::ROUNDNESS_BOX)
+        .with_corner_radius(theme::layout::RADIUS_BOX)
         .with_padding(Padding{
             .top = h720(theme::layout::SPACE_3),
             .right = pixels(theme::layout::SPACE_4),

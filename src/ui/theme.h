@@ -271,10 +271,17 @@ constexpr float FONT_CODE = 14.0f;     // Diff code text (mono), == body size
 // Rounded corners (enable all four corners)
 const std::bitset<4> ROUNDED_CORNERS = std::bitset<4>(0b1111);
 
-// Roundness (0.0 = square, 1.0 = fully round/pill)
-constexpr float ROUNDNESS_BUTTON = 0.4f;  // Toolbar & dialog buttons
+// Corner radius in pixels. A fraction (with_roundness) is a fraction of the
+// SHORT SIDE, so one constant gave a 24px-tall banner 3.6px corners and a
+// 150px-tall metadata box 22.5px from the same preset. A fixed radius is what
+// these actually want.
+constexpr float RADIUS_BUTTON = 5.0f;  // Toolbar & dialog buttons
+constexpr float RADIUS_BOX = 6.0f;     // Metadata boxes, containers, cards
+
+// Still a fraction, and correctly so: a badge is a pill, and "half the short
+// side" is the definition of one. Badges are all one text line tall, so this
+// does not drift the way the box radius did.
 constexpr float ROUNDNESS_BADGE = 0.6f;   // Commit/branch badge pills
-constexpr float ROUNDNESS_BOX = 0.3f;     // Metadata boxes, containers
 }  // namespace layout
 
 // Helper: get status badge color for a file status character

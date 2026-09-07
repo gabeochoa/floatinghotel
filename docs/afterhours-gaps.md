@@ -90,27 +90,15 @@ upstream, so the "fixed pixel widths only" restriction no longer applies.
 
 ---
 
-### Div backgrounds render opaque — no alpha blend for overlays — OPEN
+### Div backgrounds render opaque — no alpha blend for overlays — RESOLVED, adopted
 
-**Problem:** A `div` background does not alpha-blend over already-drawn content.
-Neither `with_custom_background(Color{r,g,b,45})` (low alpha in the color) nor
-`with_opacity(0.32f)` produces a translucent overlay — both render fully opaque,
-covering whatever is underneath. (Toast fade-in via `HasOpacity` works, but a
-plain overlay div drawn on top of sibling text does not composite over it.)
+A `div` background alpha-blends now, so `with_custom_background(Color{r,g,b,a})`
+with a low `a` tints what is underneath instead of hiding it. `with_opacity`
+also scales a colour's existing alpha rather than replacing it.
 
-**Impact:** The diff drag-to-select highlight (`src/ui/diff_renderer.h`,
-`diff_sel`) is an overlay box drawn on top of the diff line's text. A
-"translucent selection" is impossible this way — the box just hid the selected
-text entirely.
-
-**Workaround:** Draw an *opaque* selection box (`theme::SELECTED_BG`), then
-re-draw just the selected substring of text on top of it (same mono font,
-positioned at the selection's start x), so the text stays readable — editor
-style (solid selection color, text on top) rather than a translucent wash.
-
-**Suggested fix:** Honor `Color` alpha (and/or `with_opacity`) for div
-backgrounds so overlays can be genuinely translucent, or provide a
-selection/highlight primitive that renders behind text within an element.
+The diff drag-to-select highlight (`src/ui/diff_renderer.h`, `diff_sel_hl`) is
+a plain translucent box over the already-rendered line — the opaque-box-plus-
+re-drawn-substring workaround this entry described is gone.
 
 ---
 
@@ -158,25 +146,30 @@ Adopting it needs `Roboto-Bold.ttf` and `JetBrainsMono-Bold.ttf` in
 
 ---
 
-### Row Flex Layout Broken with expand() Children — OPEN
+### Row Flex Layout Broken with expand() Children — RESOLVED (0c67090), adopted
 
-**Problem:** When a `button` or `div` with `FlexDirection::Row` contains children, any child sized with `expand()` consumes the full parent width instead of the remaining width after fixed-size siblings.
+`expand()` in a Row now takes the remaining width after fixed-size siblings,
+which is what CSS `flex: 1` does and what this entry asked for. Verified at
+several sidebar widths: `[status(20px) | filename(expand) | dir(90px)]` keeps
+all three on one line and gives the name the slack.
 
-**Impact:** Cannot create a row like `[status_letter(16px) | filename(expand)]` — the filename fills 100% and the status letter wraps below.
-
-**Workaround:** Bake all content into a single label string on the parent element, avoiding child elements entirely.
-
-**Suggested fix:** The autolayout engine should calculate `expand()` as `parent_content_width - sum(fixed_sibling_widths)` in Row flex, matching CSS `flex: 1` behavior.
+The sidebar file row was computing `nameW = totalW - dirW - GAP*2 - STATUS_W`
+in app code to work around it. That arithmetic is gone; only the dir column
+carries a width now.
 
 ---
 
-### Custom Colors Bypass Disabled Dimming — OPEN
+### Custom Colors Bypass Disabled Dimming — RESOLVED
 
-**Problem:** `resolve_background_color()` returns custom colors as-is when `disabled=true`. The disabled dimming only applies to `Theme::Usage`-based colors. Since real apps overwhelmingly use `with_custom_background(Color)`, `with_disabled(true)` blocks interactions but does NOT change the visual appearance.
+`resolve_background_color()` now routes a custom colour through
+`theme.disabled_variant()` when `disabled` is set, which mixes toward the
+background by `Theme::disabled_opacity` (0.3) and scales alpha to match. So
+`with_disabled(true)` changes the appearance of a `with_custom_background()`
+element, not just its hit-testing.
 
-**Workaround:** Manually check `enabled` in each preset factory function and set different bg/text colors.
-
-- should be fixed (wm_afterhours added `disabled_opacity` to theme.h)
+The presets still pick their own disabled bg/text rather than leaning on this,
+which is deliberate — `theme::DISABLED_BG`/`DISABLED_TEXT` are chosen colours,
+not a generic 30% mix.
 
 ---
 
@@ -238,11 +231,43 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
 - **Impact:** Cannot use `text_input()` without adding these to the app's `InputAction` enum and registering key mappings.
 - **Workaround:** Added the required enum values to `src/input_mapping.h` and registered key mappings in `src/preload.cpp`.
 
-### Clipboard shortcuts not wired in text_input
-- **Issue:** `text_input()` doesn't wire Cmd+C/V/X clipboard shortcuts — requires manual action binding.
-- **Impact:** Copy/paste doesn't work in commit message editor without manual wiring.
-- **Workaround:** Wire clipboard shortcuts manually in `InputSystem` via `ActionMap`.
-- should be fixed (wm_afterhours implemented clipboard shortcuts in text_input phases 1-9)
+### Clipboard shortcuts not wired in text_input — RESOLVED, adopted
+- afterhours implements copy/cut/paste/undo/redo/word-motion/shift-selection and
+  binds them in `ui::default_keymap<InputAction>()`, matched to the app's enum
+  **by name**. A name the enum does not have compiles the feature out silently,
+  which is how the commit box went without them for so long; the library warns
+  about the missing names now.
+- `src/input_mapping.h` carries all eleven, and `src/preload.cpp` takes
+  `default_keymap` instead of hand-listing four keys.
+
+---
+
+### Draw capture is not implemented on the sokol/Metal backend — OPEN
+- **Issue:** `capture::record()` is called from `backends/raylib` and
+  `backends/none` only. `backends/sokol` never records, even though the UI
+  renderer sets up `capture::Scope` attribution around every draw.
+- **Impact:** `expect_drawn`, `expect_not_drawn`, `expect_drawn_at` and
+  `dump_draws` are no-ops here — `dump_draws` reports `0 draws this frame`.
+  `tests/e2e_scripts/flow_commit_graph_lines.e2e` is named for asserting that
+  graph lines are drawn and can only take screenshots.
+- **Suggested fix:** call `capture::record` from
+  `backends/sokol/drawing_helpers.h` the way the other two backends do.
+
+### `with_placeholder` is a text_field feature; text_area ignores it — OPEN
+- **Issue:** `text_area()` never reads `config.placeholder`. Setting it
+  compiles, runs, and shows nothing.
+- **Impact:** A multi-line field cannot have a hint inside it. The commit box
+  keeps its hint as a label stacked above the input, costing 16px of sidebar.
+- **Suggested fix:** either honour `placeholder` in `text_area`, or reject it
+  at the call so it fails loudly instead of silently.
+
+### Font codepoint coverage helpers are raylib-only — OPEN
+- **Issue:** `default_codepoints()` and `font_has_glyph()` live in
+  `backends/raylib/font_helper.h`. The sokol backend rasterises on demand
+  through fontstash and has neither.
+- **Impact:** No way to ask whether a face covers a codepoint before using it,
+  so the ASCII fallbacks in `sidebar_system.h` (`"> "` for ▶ at the review
+  strip, no arrows on Push/Pull) stay guesswork.
 
 ---
 
