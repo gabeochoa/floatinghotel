@@ -261,12 +261,12 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 render_basket(ctx, uiRoot, *reviewPtr, repoPtr);
         }
 
-        // Shelf collapsed → diff pane hidden (sidebar fills the window).
-        if (layout.shelfCollapsed) {
-            if (layout.commandLogVisible)
-                render_command_log(ctx, uiRoot, layout);
-            return;
-        }
+        // Shelf collapsed → diff pane hidden and the window shrinks to the
+        // sidebar, so LayoutSystem gives the command log no rect. Building it
+        // anyway made a 0x0 panel whose every child overflowed it -- a few
+        // hundred layout warnings a run for a panel nobody could see. It comes
+        // back with the shelf, when there is somewhere to put it.
+        if (layout.shelfCollapsed) return;
 
         if (!hasRepo) {
             render_welcome_screen(ctx, mainBg.ent(), layout);

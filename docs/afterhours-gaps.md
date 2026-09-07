@@ -261,6 +261,17 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
 - **Suggested fix:** either honour `placeholder` in `text_area`, or reject it
   at the call so it fails loudly instead of silently.
 
+### text_area lines overflow their own field — OPEN
+- **Issue:** `text_area_line` is laid out wider than the `text_area_field` that
+  owns it, e.g. `child_size=[344.4,0.0]` inside `parent_size=[312.0,52.0]`. The
+  line is also reported with height 0.
+- **Impact:** The only layout warning floatinghotel still emits comes from
+  inside the library's own widget, so the containment check is noisy for every
+  consumer with a text area. Nothing visibly wrong on screen — the field clips
+  — but it makes `assert_within_parents` harder to trust.
+- **Repro:** the commit message box and the review comment box, any run of the
+  e2e suite.
+
 ### Font codepoint coverage helpers are raylib-only — OPEN
 - **Issue:** `default_codepoints()` and `font_has_glyph()` live in
   `backends/raylib/font_helper.h`. The sokol backend rasterises on demand

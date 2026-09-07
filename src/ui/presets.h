@@ -245,7 +245,9 @@ inline ComponentConfig ScrollPanel() {
 // Default size: percent(1.0f) x h720(44). Flex-end justified.
 inline ComponentConfig DialogButtonRow() {
     return ComponentConfig{}
-        .with_size(ComponentSize{percent(1.0f), h720(44)})
+        // 52, not 44: preset::Button is h720(32) and this row pads 8 top and
+        // bottom, so 44 left a 28px content box for a 32px button.
+        .with_size(ComponentSize{percent(1.0f), h720(52)})
         .with_flex_direction(FlexDirection::Row)
         .with_justify_content(JustifyContent::FlexEnd)
         .with_align_items(AlignItems::Center)

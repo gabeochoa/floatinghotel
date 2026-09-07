@@ -231,13 +231,6 @@ inline std::string git_err(const git::GitResult& r) {
     return "git exit " + std::to_string(r.exit_code());
 }
 
-// Space reserved on the right of a header row for its action buttons, so the
-// left-hand label doesn't take 100% width and shove the buttons off-screen
-// (SpaceBetween can't shrink a percent(1.0) child). File header: "Copy Diff".
-// Hunk header: "Copy" + "Comment"/"Approve".
-constexpr float FILE_HEADER_BTN_RESERVE = 110.0f;
-constexpr float HUNK_HEADER_BTN_RESERVE = 170.0f;
-
 // ID ranges for diff elements to avoid collision with other systems.
 // MainContentSystem uses 3000-3999. We use 4000-59999.
 constexpr int BASE_ID = 4000;
@@ -485,15 +478,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_debug_name("hunk_header_row"));
     if (vp) vp->built(diff_detail::HUNK_HEADER_H);
 
-    // Reserve room on the right for the action buttons (Copy/Comment/Approve)
-    // so the label doesn't take 100% width and push them off-screen.
-    auto hunkLabelW = contentWidth > 0
-        ? pixels(contentWidth - diff_detail::HUNK_HEADER_BTN_RESERVE)
-        : percent(1.0f);
+    // The label takes what the action cluster (Copy/Comment/Approve) leaves.
+    // This used to subtract a hardcoded reserve, because percent(1.0) took the
+    // whole row and shoved the buttons off-screen.
     div(ctx, mk(hunkRow.ent(), 0),
         ComponentConfig{}
             .with_label(hunk.header)
-            .with_size(ComponentSize{hunkLabelW, percent(1.0f)})
+            .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
@@ -736,13 +727,10 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("sbs_hunk_header_row"));
-    auto sbsLabelW = contentWidth > 0
-        ? pixels(contentWidth - diff_detail::HUNK_HEADER_BTN_RESERVE)
-        : percent(1.0f);
     div(ctx, mk(hunkRow.ent(), 0),
         ComponentConfig{}
             .with_label(hunk.header)
-            .with_size(ComponentSize{sbsLabelW, percent(1.0f)})
+            .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
@@ -1073,18 +1061,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
         vp.built(diff_detail::FILE_HEADER_H);
 
         // Working-tree file header gets an "Approve file" button (stages the
-        // whole file); reserve extra room for it so it clusters with Copy Diff.
+        // whole file). No reserve to compute: the label expands into whatever
+        // the action cluster leaves, however many buttons it ends up holding.
         bool showApproveFile = sess.reviewActions && sess.reviewScope == "wt";
-        float fileReserve = showApproveFile
-            ? diff_detail::FILE_HEADER_BTN_RESERVE + 110.0f
-            : diff_detail::FILE_HEADER_BTN_RESERVE;
-        auto fileLabelW = contentWidth > 0
-            ? pixels(contentWidth - fileReserve)
-            : percent(1.0f);
         div(ctx, mk(fileHeaderRow.ent(), 0),
             ComponentConfig{}
                 .with_label(fileLabel)
-                .with_size(ComponentSize{fileLabelW, percent(1.0f)})
+                .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(afterhours::ui::FontSize::Large)
                 .with_alignment(TextAlignment::Left)

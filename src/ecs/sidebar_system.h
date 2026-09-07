@@ -424,14 +424,23 @@ private:
                            void (*apply)(LayoutComponent&)) {
             // Mock: tabs are transparent text with an accent underline on the
             // active one (not filled pills).
+            // expand(), not children(): four natural-width tabs do not fit a
+            // 200px sidebar (the minimum) and NoWrap put Refs outside the strip
+            // where it could not be clicked at all. Sharing the row keeps all
+            // four reachable at every width, and at the default width there is
+            // enough for each to render its label in full anyway.
             auto config = preset::Button(label)
-                .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 4)})
+                .with_size(ComponentSize{afterhours::ui::expand(),
+                                         h720(TAB_HEIGHT - 4)})
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                // Tight padding: four tabs share a sidebar that starts at
+                // 200px, so every pixel here is one the labels do not get.
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(8),
-                    .bottom = h720(2), .left = pixels(8)})
+                    .top = h720(2), .right = pixels(5),
+                    .bottom = h720(2), .left = pixels(5)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
-                    .left = {}, .right = pixels(4)})
+                    .left = {}, .right = pixels(3)})
                 .with_font_size(FontSize::Medium)
                 .with_transparent_bg()
                 .with_roundness(0.0f)
@@ -554,11 +563,14 @@ private:
                 .with_debug_name("sync_caption"));
 
         auto syncBtn = [&](int id, const std::string& label, bool enabled) -> bool {
+            // Compact, not expand(): stretching these across the row loses the
+            // mock's look. Tighter side padding is what makes all three fit a
+            // 200px sidebar, which is the minimum the divider can be dragged to.
             auto config = preset::Button(label, enabled)
                 .with_size(ComponentSize{children(), children()})
                 .with_padding(Padding{
-                    .top = pixels(3), .right = pixels(12),
-                    .bottom = pixels(3), .left = pixels(12)})
+                    .top = pixels(3), .right = pixels(6),
+                    .bottom = pixels(3), .left = pixels(6)})
                 .with_font_size(FontSize::Medium)
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("sync_btn");
@@ -832,7 +844,9 @@ private:
             std::to_string(repo.branches.size());
         div(ctx, mk(headerRow.ent(), 1),
             preset::SectionHeader(branchLabel)
-                .with_size(ComponentSize{percent(1.0f), children()})
+                // expand(), not percent(1): "+ New" shares this row, and a
+                // full-width label pushed it outside the header.
+                .with_size(ComponentSize{afterhours::ui::expand(), children()})
                 .with_debug_name("branches_label"));
 
         // "+ New" button
@@ -937,27 +951,15 @@ private:
                     .right = pixels(6)})
                 .with_debug_name("branch_badge"));
 
-        // Branch name. percent(1.0f) resolves to the full row width without
-        // subtracting siblings in a Row flex, so it overflows the badge/delete
-        // button — mirror render_file_row and thread an explicit pixel width.
+        // Branch name takes whatever the badge, tracking and delete button
+        // leave. This used to subtract each sibling by hand because percent(1)
+        // resolved to the whole row and overflowed them; expand() does it now.
         auto nameColor = isCurrent ? afterhours::Color{255, 255, 255, 255}
                                    : theme::TEXT_PRIMARY;
-        float branchNameW;
-        {
-            constexpr float ROW_PAD_R = 8.0f;   // row right padding
-            constexpr float BADGE_W = 20.0f + 14.0f;  // badge + L/R margins
-            constexpr float DELETE_W = 20.0f;   // delete button (non-current)
-            constexpr float INDICATOR_W = 3.0f; // green left border (current)
-            float base = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;
-            branchNameW = base - ROW_PAD_R - BADGE_W
-                        - (isCurrent ? INDICATOR_W : DELETE_W)
-                        - (branch.tracking.empty() ? 0.0f : 44.0f);
-            if (branchNameW < 40.0f) branchNameW = 40.0f;
-        }
         div(ctx, mk(rowResult.ent(), 3),
             ComponentConfig{}
                 .with_label(branch.name)
-                .with_size(ComponentSize{pixels(branchNameW), h720(ROW_H)})
+                .with_size(ComponentSize{afterhours::ui::expand(), h720(ROW_H)})
                 .with_custom_text_color(nameColor)
                 .with_font_size(FontSize::Medium)
                 .with_alignment(TextAlignment::Left)
@@ -1828,7 +1830,9 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, DIALOG_ID), editor.showUnstagedDialog,
             ModalConfig{}
-                .with_size(pixels(480), h720(380))
+                // Cancel + "Commit Staged Only" + "Stage All & Commit" need
+                // ~535px of row; 480 left the last one outside the dialog.
+                .with_size(pixels(640), h720(380))
                 .with_title("Unstaged Changes")
                 .with_show_close_button(false));
 

@@ -93,7 +93,9 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
     div(ctx, mk(headerBar.ent(), 3221),
         ComponentConfig{}
             .with_label("GIT COMMAND LOG")
-            .with_size(ComponentSize{percent(1.0f), h720(HEADER_H)})
+            // expand(), not percent(1.0): the count sits in the same row, and
+            // a full-width title left it no space and pushed it outside.
+            .with_size(ComponentSize{afterhours::ui::expand(), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_font_size(afterhours::ui::FontSize::Medium)
             .with_alignment(TextAlignment::Left)
