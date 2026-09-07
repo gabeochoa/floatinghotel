@@ -917,7 +917,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (contentParent->has<afterhours::ui::HasScrollView>()) {
             auto& sv = contentParent->get<afterhours::ui::HasScrollView>();
             scrollY = sv.scroll_offset.y;
-            viewportH = sv.viewport_size.y;
+            viewportH = sv.viewport_or_zero().y;
         }
         if (viewportH <= 0.f)
             viewportH = contentHeight > 0

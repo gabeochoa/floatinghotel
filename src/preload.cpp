@@ -70,32 +70,11 @@ Preload& Preload::make_singleton() {
     auto& sophie = EntityHelper::createEntity();
     {
         {
-            // Input mappings for text input (T031)
-            std::map<int, afterhours::input::ValidInputs> mapping;
-            mapping[static_cast<int>(InputAction::TextBackspace)] = {
-                afterhours::keys::BACKSPACE,
-            };
-            mapping[static_cast<int>(InputAction::TextDelete)] = {
-                afterhours::keys::DELETE_KEY,
-            };
-            mapping[static_cast<int>(InputAction::TextHome)] = {
-                afterhours::keys::HOME,
-            };
-            mapping[static_cast<int>(InputAction::TextEnd)] = {
-                afterhours::keys::END,
-            };
-            mapping[static_cast<int>(InputAction::WidgetLeft)] = {
-                afterhours::keys::LEFT,
-            };
-            mapping[static_cast<int>(InputAction::WidgetRight)] = {
-                afterhours::keys::RIGHT,
-            };
-            mapping[static_cast<int>(InputAction::WidgetPress)] = {
-                afterhours::keys::ENTER,
-            };
-            mapping[static_cast<int>(InputAction::MenuBack)] = {
-                afterhours::keys::ESCAPE,
-            };
+            // afterhours' conventional bindings, matched to our enum by name:
+            // widget focus movement plus the whole text-editing chord set
+            // (cmd/ctrl C/X/V/Z, word motion, shift-selection). Hand-rolling
+            // it is what left the commit box without copy and paste.
+            auto mapping = ui::default_keymap<InputAction>();
             input::add_singleton_components(sophie, mapping);
         }
         {
@@ -144,11 +123,17 @@ Preload& Preload::make_singleton() {
         // Four typography tiers (values are h720 reference pixels):
         //   Small/Caption = 12, Body/Medium = 14, Subhead/Large = 16,
         //   Display/XL = 22 (page/commit/welcome titles only).
-        auto& theme = ui::imm::ThemeDefaults::get().theme;
+        // Published with set_theme, not written into .theme: ThemeDefaults
+        // copies app_default over the live theme before each frame's UI, so a
+        // direct write only survives frame one and everything then renders at
+        // the library's own tiers.
+        auto& defaults = ui::imm::ThemeDefaults::get();
+        auto theme = defaults.get_theme();
         theme.font_sizing.small = 12.0f;
         theme.font_sizing.medium = 14.0f;
         theme.font_sizing.large = 16.0f;
         theme.font_sizing.xl = 22.0f;
+        defaults.set_theme(theme);
 
         ui::imm::UIStylingDefaults::get().set_grid_snapping(true);
     }

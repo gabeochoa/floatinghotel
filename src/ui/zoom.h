@@ -16,8 +16,13 @@ inline float get() {
 }
 
 inline void set(float scale) {
-    auto& theme = afterhours::ui::imm::ThemeDefaults::get().theme;
-    theme.ui_scale = scale < kMin ? kMin : (scale > kMax ? kMax : scale);
+    auto& defaults = afterhours::ui::imm::ThemeDefaults::get();
+    const float clamped = scale < kMin ? kMin : (scale > kMax ? kMax : scale);
+    // Both slots. ThemeDefaults::begin_frame() copies app_default over theme
+    // before each frame's UI is built, so writing only the live theme means
+    // the zoom is gone by the next frame.
+    defaults.theme.ui_scale = clamped;
+    defaults.app_default.ui_scale = clamped;
 }
 
 inline void step(float delta) { set(get() + delta); }
