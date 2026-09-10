@@ -17,6 +17,9 @@
 #include "query_helpers.h"
 #include "tab_bar_system.h"
 #include "../ui/diff_renderer.h"
+#include <chrono>
+#include <thread>
+
 #include "../git/git_parser.h"
 #include "../git/git_runner.h"
 #include "../util/process.h"
@@ -57,9 +60,17 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
         // thousands of dirs over a suite's lifetime; the fixture is tiny (a
         // handful of files) so remove_all is plenty fast.
         if (fs::exists(REPO_PATH)) {
+            // The previous script's git worker or FSEvents stream can still be
+            // inside the tree for a moment, which makes remove_all fail with
+            // "Directory not empty" under load. Retry briefly before giving up.
             std::error_code ec;
-            fs::remove_all(REPO_PATH, ec);
-            if (ec) {
+            for (int attempt = 0; attempt < 10; ++attempt) {
+                ec.clear();
+                fs::remove_all(REPO_PATH, ec);
+                if (!ec && !fs::exists(REPO_PATH)) break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            if (ec || fs::exists(REPO_PATH)) {
                 log_warn("make_test_repo: remove failed: {}", ec.message());
                 return false;
             }
