@@ -12,6 +12,8 @@
 #include <string>
 #include <unistd.h>
 #include <vector>
+#include <optional>
+#include <algorithm>
 
 #ifdef __APPLE__
 extern "C" void metal_activate_app(void);
@@ -56,6 +58,7 @@ extern "C" void metal_wait_all_screenshots(void);
 // E2E testing support
 #include <afterhours/src/plugins/e2e_testing/e2e_testing.h>
 #include <afterhours/src/plugins/e2e_testing/ui_commands.h>
+#include <afterhours/src/plugins/e2e_testing/perf_commands.h>
 #include "ecs/e2e_command_handlers.h"
 
 // Main render system - begin_drawing/clear_background done in app_frame
@@ -91,6 +94,36 @@ struct HandleWaitForFileChange : afterhours::System<afterhours::testing::Pending
         if (cmd.is_consumed() || !cmd.is("wait_for_file_change")) return;
         cmd.consume();
         e2e_refresh_gate::file_change_triggered = true;
+    }
+};
+
+// bench_frames N: render N full frames back to back, outside the E2E tick
+// loop, and report wall time per frame plus the per-system profile over
+// exactly those frames. Feeds expect_fps_above / expect_p99_below.
+namespace e2e_bench {
+inline int requested = 0;
+inline std::vector<float> samples_ms;
+inline std::optional<float> avg_ms() {
+    if (samples_ms.empty()) return std::nullopt;
+    double sum = 0.0;
+    for (float v : samples_ms) sum += v;
+    return static_cast<float>(sum / static_cast<double>(samples_ms.size()));
+}
+inline std::optional<float> percentile_ms(double q) {
+    if (samples_ms.empty()) return std::nullopt;
+    std::vector<float> sorted = samples_ms;
+    std::sort(sorted.begin(), sorted.end());
+    size_t idx = static_cast<size_t>(q * static_cast<double>(sorted.size() - 1));
+    return sorted[idx];
+}
+}  // namespace e2e_bench
+
+struct HandleBenchFrames : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("bench_frames")) return;
+        int n = cmd.has_args(1) ? cmd.arg_as<int>(0) : 120;
+        e2e_bench::requested = std::max(1, n);
+        cmd.consume();
     }
 };
 
@@ -136,7 +169,7 @@ std::string screenshotDir = "output/screenshots";
 float e2eTimeout = 30.0f;
 afterhours::testing::E2ERunner e2eRunner;
 bool waitingForRefresh = false;
-float refreshWaitElapsed = 0.0f;
+std::chrono::steady_clock::time_point refreshWaitStart{};
 bool waitingForFileChange = false;
 std::chrono::steady_clock::time_point fileChangeWaitStart{};
 unsigned fileChangeFiredAtArm = 0;
@@ -383,6 +416,33 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleWaitForRefresh>());
             sm.register_update_system(std::make_unique<HandleWaitForFileChange>());
             sm.register_update_system(std::make_unique<HandleFileWatcherToggle>());
+            sm.register_update_system(std::make_unique<HandleBenchFrames>());
+            {
+                namespace perf = afterhours::testing::perf_commands;
+                perf::builtin_profile::enable();
+                perf::PerfProvider p;
+                p.get_fps = []() -> std::optional<float> {
+                    auto avg = e2e_bench::avg_ms();
+                    if (!avg || *avg <= 0.0f) return std::nullopt;
+                    return 1000.0f / *avg;
+                };
+                p.get_p99_ms = []() { return e2e_bench::percentile_ms(0.99); };
+                p.top_entries = [](int count) {
+                    std::vector<perf::PerfEntry> out;
+                    for (const auto& [name, acc] : perf::builtin_profile::totals())
+                        out.push_back(perf::PerfEntry{
+                            name,
+                            acc.calls ? static_cast<float>(acc.total_ms / acc.calls) : 0.f,
+                            std::nullopt});
+                    std::sort(out.begin(), out.end(),
+                              [](const auto& a, const auto& b) { return a.ms > b.ms; });
+                    if (count > 0 && static_cast<int>(out.size()) > count)
+                        out.resize(static_cast<size_t>(count));
+                    return out;
+                };
+                perf::set_provider(std::move(p));
+                perf::register_perf_commands(sm);
+            }
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
                 std::make_unique<afterhours::testing::HandleScreenshotCommand>(
@@ -458,31 +518,40 @@ static constexpr int SCREENSHOT_DELAY = 3;
 
 // Process E2E commands in a tight loop without rendering, breaking when
 // a screenshot is needed or when we must wait for async operations.
-static void e2e_tick_loop(float real_dt) {
+static void e2e_tick_loop([[maybe_unused]] float real_dt) {
     constexpr int MAX_TICKS = 200;
     constexpr float SIM_DT = 1.0f / 60.0f;
 
     for (int i = 0; i < MAX_TICKS; ++i) {
         // Wait for deferred screenshot to be captured before advancing
         if (!s_readyScreenshotName.empty()) break;
+        if (e2e_bench::requested > 0) break;
 
         afterhours::testing::test_input::reset_frame();
 
         if (e2e_refresh_gate::triggered) {
             e2e_refresh_gate::triggered = false;
             app_state::waitingForRefresh = true;
-            app_state::refreshWaitElapsed = 0.0f;
+            app_state::refreshWaitStart = std::chrono::steady_clock::now();
         }
 
         if (app_state::waitingForRefresh) {
-            app_state::refreshWaitElapsed += real_dt;
-            constexpr float MAX_REFRESH_WAIT = 5.0f;
+            // Wall clock: headless real_dt is a fixed 1/60 s whatever the frame
+            // took, so summing it capped this wait at 300 frames, which a
+            // git status over a few thousand files outlasts.
+            constexpr auto MAX_REFRESH_WAIT = std::chrono::seconds(30);
             bool refreshDone = true;
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
                 refreshDone = !repo->refreshRequested && !repo->isRefreshing;
             }
-            if (refreshDone || app_state::refreshWaitElapsed > MAX_REFRESH_WAIT) {
+            const auto waited =
+                std::chrono::steady_clock::now() - app_state::refreshWaitStart;
+            if (!refreshDone && waited > MAX_REFRESH_WAIT) {
+                log_warn("wait_for_refresh: refresh still running after {} s",
+                         MAX_REFRESH_WAIT.count());
+            }
+            if (refreshDone || waited > MAX_REFRESH_WAIT) {
                 app_state::waitingForRefresh = false;
                 continue;
             }
@@ -539,6 +608,41 @@ static void e2e_tick_loop(float real_dt) {
     }
 }
 
+static void run_bench_frames(float dt) {
+    namespace perf = afterhours::testing::perf_commands;
+    const int n = e2e_bench::requested;
+    e2e_bench::requested = 0;
+    perf::builtin_profile::reset();
+    e2e_bench::samples_ms.clear();
+    e2e_bench::samples_ms.reserve(static_cast<size_t>(n));
+
+    for (int i = 0; i < n; ++i) {
+        auto t0 = std::chrono::steady_clock::now();
+        afterhours::testing::test_input::reset_frame();
+        afterhours::graphics::begin_drawing();
+        afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
+        app_state::systemManager->run(dt);
+        afterhours::graphics::end_drawing();
+        e2e_bench::samples_ms.push_back(
+            std::chrono::duration<float, std::milli>(
+                std::chrono::steady_clock::now() - t0).count());
+    }
+
+    const size_t entities = afterhours::EntityHelper::get_entities().size();
+    log_info("bench_frames: {} frames, {} entities: avg {:.2f} ms  p50 {:.2f}  p99 {:.2f}  max {:.2f}",
+             n, entities, *e2e_bench::avg_ms(), *e2e_bench::percentile_ms(0.50),
+             *e2e_bench::percentile_ms(0.99), *e2e_bench::percentile_ms(1.0));
+
+    std::vector<std::pair<std::string, double>> top;
+    for (const auto& [name, acc] : perf::builtin_profile::totals())
+        top.emplace_back(name, acc.total_ms / static_cast<double>(n));
+    std::sort(top.begin(), top.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    if (top.size() > 8) top.resize(8);
+    for (const auto& [name, ms] : top)
+        log_info("  {:6.2f} ms/frame  {}", ms, name);
+}
+
 // Render one frame and manage deferred screenshots.
 // Screenshots are deferred by one frame so the window compositor
 // has time to present the rendered content before screencapture runs.
@@ -582,6 +686,7 @@ static void app_frame() {
     if (app_state::testModeEnabled &&
         (app_state::e2eRunner.has_commands() || !s_readyScreenshotName.empty())) {
         e2e_tick_loop(dt);
+        if (e2e_bench::requested > 0) run_bench_frames(dt);
         e2e_render_and_screenshot(dt);
 
         if (app_state::e2eRunner.is_finished() && s_readyScreenshotName.empty()) {

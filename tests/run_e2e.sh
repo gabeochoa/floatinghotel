@@ -41,6 +41,7 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         -t|--timeout) TIMEOUT="$2"; shift 2 ;;
         -d|--dir) E2E_SCRIPTS_DIR="$2"; shift 2 ;;
+        -r|--repo) REPO_PATH="$2"; shift 2 ;;
         --isolate) ISOLATE=true; shift ;;
         --visible) HEADLESS=false; shift ;;
         --headless) HEADLESS=true; shift ;;
@@ -48,6 +49,7 @@ while [[ $# -gt 0 ]]; do
             echo "Usage: $0 [OPTIONS] [FILTER]"
             echo "  -t, --timeout SEC   Timeout per script (default: 30)"
             echo "  -d, --dir DIR       Scripts directory"
+            echo "  -r, --repo DIR      Repo to open (default: tests/fixture_repo)"
             echo "  --isolate           Run each script in its own process"
             echo "  --visible           Show the test window (default: headless)"
             echo "  --headless          Hide the test window (default)"
