@@ -76,7 +76,15 @@ inline void reset_ui_transient_state() {
     afterhours::EntityQuery({.force_merge = true})
         .whereHasComponent<afterhours::ui::HasScrollView>()
         .for_each_stream([](afterhours::Entity& e) {
-            e.get<afterhours::ui::HasScrollView>().scroll_offset = {0.0f, 0.0f};
+            // scroll_offset eases toward scroll_target every frame, so clearing
+            // only the offset lets the easing drag the view straight back to
+            // wherever the previous script left it. Clear all three, the way a
+            // scrollbar drag does, so the reset is authoritative.
+            auto& sv = e.get<afterhours::ui::HasScrollView>();
+            sv.scroll_offset = {0.0f, 0.0f};
+            sv.scroll_target = {0.0f, 0.0f};
+            sv.last_eased_offset = {0.0f, 0.0f};
+            sv.anchor_child = -1;
         });
 
     afterhours::EntityQuery({.force_merge = true})
