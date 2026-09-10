@@ -1,0 +1,32 @@
+# Stress: one file with a very large diff. Needs a repo built with
+#   scripts/make_stress_repo.sh DIR --big-diff LINES
+#   ./tests/run_e2e.sh -r DIR -d tests/stress_scripts stress_big_diff
+resize 1280 720
+wait_for_refresh
+wait_frames 10
+
+click_text "big.cpp"
+wait_for_refresh
+wait_frames 10
+bench_frames 120
+screenshot stress_big_diff_top
+
+# Scroll partway into the diff and bench again
+mouse_move 800 400
+scroll_wheel 0 -200
+wait_frames 10
+bench_frames 120
+screenshot stress_big_diff_scrolled
+
+# The Inline/Side-by-Side toggle lives in the diff header, so scroll back up
+# before clicking it, then scroll into the diff again for the bench.
+scroll_wheel 0 300
+wait_frames 10
+click_text "Side-by-Side"
+wait_frames 10
+bench_frames 120
+screenshot stress_big_diff_side_by_side_top
+scroll_wheel 0 -200
+wait_frames 10
+bench_frames 120
+screenshot stress_big_diff_side_by_side
