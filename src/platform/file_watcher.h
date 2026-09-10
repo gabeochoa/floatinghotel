@@ -76,7 +76,14 @@ public:
         FSEventStreamRef stream = stream_;
         finished_.store(false, std::memory_order_release);
         run_loop_thread_ = std::thread([this, stream] {
+            // CFRunLoopGetCurrent() is unowned and the loop is freed when this
+            // thread exits. stop() reads finished_ and then calls
+            // CFRunLoopStop(rl); if the thread exits in between, that is a
+            // CFRunLoopStop on a dead object (EXC_BREAKPOINT inside CF, seen
+            // under load in the E2E batch). Retain it so stop() owns a live
+            // reference until after join().
             CFRunLoopRef rl = CFRunLoopGetCurrent();
+            CFRetain(rl);
             run_loop_.store(rl, std::memory_order_release);
 
             FSEventStreamScheduleWithRunLoop(
@@ -108,7 +115,9 @@ public:
             }
             run_loop_thread_.join();
         }
-        run_loop_.store(nullptr, std::memory_order_relaxed);
+        if (CFRunLoopRef rl = run_loop_.exchange(nullptr, std::memory_order_acq_rel)) {
+            CFRelease(rl);
+        }
 
         FSEventStreamRelease(stream_);
         stream_ = nullptr;
