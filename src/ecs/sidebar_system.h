@@ -268,16 +268,33 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             float compactH = resolve_to_pixels(h720(88.0f), sh_for_tab);
             if (compactH < filesH) { reclaimedH = filesH - compactH; filesH = compactH; }
         }
-        auto filesBg = div(ctx, mk(sidebarRoot.ent(), 2100),
-            preset::ScrollPanel()
-                .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
-                .with_debug_name("sidebar_files"));
+        // The file list is windowed: only the rows inside the viewport (plus a
+        // few of overscan) are built each frame, so a 5000-file status costs
+        // the same as a 30-file one. Empty tabs and the spinner keep the plain
+        // panel so render_file_list can draw its empty states.
+        auto filesPanel = preset::ScrollPanel()
+            .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
+            .with_debug_name("sidebar_files");
+        const bool windowedFiles =
+            layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
+            repoPtr && active_file_count(*repoPtr) > 0;
+        const float fileRowPx = resolve_to_pixels(
+            h720(static_cast<float>(theme::layout::FILE_ROW_HEIGHT)), sh_for_tab);
+        auto filesBg = windowedFiles
+            ? afterhours::ui::imm::virtual_list(
+                  ctx, mk(sidebarRoot.ent(), 2100), active_file_count(*repoPtr),
+                  fileRowPx,
+                  [&](size_t i, Entity& row) {
+                      render_active_file_row(ctx, row, i, *repoPtr);
+                  },
+                  filesPanel)
+            : div(ctx, mk(sidebarRoot.ent(), 2100), filesPanel);
 
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
             // Render file list directly into filesBg (no intermediate container)
             // to avoid framework bug where nested container children render wrong
             if (repoPtr) {
-                render_file_list(ctx, filesBg.ent(), *repoPtr);
+                if (!windowedFiles) render_file_list(ctx, filesBg.ent(), *repoPtr);
             } else {
                 render_no_repo(ctx, filesBg.ent(), 2150, "no_repo");
             }
@@ -355,13 +372,37 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float logScrollH = commitsH - logHeaderConsumed;
         if (logScrollH < 20.0f) logScrollH = 20.0f;
 
-        auto logScroll = div(ctx, mk(logBg.ent(), 2320),
-            preset::ScrollPanel()
-                .with_size(ComponentSize{logW, pixels(logScrollH)})
-                .with_debug_name("commit_log_scroll"));
+        // Windowed like the file list: a 100-commit log is 600 UI nodes when
+        // every row is built, and only a dozen rows fit the panel. The last
+        // "row" is the load-more indicator when there is more to load.
+        auto logPanel = preset::ScrollPanel()
+            .with_size(ComponentSize{logW, pixels(logScrollH)})
+            .with_debug_name("commit_log_scroll");
+        const size_t logRows = repoPtr
+            ? std::min(repoPtr->commitLog.size(), static_cast<size_t>(MAX_VISIBLE_COMMITS))
+            : 0;
+        const bool windowedLog = repoPtr && logRows > 0;
+        const bool logHasMore = windowedLog && repoPtr->commitLogHasMore;
+        const float commitRowPx = resolve_to_pixels(
+            h720(static_cast<float>(theme::layout::COMMIT_ROW_HEIGHT)), sh2);
+        const float lazyRowPx = resolve_to_pixels(h720(20.0f), sh2);
+        auto logScroll = windowedLog
+            ? afterhours::ui::imm::virtual_list(
+                  ctx, mk(logBg.ent(), 2320), logRows + (logHasMore ? 1 : 0),
+                  [&](size_t i) { return i < logRows ? commitRowPx : lazyRowPx; },
+                  [&](size_t i, Entity& row) {
+                      if (i < logRows) {
+                          render_commit_row(ctx, row, 0, repoPtr->commitLog[i],
+                                            *repoPtr, logRows > 1);
+                      } else {
+                          render_lazy_load_row(ctx, row);
+                      }
+                  },
+                  logPanel)
+            : div(ctx, mk(logBg.ent(), 2320), logPanel);
 
         if (repoPtr) {
-            render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
+            if (!windowedLog) render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
         } else {
             render_no_repo(ctx, logScroll.ent(), 0, "no_repo_log");
         }
@@ -1286,6 +1327,33 @@ private:
     // Render the file list with Staged, Changes, and Untracked sections
     // parentWidth: explicit pixel width to avoid percent resolution bug
     float sidebarPixelWidth_ = 0; // Set before rendering
+    // Which review tab the sidebar is showing, and that tab's rows. The
+    // windowed list above asks for a count and a row builder; render_file_list
+    // below keeps the empty states.
+    static LayoutComponent::ReviewTab active_review_tab() {
+        auto* lc = find_singleton<LayoutComponent>();
+        return lc ? lc->reviewTab : LayoutComponent::ReviewTab::ToReview;
+    }
+
+    static size_t active_file_count(const RepoComponent& repo) {
+        auto tab = active_review_tab();
+        if (tab == LayoutComponent::ReviewTab::ToReview) return repo.unstagedFiles.size();
+        if (tab == LayoutComponent::ReviewTab::Approved) return repo.stagedFiles.size();
+        return repo.untrackedFiles.size();
+    }
+
+    void render_active_file_row(UIContext<InputAction>& ctx, Entity& row,
+                                size_t i, RepoComponent& repo) {
+        auto tab = active_review_tab();
+        if (tab == LayoutComponent::ReviewTab::ToReview) {
+            render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false);
+        } else if (tab == LayoutComponent::ReviewTab::Approved) {
+            render_file_row(ctx, row, 0, repo.stagedFiles[i], repo, true);
+        } else {
+            render_untracked_row(ctx, row, 0, repo.untrackedFiles[i], repo);
+        }
+    }
+
     void render_file_list(UIContext<InputAction>& ctx,
                           Entity& scrollParent,
                           RepoComponent& repo) {
@@ -1560,8 +1628,7 @@ private:
             return;
         }
 
-        constexpr int MAX_VISIBLE = 500;
-        int count = std::min(static_cast<int>(repo.commitLog.size()), MAX_VISIBLE);
+        int count = std::min(static_cast<int>(repo.commitLog.size()), MAX_VISIBLE_COMMITS);
 
         bool multipleCommits = (count > 1);
         for (int i = 0; i < count; ++i) {
@@ -1569,21 +1636,25 @@ private:
                               multipleCommits);
         }
 
-        // Lazy load indicator at bottom
-        if (repo.commitLogHasMore) {
-            div(ctx, mk(scrollParent, 9990),
-                ComponentConfig{}
-                    .with_label("\xe2\x97\x8b Loading more...")
-                    .with_size(ComponentSize{percent(1.0f), h720(20)})
-                    .with_padding(Padding{
-                        .top = h720(3), .right = pixels(8),
-                        .bottom = h720(3), .left = pixels(8)})
-                    .with_custom_text_color(theme::TEXT_TERTIARY)
-                    .with_font_size(FontSize::Medium)
-                    .with_alignment(TextAlignment::Center)
-                    .with_roundness(0.0f)
-                    .with_debug_name("lazy_load"));
-        }
+        if (repo.commitLogHasMore) render_lazy_load_row(ctx, scrollParent);
+    }
+
+    static constexpr int MAX_VISIBLE_COMMITS = 500;
+
+    // Lazy load indicator at the bottom of the log.
+    void render_lazy_load_row(UIContext<InputAction>& ctx, Entity& parent) {
+        div(ctx, mk(parent, 9990),
+            ComponentConfig{}
+                .with_label("\xe2\x97\x8b Loading more...")
+                .with_size(ComponentSize{percent(1.0f), h720(20)})
+                .with_padding(Padding{
+                    .top = h720(3), .right = pixels(8),
+                    .bottom = h720(3), .left = pixels(8)})
+                .with_custom_text_color(theme::TEXT_TERTIARY)
+                .with_font_size(FontSize::Medium)
+                .with_alignment(TextAlignment::Center)
+                .with_roundness(0.0f)
+                .with_debug_name("lazy_load"));
     }
 
     // Render a single commit row: [graph_col] [subject] [badge pills] [hash]

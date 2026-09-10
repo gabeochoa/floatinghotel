@@ -17,6 +17,10 @@ click_text "Add unit tests"
 wait_frames 5
 screenshot flow_commits_03_tests_commit
 
+# The log is windowed: scroll it to the bottom so the oldest commit is built
+mouse_move 160 560
+scroll_wheel 0 -100
+wait_frames 5
 # Click the initial commit
 click_text "Initial commit"
 wait_frames 5

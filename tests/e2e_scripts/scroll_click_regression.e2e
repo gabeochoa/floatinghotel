@@ -50,10 +50,15 @@ wait_frames 5
 screenshot scroll_click_05_click_after_scroll
 
 # ── Test commit log scroll area ──────────────────────────────
-# Move mouse into the commit log area and scroll
-mouse_move 160 260
+# Move mouse into the commit log area (below y~290 at 640x480) and scroll
+mouse_move 160 380
 wait_frames 5
 scroll_wheel 0 -3
+wait_frames 5
+
+# The log is windowed: only rows in the viewport exist, so scroll all the
+# way down before clicking the oldest commit.
+scroll_wheel 0 -100
 wait_frames 5
 
 # Click a commit entry after scrolling the log
