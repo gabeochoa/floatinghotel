@@ -282,7 +282,10 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
 
 ---
 
-### sokol backend does not compile after b3f8cef (letterbox in backend.h) — OPEN, BLOCKS BUMP
+### sokol backend does not compile after b3f8cef (letterbox in backend.h) — RESOLVED upstream (b385dc9), adopted
+Fixed as suggested, plus a `sokol_include_order_test` that includes
+`window_manager.h` so the ordering cannot silently regress again. Bumped to
+b385dc9 on 2026-09-10: builds clean, unit 5/5, E2E 98/98.
 - **Upstream range:** 0c67090..ac1062f (28 commits, tried 2026-09-10). Every
   sokol/Metal build fails; wm is raylib so upstream never sees it.
 - **Issue:** `backends/sokol/backend.h:753` `MetalPlatformAPI::get_mouse_position`
@@ -317,7 +320,11 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
   ```
   Verified here: builds, 98/98 e2e, and the e2e mouse injection still works.
 
-### Flex solver budgets raw child sizes while placement uses snapped ones (since 7a56f60) — OPEN, BLOCKS BUMP
+### Flex solver budgets raw child sizes while placement uses snapped ones (since 7a56f60) — RESOLVED upstream (7b84bd0), adopted
+Upstream found a third site the note below missed: the `total_main_size`
+loop that `remaining_space` derives from, which FlexEnd and Center offset by.
+All 45 remaining `Layout overflow` warnings after the bump are the known
+`text_area_line` noise.
 - **Upstream range:** same bump. 7a56f60 "Place expand children by the width
   they end up with" made placement read `snapped_extent`, but `_total_child`,
   `_max_child` (autolayout.h ~1040) and the justify-content pass (~1412) still
@@ -391,8 +398,8 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
   }
   ```
 
-### Waiting on the two fixes above: tooltips (e221b77)
-Once the bump lands, add `.with_tooltip(...)` where labels ellipsize: file
+### Tooltips (e221b77) — available now that the bump landed
+Next step: add `.with_tooltip(...)` where labels ellipsize: file
 rows (full path), commit rows (subject), repo header and tabs (repo path).
 `UpdateTooltips`/`RenderTooltip` register through the existing
 `registerUIPostLayoutSystems`/`registerUIRenderSystems` calls, so nothing else
