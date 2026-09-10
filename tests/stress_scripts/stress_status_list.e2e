@@ -1,0 +1,17 @@
+# Stress: large status lists. Run against a repo from scripts/make_stress_repo.sh
+#   ./tests/run_e2e.sh -r /tmp/fh_stress_1000 -d tests/stress_scripts
+resize 1280 720
+wait_for_refresh
+wait_frames 10
+bench_frames 120
+screenshot stress_status_to_review
+
+click_text "Untracked"
+wait_frames 5
+bench_frames 120
+screenshot stress_status_untracked
+
+click_text "Approved"
+wait_frames 5
+bench_frames 120
+screenshot stress_status_approved
