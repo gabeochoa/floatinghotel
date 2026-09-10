@@ -500,7 +500,10 @@ floatinghotel does not need it: `render_side_by_side_diff` puts both sides in
 *one* scroll view as two cells per row, so they cannot desync. Reach for
 `sync_group` only if the two panes ever become separate scroll views.
 
-### Virtualized list rendering
-- **What's missing:** No virtualized list that only renders visible items (for performance with 1000+ items).
-- **What floatinghotel needs:** Large commit logs (10k+ commits), large file lists.
-- **Workaround:** Manually implement windowed rendering inside `scroll_view()` — only create `div()`/`button()` entities for visible rows based on scroll offset and container height.
+### Virtualized list rendering — RESOLVED upstream (`virtual_list`), adopted
+`imm::virtual_list(ctx, mk(parent), count, row_height, render_row, config)`
+builds only the rows in the viewport (plus overscan) and reports the unbuilt
+extent through `HasScrollView::unbuilt_content_size` so the scrollbar spans
+the list. The sidebar file list and commit log use it as of 2026-09-10.
+Measured with `bench_frames` (tests/run_stress.sh): 1000 files went from
+2654 entities / 19.6 ms per frame to a flat ~5 ms at 100, 1000 and 5000 files.
