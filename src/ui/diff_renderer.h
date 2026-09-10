@@ -271,8 +271,8 @@ inline std::string file_diff_to_text(const ecs::FileDiff& diff) {
 //
 // Units: scroll_offset/content_size are in real pixels, but row heights are
 // authored in 720-space (h720). We resolve each to px so curY matches the
-// scroll offset. Only the inline, non-embedded path is virtualized; SBS and
-// embedded (commit-detail) diffs build fully (vp.active == false).
+// scroll offset. Embedded (commit-detail) diffs build fully (vp.active ==
+// false) because they scroll with their parent.
 struct DiffViewport {
     bool active = false;
     float screenH = 720.f;
@@ -463,9 +463,16 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
     }
 
-    // Hunk header row: label + copy button
-    if (vp) vp->flush(ctx, parent, nextId);
+    // Hunk header row: label + copy button. Culled like the lines: a diff
+    // with thousands of hunks used to build every header (six entities each)
+    // no matter what was on screen, which dwarfed the culled line rows.
     int hunkHeaderId = nextId++;
+    const bool headerVisible =
+        !vp || !vp->active || vp->visible(diff_detail::HUNK_HEADER_H);
+    if (!headerVisible) {
+        vp->skipped(diff_detail::HUNK_HEADER_H);
+    } else {
+    if (vp) vp->flush(ctx, parent, nextId);
     auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
         ComponentConfig{}
             .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
@@ -579,6 +586,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             sel->review->composingLine = hunk.newStart;
         }
     }
+    } // headerVisible
 
     // Inline compose row for this hunk.
     if (reviewOn && sel->review->composingKey == hkey) {
@@ -711,14 +719,21 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                             const ecs::FileDiff& fileDiff,
                             const ecs::DiffHunk& hunk,
                             int& nextId,
-                            float contentWidth = 0) {
+                            float contentWidth = 0,
+                            diff_detail::DiffViewport* vp = nullptr) {
     (void)fileDiff;
     using diff_detail::SbsKind;
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
+    const bool culling = vp && vp->active;
 
     // Hunk header row (same look as inline: label + copy button)
-    auto hunkRow = div(ctx, mk(parent, nextId++),
+    int hunkHeaderId = nextId++;
+    if (culling && !vp->visible(diff_detail::HUNK_HEADER_H)) {
+        vp->skipped(diff_detail::HUNK_HEADER_H);
+    } else {
+    if (culling) vp->flush(ctx, parent, nextId);
+    auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
         ComponentConfig{}
             .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
             .with_flex_direction(FlexDirection::Row)
@@ -727,6 +742,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("sbs_hunk_header_row"));
+    if (culling) vp->built(diff_detail::HUNK_HEADER_H);
     div(ctx, mk(hunkRow.ent(), 0),
         ComponentConfig{}
             .with_label(hunk.header)
@@ -756,6 +772,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             afterhours::toast::send_info(ctx, "Copied hunk to clipboard", 1.5f);
         }
     }
+    } // header visible
 
     int oldLine = hunk.oldStart;
     int newLine = hunk.newStart;
@@ -767,7 +784,18 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
     auto emitRow = [&](const std::string& lNum, const std::string& lContent,
                        SbsKind lKind, const std::string& rNum,
                        const std::string& rContent, SbsKind rKind) {
-        auto rowDiv = div(ctx, mk(parent, nextId++),
+        // Same id-per-row discipline as the inline path so a row keeps its
+        // entity across frames whether or not it was built.
+        int rowId = nextId++;
+        if (culling) {
+            if (!vp->visible(diff_detail::LINE_HEIGHT)) {
+                vp->skipped(diff_detail::LINE_HEIGHT);
+                return;
+            }
+            vp->flush(ctx, parent, nextId);
+            vp->built(diff_detail::LINE_HEIGHT);
+        }
+        auto rowDiv = div(ctx, mk(parent, rowId),
             ComponentConfig{}
                 .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
                 .with_flex_direction(FlexDirection::Row)
@@ -893,11 +921,12 @@ inline void render_diff(UIContext<InputAction>& ctx,
         contentParent = &scrollContainer.ent();
     }
 
-    // Virtualize the inline diff: only build rows in the visible scroll window
+    // Virtualize the diff: only build rows in the visible scroll window
     // (+1 screen overscan). Read the prior frame's scroll offset/viewport from
-    // the persistent scroll container. SBS/embedded diffs build fully.
+    // the persistent scroll container. Embedded (commit-detail) diffs build
+    // fully since they scroll with their parent.
     diff_detail::DiffViewport vp;
-    if (!embedInParentScroll && !sideBySide) {
+    if (!embedInParentScroll) {
         vp.active = true;
         vp.screenH = (float)afterhours::graphics::get_screen_height();
         vp.contentWidth = contentWidth;
@@ -1156,7 +1185,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         for (auto& hunk : fileDiff.hunks) {
             if (sideBySide) {
                 render_sbs_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
-                                contentWidth);
+                                contentWidth, &vp);
             } else {
                 render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
                             contentWidth,
