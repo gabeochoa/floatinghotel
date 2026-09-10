@@ -409,6 +409,31 @@ memo, measure-by-advance, containment tolerance, bitset) or not used here
 
 ---
 
+### capture_impl.h leaks a staging texture per screenshot unless built with ARC — OPEN, worked around
+`metal_resolve_msaa` and `metal_copy_to_shared` create their readback texture
+with `newTextureWithDescriptor:` (+1) and return it; `metal_read_image_pixels`
+never releases `staged`. Under ARC that is fine; in a plain `-ObjC++` build it
+leaks one 1280x720 RGBA texture (3.7 MB) per `capture_frame`. Measured
+2026-09-10 with `footprint -p`: the E2E batch's IOAccelerator memory grew in
+step with the PNG count (465 MB after 124 screenshots, still one script in)
+and the suite passed 1 GB. wm is raylib, so upstream never runs this path.
+- **Suggested fix:** either state the ARC requirement next to the
+  `SOKOL_IMPL` instructions, or make it build-mode independent:
+  ```objc
+  #if !__has_feature(objc_arc)
+    [staged release];
+  #endif
+  ```
+  after `getBytes:` in `metal_read_image_pixels`.
+- **Related:** headless mode has no sokol_app, so nothing wraps a frame in an
+  autorelease pool; the command buffers and encoders sokol_gfx autoreleases
+  each frame accumulate until exit. Worth a note in the headless docs, or a
+  `graphics::headless_frame(fn)` that provides the pool.
+- **Worked around app-side:** `src/sokol_impl.mm` now builds with
+  `-fobjc-arc`, and the headless loop runs each `app_frame` inside
+  `metal_headless_frame()`, an `@autoreleasepool` wrapper. Full suite after:
+  IOAccelerator flat at 21-30 MB, peak footprint 167 MB, 98/98 in 3.5 min.
+
 ### Windowed startup is spent waiting on sokol_app, not in app code — OPEN
 Measured 2026-09-10 on macOS 26.6.2 with temporary probes in
 `vendor/sokol/sokol_app.h` (reverted). `Startup time` (graphics::run to

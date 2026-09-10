@@ -16,6 +16,7 @@
 #ifdef __APPLE__
 extern "C" void metal_activate_app(void);
 extern "C" void metal_draw_first_frame_early(void);
+extern "C" void metal_headless_frame(void (*fn)(void));
 extern "C" void metal_hide_window(void);
 extern "C" void metal_wait_all_screenshots(void);
 #endif
@@ -831,7 +832,8 @@ int main(int argc, char* argv[]) {
             // The frame budget is a hang backstop; reaching the end is a failure.
             constexpr int kMaxHeadlessFrames = 200000;
             for (int i = 0; i < kMaxHeadlessFrames; ++i) {
-                app_frame();
+                // One autorelease pool per frame, as sokol_app would provide.
+                metal_headless_frame(app_frame);
             }
             fprintf(stderr,
                     "Error: headless e2e did not finish within frame budget\n");
@@ -841,7 +843,7 @@ int main(int argc, char* argv[]) {
         // No test script: render a few frames so the offscreen texture holds a
         // real frame (useful for a one-off manual capture), then exit cleanly.
         for (int i = 0; i < 3; ++i) {
-            app_frame();
+            metal_headless_frame(app_frame);
         }
         app_cleanup();
         afterhours::shutdown();

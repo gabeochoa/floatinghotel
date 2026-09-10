@@ -207,6 +207,15 @@ extern "C" bool metal_is_headless(void) {
     return _headless_mode;
 }
 
+// Headless has no sokol_app, and sokol_app is what wraps every frame in an
+// autorelease pool. Without one, the command buffers and encoders sokol_gfx
+// autoreleases each frame are never freed until exit.
+extern "C" void metal_headless_frame(void (*fn)(void)) {
+    @autoreleasepool {
+        fn();
+    }
+}
+
 // sokol_app only runs init_cb (and so the first frame) when MTKView's display
 // link delivers its first drawRect, 65-160ms after the window is up on a loaded
 // machine. Draw once ourselves as soon as sokol's applicationDidFinishLaunching

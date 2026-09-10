@@ -143,11 +143,14 @@ $(OBJ_DIR)/main/%.o: src/%.cpp | $(OBJ_DIR)/main
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
 
-# Compile Objective-C++ files (sokol Metal implementation)
+# Compile Objective-C++ files (sokol Metal implementation). ARC, because the
+# vendored capture_impl.h creates its readback staging textures with `new...`
+# and relies on ARC to release them; without it every headless screenshot
+# leaked a 1280x720 RGBA texture (the E2E suite grew past 1 GB of GPU memory).
 $(OBJ_DIR)/main/%.o: src/%.mm | $(OBJ_DIR)/main
 	@echo "Compiling (ObjC++) $<..."
 	@mkdir -p $(dir $@)
-	$(CXX) -ObjC++ $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
+	$(CXX) -ObjC++ -fobjc-arc $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
 
 # Compile afterhours files.cpp
 $(OBJ_DIR)/main/vendor_afterhours_files.o: vendor/afterhours/src/plugins/files.cpp | $(OBJ_DIR)/main
