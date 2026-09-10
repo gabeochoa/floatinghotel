@@ -66,6 +66,7 @@ struct MainRenderSystem : afterhours::System<> {
 // Declared here so it's visible to both HandleWaitForRefresh and app_frame.
 namespace e2e_refresh_gate {
 inline bool triggered = false;
+inline bool file_change_triggered = false;
 }
 
 // HandleWaitForRefresh: consumes the "wait_for_refresh" E2E command immediately
@@ -76,6 +77,19 @@ struct HandleWaitForRefresh : afterhours::System<afterhours::testing::PendingE2E
         if (cmd.is_consumed() || !cmd.is("wait_for_refresh")) return;
         cmd.consume();
         e2e_refresh_gate::triggered = true;
+    }
+};
+
+// HandleWaitForFileChange: consumes "wait_for_file_change" and gates the runner
+// until the file watcher has fired once more and the refresh it requested has
+// finished. `wait N` counts simulated ticks, which the headless loop runs at
+// well under a millisecond each, while the watcher's cooldown and FSEvents
+// latency are wall-clock seconds; this gate waits on the wall clock instead.
+struct HandleWaitForFileChange : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("wait_for_file_change")) return;
+        cmd.consume();
+        e2e_refresh_gate::file_change_triggered = true;
     }
 };
 
@@ -122,6 +136,9 @@ float e2eTimeout = 30.0f;
 afterhours::testing::E2ERunner e2eRunner;
 bool waitingForRefresh = false;
 float refreshWaitElapsed = 0.0f;
+bool waitingForFileChange = false;
+std::chrono::steady_clock::time_point fileChangeWaitStart{};
+unsigned fileChangeFiredAtArm = 0;
 std::string pendingScreenshotName;
 
 // Validation
@@ -363,6 +380,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleTabCommands>());
             sm.register_update_system(std::make_unique<HandleTouchFile>());
             sm.register_update_system(std::make_unique<HandleWaitForRefresh>());
+            sm.register_update_system(std::make_unique<HandleWaitForFileChange>());
             sm.register_update_system(std::make_unique<HandleFileWatcherToggle>());
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
@@ -465,6 +483,39 @@ static void e2e_tick_loop(float real_dt) {
             }
             if (refreshDone || app_state::refreshWaitElapsed > MAX_REFRESH_WAIT) {
                 app_state::waitingForRefresh = false;
+                continue;
+            }
+            break;
+        }
+
+        if (e2e_refresh_gate::file_change_triggered) {
+            e2e_refresh_gate::file_change_triggered = false;
+            app_state::waitingForFileChange = true;
+            app_state::fileChangeWaitStart = std::chrono::steady_clock::now();
+            app_state::fileChangeFiredAtArm =
+                app_state::fileWatcher ? app_state::fileWatcher->fired : 0;
+        }
+
+        if (app_state::waitingForFileChange) {
+            // Wall clock, not real_dt: headless frames report a fixed 1/60 s
+            // whatever they actually took. Systems keep running once per
+            // rendered frame while we break out here, so the watcher polls.
+            constexpr auto MAX_FILE_CHANGE_WAIT = std::chrono::seconds(10);
+            const bool fired = app_state::fileWatcher &&
+                app_state::fileWatcher->fired > app_state::fileChangeFiredAtArm;
+            bool refreshDone = true;
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (repo) {
+                refreshDone = !repo->refreshRequested && !repo->isRefreshing;
+            }
+            const auto waited =
+                std::chrono::steady_clock::now() - app_state::fileChangeWaitStart;
+            if ((fired && refreshDone) || waited > MAX_FILE_CHANGE_WAIT) {
+                if (!fired) {
+                    log_warn("wait_for_file_change: watcher did not fire within {} s",
+                             MAX_FILE_CHANGE_WAIT.count());
+                }
+                app_state::waitingForFileChange = false;
                 continue;
             }
             break;

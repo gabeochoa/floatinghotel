@@ -10,10 +10,11 @@ validate unstaged_count=3
 validate untracked_count=2
 screenshot file_watcher_01_initial
 
-# Create a new file externally — watcher should detect it
-# wait 3s for cooldown (1s) + FSEvents latency (0.5s) + async git refresh
+# Create a new file externally — watcher should detect it.
+# `wait N` is simulated ticks (sub-millisecond each in headless); the watcher's
+# cooldown (1s) and FSEvents latency (0.5s) are wall clock, so gate on the event.
 touch_file watcher_test.txt
-wait 3
+wait_for_file_change
 screenshot file_watcher_02_after_new_file
 
 # Untracked count should increase by 1
@@ -21,7 +22,7 @@ validate untracked_count=3
 
 # Modify an existing tracked file externally
 touch_file README.md
-wait 3
+wait_for_file_change
 screenshot file_watcher_03_after_edit
 
 # Unstaged count should still be 3 (README.md was already unstaged)

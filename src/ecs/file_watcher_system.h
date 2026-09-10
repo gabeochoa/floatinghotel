@@ -12,6 +12,10 @@ namespace ecs {
 struct FileWatcherSystem : afterhours::System<RepoComponent> {
 
     bool disabled = false;
+    // Times the watcher has requested a refresh. The E2E gate
+    // `wait_for_file_change` arms on this, since headless ticks run far faster
+    // than the wall clock the cooldown and FSEvents latency are measured in.
+    unsigned fired = 0;
 
     void for_each_with(afterhours::Entity& entity,
                        RepoComponent& repo, float) override {
@@ -39,6 +43,7 @@ struct FileWatcherSystem : afterhours::System<RepoComponent> {
         if (clock::now() < cooldown_until_) return;
 
         if (watcher_.poll_changed()) {
+            ++fired;
             repo.refreshRequested = true;
             cooldown_until_ = clock::now() + COOLDOWN;
         }
