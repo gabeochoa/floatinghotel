@@ -282,6 +282,182 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
 
 ---
 
+### sokol backend does not compile after b3f8cef (letterbox in backend.h) — OPEN, BLOCKS BUMP
+- **Upstream range:** 0c67090..ac1062f (28 commits, tried 2026-09-10). Every
+  sokol/Metal build fails; wm is raylib so upstream never sees it.
+- **Issue:** `backends/sokol/backend.h:753` `MetalPlatformAPI::get_mouse_position`
+  calls `window_manager::window_to_content`, but `backend.h` is pulled in by
+  `graphics.h`, which `window_manager.h` includes *before* it declares the
+  struct. Error: `use of undeclared identifier 'window_manager'`.
+- **Suggested fix:** do what the raylib branch already does. Leave the backend
+  at the DPI divide (window space) and apply the letterbox in
+  `plugins/input_system.h`'s Metal branch, which can see `window_manager`:
+  ```cpp
+  // backends/sokol/backend.h — get_mouse_position
+  float dpi = sapp_dpi_scale();
+  return {s.mouse_x / dpi, s.mouse_y / dpi};
+
+  // plugins/input_system.h — Metal branch
+  static MousePosition letterboxed_mouse_position() {
+      auto p = graphics::MetalPlatformAPI::get_mouse_position();
+      const Vector2Type mapped = window_manager::window_to_content(
+          Vector2Type{p.x, p.y},
+          graphics::MetalPlatformAPI::get_screen_width(),
+          graphics::MetalPlatformAPI::get_screen_height());
+      return {mapped.x, mapped.y};
+  }
+  static MousePosition get_mouse_position() {
+  #ifdef AFTER_HOURS_ENABLE_E2E_TESTING
+      return testing::test_input::get_mouse_position<MousePosition>(
+          []() { return letterboxed_mouse_position(); });
+  #else
+      return letterboxed_mouse_position();
+  #endif
+  }
+  ```
+  Verified here: builds, 98/98 e2e, and the e2e mouse injection still works.
+
+### Flex solver budgets raw child sizes while placement uses snapped ones (since 7a56f60) — OPEN, BLOCKS BUMP
+- **Upstream range:** same bump. 7a56f60 "Place expand children by the width
+  they end up with" made placement read `snapped_extent`, but `_total_child`,
+  `_max_child` (autolayout.h ~1040) and the justify-content pass (~1412) still
+  sum `child.computed + computed_margin`.
+- **Impact here:** a row of eight `w1280()` toolbar buttons each round up a
+  pixel or two; the `expand()` spacer is handed the pre-snap slack and the
+  branch button ends 15px past the toolbar, visibly clipped when the sidebar
+  is hidden. The commit dialog's `FlexEnd` button row starts 11px too far
+  right so `stage_all_btn` overflows `dialog_buttons`. A/B against 0c67090 on
+  `flow_t5_push_toolbar|baseline_all_flows|flow_zoom`: toolbar overflow
+  0 → 25 warnings, stage_all 0 → 19. With the fix below both return to 0 and
+  the full suite is back to the pre-bump 45 (all `text_area_line`).
+- **Suggested fix:** sum what placement will use, in all three places:
+  ```cpp
+  const auto _total_child = [this, &layout_children](Axis axis) {
+    float sum = 0.f;
+    for (UIComponent *child : layout_children)
+      sum += snapped_extent(*child, axis) + child->computed_margin[axis];
+    return sum;
+  };
+  const auto _max_child = [this, &layout_children](Axis axis) {
+    float max_val = 0.f;
+    for (UIComponent *child : layout_children)
+      max_val = fmaxf(max_val, snapped_extent(*child, axis) +
+                                   child->computed_margin[axis]);
+    return max_val;
+  };
+  // justify-content pass
+  float cx = snapped_extent(child, Axis::X) + child.computed_margin[Axis::X];
+  float cy = snapped_extent(child, Axis::Y) + child.computed_margin[Axis::Y];
+  ```
+- **Regression test** for `tests/sizing_repro_test.cpp`; overflows by 16px
+  without the fix, passes with it (62/62, autolayout 358/358, grid 25/25,
+  full `make test` green):
+  ```cpp
+  TEST(snapped_children_stay_inside_expand_and_flex_end_rows) {
+    // Each width sits 2px under a grid line so nearest-snapping rounds all
+    // eight up: 16px the raw sum does not know about. Whole-unit margin so the
+    // position accumulator cannot drift on its own.
+    const float widths[] = {86.f, 102.f, 122.f, 78.f, 58.f, 58.f, 66.f, 94.f};
+    for (bool with_spacer : {true, false}) {
+      ImmTestHarness h;
+      auto cfg = ComponentConfig{}
+                     .with_size(ComponentSize{pixels(1256.f), pixels(30.f)})
+                     .with_debug_name("row");
+      if (!with_spacer)
+        cfg = cfg.with_justify_content(JustifyContent::FlexEnd);
+      auto row = hstack(h.context(), mk(h.root(), 0), cfg);
+      int id = 0;
+      for (int i = 0; i < 8; i++) {
+        if (with_spacer && i == 7)
+          div(h.context(), mk(row.ent(), id++),
+              ComponentConfig{}
+                  .with_size(ComponentSize{expand(), h720(1.f)})
+                  .with_debug_name("spacer"));
+        div(h.context(), mk(row.ent(), id++),
+            ComponentConfig{}
+                .with_size(ComponentSize{w1280(widths[i]), h720(28.f)})
+                .with_margin(Margin{.right = w1280(4.f)})
+                .with_debug_name("btn_" + std::to_string(i)));
+      }
+      h.layout_only(true, {1280, 720});
+      UIComponent *r = h.find("row");
+      UIComponent *last = h.find("btn_7");
+      CHECK(r != nullptr && last != nullptr);
+      if (!r || !last) continue;
+      const float row_end = r->rect().x + r->rect().width;
+      const float last_end = last->rect().x + last->rect().width;
+      CHECK(last_end <= row_end + 0.5f);
+    }
+  }
+  ```
+
+### Waiting on the two fixes above: tooltips (e221b77)
+Once the bump lands, add `.with_tooltip(...)` where labels ellipsize: file
+rows (full path), commit rows (subject), repo header and tabs (repo path).
+`UpdateTooltips`/`RenderTooltip` register through the existing
+`registerUIPostLayoutSystems`/`registerUIRenderSystems` calls, so nothing else
+changes. Everything else in the range is either free with the bump (wrap
+memo, measure-by-advance, containment tolerance, bitset) or not used here
+(grid, rect algebra, scrollbar colour, profiler, set_slider, blend mode).
+
+---
+
+### Windowed startup is spent waiting on sokol_app, not in app code — OPEN
+Measured 2026-09-10 on macOS 26.6.2 with temporary probes in
+`vendor/sokol/sokol_app.h` (reverted). `Startup time` (graphics::run to
+app_init done) is 510-740 ms warm; app_init itself is 10-60 ms. Where the rest
+goes, per launch:
+
+| phase | warm | notes |
+|---|---|---|
+| `[NSApplication sharedApplication]` | 120-200 ms | AppKit. A trivial ObjC program measures 220-670 ms for the same call on this machine, so this is the floor, not us. |
+| AppKit launch → `applicationDidFinishLaunching` | 30-115 ms | AppKit |
+| `NSWindow initWithContentRect` | 100-190 ms | AppKit. Drops to 75-95 ms inside a `.app` bundle with an Info.plist. |
+| `MTLCreateSystemDefaultDevice` + MTKView | 3-12 ms | fine |
+| `makeKeyAndOrderFront` → first `drawRect` | 65-160 ms | **sokol_app waits for MTKView's display link to deliver the first frame before calling init_cb.** |
+| init_cb before app_init (`sg_setup`, `sgl_setup`, `sfons_create`) | 50-180 ms | sokol_gl compiles its Metal shader from source at startup; 2048² font atlas. Unchanged at -O2, so it is Metal, not CPU. |
+| exec → `main` (dyld) | 180-600 ms at 32 MB, 50-76 ms at 4.1 MB | not in `Startup time` at all; logged as `Process start to main` |
+
+Bundling does not change the total meaningfully, and `-O2` does not change
+the AppKit/Metal phases. What `-O2` does change is exec→`main`: zig c++'s
+default UBSan instrumentation plus no dead-strip made a 32 MB binary, and
+exec→main scaled with it. `-fno-sanitize=undefined -Wl,-dead_strip` gives
+17 MB (exec→main 400-490 ms warm); adding `-O2` (now the makefile default,
+`make OPT=-O0` to opt out) gives 4.1 MB and exec→main 50-76 ms warm, next to
+31-44 ms for a 51 KB control app. It also shrinks what Santa and Defender
+hash on the first launch after every relink (that first launch was 5-25 s
+under load at 32 MB; 760 ms exec→main at 4.1 MB).
+
+With the -O2 binary at load ~95, windowed `Window+GPU init` is 460-640 ms
+warm while the control Cocoa app spends 1.2-1.6 s in
+`sharedApplication`+`NSWindow` alone, so what remains is AppKit and the
+machine's daemons, not the app.
+`sapp_set_icon` with the default icon is 0.1 ms; not worth a RunConfig knob.
+
+- **Suggested fix (sokol_app, macOS):** at the end of
+  `applicationDidFinishLaunching`, after `makeKeyAndOrderFront`, call
+  `_sapp_macos_frame()` (or `[_sapp.macos.view draw]`) once so init and the
+  first frame run synchronously instead of waiting for the display link.
+  Saves 65-160 ms per launch. **Worked around app-side:**
+  `metal_draw_first_frame_early()` in `src/sokol_impl.mm` registers a
+  DidFinishLaunching observer (from inside WillFinishLaunching, so it lands
+  after sokol's delegate) and calls `[view draw]`; the log line
+  `First frame drawn from applicationDidFinishLaunching` confirms it fired.
+- **Font loading reads the file per call:** `load_font_from_file` is
+  `fonsAddFont(ctx, file, file)` with no dedupe, and there is no
+  `fonsAddFontMem` path, so a font cannot be embedded in the binary. The app
+  now aliases `SYMBOL_FONT` to the already-loaded `DEFAULT_FONT` instead of
+  reading Roboto twice. A `load_font_from_memory` would let the three TTFs
+  ship inside the executable and skip three scanned file opens at startup
+  (86-184 ms cold on this machine).
+- **Suggested fix (backend.h):** ship the sokol_gl shader as precompiled
+  metallib via sokol-shdc, or defer `sfons_create` until the first text draw.
+  Worth measuring with probes in `setup_sokol_gl_and_fonts` first; the
+  50-180 ms above is that function plus `sg_setup`.
+- **Repro:** `./output/floatinghotel.exe .` prints `Window+GPU init: N ms`
+  (main.cpp, time from graphics::run to app_init entry) next to the existing
+  `Preload+fonts` / `Systems registration` lines.
+
 ## Feature Requests (Lower Priority)
 
 ### Synchronized scroll views — RESOLVED upstream (dd579a4), and not needed here

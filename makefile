@@ -31,8 +31,13 @@ endif
 # C++ standard
 CXXSTD := -std=c++23
 
+# Optimisation level. -O2 -g keeps crash reports symbolicated and shrinks the
+# binary ~5x, which is what exec-to-main and the per-relink security rescan
+# on this machine scale with. `make OPT=-O0` for an unoptimised build.
+OPT ?= -O2
+
 # Base compiler flags
-CXXFLAGS_BASE := -g \
+CXXFLAGS_BASE := -g $(OPT) \
     -Wall -Wextra -Wpedantic \
     -Wuninitialized -Wshadow -Wconversion \
     -Wcast-qual -Wchar-subscripts \
@@ -51,9 +56,11 @@ CXXFLAGS_BASE := -g \
     -pipe \
     -fno-stack-protector \
     -fno-common \
-    -fno-sanitize=null
-# zig c++ defaults to Debug, which traps UBSan's null check; afterhours' singleton
-# lookups downcast a null entity to report "not registered", so startup aborted.
+    -fno-sanitize=undefined
+# zig c++ defaults to Debug, which turns UBSan on. Its null check trapped in
+# afterhours' singleton lookups (they downcast a null entity to report "not
+# registered"), and the rest of the instrumentation was most of a 32 MB binary
+# that Santa and Defender rehash on every relink.
 
 # Warning suppressions
 CXXFLAGS_SUPPRESS := -Wno-deprecated-volatile -Wno-missing-field-initializers \
@@ -81,7 +88,7 @@ CXXFLAGS := $(CXXSTD) $(CXXFLAGS_BASE) $(CXXFLAGS_SUPPRESS) \
 INCLUDES := -isystem vendor/ -isystem vendor/afterhours/vendor/
 
 # Library flags
-LDFLAGS := -L. -Lvendor/ $(FRAMEWORKS)
+LDFLAGS := -L. -Lvendor/ -Wl,-dead_strip $(FRAMEWORKS)
 
 # Directories
 OBJ_DIR := output/objs

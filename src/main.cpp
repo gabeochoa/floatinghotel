@@ -1,3 +1,6 @@
+#include <libproc.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include <argh.h>
 
 #include <chrono>
@@ -12,6 +15,7 @@
 
 #ifdef __APPLE__
 extern "C" void metal_activate_app(void);
+extern "C" void metal_draw_first_frame_early(void);
 extern "C" void metal_hide_window(void);
 extern "C" void metal_wait_all_screenshots(void);
 #endif
@@ -152,6 +156,8 @@ struct HandleFileWatcherToggle : afterhours::System<afterhours::testing::Pending
 static void app_init() {
     using namespace afterhours;
     auto t0 = std::chrono::high_resolution_clock::now();
+    log_info("  Window+GPU init: {} ms",
+        std::chrono::duration_cast<std::chrono::milliseconds>(t0 - app_state::startTime).count());
 
     // Needs the window to exist; idempotent, and a no-op without the build
     // opt-in or off macOS.
@@ -398,8 +404,10 @@ static void app_init() {
         }
     }
 
-    // Single settings write for all init-time mutations, then re-enable auto-save
-    Settings::get().write_save_file();
+    // Init-time mutations (recent repos, open tabs) reach disk through the
+    // cleanup write and the auto-save that follows any later change; a write
+    // here cost a synchronous file write on every launch, which the endpoint
+    // security stack on this machine turns into tens of milliseconds.
     Settings::get().auto_save_enabled = true;
 
     auto t2 = std::chrono::high_resolution_clock::now();
@@ -580,6 +588,18 @@ static void app_cleanup() {
 
 int main(int argc, char* argv[]) {
     auto mainStart = std::chrono::high_resolution_clock::now();
+    {
+        // exec -> main: dyld, fixups, static init. Not covered by any timer
+        // below, and on a machine with endpoint security it dominates.
+        struct proc_bsdinfo bi;
+        struct timeval now;
+        if (proc_pidinfo(getpid(), PROC_PIDTBSDINFO, 0, &bi, sizeof bi) == sizeof bi &&
+            gettimeofday(&now, nullptr) == 0) {
+            long ms = (now.tv_sec - (long)bi.pbi_start_tvsec) * 1000 +
+                      (now.tv_usec - (long)bi.pbi_start_tvusec) / 1000;
+            log_info("Process start to main: {} ms", ms);
+        }
+    }
     argh::parser cmdl(argc, argv);
 
     // Parse repo path from first positional argument
@@ -777,6 +797,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    metal_draw_first_frame_early();
     afterhours::graphics::run(cfg);
 
     return 0;

@@ -206,3 +206,32 @@ extern "C" void metal_hide_window(void) {
 extern "C" bool metal_is_headless(void) {
     return _headless_mode;
 }
+
+// sokol_app only runs init_cb (and so the first frame) when MTKView's display
+// link delivers its first drawRect, 65-160ms after the window is up on a loaded
+// machine. Draw once ourselves as soon as sokol's applicationDidFinishLaunching
+// has built the window. Registering the DidFinishLaunching observer from inside
+// WillFinishLaunching puts it after sokol's delegate in the notification order.
+extern "C" void metal_draw_first_frame_early(void) {
+    NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
+    __block id will = nil;
+    will = [nc addObserverForName:NSApplicationWillFinishLaunchingNotification
+                           object:nil
+                            queue:nil
+                       usingBlock:^(NSNotification*) {
+        [nc removeObserver:will];
+        __block id did = nil;
+        did = [nc addObserverForName:NSApplicationDidFinishLaunchingNotification
+                              object:nil
+                               queue:nil
+                          usingBlock:^(NSNotification*) {
+            [nc removeObserver:did];
+            NSWindow* w = (__bridge NSWindow*)sapp_macos_get_window();
+            MTKView* v = (MTKView*)[w contentView];
+            if (v) {
+                [v draw];
+                fprintf(stdout, "[INFO] First frame drawn from applicationDidFinishLaunching\n");
+            }
+        }];
+    }];
+}

@@ -96,8 +96,10 @@ Preload& Preload::make_singleton() {
 
     fontMgr.load_font(ui::UIComponent::DEFAULT_FONT,
                       ui_font_path.c_str());
+    // Same file: alias the loaded font instead of reading and parsing the
+    // TTF a second time (every file open here goes through endpoint security).
     fontMgr.load_font(ui::UIComponent::SYMBOL_FONT,
-                      ui_font_path.c_str());
+                      fontMgr.fonts[ui::UIComponent::DEFAULT_FONT]);
     fontMgr.load_font("mono", mono_font_path.c_str());
 
     // Dark theme setup
