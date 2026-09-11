@@ -78,6 +78,11 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     }
 
     if (!selectedCommit) {
+        for (const auto& commit : repo.fileHistoryEntries)
+            if (commit.hash == repo.selectedCommitHash) { selectedCommit = &commit; break; }
+    }
+
+    if (!selectedCommit) {
         auto container = div(ctx, mk(parent, 3049),
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.0f), percent(1.0f)})

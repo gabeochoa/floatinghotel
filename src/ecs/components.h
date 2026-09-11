@@ -141,6 +141,13 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::vector<SearchMatch> repoSearchResults;
     int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;
+    bool fileHistoryOpen = false;
+    std::string fileHistoryPath;
+    std::string fileHistoryRevision;
+    std::string fileHistoryError;
+    int fileHistoryLimit = 200;
+    std::shared_future<git::GitResult> fileHistoryFuture;
+    std::vector<CommitEntry> fileHistoryEntries;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {

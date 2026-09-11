@@ -214,6 +214,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
         if (afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+            if (repoPtr && repoPtr->fileHistoryOpen) {
+                repoPtr->fileHistoryOpen = false;
+                return;
+            }
             if (repoPtr && repoPtr->repoSearchOpen) {
                 repoPtr->repoSearchOpen = false;
                 return;
@@ -333,6 +337,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         auto& repo = *repoPtr;
+        if (repo.fileHistoryOpen) {
+            render_file_history(ctx, mainBg.ent(), repo, layout);
+            return;
+        }
         if (repo.repoSearchOpen) {
             render_repo_search(ctx, mainBg.ent(), repo, layout);
             return;

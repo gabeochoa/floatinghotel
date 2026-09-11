@@ -554,6 +554,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                 refreshDone = !repo->refreshRequested && !repo->isRefreshing;
                 refreshDone = refreshDone && (!repo->repoSearchFuture.valid() ||
                     repo->repoSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                refreshDone = refreshDone && (!repo->fileHistoryFuture.valid() ||
+                    repo->fileHistoryFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
             }
             const auto waited =
                 std::chrono::steady_clock::now() - app_state::refreshWaitStart;

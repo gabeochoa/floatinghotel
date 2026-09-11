@@ -5,6 +5,7 @@
 #include <iterator>
 #include <sstream>
 #include "diff_renderer.h"
+#include "file_history.h"
 #include "../git/git_runner.h"
 
 namespace ecs {
@@ -60,6 +61,9 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         .with_label(repo.fullFilePath + " @ " + (repo.fullFileRevision.empty() ? "working tree" : repo.fullFileRevision))
         .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small)
         .with_debug_name("full_file_revision"));
+    if (button(ctx, mk(header.ent(), 2), preset::Button("History")
+            .with_size(ComponentSize{pixels(75), pixels(30)}).with_debug_name("file_history_open")))
+        open_file_history(repo, repo.fullFilePath, repo.fullFileRevision);
     if (!repo.fullFileError.empty()) {
         div(ctx, mk(parent, 585001), ComponentConfig{}
             .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(100)})

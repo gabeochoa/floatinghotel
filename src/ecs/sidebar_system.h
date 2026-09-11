@@ -14,6 +14,7 @@
 #include "network_ops_system.h"
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
+#include "../ui/file_history.h"
 
 #include "../../vendor/afterhours/src/plugins/clipboard.h"
 #include "../../vendor/afterhours/src/plugins/modal.h"
@@ -1658,6 +1659,10 @@ private:
                 }));
         }
         items.push_back(ui::ContextMenuItem::separator());
+        items.push_back(ui::ContextMenuItem::item("File History", [repoPath, path] {
+            auto* active = find_singleton<RepoComponent, ActiveTab>();
+            if (active && active->repoPath == repoPath) open_file_history(*active, path);
+        }));
         items.push_back(ui::ContextMenuItem::item("Copy Path", [path] {
             afterhours::clipboard::set_text(path);
         }));
