@@ -40,14 +40,29 @@ ProcessResult run_process(const std::string& working_dir,
         return result;
     }
 
+    // run_process is called from several threads at once. A child spawned by
+    // one thread inherits every fd the process has open at that instant,
+    // including the pipes another thread just made for *its* child. That
+    // sibling then holds our write end open, so we never see EOF until it
+    // exits: four concurrent reads all "finished" at the moment the slowest
+    // one did, and once wedged for good. Mark our pipes close-on-exec and ask
+    // spawn to close everything not named in the file actions.
+    for (int fd : {stdout_pipe[0], stdout_pipe[1], stderr_pipe[0], stderr_pipe[1]})
+        fcntl(fd, F_SETFD, FD_CLOEXEC);
+
     posix_spawn_file_actions_t actions;
     posix_spawn_file_actions_init(&actions);
-    posix_spawn_file_actions_addclose(&actions, stdout_pipe[0]);
-    posix_spawn_file_actions_addclose(&actions, stderr_pipe[0]);
     posix_spawn_file_actions_adddup2(&actions, stdout_pipe[1], STDOUT_FILENO);
     posix_spawn_file_actions_adddup2(&actions, stderr_pipe[1], STDERR_FILENO);
-    posix_spawn_file_actions_addclose(&actions, stdout_pipe[1]);
-    posix_spawn_file_actions_addclose(&actions, stderr_pipe[1]);
+#ifdef __APPLE__
+    posix_spawn_file_actions_addinherit_np(&actions, STDIN_FILENO);
+#endif
+
+    posix_spawnattr_t attr;
+    posix_spawnattr_init(&attr);
+#ifdef __APPLE__
+    posix_spawnattr_setflags(&attr, POSIX_SPAWN_CLOEXEC_DEFAULT);
+#endif
 
     if (!working_dir.empty()) {
         posix_spawn_file_actions_addchdir(&actions, working_dir.c_str());
@@ -62,7 +77,8 @@ ProcessResult run_process(const std::string& working_dir,
 
     pid_t pid;
     int spawn_err =
-        posix_spawnp(&pid, argv[0], &actions, nullptr, argv.data(), environ);
+        posix_spawnp(&pid, argv[0], &actions, &attr, argv.data(), environ);
+    posix_spawnattr_destroy(&attr);
 
     close(stdout_pipe[1]);
     close(stderr_pipe[1]);
