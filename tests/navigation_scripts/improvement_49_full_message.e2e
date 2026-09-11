@@ -1,0 +1,24 @@
+resize 1280 800
+wait_for_refresh
+click_text "Long commit message"
+wait_for_refresh
+screenshot improvement_49_preview
+expect_text "Message line 1"
+expect_no_text FULL_MESSAGE_END
+expect_text "Show full message"
+click_ui commit_message_toggle
+screenshot improvement_49_expanded
+expect_text FULL_MESSAGE_END
+mouse_move 900 400
+scroll_wheel 0 -100
+wait_frames 30
+screenshot improvement_49_end
+expect_text FULL_MESSAGE_END
+expect_text "File beneath the full message"
+scroll_wheel 0 100
+wait_frames 30
+screenshot improvement_49_top
+click_ui commit_message_toggle
+screenshot improvement_49_collapsed
+expect_no_text FULL_MESSAGE_END
+expect_text "Show full message"

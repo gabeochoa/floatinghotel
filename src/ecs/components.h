@@ -220,6 +220,10 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     std::shared_future<git::GitResult> infoFuture;
     std::vector<FileDiff> commitDetailDiff;
     std::string commitDetailBody;
+    bool messageExpanded = false;
+    float messageWrapWidth = 0.f;
+    float messageFontSize = 0.f;
+    std::vector<std::string> messageLines;
     std::string commitDetailAuthorEmail;
     std::string commitDetailParents;
     std::string commitDetailError;

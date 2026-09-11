@@ -77,6 +77,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         detailCache.commitDetailError.clear();
         detailCache.commitDetailDiff.clear();
         detailCache.commitDetailBody.clear();
+        detailCache.messageExpanded = false;
+        detailCache.messageLines.clear();
         detailCache.commitDetailAuthorEmail.clear();
         detailCache.commitDetailParents.clear();
         detailCache.entry = {};
@@ -204,75 +206,34 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     }
 
     if (!detailCache.commitDetailBody.empty()) {
-        // Plain labels don't word-wrap, so a long body runs off the right edge.
-        // Greedy-wrap by an estimated char width in the SAME (logical) space as
-        // contentW — measure_text reads 2x on the HiDPI-headless path, so a
-        // deterministic estimate avoids the wasted-half-width wrap. Keep hard
-        // newlines and cap runaway bodies.
-        // ponytail: ~6.8px/char for FontSize::Medium; tune if the font changes.
-        constexpr float BODY_CHAR_W = 6.8f;
-        float bodyAvailW = contentW - PAD * 2.0f;
-        if (bodyAvailW < 80.0f) bodyAvailW = 80.0f;
-        size_t maxChars = static_cast<size_t>(bodyAvailW / BODY_CHAR_W);
-        if (maxChars < 8) maxChars = 8;
-
-        constexpr size_t MAX_BODY_LINES = 40;
-        std::vector<std::string> bodyLines;
-        const std::string& src = detailCache.commitDetailBody;
-        size_t pos = 0;
-        bool truncated = false;
-        while (!truncated) {
-            size_t nl = src.find('\n', pos);
-            std::string hard = src.substr(
-                pos, nl == std::string::npos ? std::string::npos : nl - pos);
-            if (!hard.empty() && hard.back() == '\r') hard.pop_back();
-
-            if (hard.empty()) {
-                bodyLines.push_back("");
-            } else {
-                std::string cur;
-                size_t wp = 0;
-                while (wp < hard.size()) {
-                    size_t sp = hard.find(' ', wp);
-                    std::string word = hard.substr(
-                        wp, sp == std::string::npos ? std::string::npos : sp - wp);
-                    wp = (sp == std::string::npos) ? hard.size() : sp + 1;
-                    std::string cand = cur.empty() ? word : cur + " " + word;
-                    if (cur.empty() || cand.size() <= maxChars) {
-                        cur = cand;
-                    } else {
-                        bodyLines.push_back(cur);
-                        cur = word;
-                        if (bodyLines.size() >= MAX_BODY_LINES) { truncated = true; break; }
-                    }
-                }
-                if (!truncated && !cur.empty()) bodyLines.push_back(cur);
-            }
-            if (bodyLines.size() >= MAX_BODY_LINES) truncated = true;
-            if (nl == std::string::npos) break;
-            pos = nl + 1;
+        float bodyWidth = std::max(80.f, contentW - PAD * 2.f - 16.f);
+        float fontSize = resolve_to_pixels(h720(14.f), static_cast<float>(afterhours::graphics::get_screen_height()));
+        if (detailCache.messageLines.empty() || detailCache.messageWrapWidth != bodyWidth || detailCache.messageFontSize != fontSize) {
+            auto& fonts = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::FontManager>();
+            const auto font = fonts.get_active_font();
+            detailCache.messageLines = wrap_measured_text(detailCache.commitDetailBody, bodyWidth,
+                [&](const std::string& text) { return afterhours::measure_text(font, text.c_str(), fontSize, 1.f).x; });
+            detailCache.messageWrapWidth = bodyWidth;
+            detailCache.messageFontSize = fontSize;
         }
-        if (truncated) {
-            if (bodyLines.size() > MAX_BODY_LINES) bodyLines.resize(MAX_BODY_LINES);
-            if (!bodyLines.empty()) bodyLines.back() += " ...";
+        const auto& bodyLines = detailCache.messageLines;
+        constexpr size_t previewLines = 6;
+        if (bodyLines.size() > previewLines) {
+            if (button(ctx, mk(scrollContainer.ent(), nextId++),
+                preset::Button(detailCache.messageExpanded ? "Collapse message" : "Show full message (" + std::to_string(bodyLines.size()) + " lines)")
+                    .with_size(ComponentSize{children(), pixels(28)})
+                    .with_debug_name("commit_message_toggle")))
+                detailCache.messageExpanded = !detailCache.messageExpanded;
         }
-
-        // Add body lines as DIRECT children of the scroll column (like
-        // command_log stacks its entries). A nested container would have its
-        // children() height clamped to the remaining viewport, so the meta box
-        // below would be positioned too high and overlap the body tail.
-        for (size_t i = 0; i < bodyLines.size(); ++i) {
+        size_t count = detailCache.messageExpanded ? bodyLines.size() : std::min(previewLines, bodyLines.size());
+        for (size_t i = 0; i < count; ++i) {
             const auto& bl = bodyLines[i];
-            div(ctx, mk(scrollContainer.ent(), nextId++),
+            div(ctx, mk(scrollContainer.ent(), 594000 + static_cast<int>(i)),
                 ComponentConfig{}
                     .with_label(bl.empty() ? " " : bl)
-                    // Explicit line height: children() slightly under-measures
-                    // text height and the error accumulates across many lines.
                     .with_size(ComponentSize{percent(1.0f), h720(18.0f)})
                     .with_padding(Padding{
-                        .top = (i == 0 ? pixels(4) : pixels(0)),
                         .right = pixels(PAD),
-                        .bottom = (i + 1 == bodyLines.size() ? pixels(8) : pixels(0)),
                         .left = pixels(PAD)})
                     .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_PRIMARY)
