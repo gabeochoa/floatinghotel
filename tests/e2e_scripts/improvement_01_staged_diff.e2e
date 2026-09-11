@@ -1,0 +1,16 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+wait_frames 10
+click_text Repository
+wait_frames 5
+click_text "Stage File"
+wait_for_refresh
+click_text "Approved"
+wait_frames 10
+click_text README.md
+wait_frames 10
+screenshot improvement_01_staged_diff
+expect_no_text "(new file)"
+expect_text "Development"

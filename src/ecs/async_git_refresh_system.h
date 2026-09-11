@@ -36,6 +36,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
+            pf.stagedDiff = git::git_run_async(path, {"diff", "--cached"});
             // The first refresh usually finds its commands already running:
             // main() starts them before the window exists (git::prefetch_repo).
             git::PrefetchedReads pre;
@@ -120,6 +121,12 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             }
         }
 
+        if (pf.stagedDiff && pf.stagedDiff->wait_for(0s) == std::future_status::ready) {
+            auto result = pf.stagedDiff->get();
+            pf.stagedDiff.reset();
+            if (result.success()) repo.stagedDiff = git::parse_diff(result.stdout_str());
+        }
+
         if (pf.branches &&
             pf.branches->wait_for(0s) == std::future_status::ready) {
             auto result = pf.branches->get();
@@ -132,7 +139,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
         }
 
         // Phase 3: check if all operations completed
-        if (!pf.status && !pf.log && !pf.diff && !pf.branches) {
+        if (!pf.status && !pf.log && !pf.diff && !pf.stagedDiff && !pf.branches) {
             repo.isRefreshing = false;
             repo.hasLoadedOnce = true;
             pending_.erase(it);
@@ -167,6 +174,7 @@ private:
         std::optional<std::future<git::GitResult>> status;
         std::optional<std::future<git::GitResult>> log;
         std::optional<std::future<git::GitResult>> diff;
+        std::optional<std::future<git::GitResult>> stagedDiff;
         std::optional<std::future<git::GitResult>> branches;
     };
 

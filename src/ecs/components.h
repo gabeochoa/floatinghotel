@@ -90,6 +90,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string selectedFilePath;
     std::string selectedCommitHash;
     std::vector<FileDiff> currentDiff;
+    std::vector<FileDiff> stagedDiff;
+    bool selectedFileStaged = false;
 
     std::string cachedFilePath;
 

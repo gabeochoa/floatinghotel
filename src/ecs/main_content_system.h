@@ -354,7 +354,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             std::vector<FileDiff> selectedDiffs;
-            for (auto& d : repo.currentDiff) {
+            const auto& fileDiffs = repo.selectedFileStaged ? repo.stagedDiff : repo.currentDiff;
+            for (auto& d : fileDiffs) {
                 if (d.filePath == repo.selectedFilePath ||
                     d.filePath.ends_with("/" + repo.selectedFilePath) ||
                     repo.selectedFilePath.ends_with("/" + d.filePath) ||
@@ -374,7 +375,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             // Synthesize a whole-file "new" diff only for genuinely new/untracked
             // files. During review, a tracked file with no working-tree diff was
             // just approved (staged) — don't fake a new-file diff for it.
-            if (selectedDiffs.empty() && (!reviewing || selUntracked)) {
+            if (selectedDiffs.empty() && selUntracked && !repo.selectedFileStaged) {
                 auto synth = build_new_file_diff(repo.repoPath,
                                                   repo.selectedFilePath);
                 if (synth.has_value()) {
@@ -403,7 +404,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     auto* review = find_singleton<ReviewComponent, ActiveTab>();
                     ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
                                            diffW, 0, false, fileJustChanged,
-                                           repo.repoPath, review);
+                                           repo.repoPath, repo.selectedFileStaged ? nullptr : review,
+                                           repo.selectedFileStaged ? "index" : "wt");
                 }
             } else if (reviewing && !selUntracked) {
                 // Reviewed file fully approved (staged) — celebrate instead of

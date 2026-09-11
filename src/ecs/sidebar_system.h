@@ -1561,6 +1561,8 @@ private:
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
                 r->selectedFilePath = path;
+                r->selectedFileStaged = staged;
+                r->cachedFilePath.clear();
                 r->selectedCommitHash.clear();
             }
         }
