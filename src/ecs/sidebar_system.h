@@ -1618,8 +1618,12 @@ private:
                                    Entity& scrollParent,
                                    RepoComponent& repo) {
         if (repo.commitLog.empty()) {
+            // On a loaded machine the log can trail the diff by seconds;
+            // "No commits yet" during that window reads as a broken sidebar.
             div(ctx, mk(scrollParent, 0),
-                preset::EmptyStateText("No commits yet")
+                preset::EmptyStateText(repo.commitLogLoading
+                                           ? "Loading commits\xe2\x80\xa6"
+                                           : "No commits yet")
                     .with_size(ComponentSize{percent(1.0f), h720(32)})
                     .with_padding(Padding{
                         .top = h720(16), .right = pixels(8),

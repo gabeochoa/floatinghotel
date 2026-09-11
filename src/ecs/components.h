@@ -82,6 +82,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::vector<CommitEntry> commitLog;
     int commitLogLoaded = 0;
     bool commitLogHasMore = true;
+    bool commitLogLoading = false; // a `git log` is in flight for this repo
 
     // Branch data (T031)
     std::vector<BranchInfo> branches;
