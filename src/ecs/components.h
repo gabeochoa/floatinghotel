@@ -186,6 +186,10 @@ struct RepoComponent : public afterhours::BaseComponent {
 
 struct CommitDetailCache : public afterhours::BaseComponent {
     std::string cachedCommitHash;
+    std::string cachedRepoPath;
+    CommitEntry entry;
+    std::shared_future<git::GitResult> patchFuture;
+    std::shared_future<git::GitResult> infoFuture;
     std::vector<FileDiff> commitDetailDiff;
     std::string commitDetailBody;
     std::string commitDetailAuthorEmail;

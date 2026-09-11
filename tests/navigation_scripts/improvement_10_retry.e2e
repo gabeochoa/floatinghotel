@@ -1,16 +1,16 @@
 resize 1280 800
 wait_for_refresh
 click_text "Retry fixture"
-wait_frames 10
+wait_for_refresh
 screenshot improvement_10_error
 expect_text "Unable to load commit diff"
 expect_no_text "No file changes"
 click_ui commit_load_retry
-wait_frames 10
+wait_for_refresh
 screenshot improvement_10_retry
 expect_text "after retry"
 expect_no_text "Unable to load commit diff"
 click_text "Empty fixture"
-wait_frames 10
+wait_for_refresh
 screenshot improvement_10_empty
 expect_text "No file changes in this commit"

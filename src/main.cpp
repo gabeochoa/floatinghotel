@@ -567,6 +567,12 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             if (auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
                 refreshDone = refreshDone && (!review->snapshotFuture.valid() ||
                     review->snapshotFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+            if (auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>()) {
+                refreshDone = refreshDone && (!detail->patchFuture.valid() ||
+                    detail->patchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                refreshDone = refreshDone && (!detail->infoFuture.valid() ||
+                    detail->infoFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+            }
             if (!refreshDone && waited > MAX_REFRESH_WAIT) {
                 log_warn("wait_for_refresh: refresh still running after {} s",
                          MAX_REFRESH_WAIT.count());

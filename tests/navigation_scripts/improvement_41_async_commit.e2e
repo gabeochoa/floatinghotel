@@ -1,0 +1,15 @@
+resize 1280 800
+wait_for_refresh
+click_text "Slow commit"
+screenshot improvement_41_loading
+expect_text "Loading commit details..."
+click_text "Fast commit"
+wait_for_refresh
+screenshot improvement_41_fast
+expect_text "fast patch content"
+expect_no_text "slow patch content"
+click_text "Slow commit"
+wait_for_refresh
+screenshot improvement_41_slow
+expect_text "slow patch content"
+expect_no_text "fast patch content"

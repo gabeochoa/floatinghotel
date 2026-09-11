@@ -21,9 +21,8 @@ using git_helpers::DecorationType;
 using git_helpers::Decoration;
 using git_helpers::parse_decorations;
 
-// Only the fields render_commit_detail actually reads are kept; the git --format
-// still emits the others (they're just skipped by index below).
 struct CommitInfo {
+    CommitEntry entry;
     std::string body;
     std::string authorEmail;
     std::string parents;
@@ -47,8 +46,10 @@ inline CommitInfo parse_commit_info(const std::string& output) {
             last.pop_back();
     }
 
-    // Fields (git --format order): 0=subject 1=body 2=author 3=email
-    // 4=date 5=parents 6=decorations. Only body/email/parents are used.
+    if (!fields.empty()) info.entry.subject = fields[0];
+    if (fields.size() > 2) info.entry.author = fields[2];
+    if (fields.size() > 4) info.entry.authorDate = fields[4];
+    if (fields.size() > 6) info.entry.decorations = fields[6];
     if (fields.size() > 1) {
         info.body = fields[1];
         while (!info.body.empty() && (info.body.back() == '\n' || info.body.back() == '\r'))
@@ -69,95 +70,56 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                                   ReviewComponent* review = nullptr) {
     namespace cdv = commit_detail_view;
 
-    const CommitEntry* selectedCommit = nullptr;
-    for (auto& c : repo.commitLog) {
-        if (c.hash == repo.selectedCommitHash) {
-            selectedCommit = &c;
-            break;
-        }
-    }
-
-    if (!selectedCommit) {
-        for (const auto& commit : repo.fileHistoryEntries)
-            if (commit.hash == repo.selectedCommitHash) { selectedCommit = &commit; break; }
-    }
-    if (!selectedCommit) {
-        for (const auto& commit : repo.commitSearchEntries)
-            if (commit.hash == repo.selectedCommitHash) { selectedCommit = &commit; break; }
-    }
-
-    if (!selectedCommit) {
-        auto container = div(ctx, mk(parent, 3049),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
-                .with_flex_direction(FlexDirection::Column)
-                .with_justify_content(JustifyContent::Center)
-                .with_align_items(AlignItems::Center)
-                .with_custom_background(theme::WINDOW_BG)
-                .with_roundness(0.0f)
-                .with_debug_name("commit_not_found"));
-
-        div(ctx, mk(container.ent(), 1),
-            ComponentConfig{}
-                .with_label("Commit not found in loaded history")
-                .with_size(ComponentSize{children(), children()})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(afterhours::ui::FontSize::Large)
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-                .with_debug_name("commit_not_found_msg"));
-
-        auto goBackBtn = button(ctx, mk(container.ent(), 2),
-            preset::Button("<- Back")
-                .with_size(ComponentSize{children(), children()})
-                .with_padding(Padding{
-                    .top = pixels(6), .right = pixels(16),
-                    .bottom = pixels(6), .left = pixels(16)})
-                .with_margin(Margin{.top = pixels(12)})
-                .with_transparent_bg()
-                .with_custom_text_color(theme::BUTTON_PRIMARY)
-                .with_font_size(afterhours::ui::FontSize::Medium)
-                .with_debug_name("commit_not_found_back"));
-
-        if (goBackBtn) {
-            repo.selectedCommitHash.clear();
-            detailCache.cachedCommitHash.clear();
-        }
-        return;
-    }
-
-    bool commitJustChanged = (detailCache.cachedCommitHash != repo.selectedCommitHash);
+    bool commitJustChanged = detailCache.cachedCommitHash != repo.selectedCommitHash || detailCache.cachedRepoPath != repo.repoPath;
     if (commitJustChanged) {
         repo.diffTargetFile.clear();
         repo.diffTargetFrames = 0;
         detailCache.commitDetailError.clear();
+        detailCache.commitDetailDiff.clear();
+        detailCache.commitDetailBody.clear();
+        detailCache.commitDetailAuthorEmail.clear();
+        detailCache.commitDetailParents.clear();
+        detailCache.entry = {};
+        detailCache.entry.hash = repo.selectedCommitHash;
+        detailCache.entry.shortHash = repo.selectedCommitHash.substr(0, 7);
+        detailCache.entry.subject = detailCache.entry.shortHash;
+        for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
+            for (const auto& entry : *entries)
+                if (entry.hash == repo.selectedCommitHash) detailCache.entry = entry;
         std::vector<std::string> diffArgs{"show", repo.selectedCommitHash, "--format="};
         diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
         if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
-        auto diffResult = git::git_run(repo.repoPath, diffArgs);
-        auto infoResult = git::git_show_commit_info(repo.repoPath, repo.selectedCommitHash);
-
+        detailCache.patchFuture = git::git_run_async(repo.repoPath, diffArgs).share();
+        detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", repo.selectedCommitHash, "--no-patch",
+            "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"}).share();
+        detailCache.cachedCommitHash = repo.selectedCommitHash;
+        detailCache.cachedRepoPath = repo.repoPath;
+    }
+    if (detailCache.patchFuture.valid() && detailCache.patchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto diffResult = detailCache.patchFuture.get();
+        detailCache.patchFuture = {};
         if (diffResult.success()) {
             detailCache.commitDetailDiff = git::parse_diff(diffResult.stdout_str());
         } else {
-            detailCache.commitDetailDiff.clear();
             detailCache.commitDetailError = "Unable to load commit diff: " + diffResult.stderr_str();
         }
-
+    }
+    if (detailCache.infoFuture.valid() && detailCache.infoFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto infoResult = detailCache.infoFuture.get();
+        detailCache.infoFuture = {};
         if (infoResult.success()) {
             auto info = cdv::parse_commit_info(infoResult.stdout_str());
+            info.entry.hash = repo.selectedCommitHash;
+            info.entry.shortHash = repo.selectedCommitHash.substr(0, 7);
+            detailCache.entry = std::move(info.entry);
             detailCache.commitDetailBody = info.body;
             detailCache.commitDetailAuthorEmail = info.authorEmail;
             detailCache.commitDetailParents = info.parents;
         } else {
-            detailCache.commitDetailBody.clear();
-            detailCache.commitDetailAuthorEmail.clear();
-            detailCache.commitDetailParents.clear();
             detailCache.commitDetailError += " Unable to load commit metadata: " + infoResult.stderr_str();
         }
-
-        detailCache.cachedCommitHash = repo.selectedCommitHash;
     }
+    const auto* selectedCommit = &detailCache.entry;
 
     int nextId = 3050;
     constexpr float PAD = 16.0f;
@@ -175,7 +137,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_debug_name("commit_detail_scroll"));
 
     if (commitJustChanged && scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
-        scrollContainer.ent().get<afterhours::ui::HasScrollView>().scroll_offset = {0, 0};
+        auto& scroll = scrollContainer.ent().get<afterhours::ui::HasScrollView>();
+        scroll.scroll_offset = scroll.scroll_target = scroll.last_eased_offset = {0, 0};
     }
 
     auto backBtn = button(ctx, mk(scrollContainer.ent(), nextId++),
@@ -489,7 +452,11 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("commit_sep"));
 
-    if (!detailCache.commitDetailError.empty()) {
+    if (detailCache.patchFuture.valid() || detailCache.infoFuture.valid()) {
+        div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}.with_label("Loading commit details...")
+            .with_size(ComponentSize{percent(1.f), pixels(50)}).with_font_size(FontSize::Medium)
+            .with_debug_name("commit_detail_loading"));
+    } else if (!detailCache.commitDetailError.empty()) {
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
                 .with_label(detailCache.commitDetailError)
