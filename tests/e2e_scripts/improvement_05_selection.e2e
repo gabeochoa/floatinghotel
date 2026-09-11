@@ -1,0 +1,27 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+wait_frames 10
+click_text "Side-by-Side"
+wait_frames 10
+mouse_down 430 160
+wait_frames 3
+mouse_move 520 180
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot improvement_05_split_selection
+validate diff_has_selection=true
+click_text "Add contributing guidelines"
+wait_frames 10
+screenshot improvement_05_commit_before
+validate diff_has_selection=false
+mouse_down 451 420
+wait_frames 3
+mouse_move 900 420
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot improvement_05_commit_selection
+validate diff_has_selection=true

@@ -15,12 +15,6 @@ namespace ui {
 // ============================================================================
 // Diff text selection (drag to select code, copy with file:line for AI review)
 // ============================================================================
-// Inline-mode only for now. Each diff line is a single mono-font label div;
-// we hit-test the mouse against the prior frame's resolved line rects and map x
-// to a character column via exact prefix measurement (works for any font, and
-// mono makes it stable). Selection endpoints are stored as (line-entity, col)
-// so they survive across frames; highlights are drawn as translucent child divs
-// on each covered line.
 namespace diff_sel {
 
 // Index in the inline label where the code content begins:
@@ -43,11 +37,13 @@ struct Rec {
     int lineNo = 0;        // display line number, for the copy location header
     Rectangle rect{};
     float contentX0 = 0.f; // screen x where content[0] starts
+    int side = 0;
 };
 
 struct State {
     bool dragging = false;
     bool hasSel = false;
+    std::string context;
     Pos anchor, head;
     std::vector<Rec> lastLines; // prior frame (used for hit-test + copy)
     std::vector<Rec> curLines;  // being built this frame
@@ -72,8 +68,6 @@ inline void reset() {
     s.hl.clear();
 }
 
-// Per-render context passed down to render_diff_line so it can register lines
-// and draw highlights. Disabled for side-by-side and embedded (commit-detail).
 struct Session {
     bool enabled = false;
     afterhours::ui::TextMeasureCache* tmc = nullptr;
@@ -103,7 +97,8 @@ inline bool ordered_span(const std::vector<Rec>& lines, Pos anchor, Pos head,
         if (lines[i].ent == anchor.ent) ai = i;
         if (lines[i].ent == head.ent) hi = i;
     }
-    if (ai < 0 || hi < 0) return false;
+    if (ai < 0 || hi < 0 || lines[ai].side != lines[hi].side ||
+        lines[ai].filePath != lines[hi].filePath) return false;
     i1 = ai; c1 = anchor.col; i2 = hi; c2 = head.col;
     if (i1 > i2 || (i1 == i2 && c1 > c2)) { std::swap(i1, i2); std::swap(c1, c2); }
     return true;
@@ -115,6 +110,8 @@ inline void recompute_highlight(State& st) {
     int i1, c1, i2, c2;
     if (!ordered_span(st.lastLines, st.anchor, st.head, i1, c1, i2, c2)) return;
     for (int k = i1; k <= i2; ++k) {
+        if (st.lastLines[k].side != st.lastLines[i1].side ||
+            st.lastLines[k].filePath != st.lastLines[i1].filePath) continue;
         int a = (k == i1) ? c1 : 0;
         int b = (k == i2) ? c2 : (int)st.lastLines[k].content.size();
         if (k == i1 && k == i2 && a == b) continue;
@@ -135,12 +132,16 @@ inline std::string build_copy_text(State& st, bool withLocation) {
         if (endNo != r.lineNo) out += "-" + std::to_string(endNo);
         out += "\n";
     }
+    bool emitted = false;
     for (int k = i1; k <= i2; ++k) {
+        if (st.lastLines[k].side != st.lastLines[i1].side ||
+            st.lastLines[k].filePath != st.lastLines[i1].filePath) continue;
         const std::string& c = st.lastLines[k].content;
         int a = std::min((k == i1) ? c1 : 0, (int)c.size());
         int b = std::min((k == i2) ? c2 : (int)c.size(), (int)c.size());
+        if (emitted) out += "\n";
         out += c.substr(a, b - a);
-        if (k != i2) out += "\n";
+        emitted = true;
     }
     return out;
 }
@@ -166,13 +167,18 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     auto lineUnder = [&]() -> int {
         for (int i = 0; i < (int)st.lastLines.size(); ++i) {
             const Rectangle& rc = st.lastLines[i].rect;
-            if (my >= rc.y && my <= rc.y + rc.height) return i;
+            if (mx >= rc.x && mx <= rc.x + rc.width &&
+                my >= rc.y && my <= rc.y + rc.height) return i;
         }
         return -1;
     };
     auto nearestLine = [&]() -> int {
         int nn = -1; float bd = 1e30f;
+        auto anchor = std::find_if(st.lastLines.begin(), st.lastLines.end(),
+            [&](const Rec& r) { return r.ent == st.anchor.ent; });
         for (int i = 0; i < (int)st.lastLines.size(); ++i) {
+            if (anchor != st.lastLines.end() &&
+                (st.lastLines[i].side != anchor->side || st.lastLines[i].filePath != anchor->filePath)) continue;
             const Rectangle& rc = st.lastLines[i].rect;
             float d = std::fabs(my - (rc.y + rc.height / 2.f));
             if (d < bd) { bd = d; nn = i; }
@@ -192,8 +198,7 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
         // selection intact so the Copy button stays clickable.
     }
     if (mouse.left_down && st.dragging) {
-        int li = lineUnder();
-        if (li < 0) li = nearestLine();
+        int li = nearestLine();
         if (li >= 0) {
             st.head = {st.lastLines[li].ent, colAt(st.lastLines[li])};
             if (!(st.head == st.anchor)) st.hasSel = true;
@@ -378,7 +383,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     if (sel && sel->enabled) {
         // Register this line (using the prior frame's resolved rect) so the next
         // frame can hit-test drags and the copy action can extract text.
-        Rectangle r = lineDiv.ent().get<afterhours::ui::UIComponent>().rect();
+        Rectangle r = afterhours::ui::detail::apply_scroll_offset(
+            lineDiv.ent(), lineDiv.ent().get<afterhours::ui::UIComponent>().rect());
         float prefixW = diff_sel::mw(*sel, label.substr(0, diff_sel::CONTENT_START));
         float cx0 = r.x + sel->padLeftPx + prefixW;
         int lno = !newNum.empty() ? std::stoi(newNum)
@@ -690,7 +696,8 @@ enum class SbsKind { Context, Add, Del, Empty };
 // to sidestep the afterhours Row-flex expand() bug (see docs/afterhours-gaps.md).
 inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                             const std::string& num, const std::string& content,
-                            SbsKind kind, bool leftBorder) {
+                            SbsKind kind, bool leftBorder,
+                            const std::string& filePath, diff_sel::Session* sel) {
     afterhours::Color bg, fg;
     char sign = ' ';
     // Only the background carries add/del color; text stays one color.
@@ -722,7 +729,28 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         .with_roundness(0.0f)
         .with_debug_name("sbs_cell");
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
-    div(ctx, mk(row, id), cfg);
+    auto cell = div(ctx, mk(row, id), cfg);
+    if (sel && sel->enabled && kind != SbsKind::Empty) {
+        auto rect = afterhours::ui::detail::apply_scroll_offset(
+            cell.ent(), cell.ent().get<afterhours::ui::UIComponent>().rect());
+        float prefix = sel->padLeftPx + diff_sel::mw(*sel, label.substr(0, label.size() - content.size()));
+        diff_sel::state().curLines.push_back(
+            {cell.ent().id, content, filePath, num.empty() ? 0 : std::stoi(num),
+             rect, rect.x + prefix, leftBorder ? 1 : 2});
+        auto it = diff_sel::state().hl.find(cell.ent().id);
+        if (it != diff_sel::state().hl.end()) {
+            auto a = std::min(static_cast<size_t>(it->second.first), content.size());
+            auto b = std::min(static_cast<size_t>(it->second.second), content.size());
+            float x0 = prefix + diff_sel::mw(*sel, content.substr(0, a));
+            float x1 = prefix + diff_sel::mw(*sel, content.substr(0, b));
+            div(ctx, mk(cell.ent(), 90001), ComponentConfig{}
+                .with_size(ComponentSize{pixels(std::max(0.f, x1 - x0)), h720(LINE_HEIGHT)})
+                .with_absolute_position(x0, 0.f)
+                .with_custom_background(afterhours::Color{58, 130, 210, 90})
+                .with_roundness(0.f)
+                .with_debug_name("diff_sel_hl"));
+        }
+    }
 }
 
 } // namespace diff_detail
@@ -736,7 +764,8 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                             const ecs::DiffHunk& hunk,
                             int& nextId,
                             float contentWidth = 0,
-                            diff_detail::DiffViewport* vp = nullptr) {
+                            diff_detail::DiffViewport* vp = nullptr,
+                            diff_sel::Session* sel = nullptr) {
     (void)fileDiff;
     using diff_detail::SbsKind;
 
@@ -817,8 +846,8 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                 .with_flex_direction(FlexDirection::Row)
                 .with_roundness(0.0f)
                 .with_debug_name("sbs_row"));
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true);
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false);
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true, fileDiff.filePath, sel);
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false, fileDiff.filePath, sel);
     };
 
     auto flush = [&]() {
@@ -873,8 +902,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         const std::string& reviewScope = "wt") {
     int nextId = diff_detail::BASE_ID;
 
-    // Text selection is only offered on the main inline diff (not side-by-side,
-    // not the embedded commit-detail diff).
     diff_sel::Session sess;
     // Working-tree diffs always open in the approve-chunk flow (Approve/Comment
     // per hunk). Committed diffs are read-only unless you've embarked a review,
@@ -885,8 +912,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
     sess.repoPath = repoPath;
     sess.review = review;
     sess.reviewScope = reviewScope;
-    bool selEnabled = !sideBySide && !embedInParentScroll;
+    bool selEnabled = true;
     if (selEnabled) {
+        std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline");
+        for (const auto& diff : diffs) context += "\n" + diff.filePath + diff_signature(diff);
+        if (diff_sel::state().context != context) {
+            diff_sel::reset();
+            diff_sel::state().context = std::move(context);
+        }
         sess.enabled = true;
         sess.tmc = &EntityHelper::get_singleton_cmp_enforce<
             afterhours::ui::TextMeasureCache>();
@@ -899,9 +932,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
         // Cmd+C copies the current selection (keyboard path; the header button
         // is the mouse path). 343/347 = L/R Super, 67 = 'C' (GLFW keycodes).
-        bool superDown = afterhours::graphics::is_key_down(343) ||
-                         afterhours::graphics::is_key_down(347);
-        if (superDown && afterhours::graphics::is_key_pressed(67) &&
+        bool superDown = afterhours::input::is_key_down(343) ||
+                         afterhours::input::is_key_down(347) ||
+                         afterhours::input::is_key_down(341);
+        if (superDown && afterhours::input::is_key_pressed(67) &&
             diff_sel::state().hasSel) {
             std::string txt = diff_sel::build_copy_text(
                 diff_sel::state(), Settings::get().get_copy_with_location());
@@ -1202,7 +1236,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         for (auto& hunk : fileDiff.hunks) {
             if (sideBySide) {
                 render_sbs_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
-                                contentWidth, &vp);
+                                contentWidth, &vp, &sess);
             } else {
                 render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
                             contentWidth,
@@ -1257,9 +1291,10 @@ inline void render_side_by_side_diff(UIContext<InputAction>& ctx,
                                      const std::vector<ecs::FileDiff>& diffs,
                                      float contentWidth, float contentHeight,
                                      bool embedInParentScroll = false,
-                                     bool resetScroll = false) {
+                                     bool resetScroll = false,
+                                     const std::string& repoPath = "") {
     render_diff(ctx, parent, diffs, contentWidth, contentHeight,
-                embedInParentScroll, resetScroll, /*sideBySide=*/true);
+                embedInParentScroll, resetScroll, true, repoPath);
 }
 
 } // namespace ui

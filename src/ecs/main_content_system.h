@@ -406,7 +406,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 float diffW = layout.mainContent.width;
                 if (sideBySide) {
                     ui::render_side_by_side_diff(ctx, mainBg.ent(), selectedDiffs,
-                                                 diffW, 0, false, fileJustChanged);
+                                                 diffW, 0, false, fileJustChanged, repo.repoPath);
                 } else {
                     auto* review = find_singleton<ReviewComponent, ActiveTab>();
                     ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
