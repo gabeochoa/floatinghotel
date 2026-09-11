@@ -674,7 +674,7 @@ private:
         bool reviewing = review && review->reviewing;
         int toReview = static_cast<int>(repo.unstagedFiles.size());
         int approvedHunks = 0;
-        int queued = review ? static_cast<int>(review->comments.size()) : 0;
+        int queued = review ? static_cast<int>(unresolved_comment_count(*review)) : 0;
 
         int remainingHunks = 0;
         for (const auto& file : repo.currentDiff)

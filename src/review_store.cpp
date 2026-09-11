@@ -62,6 +62,7 @@ void save_review(const std::string& repoPath, const ecs::ReviewComponent& review
                             {"line", c.line},
                             {"end_line", c.endLine},
                             {"old_side", c.oldSide},
+                            {"resolved", c.resolved},
                             {"text", c.text}});
     }
     j["comments"] = std::move(comments);
@@ -98,6 +99,7 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
                 cm.line = c.value("line", 0);
                 cm.endLine = c.value("end_line", cm.line);
                 cm.oldSide = c.value("old_side", false);
+                cm.resolved = c.value("resolved", false);
                 cm.text = c.value("text", std::string{});
                 review.comments.push_back(std::move(cm));
             }

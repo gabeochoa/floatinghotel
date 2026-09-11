@@ -1,0 +1,23 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Feedback to resolve"
+click_ui comment_add_btn
+screenshot improvement_34_open
+validate review_unresolved=1
+click_ui basket_item_resolve
+screenshot improvement_34_resolved
+validate review_unresolved=0
+expect_no_text "Feedback to resolve"
+click_ui basket_toggle_resolved
+screenshot improvement_34_show_resolved
+expect_text "Feedback to resolve"
+expect_text "Reopen"
+click_ui basket_item_resolve
+screenshot improvement_34_reopened
+validate review_unresolved=1
+expect_text "Feedback to resolve"
+expect_text "Resolve"

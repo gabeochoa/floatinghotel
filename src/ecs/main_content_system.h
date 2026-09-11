@@ -31,14 +31,14 @@ inline void send_review(UIContext<InputAction>& ctx, ReviewComponent& review,
     std::string branch = (repo && !repo->currentBranch.empty())
                              ? repo->currentBranch : "HEAD";
     std::string md = build_review_markdown(review, branch);
-    if (md.empty()) return;
+    if (md.empty()) { afterhours::toast::send_info(ctx, "No unresolved feedback to send", 1.5f); return; }
     if (repo && !repo->repoPath.empty()) {
         std::ofstream f(review_store::markdown_path(repo->repoPath, branch));
         if (f.good()) f << md;
     }
     afterhours::clipboard::set_text(md);
     afterhours::toast::send_info(
-        ctx, "Copied " + std::to_string(review.comments.size()) +
+        ctx, "Copied " + std::to_string(unresolved_comment_count(review)) +
                  " comment(s) \xe2\x80\x94 leaves your device when you paste it",
         2.5f);
 }
@@ -68,13 +68,20 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_roundness(0.0f)
             .with_debug_name("feedback_basket"));
 
-    div(ctx, mk(panel.ent(), 0),
+    auto title = div(ctx, mk(panel.ent(), 0), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), h720(22)}).with_flex_direction(FlexDirection::Row));
+    div(ctx, mk(title.ent(), 0),
         ComponentConfig{}
-            .with_label("Feedback basket  " + std::to_string(review.comments.size()))
-            .with_size(ComponentSize{percent(1.0f), h720(22)})
+            .with_label("Feedback basket  " + std::to_string(unresolved_comment_count(review)))
+            .with_size(ComponentSize{expand(), h720(22)})
             .with_custom_text_color(theme::STATUS_MODIFIED)
             .with_font_size(afterhours::ui::FontSize::Medium)
             .with_debug_name("basket_title"));
+    if (unresolved_comment_count(review) < review.comments.size()) {
+        if (button(ctx, mk(title.ent(), 1), preset::Button(review.showResolved ? "Hide resolved" : "Show resolved")
+                .with_size(ComponentSize{pixels(108), h720(20)}).with_font_size(FontSize::Small)
+                .with_debug_name("basket_toggle_resolved"))) review.showResolved = !review.showResolved;
+    }
 
     float itemW = panelW - resolve_to_pixels(w1280(20.0f), sw);
     float txtW = std::max(20.f, itemW - 12.f);
@@ -89,7 +96,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_debug_name("basket_scroll"));
     std::vector<std::string> scopes;
     for (const auto& c : review.comments)
-        if (std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
+        if ((!c.resolved || review.showResolved) && std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
             scopes.push_back(c.scope);
 
     int id = 1;
@@ -122,7 +129,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
 
         for (int i = 0; i < static_cast<int>(review.comments.size()); ++i) {
             const auto& c = review.comments[i];
-            if (c.scope != scope) continue;
+            if (c.scope != scope || (c.resolved && !review.showResolved)) continue;
             float textH = afterhours::ui::measure_text_wrapped(
                 measure, c.text, "mono", fontSize, txtW - 8.f).height + 8.f;
             bool editing = review.editingComment == i;
@@ -141,7 +148,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_debug_name("basket_item_heading"));
             div(ctx, mk(heading.ent(), 3),
                 ComponentConfig{}
-                    .with_label(comment_location(c))
+                    .with_label((c.resolved ? "Resolved · " : "") + comment_location(c))
                     .with_size(ComponentSize{expand(), h720(20)})
                     .with_custom_text_color(theme::BUTTON_PRIMARY)
                     .with_font("mono", h720(11.0f))
@@ -179,6 +186,12 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 review.editingComment = i;
                 review.editingCommentText = c.text;
             }
+            if (!editing && button(ctx, mk(heading.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
+                    .with_size(ComponentSize{pixels(66), h720(18)}).with_font_size(FontSize::Small)
+                    .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_resolve"))) {
+                review.comments[i].resolved = !c.resolved;
+                review.dirty = true;
+            }
             auto rmBtn = button(ctx, mk(heading.ent(), 1),
                 preset::Button("x")
                     .with_size(ComponentSize{pixels(18), h720(18)})
@@ -211,6 +224,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         std::string branch = (repo && !repo->currentBranch.empty())
                                  ? repo->currentBranch : "HEAD";
         std::string md = build_review_markdown(review, branch);
+        if (md.empty()) { afterhours::toast::send_info(ctx, "No unresolved feedback to copy", 1.5f); return; }
         if (repo && !repo->repoPath.empty()) {
             std::ofstream f(review_store::markdown_path(repo->repoPath, branch));
             if (f.good()) f << md;

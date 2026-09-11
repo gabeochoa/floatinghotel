@@ -59,6 +59,7 @@ inline void reset_review(ReviewComponent& review) {
     review.reviewing = false;
     review.basketOpen = true;
     review.showApproved = false;
+    review.showResolved = false;
     review.comments.clear();
     review.editingComment = -1;
     review.editingCommentText.clear();

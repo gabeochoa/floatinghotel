@@ -201,10 +201,12 @@ struct ReviewComponent : public afterhours::BaseComponent {
         std::string text;
         int endLine = 0;
         bool oldSide = false;
+        bool resolved = false;
     };
     bool reviewing = false;
     bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
     bool showApproved = false;
+    bool showResolved = false;
     std::vector<Comment> comments;
     int editingComment = -1;
     std::string editingCommentText;
@@ -264,6 +266,11 @@ inline bool save_comment_edit(ReviewComponent& review) {
     return true;
 }
 
+inline size_t unresolved_comment_count(const ReviewComponent& review) {
+    return static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(),
+        [](const auto& comment) { return !comment.resolved; }));
+}
+
 // Commit the in-progress comment into the basket and auto-fold its hunk.
 inline void commit_pending_comment(ReviewComponent& r) {
     if (r.composingKey.empty()) return;
@@ -288,19 +295,19 @@ inline void commit_pending_comment(ReviewComponent& r) {
 // so the agent knows exactly which diff each comment targets.
 inline std::string build_review_markdown(const ReviewComponent& review,
                                          const std::string& branch) {
-    if (review.comments.empty())
+    if (unresolved_comment_count(review) == 0)
         return "";
     std::string out = "## Review of " + branch + "\n";
     // working-tree comments first, then per-commit groups (stable order).
     std::vector<std::string> scopes;
     for (const auto& c : review.comments)
-        if (std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
+        if (!c.resolved && std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
             scopes.push_back(c.scope);
     for (const auto& scope : scopes) {
         out += (scope == "wt") ? "\n### working tree (uncommitted)\n"
                                : "\n### commit " + scope + "\n";
         for (const auto& c : review.comments)
-            if (c.scope == scope)
+            if (c.scope == scope && !c.resolved)
                 out += "- " + comment_location(c) + " \xe2\x80\x94 " +
                        c.text + "\n";
     }

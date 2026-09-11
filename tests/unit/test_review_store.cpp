@@ -19,6 +19,7 @@ TEST(review_store_roundtrip) {
     r.comments.push_back({"abc123", "src/bar.h", 7, "nit"});
     r.comments[1].endLine = 9;
     r.comments[1].oldSide = true;
+    r.comments[1].resolved = true;
     r.approvedHunks.insert("src/foo.cpp\n@@ -1 +1 @@");
     r.foldedHunks.insert("src/bar.h\n@@ -2 +2 @@");
     r.seenSig["src/foo.cpp"] = "1,2,3";
@@ -39,6 +40,7 @@ TEST(review_store_roundtrip) {
     ASSERT_STREQ(r2.comments[1].scope, "abc123");
     ASSERT_EQ(r2.comments[1].endLine, 9);
     ASSERT_TRUE(r2.comments[1].oldSide);
+    ASSERT_TRUE(r2.comments[1].resolved);
     ASSERT_EQ(ecs::comment_location(r2.comments[1]), "src/bar.h:7-9 (old)");
     ASSERT_TRUE(r2.approvedHunks.count("src/foo.cpp\n@@ -1 +1 @@") == 1);
     ASSERT_TRUE(r2.foldedHunks.count("src/bar.h\n@@ -2 +2 @@") == 1);
@@ -67,6 +69,21 @@ TEST(editing_a_comment_preserves_its_location) {
     ASSERT_TRUE(review.dirty);
     ASSERT_EQ(review.editingComment, -1);
     ASSERT_FALSE(ecs::save_comment_edit(review));
+}
+
+TEST(resolved_comments_stay_saved_but_leave_the_feedback_export) {
+    ecs::ReviewComponent review;
+    review.comments.push_back({"wt", "code.cpp", 1, "open note"});
+    review.comments.push_back({"abc", "code.cpp", 2, "closed note", 2, false, true});
+    ASSERT_EQ(ecs::unresolved_comment_count(review), 1u);
+    auto markdown = ecs::build_review_markdown(review, "main");
+    ASSERT_TRUE(markdown.find("open note") != std::string::npos);
+    ASSERT_TRUE(markdown.find("closed note") == std::string::npos);
+    ASSERT_TRUE(markdown.find("commit abc") == std::string::npos);
+    review.comments[1].resolved = false;
+    ASSERT_TRUE(ecs::build_review_markdown(review, "main").find("closed note") != std::string::npos);
+    for (auto& comment : review.comments) comment.resolved = true;
+    ASSERT_TRUE(ecs::build_review_markdown(review, "main").empty());
 }
 
 TEST(review_signatures_detect_same_size_edits) {
