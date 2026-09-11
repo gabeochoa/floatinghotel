@@ -128,6 +128,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     bool commitJustChanged = (detailCache.cachedCommitHash != repo.selectedCommitHash);
     if (commitJustChanged) {
+        repo.diffTargetFile.clear();
+        repo.diffTargetFrames = 0;
         detailCache.commitDetailError.clear();
         std::vector<std::string> diffArgs{"show", repo.selectedCommitHash, "--format="};
         diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
@@ -593,6 +595,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_custom_background(theme::WINDOW_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_summary_row"));
+            fileRow.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
+            if (fileRow.ent().get<HasClickListener>().down) {
+                repo.diffTargetFile = fd.filePath;
+                repo.diffTargetFrames = 3;
+                layout.diffFindOpen = false;
+            }
 
             // Status letter in a filled colored circle (mock style).
             div(ctx, mk(fileRow.ent(), 1),
@@ -613,7 +621,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             if (fd.isRenamed && !fd.oldPath.empty()) {
                 fname = fd.oldPath + " -> " + fd.filePath;
             }
-            div(ctx, mk(fileRow.ent(), 2),
+            auto fileName = button(ctx, mk(fileRow.ent(), 2),
                 ComponentConfig{}
                     .with_label(fname)
                     // Match the badge box height + vertical-center so the name
@@ -626,7 +634,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_roundness(0.0f)
-                    .with_debug_name("file_name"));
+                    .with_debug_name("jump_to_diff:" + fd.filePath));
+            if (fileName) {
+                repo.diffTargetFile = fd.filePath;
+                repo.diffTargetFrames = 3;
+                layout.diffFindOpen = false;
+            }
 
             // Colored +N / -N counts in two fixed-width right-aligned columns so
             // the numbers line up vertically across rows (no jitter/run-together).

@@ -1,0 +1,8 @@
+resize 1280 800
+wait_for_refresh
+click_text "Two files with a distant second diff"
+screenshot improvement_30_summary
+click_ui jump_to_diff:last.txt
+screenshot improvement_30_target
+expect_text "Jump target second line"
+assert_ui_text "last.txt  +2  (new file)" hidden=false

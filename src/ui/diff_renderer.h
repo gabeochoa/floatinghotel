@@ -1388,6 +1388,17 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
                 .with_debug_name("file_header_row"));
         vp.built(diff_detail::FILE_HEADER_H);
+        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            repo && repo->diffTargetFrames > 0 && repo->diffTargetFile == fileDiff.filePath &&
+            contentParent->has<afterhours::ui::HasScrollView>()) {
+            auto& scroll = contentParent->get<afterhours::ui::HasScrollView>();
+            auto rect = afterhours::ui::detail::apply_scroll_offset(
+                fileHeaderRow.ent(), fileHeaderRow.ent().get<afterhours::ui::UIComponent>().rect());
+            float target = scroll.scroll_offset.y + rect.y - contentParent->get<afterhours::ui::UIComponent>().rect().y;
+            target = std::clamp(target, 0.f, std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
+            scroll.scroll_offset = scroll.scroll_target = scroll.last_eased_offset = {0.f, target};
+            --repo->diffTargetFrames;
+        }
 
         // Working-tree file header gets an "Approve file" button (stages the
         // whole file). No reserve to compute: the label expands into whatever

@@ -179,6 +179,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string comparisonError;
     int comparisonContext = 3;
     bool comparisonIgnoreWhitespace = false;
+    std::string diffTargetFile;
+    int diffTargetFrames = 0;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {
