@@ -1393,6 +1393,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_border_bottom(theme::BORDER)
                 .with_roundness(0.0f)
                 .with_debug_name("file_header_row"));
+        set_tooltip(fileHeaderRow.ent(), fileLabel);
         vp.built(diff_detail::FILE_HEADER_H);
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             repo && repo->diffTargetFrames > 0 && repo->diffTargetFile == fileDiff.filePath &&
@@ -1628,11 +1629,12 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         std::string label = current.file->filePath;
         if (current.hunk) label += "   " + current.hunk->header;
-        div(ctx, mk(stickyHost.ent(), 0), ComponentConfig{}.with_label(label)
+        auto stickyLabel = div(ctx, mk(stickyHost.ent(), 0), ComponentConfig{}.with_label(label)
             .with_size(ComponentSize{w, pixels(stickyHeight)}).with_font_size(FontSize::Small)
             .with_padding(Padding{.left = pixels(8), .right = pixels(8)})
             .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("sticky_diff_context"));
+        set_tooltip(stickyLabel.ent(), label);
     }
 
     // This frame's registry becomes next frame's hit-test source.

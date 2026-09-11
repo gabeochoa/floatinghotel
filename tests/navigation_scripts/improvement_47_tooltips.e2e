@@ -1,0 +1,20 @@
+resize 1280 800
+wait_for_refresh
+click_text long-file-name.txt
+screenshot improvement_47_file
+wait_frames 45
+screenshot improvement_47_path_tooltip
+validate tooltip_showing=true
+validate tooltip_text=src/a-very-long-directory-name/nested-path-for-tooltip-verification/long-file-name.txt
+click_text "A long commit subject"
+wait_for_refresh
+wait_frames 45
+screenshot improvement_47_subject_tooltip
+validate tooltip_showing=true
+click_button Refs
+screenshot improvement_47_refs
+click_ui branch_row
+wait_frames 45
+screenshot improvement_47_branch_tooltip
+validate tooltip_showing=true
+validate tooltip_text=feature/a-long-branch-name-that-must-remain-readable-in-a-tooltip

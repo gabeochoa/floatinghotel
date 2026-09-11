@@ -7,6 +7,19 @@
 #include "../../src/util/commit_graph.h"
 #include "../../src/util/review_selection.h"
 #include "../../src/util/navigation.h"
+#include "../../src/util/wrap_text.h"
+
+TEST(tooltip_wrapping_preserves_all_text_and_utf8_glyphs) {
+    std::string source = "Long subject with spaces and 世界";
+    auto measure = [](const std::string& text) {
+        return static_cast<float>(std::count_if(text.begin(), text.end(), [](unsigned char c) { return (c & 0xc0) != 0x80; }));
+    };
+    auto lines = wrap_measured_text(source, 8.f, measure);
+    std::string joined;
+    for (const auto& line : lines) { ASSERT_TRUE(measure(line) <= 8.f); joined += line; }
+    ASSERT_EQ(joined, source);
+    ASSERT_EQ(wrap_measured_text("one\n\ntwo", 20.f, measure), (std::vector<std::string>{"one", "", "two"}));
+}
 
 TEST(navigation_history_truncates_forward_after_a_new_destination) {
     ecs::NavigationHistory history;

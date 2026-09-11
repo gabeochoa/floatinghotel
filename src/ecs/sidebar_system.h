@@ -965,6 +965,7 @@ private:
                     .bottom = h720(0), .left = pixels(0)})
                 .with_roundness(0.0f)
                 .with_debug_name("branch_row"));
+        ui::set_tooltip(rowResult.ent(), branch.name);
 
         rowResult.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 
@@ -1555,6 +1556,7 @@ private:
             preset::SelectableRow(selected)
                 .with_size(ComponentSize{rowWidth, h720(ROW_H)})
                 .with_debug_name("file_row"));
+        ui::set_tooltip(row.ent(), path);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 
@@ -1774,6 +1776,7 @@ private:
                     .bottom = pixels(0), .left = pixels(ROW_INSET_L)})
                 .with_gap(pixels(4))
                 .with_debug_name("commit_row"));
+        ui::set_tooltip(row.ent(), commit.subject + "\n" + commit.hash + "\n" + commit.decorations);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 

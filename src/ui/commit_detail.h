@@ -166,7 +166,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         return;
     }
 
-    div(ctx, mk(scrollContainer.ent(), nextId++),
+    auto subjectLabel = div(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}
             .with_label(selectedCommit->subject)
             .with_size(ComponentSize{percent(1.0f), children()})
@@ -179,6 +179,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_roundness(0.0f)
             .with_debug_name("commit_subject"));
+    ui::set_tooltip(subjectLabel.ent(), selectedCommit->subject);
 
     // While reviewing, comments on a commit's hunks are scoped to its SHA and
     // meant to be applied as fixups — make that explicit (mock's fixup banner).
@@ -574,6 +575,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_custom_background(theme::WINDOW_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_summary_row"));
+            ui::set_tooltip(fileRow.ent(), fd.isRenamed ? fd.oldPath + " -> " + fd.filePath : fd.filePath);
             fileRow.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
             if (fileRow.ent().get<HasClickListener>().down) {
                 repo.diffTargetFile = fd.filePath;

@@ -6,6 +6,7 @@
 #include "../vendor/afterhours/src/plugins/modal.h"
 #include "rl.h"
 #include "input_mapping.h"
+#include "ui/tooltip.h"
 
 namespace ui_imm {
 
@@ -47,7 +48,8 @@ inline void registerUIPostLayoutSystems(
 
 inline void registerUIRenderSystems(
     afterhours::SystemManager& manager) {
-    afterhours::ui::register_render_systems<InputAction>(manager);
+    manager.register_render_system(std::make_unique<afterhours::ui::UIPluginRenderBridge<InputAction>>(InputAction::None, false));
+    manager.register_render_system(std::make_unique<ui::RenderWrappedTooltip<InputAction>>());
 }
 
 inline void registerToastSystems(
