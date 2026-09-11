@@ -304,6 +304,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
 
     enum class FileViewMode { Flat, Tree, All };
     FileViewMode fileViewMode = FileViewMode::Flat;
+    std::map<std::string, std::set<std::string>> collapsedDirectories;
 
     enum class DiffViewMode { Inline, SideBySide };
     DiffViewMode diffViewMode = DiffViewMode::Inline;

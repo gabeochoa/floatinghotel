@@ -1,0 +1,15 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text "View"
+click_text "Tree View"
+screenshot improvement_23_tree
+expect_text "v src/"
+expect_text "app.cpp"
+click_ui tree_directory:src/
+screenshot improvement_23_collapsed
+expect_no_text "app.cpp"
+expect_text "> src/"
+click_ui tree_directory:src/
+screenshot improvement_23_expanded
+expect_text "app.cpp"

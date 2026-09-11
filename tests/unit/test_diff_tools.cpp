@@ -2,6 +2,20 @@
 #include "../../src/ecs/components.h"
 #include "../../src/ui/code_highlight.h"
 #include "../../src/util/fuzzy_match.h"
+#include "../../src/util/file_tree.h"
+
+TEST(file_tree_collapses_descendants_without_hiding_siblings) {
+    std::vector<std::string> paths{"src/deep/a.cpp", "src/b.cpp", "src2/c.cpp", "README.md"};
+    auto rows = file_tree::flatten(paths, {});
+    ASSERT_EQ(rows.size(), 7u);
+    auto collapsed = file_tree::flatten(paths, {"src/"});
+    ASSERT_EQ(collapsed.size(), 4u);
+    ASSERT_EQ(collapsed[1].path, "src/");
+    ASSERT_TRUE(collapsed[1].directory);
+    ASSERT_EQ(collapsed.back().path, "src2/c.cpp");
+    ASSERT_EQ(collapsed.back().sourceIndex, 2u);
+    ASSERT_EQ(file_tree::flatten(paths, {"src/deep/"}).size(), 6u);
+}
 
 TEST(fuzzy_paths_match_subsequences_and_rank_boundaries) {
     auto paths = fuzzy::rank({"src/application.cpp", "src/app.cpp", "README.md"}, "sacp");

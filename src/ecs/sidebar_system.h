@@ -10,6 +10,7 @@
 #include "../git/git_runner.h"
 #include "../settings.h"
 #include "../util/git_helpers.h"
+#include "../util/file_tree.h"
 #include "network_ops_system.h"
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
@@ -275,6 +276,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         auto filesPanel = preset::ScrollPanel()
             .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
             .with_debug_name("sidebar_files");
+        if (repoPtr) update_file_tree(*repoPtr, layout);
         const bool windowedFiles =
             layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
             repoPtr && active_file_count(*repoPtr) > 0;
@@ -1335,7 +1337,32 @@ private:
         return lc ? lc->reviewTab : LayoutComponent::ReviewTab::ToReview;
     }
 
-    static size_t active_file_count(const RepoComponent& repo) {
+    std::vector<file_tree::Row> treeRows_;
+    std::vector<std::string> treePaths_;
+    std::set<std::string> treeCollapsed_;
+    bool treeMode_ = false;
+
+    void update_file_tree(const RepoComponent& repo, const LayoutComponent& layout) {
+        treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
+        if (!treeMode_) return;
+        std::vector<std::string> paths;
+        auto tab = active_review_tab();
+        if (tab == LayoutComponent::ReviewTab::ToReview) {
+            for (const auto& file : repo.unstagedFiles) paths.push_back(file.path);
+        } else if (tab == LayoutComponent::ReviewTab::Approved) {
+            for (const auto& file : repo.stagedFiles) paths.push_back(file.path);
+        } else paths = repo.untrackedFiles;
+        auto it = layout.collapsedDirectories.find(repo.repoPath);
+        const std::set<std::string> collapsed = it == layout.collapsedDirectories.end() ? std::set<std::string>{} : it->second;
+        if (paths != treePaths_ || collapsed != treeCollapsed_) {
+            treePaths_ = std::move(paths);
+            treeCollapsed_ = collapsed;
+            treeRows_ = file_tree::flatten(treePaths_, treeCollapsed_);
+        }
+    }
+
+    size_t active_file_count(const RepoComponent& repo) const {
+        if (treeMode_) return treeRows_.size();
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) return repo.unstagedFiles.size();
         if (tab == LayoutComponent::ReviewTab::Approved) return repo.stagedFiles.size();
@@ -1344,6 +1371,21 @@ private:
 
     void render_active_file_row(UIContext<InputAction>& ctx, Entity& row,
                                 size_t i, RepoComponent& repo) {
+        if (treeMode_) {
+            const auto& node = treeRows_[i];
+            if (node.directory) {
+                auto label = std::string(node.depth * 3, ' ') + (treeCollapsed_.contains(node.path) ? "> " : "v ") + sidebar_detail::basename_from_path(node.path);
+                if (button(ctx, mk(row, 0), preset::Button(label)
+                        .with_size(ComponentSize{percent(1.f), h720(static_cast<float>(theme::layout::FILE_ROW_HEIGHT))})
+                        .with_custom_background(theme::SIDEBAR_BG).with_alignment(TextAlignment::Left)
+                        .with_debug_name("tree_directory:" + node.path))) {
+                    auto& collapsed = find_singleton<LayoutComponent>()->collapsedDirectories[repo.repoPath];
+                    if (collapsed.contains(node.path)) collapsed.erase(node.path); else collapsed.insert(node.path);
+                }
+                return;
+            }
+            i = node.sourceIndex;
+        }
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
             render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false);
@@ -1480,6 +1522,10 @@ private:
 
         std::string fname = sidebar_detail::basename_from_path(path);
         std::string dir = sidebar_detail::dir_from_path(path);
+        if (treeMode_) {
+            fname = std::string(static_cast<size_t>(std::count(path.begin(), path.end(), '/')) * 3, ' ') + fname;
+            dir.clear();
+        }
         // Submodules show "S" (gitlink pointer change) rather than the raw M/A.
         std::string statusStr(1, isSubmodule ? 'S' : statusChar);
 
