@@ -119,6 +119,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     bool commitJustChanged = (detailCache.cachedCommitHash != repo.selectedCommitHash);
     if (commitJustChanged) {
+        detailCache.commitDetailError.clear();
         auto diffResult = git::git_show(repo.repoPath, repo.selectedCommitHash);
         auto infoResult = git::git_show_commit_info(repo.repoPath, repo.selectedCommitHash);
 
@@ -126,6 +127,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             detailCache.commitDetailDiff = git::parse_diff(diffResult.stdout_str());
         } else {
             detailCache.commitDetailDiff.clear();
+            detailCache.commitDetailError = "Unable to load commit diff: " + diffResult.stderr_str();
         }
 
         if (infoResult.success()) {
@@ -137,6 +139,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             detailCache.commitDetailBody.clear();
             detailCache.commitDetailAuthorEmail.clear();
             detailCache.commitDetailParents.clear();
+            detailCache.commitDetailError += " Unable to load commit metadata: " + infoResult.stderr_str();
         }
 
         detailCache.cachedCommitHash = repo.selectedCommitHash;
@@ -472,7 +475,21 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("commit_sep"));
 
-    if (detailCache.commitDetailDiff.empty()) {
+    if (!detailCache.commitDetailError.empty()) {
+        div(ctx, mk(scrollContainer.ent(), nextId++),
+            ComponentConfig{}
+                .with_label(detailCache.commitDetailError)
+                .with_size(ComponentSize{percent(1.f), pixels(100)})
+                .with_font_size(FontSize::Medium)
+                .with_custom_text_color(theme::STATUS_DELETED)
+                .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
+                .with_debug_name("commit_load_error"));
+        auto retry = button(ctx, mk(scrollContainer.ent(), nextId++),
+            preset::Button("Retry loading commit")
+                .with_size(ComponentSize{children(), pixels(32)})
+                .with_debug_name("commit_load_retry"));
+        if (retry) detailCache.cachedCommitHash.clear();
+    } else if (detailCache.commitDetailDiff.empty()) {
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
                 .with_label("No file changes in this commit")

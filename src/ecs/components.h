@@ -121,6 +121,7 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     std::string commitDetailBody;
     std::string commitDetailAuthorEmail;
     std::string commitDetailParents;
+    std::string commitDetailError;
 };
 
 // Per-tab "Ballroom" review state (see docs/mocks/ballroom.html).
