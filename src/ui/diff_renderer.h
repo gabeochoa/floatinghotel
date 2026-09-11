@@ -475,7 +475,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                          float contentWidth = 0,
                          diff_sel::Session* sel = nullptr,
                          diff_detail::DiffViewport* vp = nullptr,
-                         bool sideBySide = false) {
+                         bool sideBySide = false,
+                         float lineWidth = 0.f) {
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
@@ -711,7 +712,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     }
 
     if (sideBySide) {
-        render_sbs_hunk(ctx, parent, fileDiff, hunk, nextId, contentWidth, vp, sel, false);
+        render_sbs_hunk(ctx, parent, fileDiff, hunk, nextId,
+                        lineWidth > 0 ? lineWidth : contentWidth, vp, sel, false);
         return;
     }
 
@@ -728,11 +730,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             vp->reveal();
         if (!vp || !vp->active) {
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
-                             contentWidth, fileDiff.filePath, sel);
+                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel);
         } else if (vp->visible(diff_detail::LINE_HEIGHT)) {
             vp->flush(ctx, parent, nextId);
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
-                             contentWidth, fileDiff.filePath, sel);
+                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel);
             vp->built(diff_detail::LINE_HEIGHT);
         } else {
             // Offscreen: advance line-number counters so gutters stay correct
@@ -1088,7 +1090,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         auto scrollContainer = div(ctx, mk(parent, nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{w, h})
-                .with_overflow(Overflow::Scroll, Axis::Y)
+                .with_overflow(Overflow::Scroll)
                 .with_flex_direction(FlexDirection::Column)
                 .with_no_wrap()  // scroll list stacks; never wrap into a 2nd column
                 .with_custom_background(theme::PANEL_BG)
@@ -1100,6 +1102,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
         contentParent = &scrollContainer.ent();
     }
     sess.scrollParent = contentParent;
+    float codeWidth = contentWidth;
+    for (const auto& file : diffs)
+        for (const auto& hunk : file.hunks)
+            for (const auto& line : hunk.lines) {
+                float width = diff_sel::mw(sess, line + std::string(sideBySide ? 10 : 16, ' ')) + 24.f;
+                codeWidth = std::max(codeWidth, sideBySide ? width * 2.f : width);
+            }
 
     // Virtualize the diff: only build rows in the visible scroll window
     // (+1 screen overscan). Read the prior frame's scroll offset/viewport from
@@ -1109,7 +1118,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     if (!embedInParentScroll) {
         vp.active = true;
         vp.screenH = (float)afterhours::graphics::get_screen_height();
-        vp.contentWidth = contentWidth;
+        vp.contentWidth = codeWidth;
         float scrollY = 0.f, viewportH = 0.f;
         if (contentParent->has<afterhours::ui::HasScrollView>()) {
             auto& sv = contentParent->get<afterhours::ui::HasScrollView>();
@@ -1365,7 +1374,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         // Render each hunk (passing contentWidth for proper sizing)
         for (auto& hunk : fileDiff.hunks) {
             render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
-                        contentWidth, &sess, &vp, sideBySide);
+                        contentWidth, &sess, &vp, sideBySide, codeWidth);
         }
 
         // Spacer between files

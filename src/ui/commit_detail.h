@@ -153,7 +153,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     auto scrollContainer = div(ctx, mk(parent, nextId++),
         ComponentConfig{}
             .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
-            .with_overflow(Overflow::Scroll, Axis::Y)
+            .with_overflow(Overflow::Scroll)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()  // a scroll list must stack, never wrap into columns
             .with_custom_background(theme::WINDOW_BG)

@@ -1,0 +1,9 @@
+resize 1280 800
+wait_for_refresh
+click_text long.txt
+wait_frames 10
+screenshot improvement_12_before
+mouse_move 800 300
+scroll_wheel -200 0
+wait_frames 30
+screenshot improvement_12_after
