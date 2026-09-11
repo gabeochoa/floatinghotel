@@ -8,6 +8,7 @@
 namespace git {
 
 std::vector<std::string> parse_null_paths(const std::string& output);
+std::vector<ecs::SearchMatch> parse_grep_matches(const std::string& output);
 
 // ---- Status Parser (T012) ----
 

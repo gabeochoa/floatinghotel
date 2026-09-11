@@ -566,6 +566,16 @@ TEST(null_paths_preserve_spaces_and_tabs) {
     ASSERT_EQ(paths[1], "tab\tname");
 }
 
+TEST(grep_matches_parse_nul_separated_locations) {
+    std::string output = std::string("dir/file name.cpp") + '\0' + "42" + '\0' + "needle: value\n";
+    auto matches = git::parse_grep_matches(output);
+    ASSERT_EQ(matches.size(), 1u);
+    ASSERT_EQ(matches[0].file, "dir/file name.cpp");
+    ASSERT_EQ(matches[0].line, 42);
+    ASSERT_EQ(matches[0].text, "needle: value");
+    ASSERT_TRUE(git::parse_grep_matches("malformed").empty());
+}
+
 // ===========================================================================
 // parse_branch_list tests
 // ===========================================================================

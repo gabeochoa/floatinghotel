@@ -10,10 +10,15 @@
 
 #include "../../vendor/afterhours/src/core/base_component.h"
 #include "../../vendor/afterhours/src/core/entity_helper.h"
-
-namespace git { struct GitResult; }
+#include "../git/git_runner.h"
 
 namespace ecs {
+
+struct SearchMatch {
+    std::string file;
+    int line = 0;
+    std::string text;
+};
 
 // ---- Sub-structs (not components, just data) ----
 
@@ -127,6 +132,15 @@ struct RepoComponent : public afterhours::BaseComponent {
     unsigned dataGeneration = 0;
     std::vector<std::string> allFilePaths;
     std::string filesError;
+    bool repoSearchOpen = false;
+    bool repoSearchFocus = false;
+    std::string repoSearchQuery;
+    std::string repoSearchPath;
+    std::string repoSearchError;
+    std::shared_future<git::GitResult> repoSearchFuture;
+    std::vector<SearchMatch> repoSearchResults;
+    int fullFileTargetLine = 0;
+    int fullFileNavigateFrames = 0;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {

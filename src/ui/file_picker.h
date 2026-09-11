@@ -27,6 +27,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFilePath = path;
         repo.fullFileRevision.clear();
         repo.fullFileCacheKey.clear();
+        repo.fullFileTargetLine = 0;
         layout.filePickerOpen = false;
         ctx.set_focus(ctx.ROOT);
     };

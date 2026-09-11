@@ -1,10 +1,31 @@
 #include "git_parser.h"
 
 #include <algorithm>
+#include <charconv>
 #include <cstdio>
 #include <sstream>
 
 namespace git {
+
+std::vector<ecs::SearchMatch> parse_grep_matches(const std::string& output) {
+    std::vector<ecs::SearchMatch> matches;
+    size_t start = 0;
+    while (start < output.size() && matches.size() < 5000) {
+        size_t pathEnd = output.find('\0', start);
+        if (pathEnd == std::string::npos) break;
+        size_t lineEnd = output.find('\0', pathEnd + 1);
+        if (lineEnd == std::string::npos) break;
+        size_t textEnd = output.find('\n', lineEnd + 1);
+        if (textEnd == std::string::npos) textEnd = output.size();
+        int line = 0;
+        auto parsed = std::from_chars(output.data() + pathEnd + 1, output.data() + lineEnd, line);
+        if (parsed.ec == std::errc{} && parsed.ptr == output.data() + lineEnd && line > 0)
+            matches.push_back({output.substr(start, pathEnd - start), line,
+                               output.substr(lineEnd + 1, textEnd - lineEnd - 1)});
+        start = textEnd + 1;
+    }
+    return matches;
+}
 
 std::vector<std::string> parse_null_paths(const std::string& output) {
     std::vector<std::string> paths;

@@ -30,6 +30,7 @@ inline FileDiff full_file_diff(const std::string& path, const std::string& conte
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
     std::string key = repo.repoPath + "\n" + repo.fullFileRevision + "\n" + repo.fullFilePath;
+    if (repo.fullFileRevision.empty()) key += ":" + std::to_string(repo.dataGeneration);
     bool changed = repo.fullFileCacheKey != key;
     if (changed) {
         repo.fullFileCacheKey = key;

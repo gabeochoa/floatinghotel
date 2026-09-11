@@ -1139,6 +1139,18 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_close")))
             layout->diffFindOpen = false;
     }
+    if (!diffs.empty() && diffs.front().isFullContent && !(layout && layout->diffFindOpen)) {
+        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            repo && repo->fullFileTargetLine > 0 && !diffs.front().hunks.empty()) {
+            const auto& lines = diffs.front().hunks.front().lines;
+            if (static_cast<size_t>(repo->fullFileTargetLine) <= lines.size()) {
+                sess.findMatch = ecs::DiffMatch{diffs.front().filePath, repo->fullFileTargetLine, ' ', 0};
+                sess.findQuery = lines[repo->fullFileTargetLine - 1].substr(1);
+                sess.findNavigate = repo->fullFileNavigateFrames > 0;
+                if (repo->fullFileNavigateFrames > 0) --repo->fullFileNavigateFrames;
+            }
+        }
+    }
     bool selEnabled = true;
     if (selEnabled) {
         std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline");
@@ -1450,6 +1462,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                                             : reviewScope == "index" ? (fileDiff.isDeleted ? "HEAD" : "INDEX")
                                             : reviewScope + (fileDiff.isDeleted ? "^" : "");
                     repo->fullFileCacheKey.clear();
+                    repo->fullFileTargetLine = 0;
                 }
             }
         }

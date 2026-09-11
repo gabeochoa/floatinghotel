@@ -103,6 +103,12 @@ inline std::vector<Menu> createMenuBar() {
                 l->filePickerFocus = true;
             }
         }),
+        MenuItem::item("Search Repository...", "Cmd+Shift+F", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+                repo->repoSearchOpen = true;
+                repo->repoSearchFocus = true;
+            }
+        }),
     }});
 
     // View menu

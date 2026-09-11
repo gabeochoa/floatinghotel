@@ -12,6 +12,7 @@
 #include "../ui/diff_renderer.h"
 #include "../ui/full_file_view.h"
 #include "../ui/file_picker.h"
+#include "../ui/repo_search.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -213,6 +214,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
         if (afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+            if (repoPtr && repoPtr->repoSearchOpen) {
+                repoPtr->repoSearchOpen = false;
+                return;
+            }
             if (layout.filePickerOpen) {
                 layout.filePickerOpen = false;
                 return;
@@ -265,8 +270,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                          afterhours::input::is_key_down(347) ||
                          afterhours::input::is_key_down(341);
         if (superDown && afterhours::input::is_key_pressed(70)) {
-            layout.diffFindOpen = true;
-            layout.diffFindFocus = true;
+            if (repoPtr && afterhours::input::is_key_down(340)) {
+                repoPtr->repoSearchOpen = true;
+                repoPtr->repoSearchFocus = true;
+                layout.filePickerOpen = false;
+            } else {
+                layout.diffFindOpen = true;
+                layout.diffFindFocus = true;
+            }
         }
         if (superDown && afterhours::input::is_key_pressed(80)) {
             layout.filePickerOpen = true;
@@ -322,6 +333,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         auto& repo = *repoPtr;
+        if (repo.repoSearchOpen) {
+            render_repo_search(ctx, mainBg.ent(), repo, layout);
+            return;
+        }
         if (layout.filePickerOpen) {
             render_file_picker(ctx, mainBg.ent(), repo, layout);
             return;
