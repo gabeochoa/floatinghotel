@@ -210,6 +210,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::vector<Comment> comments;
     int editingComment = -1;
     std::string editingCommentText;
+    std::map<std::string, Comment> drafts;
     std::set<std::string> approvedHunks;
     std::set<std::string> foldedHunks;
     // Inline compose state: the hunk currently being commented on + its buffer.
@@ -271,16 +272,50 @@ inline size_t unresolved_comment_count(const ReviewComponent& review) {
         [](const auto& comment) { return !comment.resolved; }));
 }
 
+inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
+    return {review.composingScope, review.composingFile, review.composingLine,
+        review.composingText, review.composingEndLine, review.composingOldSide};
+}
+
+inline void begin_comment(ReviewComponent& review, const std::string& key,
+                           ReviewComponent::Comment location) {
+    if (!review.composingKey.empty()) {
+        if (review.composingText.empty()) review.drafts.erase(review.composingKey);
+        else review.drafts[review.composingKey] = pending_comment(review);
+    }
+    if (auto draft = review.drafts.find(key); draft != review.drafts.end()) location = draft->second;
+    review.composingKey = key;
+    review.composingScope = location.scope;
+    review.composingFile = location.file;
+    review.composingLine = location.line;
+    review.composingEndLine = location.endLine;
+    review.composingOldSide = location.oldSide;
+    review.composingText = std::move(location.text);
+    review.dirty = true;
+}
+
+inline void restore_draft_selection(RepoComponent& repo, const ReviewComponent& review) {
+    std::string file, scope;
+    if (!review.composingKey.empty()) { file = review.composingFile; scope = review.composingScope; }
+    else if (review.editingComment >= 0 && static_cast<size_t>(review.editingComment) < review.comments.size()) {
+        file = review.comments[review.editingComment].file;
+        scope = review.comments[review.editingComment].scope;
+    } else return;
+    repo.selectedFilePath = scope == "wt" ? file : "";
+    repo.selectedCommitHash = scope == "wt" ? "" : scope;
+    repo.fullFilePath.clear();
+}
+
 // Commit the in-progress comment into the basket and auto-fold its hunk.
 inline void commit_pending_comment(ReviewComponent& r) {
     if (r.composingKey.empty()) return;
     if (!r.composingText.empty()) {
-        r.comments.push_back({r.composingScope, r.composingFile,
-                              r.composingLine, r.composingText,
-                              r.composingEndLine, r.composingOldSide});
+        r.comments.push_back(pending_comment(r));
         r.foldedHunks.insert(r.composingKey);
         r.dirty = true;
     }
+    r.drafts.erase(r.composingKey);
+    r.dirty = true;
     r.composingKey.clear();
     r.composingText.clear();
     r.composingFile.clear();

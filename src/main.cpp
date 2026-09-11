@@ -292,6 +292,7 @@ static void app_init() {
         // Restore any saved ballroom review for this repo (survives restart).
         if (!path.empty() && !app_state::testModeEnabled)
             review_store::load_review(path, review);
+        ecs::restore_draft_selection(repo, review);
 
         auto& editor = tab.addComponent<ecs::CommitEditorComponent>();
         if (savedPolicy == "stage_all") {
@@ -418,6 +419,7 @@ static void app_init() {
                 sm.register_update_system(std::make_unique<SkipResizeCommand>());
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
+            sm.register_update_system(std::make_unique<HandleReviewRoundtrip>());
             sm.register_update_system(std::make_unique<HandleResetUI>());
             sm.register_update_system(std::make_unique<HandleTabCommands>());
             sm.register_update_system(std::make_unique<HandleTouchFile>());
@@ -747,6 +749,8 @@ static void app_cleanup() {
             auto opt = afterhours::EntityHelper::getEntityForID(tabId);
             if (!opt.valid() || !opt->has<ecs::RepoComponent>()) continue;
             auto& repo = opt->get<ecs::RepoComponent>();
+            if (!app_state::testModeEnabled && opt->has<ecs::ReviewComponent>())
+                review_store::save_review(repo.repoPath, opt->get<ecs::ReviewComponent>());
             if (!repo.repoPath.empty()) {
                 openRepos.push_back(repo.repoPath);
                 if (opt->has<ecs::ActiveTab>()) {

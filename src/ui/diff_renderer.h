@@ -564,13 +564,9 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
         if (isCursor && sel->review->cursorComment) {
             sel->review->cursorComment = false;
-            sel->review->composingKey = hkey;
-            sel->review->composingText.clear();
-            sel->review->composingFile = fileDiff.filePath;
-            sel->review->composingScope = sel->reviewScope;
-            sel->review->composingOldSide = hunk.newCount == 0;
-            sel->review->composingLine = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
-            sel->review->composingEndLine = sel->review->composingLine;
+            int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
+            ecs::begin_comment(*sel->review, hkey,
+                {sel->reviewScope, fileDiff.filePath, line, "", line, hunk.newCount == 0});
         }
     }
 
@@ -707,13 +703,9 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_debug_name("comment_hunk_btn"));
         if (commentBtn) {
-            sel->review->composingKey = hkey;
-            sel->review->composingText.clear();
-            sel->review->composingFile = fileDiff.filePath;
-            sel->review->composingScope = sel->reviewScope;
-            sel->review->composingOldSide = hunk.newCount == 0;
-            sel->review->composingLine = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
-            sel->review->composingEndLine = sel->review->composingLine;
+            int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
+            ecs::begin_comment(*sel->review, hkey,
+                {sel->reviewScope, fileDiff.filePath, line, "", line, hunk.newCount == 0});
         }
     }
     } // headerVisible
@@ -738,6 +730,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             (sel->review->composingOldSide ? " (old)" : "");
         float addWidth = static_cast<float>(afterhours::graphics::measure_text(addLabel.c_str(),
             static_cast<int>(resolve_to_pixels(h720(12.f), screenH)))) + 24.f;
+        auto previousDraft = sel->review->composingText;
         afterhours::text_input::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
             ComponentConfig{}
@@ -749,6 +742,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_overflow(afterhours::ui::Overflow::Hidden)
                 .with_corner_radius(4.0f)
                 .with_debug_name("comment_input"));
+        if (previousDraft != sel->review->composingText) sel->review->dirty = true;
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
             preset::Button(addLabel)
                 .with_size(ComponentSize{pixels(addWidth), h720(18)})
@@ -1451,13 +1445,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
                             int first = range->oldSide ? hunk.oldStart : hunk.newStart;
                             int count = range->oldSide ? hunk.oldCount : hunk.newCount;
                             if (range->first < first || range->first >= first + count) continue;
-                            review->composingKey = reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk);
-                            review->composingScope = reviewScope;
-                            review->composingFile = range->oldSide && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
-                            review->composingLine = range->first;
-                            review->composingEndLine = range->last;
-                            review->composingOldSide = range->oldSide;
-                            review->composingText.clear();
+                            ecs::begin_comment(*review, reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk),
+                                {reviewScope, range->oldSide && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath,
+                                 range->first, "", range->last, range->oldSide});
                             review->foldedHunks.erase(review->composingKey);
                             diff_sel::reset();
                             break;

@@ -63,6 +63,8 @@ inline void reset_review(ReviewComponent& review) {
     review.comments.clear();
     review.editingComment = -1;
     review.editingCommentText.clear();
+    review.drafts.clear();
+    review.dirty = false;
     review.approvedHunks.clear();
     review.foldedHunks.clear();
     review.composingKey.clear();

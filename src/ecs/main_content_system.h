@@ -150,7 +150,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 ComponentConfig{}
                     .with_label((c.resolved ? "Resolved · " : "") + comment_location(c))
                     .with_size(ComponentSize{expand(), h720(20)})
-                    .with_custom_text_color(theme::BUTTON_PRIMARY)
+                    .with_custom_background(theme::SIDEBAR_BG)
+                    .with_custom_text_color(afterhours::Color{100, 180, 255, 255})
                     .with_font("mono", h720(11.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("basket_item_loc"));
@@ -176,11 +177,13 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 ctx.set_focus(ctx.ROOT);
             }
             if (editing) {
+                auto previousEdit = review.editingCommentText;
                 afterhours::text_input::text_area(ctx, mk(itemRow.ent(), 5), review.editingCommentText,
                     ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})
                         .with_font("mono", pixels(fontSize)).with_line_height(pixels(22.f))
                         .with_word_wrap(true).with_overflow(Overflow::Hidden)
                         .with_debug_name("basket_edit_input"));
+                if (previousEdit != review.editingCommentText) review.dirty = true;
                 auto actions = div(ctx, mk(itemRow.ent(), 6), ComponentConfig{}
                     .with_size(ComponentSize{pixels(txtW), pixels(28)}).with_flex_direction(FlexDirection::Row));
                 if (button(ctx, mk(actions.ent(), 0), preset::Button("Save")
@@ -191,6 +194,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                         .with_size(ComponentSize{pixels(75), pixels(26)}).with_debug_name("basket_edit_cancel"))) {
                     review.editingComment = -1;
                     review.editingCommentText.clear();
+                    review.dirty = true;
                 }
             } else div(ctx, mk(itemRow.ent(), 0),
                 ComponentConfig{}
@@ -206,6 +210,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
                 review.editingComment = i;
                 review.editingCommentText = c.text;
+                review.dirty = true;
             }
             if (!editing && button(ctx, mk(heading.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
                     .with_size(ComponentSize{pixels(66), h720(18)}).with_font_size(FontSize::Small)
@@ -999,8 +1004,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         Settings::get().add_recent_repo(recentRepos[ri]);
                         // Restore any saved review for the newly-opened repo.
                         auto* rv = find_singleton<ReviewComponent, ActiveTab>();
-                        if (rv && !app_state::testModeEnabled)
+                        if (rv && !app_state::testModeEnabled) {
                             review_store::load_review(activeRepo->repoPath, *rv);
+                            restore_draft_selection(*activeRepo, *rv);
+                        }
                     }
                 }
             }

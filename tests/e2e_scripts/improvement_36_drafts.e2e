@@ -1,0 +1,25 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Unfinished draft survives"
+screenshot improvement_36_draft
+roundtrip_review
+screenshot improvement_36_restored
+expect_text "Unfinished draft survives"
+click_ui comment_add_btn
+screenshot improvement_36_queued
+click_ui basket_item_edit
+screenshot improvement_36_edit
+click_ui basket_edit_input
+key CMD+A
+type "Unsaved edit survives"
+roundtrip_review
+screenshot improvement_36_edit_restored
+expect_text "Unsaved edit survives"
+click_ui basket_edit_save
+screenshot improvement_36_saved
+expect_text "Unsaved edit survives"
+expect_no_text "Unfinished draft survives"

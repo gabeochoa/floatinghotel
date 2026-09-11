@@ -3,7 +3,10 @@
 #include <filesystem>
 
 #include "../settings.h"
+#include "../review_store.h"
 #include "ui_imports.h"
+
+namespace app_state { extern bool testModeEnabled; }
 
 namespace ecs {
 
@@ -283,6 +286,8 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
 
         auto tabOpt = EntityHelper::getEntityForID(tabId);
         if (tabOpt.valid()) {
+            if (!app_state::testModeEnabled && tabOpt->has<RepoComponent>() && tabOpt->has<ReviewComponent>())
+                review_store::save_review(tabOpt->get<RepoComponent>().repoPath, tabOpt->get<ReviewComponent>());
             tabOpt.asE().cleanup = true;
         }
 

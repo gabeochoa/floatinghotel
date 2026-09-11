@@ -31,6 +31,23 @@ struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECom
     }
 };
 
+struct HandleReviewRoundtrip : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("roundtrip_review")) return;
+        auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+        if (repo && review) {
+            auto key = repo->repoPath + "::e2e-drafts";
+            review_store::save_review(key, *review);
+            ecs::reset_review(*review);
+            review_store::load_review(key, *review);
+            ecs::restore_draft_selection(*repo, *review);
+            std::filesystem::remove(review_store::review_path(key));
+        }
+        cmd.consume();
+    }
+};
+
 struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECommand> {
 
     static constexpr const char* REPO_PATH = "/tmp/floatinghotel_test_repo";

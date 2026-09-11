@@ -16,6 +16,23 @@ namespace review_store {
 
 namespace {
 
+nlohmann::json encode_comment(const ecs::ReviewComponent::Comment& c) {
+    return {{"scope", c.scope}, {"file", c.file}, {"line", c.line},
+        {"end_line", c.endLine}, {"old_side", c.oldSide}, {"resolved", c.resolved}, {"text", c.text}};
+}
+
+ecs::ReviewComponent::Comment decode_comment(const nlohmann::json& value) {
+    ecs::ReviewComponent::Comment comment;
+    comment.scope = value.value("scope", std::string{});
+    comment.file = value.value("file", std::string{});
+    comment.line = value.value("line", 0);
+    comment.endLine = value.value("end_line", comment.line);
+    comment.oldSide = value.value("old_side", false);
+    comment.resolved = value.value("resolved", false);
+    comment.text = value.value("text", std::string{});
+    return comment;
+}
+
 // The reviews/ dir under the afterhours save path (created on demand).
 std::filesystem::path reviews_dir() {
     std::filesystem::path dir = afterhours::files::get_save_path();
@@ -56,16 +73,18 @@ void save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["basket_open"] = review.basketOpen;
 
     nlohmann::json comments = nlohmann::json::array();
-    for (const auto& c : review.comments) {
-        comments.push_back({{"scope", c.scope},
-                            {"file", c.file},
-                            {"line", c.line},
-                            {"end_line", c.endLine},
-                            {"old_side", c.oldSide},
-                            {"resolved", c.resolved},
-                            {"text", c.text}});
-    }
+    for (const auto& c : review.comments) comments.push_back(encode_comment(c));
     j["comments"] = std::move(comments);
+    auto drafts = review.drafts;
+    if (!review.composingKey.empty()) {
+        if (review.composingText.empty()) drafts.erase(review.composingKey);
+        else drafts[review.composingKey] = ecs::pending_comment(review);
+    }
+    j["drafts"] = nlohmann::json::object();
+    for (const auto& [key, draft] : drafts) j["drafts"][key] = encode_comment(draft);
+    j["active_draft"] = review.composingKey;
+    j["editing_comment"] = review.editingComment;
+    j["editing_text"] = review.editingCommentText;
 
     j["approved_hunks"] = review.approvedHunks;  // set<string> -> array
     j["folded_hunks"] = review.foldedHunks;
@@ -93,17 +112,25 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
         review.comments.clear();
         if (j.contains("comments")) {
             for (const auto& c : j["comments"]) {
-                ecs::ReviewComponent::Comment cm;
-                cm.scope = c.value("scope", std::string{});
-                cm.file = c.value("file", std::string{});
-                cm.line = c.value("line", 0);
-                cm.endLine = c.value("end_line", cm.line);
-                cm.oldSide = c.value("old_side", false);
-                cm.resolved = c.value("resolved", false);
-                cm.text = c.value("text", std::string{});
-                review.comments.push_back(std::move(cm));
+                review.comments.push_back(decode_comment(c));
             }
         }
+        review.drafts.clear();
+        review.composingKey.clear();
+        review.composingText.clear();
+        if (j.contains("drafts")) {
+            for (auto it = j["drafts"].begin(); it != j["drafts"].end(); ++it)
+                review.drafts[it.key()] = decode_comment(it.value());
+        }
+        auto activeDraft = j.value("active_draft", std::string{});
+        if (review.drafts.contains(activeDraft)) ecs::begin_comment(review, activeDraft, review.drafts.at(activeDraft));
+        review.editingComment = j.value("editing_comment", -1);
+        review.editingCommentText = j.value("editing_text", std::string{});
+        if (review.editingComment < 0 || static_cast<size_t>(review.editingComment) >= review.comments.size()) {
+            review.editingComment = -1;
+            review.editingCommentText.clear();
+        }
+        review.dirty = false;
 
         review.approvedHunks =
             j.value("approved_hunks", std::set<std::string>{});

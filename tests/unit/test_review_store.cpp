@@ -86,6 +86,37 @@ TEST(resolved_comments_stay_saved_but_leave_the_feedback_export) {
     ASSERT_TRUE(ecs::build_review_markdown(review, "main").empty());
 }
 
+TEST(unfinished_comments_and_edits_survive_a_roundtrip) {
+    ecs::ReviewComponent review;
+    ecs::begin_comment(review, "hunk-a", {"wt", "a.cpp", 3, "", 5, false});
+    review.composingText = "Draft A";
+    ecs::begin_comment(review, "hunk-b", {"abc", "b.cpp", 8, "", 9, true});
+    review.composingText = "Draft B\nsecond line";
+    review.comments.push_back({"wt", "c.cpp", 1, "queued text"});
+    review.editingComment = 0;
+    review.editingCommentText = "Unsaved edit";
+    const std::string path = "/tmp/floatinghotel_draft_roundtrip";
+    review_store::save_review(path, review);
+    ecs::ReviewComponent loaded;
+    review_store::load_review(path, loaded);
+    ASSERT_EQ(loaded.composingText, "Draft B\nsecond line");
+    ASSERT_EQ(loaded.composingLine, 8);
+    ASSERT_TRUE(loaded.composingOldSide);
+    ASSERT_EQ(loaded.drafts.at("hunk-a").text, "Draft A");
+    ASSERT_EQ(loaded.editingCommentText, "Unsaved edit");
+    ASSERT_EQ(loaded.comments.front().text, "queued text");
+    ecs::begin_comment(loaded, "hunk-a", {});
+    ASSERT_EQ(loaded.composingText, "Draft A");
+    ecs::commit_pending_comment(loaded);
+    ASSERT_FALSE(loaded.drafts.contains("hunk-a"));
+    ASSERT_TRUE(loaded.drafts.contains("hunk-b"));
+    ASSERT_EQ(loaded.comments.size(), 2u);
+    ecs::RepoComponent repo;
+    ecs::restore_draft_selection(repo, loaded);
+    ASSERT_EQ(repo.selectedFilePath, "c.cpp");
+    std::filesystem::remove(review_store::review_path(path));
+}
+
 TEST(review_signatures_detect_same_size_edits) {
     ecs::FileDiff before;
     before.filePath = "main.cpp";
