@@ -50,6 +50,20 @@ TEST(review_store_missing_is_noop) {
     ASSERT_TRUE(r.comments.empty());
 }
 
+TEST(review_signatures_detect_same_size_edits) {
+    ecs::FileDiff before;
+    before.filePath = "main.cpp";
+    before.additions = 1;
+    before.deletions = 1;
+    before.hunks.push_back({1, 1, 1, 1, "@@ -1 +1 @@", {"-old", "+one"}});
+    auto after = before;
+    after.hunks[0].lines[1] = "+two";
+    ASSERT_NE(ecs::diff_signature(before), ecs::diff_signature(after));
+    ASSERT_NE(ecs::ReviewComponent::hunk_key(before.filePath, before.hunks[0]),
+              ecs::ReviewComponent::hunk_key(after.filePath, after.hunks[0]));
+    ASSERT_EQ(ecs::diff_signature(before), ecs::diff_signature(before));
+}
+
 int main() {
     afterhours::files::init("floatinghotel_test", "resources");
     printf("=== review_store tests ===\n");

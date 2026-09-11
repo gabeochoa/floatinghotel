@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdint>
 #include <future>
 #include <map>
 #include <set>
@@ -56,6 +57,19 @@ struct FileDiff {
     std::vector<DiffHunk> hunks;
 };
 
+inline std::string hunk_signature(const DiffHunk& hunk) {
+    std::uint64_t hash = 14695981039346656037ull;
+    for (const auto& line : hunk.lines) {
+        for (unsigned char ch : line) {
+            hash ^= ch;
+            hash *= 1099511628211ull;
+        }
+        hash ^= '\n';
+        hash *= 1099511628211ull;
+    }
+    return hunk.header + ":" + std::to_string(hash);
+}
+
 struct BranchInfo {
     std::string name;
     std::string shortHash;
@@ -110,8 +124,6 @@ struct CommitDetailCache : public afterhours::BaseComponent {
 };
 
 // Per-tab "Ballroom" review state (see docs/mocks/ballroom.html).
-// Approve/fold sets are keyed by content (filePath + "\n" + hunk.header) so they
-// survive the diff being rebuilt on every git refresh (hunks have no stable id).
 struct ReviewComponent : public afterhours::BaseComponent {
     struct Comment {
         std::string scope;  // "wt" for working tree, or a commit SHA
@@ -145,17 +157,16 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::string baselineDiffSig;  // signature of the working diff on Embark
 
     static std::string hunk_key(const std::string& filePath,
-                                const std::string& header) {
-        return filePath + "\n" + header;
+                                const DiffHunk& hunk) {
+        return filePath + "\n" + hunk_signature(hunk);
     }
 };
 
-// A coarse signature of a file's diff — changes when the agent reworks it.
 inline std::string diff_signature(const FileDiff& f) {
     std::string s = std::to_string(f.additions) + "," +
                     std::to_string(f.deletions) + "," +
                     std::to_string(f.hunks.size());
-    for (const auto& h : f.hunks) s += "|" + h.header;
+    for (const auto& h : f.hunks) s += "|" + hunk_signature(h);
     return s;
 }
 

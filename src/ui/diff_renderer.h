@@ -429,7 +429,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     bool isCursor = false;
     if (reviewOn) {
         hkey = sel->reviewScope + "\n" +
-               ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk.header);
+               ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk);
         // Approved hunks are hidden until reset (⟳/refresh).
         if (sel->review->approvedHunks.count(hkey))
             return;
