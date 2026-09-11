@@ -11,6 +11,7 @@
 #include "../../vendor/afterhours/src/core/base_component.h"
 #include "../../vendor/afterhours/src/core/entity_helper.h"
 #include "../git/git_runner.h"
+#include "../git/history_query.h"
 
 namespace ecs {
 
@@ -162,6 +163,12 @@ struct RepoComponent : public afterhours::BaseComponent {
     BlameLine blameLine;
     std::string blameError;
     bool blameOpen = false;
+    bool commitSearchOpen = false;
+    git::HistoryQuery commitSearchQuery;
+    int commitSearchLimit = 200;
+    std::shared_future<git::GitResult> commitSearchFuture;
+    std::vector<CommitEntry> commitSearchEntries;
+    std::string commitSearchError;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {

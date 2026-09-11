@@ -13,6 +13,7 @@
 #include "../ui/full_file_view.h"
 #include "../ui/file_picker.h"
 #include "../ui/repo_search.h"
+#include "../ui/commit_search.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -214,6 +215,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
         if (afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+            if (repoPtr && repoPtr->commitSearchOpen) {
+                repoPtr->commitSearchOpen = false;
+                return;
+            }
             if (repoPtr && repoPtr->fileHistoryOpen) {
                 repoPtr->fileHistoryOpen = false;
                 return;
@@ -337,6 +342,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         auto& repo = *repoPtr;
+        if (repo.commitSearchOpen) {
+            render_commit_search(ctx, mainBg.ent(), repo, layout);
+            return;
+        }
         if (repo.fileHistoryOpen) {
             render_file_history(ctx, mainBg.ent(), repo, layout);
             return;

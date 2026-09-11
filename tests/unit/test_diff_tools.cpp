@@ -4,6 +4,19 @@
 #include "../../src/util/fuzzy_match.h"
 #include "../../src/util/file_tree.h"
 
+TEST(history_search_validates_dates_and_keeps_filters_literal) {
+    git::HistoryQuery query{"a.*b", "Ada", "2024-02-29", "2024-03-01", "src/[file].cpp"};
+    auto args = git::history_search_args(query, 200);
+    ASSERT_TRUE(args.has_value());
+    ASSERT_EQ(args->back(), ":(literal)src/[file].cpp");
+    ASSERT_TRUE(std::find(args->begin(), args->end(), "--grep=a.*b") != args->end());
+    ASSERT_TRUE(std::find(args->begin(), args->end(), "--fixed-strings") != args->end());
+    query.since = "2023-02-29";
+    ASSERT_FALSE(git::history_search_args(query, 200).has_value());
+    query.since = "2025-01-01";
+    ASSERT_FALSE(git::history_search_args(query, 200).has_value());
+}
+
 TEST(file_tree_collapses_descendants_without_hiding_siblings) {
     std::vector<std::string> paths{"src/deep/a.cpp", "src/b.cpp", "src2/c.cpp", "README.md"};
     auto rows = file_tree::flatten(paths, {});

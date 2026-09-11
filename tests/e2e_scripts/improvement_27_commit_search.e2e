@@ -1,0 +1,24 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text "Edit"
+click_text "Search Commits..."
+screenshot improvement_27_search
+click_ui commit_search_message
+type "Add unit tests"
+click_ui commit_search_author
+type "Test User"
+click_ui commit_search_since
+type "2000-01-01"
+click_ui commit_search_until
+type "2099-12-31"
+click_ui commit_search_path
+type "tests/test_utils.cpp"
+click_ui commit_search_submit
+wait_for_refresh
+screenshot improvement_27_results
+expect_text "1 matching commits"
+click_ui commit_search_result:0
+screenshot improvement_27_open
+expect_text "Add unit tests for utils"
+expect_text "tests/test_utils.cpp"

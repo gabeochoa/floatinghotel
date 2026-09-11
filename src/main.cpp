@@ -558,6 +558,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                     repo->fileHistoryFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->blameFuture.valid() ||
                     repo->blameFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                refreshDone = refreshDone && (!repo->commitSearchFuture.valid() ||
+                    repo->commitSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
             }
             const auto waited =
                 std::chrono::steady_clock::now() - app_state::refreshWaitStart;

@@ -109,6 +109,10 @@ inline std::vector<Menu> createMenuBar() {
                 repo->repoSearchFocus = true;
             }
         }),
+        MenuItem::item("Search Commits...", "", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
+                repo->commitSearchOpen = true;
+        }),
     }});
 
     // View menu

@@ -81,6 +81,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         for (const auto& commit : repo.fileHistoryEntries)
             if (commit.hash == repo.selectedCommitHash) { selectedCommit = &commit; break; }
     }
+    if (!selectedCommit) {
+        for (const auto& commit : repo.commitSearchEntries)
+            if (commit.hash == repo.selectedCommitHash) { selectedCommit = &commit; break; }
+    }
 
     if (!selectedCommit) {
         auto container = div(ctx, mk(parent, 3049),
