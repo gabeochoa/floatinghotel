@@ -96,6 +96,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             // The file list is what the spinner stands in for; the log and
             // branches fill in behind it rather than holding the whole UI.
             repo.hasLoadedOnce = true;
+            ++repo.dataGeneration;
         }
 
         if (pf.log &&

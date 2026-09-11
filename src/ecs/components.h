@@ -124,6 +124,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;
+    unsigned dataGeneration = 0;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {

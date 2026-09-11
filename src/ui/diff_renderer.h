@@ -4,6 +4,7 @@
 #include "../git/git_commands.h"
 #include "../settings.h"
 #include "code_highlight.h"
+#include "image_diff.h"
 #include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
 #include <afterhours/src/plugins/toast.h>
@@ -1063,6 +1064,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         ecs::ReviewComponent* review = nullptr,
                         const std::string& reviewScope = "wt") {
     int nextId = diff_detail::BASE_ID;
+    std::string imageContext = repoPath + "\n" + reviewScope;
+    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
+        imageContext += std::to_string(repo->repoVersion) + ":" + std::to_string(repo->dataGeneration);
+    for (const auto& file : diffs) imageContext += "\n" + file.filePath;
+    image_diff::begin(imageContext);
 
     diff_sel::Session sess;
     // Working-tree diffs always open in the approve-chunk flow (Approve/Comment
@@ -1501,6 +1507,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
         // Binary files: just show the header, no hunks
         if (fileDiff.isBinary) {
             vp.flush(ctx, *contentParent, nextId);
+            if (image_diff::render(ctx, *contentParent, nextId++, fileDiff, repoPath, reviewScope, contentWidth)) {
+                vp.built(300.f);
+                continue;
+            }
             div(ctx, mk(*contentParent, nextId++),
                 ComponentConfig{}
                     .with_size(ComponentSize{w, h720(24)})

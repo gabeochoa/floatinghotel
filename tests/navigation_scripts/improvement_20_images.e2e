@@ -1,0 +1,9 @@
+resize 1280 800
+wait_for_refresh
+click_text image.png
+wait_frames 10
+screenshot improvement_20_images
+expect_text "Before:"
+expect_text "After:"
+assert_ui before_image_pixels hidden=false
+assert_ui after_image_pixels hidden=false

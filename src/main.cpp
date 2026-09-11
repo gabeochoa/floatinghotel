@@ -708,6 +708,7 @@ static void app_frame() {
             // it throw bad_variant_access. This is what _exit() used to be
             // dodging -- and _exit() also skipped flushing stdio, so the
             // summary printed one line above never reached the log.
+            ui::image_diff::clear();
             afterhours::shutdown();
             std::exit(code);
         }
@@ -723,6 +724,7 @@ static void app_frame() {
 
 // Cleanup callback: runs when window is closing
 static void app_cleanup() {
+    ui::image_diff::clear();
     // Batch all cleanup mutations into a single disk write
     Settings::get().auto_save_enabled = false;
 
