@@ -1,0 +1,25 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+click_ui comment_hunk_btn
+click_ui comment_input
+type "First line"
+key ENTER
+wait_frames 5
+type "Second line"
+key ENTER
+wait_frames 5
+type "Third line"
+wait_frames 10
+screenshot improvement_07_multiline
+expect_text "First line"
+expect_text "Second line"
+expect_text "Third line"
+assert_ui_text "First line" h=24
+assert_ui_text "Second line" h=24
+assert_ui_text "Third line" h=24
+click_ui comment_add_btn
+wait_frames 5
+screenshot improvement_07_saved
+expect_text "commented"

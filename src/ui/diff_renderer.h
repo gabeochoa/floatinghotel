@@ -225,7 +225,7 @@ constexpr float HUNK_HEADER_H = 24.0f;
 constexpr float FILE_HEADER_H = 28.0f;
 constexpr float DIFF_HEADER_H = 28.0f;
 constexpr float CODE_PAD_LEFT = 8.0f;
-constexpr float COMMENT_COMPOSE_H = 56.0f;  // multi-line comment box + padding
+constexpr float COMMENT_COMPOSE_H = 104.0f;
 
 // A human-visible reason for a failed git op. Some failures (e.g. a lost
 // index.lock race) leave stderr empty, which rendered as a bare "Approve
@@ -624,15 +624,17 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(12)})
                 .with_debug_name("comment_compose_row"));
-        // Multi-line review comment: Enter inserts a newline; the Add button (or
-        // Comment on another hunk) commits it. Wrap keeps long notes readable.
+        float screenH = static_cast<float>(afterhours::graphics::get_screen_height());
+        float editorH = resolve_to_pixels(h720(diff_detail::COMMENT_COMPOSE_H - 8.f), screenH);
         afterhours::text_input::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
             ComponentConfig{}
-                .with_size(ComponentSize{percent(0.8f),
-                                         h720(diff_detail::COMMENT_COMPOSE_H - 6.0f)})
+                .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - 100.f)), pixels(editorH)})
                 .with_custom_background(theme::INPUT_BG)
-                .with_line_height(h720(16.0f))
+                .with_font("mono", h720(14.f))
+                .with_line_height(pixels(resolve_to_pixels(h720(22.f), screenH)))
+                .with_word_wrap(true)
+                .with_overflow(afterhours::ui::Overflow::Hidden)
                 .with_corner_radius(4.0f)
                 .with_debug_name("comment_input"));
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),

@@ -361,6 +361,7 @@ static void app_init() {
         afterhours::modal::enforce_singletons(sm);
 
         // Pre-layout (context begin, clear children)
+        afterhours::input::register_update_systems(sm);
         ui_imm::registerUIPreLayoutSystems(sm);
 
         // Tab sync: capture view mode changes into active Tab each frame
