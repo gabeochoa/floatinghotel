@@ -3,8 +3,8 @@ resize 1280 800
 wait_for_refresh
 click_text README.md
 screenshot improvement_35_before
-mouse_down 454 220
-mouse_move 600 240
+mouse_down 454 244
+mouse_move 600 264
 mouse_up
 screenshot improvement_35_selected
 click_ui comment_selection_btn

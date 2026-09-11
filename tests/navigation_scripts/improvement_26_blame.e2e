@@ -5,8 +5,8 @@ screenshot improvement_26_picker
 type "renamed.txt"
 key ENTER
 screenshot improvement_26_source
-mouse_down 470 164
-mouse_up 470 164
+mouse_down 470 188
+mouse_up 470 188
 screenshot improvement_26_selected
 click_ui blame_selected_line
 wait_for_refresh
@@ -15,8 +15,8 @@ expect_text "Original file before rename"
 expect_text "original.txt:1"
 click_text "Close"
 screenshot improvement_26_closed
-mouse_down 470 224
-mouse_up 470 224
+mouse_down 470 248
+mouse_up 470 248
 screenshot improvement_26_last_line
 click_ui blame_selected_line
 wait_for_refresh

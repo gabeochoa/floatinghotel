@@ -1,0 +1,14 @@
+resize 1280 800
+wait_for_refresh
+click_text lines.txt
+key CMD+F
+screenshot improvement_46_find
+click_ui diff_find_input
+type "changed 901"
+wait_frames 10
+screenshot improvement_46_found
+assert_ui diff_find_match hidden=false
+click_ui diff_find_close
+screenshot improvement_46_sticky
+assert_ui sticky_diff_context hidden=false
+expect_text "changed 901"

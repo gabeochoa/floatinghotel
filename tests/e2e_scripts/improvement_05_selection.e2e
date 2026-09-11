@@ -5,9 +5,9 @@ click_text main.cpp
 wait_frames 10
 click_text "Side-by-Side"
 wait_frames 10
-mouse_down 430 160
+mouse_down 430 184
 wait_frames 3
-mouse_move 520 180
+mouse_move 520 204
 wait_frames 3
 mouse_up
 wait_frames 5
@@ -18,9 +18,9 @@ click_text "Add contributing guidelines"
 wait_for_refresh
 screenshot improvement_05_commit_before
 validate diff_has_selection=false
-mouse_down 451 320
+mouse_down 451 344
 wait_frames 3
-mouse_move 900 320
+mouse_move 900 344
 wait_frames 3
 mouse_up
 wait_frames 5

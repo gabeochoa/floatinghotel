@@ -1179,10 +1179,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // When embedded, attach directly to parent; otherwise create our own scroll wrapper.
     // We always resolve contentParent to the entity that will own the diff rows.
     Entity* contentParent = &parent;
+    float stickyHeight = diffs.empty() ? 0.f : 24.f;
+    auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}
+        .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::SECTION_HEADER_BG));
     if (!embedInParentScroll) {
         auto h = contentHeight > 0
-                     ? pixels(contentHeight - diff_detail::DIFF_HEADER_H - findHeight)
-                     : (findHeight > 0 ? pixels(std::max(40.f, parent.get<afterhours::ui::UIComponent>().rect().height - findHeight))
+                     ? pixels(contentHeight - diff_detail::DIFF_HEADER_H - findHeight - stickyHeight)
+                     : (findHeight + stickyHeight > 0 ? pixels(std::max(40.f, parent.get<afterhours::ui::UIComponent>().rect().height - findHeight - stickyHeight))
                                        : percent(1.0f));
         auto scrollContainer = div(ctx, mk(parent, nextId++),
             ComponentConfig{}
@@ -1348,7 +1351,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
     }
 
+    struct ContextLocation { float y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
+    std::vector<ContextLocation> contextLocations;
     for (auto& fileDiff : diffs) {
+        contextLocations.push_back({vp.curY, &fileDiff, nullptr});
         // File header bar
         std::string fileLabel = fileDiff.filePath;
         if (fileDiff.isRenamed && !fileDiff.oldPath.empty()) {
@@ -1590,8 +1596,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
         // Render each hunk (passing contentWidth for proper sizing)
         for (auto& hunk : fileDiff.hunks) {
+            float hunkY = vp.curY;
             render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
                         contentWidth, &sess, &vp, sideBySide, codeWidth);
+            if (vp.curY > hunkY) contextLocations.push_back({hunkY, &fileDiff, &hunk});
         }
 
         // Spacer between files
@@ -1610,6 +1618,22 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // Flush any trailing skipped rows so the content_size (scrollbar extent)
     // reflects the full diff height, not just what was built.
     vp.flush(ctx, *contentParent, nextId);
+
+    if (!contextLocations.empty()) {
+        auto current = contextLocations.front();
+        float scrollY = vp.scroll ? vp.scroll->scroll_offset.y : 0.f;
+        for (const auto& location : contextLocations) {
+            if (location.y > scrollY) break;
+            current = location;
+        }
+        std::string label = current.file->filePath;
+        if (current.hunk) label += "   " + current.hunk->header;
+        div(ctx, mk(stickyHost.ent(), 0), ComponentConfig{}.with_label(label)
+            .with_size(ComponentSize{w, pixels(stickyHeight)}).with_font_size(FontSize::Small)
+            .with_padding(Padding{.left = pixels(8), .right = pixels(8)})
+            .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_debug_name("sticky_diff_context"));
+    }
 
     // This frame's registry becomes next frame's hit-test source.
     if (selEnabled) {
