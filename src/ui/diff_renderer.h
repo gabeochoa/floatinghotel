@@ -15,9 +15,10 @@
 namespace ui {
 
 inline std::vector<afterhours::ui::TextSpan> highlighted_code(
-    const std::string& prefix, const std::string& content, const std::string& path) {
+    const std::string& prefix, const std::string& content, const std::string& path,
+    bool visibleWhitespace = false, bool hasNewline = true) {
     std::vector<afterhours::ui::TextSpan> spans{{prefix, theme::TEXT_SECONDARY}};
-    for (const auto& token : code_highlight::tokenize(content, path)) {
+    for (const auto& token : code_highlight::tokenize(code_highlight::display_text(content, visibleWhitespace, true, hasNewline), path)) {
         auto color = theme::TEXT_PRIMARY;
         switch (token.kind) {
             case code_highlight::Kind::Plain: break;
@@ -88,6 +89,7 @@ inline void reset() {
 }
 
 struct Session {
+    bool visibleWhitespace = false;
     std::optional<ecs::DiffMatch> findMatch;
     std::string findQuery;
     bool findNavigate = false;
@@ -111,6 +113,10 @@ inline float mw(const Session& s, const std::string& t) {
     return s.tmc ? s.tmc->measure_width(t, "mono", s.fontSize) : 0.f;
 }
 
+inline float code_mw(const Session& s, const std::string& raw) {
+    return mw(s, code_highlight::display_text(raw, s.visibleWhitespace));
+}
+
 inline bool found_line(const Session* s, const std::string& file, int line, char sign) {
     return s && s->findMatch && s->findMatch->file == file &&
            s->findMatch->line == line && s->findMatch->sign == sign;
@@ -120,8 +126,8 @@ inline void render_changed_range(UIContext<InputAction>& ctx, Entity& entity,
                                   const Session& session, const std::string& content,
                                   float prefix, code_highlight::Range range, bool deletion) {
     if (range.second <= range.first || range.second > content.size()) return;
-    float x = prefix + mw(session, content.substr(0, range.first));
-    float width = mw(session, content.substr(range.first, range.second - range.first));
+    float x = prefix + code_mw(session, content.substr(0, range.first));
+    float width = code_mw(session, content.substr(range.first, range.second - range.first));
     div(ctx, mk(entity, 90003), ComponentConfig{}
         .with_size(ComponentSize{pixels(width), percent(1.f)})
         .with_absolute_position(x, 0.f)
@@ -134,8 +140,8 @@ inline void render_changed_range(UIContext<InputAction>& ctx, Entity& entity,
 inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
                               Session& s, const std::string& content, float prefix) {
     size_t at = std::min(s.findMatch->column, content.size());
-    float x = prefix + mw(s, content.substr(0, at));
-    float width = mw(s, content.substr(at, s.findQuery.size()));
+    float x = prefix + code_mw(s, content.substr(0, at));
+    float width = code_mw(s, content.substr(at, s.findQuery.size()));
     div(ctx, mk(lineEntity, 90002), ComponentConfig{}
         .with_size(ComponentSize{pixels(width), percent(1.f)})
         .with_absolute_position(x, 0.f)
@@ -225,7 +231,7 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
         int n = (int)r.content.size();
         float best = 1e30f; int bc = 0;
         for (int c = 0; c <= n; ++c) {
-            float d = std::fabs(mw(sess, r.content.substr(0, c)) - rel);
+            float d = std::fabs(code_mw(sess, r.content.substr(0, c)) - rel);
             if (d < best) { best = d; bc = c; }
         }
         return bc;
@@ -317,6 +323,8 @@ inline std::string hunk_to_text(const ecs::DiffHunk& hunk) {
     std::string text = hunk.header + "\n";
     for (auto& line : hunk.lines) {
         text += line + "\n";
+        if (hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())))
+            text += "\\ No newline at end of file\n";
     }
     return text;
 }
@@ -405,7 +413,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               float contentWidth = 0,
                               const std::string& filePath = "",
                               diff_sel::Session* sel = nullptr,
-                              code_highlight::Range changed = {}) {
+                              code_highlight::Range changed = {},
+                              bool hasNewline = true) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
@@ -446,7 +455,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
             .with_custom_background(bgColor)
             .with_custom_text_color(textColor)
-            .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath))
+            .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
+                                                sel && sel->visibleWhitespace, hasNewline))
             .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
@@ -478,8 +488,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             int n = static_cast<int>(content.size());
             int a = std::min(it->second.first, n);
             int b = std::min(it->second.second, n);
-            float x0 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, a));
-            float x1 = sel->padLeftPx + prefixW + diff_sel::mw(*sel, content.substr(0, b));
+            float x0 = sel->padLeftPx + prefixW + diff_sel::code_mw(*sel, content.substr(0, a));
+            float x1 = sel->padLeftPx + prefixW + diff_sel::code_mw(*sel, content.substr(0, b));
             if (x1 > x0) {
                 // Translucent selection overlay. afterhours now alpha-blends div
                 // backgrounds, so a low-alpha box drawn OVER the already-rendered
@@ -768,12 +778,14 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         if (!vp || !vp->active) {
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
-                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())]);
+                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
+                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())));
         } else if (vp->visible(diff_detail::LINE_HEIGHT)) {
             vp->flush(ctx, parent, nextId);
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
-                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())]);
+                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
+                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())));
             vp->built(diff_detail::LINE_HEIGHT);
         } else {
             // Offscreen: advance line-number counters so gutters stay correct
@@ -798,7 +810,8 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                             const std::string& num, const std::string& content,
                             SbsKind kind, bool leftBorder,
                             const std::string& filePath, diff_sel::Session* sel,
-                            code_highlight::Range changed = {}) {
+                            code_highlight::Range changed = {},
+                            bool hasNewline = true) {
     afterhours::Color bg, fg;
     char sign = ' ';
     // Only the background carries add/del color; text stays one color.
@@ -821,7 +834,8 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         .with_size(ComponentSize{percent(0.5f), h720(LINE_HEIGHT)})
         .with_custom_background(bg)
         .with_custom_text_color(fg)
-        .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath))
+        .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
+                                            sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline))
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
         .with_font("mono", h720(theme::layout::FONT_CODE))
         .with_alignment(TextAlignment::Left)
@@ -847,8 +861,8 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         if (it != diff_sel::state().hl.end()) {
             auto a = std::min(static_cast<size_t>(it->second.first), content.size());
             auto b = std::min(static_cast<size_t>(it->second.second), content.size());
-            float x0 = prefix + diff_sel::mw(*sel, content.substr(0, a));
-            float x1 = prefix + diff_sel::mw(*sel, content.substr(0, b));
+            float x0 = prefix + diff_sel::code_mw(*sel, content.substr(0, a));
+            float x1 = prefix + diff_sel::code_mw(*sel, content.substr(0, b));
             div(ctx, mk(cell.ent(), 90001), ComponentConfig{}
                 .with_size(ComponentSize{pixels(std::max(0.f, x1 - x0)), h720(LINE_HEIGHT)})
                 .with_absolute_position(x0, 0.f)
@@ -931,6 +945,17 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
     int newLine = hunk.newStart;
 
     // Buffers of pending deletions/additions to pair up at each flush point.
+    std::set<int> oldNoNewline, newNoNewline;
+    int oldNumber = oldLine, newNumber = newLine;
+    for (size_t i = 0; i < hunk.lines.size(); ++i) {
+        char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i].front();
+        if (hunk.noNewline.contains(i)) {
+            if (sign != '+') oldNoNewline.insert(oldNumber);
+            if (sign != '-') newNoNewline.insert(newNumber);
+        }
+        if (sign != '+') ++oldNumber;
+        if (sign != '-') ++newNumber;
+    }
     std::vector<std::pair<std::string, std::string>> dels; // (num, content)
     std::vector<std::pair<std::string, std::string>> adds;
 
@@ -963,8 +988,10 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         std::pair<code_highlight::Range, code_highlight::Range> changes;
         if (lKind == SbsKind::Del && rKind == SbsKind::Add)
             changes = code_highlight::changed_ranges(lContent, rContent);
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true, fileDiff.filePath, sel, changes.first);
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false, fileDiff.filePath, sel, changes.second);
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true, fileDiff.filePath, sel, changes.first,
+                                     lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)));
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false, fileDiff.filePath, sel, changes.second,
+                                     rNum.empty() || !newNoNewline.contains(std::stoi(rNum)));
     };
 
     auto flush = [&]() {
@@ -1030,6 +1057,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     sess.review = review;
     sess.reviewScope = reviewScope;
     auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+    sess.visibleWhitespace = layout && layout->visibleWhitespace;
     float findHeight = 0.f;
     if (layout && layout->diffFindOpen) {
         findHeight = 34.f;
@@ -1151,7 +1179,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
     for (const auto& file : diffs)
         for (const auto& hunk : file.hunks)
             for (const auto& line : hunk.lines) {
-                float width = diff_sel::mw(sess, line + std::string(sideBySide ? 10 : 16, ' ')) + 24.f;
+                float width = diff_sel::mw(sess, code_highlight::display_text(line, sess.visibleWhitespace, true) +
+                                                std::string(sideBySide ? 10 : 16, ' ')) + (sess.visibleWhitespace ? 90.f : 24.f);
                 codeWidth = std::max(codeWidth, sideBySide ? width * 2.f : width);
             }
 

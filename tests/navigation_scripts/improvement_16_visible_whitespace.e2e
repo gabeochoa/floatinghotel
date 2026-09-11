@@ -1,0 +1,17 @@
+resize 1280 800
+wait_for_refresh
+click_text visible.txt
+click_text View
+click_text "Show Whitespace (toggle)"
+wait_frames 10
+screenshot improvement_16_inline
+expect_text "[CRLF]"
+expect_text "[no newline]"
+expect_text "value··"
+click_text Side-by-Side
+wait_frames 10
+screenshot improvement_16_split
+expect_text "[CRLF]"
+expect_text "[no newline]"
+click_ui approve_hunk_btn
+wait_for_refresh

@@ -15,6 +15,7 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
     layout.diffFindOpen = false;
+    layout.visibleWhitespace = false;
     layout.diffFindQuery.clear();
     layout.diffFindIndex = 0;
     layout.diffFindNavigate = 0;

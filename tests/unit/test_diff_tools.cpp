@@ -52,4 +52,12 @@ TEST(intraline_ranges_keep_shared_prefix_and_suffix_unmarked) {
     ASSERT_EQ(ranges[3].second, 0u);
 }
 
+TEST(whitespace_display_distinguishes_line_endings_without_mutating_source) {
+    std::string raw = "\tvalue  \r";
+    ASSERT_EQ(code_highlight::display_text(raw, true, true), "→   value·· [CRLF]");
+    ASSERT_EQ(code_highlight::display_text(raw, false), "    value  ");
+    ASSERT_EQ(code_highlight::display_text("value", true, true, false), "value [no newline]");
+    ASSERT_EQ(raw, "\tvalue  \r");
+}
+
 int main() { RUN_ALL_TESTS(); }

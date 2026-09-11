@@ -31,6 +31,8 @@ std::string build_patch(const ecs::FileDiff& file_diff,
     // Hunk content lines (already have +/-/space prefix)
     for (const auto& line : hunk.lines) {
         patch += line + "\n";
+        if (hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())))
+            patch += "\\ No newline at end of file\n";
     }
 
     return patch;

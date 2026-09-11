@@ -13,6 +13,18 @@ namespace code_highlight {
 enum class Kind { Plain, Keyword, String, Number, Comment };
 using Range = std::pair<size_t, size_t>;
 
+inline std::string display_text(std::string_view raw, bool visible, bool ending = false, bool hasNewline = true) {
+    std::string out;
+    for (char ch : raw) {
+        if (ch == '\t') out += visible ? "→   " : "    ";
+        else if (ch == ' ' && visible) out += "·";
+        else if (ch != '\r') out += ch;
+    }
+    if (visible && ending)
+        out += !hasNewline ? " [no newline]" : raw.ends_with('\r') ? " [CRLF]" : " [LF]";
+    return out;
+}
+
 inline std::pair<Range, Range> changed_ranges(std::string_view before, std::string_view after) {
     size_t prefix = 0;
     while (prefix < before.size() && prefix < after.size() && before[prefix] == after[prefix]) ++prefix;

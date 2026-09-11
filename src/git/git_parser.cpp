@@ -169,10 +169,13 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
     std::string line;
     ecs::FileDiff* currentFile = nullptr;
     ecs::DiffHunk* currentHunk = nullptr;
+    bool transportCRLF = false;
 
     while (std::getline(stream, line)) {
-        // Remove trailing \r for Windows-style line endings
-        if (!line.empty() && line.back() == '\r') {
+        if (line.starts_with("diff --git ")) transportCRLF = line.ends_with('\r');
+        bool contentLine = currentHunk && !line.empty() &&
+                           (line.front() == '+' || line.front() == '-' || line.front() == ' ');
+        if (!line.empty() && line.back() == '\r' && (transportCRLF || !contentLine)) {
             line.pop_back();
         }
 
@@ -264,6 +267,8 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
             } else if (line[0] == '-') {
                 currentFile->deletions++;
             }
+        } else if (line.starts_with("\\ No newline at end of file") && currentHunk && !currentHunk->lines.empty()) {
+            currentHunk->noNewline.insert(currentHunk->lines.size() - 1);
         } else if (line.starts_with("rename from ")) {
             if (currentFile) {
                 currentFile->isRenamed = true;
@@ -278,8 +283,6 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
                 currentFile->isBinary = true;
             }
         }
-        // "\ No newline at end of file" and other unrecognized lines are
-        // silently skipped.
     }
 
     return diffs;

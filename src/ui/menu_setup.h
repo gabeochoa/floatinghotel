@@ -126,6 +126,10 @@ inline std::vector<Menu> createMenuBar() {
                 cache->cachedCommitHash.clear();
             set_pending_toast(repo->ignoreWhitespace ? "Whitespace differences ignored" : "All differences shown");
         }),
+        MenuItem::item("Show Whitespace (toggle)", "", [] {
+            if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
+                l->visibleWhitespace = !l->visibleWhitespace;
+        }),
         MenuItem::item("Side-by-Side Diff", "Cmd+Shift+D", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->diffViewMode = ecs::LayoutComponent::DiffViewMode::SideBySide;

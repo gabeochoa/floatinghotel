@@ -552,6 +552,12 @@ TEST(diff_windows_line_endings_stripped) {
     ASSERT_STREQ(diffs[0].hunks[0].lines[1], "+new");
 }
 
+TEST(diff_preserves_crlf_content_and_missing_newline) {
+    auto diffs = git::parse_diff("diff --git a/file b/file\n--- a/file\n+++ b/file\n@@ -1 +1 @@\n-old\r\n+new\n\\ No newline at end of file\n");
+    ASSERT_EQ(diffs[0].hunks[0].lines[0], "-old\r");
+    ASSERT_TRUE(diffs[0].hunks[0].noNewline.contains(1));
+}
+
 // ===========================================================================
 // parse_branch_list tests
 // ===========================================================================

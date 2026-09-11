@@ -42,6 +42,7 @@ struct DiffHunk {
     int newStart = 0, newCount = 0;
     std::string header;        // The @@ line
     std::vector<std::string> lines; // Lines with +/-/space prefix
+    std::set<size_t> noNewline;
 };
 
 struct FileDiff {
@@ -64,8 +65,10 @@ inline std::string hunk_signature(const DiffHunk& hunk) {
             hash ^= ch;
             hash *= 1099511628211ull;
         }
-        hash ^= '\n';
-        hash *= 1099511628211ull;
+        if (!hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data()))) {
+            hash ^= '\n';
+            hash *= 1099511628211ull;
+        }
     }
     return hunk.header + ":" + std::to_string(hash);
 }
@@ -253,6 +256,7 @@ inline std::vector<DiffMatch> find_diff_matches(const std::vector<FileDiff>& dif
 
 struct LayoutComponent : public afterhours::BaseComponent {
     bool diffFindOpen = false;
+    bool visibleWhitespace = false;
     bool diffFindFocus = false;
     std::string diffFindQuery;
     int diffFindIndex = 0;
