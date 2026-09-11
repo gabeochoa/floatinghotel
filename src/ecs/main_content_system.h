@@ -146,7 +146,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_size(ComponentSize{pixels(txtW), h720(24)})
                     .with_flex_direction(FlexDirection::Row)
                     .with_debug_name("basket_item_heading"));
-            div(ctx, mk(heading.ent(), 3),
+            auto location = button(ctx, mk(heading.ent(), 3),
                 ComponentConfig{}
                     .with_label((c.resolved ? "Resolved · " : "") + comment_location(c))
                     .with_size(ComponentSize{expand(), h720(20)})
@@ -154,6 +154,27 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_font("mono", h720(11.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("basket_item_loc"));
+            if (location && repo) {
+                auto [before, after] = diff_revisions(c.scope);
+                repo->fullFilePath = c.file;
+                repo->fullFileRevision = c.oldSide ? before : after;
+                repo->fullFileCacheKey.clear();
+                repo->fullFileTargetLine = c.line;
+                repo->fullFileNavigateFrames = 3;
+                repo->selectedFilePath = c.scope == "wt" ? c.file : "";
+                repo->selectedFileStaged = false;
+                repo->selectedCommitHash = c.scope == "wt" ? "" : c.scope;
+                repo->fileHistoryOpen = false;
+                repo->commitSearchOpen = false;
+                repo->repoSearchOpen = false;
+                repo->comparisonOpen = false;
+                if (auto* layout = find_singleton<LayoutComponent>()) {
+                    layout->filePickerOpen = false;
+                    layout->diffFindOpen = false;
+                }
+                ui::diff_sel::reset();
+                ctx.set_focus(ctx.ROOT);
+            }
             if (editing) {
                 afterhours::text_input::text_area(ctx, mk(itemRow.ent(), 5), review.editingCommentText,
                     ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})

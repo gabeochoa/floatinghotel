@@ -1,0 +1,22 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+screenshot improvement_35_before
+mouse_down 454 220
+mouse_move 600 240
+mouse_up
+screenshot improvement_35_selected
+click_ui comment_selection_btn
+click_ui comment_input
+type "Return to these lines"
+click_ui comment_add_btn
+screenshot improvement_35_note
+click_text app.cpp
+screenshot improvement_35_other_file
+click_ui basket_item_loc
+screenshot improvement_35_location
+expect_text "README.md @ working tree"
+expect_text "Complete file"
+validate source_line=4
+assert_ui diff_find_match hidden=false
