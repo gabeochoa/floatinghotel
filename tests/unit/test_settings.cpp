@@ -21,6 +21,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <string>
 
 namespace fs = std::filesystem;
@@ -136,6 +137,28 @@ TEST(settings_unstaged_policy_invalid_resets_to_ask) {
     auto& s = Settings::get();
     s.set_unstaged_policy("invalid_value");
     ASSERT_STREQ(s.get_unstaged_policy(), "ask");
+}
+
+TEST(settings_code_font_size) {
+    auto& s = Settings::get();
+    s.set_code_font_size(100.f);
+    ASSERT_EQ(s.get_code_font_size(), 24.f);
+    s.set_code_font_size(-1.f);
+    ASSERT_EQ(s.get_code_font_size(), 10.f);
+    s.set_code_font_size(std::numeric_limits<float>::quiet_NaN());
+    ASSERT_EQ(s.get_code_font_size(), 14.f);
+    s.set_code_font_size(19.f);
+    s.write_save_file();
+    s.set_code_font_size(14.f);
+    ASSERT_TRUE(s.load_save_file());
+    ASSERT_EQ(s.get_code_font_size(), 19.f);
+    {
+        std::ofstream file(s.get_settings_path());
+        file << R"({"code_font_size": 100})";
+    }
+    ASSERT_TRUE(s.load_save_file());
+    ASSERT_EQ(s.get_code_font_size(), 24.f);
+    fs::remove(s.get_settings_path());
 }
 
 TEST(settings_write_and_load_roundtrip) {

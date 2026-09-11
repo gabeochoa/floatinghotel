@@ -292,8 +292,8 @@ const auto& DIFF_ADD_BG    = theme::DIFF_ADD_BG;
 const auto& DIFF_DEL_BG    = theme::DIFF_DEL_BG;
 const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
 
-constexpr float LINE_HEIGHT   = 18.0f;  // denser diff rows (mock)
-constexpr float HUNK_HEADER_H = 24.0f;
+inline float code_line_height() { return Settings::get().get_code_font_size() + 4.f; }
+inline float hunk_header_height() { return std::max(24.f, Settings::get().get_code_font_size() + 8.f); }
 constexpr float FILE_HEADER_H = 28.0f;
 constexpr float DIFF_HEADER_H = 28.0f;
 constexpr float CODE_PAD_LEFT = 8.0f;
@@ -447,18 +447,19 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
     auto lineDiv = div(ctx, mk(parent, id),
         ComponentConfig{}
-            .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
+            .with_size(ComponentSize{w, h720(diff_detail::code_line_height())})
             .with_custom_background(bgColor)
             .with_custom_text_color(textColor)
             .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
                                                 sel && sel->visibleWhitespace, hasNewline))
-            .with_font("mono", h720(theme::layout::FONT_CODE))
+            .with_font("mono", h720(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(0), .right = w1280(0),
                 .bottom = h720(0), .left = w1280(diff_detail::CODE_PAD_LEFT)})
             .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_roundness(0.0f)
+            .with_skip_grid_snap()
             .with_debug_name("diff_line"));
 
     if (sel && sel->enabled) {
@@ -494,7 +495,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                 div(ctx, mk(lineDiv.ent(), 90001),
                     ComponentConfig{}
                         .with_size(ComponentSize{pixels(x1 - x0),
-                                                 h720(diff_detail::LINE_HEIGHT)})
+                                                 h720(diff_detail::code_line_height())})
                         .with_absolute_position(x0, 0.f)
                         .with_custom_background(afterhours::Color{58, 130, 210, 90})
                         .with_roundness(0.0f)
@@ -567,14 +568,14 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     // no matter what was on screen, which dwarfed the culled line rows.
     int hunkHeaderId = nextId++;
     const bool headerVisible =
-        !vp || !vp->active || vp->visible(diff_detail::HUNK_HEADER_H);
+        !vp || !vp->active || vp->visible(diff_detail::hunk_header_height());
     if (!headerVisible) {
-        vp->skipped(diff_detail::HUNK_HEADER_H);
+        vp->skipped(diff_detail::hunk_header_height());
     } else {
     if (vp) vp->flush(ctx, parent, nextId);
     auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
         ComponentConfig{}
-            .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
+            .with_size(ComponentSize{w, h720(diff_detail::hunk_header_height())})
             .with_flex_direction(FlexDirection::Row)
             .with_justify_content(JustifyContent::SpaceBetween)
             .with_align_items(AlignItems::Center)
@@ -582,7 +583,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                                              : diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
-    if (vp) vp->built(diff_detail::HUNK_HEADER_H);
+    if (vp) vp->built(diff_detail::hunk_header_height());
 
     // The label takes what the action cluster (Copy/Comment/Approve) leaves.
     // This used to subtract a hardcoded reserve, because percent(1.0) took the
@@ -592,7 +593,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_label(hunk.header)
             .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
-            .with_font("mono", h720(theme::layout::FONT_CODE))
+            .with_font("mono", h720(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(4), .right = w1280(0),
@@ -787,13 +788,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
                              changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
                              !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())));
-        } else if (vp->visible(diff_detail::LINE_HEIGHT)) {
+        } else if (vp->visible(diff_detail::code_line_height())) {
             vp->flush(ctx, parent, nextId);
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
                              changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
                              !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())));
-            vp->built(diff_detail::LINE_HEIGHT);
+            vp->built(diff_detail::code_line_height());
         } else {
             // Offscreen: advance line-number counters so gutters stay correct
             // when this line scrolls into view, but don't build the div.
@@ -801,7 +802,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             if (prefix == '+') ++newLine;
             else if (prefix == '-') ++oldLine;
             else { ++oldLine; ++newLine; }
-            vp->skipped(diff_detail::LINE_HEIGHT);
+            vp->skipped(diff_detail::code_line_height());
         }
     }
 }
@@ -838,18 +839,19 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     std::string label = pad_gutter(num) + "  " + sign + " " + content;
 
     auto cfg = ComponentConfig{}
-        .with_size(ComponentSize{percent(0.5f), h720(LINE_HEIGHT)})
+        .with_size(ComponentSize{percent(0.5f), h720(code_line_height())})
         .with_custom_background(bg)
         .with_custom_text_color(fg)
         .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
                                             sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline))
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
-        .with_font("mono", h720(theme::layout::FONT_CODE))
+        .with_font("mono", h720(Settings::get().get_code_font_size()))
         .with_alignment(TextAlignment::Left)
         .with_padding(Padding{
             .top = h720(0), .right = w1280(0),
             .bottom = h720(0), .left = w1280(CODE_PAD_LEFT)})
         .with_roundness(0.0f)
+        .with_skip_grid_snap()
         .with_debug_name("sbs_cell");
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
     auto cell = div(ctx, mk(row, id), cfg);
@@ -873,7 +875,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             float x0 = prefix + diff_sel::code_mw(*sel, content.substr(0, a));
             float x1 = prefix + diff_sel::code_mw(*sel, content.substr(0, b));
             div(ctx, mk(cell.ent(), 90001), ComponentConfig{}
-                .with_size(ComponentSize{pixels(std::max(0.f, x1 - x0)), h720(LINE_HEIGHT)})
+                .with_size(ComponentSize{pixels(std::max(0.f, x1 - x0)), h720(code_line_height())})
                 .with_absolute_position(x0, 0.f)
                 .with_custom_background(afterhours::Color{58, 130, 210, 90})
                 .with_roundness(0.f)
@@ -904,26 +906,26 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
 
     if (showHeader) {
     int hunkHeaderId = nextId++;
-    if (culling && !vp->visible(diff_detail::HUNK_HEADER_H)) {
-        vp->skipped(diff_detail::HUNK_HEADER_H);
+    if (culling && !vp->visible(diff_detail::hunk_header_height())) {
+        vp->skipped(diff_detail::hunk_header_height());
     } else {
     if (culling) vp->flush(ctx, parent, nextId);
     auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
         ComponentConfig{}
-            .with_size(ComponentSize{w, h720(diff_detail::HUNK_HEADER_H)})
+            .with_size(ComponentSize{w, h720(diff_detail::hunk_header_height())})
             .with_flex_direction(FlexDirection::Row)
             .with_justify_content(JustifyContent::SpaceBetween)
             .with_align_items(AlignItems::Center)
             .with_custom_background(diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("sbs_hunk_header_row"));
-    if (culling) vp->built(diff_detail::HUNK_HEADER_H);
+    if (culling) vp->built(diff_detail::hunk_header_height());
     div(ctx, mk(hunkRow.ent(), 0),
         ComponentConfig{}
             .with_label(hunk.header)
             .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
-            .with_font("mono", h720(theme::layout::FONT_CODE))
+            .with_font("mono", h720(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(4), .right = w1280(0),
@@ -981,18 +983,19 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                                                    rKind == SbsKind::Add ? '+' : ' '))))
             vp->reveal();
         if (culling) {
-            if (!vp->visible(diff_detail::LINE_HEIGHT)) {
-                vp->skipped(diff_detail::LINE_HEIGHT);
+            if (!vp->visible(diff_detail::code_line_height())) {
+                vp->skipped(diff_detail::code_line_height());
                 return;
             }
             vp->flush(ctx, parent, nextId);
-            vp->built(diff_detail::LINE_HEIGHT);
+            vp->built(diff_detail::code_line_height());
         }
         auto rowDiv = div(ctx, mk(parent, rowId),
             ComponentConfig{}
-                .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
+                .with_size(ComponentSize{w, h720(diff_detail::code_line_height())})
                 .with_flex_direction(FlexDirection::Row)
                 .with_roundness(0.0f)
+                .with_skip_grid_snap()
                 .with_debug_name("sbs_row"));
         std::pair<code_highlight::Range, code_highlight::Range> changes;
         if (lKind == SbsKind::Del && rKind == SbsKind::Add)
@@ -1152,7 +1155,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             afterhours::ui::TextMeasureCache>();
         float screenH = (float)afterhours::graphics::get_screen_height();
         float screenW = (float)afterhours::graphics::get_screen_width();
-        sess.fontSize = resolve_to_pixels(h720(theme::layout::FONT_CODE), screenH);
+        sess.fontSize = resolve_to_pixels(h720(Settings::get().get_code_font_size()), screenH);
         sess.padLeftPx =
             resolve_to_pixels(w1280(diff_detail::CODE_PAD_LEFT), screenW);
         diff_sel::handle_mouse(ctx, sess); // update selection from prior frame

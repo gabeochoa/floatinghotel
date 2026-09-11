@@ -224,6 +224,7 @@ static void app_init() {
     {
         Settings::get().auto_save_enabled = false;
         Settings::get().load_save_file();
+        if (app_state::testModeEnabled) Settings::get().set_code_font_size(14.f);
     }
 
     // Restored tabs: the paths only become known here, but this still beats
@@ -494,7 +495,7 @@ static void app_init() {
     // cleanup write and the auto-save that follows any later change; a write
     // here cost a synchronous file write on every launch, which the endpoint
     // security stack on this machine turns into tens of milliseconds.
-    Settings::get().auto_save_enabled = true;
+    Settings::get().auto_save_enabled = !app_state::testModeEnabled;
 
     auto t2 = std::chrono::high_resolution_clock::now();
     log_info("  Systems registration: {} ms",
@@ -772,7 +773,7 @@ static void app_cleanup() {
         }
     }
 
-    Settings::get().write_save_file();
+    if (!app_state::testModeEnabled) Settings::get().write_save_file();
 }
 
 int main(int argc, char* argv[]) {
@@ -909,6 +910,11 @@ int main(int argc, char* argv[]) {
             return tooltip && tooltip->is_showing() ? "true" : "false";
         } else if (key == "tooltip_text") {
             if (auto* tooltip = ecs::find_singleton<afterhours::ui::TooltipState>()) return tooltip->text;
+        } else if (key == "code_font_size") {
+            return std::format("{:.0f}", Settings::get().get_code_font_size());
+        } else if (key == "code_row_height") {
+            const auto& lines = ui::diff_sel::state().lastLines;
+            return lines.empty() ? "0" : std::format("{:.0f}", lines.front().rect.height);
         } else if (key == "ui_scale") {
             // Two decimals: the value is a float the pinch multiplies into, so
             // an exact-match assertion needs a rounded, stable spelling.

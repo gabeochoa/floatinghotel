@@ -1,0 +1,46 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+screenshot improvement_48_default
+validate code_font_size=14
+validate code_row_height=20
+validate ui_scale=1.00
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+click_text View
+click_text "Larger Code Text"
+screenshot improvement_48_larger
+validate code_font_size=24
+validate code_row_height=31
+validate ui_scale=1.00
+click_text View
+click_text "Side-by-Side Diff"
+screenshot improvement_48_split
+validate code_row_height=31
+click_text View
+click_text "Smaller Code Text"
+screenshot improvement_48_smaller
+validate code_font_size=23
+validate code_row_height=30
+click_text View
+click_text "Reset Code Text"
+screenshot improvement_48_reset
+validate code_font_size=14
+validate ui_scale=1.00

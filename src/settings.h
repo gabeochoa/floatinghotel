@@ -32,6 +32,9 @@ struct Settings {
     float get_commit_log_ratio() const;
     void set_commit_log_ratio(float r);
 
+    float get_code_font_size() const;
+    void set_code_font_size(float size);
+
     // Open repos (tab session persistence)
     const std::vector<std::string>& get_open_repos() const;
     void set_open_repos(const std::vector<std::string>& repos);

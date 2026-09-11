@@ -180,6 +180,14 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("Zoom In", "Cmd+=", [] { ui::zoom::step(ui::zoom::kStep); }),
         MenuItem::item("Zoom Out", "Cmd+-", [] { ui::zoom::step(-ui::zoom::kStep); }),
         MenuItem::item("Reset Zoom", "Cmd+0", [] { ui::zoom::reset(); }),
+        MenuItem::separator(),
+        MenuItem::item("Larger Code Text", "", [] {
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() + 1.f);
+        }),
+        MenuItem::item("Smaller Code Text", "", [] {
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 1.f);
+        }),
+        MenuItem::item("Reset Code Text", "", [] { Settings::get().set_code_font_size(14.f); }),
     }});
 
     // Git menu

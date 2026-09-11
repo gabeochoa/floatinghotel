@@ -1,6 +1,7 @@
 #include "settings.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 
@@ -17,6 +18,7 @@ struct Settings::Data {
     int windowY = 100;
     float sidebarWidth = 280.0f;
     float commitLogRatio = 0.4f;
+    float codeFontSize = 14.0f;
     std::vector<std::string> openRepos;
     std::string lastActiveRepo;
     std::string unstagedPolicy = "ask";
@@ -26,6 +28,10 @@ struct Settings::Data {
 
 Settings::Settings() { data_ = new Data(); }
 Settings::~Settings() { delete data_; }
+
+static float bounded_code_font_size(float size) {
+    return std::isfinite(size) ? std::clamp(size, 10.f, 24.f) : 14.f;
+}
 
 std::string Settings::get_settings_path() const {
     auto configDir = afterhours::files::get_config_path();
@@ -54,6 +60,7 @@ bool Settings::load_save_file() {
         data_->windowY = j.value("window_y", 100);
         data_->sidebarWidth = j.value("sidebar_width", 280.0f);
         data_->commitLogRatio = j.value("commit_log_ratio", 0.4f);
+        data_->codeFontSize = bounded_code_font_size(j.value("code_font_size", 14.f));
         data_->openRepos =
             j.value("open_repos", std::vector<std::string>{});
         data_->lastActiveRepo = j.value("last_active_repo", std::string{});
@@ -79,6 +86,7 @@ void Settings::write_save_file() {
     j["window_y"] = data_->windowY;
     j["sidebar_width"] = data_->sidebarWidth;
     j["commit_log_ratio"] = data_->commitLogRatio;
+    j["code_font_size"] = data_->codeFontSize;
     j["open_repos"] = data_->openRepos;
     j["last_active_repo"] = data_->lastActiveRepo;
     j["commit_unstaged_policy"] = data_->unstagedPolicy;
@@ -99,6 +107,13 @@ void Settings::save_if_auto() {
     if (auto_save_enabled) {
         write_save_file();
     }
+}
+
+float Settings::get_code_font_size() const { return data_->codeFontSize; }
+
+void Settings::set_code_font_size(float size) {
+    data_->codeFontSize = bounded_code_font_size(size);
+    save_if_auto();
 }
 
 // Window geometry
