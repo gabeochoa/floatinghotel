@@ -265,6 +265,9 @@ $(TEST_DIR)/test_review_store: tests/unit/test_review_store.cpp src/review_store
 $(TEST_DIR)/test_diff_tools: tests/unit/test_diff_tools.cpp | $(TEST_DIR)
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
+$(TEST_DIR)/test_review_snapshot: tests/unit/test_review_snapshot.cpp src/review_snapshot.cpp src/git/git_runner.cpp src/util/process.cpp vendor/afterhours/src/plugins/files.cpp | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
+
 TEST_EXES := $(TEST_DIR)/test_diff_tools \
     $(TEST_DIR)/test_git_parser \
     $(TEST_DIR)/test_error_humanizer \
@@ -272,7 +275,8 @@ TEST_EXES := $(TEST_DIR)/test_diff_tools \
     $(TEST_DIR)/test_settings \
     $(TEST_DIR)/test_git_commands \
     $(TEST_DIR)/test_context_menu \
-    $(TEST_DIR)/test_review_store
+    $(TEST_DIR)/test_review_store \
+    $(TEST_DIR)/test_review_snapshot
 
 test: $(TEST_EXES)
 	@echo "Running unit tests..."

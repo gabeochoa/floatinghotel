@@ -50,6 +50,12 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_snapshot" ]; then
+    run_test "test_review_snapshot" "tests/unit/test_review_snapshot.cpp" \
+        "src/review_snapshot.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \
+        "vendor/afterhours/src/plugins/files.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_diff_tools" ]; then
     run_test "test_diff_tools" "tests/unit/test_diff_tools.cpp"
 fi

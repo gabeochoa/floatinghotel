@@ -15,6 +15,7 @@
 #include "../ui/repo_search.h"
 #include "../ui/commit_search.h"
 #include "../ui/revision_comparison.h"
+#include "../ui/review_snapshot.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -364,7 +365,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     afterhours::toast::send_info(ctx, "Older unscoped review kept in your local review folder", 4.f);
             }
         }
-        if (reviewPtr && hasRepo) persist_pending_review(ctx, *reviewPtr, repoPtr);
+        if (reviewPtr && hasRepo) {
+            poll_review_snapshot(*reviewPtr);
+            persist_pending_review(ctx, *reviewPtr, repoPtr);
+        }
         // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
         // gate and the ⌘⏎ send-all shortcut below.
         bool superDown = afterhours::input::is_key_down(343) ||
@@ -434,6 +438,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         auto& repo = *repoPtr;
+        if (reviewPtr && reviewPtr->sinceReviewOpen) {
+            render_review_snapshot(ctx, mainBg.ent(), repo, *reviewPtr, layout);
+            return;
+        }
         if (repo.commitSearchOpen) {
             render_commit_search(ctx, mainBg.ent(), repo, layout);
             return;
@@ -466,10 +474,25 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // commit still takes over (to review/comment that commit's diff).
         if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit && !(hasSelectedFile && repo.selectedFileStaged)) {
             float diffW = layout.mainContent.width;
+            auto baselineActions = div(ctx, mk(mainBg.ent(), 592010), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row));
+            if (!reviewPtr->snapshotFuture.valid()) {
+                if (button(ctx, mk(baselineActions.ent(), 0), preset::Button("Save review baseline")
+                    .with_size(ComponentSize{pixels(165), pixels(28)}).with_debug_name("save_review_baseline")))
+                    start_review_snapshot(repo, *reviewPtr, true);
+                if (!reviewPtr->baselineSnapshot.empty() && button(ctx, mk(baselineActions.ent(), 1), preset::Button("Since last review")
+                    .with_size(ComponentSize{pixels(145), pixels(28)}).with_debug_name("since_last_review"))) {
+                    reviewPtr->sinceReviewOpen = true;
+                    start_review_snapshot(repo, *reviewPtr, false);
+                }
+            }
+            div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}
+                .with_label(reviewPtr->snapshotFuture.valid() ? "Saving contents..." : reviewPtr->snapshotError)
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(FontSize::Small));
             if (repo.currentDiff.empty()) {
                 auto done = div(ctx, mk(mainBg.ent(), 3080),
                     ComponentConfig{}
-                        .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(layout.mainContent.height - 30.f)})
                         .with_flex_direction(FlexDirection::Column)
                         .with_justify_content(JustifyContent::Center)
                         .with_align_items(AlignItems::Center)
@@ -498,7 +521,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // Reserve a keyboard-hint footer under the diff (mock cockpit).
                 float shH = static_cast<float>(afterhours::graphics::get_screen_height());
                 float keyhintH = resolve_to_pixels(h720(24.0f), shH);
-                float diffH = layout.mainContent.height - keyhintH;
+                float diffH = layout.mainContent.height - keyhintH - 30.f;
                 if (diffH < 40.0f) diffH = layout.mainContent.height;
                 ui::render_diff(ctx, mainBg.ent(), repo.currentDiff,
                                        diffW, diffH, false, false,

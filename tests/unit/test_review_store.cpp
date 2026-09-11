@@ -25,6 +25,7 @@ TEST(review_store_roundtrip) {
     r.seenSig["src/foo.cpp"] = "1,2,3";
     r.baselineHead = "deadbeef";
     r.baselineDiffSig = "sig;";
+    r.baselineSnapshot = "/local/review.baseline.cbor";
 
     const std::string repo = "/tmp/test_review_store_repo";
     review_store::save_review(repo, r);
@@ -46,6 +47,7 @@ TEST(review_store_roundtrip) {
     ASSERT_TRUE(r2.foldedHunks.count("src/bar.h\n@@ -2 +2 @@") == 1);
     ASSERT_STREQ(r2.seenSig["src/foo.cpp"], "1,2,3");
     ASSERT_STREQ(r2.baselineHead, "deadbeef");
+    ASSERT_EQ(r2.baselineSnapshot, r.baselineSnapshot);
 
     std::filesystem::remove(review_store::review_path(repo));
 }

@@ -239,6 +239,14 @@ struct ReviewComponent : public afterhours::BaseComponent {
     // Baseline snapshot for "new since you last looked" (Phase 6).
     std::string baselineHead;     // HEAD sha captured on Embark
     std::string baselineDiffSig;  // signature of the working diff on Embark
+    std::string baselineSnapshot;
+    std::shared_future<git::GitResult> snapshotFuture;
+    bool snapshotCapturing = false;
+    int snapshotContext = 3;
+    bool snapshotIgnoreWhitespace = false;
+    bool sinceReviewOpen = false;
+    std::vector<FileDiff> sinceReviewDiff;
+    std::string snapshotError;
 
     static std::string hunk_key(const std::string& filePath,
                                 const DiffHunk& hunk) {
@@ -276,6 +284,12 @@ inline void reset_review(ReviewComponent& review) {
     review.seenSig.clear();
     review.baselineHead.clear();
     review.baselineDiffSig.clear();
+    review.baselineSnapshot.clear();
+    review.snapshotFuture = {};
+    review.snapshotCapturing = false;
+    review.sinceReviewOpen = false;
+    review.sinceReviewDiff.clear();
+    review.snapshotError.clear();
 }
 
 inline std::string review_scope(const RepoComponent& repo) {

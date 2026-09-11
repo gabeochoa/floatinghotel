@@ -1,0 +1,17 @@
+resize 1280 800
+wait_for_refresh
+click_ui review_progress
+wait_for_refresh
+screenshot improvement_39_baseline
+click_ui since_last_review
+wait_for_refresh
+screenshot improvement_39_unchanged
+expect_text "No changes since saved review"
+touch_file code.txt
+click_button Refresh
+wait_for_refresh
+screenshot improvement_39_delta
+expect_text "# edited by e2e test"
+expect_text "code.txt  +1"
+expect_text "-0"
+expect_no_text original

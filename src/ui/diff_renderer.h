@@ -1494,7 +1494,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
 
-        if (!fileDiff.isFullContent && !repoPath.empty()) {
+        if (!fileDiff.isFullContent && !repoPath.empty() && reviewScope != "snapshot") {
             auto open = button(ctx, mk(fileBtns.ent(), 2), preset::Button(fileDiff.isDeleted ? "Open previous file" : "Open file")
                 .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("open_full_file"));

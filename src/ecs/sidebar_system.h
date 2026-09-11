@@ -16,6 +16,7 @@
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
 #include "../ui/file_history.h"
+#include "../ui/review_snapshot.h"
 
 #include "../../vendor/afterhours/src/plugins/clipboard.h"
 #include "../../vendor/afterhours/src/plugins/modal.h"
@@ -732,8 +733,8 @@ private:
                     review->reviewing = !review->reviewing;
                     review->dirty = true;
                     if (review->reviewing) {
-                        // Snapshot the baseline for "new since you last looked"
-                        // and open the first file to review.
+                        if (review->baselineSnapshot.empty() && !review->snapshotFuture.valid())
+                            start_review_snapshot(repo, *review, true);
                         review->baselineHead =
                             repo.commitLog.empty() ? "" : repo.commitLog[0].hash;
                         review->baselineDiffSig.clear();
@@ -747,7 +748,7 @@ private:
                         repo.selectedCommitHash.clear();
                         repo.cachedFilePath.clear();
                         afterhours::toast::send_info(
-                            ctx, "Embarked \xc2\xb7 baseline snapshotted", 2.0f);
+                            ctx, "Review opened", 2.0f);
                     } else {
                         afterhours::toast::send_info(ctx, "Left the ballroom",
                                                      1.5f);
