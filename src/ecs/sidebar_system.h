@@ -265,7 +265,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         // instead of the full remaining height, and hand the reclaimed space to
         // the commit log below so there is no dead void (#8).
         float reclaimedH = 0.0f;
-        if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && treeClean) {
+        if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && treeClean &&
+            layout.fileViewMode != LayoutComponent::FileViewMode::All) {
             float compactH = resolve_to_pixels(h720(88.0f), sh_for_tab);
             if (compactH < filesH) { reclaimedH = filesH - compactH; filesH = compactH; }
         }
@@ -1341,8 +1342,10 @@ private:
     std::vector<std::string> treePaths_;
     std::set<std::string> treeCollapsed_;
     bool treeMode_ = false;
+    bool allFilesMode_ = false;
 
     void update_file_tree(const RepoComponent& repo, const LayoutComponent& layout) {
+        allFilesMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::All;
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
         if (!treeMode_) return;
         std::vector<std::string> paths;
@@ -1362,6 +1365,7 @@ private:
     }
 
     size_t active_file_count(const RepoComponent& repo) const {
+        if (allFilesMode_) return repo.allFilePaths.size();
         if (treeMode_) return treeRows_.size();
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) return repo.unstagedFiles.size();
@@ -1371,6 +1375,15 @@ private:
 
     void render_active_file_row(UIContext<InputAction>& ctx, Entity& row,
                                 size_t i, RepoComponent& repo) {
+        if (allFilesMode_) {
+            const auto& path = repo.allFilePaths[i];
+            char status = ' ';
+            for (const auto& file : repo.stagedFiles) if (file.path == path) status = file.indexStatus;
+            for (const auto& file : repo.unstagedFiles) if (file.path == path) status = file.workTreeStatus;
+            if (std::find(repo.untrackedFiles.begin(), repo.untrackedFiles.end(), path) != repo.untrackedFiles.end()) status = 'U';
+            render_file_row_impl(ctx, row, 0, path, status, repo, false, false);
+            return;
+        }
         if (treeMode_) {
             const auto& node = treeRows_[i];
             if (node.directory) {
@@ -1608,6 +1621,12 @@ private:
             if (r) {
                 r->selectedFilePath = path;
                 r->fullFilePath.clear();
+                if (allFilesMode_) {
+                    r->fullFilePath = path;
+                    r->fullFileRevision.clear();
+                    r->fullFileCacheKey.clear();
+                    r->fullFileTargetLine = 0;
+                }
                 r->selectedFileStaged = staged;
                 r->cachedFilePath.clear();
                 r->selectedCommitHash.clear();

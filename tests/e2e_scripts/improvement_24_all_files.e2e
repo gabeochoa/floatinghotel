@@ -1,0 +1,11 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text "View"
+click_text "All Files View"
+screenshot improvement_24_all_files
+expect_text "CONTRIBUTING.md"
+click_text "CONTRIBUTING.md"
+screenshot improvement_24_unchanged_file
+expect_text "CONTRIBUTING.md @ working tree"
+expect_text "Complete file"
