@@ -194,6 +194,8 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             }
 
             auto diffResult = git::git_diff(repoPath);
+            auto filesResult = git::git_run(repoPath, {"ls-files", "--cached", "--others", "--exclude-standard", "-z"});
+            repo.allFilePaths = git::parse_null_paths(filesResult.stdout_str());
             if (diffResult.success()) {
                 repo.currentDiff = git::parse_diff(diffResult.stdout_str());
             }

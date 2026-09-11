@@ -558,6 +558,14 @@ TEST(diff_preserves_crlf_content_and_missing_newline) {
     ASSERT_TRUE(diffs[0].hunks[0].noNewline.contains(1));
 }
 
+TEST(null_paths_preserve_spaces_and_tabs) {
+    std::string output = std::string("space name") + '\0' + "tab\tname" + '\0' + "space name" + '\0';
+    auto paths = git::parse_null_paths(output);
+    ASSERT_EQ(paths.size(), 2u);
+    ASSERT_EQ(paths[0], "space name");
+    ASSERT_EQ(paths[1], "tab\tname");
+}
+
 // ===========================================================================
 // parse_branch_list tests
 // ===========================================================================

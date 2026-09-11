@@ -36,6 +36,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
+            pf.files = git::git_run_async(path, {"ls-files", "--cached", "--others", "--exclude-standard", "-z"});
             std::vector<std::string> diffArgs{"diff"};
             diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
             if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
@@ -145,8 +146,13 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             }
         }
 
-        // Phase 3: check if all operations completed
-        if (!pf.status && !pf.log && !pf.diff && !pf.stagedDiff && !pf.branches) {
+        if (pf.files && pf.files->wait_for(0s) == std::future_status::ready) {
+            auto result = pf.files->get();
+            pf.files.reset();
+            repo.filesError = result.success() ? "" : result.stderr_str();
+            repo.allFilePaths = result.success() ? git::parse_null_paths(result.stdout_str()) : std::vector<std::string>{};
+        }
+        if (!pf.status && !pf.log && !pf.diff && !pf.stagedDiff && !pf.branches && !pf.files) {
             repo.isRefreshing = false;
             repo.hasLoadedOnce = true;
             pending_.erase(it);
@@ -178,6 +184,7 @@ private:
     std::unordered_map<afterhours::EntityID, std::chrono::steady_clock::time_point> refreshStart_;
 
     struct PendingFutures {
+        std::optional<std::future<git::GitResult>> files;
         std::optional<std::future<git::GitResult>> status;
         std::optional<std::future<git::GitResult>> log;
         std::optional<std::future<git::GitResult>> diff;

@@ -7,6 +7,8 @@
 
 namespace git {
 
+std::vector<std::string> parse_null_paths(const std::string& output);
+
 // ---- Status Parser (T012) ----
 
 struct StatusResult {

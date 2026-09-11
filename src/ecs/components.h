@@ -125,6 +125,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;
     unsigned dataGeneration = 0;
+    std::vector<std::string> allFilePaths;
+    std::string filesError;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {
@@ -263,6 +265,12 @@ inline std::vector<DiffMatch> find_diff_matches(const std::vector<FileDiff>& dif
 }
 
 struct LayoutComponent : public afterhours::BaseComponent {
+    bool filePickerOpen = false;
+    bool filePickerFocus = false;
+    std::string filePickerQuery;
+    std::string filePickerCacheKey;
+    std::vector<std::string> filePickerResults;
+    int filePickerIndex = 0;
     bool diffFindOpen = false;
     bool visibleWhitespace = false;
     bool diffFindFocus = false;

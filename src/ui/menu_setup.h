@@ -97,6 +97,12 @@ inline std::vector<Menu> createMenuBar() {
                 l->diffFindFocus = true;
             }
         }),
+        MenuItem::item("Go to File...", "Cmd+P", [] {
+            if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {
+                l->filePickerOpen = true;
+                l->filePickerFocus = true;
+            }
+        }),
     }});
 
     // View menu

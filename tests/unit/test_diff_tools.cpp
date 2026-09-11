@@ -1,6 +1,15 @@
 #include "test_framework.h"
 #include "../../src/ecs/components.h"
 #include "../../src/ui/code_highlight.h"
+#include "../../src/util/fuzzy_match.h"
+
+TEST(fuzzy_paths_match_subsequences_and_rank_boundaries) {
+    auto paths = fuzzy::rank({"src/application.cpp", "src/app.cpp", "README.md"}, "sacp");
+    ASSERT_EQ(paths.size(), 2u);
+    ASSERT_EQ(paths.front(), "src/app.cpp");
+    ASSERT_TRUE(fuzzy::score("README", "readme.md").has_value());
+    ASSERT_FALSE(fuzzy::score("xyz", "src/app.cpp").has_value());
+}
 
 TEST(syntax_tokens_preserve_source_and_strings) {
     std::string source = "const int n = 42; // sample";

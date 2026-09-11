@@ -6,6 +6,20 @@
 
 namespace git {
 
+std::vector<std::string> parse_null_paths(const std::string& output) {
+    std::vector<std::string> paths;
+    size_t start = 0;
+    while (start < output.size()) {
+        size_t end = output.find('\0', start);
+        if (end == std::string::npos) end = output.size();
+        if (end > start) paths.push_back(output.substr(start, end - start));
+        start = end + 1;
+    }
+    std::sort(paths.begin(), paths.end());
+    paths.erase(std::unique(paths.begin(), paths.end()), paths.end());
+    return paths;
+}
+
 namespace {
 
 // Find the Nth space in a string, return position after it.

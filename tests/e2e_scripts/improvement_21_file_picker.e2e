@@ -1,0 +1,16 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+key CMD+P
+wait_frames 10
+screenshot improvement_21_picker
+click_ui file_picker_input
+type "sacp"
+wait_frames 10
+screenshot improvement_21_results
+expect_text "src/app.cpp"
+key ENTER
+wait_frames 10
+screenshot improvement_21_open
+expect_text "src/app.cpp @ working tree"
+expect_text "Complete file"

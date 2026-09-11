@@ -8,6 +8,11 @@
 namespace ecs {
 
 inline void reset_layout_defaults(LayoutComponent& layout) {
+    layout.filePickerOpen = false;
+    layout.filePickerFocus = false;
+    layout.filePickerQuery.clear();
+    layout.filePickerCacheKey.clear();
+    layout.filePickerIndex = 0;
     layout.sidebarVisible = true;
     layout.commandLogVisible = false;
     layout.sidebarMode = LayoutComponent::SidebarMode::Changes;
