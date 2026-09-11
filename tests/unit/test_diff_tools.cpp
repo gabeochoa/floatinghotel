@@ -1,5 +1,25 @@
 #include "test_framework.h"
 #include "../../src/ecs/components.h"
+#include "../../src/ui/code_highlight.h"
+
+TEST(syntax_tokens_preserve_source_and_strings) {
+    std::string source = "const int n = 42; // sample";
+    auto tokens = code_highlight::tokenize(source, "main.cpp");
+    std::string joined;
+    bool keyword = false, number = false, comment = false;
+    for (const auto& token : tokens) {
+        joined += token.text;
+        keyword |= token.kind == code_highlight::Kind::Keyword;
+        number |= token.kind == code_highlight::Kind::Number;
+        comment |= token.kind == code_highlight::Kind::Comment;
+    }
+    ASSERT_EQ(joined, source);
+    ASSERT_TRUE(keyword && number && comment);
+    auto literal = code_highlight::tokenize("\"// literal\"", "main.cpp");
+    ASSERT_EQ(literal.size(), 1u);
+    ASSERT_EQ(literal.front().kind, code_highlight::Kind::String);
+    ASSERT_EQ(code_highlight::tokenize(source, "notes.txt").size(), 1u);
+}
 
 TEST(diff_find_tracks_side_line_and_occurrence) {
     ecs::FileDiff file;

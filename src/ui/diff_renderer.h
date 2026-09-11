@@ -3,6 +3,7 @@
 #include "../ecs/ui_imports.h"
 #include "../git/git_commands.h"
 #include "../settings.h"
+#include "code_highlight.h"
 #include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
 #include <afterhours/src/plugins/toast.h>
@@ -12,6 +13,23 @@
 #include <unordered_map>
 
 namespace ui {
+
+inline std::vector<afterhours::ui::TextSpan> highlighted_code(
+    const std::string& prefix, const std::string& content, const std::string& path) {
+    std::vector<afterhours::ui::TextSpan> spans{{prefix, theme::TEXT_SECONDARY}};
+    for (const auto& token : code_highlight::tokenize(content, path)) {
+        auto color = theme::TEXT_PRIMARY;
+        switch (token.kind) {
+            case code_highlight::Kind::Plain: break;
+            case code_highlight::Kind::Keyword: color = {125, 180, 255, 255}; break;
+            case code_highlight::Kind::String: color = {220, 170, 135, 255}; break;
+            case code_highlight::Kind::Number: color = {170, 205, 160, 255}; break;
+            case code_highlight::Kind::Comment: color = {135, 170, 125, 255}; break;
+        }
+        spans.push_back({token.text, color});
+    }
+    return spans;
+}
 
 // ============================================================================
 // Diff text selection (drag to select code, copy with file:line for AI review)
@@ -412,13 +430,13 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_size(ComponentSize{w, h720(diff_detail::LINE_HEIGHT)})
             .with_custom_background(bgColor)
             .with_custom_text_color(textColor)
-            .with_label(label)
+            .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath))
             .with_font("mono", h720(theme::layout::FONT_CODE))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = h720(0), .right = w1280(0),
                 .bottom = h720(0), .left = w1280(diff_detail::CODE_PAD_LEFT)})
-            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_roundness(0.0f)
             .with_debug_name("diff_line"));
 
@@ -781,7 +799,8 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         .with_size(ComponentSize{percent(0.5f), h720(LINE_HEIGHT)})
         .with_custom_background(bg)
         .with_custom_text_color(fg)
-        .with_label(label)
+        .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath))
+        .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
         .with_font("mono", h720(theme::layout::FONT_CODE))
         .with_alignment(TextAlignment::Left)
         .with_padding(Padding{

@@ -1,0 +1,12 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+wait_frames 10
+screenshot improvement_13_inline
+expect_text "int"
+expect_text "return"
+click_text Side-by-Side
+wait_frames 10
+screenshot improvement_13_split
+expect_text "return"
