@@ -2,6 +2,8 @@
 
 #include <functional>
 #include <future>
+#include <optional>
+#include <unordered_map>
 #include <string>
 #include <vector>
 
@@ -32,6 +34,27 @@ GitResult git_run(const std::string& repo_path,
                   const std::vector<std::string>& args);
 
 // Asynchronous git execution (for push/pull/fetch)
+// Reads started before the window exists, adopted by the first refresh.
+//
+// Nothing about `git status` needs a window, but the refresh systems only run
+// once one is up, and window+GPU init is hundreds of ms unloaded and many
+// seconds on a busy machine. Kicking these off from main() hides their whole
+// cost behind that wait.
+struct PrefetchedReads {
+    std::optional<std::future<GitResult>> status;
+    std::optional<std::future<GitResult>> log;
+    std::optional<std::future<GitResult>> diff;
+    std::optional<std::future<GitResult>> branches;
+};
+
+// Start the startup reads for repo_path. Cheap to call for a path already
+// prefetched: the second call is ignored.
+void prefetch_repo(const std::string& repo_path);
+
+// Hand over repo_path's prefetched reads, if any. They are removed, so a
+// later refresh spawns fresh commands rather than replaying stale ones.
+bool take_prefetched(const std::string& repo_path, PrefetchedReads& out);
+
 std::future<GitResult> git_run_async(
     const std::string& repo_path,
     const std::vector<std::string>& args);

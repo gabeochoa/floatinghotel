@@ -36,10 +36,22 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
-            pf.status   = git::git_status_async(path);
-            pf.log      = git::git_log_async(path, 100, 0);
-            pf.diff     = git::git_diff_async(path);
-            pf.branches = git::git_branch_list_async(path);
+            // The first refresh usually finds its commands already running:
+            // main() starts them before the window exists (git::prefetch_repo).
+            git::PrefetchedReads pre;
+            if (git::take_prefetched(path, pre)) {
+                pf.status   = std::move(pre.status);
+                pf.log      = std::move(pre.log);
+                pf.diff     = std::move(pre.diff);
+                pf.branches = std::move(pre.branches);
+                log_info("refresh: adopted prefetched reads");
+            } else {
+                pf.status   = git::git_status_async(path);
+                pf.log      = git::git_log_async(path, 100, 0);
+                pf.diff     = git::git_diff_async(path);
+                pf.branches = git::git_branch_list_async(path);
+            }
+            repo.commitLogLoading = true;
             // No rev-parse HEAD: the first log entry is HEAD, and every
             // subprocess is one more spawn on the startup path.
         }
@@ -83,6 +95,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.log->wait_for(0s) == std::future_status::ready) {
             auto result = pf.log->get();
             pf.log.reset();
+            repo.commitLogLoading = false;
             if (result.success()) {
                 repo.commitLog = git::parse_log(result.stdout_str());
                 repo.commitLogLoaded =

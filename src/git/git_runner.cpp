@@ -137,6 +137,33 @@ std::future<GitResult> git_run_async(
     return future;
 }
 
+// --- Startup prefetch ---
+
+static std::mutex g_prefetch_mutex;
+static std::unordered_map<std::string, PrefetchedReads> g_prefetched;
+
+void prefetch_repo(const std::string& repo_path) {
+    if (repo_path.empty()) return;
+    std::lock_guard<std::mutex> lock(g_prefetch_mutex);
+    if (g_prefetched.count(repo_path)) return;
+    PrefetchedReads pre;
+    pre.status   = git_status_async(repo_path);
+    pre.log      = git_log_async(repo_path, 100, 0);
+    pre.diff     = git_diff_async(repo_path);
+    pre.branches = git_branch_list_async(repo_path);
+    g_prefetched.emplace(repo_path, std::move(pre));
+    log_info("prefetch: started reads for {}", repo_path);
+}
+
+bool take_prefetched(const std::string& repo_path, PrefetchedReads& out) {
+    std::lock_guard<std::mutex> lock(g_prefetch_mutex);
+    auto it = g_prefetched.find(repo_path);
+    if (it == g_prefetched.end()) return false;
+    out = std::move(it->second);
+    g_prefetched.erase(it);
+    return true;
+}
+
 // --- Convenience wrappers ---
 
 GitResult git_status(const std::string& repo_path) {

@@ -226,6 +226,13 @@ static void app_init() {
         Settings::get().load_save_file();
     }
 
+    // Restored tabs: the paths only become known here, but this still beats
+    // waiting for the first frame by the cost of UI setup and font loading.
+    if (!app_state::testModeEnabled && app_state::repoPath.empty()) {
+        for (const auto& path : Settings::get().get_open_repos())
+            git::prefetch_repo(path);
+    }
+
     {
         ui_imm::initUIContext(Settings::get().get_window_width(),
                               Settings::get().get_window_height());
@@ -904,6 +911,17 @@ int main(int argc, char* argv[]) {
         auto preGfxMs = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::high_resolution_clock::now() - mainStart).count();
         log_info("Pre-graphics init: {} ms", preGfxMs);
+    }
+
+    // Start the repo's git reads now rather than after the window is up. The
+    // refresh systems only run once there is a window, and window+GPU init is
+    // hundreds of ms unloaded and many seconds on a loaded machine; these run
+    // on their own threads meanwhile. Skipped under --test-mode, where the
+    // fixture repo is rebuilt after launch and prefetched output would be for
+    // the old one. Saved-tab repos are prefetched in app_init instead, once
+    // settings are readable.
+    if (!app_state::testModeEnabled && !app_state::repoPath.empty()) {
+        git::prefetch_repo(app_state::repoPath);
     }
 
     app_state::startTime = std::chrono::high_resolution_clock::now();
