@@ -56,6 +56,7 @@ inline void reset_review(ReviewComponent& review) {
     review.composingScope.clear();
     review.composingLine = 0;
     review.cursor = 0;
+    review.cursorMoved = false;
     review.hunkCount = 0;
     review.cursorApprove = false;
     review.cursorComment = false;

@@ -274,6 +274,7 @@ inline std::string file_diff_to_text(const ecs::FileDiff& diff) {
 // scroll offset. Embedded (commit-detail) diffs build fully (vp.active ==
 // false) because they scroll with their parent.
 struct DiffViewport {
+    afterhours::ui::HasScrollView* scroll = nullptr;
     bool active = false;
     float screenH = 720.f;
     float contentWidth = 0.f;   // for spacer width; <=0 -> percent(1.0)
@@ -438,6 +439,17 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         // Read-only embedded (commit-detail) diff has no review cursor, so the
         // first hunk must not pick up the cursor highlight.
         isCursor = !sel->embedded && (ord == sel->review->cursor);
+        if (isCursor && sel->review->cursorMoved && vp && vp->scroll) {
+            float viewportHeight = vp->scroll->viewport_or_zero().y;
+            float target = std::clamp(vp->curY - vp->px(24.f), 0.f,
+                                     std::max(0.f, vp->scroll->content_size.y - viewportHeight));
+            vp->scroll->scroll_offset.y = target;
+            vp->scroll->scroll_target.y = target;
+            vp->scroll->last_eased_offset.y = target;
+            vp->top = target - viewportHeight;
+            vp->bottom = target + viewportHeight * 2.f;
+            sel->review->cursorMoved = false;
+        }
         if (isCursor && sel->review->cursorApprove) {
             sel->review->cursorApprove = false;
             if (sel->reviewScope == "wt") {
@@ -937,6 +949,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         float scrollY = 0.f, viewportH = 0.f;
         if (contentParent->has<afterhours::ui::HasScrollView>()) {
             auto& sv = contentParent->get<afterhours::ui::HasScrollView>();
+            vp.scroll = &sv;
             scrollY = sv.scroll_offset.y;
             viewportH = sv.viewport_or_zero().y;
         }

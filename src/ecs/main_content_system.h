@@ -199,7 +199,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
-        if (afterhours::graphics::is_key_pressed(afterhours::keys::ESCAPE)) {
+        if (afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
             auto* menu = find_singleton<MenuComponent>();
             bool menuOpen = menu && menu->activeMenuIndex >= 0;
             if (!menuOpen && repoPtr) {
@@ -235,27 +235,34 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
         // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
         // gate and the ⌘⏎ send-all shortcut below.
-        bool superDown = afterhours::graphics::is_key_down(343) ||
-                         afterhours::graphics::is_key_down(347);
-        if (reviewPtr && ctx.focus_id == ctx.ROOT &&
+        bool superDown = afterhours::input::is_key_down(343) ||
+                         afterhours::input::is_key_down(347) ||
+                         afterhours::input::is_key_down(341);
+        auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
+        bool editingText = focused.valid() && focused->has<afterhours::text_input::HasTextInputState>();
+        auto* keyboardMenu = find_singleton<MenuComponent>();
+        bool keyboardMenuOpen = keyboardMenu && keyboardMenu->activeMenuIndex >= 0;
+        if (reviewPtr && !editingText && !keyboardMenuOpen &&
             reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
             if (!superDown) {
-                if (afterhours::graphics::is_key_pressed(74) ||   // J
-                    afterhours::graphics::is_key_pressed(78))     // N
+                int previousCursor = reviewPtr->cursor;
+                if (afterhours::input::is_key_pressed(74) ||
+                    afterhours::input::is_key_pressed(78))
                     reviewPtr->cursor =
                         std::min(reviewPtr->cursor + 1, reviewPtr->hunkCount - 1);
-                if (afterhours::graphics::is_key_pressed(75))     // K
+                if (afterhours::input::is_key_pressed(75))
                     reviewPtr->cursor = std::max(reviewPtr->cursor - 1, 0);
-                if (afterhours::graphics::is_key_pressed(65))     // A
+                if (previousCursor != reviewPtr->cursor) reviewPtr->cursorMoved = true;
+                if (afterhours::input::is_key_pressed(65))
                     reviewPtr->cursorApprove = true;
-                if (afterhours::graphics::is_key_pressed(67))     // C
+                if (afterhours::input::is_key_pressed(67))
                     reviewPtr->cursorComment = true;
             }
         }
 
         // Feedback basket + ⌘⏎ send-all (available whenever comments are queued).
         if (reviewPtr && !reviewPtr->comments.empty()) {
-            if (superDown && afterhours::graphics::is_key_pressed(257))
+            if (superDown && afterhours::input::is_key_pressed(257))
                 send_review(ctx, *reviewPtr, repoPtr);
             if (reviewPtr->basketOpen)
                 render_basket(ctx, uiRoot, *reviewPtr, repoPtr);

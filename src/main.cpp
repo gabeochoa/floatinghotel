@@ -859,6 +859,9 @@ int main(int argc, char* argv[]) {
             if (auto* r = repo()) return r->currentBranch;
         } else if (key == "selected_file") {
             if (auto* r = repo()) return r->selectedFilePath;
+        } else if (key == "review_cursor") {
+            if (auto* r = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
+                return std::to_string(r->cursor);
         } else if (key == "ui_scale") {
             // Two decimals: the value is a float the pinch multiplies into, so
             // an exact-match assertion needs a rounded, stable spelling.

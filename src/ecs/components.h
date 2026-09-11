@@ -144,6 +144,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     int composingLine = 0;       // line the comment targets
     // Keyboard chunk cursor (vim-style j/k/n nav; a approve, c comment).
     int cursor = 0;              // index of the highlighted visible hunk
+    bool cursorMoved = false;
     int hunkCount = 0;           // visible hunks last frame (for clamping)
     bool cursorApprove = false;  // request: approve the cursor hunk
     bool cursorComment = false;  // request: comment on the cursor hunk
