@@ -55,36 +55,6 @@ inline void reset_commit_editor(CommitEditorComponent& editor) {
     editor.rememberChoice = false;
 }
 
-inline void reset_review(ReviewComponent& review) {
-    review.reviewing = false;
-    review.basketOpen = true;
-    review.showApproved = false;
-    review.showResolved = false;
-    review.comments.clear();
-    review.editingComment = -1;
-    review.editingCommentText.clear();
-    review.drafts.clear();
-    review.dirty = false;
-    review.nextSaveAttempt = {};
-    review.approvedHunks.clear();
-    review.foldedHunks.clear();
-    review.composingKey.clear();
-    review.composingText.clear();
-    review.composingFile.clear();
-    review.composingScope.clear();
-    review.composingLine = 0;
-    review.composingEndLine = 0;
-    review.composingOldSide = false;
-    review.cursor = 0;
-    review.cursorMoved = false;
-    review.hunkCount = 0;
-    review.cursorApprove = false;
-    review.cursorComment = false;
-    review.seenSig.clear();
-    review.baselineHead.clear();
-    review.baselineDiffSig.clear();
-}
-
 inline void reset_menus(MenuComponent& menu) {
     menu.activeMenuIndex = -1;
     menu.pendingDialog = MenuComponent::PendingDialog::None;

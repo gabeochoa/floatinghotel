@@ -1,0 +1,18 @@
+resize 1280 800
+wait_for_refresh
+click_text code.txt
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Main-only feedback"
+click_ui comment_add_btn
+screenshot improvement_38_main
+validate review_unresolved=1
+click_button Refs
+screenshot improvement_38_refs
+click_text other
+wait_for_refresh
+screenshot improvement_38_other
+validate branch=other
+validate review_unresolved=0
+validate review_approved=0
+expect_no_text "Main-only feedback"

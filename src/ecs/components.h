@@ -232,6 +232,8 @@ struct ReviewComponent : public afterhours::BaseComponent {
     // persists the review to disk (see review_store). Not serialized.
     bool dirty = false;
     std::chrono::steady_clock::time_point nextSaveAttempt{};
+    std::string storageScope;
+    std::string storageRepoPath;
     // "New since you last looked": diff signature of each file when last viewed.
     std::map<std::string, std::string> seenSig;
     // Baseline snapshot for "new since you last looked" (Phase 6).
@@ -243,6 +245,43 @@ struct ReviewComponent : public afterhours::BaseComponent {
         return filePath + "\n" + hunk_signature(hunk);
     }
 };
+
+inline void reset_review(ReviewComponent& review) {
+    review.reviewing = false;
+    review.basketOpen = true;
+    review.showApproved = false;
+    review.showResolved = false;
+    review.comments.clear();
+    review.editingComment = -1;
+    review.editingCommentText.clear();
+    review.drafts.clear();
+    review.dirty = false;
+    review.nextSaveAttempt = {};
+    review.storageScope.clear();
+    review.storageRepoPath.clear();
+    review.approvedHunks.clear();
+    review.foldedHunks.clear();
+    review.composingKey.clear();
+    review.composingText.clear();
+    review.composingFile.clear();
+    review.composingScope.clear();
+    review.composingLine = 0;
+    review.composingEndLine = 0;
+    review.composingOldSide = false;
+    review.cursor = 0;
+    review.cursorMoved = false;
+    review.hunkCount = 0;
+    review.cursorApprove = false;
+    review.cursorComment = false;
+    review.seenSig.clear();
+    review.baselineHead.clear();
+    review.baselineDiffSig.clear();
+}
+
+inline std::string review_scope(const RepoComponent& repo) {
+    return (repo.isDetachedHead ? "detached" : "branch:" + repo.currentBranch) +
+        "\nrevision:" + (repo.headCommitHash.empty() ? "unborn" : repo.headCommitHash);
+}
 
 inline std::string diff_signature(const FileDiff& f) {
     std::string s = std::to_string(f.additions) + "," +

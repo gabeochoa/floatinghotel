@@ -136,6 +136,29 @@ TEST(deletion_is_persisted_and_failed_writes_keep_the_dirty_flag) {
     std::filesystem::remove(review_store::review_path(path));
 }
 
+TEST(review_state_is_isolated_by_branch_and_revision) {
+    const std::string repo = "/tmp/floatinghotel_scoped_review";
+    ecs::ReviewComponent review;
+    ASSERT_TRUE(review_store::switch_review_scope(repo, "main@one", review));
+    review.comments.push_back({"wt", "code.cpp", 1, "main note"});
+    review.approvedHunks.insert("main approval");
+    review.dirty = true;
+    ASSERT_TRUE(review_store::switch_review_scope(repo, "other@one", review));
+    ASSERT_TRUE(review.comments.empty());
+    ASSERT_TRUE(review.approvedHunks.empty());
+    review.comments.push_back({"wt", "code.cpp", 1, "other note"});
+    review.dirty = true;
+    ASSERT_TRUE(review_store::switch_review_scope(repo, "main@one", review));
+    ASSERT_EQ(review.comments.front().text, "main note");
+    ASSERT_TRUE(review.approvedHunks.contains("main approval"));
+    ASSERT_TRUE(review_store::switch_review_scope(repo, "main@two", review));
+    ASSERT_TRUE(review.comments.empty());
+    ASSERT_TRUE(review_store::switch_review_scope(repo, "other@one", review));
+    ASSERT_EQ(review.comments.front().text, "other note");
+    for (const auto& scope : {"main@one", "other@one", "main@two"})
+        std::filesystem::remove(review_store::review_path(repo, scope));
+}
+
 TEST(review_signatures_detect_same_size_edits) {
     ecs::FileDiff before;
     before.filePath = "main.cpp";

@@ -38,11 +38,15 @@ struct HandleReviewRoundtrip : afterhours::System<afterhours::testing::PendingE2
         auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
         if (repo && review) {
             auto key = repo->repoPath + "::e2e-drafts";
+            auto scope = review->storageScope;
+            auto owner = review->storageRepoPath;
             review_store::save_review(key, *review);
             ecs::reset_review(*review);
+            review->storageScope = scope;
+            review->storageRepoPath = owner;
             review_store::load_review(key, *review);
             ecs::restore_draft_selection(*repo, *review);
-            std::filesystem::remove(review_store::review_path(key));
+            std::filesystem::remove(review_store::review_path(key, scope));
         }
         cmd.consume();
     }

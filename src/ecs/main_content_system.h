@@ -26,7 +26,7 @@ inline void persist_pending_review(UIContext<InputAction>& ctx, ReviewComponent&
     if (app_state::testModeEnabled || !review.dirty || !repo || repo->repoPath.empty()) return;
     auto now = std::chrono::steady_clock::now();
     if (!immediate && now < review.nextSaveAttempt) return;
-    if (!review_store::persist_review(repo->repoPath, review)) {
+    if (!review_store::persist_review(review.storageRepoPath.empty() ? repo->repoPath : review.storageRepoPath, review)) {
         review.nextSaveAttempt = now + std::chrono::seconds(2);
         afterhours::toast::send_info(ctx, "Could not save review; retrying. Keep this tab open.", 3.f);
     }
@@ -349,6 +349,21 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Vim-style chunk cursor: j/k/n move, a approve, c comment. Gated on
         // no text input being focused so it never eats typed characters.
         auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
+        if (reviewPtr && hasRepo && repoPtr->hasLoadedOnce && !repoPtr->isRefreshing && !repoPtr->refreshRequested) {
+            auto scope = review_scope(*repoPtr);
+            if (reviewPtr->storageScope != scope || reviewPtr->storageRepoPath != repoPtr->repoPath) {
+                bool initialScope = reviewPtr->storageScope.empty();
+                if (!review_store::switch_review_scope(repoPtr->repoPath, scope, *reviewPtr, !app_state::testModeEnabled)) {
+                    div(ctx, mk(mainBg.ent(), 591000), ComponentConfig{}
+                        .with_label("Cannot save the previous review. Keep this tab open and retry after checking storage.")
+                        .with_size(ComponentSize{percent(1.f), pixels(80)}).with_font_size(FontSize::Medium));
+                    return;
+                }
+                restore_draft_selection(*repoPtr, *reviewPtr);
+                if (initialScope && !app_state::testModeEnabled && std::filesystem::exists(review_store::review_path(repoPtr->repoPath)))
+                    afterhours::toast::send_info(ctx, "Older unscoped review kept in your local review folder", 4.f);
+            }
+        }
         if (reviewPtr && hasRepo) persist_pending_review(ctx, *reviewPtr, repoPtr);
         // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
         // gate and the ⌘⏎ send-all shortcut below.
@@ -1006,12 +1021,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         activeRepo->repoPath = recentRepos[ri];
                         activeRepo->refreshRequested = true;
                         Settings::get().add_recent_repo(recentRepos[ri]);
-                        // Restore any saved review for the newly-opened repo.
-                        auto* rv = find_singleton<ReviewComponent, ActiveTab>();
-                        if (rv && !app_state::testModeEnabled) {
-                            review_store::load_review(activeRepo->repoPath, *rv);
-                            restore_draft_selection(*activeRepo, *rv);
-                        }
                     }
                 }
             }

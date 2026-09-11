@@ -288,11 +288,7 @@ static void app_init() {
 
         tab.addComponent<ecs::CommitDetailCache>();
         tab.addComponent<ecs::BranchDialogState>();
-        auto& review = tab.addComponent<ecs::ReviewComponent>();
-        // Restore any saved ballroom review for this repo (survives restart).
-        if (!path.empty() && !app_state::testModeEnabled)
-            review_store::load_review(path, review);
-        ecs::restore_draft_selection(repo, review);
+        tab.addComponent<ecs::ReviewComponent>();
 
         auto& editor = tab.addComponent<ecs::CommitEditorComponent>();
         if (savedPolicy == "stage_all") {
@@ -749,8 +745,10 @@ static void app_cleanup() {
             auto opt = afterhours::EntityHelper::getEntityForID(tabId);
             if (!opt.valid() || !opt->has<ecs::RepoComponent>()) continue;
             auto& repo = opt->get<ecs::RepoComponent>();
-            if (!app_state::testModeEnabled && opt->has<ecs::ReviewComponent>())
-                review_store::save_review(repo.repoPath, opt->get<ecs::ReviewComponent>());
+            if (!app_state::testModeEnabled && opt->has<ecs::ReviewComponent>()) {
+                const auto& review = opt->get<ecs::ReviewComponent>();
+                review_store::save_review(review.storageRepoPath.empty() ? repo.repoPath : review.storageRepoPath, review);
+            }
             if (!repo.repoPath.empty()) {
                 openRepos.push_back(repo.repoPath);
                 if (opt->has<ecs::ActiveTab>()) {

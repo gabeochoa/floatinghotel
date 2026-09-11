@@ -11,7 +11,7 @@ namespace ecs { struct ReviewComponent; }
 namespace review_store {
 
 // Path to the review JSON for a repo (under afterhours save dir / reviews/).
-std::string review_path(const std::string& repoPath);
+std::string review_path(const std::string& repoPath, const std::string& scope = "");
 
 // Durable path for the exported review markdown (the AI-feedback prompt), so it
 // survives a reboot / failed network round-trip instead of living in /tmp.
@@ -20,6 +20,8 @@ std::string markdown_path(const std::string& repoPath, const std::string& branch
 // Serialize the durable fields of `review` to disk (atomic replace).
 bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review);
 bool persist_review(const std::string& repoPath, ecs::ReviewComponent& review);
+bool switch_review_scope(const std::string& repoPath, const std::string& scope,
+                         ecs::ReviewComponent& review, bool persist = true);
 
 // Hydrate the durable fields of `review` from disk. No-op if no file exists.
 void load_review(const std::string& repoPath, ecs::ReviewComponent& review);

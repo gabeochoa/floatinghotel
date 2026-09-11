@@ -50,8 +50,8 @@ std::string repo_key(const std::string& repoPath) {
 
 }  // namespace
 
-std::string review_path(const std::string& repoPath) {
-    return (reviews_dir() / (repo_key(repoPath) + ".json")).string();
+std::string review_path(const std::string& repoPath, const std::string& scope) {
+    return (reviews_dir() / (repo_key(repoPath) + (scope.empty() ? "" : "-" + repo_key(scope)) + ".json")).string();
 }
 
 std::string markdown_path(const std::string& repoPath,
@@ -71,6 +71,7 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["repo_path"] = repoPath;  // for debuggability (filename is a hash)
     j["reviewing"] = review.reviewing;
     j["basket_open"] = review.basketOpen;
+    j["review_scope"] = review.storageScope;
 
     nlohmann::json comments = nlohmann::json::array();
     for (const auto& c : review.comments) comments.push_back(encode_comment(c));
@@ -92,7 +93,7 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["baseline_head"] = review.baselineHead;
     j["baseline_diff_sig"] = review.baselineDiffSig;
 
-    std::string path = review_path(repoPath);
+    std::string path = review_path(repoPath, review.storageScope);
     if (!afterhours::files::write_string_atomic(path, j.dump(2))) {
         log_warn("Failed to save review to {}", path);
         return false;
@@ -109,12 +110,13 @@ bool persist_review(const std::string& repoPath, ecs::ReviewComponent& review) {
 
 void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
     if (repoPath.empty()) return;
-    std::string path = review_path(repoPath);
+    std::string path = review_path(repoPath, review.storageScope);
     std::optional<std::string> contents = afterhours::files::read_string(path);
     if (!contents) return;  // missing/unreadable -> fresh review
 
     try {
         nlohmann::json j = nlohmann::json::parse(*contents);
+        if (j.value("review_scope", std::string{}) != review.storageScope) return;
 
         review.reviewing = j.value("reviewing", false);
         review.basketOpen = j.value("basket_open", true);
@@ -154,6 +156,18 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
     } catch (const std::exception& e) {
         log_warn("Failed to parse review file {}: {} (ignoring)", path, e.what());
     }
+}
+
+bool switch_review_scope(const std::string& repoPath, const std::string& scope,
+                         ecs::ReviewComponent& review, bool persist) {
+    if (review.storageScope == scope && review.storageRepoPath == repoPath) return true;
+    auto oldRepo = review.storageRepoPath.empty() ? repoPath : review.storageRepoPath;
+    if (persist && !persist_review(oldRepo, review)) return false;
+    ecs::reset_review(review);
+    review.storageRepoPath = repoPath;
+    review.storageScope = scope;
+    if (persist) load_review(repoPath, review);
+    return true;
 }
 
 }  // namespace review_store
