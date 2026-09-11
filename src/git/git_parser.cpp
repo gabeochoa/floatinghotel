@@ -7,6 +7,24 @@
 
 namespace git {
 
+ecs::BlameLine parse_blame_line(const std::string& output) {
+    ecs::BlameLine result;
+    std::istringstream stream(output);
+    std::string line;
+    if (!std::getline(stream, line)) return result;
+    std::istringstream header(line);
+    if (!(header >> result.hash >> result.originalLine >> result.finalLine) ||
+        result.hash.size() != 40 || result.originalLine < 1 || result.finalLine < 1 ||
+        result.hash.find_first_not_of("0123456789abcdef") != std::string::npos) return {};
+    while (std::getline(stream, line)) {
+        if (line.starts_with("author ")) result.author = line.substr(7);
+        else if (line.starts_with("summary ")) result.summary = line.substr(8);
+        else if (line.starts_with("filename ")) result.file = line.substr(9);
+        else if (line.starts_with('\t')) { result.content = line.substr(1); break; }
+    }
+    return result;
+}
+
 std::vector<ecs::SearchMatch> parse_grep_matches(const std::string& output) {
     std::vector<ecs::SearchMatch> matches;
     size_t start = 0;

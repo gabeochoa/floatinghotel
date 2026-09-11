@@ -27,7 +27,7 @@ static std::shared_mutex g_git_mutex;
 static bool is_read_only(const std::vector<std::string>& args) {
     if (args.empty()) return false;
     const std::string& verb = args[0];
-    if (verb == "status" || verb == "log" || verb == "diff" || verb == "grep" ||
+    if (verb == "status" || verb == "log" || verb == "diff" || verb == "grep" || verb == "blame" ||
         verb == "rev-parse" || verb == "show" || verb == "for-each-ref" ||
         verb == "ls-files" || verb == "cat-file" || verb == "rev-list" ||
         verb == "remote" || verb == "ls-remote")

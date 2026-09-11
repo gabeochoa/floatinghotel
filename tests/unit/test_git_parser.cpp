@@ -9,6 +9,17 @@
 
 #include <string>
 
+TEST(blame_line_preserves_original_location_and_author) {
+    auto line = git::parse_blame_line(std::string(40, 'a') + " 3 9 1\nauthor Ada Lovelace\nsummary Initial algorithm\nfilename old name.cpp\n\treturn answer;\n");
+    ASSERT_EQ(line.author, "Ada Lovelace");
+    ASSERT_EQ(line.summary, "Initial algorithm");
+    ASSERT_EQ(line.originalLine, 3);
+    ASSERT_EQ(line.finalLine, 9);
+    ASSERT_EQ(line.file, "old name.cpp");
+    ASSERT_EQ(line.content, "return answer;");
+    ASSERT_TRUE(git::parse_blame_line("malformed output").hash.empty());
+}
+
 // ===========================================================================
 // parse_status tests
 // ===========================================================================

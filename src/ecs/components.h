@@ -20,6 +20,16 @@ struct SearchMatch {
     std::string text;
 };
 
+struct BlameLine {
+    std::string hash;
+    std::string author;
+    std::string summary;
+    std::string file;
+    std::string content;
+    int originalLine = 0;
+    int finalLine = 0;
+};
+
 // ---- Sub-structs (not components, just data) ----
 
 struct FileStatus {
@@ -148,6 +158,10 @@ struct RepoComponent : public afterhours::BaseComponent {
     int fileHistoryLimit = 200;
     std::shared_future<git::GitResult> fileHistoryFuture;
     std::vector<CommitEntry> fileHistoryEntries;
+    std::shared_future<git::GitResult> blameFuture;
+    BlameLine blameLine;
+    std::string blameError;
+    bool blameOpen = false;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {

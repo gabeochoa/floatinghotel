@@ -14,5 +14,5 @@ git -C "$history_repo" commit -qm 'Rename the file'
 printf 'fourth line\n' >> "$history_repo/renamed.txt"
 git -C "$history_repo" commit -qam 'Extend renamed file'
 output/floatinghotel.exe "$history_repo" --test-mode --headless \
-  --test-script=tests/navigation_scripts/improvement_25_file_history.e2e \
+  --test-script="${1:-tests/navigation_scripts/improvement_25_file_history.e2e}" \
   --screenshot-dir=output/screenshots/improvements --e2e-timeout=40
