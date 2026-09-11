@@ -121,6 +121,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     if (commitJustChanged) {
         detailCache.commitDetailError.clear();
         std::vector<std::string> diffArgs{"show", repo.selectedCommitHash, "--format="};
+        diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
         if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
         auto diffResult = git::git_run(repo.repoPath, diffArgs);
         auto infoResult = git::git_show_commit_info(repo.repoPath, repo.selectedCommitHash);

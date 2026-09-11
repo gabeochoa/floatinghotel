@@ -114,6 +114,7 @@ struct RepoComponent : public afterhours::BaseComponent {
 
     bool refreshRequested = false;
     bool ignoreWhitespace = false;
+    int diffContext = 3;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;

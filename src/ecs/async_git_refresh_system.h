@@ -37,6 +37,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
             std::vector<std::string> diffArgs{"diff"};
+            diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
             if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
             auto stagedArgs = diffArgs;
             stagedArgs.push_back("--cached");
@@ -47,7 +48,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             if (git::take_prefetched(path, pre)) {
                 pf.status   = std::move(pre.status);
                 pf.log      = std::move(pre.log);
-                pf.diff     = repo.ignoreWhitespace ? git::git_run_async(path, diffArgs) : std::move(pre.diff);
+                pf.diff     = repo.ignoreWhitespace || repo.diffContext != 3
+                                  ? git::git_run_async(path, diffArgs) : std::move(pre.diff);
                 pf.branches = std::move(pre.branches);
                 log_info("refresh: adopted prefetched reads");
             } else {

@@ -130,6 +130,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.cachedFilePath.clear();
             repo.selectedCommitHash.clear();
             repo.ignoreWhitespace = false;
+            repo.diffContext = 3;
 
             auto* detailCache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
             if (detailCache) {

@@ -1,0 +1,12 @@
+resize 1280 800
+wait_for_refresh
+click_text context.txt
+wait_frames 10
+screenshot improvement_17_before
+expect_no_text "context line 30"
+click_ui expand_diff_context
+wait_for_refresh
+wait_frames 10
+screenshot improvement_17_expanded
+expect_text "context line 30"
+expect_text "changed line 50"

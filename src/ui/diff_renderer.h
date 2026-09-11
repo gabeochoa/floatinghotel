@@ -627,6 +627,23 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_btns"));
 
+    if (sel && !sel->repoPath.empty()) {
+        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button("Context +")
+            .with_size(ComponentSize{children(), h720(18)})
+            .with_font_size(FontSize::Small)
+            .with_custom_background(theme::BUTTON_SECONDARY)
+            .with_debug_name("expand_diff_context"));
+        if (context) {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+                repo->diffContext = std::min(10000, repo->diffContext + 20);
+                repo->refreshRequested = true;
+                repo->cachedFilePath.clear();
+            }
+            if (auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
+                cache->cachedCommitHash.clear();
+        }
+    }
+
     // Copy button only where drag-select-to-copy isn't available (i.e. the
     // embedded commit-detail diff). In the working-tree diff, select-to-copy
     // (with file:line) replaces it.
