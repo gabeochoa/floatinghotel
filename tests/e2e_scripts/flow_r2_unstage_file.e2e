@@ -9,8 +9,7 @@ wait_frames 5
 validate staged_count=1
 
 # Select the staged file by clicking it in the sidebar
-# Staged files now live under the "Approved" review tab.
-click_text "Approved"
+click_text "Staged"
 wait_frames 5
 click_text ".gitignore"
 wait_frames 5

@@ -877,6 +877,9 @@ int main(int argc, char* argv[]) {
         } else if (key == "review_cursor") {
             if (auto* r = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
                 return std::to_string(r->cursor);
+        } else if (key == "review_approved") {
+            if (auto* r = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
+                return std::to_string(r->approvedHunks.size());
         } else if (key == "diff_selected_text") {
             return ui::diff_sel::build_copy_text(ui::diff_sel::state(), false);
         } else if (key == "diff_has_selection") {

@@ -7,14 +7,12 @@ wait_for_refresh
 wait_frames 30
 
 # All content should still render correctly with tighter spacing.
-# Default "To review" tab shows unstaged files; commit header is "stack".
-expect_text "To review"
+expect_text "Changes"
 expect_text "README.md"
 expect_text "main.cpp"
 expect_text "STACK"
 
-# Staged files (.gitignore) live under the "Approved" tab
-click_text "Approved"
+click_text "Staged"
 wait_frames 5
 expect_text ".gitignore"
 

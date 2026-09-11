@@ -58,6 +58,7 @@ inline void reset_commit_editor(CommitEditorComponent& editor) {
 inline void reset_review(ReviewComponent& review) {
     review.reviewing = false;
     review.basketOpen = true;
+    review.showApproved = false;
     review.comments.clear();
     review.approvedHunks.clear();
     review.foldedHunks.clear();

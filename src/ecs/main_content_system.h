@@ -377,7 +377,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // In the ballroom: show EVERY working-tree file stacked in one scroll so
         // you can approve -> scroll -> approve without reopening files. A selected
         // commit still takes over (to review/comment that commit's diff).
-        if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit) {
+        if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit && !(hasSelectedFile && repo.selectedFileStaged)) {
             float diffW = layout.mainContent.width;
             if (repo.currentDiff.empty()) {
                 auto done = div(ctx, mk(mainBg.ent(), 3080),
@@ -391,7 +391,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("ballroom_done"));
                 div(ctx, mk(done.ent(), 1),
                     ComponentConfig{}
-                        .with_label("All reviewed")
+                        .with_label("Working tree matches the index")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::STATUS_ADDED)
                         .with_font_size(afterhours::ui::FontSize::Large)
@@ -401,7 +401,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label(std::to_string(
                             static_cast<int>(reviewPtr->approvedHunks.size())) +
-                            " approved this session \xc2\xb7 refresh to reset")
+                            " review approvals saved")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_font_size(afterhours::ui::FontSize::Medium)

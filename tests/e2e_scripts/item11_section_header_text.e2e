@@ -9,8 +9,8 @@ expect_no_text "▾"
 
 # Headers should be title case with counts. The changes area is now split
 # into review tabs; commit log header is "stack".
-expect_text "To review"
-expect_text "Approved"
+expect_text "Changes"
+expect_text "Staged"
 expect_text "Untracked"
 expect_text "STACK"
 

@@ -100,8 +100,6 @@ struct Session {
     afterhours::ui::TextMeasureCache* tmc = nullptr;
     float fontSize = 0.f;
     float padLeftPx = 0.f;
-    // Ballroom review (working-tree diff only): Approve a hunk (= stage it) and
-    // hide it until reset; Comment adds to the feedback basket.
     bool reviewActions = false;
     // Embedded (commit-detail) diffs are read-only: no keyboard review cursor.
     bool embedded = false;
@@ -535,8 +533,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     if (reviewOn) {
         hkey = sel->reviewScope + "\n" +
                ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk);
-        // Approved hunks are hidden until reset (⟳/refresh).
-        if (sel->review->approvedHunks.count(hkey))
+        if (sel->review->approvedHunks.count(hkey) && !sel->review->showApproved)
             return;
         // Keyboard chunk cursor + pending vim actions (a=approve, c=comment).
         int ord = sel->hunkOrdinal++;
@@ -556,18 +553,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
         if (isCursor && sel->review->cursorApprove) {
             sel->review->cursorApprove = false;
-            if (sel->reviewScope == "wt") {
-                auto res = git::stage_hunk(sel->repoPath, fileDiff, hunk);
-                if (res.success()) {
-                    sel->review->approvedHunks.insert(hkey);
-                    sel->review->dirty = true;
-                    auto* r =
-                        ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-                    if (r) r->refreshRequested = true;
-                    afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
-                    return;
-                }
-            }
+            sel->review->approvedHunks.insert(hkey);
+            sel->review->dirty = true;
+            afterhours::toast::send_info(ctx, "Approved for review; index unchanged", 1.5f);
+            if (!sel->review->showApproved) return;
         }
         if (isCursor && sel->review->cursorComment) {
             sel->review->cursorComment = false;
@@ -667,13 +656,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
     }
 
-    // Approve = stage this hunk (git apply --cached) and hide it until reset.
-    // Comment = open an inline compose row and add the note to the basket.
     if (reviewOn) {
-        // Approve = stage (working-tree only; committed hunks can't be staged).
-        if (sel->reviewScope == "wt") {
+        {
+            bool approved = sel->review->approvedHunks.contains(hkey);
             auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
-                preset::Button("Approve")
+                preset::Button(approved ? "Unapprove" : "Approve")
                     .with_size(ComponentSize{children(), h720(18)})
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
@@ -683,22 +670,24 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("approve_hunk_btn"));
             if (approveBtn) {
-                // A submodule hunk is a gitlink pointer change; build_patch can't
-                // represent it, so stage the whole path instead of a hunk patch.
+                if (approved) sel->review->approvedHunks.erase(hkey);
+                else sel->review->approvedHunks.insert(hkey);
+                sel->review->dirty = true;
+                afterhours::toast::send_info(ctx, approved ? "Approval removed" : "Approved for review; index unchanged", 1.5f);
+            }
+        }
+        if (sel->reviewScope == "wt") {
+            if (button(ctx, mk(hunkBtns.ent(), 5), preset::Button("Stage")
+                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_font_size(FontSize::Small).with_custom_background(theme::BUTTON_SECONDARY)
+                    .with_debug_name("stage_hunk_btn"))) {
                 auto res = fileDiff.isSubmodule
                     ? git::stage_file(sel->repoPath, fileDiff.filePath)
                     : git::stage_hunk(sel->repoPath, fileDiff, hunk);
                 if (res.success()) {
-                    sel->review->approvedHunks.insert(hkey);
-                    sel->review->dirty = true;
-                    auto* r =
-                        ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-                    if (r) r->refreshRequested = true;
-                    afterhours::toast::send_info(ctx, "Approved hunk (staged)", 1.5f);
-                } else {
-                    afterhours::toast::send_info(
-                        ctx, "Approve failed: " + diff_detail::git_err(res), 2.5f);
-                }
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
+                    afterhours::toast::send_info(ctx, "Hunk staged; review approval unchanged", 1.5f);
+                } else afterhours::toast::send_info(ctx, "Stage failed: " + diff_detail::git_err(res), 2.5f);
             }
         }
         auto commentBtn = button(ctx, mk(hunkBtns.ent(), 3),
@@ -1071,9 +1060,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
     image_diff::begin(imageContext);
 
     diff_sel::Session sess;
-    // Working-tree diffs always open in the approve-chunk flow (Approve/Comment
-    // per hunk). Committed diffs are read-only unless you've embarked a review,
-    // in which case they become comment-only (comments become fixups).
     sess.reviewActions =
         (review != nullptr) && (reviewScope == "wt" || review->reviewing);
     sess.embedded = embedInParentScroll;
@@ -1317,6 +1303,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
             bool inlineClicked = segBtn(0, "Inline", !sideBySide);
             bool sbsClicked = segBtn(1, "Side-by-Side", sideBySide);
+            if (review && !review->approvedHunks.empty()) {
+                if (button(ctx, mk(toggle.ent(), 3), preset::Button(review->showApproved ? "Hide approved" : "Show approved")
+                        .with_size(ComponentSize{children(), percent(1.f)}).with_font_size(FontSize::Small)
+                        .with_debug_name("toggle_approved"))) review->showApproved = !review->showApproved;
+            }
             if (inlineClicked || sbsClicked) {
                 if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {
                     l->diffViewMode = inlineClicked
@@ -1400,10 +1391,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             --repo->diffTargetFrames;
         }
 
-        // Working-tree file header gets an "Approve file" button (stages the
-        // whole file). No reserve to compute: the label expands into whatever
-        // the action cluster leaves, however many buttons it ends up holding.
-        bool showApproveFile = sess.reviewActions && sess.reviewScope == "wt";
+        bool showApproveFile = sess.reviewActions;
         div(ctx, mk(fileHeaderRow.ent(), 0),
             ComponentConfig{}
                 .with_label(fileLabel)
@@ -1429,6 +1417,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_transparent_bg()
                 .with_roundness(0.0f)
             .with_debug_name("file_header_btns"));
+        if (embedInParentScroll && review && !review->approvedHunks.empty()) {
+            if (button(ctx, mk(fileBtns.ent(), 5), preset::Button(review->showApproved ? "Hide approved" : "Show approved")
+                    .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                    .with_debug_name("toggle_approved"))) review->showApproved = !review->showApproved;
+        }
 
         if (reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
             !fileDiff.isSubmodule && diff_sel::state().hasSel) {
@@ -1489,15 +1482,20 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("approve_file_btn"));
             if (approveFileBtn) {
-                auto res = git::stage_file(repoPath, fileDiff.filePath);
-                if (res.success()) {
-                    auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-                    if (r) r->refreshRequested = true;
-                    afterhours::toast::send_info(ctx, "Approved file (staged)", 1.5f);
-                } else {
-                    afterhours::toast::send_info(
-                        ctx, "Approve failed: " + diff_detail::git_err(res), 2.5f);
-                }
+                for (const auto& hunk : fileDiff.hunks)
+                    review->approvedHunks.insert(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
+                review->dirty = true;
+                afterhours::toast::send_info(ctx, "File approved for review; index unchanged", 1.5f);
+            }
+        }
+        if (reviewScope == "wt" && !fileDiff.isFullContent) {
+            if (button(ctx, mk(fileBtns.ent(), 4), preset::Button("Stage file")
+                    .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                    .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("stage_file_btn"))) {
+                auto result = git::stage_file(repoPath, fileDiff.filePath);
+                if (result.success()) {
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
+                } else afterhours::toast::send_info(ctx, "Stage failed: " + diff_detail::git_err(result), 2.5f);
             }
         }
 

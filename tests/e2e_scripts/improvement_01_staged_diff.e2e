@@ -7,7 +7,7 @@ click_text Repository
 wait_frames 5
 click_text "Stage File"
 wait_for_refresh
-click_text "Approved"
+click_text "Staged"
 wait_frames 10
 click_text README.md
 wait_frames 10

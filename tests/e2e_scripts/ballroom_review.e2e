@@ -12,7 +12,6 @@ wait_frames 10
 click_text main.cpp
 wait_frames 15
 expect_text "int main"
-# Approve a hunk (stages it)
 click_ui approve_hunk_btn
 wait_for_refresh
 wait_frames 15

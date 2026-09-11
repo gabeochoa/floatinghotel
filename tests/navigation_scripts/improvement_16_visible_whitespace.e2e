@@ -13,5 +13,5 @@ wait_frames 10
 screenshot improvement_16_split
 expect_text "[CRLF]"
 expect_text "[no newline]"
-click_ui approve_hunk_btn
+click_ui stage_hunk_btn
 wait_for_refresh

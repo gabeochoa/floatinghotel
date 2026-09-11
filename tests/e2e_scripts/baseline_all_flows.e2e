@@ -35,8 +35,7 @@ click_text main.cpp
 wait_frames 5
 screenshot baseline_04_sidebar_file_unstaged_second
 
-# Select the staged file (.gitignore) - staged files under "Approved" tab
-click_text "Approved"
+click_text "Staged"
 wait_frames 5
 click_text .gitignore
 wait_frames 5
@@ -53,8 +52,7 @@ screenshot baseline_06_sidebar_file_untracked_selected
 # 4. DIFF VIEWS (inline diff for different file types)
 # =============================================================================
 
-# Unstaged modification diff (README.md) - unstaged files under "To review"
-click_text "To review"
+click_text "Changes"
 wait_frames 5
 click_text README.md
 wait_frames 5
@@ -65,8 +63,7 @@ click_text main.cpp
 wait_frames 5
 screenshot baseline_08_diff_unstaged_code
 
-# Staged file diff (.gitignore - new file) - staged files under "Approved"
-click_text "Approved"
+click_text "Staged"
 wait_frames 5
 click_text .gitignore
 wait_frames 5
@@ -106,8 +103,7 @@ screenshot baseline_13_commit_detail_initial
 # 6. SIDEBAR TOOLBAR (Commit, Push, Pull, Stash buttons in sidebar mode)
 # =============================================================================
 
-# Go back to file view first (unstaged files under "To review")
-click_text "To review"
+click_text "Changes"
 wait_frames 5
 click_text README.md
 wait_frames 5
@@ -122,8 +118,7 @@ click_button Refs
 wait_frames 5
 screenshot baseline_15_refs_tab
 
-# Switch back to the changes file view (now the "To review" tab)
-click_text "To review"
+click_text "Changes"
 wait_frames 5
 
 # =============================================================================

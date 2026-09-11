@@ -6,10 +6,8 @@ resize 1280 720
 wait_for_refresh
 wait_frames 30
 
-# File list should render correctly. Default "To review" tab shows README.md;
-# staged files (.gitignore) live under "Approved".
 expect_text "README.md"
-click_text "Approved"
+click_text "Staged"
 wait_frames 5
 expect_text ".gitignore"
 

@@ -8,12 +8,12 @@ wait_frames 30
 
 # All file rows should fit and render compactly. Files are now grouped into
 # review tabs, so visit each tab and verify its rows.
-click_text "To review"
+click_text "Changes"
 wait_frames 5
 expect_text "README.md"
 expect_text "main.cpp"
 
-click_text "Approved"
+click_text "Staged"
 wait_frames 5
 expect_text ".gitignore"
 

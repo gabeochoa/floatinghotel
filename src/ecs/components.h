@@ -202,6 +202,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     };
     bool reviewing = false;
     bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
+    bool showApproved = false;
     std::vector<Comment> comments;
     std::set<std::string> approvedHunks;
     std::set<std::string> foldedHunks;
@@ -339,7 +340,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     enum class SidebarMode { Changes, Refs };
     SidebarMode sidebarMode = SidebarMode::Changes;
     // Review tabs within the Changes view (mock: To review / Approved / Untracked).
-    enum class ReviewTab { ToReview, Approved, Untracked };
+    enum class ReviewTab { ToReview, Staged, Untracked };
     ReviewTab reviewTab = ReviewTab::ToReview;
 
     enum class FileViewMode { Flat, Tree, All };

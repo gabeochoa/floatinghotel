@@ -7,8 +7,8 @@ wait_for_refresh
 wait_frames 30
 
 # Section headers should still be visible with counts (now review tabs)
-expect_text "To review"
-expect_text "Approved"
+expect_text "Changes"
+expect_text "Staged"
 expect_text "Untracked"
 
 screenshot item22_section_style

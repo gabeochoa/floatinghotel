@@ -247,7 +247,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
 
-        // === Review tabs (To review / Approved / Untracked / Refs) ===
         render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
         float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab);
 
@@ -466,7 +465,7 @@ private:
 
         auto* countRepo = find_singleton<RepoComponent, ActiveTab>();
         int nReview = countRepo ? static_cast<int>(countRepo->unstagedFiles.size()) : 0;
-        int nApproved = countRepo ? static_cast<int>(countRepo->stagedFiles.size()) : 0;
+        int nStaged = countRepo ? static_cast<int>(countRepo->stagedFiles.size()) : 0;
         int nUntracked = countRepo ? static_cast<int>(countRepo->untrackedFiles.size()) : 0;
         int nRefs = countRepo ? static_cast<int>(countRepo->branches.size()) : 0;
 
@@ -511,12 +510,12 @@ private:
         using SM = LayoutComponent::SidebarMode;
         using RT = LayoutComponent::ReviewTab;
         bool inChanges = (layout.sidebarMode == SM::Changes);
-        makeTab(2091, "To review " + std::to_string(nReview),
+        makeTab(2091, "Changes " + std::to_string(nReview),
                 inChanges && layout.reviewTab == RT::ToReview,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::ToReview; });
-        makeTab(2092, "Approved " + std::to_string(nApproved),
-                inChanges && layout.reviewTab == RT::Approved,
-                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Approved; });
+        makeTab(2092, "Staged " + std::to_string(nStaged),
+                inChanges && layout.reviewTab == RT::Staged,
+                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Staged; });
         makeTab(2093, "Untracked " + std::to_string(nUntracked),
                 inChanges && layout.reviewTab == RT::Untracked,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Untracked; });
@@ -674,14 +673,15 @@ private:
                                 RepoComponent& repo, ReviewComponent* review) {
         bool reviewing = review && review->reviewing;
         int toReview = static_cast<int>(repo.unstagedFiles.size());
-        int approvedHunks = review ? static_cast<int>(review->approvedHunks.size()) : 0;
+        int approvedHunks = 0;
         int queued = review ? static_cast<int>(review->comments.size()) : 0;
 
-        // Progress = approved hunks / (approved + still-visible hunks). Approved
-        // hunks get staged and drop out of the working diff, so this climbs to 1.
         int remainingHunks = 0;
-        for (auto& fd : repo.currentDiff)
-            remainingHunks += static_cast<int>(fd.hunks.size());
+        for (const auto& file : repo.currentDiff)
+            for (const auto& hunk : file.hunks) {
+                if (review && review->approvedHunks.contains("wt\n" + ReviewComponent::hunk_key(file.filePath, hunk))) ++approvedHunks;
+                else ++remainingHunks;
+            }
         int totalHunks = approvedHunks + remainingHunks;
         float frac = (reviewing && totalHunks > 0)
                          ? static_cast<float>(approvedHunks) / totalHunks : 0.f;
@@ -1359,7 +1359,7 @@ private:
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
             for (const auto& file : repo.unstagedFiles) paths.push_back(file.path);
-        } else if (tab == LayoutComponent::ReviewTab::Approved) {
+        } else if (tab == LayoutComponent::ReviewTab::Staged) {
             for (const auto& file : repo.stagedFiles) paths.push_back(file.path);
         } else paths = repo.untrackedFiles;
         auto it = layout.collapsedDirectories.find(repo.repoPath);
@@ -1376,7 +1376,7 @@ private:
         if (treeMode_) return treeRows_.size();
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) return repo.unstagedFiles.size();
-        if (tab == LayoutComponent::ReviewTab::Approved) return repo.stagedFiles.size();
+        if (tab == LayoutComponent::ReviewTab::Staged) return repo.stagedFiles.size();
         return repo.untrackedFiles.size();
     }
 
@@ -1409,7 +1409,7 @@ private:
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
             render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false);
-        } else if (tab == LayoutComponent::ReviewTab::Approved) {
+        } else if (tab == LayoutComponent::ReviewTab::Staged) {
             render_file_row(ctx, row, 0, repo.stagedFiles[i], repo, true);
         } else {
             render_untracked_row(ctx, row, 0, repo.untrackedFiles[i], repo);
@@ -1472,7 +1472,6 @@ private:
             return;
         }
 
-        // Review-tab filtered list (mock: To review / Approved / Untracked).
         auto* lc = find_singleton<LayoutComponent>();
         auto tab = lc ? lc->reviewTab : LayoutComponent::ReviewTab::ToReview;
         int nextId = 2600;
@@ -1484,12 +1483,12 @@ private:
                                 repo.unstagedFiles[i], repo, false);
             shown = repo.unstagedFiles.size();
             emptyMsg = "Nothing to review";
-        } else if (tab == LayoutComponent::ReviewTab::Approved) {
+        } else if (tab == LayoutComponent::ReviewTab::Staged) {
             for (int i = 0; i < static_cast<int>(repo.stagedFiles.size()); ++i)
                 render_file_row(ctx, scrollParent, nextId++,
                                 repo.stagedFiles[i], repo, true);
             shown = repo.stagedFiles.size();
-            emptyMsg = "Nothing approved yet";
+            emptyMsg = "Nothing staged yet";
         } else {
             for (int i = 0; i < static_cast<int>(repo.untrackedFiles.size()); ++i)
                 render_untracked_row(ctx, scrollParent, nextId++,

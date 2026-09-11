@@ -1,0 +1,36 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+screenshot improvement_31_before
+validate staged_count=1
+validate review_approved=0
+click_ui approve_hunk_btn
+screenshot improvement_31_approved
+validate staged_count=1
+validate unstaged_count=3
+validate review_approved=1
+click_ui toggle_approved
+screenshot improvement_31_reopened
+click_ui approve_hunk_btn
+screenshot improvement_31_unapproved
+validate review_approved=0
+click_ui stage_hunk_btn
+wait_for_refresh
+screenshot improvement_31_staged
+validate staged_count=2
+validate review_approved=0
+click_text "Embark to ballroom"
+click_text "Add contributing guidelines"
+screenshot improvement_31_commit
+click_ui approve_hunk_btn
+screenshot improvement_31_commit_approved
+validate staged_count=2
+validate review_approved=1
+click_ui toggle_approved
+screenshot improvement_31_commit_hidden
+click_ui toggle_approved
+screenshot improvement_31_commit_reopened
+click_ui approve_hunk_btn
+screenshot improvement_31_commit_unapproved
+validate review_approved=0

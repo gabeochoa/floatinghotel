@@ -42,8 +42,7 @@ wait_frames 5
 screenshot scroll_click_04_after_scroll
 
 # Click a file that has shifted due to scrolling
-# main.cpp is an unstaged file under the "To review" tab.
-click_text "To review"
+click_text "Changes"
 wait_frames 5
 click_text main.cpp
 wait_frames 5
@@ -71,7 +70,7 @@ click_button Refs
 wait_frames 5
 screenshot scroll_click_07_refs_tab
 
-click_text "To review"
+click_text "Changes"
 wait_frames 5
 screenshot scroll_click_08_changes_tab
 
@@ -79,7 +78,7 @@ screenshot scroll_click_08_changes_tab
 resize 1280 720
 wait_frames 5
 # Re-select Changes tab (resize can reset sidebar mode)
-click_text "To review"
+click_text "Changes"
 wait_frames 5
 click_text README.md
 wait_frames 5
