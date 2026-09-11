@@ -4,6 +4,26 @@
 #include "../../src/util/fuzzy_match.h"
 #include "../../src/util/file_tree.h"
 #include "../../src/util/diff_revisions.h"
+#include "../../src/util/commit_graph.h"
+
+TEST(commit_graph_tracks_forks_merges_and_roots) {
+    auto entry = [](const std::string& hash, const std::string& parents) {
+        ecs::CommitEntry commit;
+        commit.hash = hash;
+        commit.parentHashes = parents;
+        return commit;
+    };
+    auto graph = commit_graph::build({entry("merge", "left right"), entry("right", "root"), entry("left", "root"), entry("root", "")});
+    ASSERT_EQ(graph.columns, 2u);
+    ASSERT_EQ(graph.rows.at("merge").parents.size(), 2u);
+    ASSERT_FALSE(graph.rows.at("merge").incoming);
+    ASSERT_EQ(graph.rows.at("right").lane, 1u);
+    ASSERT_EQ(graph.rows.at("left").parents.front(), graph.rows.at("root").lane);
+    ASSERT_TRUE(graph.rows.at("root").parents.empty());
+    ASSERT_TRUE(graph.rows.at("root").continuing.empty());
+    auto linear = commit_graph::build({entry("tip", "root"), entry("root", "")});
+    ASSERT_EQ(linear.columns, 1u);
+}
 
 TEST(diff_revision_pairs_keep_comparisons_and_index_distinct) {
     ASSERT_EQ(diff_revisions("compare:abc:def"), (std::pair<std::string, std::string>{"abc", "def"}));

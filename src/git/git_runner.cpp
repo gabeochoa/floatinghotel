@@ -206,6 +206,7 @@ GitResult git_log(const std::string& repo_path, int max_count, int skip) {
     // hash\0shortHash\0subject\0author\0date\0decorations\0parentHashes
     std::vector<std::string> args = {
         "log",
+        "--topo-order",
         "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P",
     };
     if (max_count > 0) {

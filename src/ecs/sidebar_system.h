@@ -11,6 +11,7 @@
 #include "../settings.h"
 #include "../util/git_helpers.h"
 #include "../util/file_tree.h"
+#include "../util/commit_graph.h"
 #include "network_ops_system.h"
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
@@ -390,6 +391,11 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         const float commitRowPx = resolve_to_pixels(
             h720(static_cast<float>(theme::layout::COMMIT_ROW_HEIGHT)), sh2);
         const float lazyRowPx = resolve_to_pixels(h720(20.0f), sh2);
+        if (repoPtr) {
+            auto key = repoPtr->repoPath + ":" + std::to_string(repoPtr->dataGeneration) + ":" + std::to_string(repoPtr->commitLog.size());
+            if (!repoPtr->commitLog.empty()) key += repoPtr->commitLog.front().hash;
+            if (key != graphKey_) { graphKey_ = key; graph_ = commit_graph::build(repoPtr->commitLog); }
+        }
         auto logScroll = windowedLog
             ? afterhours::ui::imm::virtual_list(
                   ctx, mk(logBg.ent(), 2320), logRows + (logHasMore ? 1 : 0),
@@ -397,7 +403,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                   [&](size_t i, Entity& row) {
                       if (i < logRows) {
                           render_commit_row(ctx, row, 0, repoPtr->commitLog[i],
-                                            *repoPtr, logRows > 1);
+                                            *repoPtr);
                       } else {
                           render_lazy_load_row(ctx, row);
                       }
@@ -1708,10 +1714,8 @@ private:
 
         int count = std::min(static_cast<int>(repo.commitLog.size()), MAX_VISIBLE_COMMITS);
 
-        bool multipleCommits = (count > 1);
         for (int i = 0; i < count; ++i) {
-            render_commit_row(ctx, scrollParent, i, repo.commitLog[i], repo,
-                              multipleCommits);
+            render_commit_row(ctx, scrollParent, i, repo.commitLog[i], repo);
         }
 
         if (repo.commitLogHasMore) render_lazy_load_row(ctx, scrollParent);
@@ -1735,13 +1739,13 @@ private:
                 .with_debug_name("lazy_load"));
     }
 
-    // Render a single commit row: [graph_col] [subject] [badge pills] [hash]
-    // showGraphLine controls whether the vertical connecting line is drawn
+    commit_graph::Graph graph_;
+    std::string graphKey_;
+
     void render_commit_row(UIContext<InputAction>& ctx,
                            Entity& parent, int index,
                            const CommitEntry& commit,
-                           RepoComponent& repo,
-                           bool showGraphLine = true) {
+                           RepoComponent& repo) {
         bool selected = (commit.hash == repo.selectedCommitHash);
         constexpr float ROW_H = static_cast<float>(theme::layout::COMMIT_ROW_HEIGHT);
 
@@ -1752,7 +1756,12 @@ private:
 
         constexpr float DOT_SIZE = 8.0f;
         constexpr float LINE_W = 2.0f;
-        constexpr float GRAPH_COL_W = 22.0f;
+        float GRAPH_COL_W = std::min(8.f + static_cast<float>(graph_.columns) * 14.f, std::max(22.f, sidebarW - 160.f));
+        float laneWidth = (GRAPH_COL_W - 8.f) / static_cast<float>(graph_.columns);
+        const auto& graphRow = graph_.rows.at(commit.hash);
+        auto laneX = [&](size_t lane) { return 4.f + (static_cast<float>(lane) + 0.5f) * laneWidth; };
+        constexpr afterhours::Color laneColors[] = {{163, 113, 230, 255}, {70, 180, 210, 255}, {220, 165, 70, 255}, {100, 190, 110, 255}, {220, 110, 155, 255}};
+        auto laneColor = [&](size_t lane) { return laneColors[lane % 5]; };
         // Small left inset so the graph line/dots/HEAD ring aren't flush against
         // the window edge (#26).
         constexpr float ROW_INSET_L = 6.0f;
@@ -1773,32 +1782,37 @@ private:
         float rowPx = resolve_to_pixels(h720(ROW_H), shG);
         if (rowPx < 1.0f) rowPx = 26.0f;
 
-        // Graph wrapper: 22px wide container for line and dot.
         auto graphWrap = div(ctx, mk(row.ent(), 1),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(GRAPH_COL_W), pixels(rowPx)})
                 .with_roundness(0.0f)
                 .with_debug_name("graph_wrap"));
 
-        // Line: 0-width div with border-left, absolutely positioned
-        // so the border is centered on the dot center (GRAPH_COL_W/2).
-        // Border draws LINE_W px right from element's left edge,
-        // so left edge = center - LINE_W/2.
-        if (showGraphLine) {
-            float lineX = (GRAPH_COL_W - LINE_W) / 2.0f;
-            div(ctx, mk(graphWrap.ent(), 1),
-                ComponentConfig{}
-                    .with_size(ComponentSize{pixels(0), pixels(rowPx)})
-                    .with_absolute_position(lineX, 0.0f)
-                    .with_border_left(theme::GRAPH_LINE, pixels(LINE_W))
-                    .with_roundness(0.0f)
-                    .with_debug_name("graph_line"));
+        int edgeId = 10;
+        auto vertical = [&](size_t lane, float from, float to) {
+            div(ctx, mk(graphWrap.ent(), edgeId++), ComponentConfig{}
+                .with_size(ComponentSize{pixels(LINE_W), pixels((to - from) * rowPx)})
+                .with_absolute_position(laneX(lane) - LINE_W * 0.5f, from * rowPx)
+                .with_custom_background(laneColor(lane)).with_roundness(0.f)
+                .with_debug_name("graph_lane:" + std::to_string(lane)));
+        };
+        if (graphRow.incoming) vertical(graphRow.lane, 0.f, 0.5f);
+        for (auto lane : graphRow.continuing) vertical(lane, 0.f, 1.f);
+        for (auto lane : graphRow.parents) {
+            if (lane != graphRow.lane) {
+                div(ctx, mk(graphWrap.ent(), edgeId++), ComponentConfig{}
+                    .with_size(ComponentSize{pixels(std::fabs(laneX(lane) - laneX(graphRow.lane))), pixels(LINE_W)})
+                    .with_absolute_position(std::min(laneX(lane), laneX(graphRow.lane)), rowPx * 0.5f - LINE_W * 0.5f)
+                    .with_custom_background(laneColor(lane)).with_roundness(0.f)
+                    .with_debug_name("graph_branch_edge"));
+            }
+            vertical(lane, 0.5f, 1.f);
         }
 
         // Dot: absolute, centered both ways. HEAD is a hollow green ring
         // (mock); other commits are filled purple dots.
         bool isHead = commit.decorations.find("HEAD") != std::string::npos;
-        float dotX = (GRAPH_COL_W - DOT_SIZE) / 2.0f;
+        float dotX = laneX(graphRow.lane) - DOT_SIZE * 0.5f;
         float dotY = (rowPx - DOT_SIZE) / 2.0f;
         auto dotCfg = ComponentConfig{}
             .with_size(ComponentSize{pixels(DOT_SIZE), pixels(DOT_SIZE)})
@@ -1810,7 +1824,7 @@ private:
             dotCfg = dotCfg.with_custom_background(theme::SIDEBAR_BG)
                            .with_border(theme::BADGE_HEAD_BG, pixels(2.0f));
         } else {
-            dotCfg = dotCfg.with_custom_background(theme::GRAPH_DOT);
+            dotCfg = dotCfg.with_custom_background(laneColor(graphRow.lane));
         }
         div(ctx, mk(graphWrap.ent(), 2), dotCfg);
 
