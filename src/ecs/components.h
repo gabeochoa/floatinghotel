@@ -111,8 +111,26 @@ struct ReadingPositions {
     int restoreFrames = 0;
 };
 
+struct NavigationLocation {
+    enum class Kind { WorkingTree, File, Commit, FullFile };
+    Kind kind = Kind::WorkingTree;
+    std::string path;
+    std::string revision;
+    bool staged = false;
+    bool reviewing = false;
+    bool operator==(const NavigationLocation&) const = default;
+};
+
+struct NavigationHistory {
+    std::string owner;
+    std::vector<NavigationLocation> entries;
+    size_t index = 0;
+    int requestedStep = 0;
+};
+
 struct RepoComponent : public afterhours::BaseComponent {
     ReadingPositions reading;
+    NavigationHistory navigation;
     std::string repoPath;
     std::string currentBranch;
     bool isDirty = false;

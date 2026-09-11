@@ -123,6 +123,13 @@ inline std::vector<Menu> createMenuBar() {
 
     // View menu
     menus.push_back({"View", {
+        MenuItem::item("Back", "Alt+Left", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->navigation.requestedStep = -1;
+        }),
+        MenuItem::item("Forward", "Alt+Right", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->navigation.requestedStep = 1;
+        }),
+        MenuItem::separator(),
         MenuItem::item("Toggle Sidebar", "Cmd+B", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->sidebarVisible = !l->sidebarVisible;

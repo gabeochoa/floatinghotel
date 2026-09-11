@@ -6,6 +6,39 @@
 #include "../../src/util/diff_revisions.h"
 #include "../../src/util/commit_graph.h"
 #include "../../src/util/review_selection.h"
+#include "../../src/util/navigation.h"
+
+TEST(navigation_history_truncates_forward_after_a_new_destination) {
+    ecs::NavigationHistory history;
+    using Kind = ecs::NavigationLocation::Kind;
+    ecs::NavigationLocation first{Kind::File, "first.txt"};
+    ecs::NavigationLocation second{Kind::File, "second.txt"};
+    ecs::NavigationLocation commit{Kind::Commit, "", "sha"};
+    navigation::record(history, first);
+    navigation::record(history, first);
+    ASSERT_EQ(history.entries.size(), 1u);
+    ASSERT_FALSE(navigation::step(history, -1).has_value());
+    navigation::record(history, second);
+    ASSERT_EQ(*navigation::step(history, -1), first);
+    ASSERT_EQ(*navigation::step(history, 1), second);
+    ASSERT_EQ(*navigation::step(history, -1), first);
+    navigation::record(history, commit);
+    ASSERT_FALSE(navigation::step(history, 1).has_value());
+    ASSERT_EQ(history.entries.size(), 2u);
+    ASSERT_EQ(*navigation::step(history, -1), first);
+}
+
+TEST(navigation_records_the_visible_review_destination) {
+    ecs::RepoComponent repo;
+    repo.selectedFilePath = "file.txt";
+    auto normal = navigation::location(repo);
+    auto reviewing = navigation::location(repo, true);
+    ASSERT_EQ(normal.kind, ecs::NavigationLocation::Kind::File);
+    ASSERT_EQ(reviewing.kind, ecs::NavigationLocation::Kind::WorkingTree);
+    ASSERT_TRUE(reviewing.reviewing);
+    repo.fullFilePath = "file.txt";
+    ASSERT_EQ(navigation::location(repo, true).kind, ecs::NavigationLocation::Kind::FullFile);
+}
 
 TEST(review_ranges_keep_old_and_new_line_numbers_distinct) {
     auto added = review_selection::range({{0, 20}, {0, 21}});

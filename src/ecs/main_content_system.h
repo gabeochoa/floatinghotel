@@ -16,6 +16,7 @@
 #include "../ui/commit_search.h"
 #include "../ui/revision_comparison.h"
 #include "../ui/review_snapshot.h"
+#include "../util/navigation.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -291,6 +292,47 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         auto& layout = *layoutPtr;
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        if (repoPtr && repoPtr->hasLoadedOnce) {
+            auto& history = repoPtr->navigation;
+            auto* navigationReview = find_singleton<ReviewComponent, ActiveTab>();
+            if (history.owner != repoPtr->repoPath) { history = {}; history.owner = repoPtr->repoPath; }
+            if (!repoPtr->repoSearchOpen && !repoPtr->fileHistoryOpen && !repoPtr->commitSearchOpen &&
+                !repoPtr->comparisonOpen && !layout.filePickerOpen)
+                navigation::record(history, navigation::location(*repoPtr, navigationReview && navigationReview->reviewing));
+            bool alt = afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346);
+            if (alt && afterhours::input::is_key_pressed(263)) history.requestedStep = -1;
+            if (alt && afterhours::input::is_key_pressed(262)) history.requestedStep = 1;
+            auto destination = navigation::step(history, history.requestedStep);
+            history.requestedStep = 0;
+            if (destination) {
+                using Kind = NavigationLocation::Kind;
+                repoPtr->selectedFilePath = destination->kind == Kind::File ? destination->path : "";
+                repoPtr->selectedFileStaged = destination->staged;
+                repoPtr->selectedCommitHash = destination->kind == Kind::Commit ? destination->revision : "";
+                repoPtr->fullFilePath = destination->kind == Kind::FullFile ? destination->path : "";
+                repoPtr->fullFileRevision = destination->revision;
+                if (destination->kind == Kind::FullFile) {
+                    if (destination->revision.empty() || destination->revision == "INDEX") {
+                        repoPtr->selectedFilePath = destination->path;
+                        repoPtr->selectedFileStaged = destination->revision == "INDEX";
+                    } else repoPtr->selectedCommitHash = destination->revision;
+                }
+                repoPtr->fullFileCacheKey.clear();
+                repoPtr->fullFileTargetLine = 0;
+                repoPtr->fullFileNavigateFrames = 0;
+                repoPtr->repoSearchOpen = repoPtr->fileHistoryOpen = repoPtr->commitSearchOpen = repoPtr->comparisonOpen = false;
+                layout.diffFindOpen = layout.filePickerOpen = layout.shelfCollapsed = false;
+                layout.reviewTab = destination->staged ? LayoutComponent::ReviewTab::Staged : LayoutComponent::ReviewTab::ToReview;
+                if (navigationReview) {
+                    navigationReview->sinceReviewOpen = false;
+                    if (navigationReview->reviewing != destination->reviewing) {
+                        navigationReview->reviewing = destination->reviewing;
+                        navigationReview->dirty = true;
+                    }
+                }
+                ctx.set_focus(ctx.ROOT);
+            }
+        }
 
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".

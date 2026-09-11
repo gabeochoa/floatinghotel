@@ -1,0 +1,48 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+screenshot improvement_44_first
+click_text main.cpp
+screenshot improvement_44_second
+key ALT+LEFT
+screenshot improvement_44_back
+validate selected_file=README.md
+key ALT+RIGHT
+screenshot improvement_44_forward
+validate selected_file=main.cpp
+click_ui open_full_file
+screenshot improvement_44_full_file
+assert_ui full_file_header hidden=false
+key ALT+LEFT
+screenshot improvement_44_from_full
+validate selected_file=main.cpp
+key ALT+RIGHT
+screenshot improvement_44_to_full
+assert_ui full_file_header hidden=false
+key ALT+LEFT
+click_text README.md
+screenshot improvement_44_new_destination
+click_button View
+click_text Forward
+screenshot improvement_44_forward_cleared
+validate selected_file=README.md
+click_text "Add contributing guidelines"
+wait_for_refresh
+screenshot improvement_44_commit
+assert_ui commit_subject hidden=false
+key ALT+LEFT
+screenshot improvement_44_from_commit
+validate selected_file=README.md
+key ALT+RIGHT
+wait_for_refresh
+screenshot improvement_44_to_commit
+assert_ui commit_subject hidden=false
+key ALT+LEFT
+click_ui review_progress
+wait_for_refresh
+screenshot improvement_44_review
+key ALT+LEFT
+screenshot improvement_44_leave_review
+validate selected_file=README.md
+expect_no_text "Save review baseline"
