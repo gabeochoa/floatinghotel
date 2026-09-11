@@ -1,7 +1,11 @@
 #include "git_runner.h"
 
+#include "../../vendor/afterhours/src/logging.h"
+
+#include <chrono>
 #include <cstdlib>
 #include <mutex>
+#include <shared_mutex>
 #include <thread>
 
 namespace git {
@@ -9,13 +13,37 @@ namespace git {
 static LogCallback g_log_callback = nullptr;
 static std::mutex g_log_mutex;
 
-// Serializes every git subprocess against the repo. Reads run async on
-// detached threads (git_run_async, the refresh systems) while writes like
-// `git apply --cached` (Approve) run on the main thread; without this they
-// race on .git/index.lock and the write fails ("Unable to create index.lock").
-// Each git command is short, so holding this per-command doesn't stall the UI
-// beyond one in-flight command.
-static std::mutex g_git_mutex;
+// Serializes git writes against the repo. Reads run async on detached threads
+// (git_run_async, the refresh systems) while writes like `git apply --cached`
+// (Approve) run on the main thread; without this they race on
+// .git/index.lock and the write fails ("Unable to create index.lock").
+// Reads take the lock shared so the five startup commands overlap: on a
+// loaded machine each spawn costs seconds, and running them back to back put
+// the commit log 7 s behind the window and the last command 17 s behind.
+static std::shared_mutex g_git_mutex;
+
+// Commands that never touch the index or refs, so they may overlap each other
+// and only need to be kept apart from writes.
+static bool is_read_only(const std::vector<std::string>& args) {
+    if (args.empty()) return false;
+    const std::string& verb = args[0];
+    if (verb == "status" || verb == "log" || verb == "diff" ||
+        verb == "rev-parse" || verb == "show" || verb == "for-each-ref" ||
+        verb == "ls-files" || verb == "cat-file" || verb == "rev-list" ||
+        verb == "remote" || verb == "ls-remote")
+        return true;
+    if (verb == "branch") {
+        for (const auto& a : args)
+            if (a == "-d" || a == "-D" || a == "-m" || a == "-M" || a == "-c" ||
+                a == "-C" || a == "--delete" || a == "--move" ||
+                a == "--copy" || a == "-u" || a == "--set-upstream-to" ||
+                a == "--unset-upstream")
+                return false;
+        return true;
+    }
+    if (verb == "stash") return args.size() > 1 && args[1] == "list";
+    return false;
+}
 
 // Backstop so a wedged git (e.g. a network op stuck mid-connection) can't hold
 // g_git_mutex forever and freeze the app. Generous enough for normal
@@ -71,10 +99,24 @@ GitResult git_run(const std::string& repo_path,
     disable_git_prompts_once();
 
     GitResult result;
-    {
-        std::lock_guard<std::mutex> lock(g_git_mutex);
+    using clock = std::chrono::steady_clock;
+    const auto t0 = clock::now();
+    clock::time_point t1;
+    if (is_read_only(args)) {
+        std::shared_lock<std::shared_mutex> lock(g_git_mutex);
+        t1 = clock::now();
+        result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
+    } else {
+        std::unique_lock<std::shared_mutex> lock(g_git_mutex);
+        t1 = clock::now();
         result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
     }
+    const auto t2 = clock::now();
+    auto ms = [](auto d) {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
+    };
+    log_info("git: {} ms (waited {} ms for lock): git {}", ms(t2 - t1),
+             ms(t1 - t0), args.empty() ? std::string() : args[0]);
 
     if (g_log_callback) {
         std::lock_guard lock(g_log_mutex);

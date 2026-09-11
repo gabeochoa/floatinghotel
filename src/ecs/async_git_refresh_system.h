@@ -1,11 +1,15 @@
 #pragma once
 
 #include <chrono>
+#include <libproc.h>
+#include <sys/time.h>
+#include <unistd.h>
 #include <future>
 #include <optional>
 #include <unordered_map>
 
 #include "../../vendor/afterhours/src/core/system.h"
+#include "../../vendor/afterhours/src/logging.h"
 #include "../git/git_parser.h"
 #include "../git/git_runner.h"
 #include "components.h"
@@ -28,6 +32,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
             repo.refreshRequested = false;
             repo.isRefreshing = true;
+            refreshStart_[id] = std::chrono::steady_clock::now();
 
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
@@ -35,7 +40,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.log      = git::git_log_async(path, 100, 0);
             pf.diff     = git::git_diff_async(path);
             pf.branches = git::git_branch_list_async(path);
-            pf.head     = git::git_rev_parse_head_async(path);
+            // No rev-parse HEAD: the first log entry is HEAD, and every
+            // subprocess is one more spawn on the startup path.
         }
 
         if (!repo.isRefreshing) return;
@@ -54,6 +60,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.status->wait_for(0s) == std::future_status::ready) {
             auto result = pf.status->get();
             pf.status.reset();
+            log_info("refresh: status ready at {} ms", ms_since(id));
             if (result.success()) {
                 auto parsed = git::parse_status(result.stdout_str());
                 repo.currentBranch  = parsed.branchName;
@@ -67,6 +74,9 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                                !repo.unstagedFiles.empty() ||
                                !repo.untrackedFiles.empty();
             }
+            // The file list is what the spinner stands in for; the log and
+            // branches fill in behind it rather than holding the whole UI.
+            repo.hasLoadedOnce = true;
         }
 
         if (pf.log &&
@@ -78,13 +88,20 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 repo.commitLogLoaded =
                     static_cast<int>(repo.commitLog.size());
                 repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
+                repo.headCommitHash =
+                    repo.commitLog.empty() ? std::string() : repo.commitLog.front().hash;
             }
+            log_info("commits loaded: {} commits, {} ms after refresh "
+                     "requested, {} ms since process start",
+                     repo.commitLog.size(), ms_since(id),
+                     ms_since_process_start());
         }
 
         if (pf.diff &&
             pf.diff->wait_for(0s) == std::future_status::ready) {
             auto result = pf.diff->get();
             pf.diff.reset();
+            log_info("refresh: diff ready at {} ms", ms_since(id));
             if (result.success()) {
                 repo.currentDiff = git::parse_diff(result.stdout_str());
             }
@@ -94,42 +111,50 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.branches->wait_for(0s) == std::future_status::ready) {
             auto result = pf.branches->get();
             pf.branches.reset();
+            log_info("refresh: branches ready at {} ms", ms_since(id));
             if (result.success()) {
                 repo.branches =
                     git::parse_branch_list(result.stdout_str());
             }
         }
 
-        if (pf.head &&
-            pf.head->wait_for(0s) == std::future_status::ready) {
-            auto result = pf.head->get();
-            pf.head.reset();
-            if (result.success()) {
-                repo.headCommitHash = result.stdout_str();
-                while (!repo.headCommitHash.empty() &&
-                       (repo.headCommitHash.back() == '\n' ||
-                        repo.headCommitHash.back() == '\r')) {
-                    repo.headCommitHash.pop_back();
-                }
-            }
-        }
-
         // Phase 3: check if all operations completed
-        if (!pf.status && !pf.log && !pf.diff &&
-            !pf.branches && !pf.head) {
+        if (!pf.status && !pf.log && !pf.diff && !pf.branches) {
             repo.isRefreshing = false;
             repo.hasLoadedOnce = true;
             pending_.erase(it);
+            log_info("refresh: done in {} ms", ms_since(id));
         }
     }
 
 private:
+    // Wall time since the process was exec'd, so the number lines up with what
+    // a stopwatch started at launch would read (the refresh itself only
+    // starts once the window is up).
+    static long ms_since_process_start() {
+        struct proc_bsdinfo bi;
+        struct timeval now;
+        if (proc_pidinfo(getpid(), PROC_PIDTBSDINFO, 0, &bi, sizeof bi) != sizeof bi ||
+            gettimeofday(&now, nullptr) != 0) {
+            return -1;
+        }
+        return (now.tv_sec - static_cast<long>(bi.pbi_start_tvsec)) * 1000 +
+               (now.tv_usec - static_cast<long>(bi.pbi_start_tvusec)) / 1000;
+    }
+
+    long ms_since(afterhours::EntityID id) const {
+        auto it = refreshStart_.find(id);
+        if (it == refreshStart_.end()) return -1;
+        return static_cast<long>(std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - it->second).count());
+    }
+    std::unordered_map<afterhours::EntityID, std::chrono::steady_clock::time_point> refreshStart_;
+
     struct PendingFutures {
         std::optional<std::future<git::GitResult>> status;
         std::optional<std::future<git::GitResult>> log;
         std::optional<std::future<git::GitResult>> diff;
         std::optional<std::future<git::GitResult>> branches;
-        std::optional<std::future<git::GitResult>> head;
     };
 
     std::unordered_map<afterhours::EntityID, PendingFutures> pending_;
