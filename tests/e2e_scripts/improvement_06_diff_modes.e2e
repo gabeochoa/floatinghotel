@@ -12,8 +12,8 @@ wait_frames 10
 click_ui hunk_folded_marker
 wait_frames 10
 screenshot improvement_06_split_review
-assert_ui sbs_row w=936
+assert_ui sbs_row w=616
 click_text "Add contributing guidelines"
 wait_frames 10
 screenshot improvement_06_split_commit
-assert_ui sbs_row w=936
+assert_ui sbs_row w=616

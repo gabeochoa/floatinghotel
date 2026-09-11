@@ -183,6 +183,15 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             }
         }
 
+        layout.feedback = {};
+        auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        if (review && review->basketOpen && !review->comments.empty() &&
+            layout.mainContent.width > 0) {
+            float width = std::min(320.f, layout.mainContent.width * 0.4f);
+            layout.mainContent.width -= width;
+            layout.feedback = {layout.mainContent.x + layout.mainContent.width,
+                               layout.mainContent.y, width, layout.mainContent.height};
+        }
         layout.statusBar = {0, sh - statusH, sw, statusH};
     }
 };

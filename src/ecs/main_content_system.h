@@ -38,16 +38,15 @@ inline void send_review(UIContext<InputAction>& ctx, ReviewComponent& review,
         2.5f);
 }
 
-// The feedback basket: an absolute panel on the right listing queued comments.
 inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
-                          ReviewComponent& review, RepoComponent* repo) {
+                          ReviewComponent& review, RepoComponent* repo,
+                          const LayoutComponent::Rect& bounds) {
     float sw = static_cast<float>(afterhours::graphics::get_screen_width());
     float sh = static_cast<float>(afterhours::graphics::get_screen_height());
-    float panelW = std::min(sw * 0.28f, 360.0f);
-    float x = sw - panelW;
-    // Start below the diff header (Inline/Side-by-Side toggle) so we don't cover it.
-    float y = resolve_to_pixels(h720(100.0f), sh);
-    float hgt = sh - y - resolve_to_pixels(h720(28.0f), sh);
+    float panelW = bounds.width;
+    float x = bounds.x;
+    float y = bounds.y;
+    float hgt = bounds.height;
 
     auto panel = div(ctx, mk(uiRoot, 7700),
         ComponentConfig{}
@@ -264,8 +263,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (reviewPtr && !reviewPtr->comments.empty()) {
             if (superDown && afterhours::input::is_key_pressed(257))
                 send_review(ctx, *reviewPtr, repoPtr);
-            if (reviewPtr->basketOpen)
-                render_basket(ctx, uiRoot, *reviewPtr, repoPtr);
+            if (reviewPtr->basketOpen && layout.feedback.width > 0)
+                render_basket(ctx, uiRoot, *reviewPtr, repoPtr, layout.feedback);
         }
 
         // Shelf collapsed → diff pane hidden and the window shrinks to the

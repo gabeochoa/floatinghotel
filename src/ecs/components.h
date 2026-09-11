@@ -271,6 +271,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     Rect sidebarFiles{};
     Rect sidebarLog{};
     Rect mainContent{};
+    Rect feedback{};
     Rect commandLog{};
     Rect statusBar{};
 };
