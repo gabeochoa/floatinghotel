@@ -624,7 +624,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     // Folded (commented) hunks collapse — show a marker instead of the lines.
     if (reviewOn && sel->review->foldedHunks.count(hkey)) {
         if (vp) { vp->flush(ctx, parent, nextId); vp->built(20.0f); }
-        div(ctx, mk(parent, nextId++),
+        auto expand = button(ctx, mk(parent, nextId++),
             ComponentConfig{}
                 .with_label("\xe2\x9c\x8e commented \xc2\xb7 click to expand")
                 .with_size(ComponentSize{w, h720(20)})
@@ -634,6 +634,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(52)})
                 .with_debug_name("hunk_folded_marker"));
+        if (expand) {
+            sel->review->foldedHunks.erase(hkey);
+            sel->review->dirty = true;
+        }
         return;
     }
 
