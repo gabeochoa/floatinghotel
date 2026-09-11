@@ -1,0 +1,38 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+click_text Help
+click_text "Keyboard Shortcuts"
+screenshot improvement_50_reference
+assert_ui shortcut_reference hidden=false
+expect_text "Find a file"
+expect_text "Next / previous review hunk"
+key ESCAPE
+wait_frames 5
+screenshot improvement_50_closed
+expect_no_text "Open this reference"
+validate selected_file=main.cpp
+key CMD+SHIFT+/
+screenshot improvement_50_keyboard_open
+assert_ui shortcut_reference hidden=false
+key C
+wait_frames 5
+expect_no_text "Add comment"
+click_ui shortcuts_close
+screenshot improvement_50_button_close
+expect_no_text "Open this reference"
+validate selected_file=main.cpp
+key CMD+F
+screenshot improvement_50_find
+assert_ui diff_find_input hidden=false
+key ESCAPE
+screenshot improvement_50_find_closed
+validate selected_file=main.cpp
+click_ui open_full_file
+screenshot improvement_50_full
+key CMD+F
+screenshot improvement_50_full_find
+key ESCAPE
+screenshot improvement_50_full_preserved
+assert_ui full_file_header hidden=false

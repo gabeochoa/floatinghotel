@@ -249,8 +249,8 @@ inline std::vector<Menu> createMenuBar() {
 
     // Help menu
     menus.push_back({"Help", {
-        MenuItem::item("Keyboard Shortcuts", "Cmd+?", [] {
-            notImpl("Keyboard Shortcuts");
+        MenuItem::item("Keyboard Shortcuts", "Cmd+Shift+/", [] {
+            if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) layout->shortcutsOpen = true;
         }),
         MenuItem::item("Command Log", "", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();

@@ -20,6 +20,7 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
     layout.commitMetadataExpanded = false;
+    layout.shortcutsOpen = false;
     layout.diffFindOpen = false;
     layout.visibleWhitespace = false;
     layout.diffFindQuery.clear();

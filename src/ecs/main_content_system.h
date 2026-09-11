@@ -16,6 +16,7 @@
 #include "../ui/commit_search.h"
 #include "../ui/revision_comparison.h"
 #include "../ui/review_snapshot.h"
+#include "../ui/keyboard_shortcuts.h"
 #include "../util/navigation.h"
 #include "ui_imports.h"
 
@@ -291,6 +292,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (!layoutPtr) return;
         auto& layout = *layoutPtr;
 
+        bool shortcutsActive = ui::render_keyboard_shortcuts(ctx, layout);
+
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
         if (repoPtr && repoPtr->hasLoadedOnce) {
             auto& history = repoPtr->navigation;
@@ -300,8 +303,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 !repoPtr->comparisonOpen && !layout.filePickerOpen)
                 navigation::record(history, navigation::location(*repoPtr, navigationReview && navigationReview->reviewing));
             bool alt = afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346);
-            if (alt && afterhours::input::is_key_pressed(263)) history.requestedStep = -1;
-            if (alt && afterhours::input::is_key_pressed(262)) history.requestedStep = 1;
+            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(263)) history.requestedStep = -1;
+            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(262)) history.requestedStep = 1;
             auto destination = navigation::step(history, history.requestedStep);
             history.requestedStep = 0;
             if (destination) {
@@ -336,7 +339,12 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
-        if (afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+        if (!shortcutsActive && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+            if (layout.diffFindOpen) {
+                layout.diffFindOpen = false;
+                ctx.set_focus(ctx.ROOT);
+                return;
+            }
             if (repoPtr && repoPtr->commitSearchOpen) {
                 repoPtr->commitSearchOpen = false;
                 return;
@@ -359,11 +367,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
             if (repoPtr && repoPtr->comparisonOpen) {
                 repoPtr->comparisonOpen = false;
-                return;
-            }
-            if (layout.diffFindOpen) {
-                layout.diffFindOpen = false;
-                ctx.set_focus(ctx.ROOT);
                 return;
             }
             auto* menu = find_singleton<MenuComponent>();
@@ -416,7 +419,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool superDown = afterhours::input::is_key_down(343) ||
                          afterhours::input::is_key_down(347) ||
                          afterhours::input::is_key_down(341);
-        if (superDown && afterhours::input::is_key_pressed(70)) {
+        if (!shortcutsActive && superDown && afterhours::input::is_key_pressed(70)) {
             if (repoPtr && afterhours::input::is_key_down(340)) {
                 repoPtr->repoSearchOpen = true;
                 repoPtr->repoSearchFocus = true;
@@ -426,7 +429,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 layout.diffFindFocus = true;
             }
         }
-        if (superDown && afterhours::input::is_key_pressed(80)) {
+        if (!shortcutsActive && superDown && afterhours::input::is_key_pressed(80)) {
             layout.filePickerOpen = true;
             layout.filePickerFocus = true;
         }
@@ -434,7 +437,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool editingText = focused.valid() && focused->has<afterhours::text_input::HasTextInputState>();
         auto* keyboardMenu = find_singleton<MenuComponent>();
         bool keyboardMenuOpen = keyboardMenu && keyboardMenu->activeMenuIndex >= 0;
-        if (reviewPtr && repoPtr && repoPtr->fullFilePath.empty() && !editingText && !keyboardMenuOpen &&
+        if (!shortcutsActive && reviewPtr && repoPtr && repoPtr->fullFilePath.empty() && !editingText && !keyboardMenuOpen &&
             reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
             if (!superDown) {
                 int previousCursor = reviewPtr->cursor;
@@ -454,7 +457,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         // Feedback basket + ⌘⏎ send-all (available whenever comments are queued).
         if (reviewPtr && !reviewPtr->comments.empty()) {
-            if (superDown && afterhours::input::is_key_pressed(257))
+            if (!shortcutsActive && superDown && afterhours::input::is_key_pressed(257))
                 send_review(ctx, *reviewPtr, repoPtr);
             if (reviewPtr->basketOpen && layout.feedback.width > 0)
                 render_basket(ctx, uiRoot, *reviewPtr, repoPtr, layout.feedback);
