@@ -1,0 +1,17 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text "Add contributing guidelines"
+wait_for_refresh
+screenshot improvement_45_compact
+assert_ui commit_meta_compact hidden=false
+expect_no_text "Author:"
+click_ui commit_meta_toggle
+screenshot improvement_45_expanded
+expect_text "Author:"
+expect_text "Commit:"
+assert_ui commit_meta_box hidden=false
+click_ui commit_meta_toggle
+screenshot improvement_45_collapsed
+expect_no_text "Author:"
+expect_text "Show details"

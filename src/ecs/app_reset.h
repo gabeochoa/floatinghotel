@@ -19,6 +19,7 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.reviewTab = LayoutComponent::ReviewTab::ToReview;
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
+    layout.commitMetadataExpanded = false;
     layout.diffFindOpen = false;
     layout.visibleWhitespace = false;
     layout.diffFindQuery.clear();

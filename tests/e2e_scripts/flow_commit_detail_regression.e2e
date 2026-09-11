@@ -11,7 +11,10 @@ expect_text "STACK"
 
 # Click a commit to open detail view
 click_text "Add contributing guidelines"
-wait_frames 5
+wait_for_refresh
+screenshot commit_detail_regression_compact
+click_ui commit_meta_toggle
+screenshot commit_detail_regression_expanded
 
 # Commit detail must render: subject, metadata, files, back button
 expect_text "Add contributing guidelines"
@@ -29,7 +32,7 @@ screenshot commit_detail_regression_01_first
 
 # Switch to a different commit — detail should update, not go blank
 click_text "Add unit tests for utils"
-wait_frames 5
+wait_for_refresh
 
 expect_text "Add unit tests for utils"
 expect_text "Commit:"
@@ -59,7 +62,7 @@ expect_text "STACK"
 
 # Re-select a commit after going back — must not leave blank UI
 click_text "Add contributing guidelines"
-wait_frames 5
+wait_for_refresh
 
 expect_text "Add contributing guidelines"
 expect_text "Commit:"

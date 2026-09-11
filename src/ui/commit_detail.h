@@ -282,167 +282,176 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         }
     }
 
-    // Cap the card width: percent(1.0f) + margins overflows the pane off-screen,
-    // and stretching a 4-line info card across a wide window looks broken. Fixed
-    // max width, left-aligned.
-    float cardW = std::min(contentW - PAD * 2.0f, 680.0f);
-    if (cardW < 160.0f) cardW = std::max(contentW - PAD * 2.0f, 120.0f);
-    float metaValueW = cardW - PAD * 2.0f - LABEL_W - 8.0f;
-    if (metaValueW < 100.0f) metaValueW = 100.0f;
+    auto metadataHeader = div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row)
+        .with_padding(Padding{.left = pixels(PAD), .right = pixels(PAD)}));
+    div(ctx, mk(metadataHeader.ent(), 0), ComponentConfig{}
+        .with_label(selectedCommit->hash.substr(0, 7) + "  " + selectedCommit->author + "  " + selectedCommit->authorDate.substr(0, 10))
+        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small)
+        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_meta_compact"));
+    if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(layout.commitMetadataExpanded ? "Hide details" : "Show details")
+        .with_size(ComponentSize{pixels(105), pixels(28)}).with_debug_name("commit_meta_toggle")))
+        layout.commitMetadataExpanded = !layout.commitMetadataExpanded;
 
-    auto metaBox = div(ctx, mk(scrollContainer.ent(), nextId++),
-        ComponentConfig{}
-            .with_size(ComponentSize{pixels(cardW), children()})
-            .with_custom_background(theme::SIDEBAR_BG)
-            .with_flex_direction(FlexDirection::Column)
-            .with_no_wrap()  // else the rows wrap into a 2nd column
-            .with_padding(Padding{
-                .top = pixels(10), .right = pixels(PAD),
-                .bottom = pixels(10), .left = pixels(PAD)})
-            .with_margin(Margin{
-                .top = pixels(8), .bottom = pixels(8),
-                .left = pixels(PAD), .right = {}})
-            .with_border(theme::BORDER, h720(1.0f))
-            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-            .with_corner_radius(theme::layout::RADIUS_BOX)
-            .with_debug_name("commit_meta_box"));
+    if (layout.commitMetadataExpanded) {
+        float cardW = std::min(contentW - PAD * 2.0f, 680.0f);
+        if (cardW < 160.0f) cardW = std::max(contentW - PAD * 2.0f, 120.0f);
+        float metaValueW = cardW - PAD * 2.0f - LABEL_W - 8.0f;
+        if (metaValueW < 100.0f) metaValueW = 100.0f;
 
-    auto metaRow = [&](const std::string& label, const std::string& value,
-                       afterhours::Color valueColor = theme::TEXT_PRIMARY) {
-        auto row = div(ctx, mk(metaBox.ent(), nextId++),
+        auto metaBox = div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-                .with_debug_name("meta_row"));
-
-        div(ctx, mk(row.ent(), 1),
-            ComponentConfig{}
-                .with_label(label)
-                .with_size(ComponentSize{pixels(LABEL_W), children()})
-                .with_transparent_bg()
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(afterhours::ui::FontSize::Small)
-                .with_alignment(TextAlignment::Right)
+                .with_size(ComponentSize{pixels(cardW), children()})
+                .with_custom_background(theme::SIDEBAR_BG)
+                .with_flex_direction(FlexDirection::Column)
+                .with_no_wrap()
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = {}})
-                .with_roundness(0.0f)
-                .with_debug_name("meta_label"));
+                    .top = pixels(10), .right = pixels(PAD),
+                    .bottom = pixels(10), .left = pixels(PAD)})
+                .with_margin(Margin{
+                    .top = pixels(8), .bottom = pixels(8),
+                    .left = pixels(PAD), .right = {}})
+                .with_border(theme::BORDER, h720(1.0f))
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_corner_radius(theme::layout::RADIUS_BOX)
+                .with_debug_name("commit_meta_box"));
 
-        div(ctx, mk(row.ent(), 2),
-            ComponentConfig{}
-                .with_label(value)
-                .with_size(ComponentSize{pixels(metaValueW), children()})
-                .with_transparent_bg()
-                .with_custom_text_color(valueColor)
-                .with_font_size(afterhours::ui::FontSize::Small)
-                .with_alignment(TextAlignment::Left)
-                .with_padding(Padding{
-                    .top = pixels(2), .bottom = pixels(2)})
-                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_roundness(0.0f)
-                .with_debug_name("meta_value"));
-    };
+        auto metaRow = [&](const std::string& label, const std::string& value,
+                           afterhours::Color valueColor = theme::TEXT_PRIMARY) {
+            auto row = div(ctx, mk(metaBox.ent(), nextId++),
+                ComponentConfig{}
+                    .with_size(ComponentSize{percent(1.0f), children()})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_align_items(AlignItems::Center)
+                    .with_transparent_bg()
+                    .with_roundness(0.0f)
+                    .with_debug_name("meta_row"));
 
-    metaRow("Commit:", selectedCommit->hash, theme::TEXT_SECONDARY);
+            div(ctx, mk(row.ent(), 1),
+                ComponentConfig{}
+                    .with_label(label)
+                    .with_size(ComponentSize{pixels(LABEL_W), children()})
+                    .with_transparent_bg()
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_alignment(TextAlignment::Right)
+                    .with_padding(Padding{
+                        .top = pixels(2), .right = pixels(8),
+                        .bottom = pixels(2), .left = {}})
+                    .with_roundness(0.0f)
+                    .with_debug_name("meta_label"));
 
-    std::string authorStr = selectedCommit->author;
-    if (!detailCache.commitDetailAuthorEmail.empty()) {
-        authorStr += " <" + detailCache.commitDetailAuthorEmail + ">";
-    }
-    metaRow("Author:", authorStr);
+            div(ctx, mk(row.ent(), 2),
+                ComponentConfig{}
+                    .with_label(value)
+                    .with_size(ComponentSize{pixels(metaValueW), children()})
+                    .with_transparent_bg()
+                    .with_custom_text_color(valueColor)
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_alignment(TextAlignment::Left)
+                    .with_padding(Padding{
+                        .top = pixels(2), .bottom = pixels(2)})
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_roundness(0.0f)
+                    .with_debug_name("meta_value"));
+        };
 
-    // Humanize the ISO timestamp ("2026-07-30T01:27:43-04:00" -> "2026-07-30 01:27")
-    // while keeping the recorded wall-clock time; append the relative suffix below.
-    std::string dateStr = selectedCommit->authorDate;
-    if (dateStr.size() >= 16 && dateStr[10] == 'T') {
-        dateStr = dateStr.substr(0, 10) + " " + dateStr.substr(11, 5);
-    }
-    std::string relTime =
-        git_helpers::relative_time(selectedCommit->authorDate, /*suffix=*/true);
-    if (!relTime.empty()) {
-        dateStr += " (" + relTime + ")";
-    }
-    metaRow("Date:", dateStr);
+        metaRow("Commit:", selectedCommit->hash, theme::TEXT_SECONDARY);
 
-    if (!detailCache.commitDetailParents.empty()) {
-        std::string parentDisplay;
-        std::string remaining = detailCache.commitDetailParents;
-        while (!remaining.empty()) {
-            size_t sp = remaining.find(' ');
-            std::string hash;
-            if (sp != std::string::npos) {
-                hash = remaining.substr(0, sp);
-                remaining = remaining.substr(sp + 1);
-            } else {
-                hash = remaining;
-                remaining.clear();
-            }
-            if (!parentDisplay.empty()) parentDisplay += ", ";
-            parentDisplay += hash.substr(0, 7);
+        std::string authorStr = selectedCommit->author;
+        if (!detailCache.commitDetailAuthorEmail.empty()) {
+            authorStr += " <" + detailCache.commitDetailAuthorEmail + ">";
         }
-        metaRow("Parents:", parentDisplay, theme::BUTTON_PRIMARY);
-    }
+        metaRow("Author:", authorStr);
 
-    if (!selectedCommit->decorations.empty()) {
-        auto badgeRow = div(ctx, mk(metaBox.ent(), nextId++),
-            ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), children()})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_gap(pixels(4))
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-                .with_debug_name("meta_badge_row"));
-
-        div(ctx, mk(badgeRow.ent(), 1),
-            ComponentConfig{}
-                .with_label("Refs:")
-                .with_size(ComponentSize{pixels(LABEL_W), children()})
-                .with_transparent_bg()
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(afterhours::ui::FontSize::Small)
-                .with_alignment(TextAlignment::Right)
-                .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = {}})
-                .with_roundness(0.0f)
-                .with_debug_name("refs_label"));
-
-        auto badges = cdv::parse_decorations(selectedCommit->decorations);
-        int badgeId = 20;
-        for (auto& badge : badges) {
-            afterhours::Color bg, text;
-            switch (badge.type) {
-                case cdv::DecorationType::Head:
-                    bg = theme::BADGE_HEAD_BG;
-                    text = afterhours::Color{255, 255, 255, 255};
-                    break;
-                case cdv::DecorationType::LocalBranch:
-                    bg = theme::BADGE_BRANCH_BG;
-                    text = afterhours::Color{255, 255, 255, 255};
-                    break;
-                case cdv::DecorationType::RemoteBranch:
-                    bg = theme::BADGE_REMOTE_BG;
-                    text = afterhours::Color{255, 255, 255, 255};
-                    break;
-                case cdv::DecorationType::Tag:
-                    bg = theme::BADGE_TAG_BG;
-                    text = theme::BADGE_TAG_TEXT;
-                    break;
-                default:
-                    bg = theme::BADGE_TAG_BG;
-                    text = theme::BADGE_TAG_TEXT;
-                    break;
-            }
-
-            div(ctx, mk(badgeRow.ent(), badgeId++),
-                preset::Badge(badge.label, bg, text)
-                    .with_debug_name("commit_dec_badge"));
+        std::string dateStr = selectedCommit->authorDate;
+        if (dateStr.size() >= 16 && dateStr[10] == 'T') {
+            dateStr = dateStr.substr(0, 10) + " " + dateStr.substr(11, 5);
         }
+        std::string relTime =
+            git_helpers::relative_time(selectedCommit->authorDate, true);
+        if (!relTime.empty()) {
+            dateStr += " (" + relTime + ")";
+        }
+        metaRow("Date:", dateStr);
+
+        if (!detailCache.commitDetailParents.empty()) {
+            std::string parentDisplay;
+            std::string remaining = detailCache.commitDetailParents;
+            while (!remaining.empty()) {
+                size_t sp = remaining.find(' ');
+                std::string hash;
+                if (sp != std::string::npos) {
+                    hash = remaining.substr(0, sp);
+                    remaining = remaining.substr(sp + 1);
+                } else {
+                    hash = remaining;
+                    remaining.clear();
+                }
+                if (!parentDisplay.empty()) parentDisplay += ", ";
+                parentDisplay += hash.substr(0, 7);
+            }
+            metaRow("Parents:", parentDisplay, theme::BUTTON_PRIMARY);
+        }
+
+        if (!selectedCommit->decorations.empty()) {
+            auto badgeRow = div(ctx, mk(metaBox.ent(), nextId++),
+                ComponentConfig{}
+                    .with_size(ComponentSize{percent(1.0f), children()})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_align_items(AlignItems::Center)
+                    .with_gap(pixels(4))
+                    .with_transparent_bg()
+                    .with_roundness(0.0f)
+                    .with_debug_name("meta_badge_row"));
+
+            div(ctx, mk(badgeRow.ent(), 1),
+                ComponentConfig{}
+                    .with_label("Refs:")
+                    .with_size(ComponentSize{pixels(LABEL_W), children()})
+                    .with_transparent_bg()
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_alignment(TextAlignment::Right)
+                    .with_padding(Padding{
+                        .top = pixels(2), .right = pixels(8),
+                        .bottom = pixels(2), .left = {}})
+                    .with_roundness(0.0f)
+                    .with_debug_name("refs_label"));
+
+            auto badges = cdv::parse_decorations(selectedCommit->decorations);
+            int badgeId = 20;
+            for (auto& badge : badges) {
+                afterhours::Color bg, text;
+                switch (badge.type) {
+                    case cdv::DecorationType::Head:
+                        bg = theme::BADGE_HEAD_BG;
+                        text = afterhours::Color{255, 255, 255, 255};
+                        break;
+                    case cdv::DecorationType::LocalBranch:
+                        bg = theme::BADGE_BRANCH_BG;
+                        text = afterhours::Color{255, 255, 255, 255};
+                        break;
+                    case cdv::DecorationType::RemoteBranch:
+                        bg = theme::BADGE_REMOTE_BG;
+                        text = afterhours::Color{255, 255, 255, 255};
+                        break;
+                    case cdv::DecorationType::Tag:
+                        bg = theme::BADGE_TAG_BG;
+                        text = theme::BADGE_TAG_TEXT;
+                        break;
+                    default:
+                        bg = theme::BADGE_TAG_BG;
+                        text = theme::BADGE_TAG_TEXT;
+                        break;
+                }
+
+                div(ctx, mk(badgeRow.ent(), badgeId++),
+                    preset::Badge(badge.label, bg, text)
+                        .with_debug_name("commit_dec_badge"));
+            }
+        }
+
     }
 
     div(ctx, mk(scrollContainer.ent(), nextId++),

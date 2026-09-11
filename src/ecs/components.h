@@ -562,6 +562,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
 
     enum class DiffViewMode { Inline, SideBySide };
     DiffViewMode diffViewMode = DiffViewMode::Inline;
+    bool commitMetadataExpanded = false;
 
     bool sidebarVisible = true;
     bool commandLogVisible = false;
