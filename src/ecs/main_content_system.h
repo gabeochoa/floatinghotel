@@ -71,10 +71,17 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_font_size(afterhours::ui::FontSize::Medium)
             .with_debug_name("basket_title"));
 
-    // Comments grouped by scope (working tree vs commit SHA) so it's clear which
-    // diff each note targets — mirrors the review markdown that gets sent.
     float itemW = panelW - resolve_to_pixels(w1280(20.0f), sw);
-    float txtW = itemW - resolve_to_pixels(w1280(22.0f), sw);
+    float txtW = std::max(20.f, itemW - 12.f);
+    float fontSize = resolve_to_pixels(h720(14.f), sh);
+    auto& measure = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
+    auto list = div(ctx, mk(panel.ent(), 903),
+        ComponentConfig{}
+            .with_size(ComponentSize{pixels(itemW), pixels(std::max(40.f, hgt - resolve_to_pixels(h720(112.f), sh)))})
+            .with_overflow(Overflow::Scroll, Axis::Y)
+            .with_flex_direction(FlexDirection::Column)
+            .with_no_wrap()
+            .with_debug_name("basket_scroll"));
     std::vector<std::string> scopes;
     for (const auto& c : review.comments)
         if (std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
@@ -98,7 +105,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 }
             }
         }
-        div(ctx, mk(panel.ent(), id++),
+        div(ctx, mk(list.ent(), id++),
             ComponentConfig{}
                 .with_label(gh)
                 .with_size(ComponentSize{percent(1.0f), h720(18)})
@@ -111,20 +118,24 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         for (int i = 0; i < static_cast<int>(review.comments.size()); ++i) {
             const auto& c = review.comments[i];
             if (c.scope != scope) continue;
-            auto itemRow = div(ctx, mk(panel.ent(), id++),
+            float textH = afterhours::ui::measure_text_wrapped(
+                measure, c.text, "mono", fontSize, txtW - 8.f).height + 8.f;
+            auto itemRow = div(ctx, mk(list.ent(), id++),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(itemW), h720(20)})
-                    .with_flex_direction(FlexDirection::Row)
-                    .with_align_items(AlignItems::Center)
+                    .with_size(ComponentSize{pixels(itemW), pixels(textH + resolve_to_pixels(h720(26.f), sh))})
+                    .with_flex_direction(FlexDirection::Column)
                     .with_no_wrap()
                     .with_transparent_bg()
                     .with_debug_name("basket_item"));
-            // Colored monospace file:line token, then the comment text (mock).
-            float locW = resolve_to_pixels(w1280(96.0f), sw);
-            div(ctx, mk(itemRow.ent(), 3),
+            auto heading = div(ctx, mk(itemRow.ent(), 4),
+                ComponentConfig{}
+                    .with_size(ComponentSize{pixels(txtW), h720(24)})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_debug_name("basket_item_heading"));
+            div(ctx, mk(heading.ent(), 3),
                 ComponentConfig{}
                     .with_label(c.file + ":" + std::to_string(c.line))
-                    .with_size(ComponentSize{pixels(locW), h720(20)})
+                    .with_size(ComponentSize{pixels(txtW - 24.f), h720(20)})
                     .with_custom_text_color(theme::BUTTON_PRIMARY)
                     .with_font("mono", h720(11.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -132,12 +143,13 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             div(ctx, mk(itemRow.ent(), 0),
                 ComponentConfig{}
                     .with_label(c.text)
-                    .with_size(ComponentSize{pixels(txtW - locW), h720(20)})
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(afterhours::ui::FontSize::Small)
-                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_size(ComponentSize{pixels(txtW), pixels(textH)})
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
+                    .with_font("mono", pixels(fontSize))
+                    .with_alignment(TextAlignment::Left)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                     .with_debug_name("basket_item_text"));
-            auto rmBtn = button(ctx, mk(itemRow.ent(), 1),
+            auto rmBtn = button(ctx, mk(heading.ent(), 1),
                 preset::Button("x")
                     .with_size(ComponentSize{pixels(18), h720(18)})
                     .with_custom_background(afterhours::Color{60, 60, 65, 255})

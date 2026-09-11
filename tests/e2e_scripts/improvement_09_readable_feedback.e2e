@@ -1,0 +1,61 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+click_ui comment_hunk_btn
+click_ui comment_input
+type "This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 10
+screenshot improvement_09_feedback
+assert_ui basket_scroll w=300
+expect_text "suggested next step."
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 2: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 3: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 4: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 5: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 6: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 7: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 8: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Note 9: This feedback has enough detail to wrap over several lines in the basket. Keep every sentence readable without truncating the explanation or hiding the suggested next step."
+click_ui comment_add_btn
+wait_frames 5
+wait_frames 10
+screenshot improvement_09_before_scroll
+expect_no_text "Note 9:"
+mouse_move 1130 500
+scroll_wheel 0 -40
+wait_frames 30
+screenshot improvement_09_after_scroll
+expect_text "Note 9:"
+expect_text "Send all feedback"
