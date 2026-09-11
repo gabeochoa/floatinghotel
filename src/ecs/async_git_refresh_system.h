@@ -36,20 +36,24 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
-            pf.stagedDiff = git::git_run_async(path, {"diff", "--cached"});
+            std::vector<std::string> diffArgs{"diff"};
+            if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
+            auto stagedArgs = diffArgs;
+            stagedArgs.push_back("--cached");
+            pf.stagedDiff = git::git_run_async(path, stagedArgs);
             // The first refresh usually finds its commands already running:
             // main() starts them before the window exists (git::prefetch_repo).
             git::PrefetchedReads pre;
             if (git::take_prefetched(path, pre)) {
                 pf.status   = std::move(pre.status);
                 pf.log      = std::move(pre.log);
-                pf.diff     = std::move(pre.diff);
+                pf.diff     = repo.ignoreWhitespace ? git::git_run_async(path, diffArgs) : std::move(pre.diff);
                 pf.branches = std::move(pre.branches);
                 log_info("refresh: adopted prefetched reads");
             } else {
                 pf.status   = git::git_status_async(path);
                 pf.log      = git::git_log_async(path, 100, 0);
-                pf.diff     = git::git_diff_async(path);
+                pf.diff     = git::git_run_async(path, diffArgs);
                 pf.branches = git::git_branch_list_async(path);
             }
             repo.commitLogLoading = true;

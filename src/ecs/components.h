@@ -110,6 +110,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string cachedFilePath;
 
     bool refreshRequested = false;
+    bool ignoreWhitespace = false;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;

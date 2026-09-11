@@ -1,0 +1,20 @@
+resize 1280 800
+wait_for_refresh
+click_text spacing.txt
+wait_frames 10
+screenshot improvement_15_all
+expect_text "spacing  only"
+expect_text "semantic after"
+click_text View
+click_text "Ignore Whitespace (toggle)"
+wait_for_refresh
+wait_frames 10
+screenshot improvement_15_ignored
+expect_no_text "spacing  only"
+expect_text "semantic after"
+click_text View
+click_text "Ignore Whitespace (toggle)"
+wait_for_refresh
+wait_frames 10
+screenshot improvement_15_restored
+expect_text "spacing  only"

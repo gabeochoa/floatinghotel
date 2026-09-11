@@ -120,7 +120,9 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     bool commitJustChanged = (detailCache.cachedCommitHash != repo.selectedCommitHash);
     if (commitJustChanged) {
         detailCache.commitDetailError.clear();
-        auto diffResult = git::git_show(repo.repoPath, repo.selectedCommitHash);
+        std::vector<std::string> diffArgs{"show", repo.selectedCommitHash, "--format="};
+        if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
+        auto diffResult = git::git_run(repo.repoPath, diffArgs);
         auto infoResult = git::git_show_commit_info(repo.repoPath, repo.selectedCommitHash);
 
         if (diffResult.success()) {
