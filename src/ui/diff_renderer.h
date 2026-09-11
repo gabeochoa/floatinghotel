@@ -5,6 +5,7 @@
 #include "../settings.h"
 #include "code_highlight.h"
 #include "image_diff.h"
+#include "../util/review_selection.h"
 #include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
 #include <afterhours/src/plugins/toast.h>
@@ -60,6 +61,8 @@ struct Rec {
     float contentX0 = 0.f; // screen x where content[0] starts
     int side = 0;
     char sign = ' ';
+    int oldLine = 0;
+    int newLine = 0;
 };
 
 struct State {
@@ -478,7 +481,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         int lno = !newNum.empty() ? std::stoi(newNum)
                                   : (!oldNum.empty() ? std::stoi(oldNum) : 0);
         diff_sel::state().curLines.push_back(
-            {lineDiv.ent().id, content, filePath, lno, r, cx0, 0, prefix});
+            {lineDiv.ent().id, content, filePath, lno, r, cx0, 0, prefix,
+             oldNum.empty() ? 0 : std::stoi(oldNum), newNum.empty() ? 0 : std::stoi(newNum)});
         if (diff_sel::found_line(sel, filePath, lno, prefix))
             diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, sel->padLeftPx + prefixW);
 
@@ -564,7 +568,9 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             sel->review->composingText.clear();
             sel->review->composingFile = fileDiff.filePath;
             sel->review->composingScope = sel->reviewScope;
-            sel->review->composingLine = hunk.newStart;
+            sel->review->composingOldSide = hunk.newCount == 0;
+            sel->review->composingLine = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
+            sel->review->composingEndLine = sel->review->composingLine;
         }
     }
 
@@ -705,7 +711,9 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             sel->review->composingText.clear();
             sel->review->composingFile = fileDiff.filePath;
             sel->review->composingScope = sel->reviewScope;
-            sel->review->composingLine = hunk.newStart;
+            sel->review->composingOldSide = hunk.newCount == 0;
+            sel->review->composingLine = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
+            sel->review->composingEndLine = sel->review->composingLine;
         }
     }
     } // headerVisible
@@ -725,10 +733,15 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_debug_name("comment_compose_row"));
         float screenH = static_cast<float>(afterhours::graphics::get_screen_height());
         float editorH = resolve_to_pixels(h720(diff_detail::COMMENT_COMPOSE_H - 8.f), screenH);
+        std::string addLabel = "Add L" + std::to_string(sel->review->composingLine) +
+            (sel->review->composingEndLine > sel->review->composingLine ? "-" + std::to_string(sel->review->composingEndLine) : "") +
+            (sel->review->composingOldSide ? " (old)" : "");
+        float addWidth = static_cast<float>(afterhours::graphics::measure_text(addLabel.c_str(),
+            static_cast<int>(resolve_to_pixels(h720(12.f), screenH)))) + 24.f;
         afterhours::text_input::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - 100.f)), pixels(editorH)})
+                .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 24.f)), pixels(editorH)})
                 .with_custom_background(theme::INPUT_BG)
                 .with_font("mono", h720(14.f))
                 .with_line_height(pixels(resolve_to_pixels(h720(22.f), screenH)))
@@ -737,8 +750,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_corner_radius(4.0f)
                 .with_debug_name("comment_input"));
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
-            preset::Button("Add")
-                .with_size(ComponentSize{children(), h720(18)})
+            preset::Button(addLabel)
+                .with_size(ComponentSize{pixels(addWidth), h720(18)})
                 .with_font_size(afterhours::ui::FontSize::Small)
                 .with_debug_name("comment_add_btn"));
         if (addBtn)
@@ -861,7 +874,9 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         diff_sel::render_changed_range(ctx, cell.ent(), *sel, content, prefix, changed, kind == SbsKind::Del);
         diff_sel::state().curLines.push_back(
             {cell.ent().id, content, filePath, num.empty() ? 0 : std::stoi(num),
-             rect, rect.x + prefix, leftBorder ? 1 : 2, sign});
+             rect, rect.x + prefix, leftBorder ? 1 : 2, sign,
+             leftBorder && !num.empty() ? std::stoi(num) : 0,
+             !leftBorder && !num.empty() ? std::stoi(num) : 0});
         if (diff_sel::found_line(sel, filePath, num.empty() ? 0 : std::stoi(num), sign) &&
             (kind != SbsKind::Context || !leftBorder))
             diff_sel::render_find_match(ctx, cell.ent(), *sel, content, prefix);
@@ -1417,6 +1432,40 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_transparent_bg()
                 .with_roundness(0.0f)
             .with_debug_name("file_header_btns"));
+        if (sess.reviewActions && diff_sel::state().hasSel) {
+            std::vector<std::pair<int, int>> selectedLines;
+            const auto& selection = diff_sel::state();
+            for (const auto& line : selection.lastLines) {
+                auto span = selection.hl.find(line.ent);
+                if (line.filePath == fileDiff.filePath && span != selection.hl.end() && span->second.second > span->second.first)
+                    selectedLines.emplace_back(line.oldLine, line.newLine);
+            }
+            if (!selectedLines.empty()) {
+                if (button(ctx, mk(fileBtns.ent(), 6), preset::Button("Comment selection")
+                        .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                        .with_debug_name("comment_selection_btn"))) {
+                    auto range = review_selection::range(selectedLines);
+                    if (!range) afterhours::toast::send_info(ctx, "Select lines from one side of the diff", 2.f);
+                    else {
+                        for (const auto& hunk : fileDiff.hunks) {
+                            int first = range->oldSide ? hunk.oldStart : hunk.newStart;
+                            int count = range->oldSide ? hunk.oldCount : hunk.newCount;
+                            if (range->first < first || range->first >= first + count) continue;
+                            review->composingKey = reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk);
+                            review->composingScope = reviewScope;
+                            review->composingFile = range->oldSide && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
+                            review->composingLine = range->first;
+                            review->composingEndLine = range->last;
+                            review->composingOldSide = range->oldSide;
+                            review->composingText.clear();
+                            review->foldedHunks.erase(review->composingKey);
+                            diff_sel::reset();
+                            break;
+                        }
+                    }
+                }
+            }
+        }
         if (embedInParentScroll && review && !review->approvedHunks.empty()) {
             if (button(ctx, mk(fileBtns.ent(), 5), preset::Button(review->showApproved ? "Hide approved" : "Show approved")
                     .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)

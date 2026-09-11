@@ -67,6 +67,8 @@ inline void reset_review(ReviewComponent& review) {
     review.composingFile.clear();
     review.composingScope.clear();
     review.composingLine = 0;
+    review.composingEndLine = 0;
+    review.composingOldSide = false;
     review.cursor = 0;
     review.cursorMoved = false;
     review.hunkCount = 0;

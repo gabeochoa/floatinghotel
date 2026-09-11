@@ -5,6 +5,20 @@
 #include "../../src/util/file_tree.h"
 #include "../../src/util/diff_revisions.h"
 #include "../../src/util/commit_graph.h"
+#include "../../src/util/review_selection.h"
+
+TEST(review_ranges_keep_old_and_new_line_numbers_distinct) {
+    auto added = review_selection::range({{0, 20}, {0, 21}});
+    ASSERT_EQ(added->first, 20);
+    ASSERT_EQ(added->last, 21);
+    ASSERT_FALSE(added->oldSide);
+    auto removed = review_selection::range({{8, 0}, {7, 0}, {6, 15}});
+    ASSERT_EQ(removed->first, 6);
+    ASSERT_EQ(removed->last, 8);
+    ASSERT_TRUE(removed->oldSide);
+    ASSERT_FALSE(review_selection::range({{1, 0}, {0, 2}}).has_value());
+    ASSERT_FALSE(review_selection::range({}).has_value());
+}
 
 TEST(commit_graph_tracks_forks_merges_and_roots) {
     auto entry = [](const std::string& hash, const std::string& parents) {

@@ -199,6 +199,8 @@ struct ReviewComponent : public afterhours::BaseComponent {
         std::string file;
         int line = 0;
         std::string text;
+        int endLine = 0;
+        bool oldSide = false;
     };
     bool reviewing = false;
     bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
@@ -212,6 +214,8 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::string composingFile;   // file the comment targets
     std::string composingScope;  // "wt" or a commit SHA
     int composingLine = 0;       // line the comment targets
+    int composingEndLine = 0;
+    bool composingOldSide = false;
     // Keyboard chunk cursor (vim-style j/k/n nav; a approve, c comment).
     int cursor = 0;              // index of the highlighted visible hunk
     bool cursorMoved = false;
@@ -241,12 +245,20 @@ inline std::string diff_signature(const FileDiff& f) {
     return s;
 }
 
+inline std::string comment_location(const ReviewComponent::Comment& comment) {
+    auto out = comment.file + ":" + std::to_string(comment.line);
+    if (comment.endLine > comment.line) out += "-" + std::to_string(comment.endLine);
+    if (comment.oldSide) out += " (old)";
+    return out;
+}
+
 // Commit the in-progress comment into the basket and auto-fold its hunk.
 inline void commit_pending_comment(ReviewComponent& r) {
     if (r.composingKey.empty()) return;
     if (!r.composingText.empty()) {
         r.comments.push_back({r.composingScope, r.composingFile,
-                              r.composingLine, r.composingText});
+                              r.composingLine, r.composingText,
+                              r.composingEndLine, r.composingOldSide});
         r.foldedHunks.insert(r.composingKey);
         r.dirty = true;
     }
@@ -255,6 +267,8 @@ inline void commit_pending_comment(ReviewComponent& r) {
     r.composingFile.clear();
     r.composingScope.clear();
     r.composingLine = 0;
+    r.composingEndLine = 0;
+    r.composingOldSide = false;
 }
 
 // Build the batch-review markdown written to /tmp/floatinghotel-review.md and
@@ -275,7 +289,7 @@ inline std::string build_review_markdown(const ReviewComponent& review,
                                : "\n### commit " + scope + "\n";
         for (const auto& c : review.comments)
             if (c.scope == scope)
-                out += "- " + c.file + ":" + std::to_string(c.line) + " \xe2\x80\x94 " +
+                out += "- " + comment_location(c) + " \xe2\x80\x94 " +
                        c.text + "\n";
     }
     out += "\n(agent: apply each as a fixup to the named commit, not on top of "

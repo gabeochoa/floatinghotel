@@ -17,6 +17,8 @@ TEST(review_store_roundtrip) {
     r.basketOpen = false;
     r.comments.push_back({"wt", "src/foo.cpp", 42, "fix this"});
     r.comments.push_back({"abc123", "src/bar.h", 7, "nit"});
+    r.comments[1].endLine = 9;
+    r.comments[1].oldSide = true;
     r.approvedHunks.insert("src/foo.cpp\n@@ -1 +1 @@");
     r.foldedHunks.insert("src/bar.h\n@@ -2 +2 @@");
     r.seenSig["src/foo.cpp"] = "1,2,3";
@@ -35,6 +37,9 @@ TEST(review_store_roundtrip) {
     ASSERT_STREQ(r2.comments[0].file, "src/foo.cpp");
     ASSERT_EQ(r2.comments[0].line, 42);
     ASSERT_STREQ(r2.comments[1].scope, "abc123");
+    ASSERT_EQ(r2.comments[1].endLine, 9);
+    ASSERT_TRUE(r2.comments[1].oldSide);
+    ASSERT_EQ(ecs::comment_location(r2.comments[1]), "src/bar.h:7-9 (old)");
     ASSERT_TRUE(r2.approvedHunks.count("src/foo.cpp\n@@ -1 +1 @@") == 1);
     ASSERT_TRUE(r2.foldedHunks.count("src/bar.h\n@@ -2 +2 @@") == 1);
     ASSERT_STREQ(r2.seenSig["src/foo.cpp"], "1,2,3");

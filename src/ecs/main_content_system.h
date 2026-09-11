@@ -139,7 +139,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_debug_name("basket_item_heading"));
             div(ctx, mk(heading.ent(), 3),
                 ComponentConfig{}
-                    .with_label(c.file + ":" + std::to_string(c.line))
+                    .with_label(comment_location(c))
                     .with_size(ComponentSize{pixels(txtW - 24.f), h720(20)})
                     .with_custom_text_color(theme::BUTTON_PRIMARY)
                     .with_font("mono", h720(11.0f))
