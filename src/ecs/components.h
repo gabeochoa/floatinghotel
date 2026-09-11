@@ -203,6 +203,8 @@ struct ReviewComponent : public afterhours::BaseComponent {
         int endLine = 0;
         bool oldSide = false;
         bool resolved = false;
+        std::string revision;
+        std::string codeContext;
     };
     bool reviewing = false;
     bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
@@ -222,6 +224,8 @@ struct ReviewComponent : public afterhours::BaseComponent {
     int composingLine = 0;       // line the comment targets
     int composingEndLine = 0;
     bool composingOldSide = false;
+    std::string composingRevision;
+    std::string composingCodeContext;
     // Keyboard chunk cursor (vim-style j/k/n nav; a approve, c comment).
     int cursor = 0;              // index of the highlighted visible hunk
     bool cursorMoved = false;
@@ -276,6 +280,8 @@ inline void reset_review(ReviewComponent& review) {
     review.composingLine = 0;
     review.composingEndLine = 0;
     review.composingOldSide = false;
+    review.composingRevision.clear();
+    review.composingCodeContext.clear();
     review.cursor = 0;
     review.cursorMoved = false;
     review.hunkCount = 0;
@@ -343,7 +349,32 @@ inline size_t unresolved_comment_count(const ReviewComponent& review) {
 
 inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
     return {review.composingScope, review.composingFile, review.composingLine,
-        review.composingText, review.composingEndLine, review.composingOldSide};
+        review.composingText, review.composingEndLine, review.composingOldSide, false,
+        review.composingRevision, review.composingCodeContext};
+}
+
+inline ReviewComponent::Comment comment_with_context(ReviewComponent::Comment comment,
+    const DiffHunk& hunk, const std::string& head) {
+    if (comment.scope == "wt") comment.revision = std::string(comment.oldSide ? "Index" : "Working tree") +
+        " at HEAD " + (head.empty() ? "unborn" : head);
+    else comment.revision = comment.scope + (comment.oldSide ? "^ (parent)" : "");
+    comment.revision += "; hunk " + hunk_signature(hunk);
+    int oldLine = hunk.oldStart, newLine = hunk.newStart;
+    for (const auto& line : hunk.lines) {
+        char sign = line.empty() ? ' ' : line.front();
+        int number = comment.oldSide ? oldLine : newLine;
+        bool onSide = comment.oldSide ? sign != '+' : sign != '-';
+        if (onSide && number >= comment.line - 3 && number <= std::max(comment.line, comment.endLine) + 3) {
+            if (comment.codeContext.size() + line.size() > 16384) {
+                comment.codeContext += "[excerpt truncated]\n";
+                break;
+            }
+            comment.codeContext += std::to_string(number) + ": " + (line.empty() ? "" : line.substr(1)) + "\n";
+        }
+        if (sign != '+') ++oldLine;
+        if (sign != '-') ++newLine;
+    }
+    return comment;
 }
 
 inline void begin_comment(ReviewComponent& review, const std::string& key,
@@ -360,6 +391,8 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
     review.composingEndLine = location.endLine;
     review.composingOldSide = location.oldSide;
     review.composingText = std::move(location.text);
+    review.composingRevision = std::move(location.revision);
+    review.composingCodeContext = std::move(location.codeContext);
     review.dirty = true;
 }
 
@@ -392,11 +425,10 @@ inline void commit_pending_comment(ReviewComponent& r) {
     r.composingLine = 0;
     r.composingEndLine = 0;
     r.composingOldSide = false;
+    r.composingRevision.clear();
+    r.composingCodeContext.clear();
 }
 
-// Build the batch-review markdown written to /tmp/floatinghotel-review.md and
-// copied to the clipboard. Groups comments by scope (working tree vs commit SHA)
-// so the agent knows exactly which diff each comment targets.
 inline std::string build_review_markdown(const ReviewComponent& review,
                                          const std::string& branch) {
     if (unresolved_comment_count(review) == 0)
@@ -411,12 +443,24 @@ inline std::string build_review_markdown(const ReviewComponent& review,
         out += (scope == "wt") ? "\n### working tree (uncommitted)\n"
                                : "\n### commit " + scope + "\n";
         for (const auto& c : review.comments)
-            if (c.scope == scope && !c.resolved)
-                out += "- " + comment_location(c) + " \xe2\x80\x94 " +
-                       c.text + "\n";
+            if (c.scope == scope && !c.resolved) {
+                out += "\n#### " + comment_location(c) + "\n\n" + c.text + "\n\n";
+                out += "Revision: " + (c.revision.empty() ? "not captured for this older comment" : c.revision) + "\n";
+                if (c.codeContext.empty()) out += "Code context unavailable for this comment.\n";
+                else {
+                    size_t longest = 0, run = 0;
+                    for (char ch : c.codeContext) {
+                        run = ch == '`' ? run + 1 : 0;
+                        longest = std::max(longest, run);
+                    }
+                    std::string fence(std::max(size_t{3}, longest + 1), '`');
+                    out += "\nSaved code excerpt (" + std::string(c.oldSide ? "old" : "new") + " side):\n" +
+                        fence + "text\n" + c.codeContext + fence + "\n";
+                }
+            }
     }
-    out += "\n(agent: apply each as a fixup to the named commit, not on top of "
-           "the stack)\n";
+    out += "\nApply working-tree feedback to uncommitted changes. Apply commit feedback "
+           "as fixups to the named commits. Verify saved excerpts against current code before editing.\n";
     return out;
 }
 

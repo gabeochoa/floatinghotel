@@ -1,0 +1,16 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Explain this heading"
+click_ui comment_add_btn
+roundtrip_review
+screenshot improvement_40_saved
+click_ui basket_send_btn
+expect_review_export "Explain this heading"
+expect_review_export "Revision: Working tree at HEAD"
+expect_review_export "Saved code excerpt (new side):"
+expect_review_export "1: # Test Project"
+expect_review_export "Apply working-tree feedback to uncommitted changes."

@@ -416,6 +416,7 @@ static void app_init() {
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
             sm.register_update_system(std::make_unique<HandleReviewRoundtrip>());
+            sm.register_update_system(std::make_unique<HandleExpectReviewExport>());
             sm.register_update_system(std::make_unique<HandleResetUI>());
             sm.register_update_system(std::make_unique<HandleTabCommands>());
             sm.register_update_system(std::make_unique<HandleTouchFile>());

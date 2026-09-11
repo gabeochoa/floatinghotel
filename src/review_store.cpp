@@ -18,7 +18,8 @@ namespace {
 
 nlohmann::json encode_comment(const ecs::ReviewComponent::Comment& c) {
     return {{"scope", c.scope}, {"file", c.file}, {"line", c.line},
-        {"end_line", c.endLine}, {"old_side", c.oldSide}, {"resolved", c.resolved}, {"text", c.text}};
+        {"end_line", c.endLine}, {"old_side", c.oldSide}, {"resolved", c.resolved}, {"text", c.text},
+        {"revision", c.revision}, {"code_context", c.codeContext}};
 }
 
 ecs::ReviewComponent::Comment decode_comment(const nlohmann::json& value) {
@@ -30,6 +31,8 @@ ecs::ReviewComponent::Comment decode_comment(const nlohmann::json& value) {
     comment.oldSide = value.value("old_side", false);
     comment.resolved = value.value("resolved", false);
     comment.text = value.value("text", std::string{});
+    comment.revision = value.value("revision", std::string{});
+    comment.codeContext = value.value("code_context", std::string{});
     return comment;
 }
 

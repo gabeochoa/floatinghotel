@@ -2,6 +2,8 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <sstream>
 #include <string>
 #include <unistd.h>
 
@@ -49,6 +51,26 @@ struct HandleReviewRoundtrip : afterhours::System<afterhours::testing::PendingE2
             std::filesystem::remove(review_store::review_path(key, scope));
         }
         cmd.consume();
+    }
+};
+
+struct HandleExpectReviewExport : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("expect_review_export")) return;
+        if (!cmd.has_args(1)) { cmd.fail("expect_review_export requires text"); return; }
+        std::string joined;
+        for (const auto& arg : cmd.args) { if (!joined.empty()) joined += ' '; joined += arg; }
+        std::istringstream input(joined);
+        std::string expected;
+        input >> std::quoted(expected);
+        if (expected.empty()) { cmd.fail("expect_review_export requires nonempty text"); return; }
+        auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        if (!repo) { cmd.fail("No active repository"); return; }
+        std::ifstream exported(review_store::markdown_path(repo->repoPath, repo->currentBranch));
+        std::string contents{std::istreambuf_iterator<char>(exported), std::istreambuf_iterator<char>()};
+        if (contents.find(expected) == std::string::npos)
+            cmd.fail("Export did not contain: " + expected);
+        else cmd.consume();
     }
 };
 

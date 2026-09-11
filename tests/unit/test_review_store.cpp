@@ -175,6 +175,33 @@ TEST(review_signatures_detect_same_size_edits) {
     ASSERT_EQ(ecs::diff_signature(before), ecs::diff_signature(before));
 }
 
+TEST(export_keeps_the_original_code_and_revision) {
+    ecs::ReviewComponent review;
+    ecs::DiffHunk hunk{10, 2, 10, 2, "@@ -10,2 +10,2 @@", {" context", "-old", "+```new```"}};
+    auto comment = ecs::comment_with_context({"wt", "code.txt", 11, "fix", 11, false}, hunk, "saved-head");
+    ecs::begin_comment(review, "key", comment);
+    ecs::commit_pending_comment(review);
+    hunk.lines.back() = "+later mutation";
+    auto markdown = ecs::build_review_markdown(review, "main");
+    ASSERT_TRUE(markdown.find("Working tree at HEAD saved-head") != std::string::npos);
+    ASSERT_TRUE(markdown.find("11: ```new```") != std::string::npos);
+    ASSERT_TRUE(markdown.find("````text\n") != std::string::npos);
+    ASSERT_TRUE(markdown.find("later mutation") == std::string::npos);
+    auto old = ecs::comment_with_context({"commit-sha", "code.txt", 11, "old side", 11, true}, hunk, "");
+    ASSERT_TRUE(old.revision.starts_with("commit-sha^ (parent)"));
+    ASSERT_TRUE(old.codeContext.find("11: old") != std::string::npos);
+    ASSERT_TRUE(old.codeContext.find("later mutation") == std::string::npos);
+    review.comments.push_back(old);
+    const std::string key = "/tmp/test_review_export_context";
+    ASSERT_TRUE(review_store::save_review(key, review));
+    ecs::ReviewComponent restored;
+    review_store::load_review(key, restored);
+    ASSERT_EQ(restored.comments.front().codeContext, comment.codeContext);
+    ASSERT_EQ(restored.comments.front().revision, comment.revision);
+    ASSERT_EQ(ecs::build_review_markdown(restored, "main"), ecs::build_review_markdown(review, "main"));
+    std::filesystem::remove(review_store::review_path(key));
+}
+
 int main() {
     afterhours::files::init("floatinghotel_test", "resources");
     printf("=== review_store tests ===\n");

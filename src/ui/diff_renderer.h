@@ -16,6 +16,13 @@
 
 namespace ui {
 
+inline void begin_diff_comment(ecs::ReviewComponent& review, const std::string& key,
+    ecs::ReviewComponent::Comment location, const ecs::DiffHunk& hunk) {
+    auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    ecs::begin_comment(review, key, ecs::comment_with_context(std::move(location), hunk,
+        repo ? repo->headCommitHash : ""));
+}
+
 inline std::vector<afterhours::ui::TextSpan> highlighted_code(
     const std::string& prefix, const std::string& content, const std::string& path,
     bool visibleWhitespace = false, bool hasNewline = true) {
@@ -565,8 +572,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         if (isCursor && sel->review->cursorComment) {
             sel->review->cursorComment = false;
             int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
-            ecs::begin_comment(*sel->review, hkey,
-                {sel->reviewScope, fileDiff.filePath, line, "", line, hunk.newCount == 0});
+            begin_diff_comment(*sel->review, hkey,
+                {sel->reviewScope, fileDiff.filePath, line, "", line, hunk.newCount == 0}, hunk);
         }
     }
 
@@ -704,8 +711,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_debug_name("comment_hunk_btn"));
         if (commentBtn) {
             int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
-            ecs::begin_comment(*sel->review, hkey,
-                {sel->reviewScope, fileDiff.filePath, line, "", line, hunk.newCount == 0});
+            begin_diff_comment(*sel->review, hkey,
+                {sel->reviewScope, fileDiff.filePath, line, "", line, hunk.newCount == 0}, hunk);
         }
     }
     } // headerVisible
@@ -1445,9 +1452,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
                             int first = range->oldSide ? hunk.oldStart : hunk.newStart;
                             int count = range->oldSide ? hunk.oldCount : hunk.newCount;
                             if (range->first < first || range->first >= first + count) continue;
-                            ecs::begin_comment(*review, reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk),
+                            begin_diff_comment(*review, reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk),
                                 {reviewScope, range->oldSide && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath,
-                                 range->first, "", range->last, range->oldSide});
+                                 range->first, "", range->last, range->oldSide}, hunk);
                             review->foldedHunks.erase(review->composingKey);
                             diff_sel::reset();
                             break;
