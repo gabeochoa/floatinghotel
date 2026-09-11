@@ -419,6 +419,10 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
 }
 
 // Render a single hunk with its header and all diff lines.
+inline void render_sbs_hunk(UIContext<InputAction>&, Entity&, const ecs::FileDiff&,
+                            const ecs::DiffHunk&, int&, float,
+                            diff_detail::DiffViewport*, diff_sel::Session*, bool);
+
 inline void render_hunk(UIContext<InputAction>& ctx,
                          Entity& parent,
                          const ecs::FileDiff& fileDiff,
@@ -426,7 +430,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                          int& nextId,
                          float contentWidth = 0,
                          diff_sel::Session* sel = nullptr,
-                         diff_detail::DiffViewport* vp = nullptr) {
+                         diff_detail::DiffViewport* vp = nullptr,
+                         bool sideBySide = false) {
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
 
@@ -659,7 +664,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         return;
     }
 
-    // Render each line in the hunk
+    if (sideBySide) {
+        render_sbs_hunk(ctx, parent, fileDiff, hunk, nextId, contentWidth, vp, sel, false);
+        return;
+    }
+
     int oldLine = hunk.oldStart;
     int newLine = hunk.newStart;
 
@@ -765,14 +774,15 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                             int& nextId,
                             float contentWidth = 0,
                             diff_detail::DiffViewport* vp = nullptr,
-                            diff_sel::Session* sel = nullptr) {
+                            diff_sel::Session* sel = nullptr,
+                            bool showHeader = true) {
     (void)fileDiff;
     using diff_detail::SbsKind;
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
     const bool culling = vp && vp->active;
 
-    // Hunk header row (same look as inline: label + copy button)
+    if (showHeader) {
     int hunkHeaderId = nextId++;
     if (culling && !vp->visible(diff_detail::HUNK_HEADER_H)) {
         vp->skipped(diff_detail::HUNK_HEADER_H);
@@ -817,7 +827,8 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             afterhours::toast::send_info(ctx, "Copied hunk to clipboard", 1.5f);
         }
     }
-    } // header visible
+    }
+    }
 
     int oldLine = hunk.oldStart;
     int newLine = hunk.newStart;
@@ -1234,15 +1245,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
         // Render each hunk (passing contentWidth for proper sizing)
         for (auto& hunk : fileDiff.hunks) {
-            if (sideBySide) {
-                render_sbs_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
-                                contentWidth, &vp, &sess);
-            } else {
-                render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
-                            contentWidth,
-                            (selEnabled || sess.reviewActions) ? &sess : nullptr,
-                            &vp);
-            }
+            render_hunk(ctx, *contentParent, fileDiff, hunk, nextId,
+                        contentWidth, &sess, &vp, sideBySide);
         }
 
         // Spacer between files

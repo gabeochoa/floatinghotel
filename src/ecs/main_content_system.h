@@ -330,8 +330,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 float keyhintH = resolve_to_pixels(h720(24.0f), shH);
                 float diffH = layout.mainContent.height - keyhintH;
                 if (diffH < 40.0f) diffH = layout.mainContent.height;
-                ui::render_inline_diff(ctx, mainBg.ent(), repo.currentDiff,
-                                       diffW, diffH, false, /*resetScroll=*/false,
+                ui::render_diff(ctx, mainBg.ent(), repo.currentDiff,
+                                       diffW, diffH, false, false,
+                                       layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
                                        repo.repoPath, reviewPtr);
                 div(ctx, mk(mainBg.ent(), 3090),
                     ComponentConfig{}
@@ -404,16 +405,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // Pass the pane width so hunk-header action buttons
                 // (Approve/Comment) reserve room instead of overflowing off-screen.
                 float diffW = layout.mainContent.width;
-                if (sideBySide) {
-                    ui::render_side_by_side_diff(ctx, mainBg.ent(), selectedDiffs,
-                                                 diffW, 0, false, fileJustChanged, repo.repoPath);
-                } else {
-                    auto* review = find_singleton<ReviewComponent, ActiveTab>();
-                    ui::render_inline_diff(ctx, mainBg.ent(), selectedDiffs,
-                                           diffW, 0, false, fileJustChanged,
-                                           repo.repoPath, repo.selectedFileStaged ? nullptr : review,
-                                           repo.selectedFileStaged ? "index" : "wt");
-                }
+                auto* review = find_singleton<ReviewComponent, ActiveTab>();
+                ui::render_diff(ctx, mainBg.ent(), selectedDiffs,
+                               diffW, 0, false, fileJustChanged, sideBySide,
+                               repo.repoPath, repo.selectedFileStaged ? nullptr : review,
+                               repo.selectedFileStaged ? "index" : "wt");
             } else if (reviewing && !selUntracked) {
                 // Reviewed file fully approved (staged) — celebrate instead of
                 // faking a "new file" diff. (No auto-advance: the sidebar still

@@ -679,13 +679,13 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
                 .with_debug_name("diff_sep"));
 
-        ui::render_inline_diff(ctx, scrollContainer.ent(),
+        ui::render_diff(ctx, scrollContainer.ent(),
                                detailCache.commitDetailDiff,
                                layout.mainContent.width,
                                layout.mainContent.height,
-                               /*embedInParentScroll=*/true,
-                               /*resetScroll=*/false, repo.repoPath, review,
-                               /*reviewScope=*/repo.selectedCommitHash);
+                               true, false,
+                               layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
+                               repo.repoPath, review, repo.selectedCommitHash);
     }
 }
 

@@ -13,6 +13,7 @@ mouse_up
 wait_frames 5
 screenshot improvement_05_split_selection
 validate diff_has_selection=true
+click_text Inline
 click_text "Add contributing guidelines"
 wait_frames 10
 screenshot improvement_05_commit_before
