@@ -1,6 +1,7 @@
 resize 1280 800
 wait_for_refresh
 click_text "Two files with a distant second diff"
+wait_for_refresh
 screenshot improvement_30_summary
 click_ui jump_to_diff:last.txt
 screenshot improvement_30_target

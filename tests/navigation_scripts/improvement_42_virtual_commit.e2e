@@ -1,0 +1,20 @@
+resize 1280 800
+wait_for_refresh
+click_text "Large virtualized commit"
+wait_for_refresh
+screenshot improvement_42_top
+expect_text "large commit line 1"
+validate diff_rows_bounded=true
+click_ui jump_to_diff:last.txt
+screenshot improvement_42_last
+expect_text "Last file is reachable"
+validate diff_rows_bounded=true
+key CMD+F
+screenshot improvement_42_find_open
+click_ui diff_find_input
+type "large commit line 15000"
+wait_frames 10
+screenshot improvement_42_find
+expect_text "large commit line 15000"
+assert_ui diff_find_match hidden=false
+validate diff_rows_bounded=true

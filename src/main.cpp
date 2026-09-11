@@ -902,6 +902,8 @@ int main(int argc, char* argv[]) {
             return ui::diff_sel::build_copy_text(ui::diff_sel::state(), false);
         } else if (key == "diff_has_selection") {
             return ui::diff_sel::state().hasSel ? "true" : "false";
+        } else if (key == "diff_rows_bounded") {
+            return ui::diff_sel::state().lastLines.size() < 300 ? "true" : "false";
         } else if (key == "ui_scale") {
             // Two decimals: the value is a float the pinch multiplies into, so
             // an exact-match assertion needs a rounded, stable spelling.

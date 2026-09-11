@@ -105,7 +105,6 @@ struct Session {
     std::optional<ecs::DiffMatch> findMatch;
     std::string findQuery;
     bool findNavigate = false;
-    Entity* scrollParent = nullptr;
     bool enabled = false;
     afterhours::ui::TextMeasureCache* tmc = nullptr;
     float fontSize = 0.f;
@@ -158,16 +157,6 @@ inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
         .with_custom_background(afterhours::Color{230, 180, 30, 100})
         .with_roundness(0.f)
         .with_debug_name("diff_find_match"));
-    if (s.findNavigate && s.embedded && s.scrollParent &&
-        s.scrollParent->has<afterhours::ui::HasScrollView>()) {
-        auto& sv = s.scrollParent->get<afterhours::ui::HasScrollView>();
-        auto rect = afterhours::ui::detail::apply_scroll_offset(
-            lineEntity, lineEntity.get<afterhours::ui::UIComponent>().rect());
-        float target = sv.scroll_offset.y + rect.y -
-                       s.scrollParent->get<afterhours::ui::UIComponent>().rect().y - 50.f;
-        target = std::clamp(target, 0.f, std::max(0.f, sv.content_size.y - sv.viewport_or_zero().y));
-        sv.scroll_offset.y = sv.scroll_target.y = sv.last_eased_offset.y = target;
-    }
 }
 
 // Resolve anchor/head into an ordered span (i1,c1) <= (i2,c2) as indices into
@@ -357,11 +346,6 @@ inline std::string file_diff_to_text(const ecs::FileDiff& diff) {
 // rows whose span intersects the visible scroll window (+1 screen overscan);
 // skipped runs collapse into a single spacer div of equal height so the
 // scroll container's content_size (and thus scrollbar) stays exact.
-//
-// Units: scroll_offset/content_size are in real pixels, but row heights are
-// authored in 720-space (h720). We resolve each to px so curY matches the
-// scroll offset. Embedded (commit-detail) diffs build fully (vp.active ==
-// false) because they scroll with their parent.
 struct DiffViewport {
     afterhours::ui::HasScrollView* scroll = nullptr;
     bool active = false;
@@ -1067,7 +1051,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         bool sideBySide = false,
                         const std::string& repoPath = "",
                         ecs::ReviewComponent* review = nullptr,
-                        const std::string& reviewScope = "wt") {
+                        const std::string& reviewScope = "wt",
+                        Entity* findParent = nullptr) {
     int nextId = diff_detail::BASE_ID;
     std::string imageContext = repoPath + "\n" + reviewScope;
     if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
@@ -1087,7 +1072,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     float findHeight = 0.f;
     if (layout && layout->diffFindOpen) {
         findHeight = 34.f;
-        auto bar = div(ctx, mk(parent, 580001), ComponentConfig{}
+        auto bar = div(ctx, mk(findParent ? *findParent : parent, 580001), ComponentConfig{}
             .with_size(ComponentSize{pixels(contentWidth), pixels(findHeight)})
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
@@ -1212,7 +1197,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         contentParent = &scrollContainer.ent();
     }
-    sess.scrollParent = contentParent;
     float codeWidth = contentWidth;
     for (const auto& file : diffs)
         for (const auto& hunk : file.hunks)
@@ -1222,12 +1206,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 codeWidth = std::max(codeWidth, sideBySide ? width * 2.f : width);
             }
 
-    // Virtualize the diff: only build rows in the visible scroll window
-    // (+1 screen overscan). Read the prior frame's scroll offset/viewport from
-    // the persistent scroll container. Embedded (commit-detail) diffs build
-    // fully since they scroll with their parent.
     diff_detail::DiffViewport vp;
-    if (!embedInParentScroll) {
+    {
         vp.active = true;
         vp.screenH = (float)afterhours::graphics::get_screen_height();
         vp.contentWidth = codeWidth;
@@ -1237,6 +1217,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
             vp.scroll = &sv;
             scrollY = sv.scroll_offset.y;
             viewportH = sv.viewport_or_zero().y;
+            if (embedInParentScroll) {
+                auto origin = div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+                    .with_size(ComponentSize{w, pixels(0)}).with_debug_name("embedded_diff_origin"));
+                auto rect = afterhours::ui::detail::apply_scroll_offset(
+                    origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
+                vp.curY = std::max(0.f, rect.y + scrollY - contentParent->get<afterhours::ui::UIComponent>().rect().y);
+            }
         }
         if (viewportH <= 0.f)
             viewportH = contentHeight > 0
@@ -1399,11 +1386,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
             repo && repo->diffTargetFrames > 0 && repo->diffTargetFile == fileDiff.filePath &&
             contentParent->has<afterhours::ui::HasScrollView>()) {
             auto& scroll = contentParent->get<afterhours::ui::HasScrollView>();
-            auto rect = afterhours::ui::detail::apply_scroll_offset(
-                fileHeaderRow.ent(), fileHeaderRow.ent().get<afterhours::ui::UIComponent>().rect());
-            float target = scroll.scroll_offset.y + rect.y - contentParent->get<afterhours::ui::UIComponent>().rect().y;
+            float target = vp.curY - vp.px(diff_detail::FILE_HEADER_H);
             target = std::clamp(target, 0.f, std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
             scroll.scroll_offset = scroll.scroll_target = scroll.last_eased_offset = {0.f, target};
+            vp.top = target - scroll.viewport_or_zero().y;
+            vp.bottom = target + scroll.viewport_or_zero().y * 2.f;
             --repo->diffTargetFrames;
         }
 

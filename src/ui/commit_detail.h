@@ -126,9 +126,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     constexpr float LABEL_W = 70.0f;
     float contentW = layout.mainContent.width;
 
+    auto findHost = div(ctx, mk(parent, 593000), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), pixels(layout.diffFindOpen ? 34.f : 0.f)})
+        .with_debug_name("commit_find_host"));
     auto scrollContainer = div(ctx, mk(parent, nextId++),
         ComponentConfig{}
-            .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+            .with_size(ComponentSize{percent(1.0f), pixels(layout.mainContent.height - (layout.diffFindOpen ? 34.f : 0.f))})
             .with_overflow(Overflow::Scroll)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()  // a scroll list must stack, never wrap into columns
@@ -694,7 +697,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                                layout.mainContent.height,
                                true, false,
                                layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
-                               repo.repoPath, review, repo.selectedCommitHash);
+                               repo.repoPath, review, repo.selectedCommitHash, &findHost.ent());
     }
 }
 
