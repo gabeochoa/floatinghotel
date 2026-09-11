@@ -125,6 +125,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             if (c.scope != scope) continue;
             float textH = afterhours::ui::measure_text_wrapped(
                 measure, c.text, "mono", fontSize, txtW - 8.f).height + 8.f;
+            bool editing = review.editingComment == i;
+            if (editing) textH = 132.f;
             auto itemRow = div(ctx, mk(list.ent(), id++),
                 ComponentConfig{}
                     .with_size(ComponentSize{pixels(itemW), pixels(textH + resolve_to_pixels(h720(26.f), sh))})
@@ -140,12 +142,29 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             div(ctx, mk(heading.ent(), 3),
                 ComponentConfig{}
                     .with_label(comment_location(c))
-                    .with_size(ComponentSize{pixels(txtW - 24.f), h720(20)})
+                    .with_size(ComponentSize{expand(), h720(20)})
                     .with_custom_text_color(theme::BUTTON_PRIMARY)
                     .with_font("mono", h720(11.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("basket_item_loc"));
-            div(ctx, mk(itemRow.ent(), 0),
+            if (editing) {
+                afterhours::text_input::text_area(ctx, mk(itemRow.ent(), 5), review.editingCommentText,
+                    ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})
+                        .with_font("mono", pixels(fontSize)).with_line_height(pixels(22.f))
+                        .with_word_wrap(true).with_overflow(Overflow::Hidden)
+                        .with_debug_name("basket_edit_input"));
+                auto actions = div(ctx, mk(itemRow.ent(), 6), ComponentConfig{}
+                    .with_size(ComponentSize{pixels(txtW), pixels(28)}).with_flex_direction(FlexDirection::Row));
+                if (button(ctx, mk(actions.ent(), 0), preset::Button("Save")
+                        .with_size(ComponentSize{pixels(65), pixels(26)}).with_debug_name("basket_edit_save"))) {
+                    if (!save_comment_edit(review)) afterhours::toast::send_info(ctx, "A comment cannot be empty", 2.f);
+                }
+                if (button(ctx, mk(actions.ent(), 1), preset::Button("Cancel")
+                        .with_size(ComponentSize{pixels(75), pixels(26)}).with_debug_name("basket_edit_cancel"))) {
+                    review.editingComment = -1;
+                    review.editingCommentText.clear();
+                }
+            } else div(ctx, mk(itemRow.ent(), 0),
                 ComponentConfig{}
                     .with_label(c.text)
                     .with_size(ComponentSize{pixels(txtW), pixels(textH)})
@@ -154,6 +173,12 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                     .with_debug_name("basket_item_text"));
+            if (button(ctx, mk(heading.ent(), 2), preset::Button("Edit")
+                    .with_size(ComponentSize{pixels(42), h720(18)}).with_font_size(FontSize::Small)
+                    .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
+                review.editingComment = i;
+                review.editingCommentText = c.text;
+            }
             auto rmBtn = button(ctx, mk(heading.ent(), 1),
                 preset::Button("x")
                     .with_size(ComponentSize{pixels(18), h720(18)})
@@ -164,8 +189,11 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             if (rmBtn) removeIdx = i;
         }
     }
-    if (removeIdx >= 0 && removeIdx < static_cast<int>(review.comments.size()))
+    if (removeIdx >= 0 && removeIdx < static_cast<int>(review.comments.size())) {
         review.comments.erase(review.comments.begin() + removeIdx);
+        if (review.editingComment == removeIdx) { review.editingComment = -1; review.editingCommentText.clear(); }
+        else if (review.editingComment > removeIdx) --review.editingComment;
+    }
 
     auto sendBtn = button(ctx, mk(panel.ent(), 900),
         preset::Button("\xe2\x8c\x98\xe2\x8f\x8e Send all feedback")

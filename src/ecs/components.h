@@ -206,6 +206,8 @@ struct ReviewComponent : public afterhours::BaseComponent {
     bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
     bool showApproved = false;
     std::vector<Comment> comments;
+    int editingComment = -1;
+    std::string editingCommentText;
     std::set<std::string> approvedHunks;
     std::set<std::string> foldedHunks;
     // Inline compose state: the hunk currently being commented on + its buffer.
@@ -250,6 +252,16 @@ inline std::string comment_location(const ReviewComponent::Comment& comment) {
     if (comment.endLine > comment.line) out += "-" + std::to_string(comment.endLine);
     if (comment.oldSide) out += " (old)";
     return out;
+}
+
+inline bool save_comment_edit(ReviewComponent& review) {
+    if (review.editingComment < 0 || static_cast<size_t>(review.editingComment) >= review.comments.size() ||
+        review.editingCommentText.empty()) return false;
+    review.comments[review.editingComment].text = review.editingCommentText;
+    review.editingComment = -1;
+    review.editingCommentText.clear();
+    review.dirty = true;
+    return true;
 }
 
 // Commit the in-progress comment into the basket and auto-fold its hunk.

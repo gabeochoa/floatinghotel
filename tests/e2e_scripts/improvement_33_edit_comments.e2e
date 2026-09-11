@@ -1,0 +1,27 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Original note"
+click_ui comment_add_btn
+screenshot improvement_33_original
+click_ui basket_item_edit
+screenshot improvement_33_editor
+click_ui basket_edit_input
+key CMD+A
+type "Revised note"
+click_ui basket_edit_save
+screenshot improvement_33_saved
+expect_text "Revised note"
+expect_no_text "Original note"
+click_ui basket_item_edit
+screenshot improvement_33_edit_again
+click_ui basket_edit_input
+key CMD+A
+type "Discard this edit"
+click_ui basket_edit_cancel
+screenshot improvement_33_cancelled
+expect_text "Revised note"
+expect_no_text "Discard this edit"

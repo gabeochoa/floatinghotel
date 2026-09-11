@@ -55,6 +55,20 @@ TEST(review_store_missing_is_noop) {
     ASSERT_TRUE(r.comments.empty());
 }
 
+TEST(editing_a_comment_preserves_its_location) {
+    ecs::ReviewComponent review;
+    review.comments.push_back({"abc", "file.cpp", 12, "before", 14, true});
+    review.editingComment = 0;
+    review.editingCommentText = "after\nsecond line";
+    ASSERT_TRUE(ecs::save_comment_edit(review));
+    ASSERT_EQ(review.comments.size(), 1u);
+    ASSERT_EQ(review.comments.front().text, "after\nsecond line");
+    ASSERT_EQ(ecs::comment_location(review.comments.front()), "file.cpp:12-14 (old)");
+    ASSERT_TRUE(review.dirty);
+    ASSERT_EQ(review.editingComment, -1);
+    ASSERT_FALSE(ecs::save_comment_edit(review));
+}
+
 TEST(review_signatures_detect_same_size_edits) {
     ecs::FileDiff before;
     before.filePath = "main.cpp";
