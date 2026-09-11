@@ -14,6 +14,7 @@
 #include "../ui/file_picker.h"
 #include "../ui/repo_search.h"
 #include "../ui/commit_search.h"
+#include "../ui/revision_comparison.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -235,6 +236,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 repoPtr->fullFilePath.clear();
                 return;
             }
+            if (repoPtr && repoPtr->comparisonOpen) {
+                repoPtr->comparisonOpen = false;
+                return;
+            }
             if (layout.diffFindOpen) {
                 layout.diffFindOpen = false;
                 ctx.set_focus(ctx.ROOT);
@@ -360,6 +365,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
         if (!repo.fullFilePath.empty()) {
             render_full_file(ctx, mainBg.ent(), repo, layout);
+            return;
+        }
+        if (repo.comparisonOpen) {
+            render_revision_comparison(ctx, mainBg.ent(), repo, layout);
             return;
         }
         bool hasSelectedFile = !repo.selectedFilePath.empty();

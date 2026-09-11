@@ -19,6 +19,16 @@ struct GitResult {
     int exit_code() const { return raw.exit_code; }
 };
 
+struct RevisionComparison {
+    GitResult patch;
+    std::string base;
+    std::string target;
+};
+
+std::future<RevisionComparison> git_compare_async(const std::string& repo,
+    const std::string& base, const std::string& target, bool mergeBase,
+    int context, bool ignoreWhitespace);
+
 // Log callback type -- called for every git command executed
 using LogCallback = std::function<void(const std::string& command,
                                        const std::string& output,

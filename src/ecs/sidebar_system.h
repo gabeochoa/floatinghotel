@@ -1621,6 +1621,7 @@ private:
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
                 r->selectedFilePath = path;
+                r->comparisonOpen = false;
                 r->fullFilePath.clear();
                 if (allFilesMode_) {
                     r->fullFilePath = path;
@@ -1947,6 +1948,7 @@ private:
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
                 r->selectedCommitHash = commit.hash;
+                r->comparisonOpen = false;
                 r->fullFilePath.clear();
                 r->selectedFilePath.clear();
                 r->cachedFilePath.clear();

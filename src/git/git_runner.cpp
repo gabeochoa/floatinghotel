@@ -28,7 +28,7 @@ static bool is_read_only(const std::vector<std::string>& args) {
     if (args.empty()) return false;
     const std::string& verb = args[0];
     if (verb == "status" || verb == "log" || verb == "diff" || verb == "grep" || verb == "blame" ||
-        verb == "rev-parse" || verb == "show" || verb == "for-each-ref" ||
+        verb == "rev-parse" || verb == "show" || verb == "for-each-ref" || verb == "merge-base" ||
         verb == "ls-files" || verb == "cat-file" || verb == "rev-list" ||
         verb == "remote" || verb == "ls-remote")
         return true;
@@ -86,6 +86,36 @@ std::future<GitResult> spawn(Fn fn, Args... args) {
 }
 
 }  // namespace
+
+std::future<RevisionComparison> git_compare_async(const std::string& repo,
+    const std::string& base, const std::string& target, bool mergeBase,
+    int context, bool ignoreWhitespace) {
+    std::packaged_task<RevisionComparison()> task([=] {
+        RevisionComparison out;
+        auto resolve = [&](const std::string& revision, std::string& hash) {
+            out.patch = git_run(repo, {"rev-parse", "--verify", "--end-of-options", revision + "^{commit}"});
+            if (!out.patch.success()) return false;
+            hash = out.patch.stdout_str();
+            while (!hash.empty() && (hash.back() == '\n' || hash.back() == '\r')) hash.pop_back();
+            return true;
+        };
+        if (!resolve(base, out.base) || !resolve(target, out.target)) return out;
+        if (mergeBase) {
+            out.patch = git_run(repo, {"merge-base", out.base, out.target});
+            if (!out.patch.success()) return out;
+            out.base = out.patch.stdout_str();
+            while (!out.base.empty() && (out.base.back() == '\n' || out.base.back() == '\r')) out.base.pop_back();
+        }
+        std::vector<std::string> args{"diff", "--no-ext-diff", "--find-renames", "--unified=" + std::to_string(context)};
+        if (ignoreWhitespace) args.push_back("--ignore-all-space");
+        args.insert(args.end(), {out.base, out.target, "--"});
+        out.patch = git_run(repo, args);
+        return out;
+    });
+    auto future = task.get_future();
+    std::thread(std::move(task)).detach();
+    return future;
+}
 
 GitResult git_run(const std::string& repo_path,
                   const std::vector<std::string>& args) {

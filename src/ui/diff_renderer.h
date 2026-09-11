@@ -1458,9 +1458,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
             if (open) {
                 if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
                     repo->fullFilePath = fileDiff.isDeleted && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
-                    repo->fullFileRevision = reviewScope == "wt" ? (fileDiff.isDeleted ? "INDEX" : "")
-                                            : reviewScope == "index" ? (fileDiff.isDeleted ? "HEAD" : "INDEX")
-                                            : reviewScope + (fileDiff.isDeleted ? "^" : "");
+                    auto [before, after] = diff_revisions(reviewScope);
+                    repo->fullFileRevision = fileDiff.isDeleted ? before : after;
                     repo->fullFileCacheKey.clear();
                     repo->fullFileTargetLine = 0;
                 }

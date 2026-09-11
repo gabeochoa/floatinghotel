@@ -6,6 +6,7 @@
 #include <map>
 #include "../ecs/ui_imports.h"
 #include "../git/git_runner.h"
+#include "../util/diff_revisions.h"
 
 namespace ui::image_diff {
 
@@ -80,9 +81,7 @@ inline bool render(UIContext<InputAction>& ctx, Entity& parent, int id,
     if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".gif" && ext != ".bmp" && ext != ".tga") return false;
     auto& files = cache().files;
     if (!files.contains(file.filePath)) {
-        std::string before = scope == "wt" ? "INDEX" : scope == "index" ? "HEAD" : scope + "^";
-        std::string after = scope == "wt" ? "" : scope == "index" ? "INDEX" : scope;
-        if (scope.starts_with("file:")) after = scope.substr(5);
+        auto [before, after] = diff_revisions(scope);
         files[file.filePath] = {
             load(repo, file.oldPath.empty() ? file.filePath : file.oldPath, before, file.isNew || file.isFullContent),
             load(repo, file.filePath, after, file.isDeleted)};

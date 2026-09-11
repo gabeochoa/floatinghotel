@@ -34,7 +34,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
             bool nothingSelected = hasRepoForShelf &&
                                    shelfRepo->selectedFilePath.empty() &&
-                                   shelfRepo->selectedCommitHash.empty() && !layout.filePickerOpen && !shelfRepo->repoSearchOpen && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen;
+                                   shelfRepo->selectedCommitHash.empty() && !layout.filePickerOpen && !shelfRepo->repoSearchOpen && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen && !shelfRepo->comparisonOpen;
             // While reviewing (in the ballroom) the diff pane shows every
             // working-tree file, so keep the shelf open even with no selection.
             auto* shelfReview = find_singleton<ReviewComponent, ActiveTab>();

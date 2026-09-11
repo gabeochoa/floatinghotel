@@ -1,0 +1,30 @@
+resize 1280 800
+wait_for_refresh
+click_text "Edit"
+click_text "Compare Revisions..."
+screenshot improvement_28_form
+click_ui compare_base
+type "base"
+click_ui compare_target
+type "target"
+click_ui compare_submit
+wait_for_refresh
+screenshot improvement_28_direct
+expect_text "2 files changed"
+expect_text "base-only.txt"
+expect_text "target-only.txt"
+click_text "Side-by-Side"
+screenshot improvement_28_split
+assert_ui sbs_row hidden=false
+click_text "Inline"
+screenshot improvement_28_inline
+click_ui compare_merge_base
+click_ui compare_submit
+wait_for_refresh
+screenshot improvement_28_merge_base
+expect_text "1 file changed"
+expect_no_text "base-only.txt"
+expect_text "target-only.txt"
+click_ui open_full_file
+screenshot improvement_28_source
+expect_text "target content"

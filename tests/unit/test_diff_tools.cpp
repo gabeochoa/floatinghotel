@@ -3,6 +3,14 @@
 #include "../../src/ui/code_highlight.h"
 #include "../../src/util/fuzzy_match.h"
 #include "../../src/util/file_tree.h"
+#include "../../src/util/diff_revisions.h"
+
+TEST(diff_revision_pairs_keep_comparisons_and_index_distinct) {
+    ASSERT_EQ(diff_revisions("compare:abc:def"), (std::pair<std::string, std::string>{"abc", "def"}));
+    ASSERT_EQ(diff_revisions("wt"), (std::pair<std::string, std::string>{"INDEX", ""}));
+    ASSERT_EQ(diff_revisions("index"), (std::pair<std::string, std::string>{"HEAD", "INDEX"}));
+    ASSERT_EQ(diff_revisions("file:abc").second, "abc");
+}
 
 TEST(history_search_validates_dates_and_keeps_filters_literal) {
     git::HistoryQuery query{"a.*b", "Ada", "2024-02-29", "2024-03-01", "src/[file].cpp"};

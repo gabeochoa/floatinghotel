@@ -169,6 +169,16 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::shared_future<git::GitResult> commitSearchFuture;
     std::vector<CommitEntry> commitSearchEntries;
     std::string commitSearchError;
+    bool comparisonOpen = false;
+    std::string comparisonBase;
+    std::string comparisonTarget;
+    bool comparisonMergeBase = false;
+    std::shared_future<git::RevisionComparison> comparisonFuture;
+    std::vector<FileDiff> comparisonDiff;
+    std::string comparisonScope;
+    std::string comparisonError;
+    int comparisonContext = 3;
+    bool comparisonIgnoreWhitespace = false;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {

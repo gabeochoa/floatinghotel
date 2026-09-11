@@ -113,6 +113,12 @@ inline std::vector<Menu> createMenuBar() {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
                 repo->commitSearchOpen = true;
         }),
+        MenuItem::item("Compare Revisions...", "", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+                repo->comparisonOpen = true;
+                repo->fullFilePath.clear();
+            }
+        }),
     }});
 
     // View menu
