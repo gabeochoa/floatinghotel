@@ -18,7 +18,8 @@ std::string review_path(const std::string& repoPath);
 std::string markdown_path(const std::string& repoPath, const std::string& branch);
 
 // Serialize the durable fields of `review` to disk (atomic replace).
-void save_review(const std::string& repoPath, const ecs::ReviewComponent& review);
+bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review);
+bool persist_review(const std::string& repoPath, ecs::ReviewComponent& review);
 
 // Hydrate the durable fields of `review` from disk. No-op if no file exists.
 void load_review(const std::string& repoPath, ecs::ReviewComponent& review);

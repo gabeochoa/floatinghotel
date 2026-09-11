@@ -117,6 +117,25 @@ TEST(unfinished_comments_and_edits_survive_a_roundtrip) {
     std::filesystem::remove(review_store::review_path(path));
 }
 
+TEST(deletion_is_persisted_and_failed_writes_keep_the_dirty_flag) {
+    ecs::ReviewComponent review;
+    review.comments.push_back({"wt", "code.cpp", 1, "remove me"});
+    review.foldedHunks.insert("wt\ncode.cpp\nsignature");
+    const std::string path = "/tmp/floatinghotel_delete_roundtrip";
+    ASSERT_TRUE(review_store::save_review(path, review));
+    ecs::erase_comment(review, 0);
+    ASSERT_TRUE(review.dirty);
+    ASSERT_TRUE(review.foldedHunks.empty());
+    ASSERT_FALSE(review_store::persist_review("", review));
+    ASSERT_TRUE(review.dirty);
+    ASSERT_TRUE(review_store::persist_review(path, review));
+    ASSERT_FALSE(review.dirty);
+    ecs::ReviewComponent loaded;
+    review_store::load_review(path, loaded);
+    ASSERT_TRUE(loaded.comments.empty());
+    std::filesystem::remove(review_store::review_path(path));
+}
+
 TEST(review_signatures_detect_same_size_edits) {
     ecs::FileDiff before;
     before.filePath = "main.cpp";

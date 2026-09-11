@@ -21,6 +21,17 @@ namespace app_state { extern bool testModeEnabled; }
 
 namespace ecs {
 
+inline void persist_pending_review(UIContext<InputAction>& ctx, ReviewComponent& review,
+                                    RepoComponent* repo, bool immediate = false) {
+    if (app_state::testModeEnabled || !review.dirty || !repo || repo->repoPath.empty()) return;
+    auto now = std::chrono::steady_clock::now();
+    if (!immediate && now < review.nextSaveAttempt) return;
+    if (!review_store::persist_review(repo->repoPath, review)) {
+        review.nextSaveAttempt = now + std::chrono::seconds(2);
+        afterhours::toast::send_info(ctx, "Could not save review; retrying. Keep this tab open.", 3.f);
+    }
+}
+
 // Export the review basket: durable markdown file (survives reboot / a failed
 // AI round-trip) + clipboard.
 // TODO(local-first): also sync review comments as git notes / a
@@ -229,9 +240,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         }
     }
     if (removeIdx >= 0 && removeIdx < static_cast<int>(review.comments.size())) {
-        review.comments.erase(review.comments.begin() + removeIdx);
-        if (review.editingComment == removeIdx) { review.editingComment = -1; review.editingCommentText.clear(); }
-        else if (review.editingComment > removeIdx) --review.editingComment;
+        erase_comment(review, static_cast<size_t>(removeIdx));
+        persist_pending_review(ctx, review, repo, true);
     }
 
     auto sendBtn = button(ctx, mk(panel.ent(), 900),
@@ -339,13 +349,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Vim-style chunk cursor: j/k/n move, a approve, c comment. Gated on
         // no text input being focused so it never eats typed characters.
         auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
-        // Drain the review's dirty flag to durable per-repo storage. Gated off in
-        // test mode so make_test_repo runs stay deterministic.
-        if (reviewPtr && reviewPtr->dirty && hasRepo &&
-            !app_state::testModeEnabled) {
-            review_store::save_review(repoPtr->repoPath, *reviewPtr);
-            reviewPtr->dirty = false;
-        }
+        if (reviewPtr && hasRepo) persist_pending_review(ctx, *reviewPtr, repoPtr);
         // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
         // gate and the ⌘⏎ send-all shortcut below.
         bool superDown = afterhours::input::is_key_down(343) ||

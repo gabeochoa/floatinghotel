@@ -64,8 +64,8 @@ std::string markdown_path(const std::string& repoPath,
     return (reviews_dir() / (repo_key(repoPath) + "-" + b + ".md")).string();
 }
 
-void save_review(const std::string& repoPath, const ecs::ReviewComponent& review) {
-    if (repoPath.empty()) return;
+bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review) {
+    if (repoPath.empty()) return false;
 
     nlohmann::json j;
     j["repo_path"] = repoPath;  // for debuggability (filename is a hash)
@@ -93,8 +93,18 @@ void save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["baseline_diff_sig"] = review.baselineDiffSig;
 
     std::string path = review_path(repoPath);
-    if (!afterhours::files::write_string_atomic(path, j.dump(2)))
+    if (!afterhours::files::write_string_atomic(path, j.dump(2))) {
         log_warn("Failed to save review to {}", path);
+        return false;
+    }
+    return true;
+}
+
+bool persist_review(const std::string& repoPath, ecs::ReviewComponent& review) {
+    if (!review.dirty) return true;
+    if (!save_review(repoPath, review)) return false;
+    review.dirty = false;
+    return true;
 }
 
 void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {

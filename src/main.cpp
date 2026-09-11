@@ -887,6 +887,9 @@ int main(int argc, char* argv[]) {
         } else if (key == "review_unresolved") {
             if (auto* r = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
                 return std::to_string(ecs::unresolved_comment_count(*r));
+        } else if (key == "review_dirty") {
+            if (auto* r = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
+                return r->dirty ? "true" : "false";
         } else if (key == "diff_selected_text") {
             return ui::diff_sel::build_copy_text(ui::diff_sel::state(), false);
         } else if (key == "diff_has_selection") {

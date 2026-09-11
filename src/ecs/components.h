@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <chrono>
 #include <cstdint>
 #include <future>
 #include <map>
@@ -230,6 +231,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     // Set by any durable-state mutation; drained by MainContentSystem which
     // persists the review to disk (see review_store). Not serialized.
     bool dirty = false;
+    std::chrono::steady_clock::time_point nextSaveAttempt{};
     // "New since you last looked": diff signature of each file when last viewed.
     std::map<std::string, std::string> seenSig;
     // Baseline snapshot for "new since you last looked" (Phase 6).
@@ -265,6 +267,20 @@ inline bool save_comment_edit(ReviewComponent& review) {
     review.editingCommentText.clear();
     review.dirty = true;
     return true;
+}
+
+inline void erase_comment(ReviewComponent& review, size_t index) {
+    const auto removed = review.comments.at(index);
+    review.comments.erase(review.comments.begin() + static_cast<std::ptrdiff_t>(index));
+    if (review.editingComment == static_cast<int>(index)) { review.editingComment = -1; review.editingCommentText.clear(); }
+    else if (review.editingComment > static_cast<int>(index)) --review.editingComment;
+    if (std::none_of(review.comments.begin(), review.comments.end(), [&](const auto& comment) {
+            return comment.scope == removed.scope && comment.file == removed.file;
+        })) {
+        auto prefix = removed.scope + "\n" + removed.file + "\n";
+        std::erase_if(review.foldedHunks, [&](const auto& key) { return key.starts_with(prefix); });
+    }
+    review.dirty = true;
 }
 
 inline size_t unresolved_comment_count(const ReviewComponent& review) {

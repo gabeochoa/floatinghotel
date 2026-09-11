@@ -1,0 +1,21 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Delete this saved note"
+click_ui comment_add_btn
+roundtrip_review
+screenshot improvement_37_saved
+validate review_dirty=false
+validate review_unresolved=1
+click_ui basket_item_remove
+screenshot improvement_37_deleted
+validate review_dirty=true
+validate review_unresolved=0
+expect_no_text "Delete this saved note"
+roundtrip_review
+screenshot improvement_37_reloaded
+validate review_unresolved=0
+expect_no_text "Delete this saved note"
