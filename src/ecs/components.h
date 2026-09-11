@@ -231,7 +231,13 @@ struct LayoutComponent : public afterhours::BaseComponent {
     // window (Bear-like). Derived each frame from whether anything is selected;
     // set by LayoutUpdateSystem and read by the sidebar/main-content renderers.
     bool shelfCollapsed = false;
-    bool lastShelfCollapsed = false;  // for detecting collapse/expand transitions
+    // Starts true because the window itself opens at the shelf width. If the
+    // first frame finds something selected (a restored review, say), the
+    // true->false transition expands it, same as any later selection.
+    bool lastShelfCollapsed = true;   // for detecting collapse/expand transitions
+    // The window opens at the default sidebar width, but the saved one is only
+    // known after settings load, so the first frame corrects the difference.
+    bool didInitialWidthSync = false;
     int expandedWidth = 0;            // window width to restore when expanding
     // Smooth tray animation: window width is tweened frame-by-frame (each step an
     // instant resize) and the whole UI is laid out at the animated width, so the

@@ -927,7 +927,14 @@ int main(int argc, char* argv[]) {
     app_state::startTime = std::chrono::high_resolution_clock::now();
 
     afterhours::graphics::RunConfig cfg;
-    cfg.width = 1200;
+    // Open as the shelf: sidebar only, no diff pane, since nothing is selected
+    // yet. LayoutUpdateSystem widens the window the moment a file or commit is
+    // opened. Test mode keeps the old 1200 so headless baselines (and the
+    // screenshots named for it) do not move.
+    cfg.width = app_state::testModeEnabled
+                    ? 1200
+                    : static_cast<int>(
+                          ecs::LayoutComponent::kDefaultSidebarWidth + 4.0f);
     cfg.height = 800;
     cfg.title = "floatinghotel";
     cfg.target_fps = 200;

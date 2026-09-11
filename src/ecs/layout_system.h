@@ -44,6 +44,17 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
             if (!app_state::testModeEnabled) {
                 float collapsedW = layout.sidebarWidth + 4.0f;
+                // The window opened at the default shelf width; settings may
+                // hold a different sidebar width. Square that once, silently,
+                // rather than animating a correction the user never asked for.
+                if (!layout.didInitialWidthSync) {
+                    layout.didInitialWidthSync = true;
+                    if (layout.shelfCollapsed && std::fabs(sw - collapsedW) > 1.0f) {
+                        metal_set_window_size(static_cast<int>(collapsedW),
+                                              static_cast<int>(sh));
+                        sw = collapsedW;
+                    }
+                }
                 if (layout.shelfCollapsed != layout.lastShelfCollapsed) {
                     if (layout.shelfCollapsed && sw > collapsedW + 40.f)
                         layout.expandedWidth = static_cast<int>(sw);
