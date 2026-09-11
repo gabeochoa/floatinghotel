@@ -1,0 +1,11 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+wait_frames 10
+screenshot improvement_14_inline
+assert_ui intraline_change hidden=false
+click_text Side-by-Side
+wait_frames 10
+screenshot improvement_14_split
+assert_ui intraline_change hidden=false

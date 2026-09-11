@@ -39,4 +39,17 @@ TEST(diff_find_tracks_side_line_and_occurrence) {
     ASSERT_TRUE(ecs::find_diff_matches({file}, "absent").empty());
 }
 
+TEST(intraline_ranges_keep_shared_prefix_and_suffix_unmarked) {
+    auto [before, after] = code_highlight::changed_ranges("return one;", "return two;");
+    ASSERT_EQ(before.first, 7u);
+    ASSERT_EQ(before.second, 10u);
+    ASSERT_EQ(after, before);
+    auto same = code_highlight::changed_ranges("same", "same");
+    ASSERT_EQ(same.first.first, same.first.second);
+    auto ranges = code_highlight::hunk_ranges({" context", "-return one;", "+return two;", "+unpaired"});
+    ASSERT_EQ(ranges[1], before);
+    ASSERT_EQ(ranges[2], after);
+    ASSERT_EQ(ranges[3].second, 0u);
+}
+
 int main() { RUN_ALL_TESTS(); }

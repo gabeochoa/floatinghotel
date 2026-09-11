@@ -116,6 +116,21 @@ inline bool found_line(const Session* s, const std::string& file, int line, char
            s->findMatch->line == line && s->findMatch->sign == sign;
 }
 
+inline void render_changed_range(UIContext<InputAction>& ctx, Entity& entity,
+                                  const Session& session, const std::string& content,
+                                  float prefix, code_highlight::Range range, bool deletion) {
+    if (range.second <= range.first || range.second > content.size()) return;
+    float x = prefix + mw(session, content.substr(0, range.first));
+    float width = mw(session, content.substr(range.first, range.second - range.first));
+    div(ctx, mk(entity, 90003), ComponentConfig{}
+        .with_size(ComponentSize{pixels(width), percent(1.f)})
+        .with_absolute_position(x, 0.f)
+        .with_custom_background(deletion ? afterhours::Color{240, 100, 100, 90}
+                                         : afterhours::Color{90, 230, 140, 80})
+        .with_roundness(0.f)
+        .with_debug_name("intraline_change"));
+}
+
 inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
                               Session& s, const std::string& content, float prefix) {
     size_t at = std::min(s.findMatch->column, content.size());
@@ -389,7 +404,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               int& newLine,
                               float contentWidth = 0,
                               const std::string& filePath = "",
-                              diff_sel::Session* sel = nullptr) {
+                              diff_sel::Session* sel = nullptr,
+                              code_highlight::Range changed = {}) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
@@ -447,6 +463,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             lineDiv.ent(), lineDiv.ent().get<afterhours::ui::UIComponent>().rect());
         float prefixW = diff_sel::mw(*sel, label.substr(0, diff_sel::CONTENT_START));
         float cx0 = r.x + sel->padLeftPx + prefixW;
+        diff_sel::render_changed_range(ctx, lineDiv.ent(), *sel, content,
+                                       sel->padLeftPx + prefixW, changed, prefix == '-');
         int lno = !newNum.empty() ? std::stoi(newNum)
                                   : (!oldNum.empty() ? std::stoi(oldNum) : 0);
         diff_sel::state().curLines.push_back(
@@ -738,6 +756,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     int oldLine = hunk.oldStart;
     int newLine = hunk.newStart;
 
+    auto changedRanges = code_highlight::hunk_ranges(hunk.lines);
     for (auto& line : hunk.lines) {
         // Always consume an id per line so a given line keeps a stable entity
         // id across frames whether or not it's built (avoids scroll churn).
@@ -748,11 +767,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             vp->reveal();
         if (!vp || !vp->active) {
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
-                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel);
+                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
+                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())]);
         } else if (vp->visible(diff_detail::LINE_HEIGHT)) {
             vp->flush(ctx, parent, nextId);
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
-                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel);
+                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
+                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())]);
             vp->built(diff_detail::LINE_HEIGHT);
         } else {
             // Offscreen: advance line-number counters so gutters stay correct
@@ -776,7 +797,8 @@ enum class SbsKind { Context, Add, Del, Empty };
 inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                             const std::string& num, const std::string& content,
                             SbsKind kind, bool leftBorder,
-                            const std::string& filePath, diff_sel::Session* sel) {
+                            const std::string& filePath, diff_sel::Session* sel,
+                            code_highlight::Range changed = {}) {
     afterhours::Color bg, fg;
     char sign = ' ';
     // Only the background carries add/del color; text stays one color.
@@ -814,6 +836,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         auto rect = afterhours::ui::detail::apply_scroll_offset(
             cell.ent(), cell.ent().get<afterhours::ui::UIComponent>().rect());
         float prefix = sel->padLeftPx + diff_sel::mw(*sel, label.substr(0, label.size() - content.size()));
+        diff_sel::render_changed_range(ctx, cell.ent(), *sel, content, prefix, changed, kind == SbsKind::Del);
         diff_sel::state().curLines.push_back(
             {cell.ent().id, content, filePath, num.empty() ? 0 : std::stoi(num),
              rect, rect.x + prefix, leftBorder ? 1 : 2});
@@ -937,8 +960,11 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                 .with_flex_direction(FlexDirection::Row)
                 .with_roundness(0.0f)
                 .with_debug_name("sbs_row"));
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true, fileDiff.filePath, sel);
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false, fileDiff.filePath, sel);
+        std::pair<code_highlight::Range, code_highlight::Range> changes;
+        if (lKind == SbsKind::Del && rKind == SbsKind::Add)
+            changes = code_highlight::changed_ranges(lContent, rContent);
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true, fileDiff.filePath, sel, changes.first);
+        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false, fileDiff.filePath, sel, changes.second);
     };
 
     auto flush = [&]() {
