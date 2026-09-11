@@ -139,10 +139,9 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("commit_detail_scroll"));
 
-    if (commitJustChanged && scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
-        auto& scroll = scrollContainer.ent().get<afterhours::ui::HasScrollView>();
-        scroll.scroll_offset = scroll.scroll_target = scroll.last_eased_offset = {0, 0};
-    }
+    ui::remember_reading_position(repo, scrollContainer.ent(), "commit:" + repo.selectedCommitHash +
+        (layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide ? "\nsplit" : "\ninline"),
+        !detailCache.patchFuture.valid() && !detailCache.infoFuture.valid());
 
     auto backBtn = button(ctx, mk(scrollContainer.ent(), nextId++),
         preset::Button("<- Back")

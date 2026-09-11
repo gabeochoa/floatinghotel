@@ -102,7 +102,17 @@ struct BranchInfo {
 
 // ---- ECS Components ----
 
+struct ReadingPositions {
+    std::map<std::string, std::pair<float, float>> offsets;
+    std::string key;
+    int entity = -1;
+    std::pair<float, float> lastOffset{};
+    std::pair<float, float> restoringOffset{};
+    int restoreFrames = 0;
+};
+
 struct RepoComponent : public afterhours::BaseComponent {
+    ReadingPositions reading;
     std::string repoPath;
     std::string currentBranch;
     bool isDirty = false;

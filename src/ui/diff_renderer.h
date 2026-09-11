@@ -5,6 +5,7 @@
 #include "../settings.h"
 #include "code_highlight.h"
 #include "image_diff.h"
+#include "reading_position.h"
 #include "../util/review_selection.h"
 #include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
@@ -1192,8 +1193,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_custom_background(theme::PANEL_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("diff_scroll"));
-        if (resetScroll && scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
-            scrollContainer.ent().get<afterhours::ui::HasScrollView>().scroll_offset = {0, 0};
+        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+            std::string view = reviewScope + (sideBySide ? "\nsplit" : "\ninline");
+            for (const auto& file : diffs) view += "\n" + file.filePath;
+            remember_reading_position(*repo, scrollContainer.ent(), view);
+        } else if (resetScroll && scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
+            auto& scroll = scrollContainer.ent().get<afterhours::ui::HasScrollView>();
+            scroll.scroll_offset = scroll.scroll_target = scroll.last_eased_offset = {0, 0};
         }
         contentParent = &scrollContainer.ent();
     }

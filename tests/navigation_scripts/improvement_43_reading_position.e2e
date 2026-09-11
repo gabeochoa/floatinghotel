@@ -1,0 +1,42 @@
+resize 1280 800
+wait_for_refresh
+click_text first.txt
+key CMD+F
+screenshot improvement_43_find_file
+click_ui diff_find_input
+type "working line 901"
+wait_frames 10
+screenshot improvement_43_file_position
+assert_ui diff_find_match hidden=false
+click_ui diff_find_close
+screenshot improvement_43_file_saved
+click_text second.txt
+screenshot improvement_43_second
+expect_text "short working file"
+click_text first.txt
+wait_frames 10
+screenshot improvement_43_file_restored
+expect_text "working line 901"
+expect_no_text "working line 1"
+click_text "Long commit"
+wait_for_refresh
+key CMD+F
+screenshot improvement_43_find_commit
+click_ui diff_find_input
+key CMD+A
+type "committed line 801"
+wait_frames 10
+screenshot improvement_43_commit_position
+assert_ui diff_find_match hidden=false
+click_ui diff_find_close
+screenshot improvement_43_commit_saved
+click_text "Short commit"
+wait_for_refresh
+screenshot improvement_43_short
+expect_text "short committed file"
+click_text "Long commit"
+wait_for_refresh
+wait_frames 10
+screenshot improvement_43_commit_restored
+expect_text "committed line 801"
+expect_no_text "committed line 1"
