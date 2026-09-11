@@ -262,7 +262,11 @@ $(TEST_DIR)/test_review_store: tests/unit/test_review_store.cpp src/review_store
 	@echo "Compiling test_review_store..."
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
-TEST_EXES := $(TEST_DIR)/test_git_parser \
+$(TEST_DIR)/test_diff_tools: tests/unit/test_diff_tools.cpp | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
+
+TEST_EXES := $(TEST_DIR)/test_diff_tools \
+    $(TEST_DIR)/test_git_parser \
     $(TEST_DIR)/test_error_humanizer \
     $(TEST_DIR)/test_process \
     $(TEST_DIR)/test_settings \

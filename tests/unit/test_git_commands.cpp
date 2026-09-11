@@ -28,6 +28,24 @@ TEST(patch_normal_modification) {
     ASSERT_TRUE(patch.find("+int z = 4;\n") != std::string::npos);
 }
 
+TEST(partial_hunk_preserves_unselected_lines) {
+    ecs::DiffHunk hunk{1, 3, 1, 4, "@@ -1,3 +1,4 @@",
+                        {" keep", "-old", "+replacement", "+extra", " tail"}};
+    auto partial = git::selected_lines_hunk(hunk, {3});
+    ASSERT_TRUE(partial.has_value());
+    ASSERT_EQ(partial->lines, (std::vector<std::string>{" keep", " old", "+extra", " tail"}));
+    ASSERT_EQ(partial->oldCount, 3);
+    ASSERT_EQ(partial->newCount, 4);
+    ASSERT_FALSE(git::selected_lines_hunk(hunk, {0}).has_value());
+    auto deletion = git::selected_lines_hunk(hunk, {1});
+    ASSERT_EQ(deletion->newCount, 2);
+    ASSERT_EQ(deletion->lines, (std::vector<std::string>{" keep", "-old", " tail"}));
+    ecs::DiffHunk removed{1, 2, 0, 0, "@@ -1,2 +0,0 @@", {"-first", "-second"}};
+    auto partialRemoval = git::selected_lines_hunk(removed, {0});
+    ASSERT_EQ(partialRemoval->newStart, 1);
+    ASSERT_EQ(partialRemoval->newCount, 1);
+}
+
 TEST(patch_new_file) {
     ecs::FileDiff fd;
     fd.filePath = "new_file.txt";

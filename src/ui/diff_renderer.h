@@ -58,6 +58,7 @@ struct Rec {
     Rectangle rect{};
     float contentX0 = 0.f; // screen x where content[0] starts
     int side = 0;
+    char sign = ' ';
 };
 
 struct State {
@@ -478,7 +479,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         int lno = !newNum.empty() ? std::stoi(newNum)
                                   : (!oldNum.empty() ? std::stoi(oldNum) : 0);
         diff_sel::state().curLines.push_back(
-            {lineDiv.ent().id, content, filePath, lno, r, cx0});
+            {lineDiv.ent().id, content, filePath, lno, r, cx0, 0, prefix});
         if (diff_sel::found_line(sel, filePath, lno, prefix))
             diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, sel->padLeftPx + prefixW);
 
@@ -870,7 +871,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         diff_sel::render_changed_range(ctx, cell.ent(), *sel, content, prefix, changed, kind == SbsKind::Del);
         diff_sel::state().curLines.push_back(
             {cell.ent().id, content, filePath, num.empty() ? 0 : std::stoi(num),
-             rect, rect.x + prefix, leftBorder ? 1 : 2});
+             rect, rect.x + prefix, leftBorder ? 1 : 2, sign});
         if (diff_sel::found_line(sel, filePath, num.empty() ? 0 : std::stoi(num), sign) &&
             (kind != SbsKind::Context || !leftBorder))
             diff_sel::render_find_match(ctx, cell.ent(), *sel, content, prefix);
@@ -1399,6 +1400,38 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_transparent_bg()
                 .with_roundness(0.0f)
             .with_debug_name("file_header_btns"));
+
+        if (reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
+            !fileDiff.isSubmodule && diff_sel::state().hasSel) {
+            auto stage = button(ctx, mk(fileBtns.ent(), 3), preset::Button("Stage selection")
+                .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                .with_debug_name("stage_selected_lines"));
+            if (stage) {
+                std::vector<std::set<size_t>> selected(fileDiff.hunks.size());
+                const auto& state = diff_sel::state();
+                for (size_t h = 0; h < fileDiff.hunks.size(); ++h) {
+                    const auto& hunk = fileDiff.hunks[h];
+                    int oldLine = hunk.oldStart, newLine = hunk.newStart;
+                    for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                        char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i].front();
+                        int number = sign == '-' ? oldLine : newLine;
+                        for (const auto& record : state.lastLines) {
+                            if (record.filePath == fileDiff.filePath && record.sign == sign &&
+                                record.lineNo == number && state.hl.contains(record.ent))
+                                selected[h].insert(i);
+                        }
+                        if (sign != '+') ++oldLine;
+                        if (sign != '-') ++newLine;
+                    }
+                }
+                auto result = git::stage_selected_lines(repoPath, fileDiff, selected);
+                if (result.success()) {
+                    diff_sel::reset();
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
+                    afterhours::toast::send_info(ctx, "Selected lines staged", 1.5f);
+                } else afterhours::toast::send_info(ctx, "Stage selection failed: " + result.stderr_str(), 3.f);
+            }
+        }
 
         if (!fileDiff.isFullContent && !repoPath.empty()) {
             auto open = button(ctx, mk(fileBtns.ent(), 2), preset::Button(fileDiff.isDeleted ? "Open previous file" : "Open file")

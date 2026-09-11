@@ -8,6 +8,11 @@
 
 namespace git {
 
+std::optional<ecs::DiffHunk> selected_lines_hunk(const ecs::DiffHunk& hunk,
+                                                const std::set<size_t>& selected);
+GitResult stage_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
+                                const std::vector<std::set<size_t>>& selected);
+
 // Build a unified diff patch string for a single hunk (exposed for testing)
 std::string build_patch(const ecs::FileDiff& file_diff,
                         const ecs::DiffHunk& hunk);

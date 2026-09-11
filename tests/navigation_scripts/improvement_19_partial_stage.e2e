@@ -1,0 +1,18 @@
+resize 1280 800
+wait_for_refresh
+click_text lines.txt
+wait_frames 10
+screenshot improvement_19_before
+mouse_down 455 180
+wait_frames 3
+mouse_move 545 180
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot improvement_19_selected
+validate diff_has_selection=true
+click_ui stage_selected_lines
+wait_for_refresh
+wait_frames 10
+screenshot improvement_19_staged
+validate staged_count=1
