@@ -28,13 +28,12 @@ run_test() {
     local name="$1"
     local src="$2"
     shift 2
-    local extra_srcs=("$@")
 
     TOTAL=$((TOTAL + 1))
     local exe="$OUT_DIR/$name"
 
     echo "--- Compiling $name ---"
-    if $CXX $CXXFLAGS $INCLUDES "$src" "${extra_srcs[@]}" -o "$exe" 2>&1; then
+    if $CXX $CXXFLAGS $INCLUDES "$src" "$@" -o "$exe" 2>&1; then
         echo "--- Running $name ---"
         if "$exe"; then
             PASSED=$((PASSED + 1))
@@ -50,6 +49,10 @@ run_test() {
 }
 
 FILTER="${1:-}"
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_diff_tools" ]; then
+    run_test "test_diff_tools" "tests/unit/test_diff_tools.cpp"
+fi
 
 # --- test_git_parser ---
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_git_parser" ]; then

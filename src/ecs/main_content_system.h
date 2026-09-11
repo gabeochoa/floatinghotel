@@ -211,6 +211,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
         if (afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+            if (layout.diffFindOpen) {
+                layout.diffFindOpen = false;
+                ctx.set_focus(ctx.ROOT);
+                return;
+            }
             auto* menu = find_singleton<MenuComponent>();
             bool menuOpen = menu && menu->activeMenuIndex >= 0;
             if (!menuOpen && repoPtr) {
@@ -249,6 +254,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool superDown = afterhours::input::is_key_down(343) ||
                          afterhours::input::is_key_down(347) ||
                          afterhours::input::is_key_down(341);
+        if (superDown && afterhours::input::is_key_pressed(70)) {
+            layout.diffFindOpen = true;
+            layout.diffFindFocus = true;
+        }
         auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
         bool editingText = focused.valid() && focused->has<afterhours::text_input::HasTextInputState>();
         auto* keyboardMenu = find_singleton<MenuComponent>();

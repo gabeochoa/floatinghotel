@@ -222,7 +222,40 @@ struct BranchDialogState : public afterhours::BaseComponent {
     bool showForceDeleteDialog = false;
 };
 
+struct DiffMatch {
+    std::string file;
+    int line = 0;
+    char sign = ' ';
+    size_t column = 0;
+};
+
+inline std::vector<DiffMatch> find_diff_matches(const std::vector<FileDiff>& diffs,
+                                              const std::string& query) {
+    std::vector<DiffMatch> matches;
+    if (query.empty()) return matches;
+    for (const auto& file : diffs) {
+        for (const auto& hunk : file.hunks) {
+            int oldLine = hunk.oldStart, newLine = hunk.newStart;
+            for (const auto& line : hunk.lines) {
+                char sign = line.empty() ? ' ' : line.front();
+                int number = sign == '-' ? oldLine : newLine;
+                for (size_t at = line.find(query, 1); at != std::string::npos;
+                     at = line.find(query, at + query.size()))
+                    matches.push_back({file.filePath, number, sign, at - 1});
+                if (sign != '+') ++oldLine;
+                if (sign != '-') ++newLine;
+            }
+        }
+    }
+    return matches;
+}
+
 struct LayoutComponent : public afterhours::BaseComponent {
+    bool diffFindOpen = false;
+    bool diffFindFocus = false;
+    std::string diffFindQuery;
+    int diffFindIndex = 0;
+    int diffFindNavigate = 0;
     static constexpr float kDefaultSidebarWidth = 340.0f;
     float sidebarWidth = kDefaultSidebarWidth;
     float sidebarMinWidth = 200.0f;

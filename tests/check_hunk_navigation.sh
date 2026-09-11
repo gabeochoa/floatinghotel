@@ -12,5 +12,5 @@ git -C "$audit_repo" commit -qm baseline
 awk 'NR % 100 == 1 { print "changed " NR; next } { print }' "$audit_repo/lines.txt" > "$audit_repo/updated.txt"
 mv "$audit_repo/updated.txt" "$audit_repo/lines.txt"
 output/floatinghotel.exe "$audit_repo" --test-mode --headless \
-  --test-script=tests/navigation_scripts/improvement_04_hunk_navigation.e2e \
+  --test-script="${1:-tests/navigation_scripts/improvement_04_hunk_navigation.e2e}" \
   --screenshot-dir=output/screenshots/improvements --e2e-timeout=40

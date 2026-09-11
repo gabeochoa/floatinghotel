@@ -1,0 +1,35 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+key CMD+F
+wait_frames 5
+click_ui diff_find_input
+type "std::cout"
+wait_frames 10
+screenshot improvement_11_first
+expect_text "1/2"
+assert_ui diff_find_match hidden=false
+click_ui diff_find_next
+wait_frames 10
+screenshot improvement_11_next
+expect_text "2/2"
+click_ui diff_find_previous
+wait_frames 5
+screenshot improvement_11_previous
+expect_text "1/2"
+click_text Side-by-Side
+wait_frames 5
+screenshot improvement_11_split
+assert_ui diff_find_match hidden=false
+click_text "Add contributing guidelines"
+wait_frames 5
+screenshot improvement_11_commit_before
+click_ui diff_find_input
+key CMD+A
+wait_frames 5
+type "Contributing"
+wait_frames 10
+screenshot improvement_11_commit
+expect_text "1/1"
+assert_ui diff_find_match hidden=false

@@ -8,6 +8,7 @@
 #include <afterhours/src/plugins/toast.h>
 #include <afterhours/src/plugins/ui/text_input/text_input.h>
 #include <cmath>
+#include <optional>
 #include <unordered_map>
 
 namespace ui {
@@ -69,6 +70,10 @@ inline void reset() {
 }
 
 struct Session {
+    std::optional<ecs::DiffMatch> findMatch;
+    std::string findQuery;
+    bool findNavigate = false;
+    Entity* scrollParent = nullptr;
     bool enabled = false;
     afterhours::ui::TextMeasureCache* tmc = nullptr;
     float fontSize = 0.f;
@@ -86,6 +91,34 @@ struct Session {
 
 inline float mw(const Session& s, const std::string& t) {
     return s.tmc ? s.tmc->measure_width(t, "mono", s.fontSize) : 0.f;
+}
+
+inline bool found_line(const Session* s, const std::string& file, int line, char sign) {
+    return s && s->findMatch && s->findMatch->file == file &&
+           s->findMatch->line == line && s->findMatch->sign == sign;
+}
+
+inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
+                              Session& s, const std::string& content, float prefix) {
+    size_t at = std::min(s.findMatch->column, content.size());
+    float x = prefix + mw(s, content.substr(0, at));
+    float width = mw(s, content.substr(at, s.findQuery.size()));
+    div(ctx, mk(lineEntity, 90002), ComponentConfig{}
+        .with_size(ComponentSize{pixels(width), percent(1.f)})
+        .with_absolute_position(x, 0.f)
+        .with_custom_background(afterhours::Color{230, 180, 30, 100})
+        .with_roundness(0.f)
+        .with_debug_name("diff_find_match"));
+    if (s.findNavigate && s.embedded && s.scrollParent &&
+        s.scrollParent->has<afterhours::ui::HasScrollView>()) {
+        auto& sv = s.scrollParent->get<afterhours::ui::HasScrollView>();
+        auto rect = afterhours::ui::detail::apply_scroll_offset(
+            lineEntity, lineEntity.get<afterhours::ui::UIComponent>().rect());
+        float target = sv.scroll_offset.y + rect.y -
+                       s.scrollParent->get<afterhours::ui::UIComponent>().rect().y - 50.f;
+        target = std::clamp(target, 0.f, std::max(0.f, sv.content_size.y - sv.viewport_or_zero().y));
+        sv.scroll_offset.y = sv.scroll_target.y = sv.last_eased_offset.y = target;
+    }
 }
 
 // Resolve anchor/head into an ordered span (i1,c1) <= (i2,c2) as indices into
@@ -296,6 +329,15 @@ struct DiffViewport {
         return (curY + h >= top) && (curY <= bottom);
     }
     void built(float raw720) { if (active) curY += px(raw720); }
+    void reveal() {
+        if (!active || !scroll) return;
+        float height = scroll->viewport_or_zero().y;
+        float target = std::clamp(curY - px(36.f), 0.f,
+                                 std::max(0.f, scroll->content_size.y - height));
+        scroll->scroll_offset.y = scroll->scroll_target.y = scroll->last_eased_offset.y = target;
+        top = target - height;
+        bottom = target + height * 2.f;
+    }
     void skipped(float raw720) {
         if (!active) return;
         float h = px(raw720);
@@ -391,6 +433,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                                   : (!oldNum.empty() ? std::stoi(oldNum) : 0);
         diff_sel::state().curLines.push_back(
             {lineDiv.ent().id, content, filePath, lno, r, cx0});
+        if (diff_sel::found_line(sel, filePath, lno, prefix))
+            diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, sel->padLeftPx + prefixW);
 
         // Draw the selection highlight for the covered column range, if any.
         auto it = diff_sel::state().hl.find(lineDiv.ent().id);
@@ -678,6 +722,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         // Always consume an id per line so a given line keeps a stable entity
         // id across frames whether or not it's built (avoids scroll churn).
         int lineId = nextId++;
+        char findSign = line.empty() ? ' ' : line.front();
+        if (sel && sel->findNavigate && vp &&
+            diff_sel::found_line(sel, fileDiff.filePath, findSign == '-' ? oldLine : newLine, findSign))
+            vp->reveal();
         if (!vp || !vp->active) {
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
                              contentWidth, fileDiff.filePath, sel);
@@ -748,6 +796,9 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         diff_sel::state().curLines.push_back(
             {cell.ent().id, content, filePath, num.empty() ? 0 : std::stoi(num),
              rect, rect.x + prefix, leftBorder ? 1 : 2});
+        if (diff_sel::found_line(sel, filePath, num.empty() ? 0 : std::stoi(num), sign) &&
+            (kind != SbsKind::Context || !leftBorder))
+            diff_sel::render_find_match(ctx, cell.ent(), *sel, content, prefix);
         auto it = diff_sel::state().hl.find(cell.ent().id);
         if (it != diff_sel::state().hl.end()) {
             auto a = std::min(static_cast<size_t>(it->second.first), content.size());
@@ -845,6 +896,12 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         // Same id-per-row discipline as the inline path so a row keeps its
         // entity across frames whether or not it was built.
         int rowId = nextId++;
+        if (sel && sel->findNavigate && vp &&
+            ((!lNum.empty() && diff_sel::found_line(sel, fileDiff.filePath, std::stoi(lNum),
+                                                   lKind == SbsKind::Del ? '-' : ' ')) ||
+             (!rNum.empty() && diff_sel::found_line(sel, fileDiff.filePath, std::stoi(rNum),
+                                                   rKind == SbsKind::Add ? '+' : ' '))))
+            vp->reveal();
         if (culling) {
             if (!vp->visible(diff_detail::LINE_HEIGHT)) {
                 vp->skipped(diff_detail::LINE_HEIGHT);
@@ -925,6 +982,64 @@ inline void render_diff(UIContext<InputAction>& ctx,
     sess.repoPath = repoPath;
     sess.review = review;
     sess.reviewScope = reviewScope;
+    auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+    float findHeight = 0.f;
+    if (layout && layout->diffFindOpen) {
+        findHeight = 34.f;
+        auto bar = div(ctx, mk(parent, 580001), ComponentConfig{}
+            .with_size(ComponentSize{pixels(contentWidth), pixels(findHeight)})
+            .with_flex_direction(FlexDirection::Row)
+            .with_align_items(AlignItems::Center)
+            .with_debug_name("diff_find_bar"));
+        auto previous = layout->diffFindQuery;
+        auto input = afterhours::text_input::text_input(ctx, mk(bar.ent(), 0), layout->diffFindQuery,
+            ComponentConfig{}
+                .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - 240.f)), pixels(28)})
+                .with_debug_name("diff_find_input"));
+        if (layout->diffFindFocus) {
+            ctx.set_focus(input.ent().id);
+            layout->diffFindFocus = false;
+        }
+        if (previous != layout->diffFindQuery) {
+            layout->diffFindIndex = 0;
+            layout->diffFindNavigate = 3;
+        }
+        auto matches = ecs::find_diff_matches(diffs, layout->diffFindQuery);
+        int count = static_cast<int>(matches.size());
+        int step = 0;
+        if (button(ctx, mk(bar.ent(), 1), preset::Button("Previous")
+                .with_size(ComponentSize{pixels(70), pixels(28)}).with_debug_name("diff_find_previous"))) step = -1;
+        if (button(ctx, mk(bar.ent(), 2), preset::Button("Next")
+                .with_size(ComponentSize{pixels(48), pixels(28)}).with_debug_name("diff_find_next"))) step = 1;
+        if (afterhours::input::is_key_pressed(257))
+            step = afterhours::input::is_key_down(340) ? -1 : 1;
+        if (count > 0) {
+            layout->diffFindIndex = (layout->diffFindIndex + step + count) % count;
+            sess.findMatch = matches[layout->diffFindIndex];
+            sess.findQuery = layout->diffFindQuery;
+            if (step != 0) layout->diffFindNavigate = 3;
+            sess.findNavigate = layout->diffFindNavigate > 0;
+            if (layout->diffFindNavigate > 0) --layout->diffFindNavigate;
+            if (review) {
+                for (const auto& file : diffs) {
+                    if (file.filePath != sess.findMatch->file) continue;
+                    for (const auto& hunk : file.hunks) {
+                        int start = sess.findMatch->sign == '-' ? hunk.oldStart : hunk.newStart;
+                        int length = sess.findMatch->sign == '-' ? hunk.oldCount : hunk.newCount;
+                        if (sess.findMatch->line >= start && sess.findMatch->line < start + length)
+                            review->foldedHunks.erase(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, hunk));
+                    }
+                }
+            }
+        }
+        div(ctx, mk(bar.ent(), 3), ComponentConfig{}
+            .with_label(count == 0 ? "No matches" : std::to_string(layout->diffFindIndex + 1) + "/" + std::to_string(count))
+            .with_size(ComponentSize{pixels(80), pixels(28)})
+            .with_font_size(FontSize::Small).with_debug_name("diff_find_count"));
+        if (button(ctx, mk(bar.ent(), 4), preset::Button("x")
+                .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_close")))
+            layout->diffFindOpen = false;
+    }
     bool selEnabled = true;
     if (selEnabled) {
         std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline");
@@ -967,8 +1082,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
     Entity* contentParent = &parent;
     if (!embedInParentScroll) {
         auto h = contentHeight > 0
-                     ? pixels(contentHeight - diff_detail::DIFF_HEADER_H)
-                     : percent(1.0f);
+                     ? pixels(contentHeight - diff_detail::DIFF_HEADER_H - findHeight)
+                     : (findHeight > 0 ? pixels(std::max(40.f, parent.get<afterhours::ui::UIComponent>().rect().height - findHeight))
+                                       : percent(1.0f));
         auto scrollContainer = div(ctx, mk(parent, nextId++),
             ComponentConfig{}
                 .with_size(ComponentSize{w, h})
@@ -983,6 +1099,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         contentParent = &scrollContainer.ent();
     }
+    sess.scrollParent = contentParent;
 
     // Virtualize the diff: only build rows in the visible scroll window
     // (+1 screen overscan). Read the prior frame's scroll offset/viewport from
