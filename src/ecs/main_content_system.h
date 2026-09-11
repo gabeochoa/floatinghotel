@@ -10,6 +10,7 @@
 #include "../ui/command_log.h"
 #include "../ui/commit_detail.h"
 #include "../ui/diff_renderer.h"
+#include "../ui/full_file_view.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -211,6 +212,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
         if (afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+            if (repoPtr && !repoPtr->fullFilePath.empty()) {
+                repoPtr->fullFilePath.clear();
+                return;
+            }
             if (layout.diffFindOpen) {
                 layout.diffFindOpen = false;
                 ctx.set_focus(ctx.ROOT);
@@ -262,7 +267,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool editingText = focused.valid() && focused->has<afterhours::text_input::HasTextInputState>();
         auto* keyboardMenu = find_singleton<MenuComponent>();
         bool keyboardMenuOpen = keyboardMenu && keyboardMenu->activeMenuIndex >= 0;
-        if (reviewPtr && !editingText && !keyboardMenuOpen &&
+        if (reviewPtr && repoPtr && repoPtr->fullFilePath.empty() && !editingText && !keyboardMenuOpen &&
             reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
             if (!superDown) {
                 int previousCursor = reviewPtr->cursor;
@@ -308,6 +313,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         auto& repo = *repoPtr;
+        if (!repo.fullFilePath.empty()) {
+            render_full_file(ctx, mainBg.ent(), repo, layout);
+            return;
+        }
         bool hasSelectedFile = !repo.selectedFilePath.empty();
         bool hasSelectedCommit = !repo.selectedCommitHash.empty();
 

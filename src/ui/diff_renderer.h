@@ -627,7 +627,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_btns"));
 
-    if (sel && !sel->repoPath.empty()) {
+    if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent) {
         auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button("Context +")
             .with_size(ComponentSize{children(), h720(18)})
             .with_font_size(FontSize::Small)
@@ -1228,7 +1228,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
     // Stats summary header inside scroll. Suppressed when embedded in the
     // commit-detail view, which already renders its own "FILES CHANGED" summary.
-    if (!embedInParentScroll) {
+    if (!embedInParentScroll && (diffs.empty() || !diffs.front().isFullContent)) {
         int totalAdditions = 0, totalDeletions = 0;
         for (auto& d : diffs) {
             totalAdditions += d.additions;
@@ -1398,7 +1398,22 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_margin(Margin{.right = w1280(12)})
                 .with_transparent_bg()
                 .with_roundness(0.0f)
-                .with_debug_name("file_header_btns"));
+            .with_debug_name("file_header_btns"));
+
+        if (!fileDiff.isFullContent && !repoPath.empty()) {
+            auto open = button(ctx, mk(fileBtns.ent(), 2), preset::Button(fileDiff.isDeleted ? "Open previous file" : "Open file")
+                .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("open_full_file"));
+            if (open) {
+                if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+                    repo->fullFilePath = fileDiff.isDeleted && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
+                    repo->fullFileRevision = reviewScope == "wt" ? (fileDiff.isDeleted ? "INDEX" : "")
+                                            : reviewScope == "index" ? (fileDiff.isDeleted ? "HEAD" : "INDEX")
+                                            : reviewScope + (fileDiff.isDeleted ? "^" : "");
+                    repo->fullFileCacheKey.clear();
+                }
+            }
+        }
 
         if (showApproveFile) {
             auto approveFileBtn = button(ctx, mk(fileBtns.ent(), 0),
@@ -1426,8 +1441,16 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
         {
             std::string diffText = diff_detail::file_diff_to_text(fileDiff);
+            if (fileDiff.isFullContent) {
+                diffText.clear();
+                for (const auto& hunk : fileDiff.hunks)
+                    for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                        diffText += hunk.lines[i].substr(1);
+                        if (!hunk.noNewline.contains(i)) diffText += '\n';
+                    }
+            }
             auto fileCopyBtn = button(ctx, mk(fileBtns.ent(), 1),
-                preset::Button("Copy Diff")
+                preset::Button(fileDiff.isFullContent ? "Copy file" : "Copy Diff")
                     .with_size(ComponentSize{children(), h720(18)})
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),

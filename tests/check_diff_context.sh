@@ -12,5 +12,5 @@ git -C "$context_repo" commit -qm baseline
 awk 'NR==50 { print "changed line 50"; next } { print }' "$context_repo/context.txt" > "$context_repo/updated.txt"
 mv "$context_repo/updated.txt" "$context_repo/context.txt"
 output/floatinghotel.exe "$context_repo" --test-mode --headless \
-  --test-script=tests/navigation_scripts/improvement_17_context.e2e \
+  --test-script="${1:-tests/navigation_scripts/improvement_17_context.e2e}" \
   --screenshot-dir=output/screenshots/improvements --e2e-timeout=40

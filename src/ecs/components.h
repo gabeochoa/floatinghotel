@@ -54,6 +54,7 @@ struct FileDiff {
     bool isDeleted = false;
     bool isRenamed = false;
     bool isBinary = false;
+    bool isFullContent = false;
     bool isSubmodule = false;  // gitlink change (index mode 160000)
     std::vector<DiffHunk> hunks;
 };
@@ -115,6 +116,11 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool refreshRequested = false;
     bool ignoreWhitespace = false;
     int diffContext = 3;
+    std::string fullFilePath;
+    std::string fullFileRevision;
+    std::string fullFileCacheKey;
+    std::vector<FileDiff> fullFileDiff;
+    std::string fullFileError;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;

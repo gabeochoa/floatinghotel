@@ -1,0 +1,37 @@
+resize 1280 800
+wait_for_refresh
+click_text context.txt
+wait_frames 10
+screenshot improvement_18_diff
+expect_no_text "context line 1"
+click_ui open_full_file
+wait_frames 10
+screenshot improvement_18_working_file
+expect_text "context line 1"
+expect_text "working tree"
+key CMD+F
+wait_frames 5
+click_ui diff_find_input
+type "changed line 50"
+wait_frames 10
+screenshot improvement_18_working_revision
+expect_text "1/1"
+click_ui diff_find_close
+click_ui full_file_back
+wait_frames 5
+click_text baseline
+wait_frames 10
+screenshot improvement_18_commit
+click_ui open_full_file
+wait_frames 10
+screenshot improvement_18_committed_file
+key CMD+F
+wait_frames 5
+click_ui diff_find_input
+key CMD+A
+wait_frames 5
+type "context line 50"
+wait_frames 10
+screenshot improvement_18_committed_revision
+expect_text "1/1"
+expect_no_text "changed line 50"
