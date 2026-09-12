@@ -9,6 +9,7 @@
 #include "image_diff.h"
 #include "reading_position.h"
 #include "../util/review_selection.h"
+#include "../util/code_gutter.h"
 #include "../util/lfs_pointer.h"
 #include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
@@ -50,10 +51,6 @@ inline std::vector<afterhours::ui::TextSpan> highlighted_code(
 // Diff text selection (drag to select code, copy with file:line for AI review)
 // ============================================================================
 namespace diff_sel {
-
-// Index in the inline label where the code content begins:
-//   [oldNum:5][space][newNum:5][2 spaces][sign][space] = 15 chars, then content.
-constexpr int CONTENT_START = 15;
 
 struct Pos {
     afterhours::EntityID ent = 0;
@@ -316,13 +313,6 @@ inline std::string git_err(const git::GitResult& r) {
 // MainContentSystem uses 3000-3999. We use 4000-59999.
 constexpr int BASE_ID = 4000;
 
-// Right-pad a line number into a fixed-width gutter string.
-inline std::string pad_gutter(const std::string& n, size_t width = 5) {
-    if (n.empty()) return std::string(width, ' ');
-    if (n.size() >= width) return n;
-    return std::string(width - n.size(), ' ') + n;
-}
-
 inline std::string hunk_to_text(const ecs::DiffHunk& hunk) {
     std::string text = hunk.header + "\n";
     for (auto& line : hunk.lines) {
@@ -340,6 +330,24 @@ inline std::string file_diff_to_text(const ecs::FileDiff& diff) {
         text += hunk_to_text(hunk);
     }
     return text;
+}
+
+inline std::string file_header_label(const ecs::FileDiff& fileDiff) {
+    if (fileDiff.isFullContent) return "Source";
+    std::string label = fileDiff.filePath;
+    if (fileDiff.isRenamed && !fileDiff.oldPath.empty())
+        label = fileDiff.oldPath + " -> " + fileDiff.filePath;
+    std::string stats;
+    if (fileDiff.additions > 0) stats += "+" + std::to_string(fileDiff.additions);
+    if (fileDiff.deletions > 0) {
+        if (!stats.empty()) stats += " ";
+        stats += "-" + std::to_string(fileDiff.deletions);
+    }
+    if (!stats.empty()) label += "  " + stats;
+    if (fileDiff.isNew) label += "  (new file)";
+    else if (fileDiff.isDeleted) label += "  (deleted)";
+    else if (fileDiff.isBinary) label += "  (binary)";
+    return label;
 }
 
 // ----------------------------------------------------------------------------
@@ -413,7 +421,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               const std::string& filePath = "",
                               diff_sel::Session* sel = nullptr,
                               code_highlight::Range changed = {},
-                              bool hasNewline = true, bool moved = false) {
+                              bool hasNewline = true, bool moved = false, bool fullContent = false) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
@@ -446,9 +454,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     // Format: "OldLn NewLn  <sign> content"
     // The dedicated sign column makes add/del/context scannable without
     // relying on background color alone.
-    std::string label = diff_detail::pad_gutter(oldNum) + " "
-                      + diff_detail::pad_gutter(newNum)
-                      + "  " + sign + " " + content;
+    std::string gutter = code_gutter::prefix(oldNum, newNum, sign, fullContent);
+    std::string label = gutter + content;
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
     auto lineDiv = div(ctx, mk(parent, id),
@@ -474,7 +481,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         // frame can hit-test drags and the copy action can extract text.
         Rectangle r = afterhours::ui::detail::apply_scroll_offset(
             lineDiv.ent(), lineDiv.ent().get<afterhours::ui::UIComponent>().rect());
-        float prefixW = diff_sel::mw(*sel, label.substr(0, diff_sel::CONTENT_START));
+        float prefixW = diff_sel::mw(*sel, gutter);
         float cx0 = r.x + sel->padLeftPx + prefixW;
         diff_sel::render_changed_range(ctx, lineDiv.ent(), *sel, content,
                                        sel->padLeftPx + prefixW, changed, prefix == '-');
@@ -796,14 +803,14 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
                              changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
                              !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())),
-                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())));
+                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())), fileDiff.isFullContent);
         } else if (vp->visible(diff_detail::code_line_height())) {
             vp->flush(ctx, parent, nextId);
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
                              changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
                              !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())),
-                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())));
+                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())), fileDiff.isFullContent);
             vp->built(diff_detail::code_line_height());
         } else {
             // Offscreen: advance line-number counters so gutters stay correct
@@ -847,7 +854,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     }
 
     if (moved) bg = afterhours::Color{35, 55, 85, 255};
-    std::string label = pad_gutter(num) + "  " + sign + " " + content;
+    std::string label = code_gutter::pad(num) + "  " + sign + " " + content;
 
     auto cfg = ComponentConfig{}
         .with_size(ComponentSize{percent(0.5f), h720(code_line_height())})
@@ -1076,6 +1083,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         ecs::ReviewComponent* review = nullptr,
                         const std::string& reviewScope = "wt",
                         Entity* findParent = nullptr) {
+    if (!diffs.empty() && diffs.front().isFullContent) sideBySide = false;
     int nextId = diff_detail::BASE_ID;
     std::string imageContext = repoPath + "\n" + reviewScope;
     if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
@@ -1218,7 +1226,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // When embedded, attach directly to parent; otherwise create our own scroll wrapper.
     // We always resolve contentParent to the entity that will own the diff rows.
     Entity* contentParent = &parent;
-    float stickyHeight = diffs.empty() ? 0.f : 24.f;
+    float stickyHeight = diffs.empty() || diffs.front().isFullContent ? 0.f : 24.f;
     auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}
         .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::SECTION_HEADER_BG));
     if (!embedInParentScroll) {
@@ -1250,7 +1258,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         float width = diff_metrics().width(file, sess.fontSize, sess.visibleWhitespace, sideBySide,
             [&](const std::string& line) {
                 float measured = diff_sel::mw(sess, code_highlight::display_text(line, sess.visibleWhitespace, true) +
-                    std::string(sideBySide ? 10 : 16, ' ')) + (sess.visibleWhitespace ? 90.f : 24.f);
+                    std::string(file.isFullContent ? 8 : sideBySide ? 10 : 16, ' ')) + (sess.visibleWhitespace ? 90.f : 24.f);
                 return sideBySide ? measured * 2.f : measured;
             });
         codeWidth = std::max(codeWidth, width);
@@ -1396,31 +1404,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     std::vector<ContextLocation> contextLocations;
     for (auto& fileDiff : diffs) {
         contextLocations.push_back({vp.curY, &fileDiff, nullptr});
-        // File header bar
-        std::string fileLabel = fileDiff.filePath;
-        if (fileDiff.isRenamed && !fileDiff.oldPath.empty()) {
-            fileLabel = fileDiff.oldPath + " -> " + fileDiff.filePath;
-        }
-
-        std::string statsLabel;
-        if (fileDiff.additions > 0) {
-            statsLabel += "+" + std::to_string(fileDiff.additions);
-        }
-        if (fileDiff.deletions > 0) {
-            if (!statsLabel.empty()) statsLabel += " ";
-            statsLabel += "-" + std::to_string(fileDiff.deletions);
-        }
-        if (!statsLabel.empty()) {
-            fileLabel += "  " + statsLabel;
-        }
-
-        if (fileDiff.isNew) {
-            fileLabel += "  (new file)";
-        } else if (fileDiff.isDeleted) {
-            fileLabel += "  (deleted)";
-        } else if (fileDiff.isBinary) {
-            fileLabel += "  (binary)";
-        }
+        std::string fileLabel = diff_detail::file_header_label(fileDiff);
 
         vp.flush(ctx, *contentParent, nextId);
         int fileHeaderRowId = nextId++;
@@ -1734,14 +1718,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // reflects the full diff height, not just what was built.
     vp.flush(ctx, *contentParent, nextId);
 
-    if (!contextLocations.empty()) {
+    if (stickyHeight > 0.f && !contextLocations.empty()) {
         auto current = contextLocations.front();
         float scrollY = vp.scroll ? vp.scroll->scroll_offset.y : 0.f;
         for (const auto& location : contextLocations) {
             if (location.y > scrollY) break;
             current = location;
         }
-        std::string label = current.file->filePath;
+        std::string label = diff_detail::file_header_label(*current.file);
         if (current.hunk) label += "   " + current.hunk->header;
         auto stickyLabel = div(ctx, mk(stickyHost.ent(), 0), ComponentConfig{}.with_label(label)
             .with_size(ComponentSize{w, pixels(stickyHeight)}).with_font_size(FontSize::Small)

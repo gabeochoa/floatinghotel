@@ -1,0 +1,12 @@
+resize 1280 800
+wait_for_refresh
+click_text consolidated.txt
+wait_frames 5
+click_text Side-by-Side
+wait_frames 5
+click_ui open_full_file
+wait_for_refresh
+assert_ui full_file_header hidden=false
+expect_no_text "    1     1"
+expect_text "    1  "
+screenshot item_48_single_gutter
