@@ -500,6 +500,14 @@ machine's daemons, not the app.
 - App workaround: `tests/review_50/item_01.e2e` takes `item_01_commit_again` before the repeated open, then asserts `full_file_header`. Text assertions alone can match code in the wrong view.
 - Maintainer request: expose a render-generation checkpoint for UI commands, or document the required render boundary when a host batches logic ticks. A target command should wait for the current view generation rather than use an earlier drawn view.
 
+### E2E property assertions do not parse quoted values
+
+- Status: reproduced during review item 21 on b385dc9.
+- Reproduction: `assert_ui file_header_label "text=a-small.cpp  +1  (new file)"` fails with `unknown property '"text'`. The failing run is `/tmp/fh-item21.log`; the header itself is correct in the screenshot.
+- Boundary: the default argument parser in `src/plugins/e2e_testing/runner.h` splits with `iss >> arg`. `assert_ui` has no quoted-argument branch, so `parse_prop_assertion` in `ui_commands.h` receives the leading quote as part of the property name.
+- App workaround: use space-free property assertions for sidebar order, unit checks for ordering, and screenshot inspection for the multiword header.
+- Maintainer request: share a quoted-argument tokenizer across commands, with tests for spaces, escaped quotes, and backslashes in property values.
+
 ### Synchronized scroll views — RESOLVED upstream (dd579a4), and not needed here
 `HasScrollView::sync_group` — give two or more views the same non-zero id and
 scrolling any one moves the rest, on their enabled axes only.

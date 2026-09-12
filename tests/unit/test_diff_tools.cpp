@@ -9,6 +9,8 @@
 #include "../../src/util/navigation.h"
 #include "../../src/util/wrap_text.h"
 #include "../../src/util/visible_rows.h"
+#include "../../src/util/file_content.h"
+#include <unistd.h>
 
 TEST(message_row_window_is_bounded_at_top_middle_and_end) {
     for (float offset : {0.f, 20000.f, 179500.f}) {
@@ -20,6 +22,27 @@ TEST(message_row_window_is_bounded_at_top_middle_and_end) {
     ASSERT_EQ(visible_rows(10000, 18.f, 100.f, 180000.f, 800.f).second, 10000u);
     ASSERT_EQ(visible_rows(0, 18.f, 100.f, 0.f, 800.f).second, 0u);
     ASSERT_EQ(visible_rows(10000, 0.f, 0.f, 0.f, 0.f).second, 100u);
+}
+
+TEST(symlink_reader_returns_target_text_without_following_it) {
+    char pattern[] = "/tmp/fh-link-unit.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    auto path = std::filesystem::path(directory) / "link";
+    std::filesystem::create_symlink("missing-target", path);
+    auto result = file_content::read_working_file(path);
+    ASSERT_TRUE(result.error.empty());
+    ASSERT_EQ(result.mode, "120000");
+    ASSERT_EQ(result.bytes, "missing-target");
+    std::filesystem::remove(path);
+    std::filesystem::remove(directory);
+}
+
+TEST(file_mode_lookup_uses_exact_nul_terminated_paths) {
+    constexpr char bytes[] = "100644 blob abc\tother\0" "120000 blob def\todd:name\0";
+    auto records = std::string(bytes, sizeof(bytes) - 1);
+    ASSERT_EQ(file_content::mode_for_path(records, "odd:name"), "120000");
+    ASSERT_TRUE(file_content::mode_for_path(records, "odd").empty());
 }
 
 TEST(tooltip_wrapping_preserves_all_text_and_utf8_glyphs) {

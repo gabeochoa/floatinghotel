@@ -1,4 +1,5 @@
 #include "content_reader.h"
+#include "../util/file_content.h"
 
 #include <filesystem>
 #include <array>
@@ -29,27 +30,32 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
 
 ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop) {
     ecs::FullFileContent content;
+    std::string mode;
     if (stop.stop_requested()) { content.error = "File load cancelled"; return content; }
     if (request.revision.empty()) {
-        std::ifstream input(std::filesystem::path(request.repo) / request.path, std::ios::binary);
-        if (!input) content.error = "Unable to read working-tree file";
-        else {
-            std::array<char, 65536> buffer;
-            while (input && !stop.stop_requested()) {
-                input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-                content.raw.append(buffer.data(), static_cast<size_t>(input.gcount()));
-            }
-            if (input.bad()) content.error = "Unable to finish reading working-tree file";
-        }
+        auto result = file_content::read_working_file(std::filesystem::path(request.repo) / request.path, stop);
+        content.raw = std::move(result.bytes);
+        mode = std::move(result.mode);
+        content.error = std::move(result.error);
     } else {
         std::string spec = request.revision == "INDEX" ? ":" + request.path
                           : request.revision + ":" + request.path;
         auto result = git_run(request.repo, {"show", spec}, stop);
         if (result.success()) content.raw = std::move(result.raw.stdout_str);
         else content.error = result.stderr_str();
+        if (content.error.empty()) {
+            auto modes = git_run(request.repo, request.revision == "INDEX"
+                ? std::vector<std::string>{"ls-files", "--stage", "-z", "--", ":(literal)" + request.path}
+                : std::vector<std::string>{"ls-tree", "-z", request.revision, "--", ":(literal)" + request.path}, stop);
+            if (modes.success()) mode = file_content::mode_for_path(modes.stdout_str(), request.path);
+            else content.error = modes.stderr_str();
+        }
     }
     if (stop.stop_requested()) content.error = "File load cancelled";
-    if (content.error.empty()) content.diff = parse_complete_file(request.path, content.raw);
+    if (content.error.empty()) {
+        content.diff = parse_complete_file(request.path, content.raw);
+        content.diff.oldMode = content.diff.newMode = mode;
+    }
     return content;
 }
 

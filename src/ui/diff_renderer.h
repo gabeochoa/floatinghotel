@@ -1575,6 +1575,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
 
+        if (fileDiff.oldMode == "120000" || fileDiff.newMode == "120000") {
+            vp.flush(ctx, *contentParent, nextId);
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+                .with_label("Symbolic link target · target text only, link not followed")
+                .with_size(ComponentSize{w, h720(28)}).with_font_size(FontSize::Small)
+                .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("symlink_target_notice"));
+            vp.built(28.f);
+        }
         if (fileDiff.oldMode != fileDiff.newMode) {
             std::string modeLabel = "File mode: " + (fileDiff.oldMode.empty() ? "absent" : fileDiff.oldMode) +
                 " -> " + (fileDiff.newMode.empty() ? "absent" : fileDiff.newMode);

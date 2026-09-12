@@ -1,0 +1,21 @@
+resize 1440 900
+wait_for_refresh
+click_text shortcut
+expect_text "Symbolic link target"
+click_ui open_full_file
+wait_for_refresh
+assert_ui full_file_header hidden=false
+expect_text "Symbolic link target"
+expect_text "target.txt"
+expect_no_text "PRIVATE_TARGET_CONTENT"
+screenshot item_32_working_link
+click_ui full_file_back
+click_text baseline
+wait_for_refresh
+click_ui open_full_file
+wait_for_refresh
+assert_ui full_file_header hidden=false
+expect_text "missing-target"
+expect_text "Symbolic link target"
+expect_no_text "PRIVATE_TARGET_CONTENT"
+screenshot item_32_historical_link
