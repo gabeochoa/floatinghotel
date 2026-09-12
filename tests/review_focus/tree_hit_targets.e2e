@@ -1,0 +1,77 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+mouse_move 1100 25
+screenshot review_tree
+click 80 244
+wait_for_refresh
+validate selected_file=main.cpp
+screenshot review_main_selected
+click 80 216
+wait_for_refresh
+validate selected_file=README.md
+screenshot review_readme_selected
+click 50 272
+wait_frames 5
+screenshot review_collapsed
+validate ui_present:jump_to_diff:src/app.cpp=false
+click 50 272
+wait_frames 5
+screenshot review_expanded
+click 80 300
+wait_for_refresh
+validate selected_file=src/app.cpp
+screenshot review_app_selected
+click_ui sidebar_working_files
+native_menu_action "Tree View"
+click_ui review_workspace_toggle
+wait_frames 5
+screenshot working_tree
+click 80 296
+wait_for_refresh
+validate selected_file=main.cpp
+screenshot working_main_selected
+click 80 268
+wait_for_refresh
+validate selected_file=README.md
+screenshot working_readme_selected
+click 50 324
+wait_frames 5
+screenshot working_collapsed
+click 50 324
+wait_frames 5
+screenshot working_expanded
+click 80 352
+wait_for_refresh
+validate selected_file=src/app.cpp
+screenshot working_app_selected
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 5
+screenshot working_zoomed
+click 100 390
+wait_for_refresh
+validate selected_file=main.cpp
+screenshot zoom_main_selected
+click 100 350
+wait_for_refresh
+validate selected_file=README.md
+screenshot zoom_readme_selected
+mouse_move 180 420
+scroll_wheel 0 -1000
+wait_frames 30
+screenshot zoom_scrolled
+click 100 440
+wait_for_refresh
+validate selected_file=src/app.cpp
+screenshot scrolled_app_selected
+click 100 362
+wait_for_refresh
+validate selected_file=main.cpp
+screenshot scrolled_main_selected
+click 100 336
+wait_for_refresh
+validate selected_file=README.md
+screenshot scrolled_clipped_readme_selected
