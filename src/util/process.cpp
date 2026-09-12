@@ -189,14 +189,14 @@ ProcessResult run_process(const std::string& working_dir,
     return result;
 }
 
-std::future<ProcessResult> run_process_async(
+async_work::Task<ProcessResult> run_process_async(
     const std::string& working_dir, const std::vector<std::string>& args,
     std::function<void(const std::string&)> on_output) {
-    return std::async(std::launch::async, [working_dir, args, on_output]() {
-        auto result = run_process(working_dir, args);
+    return async_work::launch([working_dir, args, on_output](std::stop_token stop) {
+        auto result = run_process(working_dir, args, 60000, stop);
         if (on_output && !result.stdout_str.empty()) {
             on_output(result.stdout_str);
         }
         return result;
-    });
+    }, async_work::Priority::Foreground, ProcessResult{"", "Background queue is full", -1});
 }

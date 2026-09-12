@@ -288,7 +288,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::string baselineHead;     // HEAD sha captured on Embark
     std::string baselineDiffSig;  // signature of the working diff on Embark
     std::string baselineSnapshot;
-    std::shared_future<git::GitResult> snapshotFuture;
+    async_work::Task<git::GitResult> snapshotFuture;
     bool snapshotCapturing = false;
     int snapshotContext = 3;
     bool snapshotIgnoreWhitespace = false;

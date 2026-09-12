@@ -5,6 +5,7 @@
 #include <string>
 #include <stop_token>
 #include <vector>
+#include "async_task.h"
 
 struct ProcessResult {
     std::string stdout_str;
@@ -22,6 +23,6 @@ ProcessResult run_process(const std::string& working_dir,
                           int timeout_ms = 0, std::stop_token stop = {});
 
 // Asynchronous -- for slow git operations (push, pull, fetch)
-std::future<ProcessResult> run_process_async(
+async_work::Task<ProcessResult> run_process_async(
     const std::string& working_dir, const std::vector<std::string>& args,
     std::function<void(const std::string&)> on_output = nullptr);

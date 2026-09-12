@@ -18,7 +18,7 @@ inline void start_review_snapshot(RepoComponent& repo, ReviewComponent& review, 
     auto path = capture ? review_store::review_path(repo.repoPath, review.storageScope) + ".baseline.cbor" : review.baselineSnapshot;
     if (capture && app_state::testModeEnabled) path = repo.repoPath + "/.git/floatinghotel-baseline.cbor";
     review.snapshotFuture = review_store::snapshot_async(repo.repoPath, path, repo.headCommitHash,
-        capture, repo.diffContext, repo.ignoreWhitespace).share();
+        capture, repo.diffContext, repo.ignoreWhitespace);
 }
 
 inline void poll_review_snapshot(ReviewComponent& review) {

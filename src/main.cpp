@@ -745,6 +745,8 @@ static void app_frame() {
 
 // Cleanup callback: runs when window is closing
 static void app_cleanup() {
+    async_work::executor().shutdown();
+    git::set_log_callback(nullptr);
     ui::image_diff::clear();
     // Batch all cleanup mutations into a single disk write
     Settings::get().auto_save_enabled = false;

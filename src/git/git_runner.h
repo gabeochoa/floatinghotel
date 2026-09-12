@@ -68,7 +68,8 @@ bool take_prefetched(const std::string& repo_path, PrefetchedReads& out);
 
 async_work::Task<GitResult> git_run_async(
     const std::string& repo_path,
-    const std::vector<std::string>& args);
+    const std::vector<std::string>& args,
+    async_work::Priority priority = async_work::Priority::Foreground);
 
 // --- Convenience wrappers ---
 

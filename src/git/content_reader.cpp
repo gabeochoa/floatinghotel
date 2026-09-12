@@ -56,7 +56,7 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
 async_work::Task<ecs::FullFileContent> read_file_async(FileRequest request) {
     return async_work::launch([request = std::move(request)](std::stop_token stop) {
         return read_file(request, stop);
-    });
+    }, async_work::Priority::Foreground, ecs::FullFileContent{{}, {}, "Background queue is full; reopen the file to retry"});
 }
 
 }

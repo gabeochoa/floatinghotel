@@ -61,7 +61,10 @@ static void disable_git_prompts_once() {
     });
 }
 
-void set_log_callback(LogCallback cb) { g_log_callback = cb; }
+void set_log_callback(LogCallback cb) {
+    std::lock_guard lock(g_log_mutex);
+    g_log_callback = std::move(cb);
+}
 
 namespace {
 
@@ -75,11 +78,10 @@ std::string build_command_string(
     return result;
 }
 
-// Run a sync git_* function on a detached background thread. Keeps the async
-// wrappers as one-liners so argument lists live in one place (the sync fns).
 template <class Fn, class... Args>
 async_work::Task<GitResult> spawn(Fn fn, Args... args) {
-    return async_work::launch([=](std::stop_token stop) { return fn(args..., stop); });
+    return async_work::launch([=](std::stop_token stop) { return fn(args..., stop); },
+        async_work::Priority::Background, GitResult{{"", "Background queue is full; refresh to retry", -1}});
 }
 
 }  // namespace
@@ -108,7 +110,8 @@ async_work::Task<RevisionComparison> git_compare_async(const std::string& repo,
         args.insert(args.end(), {out.base, out.target, "--"});
         out.patch = git_run(repo, args, stop);
         return out;
-    });
+    }, async_work::Priority::Foreground,
+        RevisionComparison{GitResult{{"", "Background queue is full; compare again to retry", -1}}, {}, {}});
 }
 
 GitResult git_run(const std::string& repo_path,
@@ -149,8 +152,9 @@ GitResult git_run(const std::string& repo_path,
     log_info("git: {} ms (waited {} ms for lock): git {}", ms(t2 - t1),
              ms(t1 - t0), args.empty() ? std::string() : args[0]);
 
-    if (g_log_callback) {
+    {
         std::lock_guard lock(g_log_mutex);
+        if (g_log_callback)
         g_log_callback(build_command_string(cmd), result.stdout_str(),
                        result.stderr_str(), result.success());
     }
@@ -160,10 +164,10 @@ GitResult git_run(const std::string& repo_path,
 
 async_work::Task<GitResult> git_run_async(
     const std::string& repo_path,
-    const std::vector<std::string>& args) {
+    const std::vector<std::string>& args, async_work::Priority priority) {
     return async_work::launch([repo_path, args](std::stop_token stop) {
         return git_run(repo_path, args, stop);
-    });
+    }, priority, GitResult{{"", "Background queue is full; retry the action", -1}}, is_read_only(args));
 }
 
 // --- Startup prefetch ---

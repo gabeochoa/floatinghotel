@@ -121,12 +121,10 @@ git::GitResult snapshot(const std::string& repo, const std::string& path, const 
 
 }
 
-std::future<git::GitResult> snapshot_async(std::string repo, std::string path,
+async_work::Task<git::GitResult> snapshot_async(std::string repo, std::string path,
     std::string head, bool capture, int context, bool ignoreWhitespace) {
-    std::packaged_task<git::GitResult()> task([=] { return snapshot(repo, path, head, capture, context, ignoreWhitespace); });
-    auto future = task.get_future();
-    std::thread(std::move(task)).detach();
-    return future;
+    return async_work::launch([=](std::stop_token) { return snapshot(repo, path, head, capture, context, ignoreWhitespace); },
+        async_work::Priority::Foreground, git::GitResult{{"", "Background queue is full; retry snapshot", -1}}, false);
 }
 
 }
