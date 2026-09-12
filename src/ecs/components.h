@@ -908,6 +908,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     int diffFindIndex = 0;
     int diffFindNavigate = 0;
     static constexpr float kDefaultSidebarWidth = 280.0f;
+    static constexpr float kCommitSplitterHeight = 16.f;
     float sidebarWidth = kDefaultSidebarWidth;
     float sidebarMinWidth = 200.0f;
     float commitLogRatio = 0.4f;

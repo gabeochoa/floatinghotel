@@ -1,0 +1,97 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+screenshot commit_splitter_100
+dump_ui splitter sidebar_h_divider
+dump_ui files review_changed_files
+dump_ui history sidebar_log
+validate ui_height:sidebar_h_divider=16.0
+validate ui_height:sidebar_h_divider_line=1.0
+validate ui_height:review_changed_files=340.8
+mouse_down 140 501
+wait_frames 5
+validate ui_height:review_changed_files=340.8
+mouse_move 140 551
+wait_frames 5
+validate ui_height:review_changed_files=390.8
+wait_frames 15
+validate ui_height:review_changed_files=390.8
+mouse_move 140 521
+wait_frames 5
+validate ui_height:review_changed_files=360.8
+mouse_up
+wait_frames 5
+screenshot commit_splitter_dragged
+click_ui commit_row
+wait_frames 10
+wait_for_refresh
+screenshot commit_splitter_commit_open
+validate active_content=Review
+validate ui_present:commit_detail_subject=true
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 5
+screenshot commit_splitter_140
+validate ui_height:sidebar_h_divider=22.4
+dump_ui splitter_zoom sidebar_h_divider
+dump_ui files_zoom review_changed_files
+validate ui_height:review_changed_files=301.9
+mouse_down 196 543
+wait_frames 5
+validate ui_height:review_changed_files=301.9
+mouse_move 196 603
+wait_frames 5
+validate ui_height:review_changed_files=361.9
+mouse_move 196 523
+wait_frames 5
+validate ui_height:review_changed_files=281.9
+mouse_up
+wait_frames 5
+screenshot commit_splitter_zoom_dragged
+validate ui_in_viewport:sidebar_worktree_status=true
+validate footer_fixed=true
+key CMD+0
+wait_frames 5
+click_ui sidebar_working_files
+screenshot commit_splitter_files
+validate ui_height:sidebar_h_divider=16.0
+dump_ui splitter_files sidebar_h_divider
+dump_ui files_list sidebar_files
+assert_ui sidebar_files h=60
+mouse_down 140 480
+wait_frames 5
+assert_ui sidebar_files h=60
+mouse_move 140 530
+wait_frames 5
+assert_ui sidebar_files h=110
+mouse_move 140 480
+wait_frames 5
+assert_ui sidebar_files h=60
+mouse_up
+wait_frames 5
+click_ui sidebar_review
+screenshot commit_splitter_limits
+mouse_down 140 507
+wait_frames 5
+mouse_move 140 790
+wait_frames 5
+validate ui_height:review_changed_files=454.4
+mouse_move 140 770
+wait_frames 5
+validate ui_height:review_changed_files=434.4
+mouse_move 140 0
+wait_frames 5
+validate ui_height:review_changed_files=113.6
+mouse_move 140 20
+wait_frames 5
+validate ui_height:review_changed_files=133.6
+mouse_up
+wait_frames 5
+screenshot commit_splitter_clamped
+validate ui_in_viewport:sidebar_worktree_status=true
+validate footer_fixed=true

@@ -740,3 +740,34 @@ The failing native checks are in
 `output/layout-followup/line-height-before/native.log`.
 The passing check in `output/layout-followup/line-height-after/native.log`
 measures 18 pixels at 100% zoom and 25.2 pixels at 140%.
+
+### Divider hit area and visible thickness share one rectangle
+
+`imm::divider` uses its component rectangle for both drawing and hit-testing.
+It has no separate hit-area inset. The app's one-pixel separator above commit
+history therefore had a one-pixel drag target. This was an app sizing mistake,
+not a failure of framework pointer capture.
+
+The app now composes a 16-logical-pixel divider with a centered one-pixel child
+line. This keeps the line thin without taking clicks from adjacent rows.
+Both sidebar modes use the framework's movement delta, divided by UI zoom,
+instead of snapping the split to the pointer's absolute position. The absolute
+position calculation was also an app bug. No vendor files are changed.
+
+An independent hit-area inset would make thin splitters easier to implement.
+The native regression script is `tests/review_focus/commit_splitter.e2e`.
+
+### Small-window sidebar rows shrink below their labels
+
+The related splitter checks still report overflow from `sync_caption` and
+the Changes, Staged, Untracked, and Refs tabs. In the Files sidebar at 800 × 480,
+the sync row shrinks to 6.6 pixels around a 14.7-pixel label. The mode-tab row
+shrinks to 5.3 pixels around 16-pixel labels. These warnings also occurred before
+the splitter change. Functional assertions pass, but that does not establish
+correct rendering at this size.
+
+Reproduce with `tests/e2e_scripts/flow_sidebar_scroll.e2e`. Current evidence is
+`output/commit-splitter/related.log`; earlier evidence is
+`output/layout-followup/final-flows.log`. No workaround is included in the
+splitter fix. The next investigation needs to distinguish app height budgeting
+from framework flex shrinking before assigning an upstream bug.

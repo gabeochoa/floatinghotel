@@ -232,6 +232,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float reclaimedH = 0.f;
         float filesH = 0.f;
         float commitsH = 0.f;
+        float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
 
         render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
         auto navigation = div(ctx, mk(sidebarRoot.ent(), 2080), ComponentConfig{}
@@ -349,46 +350,27 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }
 
-            // === Horizontal divider between files and commit log (flow child) ===
-            auto hDivider = div(ctx, mk(sidebarRoot.ent(), 2200),
-                ComponentConfig{}
-                    .with_size(ComponentSize{pixels(sidebarW), pixels(1)})
-                    .with_custom_background(theme::SIDEBAR_DIVIDER)
-                    .with_cursor(afterhours::ui::CursorType::ResizeV)
-                    .with_roundness(0.0f)
-                    .with_debug_name("sidebar_h_divider"));
-
-            // Make horizontal divider draggable (adjusts commit log ratio)
-            hDivider.ent().addComponentIfMissing<HasDragListener>(
-                [](Entity& /*e*/) {});
-            auto& hDrag = hDivider.ent().get<HasDragListener>();
-            if (hDrag.down) {
-                auto mousePos = afterhours::graphics::get_mouse_position();
-                float mouseY = static_cast<float>(mousePos.y) / zoom;
-                float contentTop = layout.sidebar.y;
-                float contentH = layout.sidebar.height;
-                float ratio = (mouseY - contentTop) / contentH;
-                float newCommitRatio = 1.0f - ratio;
-                newCommitRatio = std::clamp(newCommitRatio, 0.2f, 0.8f);
-
-                auto* lc = find_singleton<LayoutComponent>();
-                if (lc) lc->commitLogRatio = newCommitRatio;
-            }
-
             commitsH = layout.sidebarLog.height + reclaimedH;
         } else {
-            float available = std::max(0.f, layout.sidebar.height - repoHeaderH - 33.f);
-            commitsH = std::max(0.f, available * layout.commitLogRatio);
-            render_commit_files(ctx, sidebarRoot.ent(), repoPtr, available - commitsH);
-            auto divider = div(ctx, mk(sidebarRoot.ent(), 2200), ComponentConfig{}
-                .with_size(ComponentSize{percent(1.f), pixels(1)})
-                .with_custom_background(theme::BORDER).with_cursor(afterhours::ui::CursorType::ResizeV)
+            splitAvailable = std::max(0.f, splitAvailable - repoHeaderH - 32.f);
+            commitsH = splitAvailable * layout.commitLogRatio;
+            render_commit_files(ctx, sidebarRoot.ent(), repoPtr, splitAvailable - commitsH);
+        }
+        auto divider = afterhours::ui::imm::divider(ctx, mk(sidebarRoot.ent(), 2200), Axis::Y,
+            ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(LayoutComponent::kCommitSplitterHeight)})
+                .with_custom_background(theme::SIDEBAR_BG)
+                .with_justify_content(JustifyContent::Center)
+                .with_flex_direction(FlexDirection::Column)
+                .with_roundness(0.f)
                 .with_debug_name("sidebar_h_divider"));
-            divider.ent().addComponentIfMissing<HasDragListener>([](Entity&) {});
-            if (divider.ent().get<HasDragListener>().down && available > 0.f) {
-                float offset = ctx.mouse.pos.y / zoom - layout.sidebar.y - repoHeaderH;
-                layout.commitLogRatio = std::clamp(1.f - offset / available, 0.2f, 0.8f);
-            }
+        div(ctx, mk(divider.ent(), 0), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(1)})
+            .with_custom_background(theme::BORDER)
+            .with_debug_name("sidebar_h_divider_line"));
+        if (divider && splitAvailable > 0.f) {
+            layout.commitLogRatio = std::clamp(
+                layout.commitLogRatio - divider.as<float>() / (zoom * splitAvailable), 0.2f, 0.8f);
         }
         auto logBg = div(ctx, mk(sidebarRoot.ent(), 2300),
             ComponentConfig{}

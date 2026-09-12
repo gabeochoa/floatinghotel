@@ -115,7 +115,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         layout.menuBar = {0, tabStripH, sidebarOnly ? sidebarW : width, menuH};
         layout.toolbar = {0, tabStripH + menuH, width, toolbarH};
         layout.sidebar = sidebarW > 0.f ? LayoutComponent::Rect{0, topY, sidebarW, bodyH} : LayoutComponent::Rect{};
-        const float sidebarDividerH = std::min(5.f, bodyH);
+        const float sidebarDividerH = std::min(LayoutComponent::kCommitSplitterHeight, bodyH);
         const float usableSidebarH = bodyH - sidebarDividerH;
         const float commitsH = usableSidebarH * std::clamp(layout.commitLogRatio, 0.f, 1.f);
         const float filesH = usableSidebarH - commitsH;
