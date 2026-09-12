@@ -1045,3 +1045,13 @@ caption or path can therefore paint underneath neighboring controls despite
 container, and file-title groups clip before the action cluster. This keeps
 the controls clear but truncates styled text without an ellipsis. Upstream
 should truncate the styled runs while retaining their colors and weights.
+
+### Expanding immediate-mode controls can warn before the next layout pass
+
+The browsing regression run logged `review_file_filters` extending beyond
+`commit_find_host` when Options opened. The host height was calculated before
+the button changed `diffOptionsOpen`; the child rows saw the new state in the
+same frame. The next frame calculates the expanded height. This is an app
+ordering issue exposed by immediate-mode construction, not a persistent
+overflow or proof of a framework defect. A layout invalidation or deferred
+state-change convention would make these transitions easier to reason about.
