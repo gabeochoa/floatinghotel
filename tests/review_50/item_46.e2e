@@ -1,0 +1,33 @@
+resize 1280 800
+wait_for_refresh
+click_text "contextual.txt"
+wait_frames 5
+expect_no_text "base line 10"
+right_click_ui hunk_header_row
+wait_frames 2
+assert_ui context_menu hidden=false
+expect_text "Copy hunk"
+expect_text "Show surrounding lines"
+screenshot item_46_context_menu
+click_ui "context_menu_item_Show surrounding lines"
+wait_for_refresh
+expect_text "base line 10"
+screenshot item_46_context_applied
+click_text Enter review workspace
+screenshot item_46_workspace
+right_click_ui hunk_header_row
+screenshot item_46_workspace_menu
+expect_text Approve hunk
+expect_no_text Stage hunk
+new_tab
+screenshot item_46_other_tab
+click_text Approve hunk
+screenshot item_46_stale_action
+close_tab
+screenshot item_46_back
+click_text contextual.txt
+screenshot item_46_file_again
+right_click_ui hunk_header_row
+screenshot item_46_still_unapproved
+expect_text Approve hunk
+key ESCAPE

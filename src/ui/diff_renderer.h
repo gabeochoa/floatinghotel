@@ -6,6 +6,7 @@
 #include "code_highlight.h"
 #include "token_cache.h"
 #include "diff_metrics.h"
+#include "context_menu.h"
 #include "image_diff.h"
 #include "reading_position.h"
 #include "../util/review_selection.h"
@@ -605,7 +606,68 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                                              : diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
+    hunkRow.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
     if (vp) vp->built(diff_detail::hunk_header_height());
+    if (ctx.is_right_click(hunkRow.ent().id)) {
+        std::vector<ContextMenuItem> items;
+        auto* owner = ecs::find_singleton_entity<ecs::RepoComponent, ecs::ActiveTab>();
+        auto currentTab = [ownerId = owner ? std::optional(owner->id) : std::nullopt]() -> Entity* {
+            auto* active = ecs::find_singleton_entity<ecs::RepoComponent, ecs::ActiveTab>();
+            return ownerId && active && active->id == *ownerId && !active->cleanup ? active : nullptr;
+        };
+        if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent) {
+            items.push_back(ContextMenuItem::item("Show surrounding lines", [currentTab] {
+                if (auto* tab = currentTab()) {
+                    auto* repo = &tab->get<ecs::RepoComponent>();
+                    repo->diffContext = std::min(10000, repo->diffContext + 20);
+                    repo->refreshRequested = true;
+                    repo->cachedFilePath.clear();
+                    if (tab->has<ecs::CommitDetailCache>()) tab->get<ecs::CommitDetailCache>().cachedCommitHash.clear();
+                }
+            }));
+        }
+        items.push_back(ContextMenuItem::item("Copy hunk", [hunk] {
+            afterhours::clipboard::set_text(diff_detail::hunk_to_text(hunk));
+        }));
+        if (reviewOn) {
+            auto currentReview = [currentTab, session = sel->review->storageScope, repoPath = sel->repoPath]() -> ecs::ReviewComponent* {
+                auto* tab = currentTab();
+                if (!tab || !tab->has<ecs::ReviewComponent>() || tab->get<ecs::RepoComponent>().repoPath != repoPath) return nullptr;
+                auto& review = tab->get<ecs::ReviewComponent>();
+                return review.storageScope == session ? &review : nullptr;
+            };
+            auto key = hkey;
+            bool approved = sel->review->approvedHunks.contains(key);
+            items.push_back(ContextMenuItem::item(approved ? "Unapprove hunk" : "Approve hunk", [currentReview, key, approved] {
+                auto* reviewPtr = currentReview();
+                if (!reviewPtr) return;
+                if (approved) reviewPtr->approvedHunks.erase(key);
+                else reviewPtr->approvedHunks.insert(key);
+                reviewPtr->dirty = true;
+            }));
+            if (sel->reviewScope == "wt" && owner && !owner->get<ecs::RepoComponent>().reviewWorkspace) {
+                auto fd = fileDiff;
+                auto repoPath = sel->repoPath;
+                items.push_back(ContextMenuItem::item("Stage hunk", [currentTab, currentReview, repoPath, fd, hunk] {
+                    auto* tab = currentTab();
+                    if (!tab || !currentReview() || tab->get<ecs::RepoComponent>().reviewWorkspace) return;
+                    auto res = fd.isSubmodule ? git::stage_file(repoPath, fd.filePath)
+                                              : git::stage_hunk(repoPath, fd, hunk);
+                    if (res.success()) {
+                        tab->get<ecs::RepoComponent>().refreshRequested = true;
+                    }
+                }));
+            }
+            int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
+            auto scope = sel->reviewScope;
+            auto path = fileDiff.filePath;
+            bool oldSide = hunk.newCount == 0;
+            items.push_back(ContextMenuItem::item("Comment on hunk", [currentReview, key, scope, path, line, oldSide, hunk] {
+                if (auto* review = currentReview()) begin_diff_comment(*review, key, {scope, path, line, "", line, oldSide}, hunk);
+            }));
+        }
+        show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+    }
 
     // The label takes what the action cluster (Copy/Comment/Approve) leaves.
     // This used to subtract a hardcoded reserve, because percent(1.0) took the
