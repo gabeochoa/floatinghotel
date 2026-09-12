@@ -676,3 +676,39 @@ each generated line. Adaptive layout applies zoom to that value again.
 The field clips overflow, but line sizing and wrapping should share one unit
 system. This upstream text-editor issue remains open; the review-focus changes
 do not copy or alter the text-input implementation.
+
+### Text inset is hardcoded and separate from component padding
+
+`draw_text_in_rect` in `src/plugins/ui/rendering.h` accepts `text_inset`,
+but positions single-line text with a hardcoded five-physical-pixel margin.
+`draw_runs_in_rect` duplicates that margin to align styled labels.
+Component padding affects absolute child positions, not the label's origin.
+
+Our selection code added eight pixels for label padding, then the layout engine
+added that padding again to the highlight child. A native source-view test
+placed the highlight at x=370 while the first character's advance starts at
+x=359. The same drag copied nine characters instead of ten. This padding
+assumption was an app bug.
+
+The app now gives code rows zero padding and shares a single content-origin
+calculation across hit-testing, selection, search, and intraline highlights.
+`diff_sel::content_x_offset` accounts for the renderer's fixed five-pixel inset
+without scaling it again. No vendor files are changed. Upstream should use the
+configured inset consistently and expose the resolved text origin for overlays
+and hit-testing, including both immediate and batched rendering paths.
+
+Reproduce with `nice -n 10 bash tests/check_text_highlight.sh`.
+The failing baseline is in `output/text-highlight/before-exact/native.log`.
+
+### Temporary-entity query diagnostics during tab and zoom checks
+
+The passing native tab and zoom checks still log `query will miss 1 ents in temp`.
+See `output/text-highlight/review-pinned/tabs.log` and `zoom.log`.
+`EntityQuery` emits this diagnostic when temporary entities exist and neither
+`force_merge` nor `ignore_temp_warning` is selected. The message does not identify
+the calling query or its component filters.
+
+No functional assertion fails in these checks. The responsible app query and
+whether it needs those pending entities have not been identified. No warning
+is suppressed and no framework workaround is applied. Including the query
+origin or filters in the diagnostic would make the caller actionable.

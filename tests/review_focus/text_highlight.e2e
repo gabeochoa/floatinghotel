@@ -1,0 +1,156 @@
+resize 1280 800
+wait_for_refresh
+click_ui sidebar_working_files
+screenshot files_navigation
+click_text sample.txt
+wait_for_refresh
+screenshot diff_before
+click_ui open_full_file
+wait_for_refresh
+mouse_move 1100 25
+screenshot source_before
+dump_ui source_geometry diff_line
+mouse_down 359 243
+wait_frames 3
+mouse_move 419 243
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot source_selection
+dump_ui selection_geometry diff_sel_hl
+validate diff_selected_text=0123456789
+assert_ui diff_sel_hl x=359
+assert_ui diff_sel_hl w=60
+mouse_down 419 243
+wait_frames 3
+mouse_move 359 243
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot source_reverse_selection
+validate diff_selected_text=0123456789
+assert_ui diff_sel_hl x=359
+assert_ui diff_sel_hl w=60
+key CMD+F
+wait_frames 5
+screenshot find_open
+click_ui diff_find_input
+type "3456"
+wait_frames 5
+screenshot source_find
+dump_ui source_find_geometry diff_find_match
+assert_ui diff_find_match x=377
+assert_ui diff_find_match w=24
+click_ui diff_find_close
+wait_frames 5
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 5
+mouse_move 1100 25
+screenshot source_zoom
+dump_ui source_zoom_geometry diff_line
+dump_ui selection_zoom_geometry diff_sel_hl
+validate ui_scale=1.40
+assert_ui diff_sel_hl x=505
+assert_ui diff_sel_hl w=90
+mouse_down 505 345
+wait_frames 3
+mouse_move 595 345
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot source_zoom_selection
+validate diff_selected_text=0123456789
+assert_ui diff_sel_hl x=505
+assert_ui diff_sel_hl w=90
+key CMD+F
+wait_frames 5
+screenshot source_zoom_find
+assert_ui diff_find_match x=532
+assert_ui diff_find_match w=36
+click_ui diff_find_close
+wait_frames 5
+key CMD+0
+wait_frames 5
+click_ui content_review_tab
+wait_frames 5
+screenshot unified
+dump_ui unified_geometry diff_line
+dump_ui unified_changes intraline_change
+assert_ui intraline_change x=431
+assert_ui intraline_change w=12
+mouse_down 407 259
+wait_frames 3
+mouse_move 467 259
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot unified_selection
+validate diff_selected_text=0123456789
+assert_ui diff_sel_hl x=407
+assert_ui diff_sel_hl w=60
+key CMD+F
+wait_frames 5
+screenshot unified_find
+assert_ui diff_find_match x=425
+assert_ui diff_find_match w=24
+click_ui diff_find_close
+wait_frames 5
+screenshot unified_find_closed
+click_text Split
+wait_frames 5
+screenshot split
+dump_ui split_geometry sbs_cell
+dump_ui split_changes intraline_change
+assert_ui intraline_change x=395
+assert_ui intraline_change w=12
+mouse_down 843 237
+wait_frames 3
+mouse_move 903 237
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot split_right_selection
+validate diff_selected_text=0123456789
+assert_ui diff_sel_hl x=843
+assert_ui diff_sel_hl w=60
+mouse_down 371 237
+wait_frames 3
+mouse_move 431 237
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot split_left_selection
+validate diff_selected_text=0123XX6789
+assert_ui diff_sel_hl x=371
+assert_ui diff_sel_hl w=60
+key CMD+F
+wait_frames 5
+screenshot split_find
+assert_ui diff_find_match x=861
+assert_ui diff_find_match w=24
+click_ui diff_find_close
+wait_frames 5
+click_ui content_source_tab
+wait_frames 5
+screenshot source_return
+mouse_move 800 600
+scroll_wheel 0 -20000
+wait_frames 20
+screenshot source_scrolled
+mouse_down 359 763
+wait_frames 3
+mouse_move 389 763
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot source_scrolled_selection
+dump_ui scrolled_selection_geometry diff_sel_hl
+validate diff_selected_text=row80
+assert_ui diff_sel_hl x=359
+assert_ui diff_sel_hl w=30

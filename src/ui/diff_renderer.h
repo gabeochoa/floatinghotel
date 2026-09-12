@@ -114,7 +114,6 @@ struct Session {
     bool enabled = false;
     afterhours::ui::TextMeasureCache* tmc = nullptr;
     float fontSize = 0.f;
-    float padLeftPx = 0.f;
     bool reviewActions = false;
     // Embedded (commit-detail) diffs are read-only: no keyboard review cursor.
     bool embedded = false;
@@ -126,6 +125,11 @@ struct Session {
 
 inline float mw(const Session& s, const std::string& t) {
     return s.tmc ? s.tmc->measure_width(t, "mono", s.fontSize) : 0.f;
+}
+
+inline float content_x_offset(const Session& s, const std::string& gutter) {
+    constexpr float afterhoursTextInsetPx = 5.f;
+    return afterhoursTextInsetPx + mw(s, gutter);
 }
 
 inline float code_mw(const Session& s, const std::string& raw) {
@@ -301,7 +305,6 @@ inline float code_line_height() {
     return Settings::get().get_code_font_size() + 8.f;
 }
 inline float hunk_header_height() { return std::max(24.f, Settings::get().get_code_font_size() + 8.f); }
-constexpr float CODE_PAD_LEFT = 8.0f;
 constexpr float COMMENT_COMPOSE_H = 104.0f;
 
 // A human-visible reason for a failed git op. Some failures (e.g. a lost
@@ -476,7 +479,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
                 .top = pixels(0), .right = pixels(0),
-                .bottom = pixels(0), .left = pixels(diff_detail::CODE_PAD_LEFT)})
+                .bottom = pixels(0), .left = pixels(0)})
             .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_roundness(0.0f)
             .with_debug_name("diff_line"));
@@ -487,17 +490,17 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         // frame can hit-test drags and the copy action can extract text.
         Rectangle r = afterhours::ui::detail::apply_scroll_offset(
             lineDiv.ent(), lineDiv.ent().get<afterhours::ui::UIComponent>().rect());
-        float prefixW = diff_sel::mw(*sel, gutter);
-        float cx0 = r.x + sel->padLeftPx + prefixW;
+        float prefixW = diff_sel::content_x_offset(*sel, gutter);
+        float cx0 = r.x + prefixW;
         diff_sel::render_changed_range(ctx, lineDiv.ent(), *sel, content,
-                                       sel->padLeftPx + prefixW, changed, prefix == '-');
+                                       prefixW, changed, prefix == '-');
         int lno = !newNum.empty() ? std::stoi(newNum)
                                   : (!oldNum.empty() ? std::stoi(oldNum) : 0);
         diff_sel::state().curLines.push_back(
             {lineDiv.ent().id, content, filePath, lno, r, cx0, 0, prefix,
              oldNum.empty() ? 0 : std::stoi(oldNum), newNum.empty() ? 0 : std::stoi(newNum)});
         if (diff_sel::found_line(sel, filePath, lno, prefix))
-            diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, sel->padLeftPx + prefixW);
+            diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, prefixW);
 
         // Draw the selection highlight for the covered column range, if any.
         auto it = diff_sel::state().hl.find(lineDiv.ent().id);
@@ -505,8 +508,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             int n = static_cast<int>(content.size());
             int a = std::min(it->second.first, n);
             int b = std::min(it->second.second, n);
-            float x0 = sel->padLeftPx + prefixW + diff_sel::code_mw(*sel, content.substr(0, a));
-            float x1 = sel->padLeftPx + prefixW + diff_sel::code_mw(*sel, content.substr(0, b));
+            float x0 = prefixW + diff_sel::code_mw(*sel, content.substr(0, a));
+            float x1 = prefixW + diff_sel::code_mw(*sel, content.substr(0, b));
             if (x1 > x0) {
                 // Translucent selection overlay. afterhours now alpha-blends div
                 // backgrounds, so a low-alpha box drawn OVER the already-rendered
@@ -935,7 +938,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         .with_alignment(TextAlignment::Left)
         .with_padding(Padding{
             .top = pixels(0), .right = pixels(0),
-            .bottom = pixels(0), .left = pixels(CODE_PAD_LEFT)})
+            .bottom = pixels(0), .left = pixels(0)})
         .with_roundness(0.0f)
         .with_debug_name("sbs_cell");
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
@@ -944,7 +947,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     if (sel && sel->enabled && kind != SbsKind::Empty) {
         auto rect = afterhours::ui::detail::apply_scroll_offset(
             cell.ent(), cell.ent().get<afterhours::ui::UIComponent>().rect());
-        float prefix = sel->padLeftPx + diff_sel::mw(*sel, label.substr(0, label.size() - content.size()));
+        float prefix = diff_sel::content_x_offset(*sel, label.substr(0, label.size() - content.size()));
         diff_sel::render_changed_range(ctx, cell.ent(), *sel, content, prefix, changed, kind == SbsKind::Del);
         diff_sel::state().curLines.push_back(
             {cell.ent().id, content, filePath, num.empty() ? 0 : std::stoi(num),
@@ -1440,7 +1443,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
         sess.tmc = &EntityHelper::get_singleton_cmp_enforce<
             afterhours::ui::TextMeasureCache>();
         sess.fontSize = Settings::get().get_code_font_size() * zoom::get();
-        sess.padLeftPx = diff_detail::CODE_PAD_LEFT * zoom::get();
         diff_sel::handle_mouse(ctx, sess); // update selection from prior frame
 
         // Cmd+C copies the current selection (keyboard path; the header button
