@@ -1,0 +1,51 @@
+resize 1440 900
+wait_for_refresh
+click_text Edit
+click_text Compare Revisions...
+click_ui compare_base
+type HEAD~2
+click_ui compare_target
+type HEAD
+click_ui compare_submit
+wait_for_refresh
+screenshot item_28_range
+click_ui review_range_commits
+wait_for_refresh
+screenshot item_28_loading
+wait_for_refresh
+screenshot item_28_first
+assert_ui commit_detail_subject text=StepOne
+expect_text original
+expect_text Queue 1/2 · 0 reviewed
+click_ui approve_file_btn
+screenshot item_28_file_approved
+click_ui finish_review
+screenshot item_28_verdict
+click_text Approved
+screenshot item_28_review_finished
+click_ui review_queue_complete
+screenshot item_28_next_loading
+wait_for_refresh
+screenshot item_28_second
+assert_ui commit_detail_subject text=StepTwo
+expect_text Queue 2/2 · 1 reviewed
+click_ui review_queue_previous
+screenshot item_28_back_loading
+wait_for_refresh
+screenshot item_28_back
+assert_ui commit_detail_subject text=StepOne
+click_ui finish_review
+screenshot item_28_reopen_menu
+click_text Reopen review
+screenshot item_28_reopened
+expect_text Queue 1/2 · 0 reviewed
+click_ui review_queue_next
+screenshot item_28_again_loading
+wait_for_refresh
+wait_frames 200
+screenshot item_28_next
+assert_ui commit_detail_subject text=StepTwo
+assert_no_overflow
+key ESCAPE
+screenshot item_28_exit
+expect_no_text Queue 2/2

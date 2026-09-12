@@ -399,6 +399,32 @@ TEST(unresolved_filter_intersects_path_facets_and_ignores_other_targets) {
     ASSERT_EQ(ecs::review_progress(review, "wt", files).total, size_t{2});
 }
 
+TEST(commit_review_queue_resumes_position_and_keeps_scope_isolated) {
+    ecs::CommitEntry first{std::string(40, 'a'), "aaaaaaa", "First"};
+    ecs::CommitEntry second{std::string(64, 'b'), "bbbbbbb", "Second"};
+    ecs::ReviewComponent review;
+    review.storageScope = "queue:base:target";
+    review.queue = {{first, second}, 1, {first.hash}};
+    const std::string repo = "/tmp/fh_review_queue_test";
+    ASSERT_TRUE(review_store::save_review(repo, review));
+    ecs::ReviewComponent restored;
+    restored.storageScope = review.storageScope;
+    review_store::load_review(repo, restored);
+    ASSERT_EQ(restored.queue.position, size_t{1});
+    ASSERT_EQ(restored.queue.commits[restored.queue.position].hash, second.hash);
+    ASSERT_EQ(restored.queue.completed, review.queue.completed);
+    auto reordered = ecs::refreshed_review_queue(restored.queue, {second, first});
+    ASSERT_EQ(reordered.position, size_t{0});
+    auto removed = ecs::refreshed_review_queue(restored.queue, {second});
+    ASSERT_TRUE(removed.completed.empty());
+    ASSERT_EQ(removed.position, size_t{0});
+    ecs::ReviewComponent unrelated;
+    unrelated.storageScope = "queue:other:target";
+    review_store::load_review(repo, unrelated);
+    ASSERT_TRUE(unrelated.queue.commits.empty());
+    std::filesystem::remove(review_store::review_path(repo, review.storageScope));
+}
+
 int main() {
     afterhours::files::init("floatinghotel_test", "resources");
     printf("=== review_store tests ===\n");

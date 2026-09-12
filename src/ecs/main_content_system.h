@@ -387,8 +387,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             auto* menu = find_singleton<MenuComponent>();
             bool menuOpen = menu && menu->activeMenuIndex >= 0;
             if (!menuOpen && repoPtr) {
-                repoPtr->selectedFilePath.clear();
-                repoPtr->selectedCommitHash.clear();
+                if (!repoPtr->reviewQueueScope.empty()) close_review_queue(*repoPtr);
+                else {
+                    repoPtr->selectedFilePath.clear();
+                    repoPtr->selectedCommitHash.clear();
+                }
             }
         }
 
@@ -446,8 +449,17 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
         if (reviewPtr && hasRepo) {
+            poll_review_queue(*repoPtr, *reviewPtr);
             poll_review_snapshot(*reviewPtr);
             persist_pending_review(ctx, *reviewPtr, repoPtr);
+        }
+        if (repoPtr && !repoPtr->reviewQueueScope.empty() && repoPtr->selectedCommitHash.empty()) {
+            div(ctx, mk(mainBg.ent(), 592000), ComponentConfig{}
+                .with_label(repoPtr->reviewQueueFuture.valid() ? "Loading review queue..." : repoPtr->reviewQueueError)
+                .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(FontSize::Small));
+            if (button(ctx, mk(mainBg.ent(), 592001), preset::Button("Close review queue")
+                    .with_size(ComponentSize{children(), pixels(30)}))) close_review_queue(*repoPtr);
+            return;
         }
         // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
         // gate and the ⌘⏎ send-all shortcut below.

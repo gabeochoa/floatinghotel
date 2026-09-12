@@ -14,6 +14,7 @@
 #include "../util/file_content.h"
 #include "../ecs/ui_imports.h"
 #include "diff_renderer.h"
+#include "review_queue.h"
 
 namespace ecs {
 
@@ -147,6 +148,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     ui::remember_reading_position(repo, scrollContainer.ent(), "commit:" + repo.selectedCommitHash +
         (layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide ? "\nsplit" : "\ninline"),
         !detailCache.patchFuture.valid() && !detailCache.infoFuture.valid());
+    if (review) render_review_queue(ctx, scrollContainer.ent(), nextId++, repo, *review, detailCache);
 
     auto backBtn = button(ctx, mk(scrollContainer.ent(), nextId++),
         preset::Button("<- Back")
@@ -183,7 +185,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_roundness(0.0f)
-            .with_debug_name("commit_subject"));
+            .with_debug_name("commit_detail_subject"));
     ui::set_tooltip(subjectLabel.ent(), selectedCommit->subject);
 
     // While reviewing, comments on a commit's hunks are scoped to its SHA and
@@ -691,7 +693,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = pixels(8), .bottom = pixels(8)})
                 .with_roundness(0.0f)
                 .with_debug_name("diff_sep"));
-
+    }
+    if (!detailCache.patchFuture.valid() && !detailCache.infoFuture.valid() && detailCache.commitDetailError.empty()) {
         ui::render_diff(ctx, scrollContainer.ent(),
                                detailCache.commitDetailDiff,
                                layout.mainContent.width,

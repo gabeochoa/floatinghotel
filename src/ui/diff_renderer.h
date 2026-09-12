@@ -1290,6 +1290,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                             auto* active = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
                             if (!active || active->storageScope != storage || active->storageRepoPath != path) return;
                             active->verdicts[scope] = {value, signature};
+                            if (value == ReviewVerdict::InProgress) active->queue.completed.erase(diff_target(scope).after);
                             active->dirty = true;
                         }, value != ReviewVerdict::Approved || counts.can_approve()));
                 show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));

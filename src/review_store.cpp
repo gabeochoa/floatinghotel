@@ -97,6 +97,10 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["verdicts"] = nlohmann::json::object();
     for (const auto& [scope, decision] : review.verdicts)
         j["verdicts"][scope] = {{"verdict", review_verdict_label(decision.verdict)}, {"signature", decision.signature}};
+    j["queue"] = {{"position", review.queue.position}, {"completed", review.queue.completed}, {"commits", nlohmann::json::array()}};
+    for (const auto& commit : review.queue.commits)
+        j["queue"]["commits"].push_back({{"hash", commit.hash}, {"short_hash", commit.shortHash}, {"subject", commit.subject},
+            {"author", commit.author}, {"author_date", commit.authorDate}, {"decorations", commit.decorations}, {"parents", commit.parentHashes}});
     j["folded_hunks"] = review.foldedHunks;
     j["seen_sig"] = review.seenSig;              // map<string,string> -> object
     j["baseline_head"] = review.baselineHead;
@@ -163,6 +167,21 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
             for (auto it = j["verdicts"].begin(); it != j["verdicts"].end(); ++it)
                 review.verdicts[it.key()] = {parse_review_verdict(it.value().value("verdict", std::string{})),
                     it.value().value("signature", std::string{})};
+        review.queue = {};
+        if (j.contains("queue")) {
+            const auto& queue = j["queue"];
+            review.queue.position = queue.value("position", size_t{0});
+            review.queue.completed = queue.value("completed", std::set<std::string>{});
+            if (queue.contains("commits"))
+                for (const auto& value : queue["commits"]) {
+                    auto hash = value.value("hash", std::string{});
+                    if ((hash.size() != 40 && hash.size() != 64) || hash.find_first_not_of("0123456789abcdef") != std::string::npos) continue;
+                    review.queue.commits.push_back({hash, value.value("short_hash", hash.substr(0, 7)), value.value("subject", std::string{}),
+                        value.value("author", std::string{}), value.value("author_date", std::string{}),
+                        value.value("decorations", std::string{}), value.value("parents", std::string{})});
+                }
+            review.queue = ecs::refreshed_review_queue(review.queue, review.queue.commits);
+        }
         review.foldedHunks = j.value("folded_hunks", std::set<std::string>{});
         review.seenSig =
             j.value("seen_sig", std::map<std::string, std::string>{});

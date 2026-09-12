@@ -700,6 +700,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                     repo->commitSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->comparisonFuture.valid() ||
                     repo->comparisonFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                refreshDone = refreshDone && (!repo->reviewQueueFuture.valid() ||
+                    repo->reviewQueueFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
             }
             const auto waited =
                 std::chrono::steady_clock::now() - app_state::refreshWaitStart;
@@ -863,7 +865,8 @@ static bool app_has_pending_work() {
                 frame_pacer::in_flight(repo.fullFileFuture) || frame_pacer::in_flight(repo.repoSearchFuture) ||
                 frame_pacer::in_flight(repo.repoSearchPreviewFuture) || frame_pacer::in_flight(repo.codeownersFuture) ||
                 frame_pacer::in_flight(repo.fileHistoryFuture) || frame_pacer::in_flight(repo.blameFuture) ||
-                frame_pacer::in_flight(repo.commitSearchFuture) || frame_pacer::in_flight(repo.comparisonFuture);
+                frame_pacer::in_flight(repo.commitSearchFuture) || frame_pacer::in_flight(repo.comparisonFuture) ||
+                frame_pacer::in_flight(repo.reviewQueueFuture);
         });
     if (pending) return true;
     afterhours::EntityQuery({.force_merge = true})

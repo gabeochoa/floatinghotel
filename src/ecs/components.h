@@ -108,6 +108,23 @@ struct DiffHunk {
     std::set<size_t> movedLines;
 };
 
+struct CommitReviewQueue {
+    std::vector<CommitEntry> commits;
+    size_t position = 0;
+    std::set<std::string> completed;
+};
+
+inline CommitReviewQueue refreshed_review_queue(const CommitReviewQueue& previous, std::vector<CommitEntry> commits) {
+    CommitReviewQueue result{std::move(commits), 0, previous.completed};
+    std::string current = previous.position < previous.commits.size() ? previous.commits[previous.position].hash : "";
+    for (size_t i = 0; i < result.commits.size(); ++i)
+        if (result.commits[i].hash == current) result.position = i;
+    std::erase_if(result.completed, [&](const auto& hash) {
+        return std::none_of(result.commits.begin(), result.commits.end(), [&](const auto& commit) { return commit.hash == hash; });
+    });
+    return result;
+}
+
 inline std::uint64_t next_render_identity() {
     static std::atomic<std::uint64_t> next{1};
     return next.fetch_add(1, std::memory_order_relaxed);
@@ -350,6 +367,9 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::vector<FileDiff> comparisonDiff;
     std::string comparisonScope;
     std::string comparisonError;
+    std::string reviewQueueScope;
+    async_work::Task<git::GitResult> reviewQueueFuture;
+    std::string reviewQueueError;
     int comparisonContext = 3;
     bool comparisonIgnoreWhitespace = false;
     std::string diffTargetFile;
@@ -411,6 +431,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::set<std::string> approvedHunks;
     std::map<std::string, std::string> reviewedFiles;
     std::map<std::string, ReviewDecision> verdicts;
+    CommitReviewQueue queue;
     std::set<std::string> foldedHunks;
     // Inline compose state: the hunk currently being commented on + its buffer.
     std::string composingKey;    // hunk key being commented, empty if none
@@ -472,6 +493,7 @@ inline void reset_review(ReviewComponent& review) {
     review.approvedHunks.clear();
     review.reviewedFiles.clear();
     review.verdicts.clear();
+    review.queue = {};
     review.foldedHunks.clear();
     review.composingKey.clear();
     review.composingText.clear();
@@ -505,6 +527,7 @@ inline std::string review_scope(const RepoComponent& repo) {
 }
 
 inline std::string selected_review_storage_scope(const RepoComponent& repo, const ReviewComponent& review) {
+    if (!repo.reviewQueueScope.empty()) return repo.reviewQueueScope;
     if (repo.comparisonOpen) {
         if (!repo.comparisonScope.empty()) return repo.comparisonScope;
         if (review.storageRepoPath == repo.repoPath && !review.storageScope.empty()) return review.storageScope;

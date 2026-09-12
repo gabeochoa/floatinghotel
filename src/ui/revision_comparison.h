@@ -57,6 +57,16 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
     }
     if (button(ctx, mk(actions.ent(), 2), preset::Button("Close")
             .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.comparisonOpen = false;
+    if (review && !repo.comparisonScope.empty() && button(ctx, mk(actions.ent(), 3), preset::Button("Review commits")
+            .with_size(ComponentSize{pixels(140), pixels(30)}).with_debug_name("review_range_commits"))) {
+        auto [base, target] = diff_revisions(repo.comparisonScope);
+        repo.reviewQueueScope = "queue:" + base + ":" + target;
+        repo.reviewQueueError.clear();
+        repo.reviewQueueFuture = git::git_run_async(repo.repoPath, {"log", "--reverse", "--topo-order",
+            "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P", base + ".." + target, "--"});
+        repo.comparisonOpen = false;
+        repo.selectedCommitHash.clear();
+    }
     auto status = repo.comparisonFuture.valid() ? "Comparing revisions..." : repo.comparisonScope.empty() ? "Choose revisions to compare" :
         "Resolved revisions: " + diff_revisions(repo.comparisonScope).first.substr(0, 12) + " → " + diff_revisions(repo.comparisonScope).second.substr(0, 12);
     if (!repo.comparisonError.empty()) status = repo.comparisonError;

@@ -1,0 +1,26 @@
+resize 1440 900
+wait_for_refresh
+click_text Edit
+click_text Compare Revisions...
+click_ui compare_base
+type HEAD~2
+click_ui compare_target
+type HEAD
+click_ui compare_submit
+wait_for_refresh
+screenshot item_28_empty_range
+click_ui review_range_commits
+wait_for_refresh
+screenshot item_28_empty_loading
+wait_for_refresh
+screenshot item_28_empty_commit
+expect_text No file changes in this commit
+expect_text Queue 1/2
+click_ui finish_review
+screenshot item_28_empty_verdict
+click_text Approved
+screenshot item_28_empty_finished
+click_ui review_queue_complete
+wait_for_refresh
+screenshot item_28_empty_next
+expect_text Queue 2/2 · 1 reviewed
