@@ -229,7 +229,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
         const float zoom = ui::zoom::get();
         const bool filesNavigation = layout.sidebarNavigation == LayoutComponent::SidebarNavigation::Files;
-        float reclaimedH = 0.f;
         float filesH = 0.f;
         float commitsH = 0.f;
         float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
@@ -255,9 +254,28 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         }
         constexpr float repoHeaderH = 104.f;
         if (filesNavigation) {
-            float controlsH = repoHeaderH;
+            auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
+            const bool showGit = repoPtr && !repoPtr->repoPath.empty() && !repoPtr->reviewWorkspace;
+            const bool showCommit = showGit && !treeClean && editor &&
+                layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
+            const bool showProgress = repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
+            const float viewportH = std::max(0.f, layout.sidebarFiles.height - repoHeaderH);
+            const float minimumControlsH = resolve_to_pixels(h720(
+                (repoPtr ? 28.f : 0.f) + (showGit ? 34.f : 0.f) +
+                (showCommit ? 54.f + COMMIT_INPUT_H_720 : 0.f) + 28.f), sh_for_tab) / zoom +
+                (showProgress ? 60.f : 0.f);
+            const float bodyH = std::max(viewportH, minimumControlsH + 80.f);
+            auto controlsScroll = div(ctx, mk(sidebarRoot.ent(), 2090), preset::ScrollPanel()
+                .with_size(ComponentSize{pixels(sidebarW), pixels(viewportH)})
+                .with_debug_name("files_controls_scroll"));
+            auto controlsBody = div(ctx, mk(controlsScroll.ent(), 0), ComponentConfig{}
+                .with_size(ComponentSize{pixels(sidebarW), pixels(bodyH)})
+                .with_min_height(pixels(bodyH))
+                .with_flex_direction(FlexDirection::Column).with_no_wrap()
+                .with_debug_name("files_controls_body"));
+            float controlsH = 0.f;
             if (repoPtr) {
-                if (button(ctx, mk(sidebarRoot.ent(), 2099), preset::Button(repoPtr->reviewWorkspace ? "Review workspace · enable Git controls" : "Enter review workspace")
+                if (button(ctx, mk(controlsBody.ent(), 2099), preset::Button(repoPtr->reviewWorkspace ? "Git controls hidden · Show" : "Hide Git controls")
                         .with_size(ComponentSize{percent(1.f), h720(28)})
                         .with_font_size(FontSize::Small).with_debug_name("review_workspace_toggle"))) {
                     repoPtr->reviewWorkspace = !repoPtr->reviewWorkspace;
@@ -268,7 +286,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             // === Sync row (Push / Pull / Stash), grouped under the repo header ===
             float syncRowH = 0.0f;
             if (repoPtr && !repoPtr->repoPath.empty() && !repoPtr->reviewWorkspace) {
-                render_sync_row(ctx, sidebarRoot.ent(), repoPtr);
+                render_sync_row(ctx, controlsBody.ent(), repoPtr);
                 syncRowH = resolve_to_pixels(h720(34.0f), sh_for_tab) / zoom;
             }
 
@@ -280,36 +298,27 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             // Hide the commit input + button when there is nothing to commit (#24).
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
                 !treeClean && !repoPtr->reviewWorkspace) {
-                auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
                 if (editor) {
-                    render_commit_area(ctx, sidebarRoot.ent(), *repoPtr, *editor);
+                    render_commit_area(ctx, controlsBody.ent(), *repoPtr, *editor);
                     commitAreaH = resolve_to_pixels(h720(COMMIT_AREA_H_720), sh_for_tab) / zoom;
                 }
             }
 
-            render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
+            render_sidebar_mode_tabs(ctx, controlsBody.ent(), layout);
             float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab) / zoom;
 
             // === Review-progress strip ("In the ballroom") ===
             float progressH = 0.0f;
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr) {
                 auto* rv = find_singleton<ReviewComponent, ActiveTab>();
-                render_review_progress(ctx, sidebarRoot.ent(), *repoPtr, rv);
-                progressH = resolve_to_pixels(h720(24.0f), sh_for_tab) / zoom;
+                render_review_progress(ctx, controlsBody.ent(), *repoPtr, rv);
+                progressH = 60.f;
             }
 
             // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
-            filesH = layout.sidebarFiles.height - tabH - commitAreaH - progressH -
+            filesH = bodyH - tabH - commitAreaH - progressH -
                            controlsH - syncRowH;
             if (filesH < 20.0f) filesH = 20.0f;
-            // Clean tree: size the empty-state ("No changes") pane to its content
-            // instead of the full remaining height, and hand the reclaimed space to
-            // the commit log below so there is no dead void (#8).
-            if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && treeClean &&
-                layout.fileViewMode != LayoutComponent::FileViewMode::All) {
-                float compactH = resolve_to_pixels(h720(88.0f), sh_for_tab) / zoom;
-                if (compactH < filesH) { reclaimedH = filesH - compactH; filesH = compactH; }
-            }
             // The file list is windowed: only the rows inside the viewport (plus a
             // few of overscan) are built each frame, so a 5000-file status costs
             // the same as a 30-file one. Empty tabs and the spinner keep the plain
@@ -325,13 +334,13 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 h720(static_cast<float>(theme::layout::FILE_ROW_HEIGHT)), sh_for_tab) / zoom;
             auto filesBg = windowedFiles
                 ? ui::virtual_list(
-                      ctx, mk(sidebarRoot.ent(), 2100), active_file_count(*repoPtr),
+                      ctx, mk(controlsBody.ent(), 2100), active_file_count(*repoPtr),
                       fileRowPx,
                       [&](size_t i, Entity& row) {
                           render_active_file_row(ctx, row, i, *repoPtr);
                       },
                       filesPanel)
-                : div(ctx, mk(sidebarRoot.ent(), 2100), filesPanel);
+                : div(ctx, mk(controlsBody.ent(), 2100), filesPanel);
 
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
                 // Render file list directly into filesBg (no intermediate container)
@@ -350,7 +359,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }
 
-            commitsH = layout.sidebarLog.height + reclaimedH;
+            commitsH = layout.sidebarLog.height;
         } else {
             splitAvailable = std::max(0.f, splitAvailable - repoHeaderH - 32.f);
             commitsH = splitAvailable * layout.commitLogRatio;
@@ -400,9 +409,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
         // === Scrollable commit log entries ===
         float logHeaderConsumed = 32.f;
-        // Fill the whole log container (commitsH), which includes reclaimedH
-        // handed down from a compacted clean-tree files pane — otherwise the
-        // scroll list stops short and leaves dead space below it.
         float logScrollH = commitsH - logHeaderConsumed;
         if (logScrollH < 0.f) logScrollH = 0.f;
 
@@ -596,7 +602,7 @@ private:
                 if (button(ctx, mk(row.ent(), 0), preset::Button(sidebar_detail::basename_from_path(node.path))
                         .with_size(ComponentSize{expand(), pixels(30)}).with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY).with_alignment(TextAlignment::Left)
-                        .with_padding(Padding{}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                        .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_font_size(pixels(12)).with_debug_name("jump_to_diff:" + node.path))) {
                     repo->activeContent = RepoComponent::ContentView::Review;
                     repo->diffTargetFile = file.filePath;
@@ -847,8 +853,6 @@ private:
                 .with_debug_name(debugName));
     }
 
-    // "In the ballroom" review-progress strip (mock): a bar + approved/to-review
-    // counts, plus how many comments are queued to send.
     void render_review_progress(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, ReviewComponent* review) {
         bool reviewing = review && review->reviewing;
@@ -866,43 +870,29 @@ private:
         float frac = (reviewing && totalHunks > 0)
                          ? static_cast<float>(approvedHunks) / totalHunks : 0.f;
 
-        // While reviewing, clicking a commit in the stack takes the diff pane
-        // over (you leave the stacked view but stay embarked). In that "aside"
-        // state the strip is a way back INTO the ballroom, not out of it.
         bool aside = reviewing && !repo.selectedCommitHash.empty();
-
-        // ASCII play marker (the font atlas has no ▶ glyph). Pre-embark = green
-        // "go"; in the ballroom = amber "active".
-        std::string txt = std::string("> ");
-        if (!reviewing) {
-            txt += "Embark to ballroom \xc2\xb7 " + std::to_string(toReview) +
-                   " to review";
-        } else if (aside) {
-            txt += "Back to the ballroom \xc2\xb7 " + std::to_string(approvedHunks) +
-                   " approved";
-        } else {
-            txt += "In the ballroom \xc2\xb7 " + std::to_string(approvedHunks) +
-                   " approved \xc2\xb7 " + std::to_string(queued) + " to send";
-        }
+        const std::string txt = std::to_string(approvedHunks) + "/" + std::to_string(totalHunks) +
+            " approved · " + std::to_string(queued) + " comments";
 
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto row = div(ctx, mk(parent, 2085),
             ComponentConfig{}
-                .with_size(ComponentSize{w, h720(22)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_gap(pixels(8))
+                .with_size(ComponentSize{w, pixels(60)})
+                .with_flex_direction(FlexDirection::Column)
+                .with_gap(pixels(4))
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(10),
-                    .bottom = h720(2), .left = pixels(10)})
+                    .top = pixels(4), .right = pixels(12),
+                    .bottom = pixels(4), .left = pixels(12)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("review_progress"));
 
-        // Click the strip to embark / disembark the ballroom review.
+        auto action = button(ctx, mk(row.ent(), 2), preset::Button(
+            !reviewing ? "Review working changes" : aside ? "Back to working changes" : "Close working review", review != nullptr)
+            .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
+            .with_debug_name("working_review_toggle"));
         if (review) {
-            row.ent().addComponentIfMissing<HasClickListener>([](Entity&) {});
-            if (row.ent().get<HasClickListener>().down) {
+            if (action) {
                 repo.activeContent = RepoComponent::ContentView::Review;
                 if (aside) {
                     // Return to the stacked ballroom view without disembarking.
@@ -930,18 +920,21 @@ private:
                         afterhours::toast::send_info(
                             ctx, "Review opened", 2.0f);
                     } else {
-                        afterhours::toast::send_info(ctx, "Left the ballroom",
+                        afterhours::toast::send_info(ctx, "Working review closed",
                                                      1.5f);
                     }
                 }
             }
         }
 
-        // Show the bar while reviewing or when there's something to review.
+        auto status = div(ctx, mk(row.ent(), 3), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(20)})
+            .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+            .with_gap(pixels(8)).with_debug_name("working_review_status"));
         if (reviewing || toReview > 0) {
-            auto bar = div(ctx, mk(row.ent(), 0),
+            auto bar = div(ctx, mk(status.ent(), 0),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(56), h720(5)})
+                    .with_size(ComponentSize{pixels(32), pixels(4)})
                     .with_custom_background(afterhours::Color{51, 51, 51, 255})
                     .with_corner_radius(2.0f)
                     .with_debug_name("prog_bar"));
@@ -952,20 +945,12 @@ private:
                     .with_corner_radius(2.0f)
                     .with_debug_name("prog_fill"));
         }
-        // Fill the space left of the row after the optional progress bar. Use an
-        // explicit remaining width (not percent(1.0), which is the whole row and
-        // overflows past the bar now that FlexWrap defaults to NoWrap).
-        float contentW = (sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 320.0f)
-                         - 20.0f;  // row left+right padding
-        float textW = (reviewing || toReview > 0) ? (contentW - 56.0f - 8.0f)
-                                                   : contentW;  // bar + gap
-        if (textW < 40.0f) textW = 40.0f;
-        div(ctx, mk(row.ent(), 1),
+        div(ctx, mk(status.ent(), 1),
             ComponentConfig{}
                 .with_label(txt)
-                .with_size(ComponentSize{pixels(textW), children()})
+                .with_size(ComponentSize{expand(), pixels(20)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(FontSize::Small)
+                .with_font_size(pixels(11))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("prog_text"));
     }

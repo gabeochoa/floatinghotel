@@ -1,12 +1,9 @@
-# Ballroom review flow: shelf collapse/expand + approve + comment/basket
 resize 1280 720
 make_test_repo
 wait_for_refresh
 wait_frames 15
-# Collapsed by default (nothing selected) -> diff pane has zero width
-assert_ui main_content w=0
-# Embark the ballroom review -> enables the per-hunk Approve/Comment actions
-click_text "Embark to ballroom"
+click_ui sidebar_working_files
+click_ui working_review_toggle
 wait_frames 10
 # Click a file -> shelf expands, diff renders
 click_text main.cpp
@@ -25,4 +22,4 @@ type "please read from argv"
 wait_frames 4
 click_ui comment_add_btn
 wait_frames 10
-expect_text "Feedback basket"
+expect_text "Feedback"

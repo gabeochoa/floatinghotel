@@ -1,0 +1,42 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_ui sidebar_working_files
+mouse_move 190 180
+scroll_wheel 0 -1000
+wait_frames 10
+screenshot working_review_controls
+click_ui working_review_toggle
+wait_for_refresh
+screenshot working_review_all
+expect_text "Close working review"
+expect_text "int main"
+click_ui approve_hunk_btn
+wait_frames 5
+validate review_approved=1
+click_text "Add contributing guidelines"
+wait_for_refresh
+screenshot working_review_commit
+expect_text "Back to working changes"
+click_ui working_review_toggle
+wait_for_refresh
+screenshot working_review_return
+expect_text "int main"
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+resize 900 640
+wait_frames 10
+mouse_move 190 240
+scroll_wheel 0 -1000
+wait_frames 10
+screenshot working_review_compact
+scroll_wheel 0 1
+wait_frames 10
+screenshot working_review_action_visible
+click_ui working_review_toggle
+wait_frames 5
+screenshot working_review_closed
+expect_text "Review working changes"
+validate footer_fixed=true

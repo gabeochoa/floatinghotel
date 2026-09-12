@@ -1,6 +1,7 @@
 resize 1280 500
 wait_for_refresh
-click_text "Embark to ballroom"
+click_ui sidebar_working_files
+click_ui working_review_toggle
 wait_frames 10
 screenshot improvement_04_before
 expect_no_text "changed 901"

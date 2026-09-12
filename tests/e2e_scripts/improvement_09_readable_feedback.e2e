@@ -58,4 +58,4 @@ scroll_wheel 0 -40
 wait_frames 30
 screenshot improvement_09_after_scroll
 expect_text "Note 9:"
-expect_text "Send all feedback"
+expect_text "Copy feedback"

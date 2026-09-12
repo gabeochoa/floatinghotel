@@ -39,26 +39,24 @@ inline void persist_pending_review(UIContext<InputAction>& ctx, ReviewComponent&
     }
 }
 
-// Export the review basket: durable markdown file (survives reboot / a failed
-// AI round-trip) + clipboard.
-// TODO(local-first): also sync review comments as git notes / a
-// refs/floatinghotel/reviews/* ref so they replicate peer-to-peer via git with
-// no server (see docs/afterhours-persistence-proposal.md).
 inline void send_review(UIContext<InputAction>& ctx, ReviewComponent& review,
                         RepoComponent* repo) {
     std::string branch = (repo && !repo->currentBranch.empty())
                              ? repo->currentBranch : "HEAD";
     std::string md = build_review_markdown(review, branch);
-    if (md.empty()) { afterhours::toast::send_info(ctx, "No unresolved feedback to send", 1.5f); return; }
+    if (md.empty()) { afterhours::toast::send_info(ctx, "No unresolved feedback to copy", 1.5f); return; }
+    bool saved = false;
     if (repo && !repo->repoPath.empty()) {
         std::ofstream f(review_store::markdown_path(repo->repoPath, branch));
-        if (f.good()) f << md;
+        f << md;
+        f.close();
+        saved = !f.fail();
     }
     afterhours::clipboard::set_text(md);
-    afterhours::toast::send_info(
-        ctx, "Copied " + std::to_string(unresolved_comment_count(review)) +
-                 " comment(s) \xe2\x80\x94 leaves your device when you paste it",
-        2.5f);
+    if (saved) afterhours::toast::send_success(ctx,
+        "Copied " + std::to_string(unresolved_comment_count(review)) + " comment(s). Local Markdown saved.", 4.f);
+    else afterhours::toast::send_warning(ctx,
+        "Feedback copied, but the local Markdown could not be saved. Paste it somewhere safe.", 4.f);
 }
 
 inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
@@ -78,38 +76,45 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_custom_background(theme::SIDEBAR_BG)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()
+            .with_gap(pixels(8))
+            .with_border_left(theme::BORDER)
             .with_padding(Padding{
-                .top = pixels(8), .right = pixels(10),
-                .bottom = pixels(8), .left = pixels(10)})
+                .top = pixels(12), .right = pixels(12),
+                .bottom = pixels(12), .left = pixels(12)})
             .with_render_layer(6)
             .with_roundness(0.0f)
             .with_debug_name("feedback_basket"));
 
     auto title = div(ctx, mk(panel.ent(), 0), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), pixels(22)}).with_flex_direction(FlexDirection::Row));
+        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_flex_direction(FlexDirection::Row)
+        .with_gap(pixels(8)));
     div(ctx, mk(title.ent(), 0),
         ComponentConfig{}
-            .with_label("Feedback basket  " + std::to_string(unresolved_comment_count(review)))
-            .with_size(ComponentSize{expand(), pixels(22)})
-            .with_custom_text_color(theme::STATUS_MODIFIED)
+            .with_label("Feedback  " + std::to_string(unresolved_comment_count(review)))
+            .with_size(ComponentSize{expand(), pixels(28)})
+            .with_custom_text_color(theme::TEXT_PRIMARY)
             .with_font_size(pixels(14))
             .with_debug_name("basket_title"));
-    if (unresolved_comment_count(review) < review.comments.size()) {
-        if (button(ctx, mk(title.ent(), 1), preset::Button(review.showResolved ? "Hide resolved" : "Show resolved")
-                .with_size(ComponentSize{pixels(108), pixels(20)}).with_font_size(pixels(12))
-                .with_debug_name("basket_toggle_resolved"))) review.showResolved = !review.showResolved;
-    }
+    if (button(ctx, mk(title.ent(), 2), preset::Button("x")
+            .with_size(ComponentSize{pixels(28), pixels(28)})
+            .with_padding(Padding{.left = pixels(0)})
+            .with_debug_name("basket_close"))) review.basketOpen = false;
+    const bool hasResolved = unresolved_comment_count(review) < review.comments.size();
+    if (button(ctx, mk(panel.ent(), 904), preset::Button(review.showResolved ? "Hide resolved" : "Show resolved", hasResolved)
+            .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
+            .with_debug_name("basket_toggle_resolved"))) review.showResolved = !review.showResolved;
 
-    float itemW = panelW - 20.f;
-    float txtW = std::max(20.f, itemW - 12.f);
+    float itemW = panelW - 24.f;
+    float txtW = std::max(20.f, itemW - 16.f);
     constexpr float fontSize = 14.f;
     auto& measure = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
     auto list = div(ctx, mk(panel.ent(), 903),
         ComponentConfig{}
-            .with_size(ComponentSize{pixels(itemW), pixels(std::max(0.f, hgt - 112.f))})
+            .with_size(ComponentSize{pixels(itemW), pixels(std::max(0.f, hgt - 164.f))})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()
+            .with_gap(pixels(8))
             .with_debug_name("basket_scroll"));
     std::vector<std::string> scopes;
     for (const auto& c : review.comments)
@@ -137,8 +142,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         div(ctx, mk(list.ent(), id++),
             ComponentConfig{}
                 .with_label(gh)
-                .with_size(ComponentSize{percent(1.0f), pixels(18)})
-                .with_padding(Padding{.top = pixels(4)})
+                .with_size(ComponentSize{percent(1.0f), pixels(24)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -166,28 +170,34 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             if (anchor.status == review_anchor::Status::Outdated || anchor.status == review_anchor::Status::Relocated)
                 commentText += "\nSaved: " + review_anchor::preview(anchor.saved) + "\nNow: " + review_anchor::preview(anchor.current);
             float textH = afterhours::ui::measure_text_wrapped(
-                measure, commentText, "mono", fontSize * zoom, (txtW - 8.f) * zoom).height / zoom + 8.f;
+                measure, commentText, "mono", fontSize * zoom, (txtW - 10.f) * zoom).height / zoom + 10.f;
             bool editing = review.editingComment == i;
-            if (editing) textH = 132.f;
+            if (editing) textH = 104.f;
             auto itemRow = div(ctx, mk(list.ent(), id++),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(itemW), pixels(textH + 26.f)})
+                    .with_size(ComponentSize{pixels(itemW), pixels(textH + 88.f)})
                     .with_flex_direction(FlexDirection::Column)
                     .with_no_wrap()
-                    .with_transparent_bg()
+                    .with_gap(pixels(8))
+                    .with_padding(Padding{.top = pixels(8), .right = pixels(8), .bottom = pixels(8), .left = pixels(8)})
+                    .with_custom_background(theme::WINDOW_BG)
+                    .with_border(theme::BORDER, pixels(1))
+                    .with_corner_radius(6.f).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                     .with_debug_name("basket_item"));
             auto heading = div(ctx, mk(itemRow.ent(), 4),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(txtW), pixels(24)})
+                    .with_size(ComponentSize{pixels(txtW), pixels(28)})
                     .with_flex_direction(FlexDirection::Row)
                     .with_debug_name("basket_item_heading"));
             auto location = button(ctx, mk(heading.ent(), 3),
                 ComponentConfig{}
                     .with_label((c.resolved ? "Resolved · " : "") + comment_location(c))
-                    .with_size(ComponentSize{expand(), pixels(20)})
-                    .with_custom_background(theme::SIDEBAR_BG)
+                    .with_size(ComponentSize{expand(), pixels(28)})
+                    .with_padding(Padding{.left = pixels(0)})
+                    .with_alignment(TextAlignment::Left)
+                    .with_custom_background(theme::WINDOW_BG)
                     .with_custom_text_color(afterhours::Color{100, 180, 255, 255})
-                    .with_font("mono", pixels(11.0f))
+                    .with_font("mono", pixels(12.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("basket_item_loc"));
             if (location && repo) {
@@ -214,17 +224,21 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 ui::text_area(ctx, mk(itemRow.ent(), 5), review.editingCommentText,
                     ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})
                         .with_font("mono", pixels(fontSize)).with_line_height(pixels(22.f))
+                        .with_corner_radius(6.f).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                         .with_word_wrap(true).with_overflow(Overflow::Hidden)
                         .with_debug_name("basket_edit_input"));
                 if (previousEdit != review.editingCommentText) review.dirty = true;
                 auto actions = div(ctx, mk(itemRow.ent(), 6), ComponentConfig{}
-                    .with_size(ComponentSize{pixels(txtW), pixels(28)}).with_flex_direction(FlexDirection::Row));
+                    .with_size(ComponentSize{pixels(txtW), pixels(28)}).with_flex_direction(FlexDirection::Row)
+                    .with_gap(pixels(8)));
                 if (button(ctx, mk(actions.ent(), 0), preset::Button("Save")
-                        .with_size(ComponentSize{pixels(65), pixels(26)}).with_debug_name("basket_edit_save"))) {
+                        .with_size(ComponentSize{pixels(52), pixels(28)}).with_font_size(pixels(12))
+                        .with_debug_name("basket_edit_save"))) {
                     if (!save_comment_edit(review)) afterhours::toast::send_info(ctx, "A comment cannot be empty", 2.f);
                 }
                 if (button(ctx, mk(actions.ent(), 1), preset::Button("Cancel")
-                        .with_size(ComponentSize{pixels(75), pixels(26)}).with_debug_name("basket_edit_cancel"))) {
+                        .with_size(ComponentSize{pixels(60), pixels(28)}).with_font_size(pixels(12))
+                        .with_debug_name("basket_edit_cancel"))) {
                     review.editingComment = -1;
                     review.editingCommentText.clear();
                     review.dirty = true;
@@ -237,25 +251,31 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font("mono", pixels(fontSize))
                     .with_alignment(TextAlignment::Left)
+                    .with_text_inset(5.f)
                     .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                     .with_debug_name("basket_item_text"));
-            if (button(ctx, mk(heading.ent(), 2), preset::Button("Edit")
-                    .with_size(ComponentSize{pixels(42), pixels(18)}).with_font_size(pixels(12))
+            if (editing) continue;
+            auto actions = div(ctx, mk(itemRow.ent(), 7), ComponentConfig{}
+                .with_size(ComponentSize{pixels(txtW), pixels(28)})
+                .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(8))
+                .with_debug_name("basket_item_actions"));
+            if (button(ctx, mk(actions.ent(), 2), preset::Button("Edit")
+                    .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
                 review.editingComment = i;
                 review.editingCommentText = c.text;
                 review.editingCommentKind = c.kind;
                 review.dirty = true;
             }
-            if (!editing && button(ctx, mk(heading.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
-                    .with_size(ComponentSize{pixels(66), pixels(18)}).with_font_size(pixels(12))
+            if (button(ctx, mk(actions.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
+                    .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_resolve"))) {
                 review.comments[i].resolved = !c.resolved;
                 review.dirty = true;
             }
-            auto rmBtn = button(ctx, mk(heading.ent(), 1),
-                preset::Button("x")
-                    .with_size(ComponentSize{pixels(18), pixels(18)})
+            auto rmBtn = button(ctx, mk(actions.ent(), 1),
+                preset::Button("Delete")
+                    .with_size(ComponentSize{expand(), pixels(28)})
                     .with_custom_background(afterhours::Color{60, 60, 65, 255})
                     .with_custom_text_color(theme::STATUS_DELETED)
                     .with_font_size(pixels(12))
@@ -269,36 +289,16 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     }
 
     auto sendBtn = button(ctx, mk(panel.ent(), 900),
-        preset::Button("\xe2\x8c\x98\xe2\x8f\x8e Send all feedback")
-            .with_size(ComponentSize{percent(1.0f), pixels(28)})
+        preset::Button("Copy feedback", unresolved_comment_count(review) > 0)
+            .with_size(ComponentSize{percent(1.0f), pixels(32)})
+            .with_custom_background(theme::TEXT_ACCENT).with_custom_text_color(theme::WINDOW_BG)
             .with_debug_name("basket_send_btn"));
     if (sendBtn) send_review(ctx, review, repo);
 
-    auto copyBtn = button(ctx, mk(panel.ent(), 901),
-        preset::Button("Copy all")
-            .with_size(ComponentSize{percent(1.0f), pixels(24)})
-            .with_custom_background(afterhours::Color{62, 62, 64, 255})
-            .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_debug_name("basket_copy_btn"));
-    if (copyBtn) {
-        std::string branch = (repo && !repo->currentBranch.empty())
-                                 ? repo->currentBranch : "HEAD";
-        std::string md = build_review_markdown(review, branch);
-        if (md.empty()) { afterhours::toast::send_info(ctx, "No unresolved feedback to copy", 1.5f); return; }
-        if (repo && !repo->repoPath.empty()) {
-            std::ofstream f(review_store::markdown_path(repo->repoPath, branch));
-            if (f.good()) f << md;
-        }
-        afterhours::clipboard::set_text(md);
-        afterhours::toast::send_info(
-            ctx, "Copied \xe2\x80\x94 leaves your device when you paste it", 1.5f);
-    }
-
     div(ctx, mk(panel.ent(), 902),
         ComponentConfig{}
-            .with_label("saved to your local review folder")
-            .with_size(ComponentSize{percent(1.0f), pixels(16)})
-            .with_padding(Padding{.top = pixels(4)})
+            .with_label(review.dirty ? "Local draft pending save" : "Local draft · Cmd+Enter to copy")
+            .with_size(ComponentSize{percent(1.0f), pixels(20)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_font_size(pixels(12))
             .with_alignment(TextAlignment::Center)
@@ -618,7 +618,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit && !(hasSelectedFile && repo.selectedFileStaged)) {
             float diffW = layout.mainContent.width;
             auto baselineActions = div(ctx, mk(mainBg.ent(), 592010), ComponentConfig{}
-                .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row));
+                .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
+                .with_gap(pixels(4)));
             if (!reviewPtr->snapshotFuture.valid()) {
                 if (button(ctx, mk(baselineActions.ent(), 0), preset::Button("Save review baseline")
                     .with_size(ComponentSize{pixels(165), pixels(28)}).with_debug_name("save_review_baseline")))
@@ -662,8 +663,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("ballroom_done_sub"));
             } else {
                 // Reserve a keyboard-hint footer under the diff (mock cockpit).
-                float shH = static_cast<float>(afterhours::graphics::get_screen_height());
-                float keyhintH = resolve_to_pixels(h720(24.0f), shH);
+                constexpr float keyhintH = 24.f;
                 float diffH = layout.mainContent.height - keyhintH - 30.f;
                 if (diffH < 40.0f) diffH = layout.mainContent.height;
                 ui::render_diff(ctx, mainBg.ent(), repo.currentDiff,
@@ -673,7 +673,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 div(ctx, mk(mainBg.ent(), 3090),
                     ComponentConfig{}
                         .with_label("j/k move    a approve    c comment    "
-                                    "Cmd+Enter send all    esc hide")
+                                    "Cmd+Enter copy feedback    esc hide")
                         .with_size(ComponentSize{percent(1.0f), pixels(keyhintH)})
                         .with_flex_direction(FlexDirection::Row)
                         .with_align_items(AlignItems::Center)
@@ -682,7 +682,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .bottom = h720(0), .left = pixels(theme::layout::SPACE_4)})
                         .with_custom_background(theme::SECTION_HEADER_BG)
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font("mono", h720(11.0f))
+                        .with_font("mono", pixels(11.f))
+                        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_roundness(0.0f)
                         .with_debug_name("diff_keyhint"));
             }

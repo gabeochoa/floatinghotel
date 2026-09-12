@@ -1232,7 +1232,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         };
         if (modeButton(0, "Unified", !sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
         if (modeButton(1, "Split", sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::SideBySide;
-        if (review && button(ctx, mk(actions.ent(), 2), preset::Button("Comments")
+        if (review && button(ctx, mk(actions.ent(), 2), preset::Button("Feedback")
                 .with_size(ComponentSize{percent(0.22f), pixels(28)}).with_font_size(pixels(12))
                 .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
                 .with_debug_name("basket_toggle_btn"))) review->basketOpen = !review->basketOpen;
@@ -1585,7 +1585,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_flex_direction(FlexDirection::Row).with_no_wrap().with_align_items(AlignItems::Center));
         if (review && !fileDiff.isFullContent && button(ctx, mk(fileTitle.ent(), 1), preset::Button(fileFolded ? "›" : "⌄")
                 .with_size(ComponentSize{pixels(28), pixels(28)})
-                .with_padding(Padding{}).with_transparent_bg().with_font_size(pixels(14))
+                .with_padding(Padding{.left = pixels(0)}).with_transparent_bg().with_font_size(pixels(14))
                 .with_debug_name("fold_file:" + fileDiff.filePath))) {
             if (fileFolded) review->foldedFiles.erase(fileFoldKey);
             else review->foldedFiles.insert(fileFoldKey);

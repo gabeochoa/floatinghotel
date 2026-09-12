@@ -6,8 +6,8 @@
 - [x] Sidebar: reduce commit-row and graph insets, right-align ages, extend the divider, and top-align empty files.
 - [x] Menus: compare native macOS integration with an in-window fallback before choosing the implementation.
 - [x] Toasts: verify wrapping, dismissal, lifetime, stacking, and viewport fit.
-- [ ] Review feedback: compare two ballroom layouts, then simplify the chosen workflow.
-- [ ] Spacing: audit primary screens at normal and enlarged zoom using screenshots and JSON.
+- [x] Review feedback: compare two ballroom layouts, then simplify the chosen workflow.
+- [x] Spacing: audit primary screens at normal and enlarged zoom using screenshots and JSON.
 - [x] Graph: exercise branches and merges in a disposable repository.
 - [ ] Final: run regressions, inspect screenshots, and obtain an independent trail review.
 

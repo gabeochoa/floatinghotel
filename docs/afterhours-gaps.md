@@ -900,7 +900,7 @@ The bridge owns Objective-C objects explicitly and compiles without ARC.
 Sokol keeps ARC enabled for screenshot readback cleanup. Native tests create
 an application with prohibited activation and no windows. The app's headless
 integration opts into that same setup with `FH_NATIVE_MENUS=1`.
-# Tab keyboard injection bypass
+### Tab keyboard injection bypass
 
 The native-menu integration check exposed repository-tab shortcuts reading raw
 graphics key state while other app shortcuts read Afterhours input state. The
@@ -908,3 +908,53 @@ headless runner injects into the latter and parses CMD as Control. Switching onl
 the wrapper did not fix the test. Tab shortcuts now use the input wrapper and
 accept either Command or Control key, like the other app shortcuts. The test
 exercises creation and closing rather than replacing keyboard checks with clicks.
+
+### Wrapped labels disagree with their drawing inset
+
+The visual follow-up found the last letters clipped in a long error toast even
+though the card passed its geometry checks. Plain text wrapping uses the
+configured inset, which defaults to zero, but drawing each resulting line uses
+the hardcoded five-pixel margin described above. Toast and feedback body labels
+now request a five-logical-pixel inset and measure against that narrower width.
+This prevents clipping without changing code rendering or selection coordinates.
+The framework should honor the supplied inset in its single-line path.
+
+### Fixed sidebar controls shrink below their children
+
+At 900 by 640 and 140% zoom, the Files sidebar had a four-pixel tab row around
+21-pixel buttons and a zero-height review-progress row. Explicit desired heights
+alone did not prevent flex shrinking. The upper Files section now has a scroll
+viewport and an inner body with a computed minimum height. Controls retain their
+heights while commit history keeps its allocated area. This avoids moving the
+global footer or compressing labels. `tests/check_files_controls_spacing.py`
+checks the resulting hierarchy from captured JSON.
+
+### Empty button padding and default card rounding
+
+For buttons, `Padding{}` means unspecified, so the framework inserts sixteen
+pixels on every edge. A 28-pixel fold or tab-add button then has negative inner
+space. The affected controls now specify an explicit zero edge to disable that
+fallback; ordinary preset buttons use eight-pixel horizontal padding.
+`tests/check_control_padding.py` rejects padding larger than its control.
+
+A feedback card without an explicit radius rendered as a large capsule. The
+app now requests the same six-pixel radius and corner flags used by toast cards.
+The first feedback screenshots remain in the audit output for comparison.
+
+### E2E and JSON coordinates stop at the nearest scroll ancestor
+
+Rendering and real hit-testing correctly accumulate every ancestor's scroll
+offset. `testing::ui_commands::get_screen_rect` still stops at the nearest
+scroll or clipping container, and skips offsets entirely for scroll containers
+themselves. After introducing the Files controls viewport, a file visibly near
+y434 was reported near y483. The scripted click hit the sidebar splitter.
+
+The app's JSON dump and test click adapter now use the renderer's existing
+`detail::apply_scroll_offset` and `compute_intersected_clip_rect` helpers. JSON
+includes both the full screen rectangle and its visible clipped rectangle.
+Named/text clicks choose a visible portion and fail when the target is fully
+clipped. The adapter is registered before the framework click handlers; it does
+not alter production input. Older XML dump/assert helpers still use the framework
+coordinate path, so JSON is the authoritative nested-scroll geometry here.
+The failing captures are `output/spacing-audit/final-verified`; they are not
+successful final verification despite that directory's name.

@@ -155,9 +155,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         if (review && review->basketOpen && !review->comments.empty() &&
             layout.mainContent.width > 0) {
             const bool overlay = layout.mainContent.width < 720.f;
-            const float feedbackW = std::min(300.f, layout.mainContent.width);
-            if (!overlay) layout.mainContent.width -= feedbackW;
-            layout.feedback = {layout.mainContent.x + layout.mainContent.width - (overlay ? feedbackW : 0.f),
+            const float feedbackW = std::min(320.f, layout.mainContent.width);
+            if (!overlay) layout.mainContent.width -= feedbackW + 12.f;
+            layout.feedback = {layout.mainContent.x + layout.mainContent.width + (overlay ? -feedbackW : 12.f),
                                layout.mainContent.y, feedbackW, layout.mainContent.height};
         }
         layout.statusBar = {0, height - statusH, width, statusH};
