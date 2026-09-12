@@ -21,6 +21,7 @@ TEST(review_store_roundtrip) {
     r.comments[1].oldSide = true;
     r.comments[1].resolved = true;
     r.approvedHunks.insert("src/foo.cpp\n@@ -1 +1 @@");
+    r.reviewedFiles["wt\nmode-only.sh"] = "metadata-signature";
     r.foldedHunks.insert("src/bar.h\n@@ -2 +2 @@");
     r.seenSig["src/foo.cpp"] = "1,2,3";
     r.baselineHead = "deadbeef";
@@ -44,6 +45,7 @@ TEST(review_store_roundtrip) {
     ASSERT_TRUE(r2.comments[1].resolved);
     ASSERT_EQ(ecs::comment_location(r2.comments[1]), "src/bar.h:7-9 (old)");
     ASSERT_TRUE(r2.approvedHunks.count("src/foo.cpp\n@@ -1 +1 @@") == 1);
+    ASSERT_EQ(r2.reviewedFiles, r.reviewedFiles);
     ASSERT_TRUE(r2.foldedHunks.count("src/bar.h\n@@ -2 +2 @@") == 1);
     ASSERT_STREQ(r2.seenSig["src/foo.cpp"], "1,2,3");
     ASSERT_STREQ(r2.baselineHead, "deadbeef");
@@ -219,6 +221,32 @@ TEST(export_keeps_the_original_code_and_revision) {
     ASSERT_EQ(restored.comments.front().revision, comment.revision);
     ASSERT_EQ(ecs::build_review_markdown(restored, "main"), ecs::build_review_markdown(review, "main"));
     std::filesystem::remove(review_store::review_path(key));
+}
+
+TEST(next_unreviewed_requires_explicit_metadata_review_and_wraps) {
+    ecs::ReviewComponent review;
+    ecs::FileDiff first;
+    first.filePath = "a.cpp";
+    first.hunks.push_back({1, 1, 1, 1, "@@ -1 +1 @@", {"-old", "+new"}});
+    ecs::FileDiff metadata;
+    metadata.filePath = "script.sh";
+    metadata.oldMode = "100644";
+    metadata.newMode = "100755";
+    std::vector<ecs::FileDiff> files{first, metadata};
+    ASSERT_TRUE(!ecs::file_reviewed(review, "wt", metadata));
+    review.approvedHunks.insert("wt\n" + ecs::ReviewComponent::hunk_key(first.filePath, first.hunks.front()));
+    ASSERT_TRUE(ecs::file_reviewed(review, "wt", first));
+    ASSERT_EQ(*ecs::next_unreviewed_file(review, "wt", files, {}, first.filePath), size_t{1});
+    review.reviewedFiles["wt\n" + metadata.filePath] = ecs::diff_signature(metadata);
+    ASSERT_TRUE(!ecs::next_unreviewed_file(review, "wt", files, {}, metadata.filePath));
+    ASSERT_TRUE(!ecs::file_reviewed(review, "index", metadata));
+    metadata.newMode = "120000";
+    ASSERT_TRUE(!ecs::file_reviewed(review, "wt", metadata));
+    files.front().hunks.front().lines.back() = "+changed again";
+    ASSERT_EQ(*ecs::next_unreviewed_file(review, "wt", files, {}, metadata.filePath), size_t{0});
+    review_files::Filter filter;
+    filter.language = "Python";
+    ASSERT_TRUE(!ecs::next_unreviewed_file(review, "wt", files, filter, ""));
 }
 
 int main() {

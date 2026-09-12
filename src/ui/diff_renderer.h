@@ -1249,7 +1249,22 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 }));
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
-        findHeight = 60.f;
+        auto progress = div(ctx, mk(findParent ? *findParent : parent, 597002), ComponentConfig{}
+            .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
+        if (review && button(ctx, mk(progress.ent(), 0), preset::Button("Next unreviewed file")
+                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(FontSize::Small)
+                .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("next_unreviewed_file"))) {
+            const auto& candidates = reviewScope == "wt" ? filterRepo->currentDiff :
+                reviewScope == "index" ? filterRepo->stagedDiff : diffs;
+            auto current = filterRepo->diffTargetFile.empty() ? filterRepo->selectedFilePath : filterRepo->diffTargetFile;
+            auto next = ecs::next_unreviewed_file(*review, reviewScope, candidates, filterRepo->fileFilter, current);
+            if (next) {
+                filterRepo->diffTargetFile = candidates[*next].filePath;
+                filterRepo->diffTargetFrames = 4;
+                if (reviewScope == "wt" || reviewScope == "index") filterRepo->selectedFilePath = candidates[*next].filePath;
+            } else afterhours::toast::send_info(ctx, "All visible files reviewed", 2.f);
+        }
+        findHeight = 90.f;
     }
     auto fileVisible = [&](const ecs::FileDiff& file) {
         return !filterable || !filterRepo || review_files::matches(filterRepo->fileFilter, file.filePath, ecs::file_change(file));
@@ -1701,6 +1716,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_font_size(afterhours::ui::FontSize::Small)
                     .with_debug_name("approve_file_btn"));
             if (approveFileBtn) {
+                review->reviewedFiles[reviewScope + "\n" + fileDiff.filePath] = ecs::diff_signature(fileDiff);
                 for (const auto& hunk : fileDiff.hunks)
                     review->approvedHunks.insert(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
                 review->dirty = true;

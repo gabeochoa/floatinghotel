@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <future>
 #include <map>
+#include <optional>
 #include <set>
 #include <string>
 #include <vector>
@@ -382,6 +383,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::string editingCommentText;
     std::map<std::string, Comment> drafts;
     std::set<std::string> approvedHunks;
+    std::map<std::string, std::string> reviewedFiles;
     std::set<std::string> foldedHunks;
     // Inline compose state: the hunk currently being commented on + its buffer.
     std::string composingKey;    // hunk key being commented, empty if none
@@ -439,6 +441,7 @@ inline void reset_review(ReviewComponent& review) {
     review.storageScope.clear();
     review.storageRepoPath.clear();
     review.approvedHunks.clear();
+    review.reviewedFiles.clear();
     review.foldedHunks.clear();
     review.composingKey.clear();
     review.composingText.clear();
@@ -481,9 +484,31 @@ inline std::string selected_review_storage_scope(const RepoComponent& repo, cons
 inline std::string diff_signature(const FileDiff& f) {
     std::string s = std::to_string(f.additions) + "," +
                     std::to_string(f.deletions) + "," +
-                    std::to_string(f.hunks.size());
+                    std::to_string(f.hunks.size()) + ":" + f.oldMode + ":" + f.newMode + ":" + f.oldPath;
     for (const auto& h : f.hunks) s += "|" + hunk_signature(h);
     return s;
+}
+
+inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const FileDiff& file) {
+    auto record = review.reviewedFiles.find(scope + "\n" + file.filePath);
+    if (record != review.reviewedFiles.end()) return record->second == diff_signature(file);
+    if (file.oldMode != file.newMode) return false;
+    return !file.hunks.empty() && std::all_of(file.hunks.begin(), file.hunks.end(), [&](const auto& hunk) {
+        return review.approvedHunks.contains(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
+    });
+}
+
+inline std::optional<size_t> next_unreviewed_file(const ReviewComponent& review, const std::string& scope,
+        const std::vector<FileDiff>& files, const review_files::Filter& filter, const std::string& current) {
+    auto indices = visible_file_indices(files, filter);
+    if (indices.empty()) return std::nullopt;
+    auto found = std::find_if(indices.begin(), indices.end(), [&](size_t i) { return files[i].filePath == current; });
+    size_t start = found == indices.end() ? indices.size() - 1 : static_cast<size_t>(found - indices.begin());
+    for (size_t offset = 1; offset <= indices.size(); ++offset) {
+        size_t i = indices[(start + offset) % indices.size()];
+        if (!file_reviewed(review, scope, files[i])) return i;
+    }
+    return std::nullopt;
 }
 
 inline std::string comment_location(const ReviewComponent::Comment& comment) {

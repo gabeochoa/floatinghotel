@@ -1,0 +1,14 @@
+resize 1440 900
+wait_for_refresh
+click_text a.cpp
+screenshot item_22_first_file
+click_ui approve_file_btn
+screenshot item_22_first_approved
+click_ui next_unreviewed_file
+screenshot item_22_next_file
+validate selected_file=b.cpp
+expect_text second replacement
+click_ui approve_file_btn
+screenshot item_22_second_approved
+click_ui next_unreviewed_file
+expect_text All visible files reviewed

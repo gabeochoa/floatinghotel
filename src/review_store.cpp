@@ -91,6 +91,7 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["editing_text"] = review.editingCommentText;
 
     j["approved_hunks"] = review.approvedHunks;  // set<string> -> array
+    j["reviewed_files"] = review.reviewedFiles;
     j["folded_hunks"] = review.foldedHunks;
     j["seen_sig"] = review.seenSig;              // map<string,string> -> object
     j["baseline_head"] = review.baselineHead;
@@ -150,6 +151,7 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
 
         review.approvedHunks =
             j.value("approved_hunks", std::set<std::string>{});
+        review.reviewedFiles = j.value("reviewed_files", std::map<std::string, std::string>{});
         review.foldedHunks = j.value("folded_hunks", std::set<std::string>{});
         review.seenSig =
             j.value("seen_sig", std::map<std::string, std::string>{});
