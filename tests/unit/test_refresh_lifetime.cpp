@@ -13,12 +13,14 @@ TEST(closing_a_tab_cancels_its_refresh_reads_without_waiting_for_the_repository_
     afterhours::EntityHelper::set_default_collection(&collection);
     ecs::AsyncGitDataRefreshSystem refresh;
     auto& tab = afterhours::EntityHelper::createEntity();
+    tab.addComponent<ecs::ActiveTab>();
     auto& repo = tab.addComponent<ecs::RepoComponent>();
     repo.repoPath = path;
     repo.refreshRequested = true;
     auto repositoryLock = git::repository_mutex(path);
     std::unique_lock held(*repositoryLock);
     refresh.for_each_with(tab, repo, 0);
+    ASSERT_TRUE(repo.isRefreshing);
     tab.cleanup = true;
     afterhours::EntityHelper::cleanup();
     auto started = std::chrono::steady_clock::now();
@@ -43,10 +45,13 @@ TEST(refresh_cleanup_preserves_live_tabs_and_their_results) {
     afterhours::EntityHelper::set_default_collection(&collection);
     ecs::AsyncGitDataRefreshSystem refresh;
     auto& tab = afterhours::EntityHelper::createEntity();
+    tab.addComponent<ecs::ActiveTab>();
     auto& repo = tab.addComponent<ecs::RepoComponent>();
     repo.repoPath = path;
     repo.refreshRequested = true;
     refresh.for_each_with(tab, repo, 0);
+    ASSERT_TRUE(repo.isRefreshing);
+    tab.removeComponent<ecs::ActiveTab>();
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
     while (repo.isRefreshing && std::chrono::steady_clock::now() < deadline) {
         refresh.once(0);
