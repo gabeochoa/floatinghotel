@@ -508,6 +508,14 @@ machine's daemons, not the app.
 - App workaround: use space-free property assertions for sidebar order, unit checks for ordering, and screenshot inspection for the multiword header.
 - Maintainer request: share a quoted-argument tokenizer across commands, with tests for spaces, escaped quotes, and backslashes in property values.
 
+### E2E text matching does not join adjacent styled spans — OPEN
+
+- Status: reproduced in review items 03 and 06 on b385dc9.
+- Reproduction: `expect_text "int answer = 42;"` times out on a visibly highlighted code line. `output/review-50/item-06.log` lists `int`, ` answer = `, `42`, and `;` as separate visible entries. The expanded-context fixture for item 03 similarly fails when its marker crosses a numeric token boundary.
+- Boundary: `rendering.h::draw_text_in_rect` registers each styled run independently in `VisibleTextRegistry`.
+- App workaround: assert individual spans plus cache state and inspect the composed line in a screenshot. Use a single-span marker when testing context expansion.
+- Maintainer request: register the composed visible label for text assertions while retaining per-span bounds for hit testing.
+
 ### Synchronized scroll views — RESOLVED upstream (dd579a4), and not needed here
 `HasScrollView::sync_group` — give two or more views the same non-zero id and
 scrolling any one moves the rest, on their enabled axes only.

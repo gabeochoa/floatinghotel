@@ -4,6 +4,7 @@
 #include "../git/git_commands.h"
 #include "../settings.h"
 #include "code_highlight.h"
+#include "token_cache.h"
 #include "image_diff.h"
 #include "reading_position.h"
 #include "../util/review_selection.h"
@@ -29,7 +30,8 @@ inline std::vector<afterhours::ui::TextSpan> highlighted_code(
     const std::string& prefix, const std::string& content, const std::string& path,
     bool visibleWhitespace = false, bool hasNewline = true) {
     std::vector<afterhours::ui::TextSpan> spans{{prefix, theme::TEXT_SECONDARY}};
-    for (const auto& token : code_highlight::tokenize(code_highlight::display_text(content, visibleWhitespace, true, hasNewline), path)) {
+    auto tokens = code_highlight::token_cache().get(code_highlight::display_text(content, visibleWhitespace, true, hasNewline), path);
+    for (const auto& token : *tokens) {
         auto color = theme::TEXT_PRIMARY;
         switch (token.kind) {
             case code_highlight::Kind::Plain: break;

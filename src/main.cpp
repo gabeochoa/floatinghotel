@@ -914,6 +914,10 @@ int main(int argc, char* argv[]) {
         } else if (key == "message_rows_bounded") {
             if (auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
                 return detail->messageVisibleRows < 300 ? "true" : "false";
+        } else if (key == "syntax_cache_reused") {
+            return code_highlight::token_cache().hits() > code_highlight::token_cache().misses() ? "true" : "false";
+        } else if (key == "syntax_cache_bounded") {
+            return code_highlight::token_cache().bytes() <= 4 * 1024 * 1024 ? "true" : "false";
         } else if (key == "tooltip_showing") {
             auto* tooltip = ecs::find_singleton<afterhours::ui::TooltipState>();
             return tooltip && tooltip->is_showing() ? "true" : "false";

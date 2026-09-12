@@ -50,6 +50,14 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_byte_cache" ]; then
+    run_test "test_byte_cache" "tests/unit/test_byte_cache.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_token_cache" ]; then
+    run_test "test_token_cache" "tests/unit/test_token_cache.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_repository_lock" ]; then
     run_test "test_repository_lock" "tests/unit/test_repository_lock.cpp" \
         "src/git/git_runner.cpp" "src/util/process.cpp"

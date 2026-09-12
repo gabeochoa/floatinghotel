@@ -1,0 +1,15 @@
+resize 1440 900
+wait_for_refresh
+click_text source.cpp
+screenshot item_06_highlighted
+expect_text " answer = "
+expect_text "42"
+wait_frames 20
+validate syntax_cache_reused=true
+validate syntax_cache_bounded=true
+click_text Side-by-Side
+screenshot item_06_split
+expect_text " answer = "
+expect_text "42"
+validate syntax_cache_reused=true
+validate syntax_cache_bounded=true
