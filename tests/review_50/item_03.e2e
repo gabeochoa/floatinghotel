@@ -1,0 +1,32 @@
+resize 1440 1000
+wait_for_refresh
+click_text latest
+wait_for_refresh
+expect_text "focus changed"
+expect_text "spacing.cpp"
+expect_no_text "faraway context"
+click_text baseline
+wait_for_refresh
+click_text latest
+wait_for_refresh
+expect_text "focus changed"
+click_text View
+click_text "Ignore Whitespace (toggle)"
+wait_for_refresh
+expect_no_text "spacing.cpp"
+screenshot item_03_whitespace_key
+click_text View
+click_text "Ignore Whitespace (toggle)"
+wait_for_refresh
+expect_text "spacing.cpp"
+screenshot item_03_before_context
+click_ui expand_diff_context
+wait_for_refresh
+expect_text "faraway context"
+screenshot item_03_context_key
+click_text baseline
+wait_for_refresh
+click_text latest
+wait_for_refresh
+expect_text "faraway context"
+screenshot item_03_cached_revisit
