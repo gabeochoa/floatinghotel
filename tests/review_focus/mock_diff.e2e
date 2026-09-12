@@ -1,0 +1,30 @@
+resize 1440 1000
+wait_for_refresh
+click_text "Exempt a deliberate pill"
+wait_for_refresh
+mouse_move 1100 25
+wait_frames 5
+screenshot diff_default
+click_ui approve_file_btn
+wait_frames 5
+click_ui toast_dismiss
+mouse_move 1100 25
+wait_frames 5
+screenshot diff_viewed
+click_text Split
+wait_frames 5
+screenshot diff_split
+click_text Unified
+wait_frames 5
+click_ui fold_file:src/plugins/ui/validation_systems.h
+wait_frames 5
+screenshot diff_folded
+click_ui fold_file:src/plugins/ui/validation_systems.h
+resize 1100 760
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 10
+screenshot diff_narrow
+validate footer_fixed=true

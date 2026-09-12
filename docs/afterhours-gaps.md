@@ -1020,3 +1020,28 @@ The native Roboto/fontstash path and the mock's browser system-font path use
 different metrics. The commit headline is calibrated visually at 28 native
 pixels. Code retains the user's 16-pixel setting. Matching CSS font-size values
 alone is not sufficient evidence of visual parity.
+
+### Font metadata is duplicated across label and layout components
+
+The first font-aware JSON dump read `HasLabel::font_name`. It remained
+`__unset` even when `ComponentConfig::with_font("mono", ...)` was applied.
+The renderer selects the font from `UIComponent::font_name` instead. The
+dump now reads that field, and records each styled text span separately.
+This was an app diagnostic mistake exposed by overlapping framework fields,
+not a failure to render the selected font. The diff check caught it before
+the final unit was accepted.
+
+The same native/browser font-metric difference also made the first 13-pixel
+diff captions look too small. File paths now use 15 native pixels and hunk
+captions use 14, while code retains the user's 16-pixel setting. File-fold
+arrows use the same geometry workaround as the tree disclosure controls.
+
+### Styled labels bypass ellipsis truncation
+
+The renderer computes `display_text` for ellipsis, but the styled-run path
+then draws the original `HasLabel::spans` with unbounded width. A long hunk
+caption or path can therefore paint underneath neighboring controls despite
+`TextOverflow::Ellipsis`. Diff captions now sit in an explicit clipped
+container, and file-title groups clip before the action cluster. This keeps
+the controls clear but truncates styled text without an ellipsis. Upstream
+should truncate the styled runs while retaining their colors and weights.

@@ -56,7 +56,11 @@ inline nlohmann::json layout_snapshot() {
         if (entity.has<HasLabel>()) {
             const auto& label = entity.get<HasLabel>();
             node["text"] = label.label;
-            node["font"] = label.font_name;
+            node["font"] = cmp.font_name;
+            node["text_spans"] = nlohmann::json::array();
+            for (const auto& span : label.spans)
+                node["text_spans"].push_back({{"text", span.text},
+                    {"color", {span.color.r, span.color.g, span.color.b, span.color.a}}});
             node["text_alignment"] = std::string(magic_enum::enum_name(label.alignment));
             node["text_overflow"] = std::string(magic_enum::enum_name(label.text_overflow));
             if (label.explicit_text_color) {
