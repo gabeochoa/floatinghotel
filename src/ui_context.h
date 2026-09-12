@@ -53,17 +53,50 @@ inline void registerUIPostLayoutSystems(
     afterhours::ui::register_after_ui_updates<InputAction>(manager);
 }
 
+struct HoldFloatingUIDraws : afterhours::System<UIContextType> {
+    std::vector<afterhours::ui::RenderInfo> commands;
+
+    void for_each_with(afterhours::Entity&, UIContextType& context, float) override {
+        commands.clear();
+        std::erase_if(context.render_cmds, [&](const auto& command) {
+            if (command.layer < 100) return false;
+            commands.push_back(command);
+            return true;
+        });
+    }
+};
+
+struct RenderFloatingUI : afterhours::ui::RenderImm<InputAction> {
+    HoldFloatingUIDraws& held;
+
+    explicit RenderFloatingUI(HoldFloatingUIDraws& draws) : held(draws) {}
+
+    void for_each_with_derived(afterhours::Entity& entity, UIContextType& context,
+            afterhours::ui::FontManager& fonts, float dt) override {
+        if (held.commands.empty()) return;
+        context.render_cmds.swap(held.commands);
+        afterhours::ui::RenderImm<InputAction>::for_each_with_derived(entity, context, fonts, dt);
+    }
+};
+
+struct RenderFloatingScrollbars : afterhours::ui::RenderScrollbars<InputAction> {
+    void for_each_with(afterhours::Entity& entity, afterhours::ui::UIComponent& component,
+            afterhours::ui::HasScrollView& scroll, float dt) override {
+        if (component.render_layer >= 100)
+            afterhours::ui::RenderScrollbars<InputAction>::for_each_with(entity, component, scroll, dt);
+    }
+};
+
 inline void registerUIRenderSystems(
     afterhours::SystemManager& manager) {
-    manager.register_render_system(std::make_unique<afterhours::ui::UIPluginRenderBridge<InputAction>>(InputAction::None, false));
+    auto bridge = std::make_unique<afterhours::ui::UIPluginRenderBridge<InputAction>>(InputAction::None, false);
+    auto held = std::make_unique<HoldFloatingUIDraws>();
+    auto floating = std::make_unique<RenderFloatingUI>(*held);
+    bridge->systems.insert(bridge->systems.begin(), std::move(held));
+    bridge->systems.insert(bridge->systems.begin() + 3, std::move(floating));
+    bridge->systems.insert(bridge->systems.begin() + 4, std::make_unique<RenderFloatingScrollbars>());
+    manager.register_render_system(std::move(bridge));
     manager.register_render_system(std::make_unique<ui::RenderWrappedTooltip<InputAction>>());
-}
-
-inline void registerToastSystems(
-    afterhours::SystemManager& manager) {
-    afterhours::toast::enforce_singletons(manager);
-    afterhours::toast::register_update_systems(manager);
-    afterhours::toast::register_layout_systems<InputAction>(manager);
 }
 
 inline void registerModalSystems(

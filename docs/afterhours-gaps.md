@@ -846,3 +846,35 @@ component's own label. The spacing audit reproduced this in sidebar headers
 and `commit_files_empty`; compare `output/spacing-audit/graph/graph_empty_commit.png`
 with its JSON sidecar. The sidebar geometry fix does not change this renderer
 behavior. A further workaround must preserve code-selection glyph alignment.
+
+### Toast sizing and scrollbar layering
+
+The framework toast uses a fixed-height label, retains its initial computed
+size after resize, and has no close control, hover pause, duplicate handling,
+or visible-stack limit. The app now keeps the existing `toast::send_*` API but
+replaces its update/layout systems with `ui::ToastSystem`. Cards use logical
+sizes, 12-pixel padding, 28-pixel dismiss targets, wrapped scrollable messages,
+and at most three visible cards. Repeated messages combine. Informational
+messages pause under the pointer; warnings and errors require dismissal.
+Hidden queued messages do not expire before being displayed.
+
+App notification producers also used a single pending string. Simultaneous
+Git completions overwrote earlier messages and all severities became short
+info notices. A typed pending-notice vector now preserves each result and its
+severity. No framework changes were required for that app bug.
+
+The first visual check showed sidebar scrollbars painted through the cards.
+`UIPluginRenderBridge` runs `RenderScrollbars` after all UI layers, so a higher
+toast layer cannot prevent this. The app now holds layers 100 and above,
+draws ordinary UI and its scrollbars, then draws floating UI and its own
+scrollbars. This also keeps modal surfaces above underlying scrollbars.
+It reuses the framework renderers without copying or editing vendor files.
+Before and after: `output/spacing-audit/toasts/toast_zoom_small.png` and
+`output/spacing-audit/toast-final/toast_zoom_small.png`.
+
+The unused `ToastRoot` enforcement is removed because `send_*` creates
+independent entities and the app renderer does not need that root. The startup
+missing-singleton warning above is absent in `output/spacing-audit/toast-final.log`.
+Tests cover duplicate notices, hover pause, expiration, persistent warnings and
+errors, dismiss clicks, wrapping, and small-window zoom. Text-highlight and
+idle-flicker checks also pass after the render-order change.

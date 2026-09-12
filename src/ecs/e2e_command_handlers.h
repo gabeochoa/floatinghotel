@@ -33,6 +33,25 @@ struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECom
     }
 };
 
+struct HandleShowToast : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("show_toast")) return;
+        if (!cmd.has_args(2)) { cmd.fail("show_toast requires a level and message"); return; }
+        std::string joined;
+        for (size_t i = 1; i < cmd.args.size(); ++i) { if (!joined.empty()) joined += ' '; joined += cmd.args[i]; }
+        std::istringstream input(joined);
+        std::string message;
+        input >> std::quoted(message);
+        auto& ctx = afterhours::EntityHelper::get_singleton_cmp_enforce<ui_imm::UIContextType>();
+        if (cmd.args[0] == "info") afterhours::toast::send_info(ctx, message);
+        else if (cmd.args[0] == "success") afterhours::toast::send_success(ctx, message);
+        else if (cmd.args[0] == "warning") afterhours::toast::send_warning(ctx, message);
+        else if (cmd.args[0] == "error") afterhours::toast::send_error(ctx, message);
+        else { cmd.fail("Unknown toast level"); return; }
+        cmd.consume();
+    }
+};
+
 struct HandleReviewRoundtrip : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("roundtrip_review")) return;

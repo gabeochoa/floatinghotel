@@ -1,0 +1,38 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+show_toast info "File copied"
+show_toast info "File copied"
+mouse_move 1100 730
+screenshot toast_duplicate
+expect_text "Notice (2)"
+wait_frames 360
+screenshot toast_hovered
+expect_text "File copied"
+mouse_move 600 50
+wait_frames 360
+screenshot toast_expired
+validate ui_present:toast_card=false
+show_toast error "Could not load the repository. Check that the folder still exists and that your account has permission to read its Git directory. Your review comments have not been sent anywhere."
+show_toast success "Review copied to clipboard"
+show_toast warning "Could not save review; retrying. Keep this tab open."
+show_toast info "Another completed operation"
+screenshot toast_stack
+expect_text "Error"
+expect_text "Warning"
+wait_frames 480
+screenshot toast_persistent
+expect_text "Could not load the repository."
+expect_text "Could not save review"
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+resize 720 600
+wait_frames 5
+screenshot toast_zoom_small
+validate footer_fixed=true
+click_ui toast_dismiss
+wait_frames 5
+screenshot toast_closed_error
+expect_no_text "Could not load the repository."

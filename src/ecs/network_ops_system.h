@@ -10,8 +10,6 @@
 
 namespace ecs {
 
-// Show a toast via MenuComponent::pendingToast when a git operation fails.
-// Returns true if the operation failed.
 inline bool toast_on_git_failure(const git::GitResult& result,
                                   const std::string& action) {
     if (result.success()) return false;
@@ -23,7 +21,7 @@ inline bool toast_on_git_failure(const git::GitResult& result,
         if (!firstLine.empty()) msg += ": " + firstLine;
     }
     auto* menu = find_singleton<MenuComponent>();
-    if (menu) menu->pendingToast = msg;
+    if (menu) menu->pendingToasts.push_back({msg, MenuComponent::Notice::Kind::Error});
     return true;
 }
 
@@ -41,9 +39,6 @@ inline void enqueue_network_op(const std::string& label,
     ops->pending.push_back({label, std::move(fut), tabId});
 }
 
-// Polls in-flight network operations each frame.  When a future becomes
-// ready, consumes the result, queues a toast via MenuComponent::pendingToast,
-// and triggers refresh on the originating tab's RepoComponent.
 struct NetworkOpsPollingSystem : afterhours::System<NetworkOpsComponent> {
     void for_each_with(afterhours::Entity&, NetworkOpsComponent& ops,
                        float) override {
@@ -70,7 +65,8 @@ struct NetworkOpsPollingSystem : afterhours::System<NetworkOpsComponent> {
                 }
 
                 auto* menu = find_singleton<MenuComponent>();
-                if (menu) menu->pendingToast = toastMsg;
+                if (menu) menu->pendingToasts.push_back({toastMsg, result.success()
+                    ? MenuComponent::Notice::Kind::Success : MenuComponent::Notice::Kind::Error});
 
                 auto opt = afterhours::EntityHelper::getEntityForID(tabId);
                 if (opt.valid() && opt->has<RepoComponent>()) {

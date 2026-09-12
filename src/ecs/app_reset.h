@@ -60,7 +60,7 @@ inline void reset_commit_editor(CommitEditorComponent& editor) {
 inline void reset_menus(MenuComponent& menu) {
     menu.activeMenuIndex = -1;
     menu.pendingDialog = MenuComponent::PendingDialog::None;
-    menu.pendingToast.clear();
+    menu.pendingToasts.clear();
 }
 
 inline void reset_ui_transient_state() {

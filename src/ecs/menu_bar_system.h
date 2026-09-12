@@ -334,11 +334,14 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
 
-        // Drain pending toast (from Tier B stub menu actions that lack UIContext)
-        if (!menu.pendingToast.empty()) {
-            afterhours::toast::send_info(ctx, menu.pendingToast, 2.0f);
-            menu.pendingToast.clear();
+        for (const auto& notice : menu.pendingToasts) {
+            switch (notice.kind) {
+                case MenuComponent::Notice::Kind::Info: afterhours::toast::send_info(ctx, notice.message); break;
+                case MenuComponent::Notice::Kind::Success: afterhours::toast::send_success(ctx, notice.message); break;
+                case MenuComponent::Notice::Kind::Error: afterhours::toast::send_error(ctx, notice.message); break;
+            }
         }
+        menu.pendingToasts.clear();
 
         // Close menus on click outside
         if (anyMenuOpen && !headerInteracted && !itemInteracted) {

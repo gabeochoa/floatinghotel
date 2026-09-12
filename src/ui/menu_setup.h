@@ -43,7 +43,7 @@ struct Menu {
 
 inline void set_pending_toast(const std::string& msg) {
     auto* menu = ecs::find_singleton<ecs::MenuComponent>();
-    if (menu) menu->pendingToast = msg;
+    if (menu) menu->pendingToasts.push_back({msg});
 }
 
 inline std::vector<Menu> createMenuBar() {

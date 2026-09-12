@@ -35,7 +35,7 @@ inline void persist_pending_review(UIContext<InputAction>& ctx, ReviewComponent&
     if (!immediate && now < review.nextSaveAttempt) return;
     if (!review_store::persist_review(review.storageRepoPath.empty() ? repo->repoPath : review.storageRepoPath, review)) {
         review.nextSaveAttempt = now + std::chrono::seconds(2);
-        afterhours::toast::send_info(ctx, "Could not save review; retrying. Keep this tab open.", 3.f);
+        afterhours::toast::send_warning(ctx, "Could not save review; retrying. Keep this tab open.", 3.f);
     }
 }
 

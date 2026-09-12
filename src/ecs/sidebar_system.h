@@ -826,7 +826,7 @@ private:
         if (syncBtn(2089, "Stash", hasRepo)) {
             auto* menuComp = find_singleton<MenuComponent>();
             if (menuComp)
-                menuComp->pendingToast = "Stash is not yet implemented";
+                menuComp->pendingToasts.push_back({"Stash is not yet implemented"});
         }
     }
 

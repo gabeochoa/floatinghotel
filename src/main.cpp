@@ -40,6 +40,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ui/context_menu.h"
 #include "ui/zoom.h"
 #include "ui/layout_dump.h"
+#include "ui/toast_system.h"
 #include "util/frame_pacer.h"
 #include "util/file_page_stats.h"
 #include "util/grep_capture.h"
@@ -489,9 +490,6 @@ static void app_init() {
     app_state::systemManager = &sm;
 
     {
-        // Ensure toast and modal singletons exist before any UI system
-        // accesses them (e.g. sidebar renders modal dialogs)
-        afterhours::toast::enforce_singletons(sm);
         afterhours::modal::enforce_singletons(sm);
 
         // Pre-layout (context begin, clear children)
@@ -519,6 +517,7 @@ static void app_init() {
         // MenuBarSystem runs last so dropdown elements draw on top of
         // toolbar/sidebar when a menu is open
         sm.register_update_system(std::make_unique<ecs::MenuBarSystem>());
+        sm.register_update_system(std::make_unique<::ui::ToastSystem>());
 
         // Post-layout (entity mapping, autolayout, interactions)
         ui_imm::registerUIPostLayoutSystems(sm);
@@ -532,11 +531,6 @@ static void app_init() {
         sm.register_update_system(std::move(fileWatcherPtr));
         sm.register_update_system(std::make_unique<ecs::AsyncGitDataRefreshSystem>());
         sm.register_update_system(std::make_unique<ecs::NetworkOpsPollingSystem>());
-
-        // Toast notification systems. Lift toasts above the bottom status bar
-        // so they don't overlap it (afterhours' default sits at the very edge).
-        afterhours::toast::PADDING = afterhours::ui::h720(40.0f);
-        ui_imm::registerToastSystems(sm);
 
         // Modal dialog systems
         ui_imm::registerModalSystems(sm);
@@ -552,6 +546,7 @@ static void app_init() {
                 sm.register_update_system(std::make_unique<SkipResizeCommand>());
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
+            sm.register_update_system(std::make_unique<HandleShowToast>());
             sm.register_update_system(std::make_unique<HandleReviewRoundtrip>());
             sm.register_update_system(std::make_unique<HandleExpectReviewExport>());
             sm.register_update_system(std::make_unique<HandleResetUI>());

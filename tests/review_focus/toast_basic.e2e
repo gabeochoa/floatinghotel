@@ -1,0 +1,19 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text "Add contributing guidelines"
+wait_for_refresh
+screenshot toast_ready
+click_text Edit
+screenshot toast_edit_menu
+click_ui menu_item_Copy
+mouse_move 600 50
+screenshot toast_copy
+expect_text "No diff selection to copy"
+validate ui_present:toast_card=true
+assert_ui toast_dismiss w=28
+assert_ui toast_dismiss h=28
+click_ui toast_dismiss
+wait_frames 5
+screenshot toast_dismissed
+validate ui_present:toast_card=false

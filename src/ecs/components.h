@@ -990,7 +990,12 @@ struct MenuComponent : public afterhours::BaseComponent {
     enum class PendingDialog { None, OpenRepo };
     PendingDialog pendingDialog = PendingDialog::None;
 
-    std::string pendingToast;
+    struct Notice {
+        enum class Kind { Info, Success, Error };
+        std::string message;
+        Kind kind = Kind::Info;
+    };
+    std::vector<Notice> pendingToasts;
 };
 
 struct CommandLogComponent : public afterhours::BaseComponent {
