@@ -1,0 +1,11 @@
+=== text decode tests ===
+  text_decode_utf8                                             OK
+  text_decode_utf16le_bom                                      OK
+  text_decode_utf16be_override                                 OK
+  text_decode_utf8_override_marks_nul_binary                   OK
+  text_decode_utf8_invalid_sequences_are_labeled               OK
+  text_decode_utf16_replaces_unmatched_surrogates_and_odd_tail OK
+  text_decode_truncated_utf8_preserves_trailing_ascii          OK
+  text_decode_utf16_nul_remains_binary                         OK
+
+8/8 tests passed.

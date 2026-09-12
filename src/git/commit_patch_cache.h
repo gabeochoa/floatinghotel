@@ -47,6 +47,7 @@ class CommitPatchCache {
     };
     mutable std::mutex mutex_;
     std::list<Entry> entries_;
+    size_t hits_ = 0, misses_ = 0;
     size_t budget_;
     size_t bytes_ = 0;
 public:
@@ -55,7 +56,8 @@ public:
     std::optional<ecs::CommitPatch> get(const CommitPatchKey& key) {
         std::lock_guard lock(mutex_);
         auto found = std::find_if(entries_.begin(), entries_.end(), [&](const Entry& entry) { return entry.key == key; });
-        if (found == entries_.end()) return {};
+        if (found == entries_.end()) { ++misses_; return {}; }
+        ++hits_;
         entries_.splice(entries_.begin(), entries_, found);
         return entries_.front().patch;
     }
@@ -75,6 +77,11 @@ public:
         bytes_ += entry.bytes;
         entries_.push_front(std::move(entry));
         return true;
+    }
+
+    std::pair<size_t, size_t> activity() const {
+        std::lock_guard lock(mutex_);
+        return {hits_, misses_};
     }
 
     size_t bytes() const {

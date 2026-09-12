@@ -39,7 +39,9 @@ wait_for_refresh
 screenshot improvement_44_to_commit
 assert_ui commit_subject hidden=false
 key ALT+LEFT
-click_ui review_progress
+click_ui sidebar_working_files
+screenshot improvement_44_working_controls
+click_ui working_review_toggle
 wait_for_refresh
 screenshot improvement_44_review
 key ALT+LEFT

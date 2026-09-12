@@ -1,0 +1,632 @@
+[
+  {
+    "zoom": 100,
+    "temperature": "cold",
+    "step": "commit",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.838458,
+      "p95": 12.275292,
+      "max": 12.275292
+    },
+    "ready_ms": {
+      "min": 571.510625,
+      "p95": 1573.226791,
+      "max": 1573.226791
+    },
+    "owned_content_bytes": {
+      "min": 2691,
+      "p95": 2691,
+      "max": 2691
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "cold",
+    "step": "diff",
+    "count": 3,
+    "selection_ms": {
+      "min": 5.46525,
+      "p95": 12.263209,
+      "max": 12.263209
+    },
+    "ready_ms": {
+      "min": 5.46525,
+      "p95": 12.263209,
+      "max": 12.263209
+    },
+    "owned_content_bytes": {
+      "min": 2691,
+      "p95": 2691,
+      "max": 2691
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "cold",
+    "step": "source",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.678292,
+      "p95": 10.163167,
+      "max": 10.163167
+    },
+    "ready_ms": {
+      "min": 558.035792,
+      "p95": 806.331084,
+      "max": 806.331084
+    },
+    "owned_content_bytes": {
+      "min": 16993,
+      "p95": 16993,
+      "max": 16993
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "cold",
+    "step": "second",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.530667,
+      "p95": 8.050375,
+      "max": 8.050375
+    },
+    "ready_ms": {
+      "min": 5.870042,
+      "p95": 13.219542,
+      "max": 13.219542
+    },
+    "owned_content_bytes": {
+      "min": 16817,
+      "p95": 16817,
+      "max": 16817
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "cold",
+    "step": "back",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.162959,
+      "p95": 5.261916,
+      "max": 5.261916
+    },
+    "ready_ms": {
+      "min": 370.720084,
+      "p95": 417.787041,
+      "max": 417.787041
+    },
+    "owned_content_bytes": {
+      "min": 16993,
+      "p95": 16993,
+      "max": 16993
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "warm",
+    "step": "commit",
+    "count": 3,
+    "selection_ms": {
+      "min": 2.915958,
+      "p95": 4.848125,
+      "max": 4.848125
+    },
+    "ready_ms": {
+      "min": 541.221416,
+      "p95": 910.056375,
+      "max": 910.056375
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "warm",
+    "step": "diff",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.822708,
+      "p95": 6.292041,
+      "max": 6.292041
+    },
+    "ready_ms": {
+      "min": 3.822708,
+      "p95": 6.292041,
+      "max": 6.292041
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "warm",
+    "step": "source",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.549084,
+      "p95": 4.943708,
+      "max": 4.943708
+    },
+    "ready_ms": {
+      "min": 3.549084,
+      "p95": 4.943708,
+      "max": 4.943708
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "warm",
+    "step": "second",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.322916,
+      "p95": 8.610042,
+      "max": 8.610042
+    },
+    "ready_ms": {
+      "min": 4.322916,
+      "p95": 8.610042,
+      "max": 8.610042
+    },
+    "owned_content_bytes": {
+      "min": 16793,
+      "p95": 16793,
+      "max": 16793
+    }
+  },
+  {
+    "zoom": 100,
+    "temperature": "warm",
+    "step": "back",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.919542,
+      "p95": 7.583667,
+      "max": 7.583667
+    },
+    "ready_ms": {
+      "min": 482.0725,
+      "p95": 678.66325,
+      "max": 678.66325
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "cold",
+    "step": "commit",
+    "count": 3,
+    "selection_ms": {
+      "min": 5.253167,
+      "p95": 6.41625,
+      "max": 6.41625
+    },
+    "ready_ms": {
+      "min": 566.417542,
+      "p95": 1003.420041,
+      "max": 1003.420041
+    },
+    "owned_content_bytes": {
+      "min": 2691,
+      "p95": 2691,
+      "max": 2691
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "cold",
+    "step": "diff",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.546875,
+      "p95": 6.915208,
+      "max": 6.915208
+    },
+    "ready_ms": {
+      "min": 4.546875,
+      "p95": 6.915208,
+      "max": 6.915208
+    },
+    "owned_content_bytes": {
+      "min": 2691,
+      "p95": 2691,
+      "max": 2691
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "cold",
+    "step": "source",
+    "count": 3,
+    "selection_ms": {
+      "min": 5.940875,
+      "p95": 9.376958,
+      "max": 9.376958
+    },
+    "ready_ms": {
+      "min": 572.340125,
+      "p95": 1314.51575,
+      "max": 1314.51575
+    },
+    "owned_content_bytes": {
+      "min": 16993,
+      "p95": 16993,
+      "max": 16993
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "cold",
+    "step": "second",
+    "count": 3,
+    "selection_ms": {
+      "min": 5.87975,
+      "p95": 8.7185,
+      "max": 8.7185
+    },
+    "ready_ms": {
+      "min": 5.87975,
+      "p95": 8.7185,
+      "max": 8.7185
+    },
+    "owned_content_bytes": {
+      "min": 16817,
+      "p95": 16817,
+      "max": 16817
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "cold",
+    "step": "back",
+    "count": 3,
+    "selection_ms": {
+      "min": 2.677792,
+      "p95": 6.707458,
+      "max": 6.707458
+    },
+    "ready_ms": {
+      "min": 444.598959,
+      "p95": 719.705625,
+      "max": 719.705625
+    },
+    "owned_content_bytes": {
+      "min": 16993,
+      "p95": 16993,
+      "max": 16993
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "warm",
+    "step": "commit",
+    "count": 3,
+    "selection_ms": {
+      "min": 2.676375,
+      "p95": 5.992667,
+      "max": 5.992667
+    },
+    "ready_ms": {
+      "min": 584.753333,
+      "p95": 1132.544,
+      "max": 1132.544
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "warm",
+    "step": "diff",
+    "count": 3,
+    "selection_ms": {
+      "min": 5.3195,
+      "p95": 6.098041,
+      "max": 6.098041
+    },
+    "ready_ms": {
+      "min": 5.3195,
+      "p95": 6.098041,
+      "max": 6.098041
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "warm",
+    "step": "source",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.822875,
+      "p95": 5.785959,
+      "max": 5.785959
+    },
+    "ready_ms": {
+      "min": 4.822875,
+      "p95": 5.785959,
+      "max": 5.785959
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "warm",
+    "step": "second",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.186458,
+      "p95": 6.592292,
+      "max": 6.592292
+    },
+    "ready_ms": {
+      "min": 4.186458,
+      "p95": 6.592292,
+      "max": 6.592292
+    },
+    "owned_content_bytes": {
+      "min": 16793,
+      "p95": 16793,
+      "max": 16793
+    }
+  },
+  {
+    "zoom": 140,
+    "temperature": "warm",
+    "step": "back",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.134458,
+      "p95": 4.58175,
+      "max": 4.58175
+    },
+    "ready_ms": {
+      "min": 498.353583,
+      "p95": 1083.77675,
+      "max": 1083.77675
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "cold",
+    "step": "commit",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.846917,
+      "p95": 7.187208,
+      "max": 7.187208
+    },
+    "ready_ms": {
+      "min": 623.859542,
+      "p95": 1156.729417,
+      "max": 1156.729417
+    },
+    "owned_content_bytes": {
+      "min": 2691,
+      "p95": 2691,
+      "max": 2691
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "cold",
+    "step": "diff",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.109875,
+      "p95": 4.651542,
+      "max": 4.651542
+    },
+    "ready_ms": {
+      "min": 4.109875,
+      "p95": 4.651542,
+      "max": 4.651542
+    },
+    "owned_content_bytes": {
+      "min": 2691,
+      "p95": 2691,
+      "max": 2691
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "cold",
+    "step": "source",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.759791,
+      "p95": 5.134208,
+      "max": 5.134208
+    },
+    "ready_ms": {
+      "min": 651.380125,
+      "p95": 778.861416,
+      "max": 778.861416
+    },
+    "owned_content_bytes": {
+      "min": 16993,
+      "p95": 16993,
+      "max": 16993
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "cold",
+    "step": "second",
+    "count": 3,
+    "selection_ms": {
+      "min": 5.428958,
+      "p95": 8.029167,
+      "max": 8.029167
+    },
+    "ready_ms": {
+      "min": 5.428958,
+      "p95": 8.029167,
+      "max": 8.029167
+    },
+    "owned_content_bytes": {
+      "min": 16817,
+      "p95": 16817,
+      "max": 16817
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "cold",
+    "step": "back",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.231792,
+      "p95": 3.889292,
+      "max": 3.889292
+    },
+    "ready_ms": {
+      "min": 464.1875,
+      "p95": 574.394084,
+      "max": 574.394084
+    },
+    "owned_content_bytes": {
+      "min": 16993,
+      "p95": 16993,
+      "max": 16993
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "warm",
+    "step": "commit",
+    "count": 3,
+    "selection_ms": {
+      "min": 2.397209,
+      "p95": 4.135792,
+      "max": 4.135792
+    },
+    "ready_ms": {
+      "min": 468.975708,
+      "p95": 584.948208,
+      "max": 584.948208
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "warm",
+    "step": "diff",
+    "count": 3,
+    "selection_ms": {
+      "min": 2.534084,
+      "p95": 4.251417,
+      "max": 4.251417
+    },
+    "ready_ms": {
+      "min": 2.534084,
+      "p95": 4.251417,
+      "max": 4.251417
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "warm",
+    "step": "source",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.588333,
+      "p95": 4.603167,
+      "max": 4.603167
+    },
+    "ready_ms": {
+      "min": 3.588333,
+      "p95": 4.603167,
+      "max": 4.603167
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "warm",
+    "step": "second",
+    "count": 3,
+    "selection_ms": {
+      "min": 4.792208,
+      "p95": 6.771625,
+      "max": 6.771625
+    },
+    "ready_ms": {
+      "min": 4.792208,
+      "p95": 6.771625,
+      "max": 6.771625
+    },
+    "owned_content_bytes": {
+      "min": 16793,
+      "p95": 16793,
+      "max": 16793
+    }
+  },
+  {
+    "zoom": 200,
+    "temperature": "warm",
+    "step": "back",
+    "count": 3,
+    "selection_ms": {
+      "min": 3.098667,
+      "p95": 5.23,
+      "max": 5.23
+    },
+    "ready_ms": {
+      "min": 401.722959,
+      "p95": 490.496334,
+      "max": 490.496334
+    },
+    "owned_content_bytes": {
+      "min": 16969,
+      "p95": 16969,
+      "max": 16969
+    }
+  }
+]

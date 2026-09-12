@@ -40,6 +40,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ui/context_menu.h"
 #include "ui/zoom.h"
 #include "ui/layout_dump.h"
+#include "ui/reading_probe.h"
 #include "ui/toast_system.h"
 #include "util/frame_pacer.h"
 #include "util/file_page_stats.h"
@@ -587,6 +588,7 @@ static void app_init() {
                 perf::set_provider(std::move(p));
                 perf::register_perf_commands(sm);
             }
+            reading_probe::register_handlers(sm, app_state::screenshotDir);
             sm.register_update_system(std::make_unique<::ui::HandleDumpLayout>(app_state::screenshotDir));
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
@@ -673,6 +675,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
         // Wait for deferred screenshot to be captured before advancing
         if (!s_readyScreenshotName.empty()) break;
         if (e2e_bench::requested > 0) break;
+        if (reading_probe::checkpoint_pending()) break;
         if (e2e_idle_bench::requested > 0) break;
         if (e2e_paced_input::requested) break;
 
@@ -769,6 +772,10 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
         }
 
         app_state::e2eRunner.tick(SIM_DT);
+        const auto& injected = afterhours::testing::input_injector::detail::synthetic_press_count;
+        if (afterhours::testing::input_injector::detail::mouse.just_pressed ||
+            std::any_of(injected.begin(), injected.end(), [](int count) { return count > 0; }))
+            reading_probe::input_dispatched();
 
         if (!app_state::pendingScreenshotName.empty()) break;
         if (e2e_paced_input::requested) break;
@@ -952,6 +959,7 @@ static void app_draw(float dt) {
         write_screenshot((directory / std::format("idle_{:03}.png", e2e_idle_bench::captured++)).string());
     }
     trace_navigation_frame();
+    if (app_state::testModeEnabled) reading_probe::rendered();
     app_state::lastRenderedUiActivity = capture_ui_activity_snapshot();
 }
 

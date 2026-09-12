@@ -1,0 +1,4 @@
+  syntax_cache_reuses_tokens_without_caching_theme_colors      OK
+  syntax_cache_budget_does_not_prevent_oversized_lines_from_rendering OK
+
+2/2 tests passed.

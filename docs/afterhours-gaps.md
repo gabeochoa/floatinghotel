@@ -38,19 +38,45 @@ delta. Covered by `flow_sidebar_resize.e2e`.
 absolutely from `LayoutComponent` rather than nesting them, so there is no
 container to hand to a split pane. The divider alone is the part it needed.
 
-### 3. Tree Node
-- **What's missing:** No collapsible tree node widget for hierarchical list views.
-- **What floatinghotel needs:** File tree view in sidebar (grouped by directory), branch list with expandable remote sections.
-- **Criticality:** BLOCKER for P1 (tree view of changed files)
-- **Workaround:** Built app-local in `src/ui/tree_view.h` using `div()` + `button()` with indent levels and expand/collapse state tracked in a static map.
-- **Upstream request:** Add `tree_node()` to afterhours UI plugin with arbitrary nesting, expand/collapse animation, and arrow icon rotation.
+### 3. Tree view exists; custom rows and large trees need an extension
 
-### 4. Dropdown Menu
-- **What's missing:** No dropdown menu widget (click to open a list of items below a trigger element).
-- **What floatinghotel needs:** Menu bar dropdowns (File, Edit, View, Git, Help), commit button dropdown (amend/fixup), template picker, branch selector.
-- **Criticality:** HIGH for P0 (needed for menu bar)
-- **Workaround:** Built app-local in `src/ui/menu_setup.h` using `div()` + `button()` with absolute positioning. Manages open/close state, hover-to-switch between adjacent menus, and click-outside-to-close.
-- **Upstream request:** Add `dropdown_menu()` to afterhours UI plugin with configurable items (label, shortcut text, separator, disabled state, callback).
+`ui::imm::tree_view`, `TreeNode<T>`, `TreeViewConfig<T>`, and
+`HasTreeViewState` exist in `vendor/afterhours/src/plugins/ui/tree_view.h` at
+b385dc9. The widget already nests nodes and tracks expansion and selection by
+caller-supplied string IDs. The earlier claim that no tree widget exists was
+stale, and `src/ui/tree_view.h` is not an app file.
+
+The app builds its trees in `src/ecs/sidebar_system.h`, with flattening helpers
+in `src/util/file_tree.h`. Rows contain status, path, counts, and review state.
+The framework's row renderer owns one label and recursively builds every
+expanded node. `TreeViewConfig` has no custom row callback or virtual row model.
+
+A useful extension for file browsers, scene hierarchies, and game inventories
+would accept a row callback plus stable node keys, expose the flattened visible
+rows, and reuse `virtual_list`. Selection, keyboard focus, and expansion need
+separate state. Left/Right tree traversal and type-to-select belong in that
+shared controller. App-specific review indicators stay in the row callback.
+
+Status on 2026-09-12: API availability and the missing extension points were
+verified from source. This audit did not render the upstream widget or prove
+keyboard or performance behavior. Existing app tree captures are described in
+`A hover-styled row needs to own its click target` below.
+
+### 4. Dropdown menu exists; app adoption remains
+
+`ui::imm::dropdown_menu` and `MenuItem` exist in
+`vendor/afterhours/src/plugins/ui/menu.h` at b385dc9. Items already support labels,
+shortcut hints, separators, and disabled state. The widget returns a selected
+index, so the host can dispatch its own command without framework callbacks.
+
+The app still renders menu bars in `src/ecs/menu_bar_system.h` and context menus
+in `src/ui/context_menu_render.h`. Basic dropdown support is therefore adoption
+work, not a missing framework feature. The native menu adapter is covered under
+`macOS menu integration` below. Scoped command routing and focus return are
+separate requests in the 2026-09-12 audit at the end of this document.
+
+Status: source-verified availability. No upstream menu rendering test was run
+in this audit, and the older last-item click report is not marked fixed.
 
 ### 5. Context Menu — RESOLVED (176ea8f upstream + app), adopted
 `ctx.is_right_click(id)` answers "a secondary click finished over this element
@@ -69,12 +95,18 @@ Still to do: menus on commits (copy hash, cherry-pick, revert) and branches.
 No Discard yet — there is no `discard_file` git command, and a destructive one
 wants a confirmation step.
 
-### 6. Anchored Popup / Popover
-- **What's missing:** No anchored popup that appears relative to a trigger element (above, below, left, right).
-- **What floatinghotel needs:** Commit button dropdown (amend/fixup options), branch selector popover, tooltips for toolbar buttons.
-- **Criticality:** MEDIUM for P0
-- **Workaround:** Reuse dropdown menu approach from `src/ui/menu_setup.h` with manual position calculation relative to the trigger element's bounds.
-- **Upstream request:** Add `popover()` to afterhours UI plugin with anchor element reference, placement preference, and auto-flip when near window edges.
+### 6. Anchored popup exists; app adoption remains
+
+`ui::imm::popover` in `vendor/afterhours/src/plugins/ui/menu.h` accepts an anchor
+rectangle, an open flag, a preferred placement, and caller-drawn content.
+`ui::overlay::place` in `ui/overlay.h` flips and clamps against the screen bounds.
+The old request for basic anchored popup placement has shipped at b385dc9.
+
+The app's manually placed menus remain in `src/ecs/menu_bar_system.h` and
+`src/ui/context_menu_render.h`. Adopting the existing popup API requires checking
+nested-scroll coordinates, zoom, and focus behavior against those menus.
+Availability was verified from source on 2026-09-12. Those integration checks
+were not run, so this entry does not claim the app workaround can yet be removed.
 
 ---
 
@@ -1244,3 +1276,316 @@ controls could make the intended behavior available.
 After the fix, all five hover comparisons and the icon/count activation checks
 pass. The existing row-coordinate test also passes at 100%, at 140% zoom, and
 after scrolling. Captures and logs are in `output/tree-hover`.
+
+
+## Reusable upstream candidates from the 2026-09-12 source audit
+
+Source baseline: floatinghotel `4ef6c4e`, Afterhours
+`b385dc993f7f90cac63346514542dc33429a814d`. The inventory covered every file under
+`src`, including UI and ECS systems, utilities, platform code, Git readers,
+settings, and review persistence. Detailed framework review followed the shared
+workarounds into the vendored APIs. This was a source audit with selected unit
+checks, not an exhaustive runtime test of every app feature or graphics backend.
+
+These requests extend existing Afterhours components or propose optional
+utilities. Git revision resolution, review progress, comments, document identity,
+and navigation policy remain app-owned. The persistence proposal already lives
+in `docs/afterhours-persistence-proposal.md`; it is not duplicated here.
+
+The first upstream fixes to prioritize are already documented above: nested-scroll
+coordinates and wheel input, styled-label ellipsis, mixed-height virtualization,
+texture retirement, and native window resizing. They have concrete app evidence
+and benefit menus, inventories, scene editors, log viewers, and asset browsers.
+The entries below cover additional reusable code rather than reopen those bugs.
+
+### U1. Bounded background jobs with cancellation and foreground capacity
+
+`src/util/async_task.h` implements `Executor` and `Task<T>` because content reads,
+search, image decoding, and refresh work must leave the UI thread. The executor
+has separate foreground and background queues, bounded admission, cooperative
+stop tokens, and a reserved foreground worker when more than one worker exists.
+`src/ecs/async_git_refresh_system.h` also owns the task lifetimes of repository
+tabs. Asset decoding, thumbnail browsers, and game editor imports need the same
+scheduling behavior.
+
+No worker executor or task abstraction was found in the vendored
+`vendor/afterhours/src` implementation. The proposed optional jobs utility should
+return an explicit accepted, rejected, cancelled, completed, or failed outcome.
+It should support nonblocking polling, bounded queues, priority reservation, and
+shutdown that cancels reads while draining explicitly accepted must-complete
+work. Workers return owned values; they must not mutate ECS entities.
+
+A small owner token and request generation can accompany completions so a main
+thread consumer can reject a result after its view or scene is replaced. The
+host still defines the document or asset key. This is not a request to move Git
+selection state into Afterhours or to create one executor per widget.
+
+Current workaround: the app-owned executor and request checks. Verification in
+this audit: all three tests in `tests/unit/test_async_task.cpp` passed after a
+fresh build, covering reserved capacity, queue bounds and priority, and shutdown.
+The proposed owner-token adapter does not exist and has not been tested.
+
+### U2. File-change subscriptions for asset and document reload
+
+`src/platform/file_watcher.h::FSEventsWatcher` owns a macOS run-loop thread,
+retains the loop through shutdown, watches multiple roots, and returns paths
+with `mustRescan` after dropped events. `src/ecs/file_watcher_system.h` drains
+those events and applies an app-specific cooldown. This is reusable platform
+work for shader reload, texture import, localization files, and editor projects.
+
+Afterhours already has `ui::theme_io::HotReloadTheme` in
+`vendor/afterhours/src/plugins/ui/theme_io.h`. It polls one file's modification
+time. `plugins/files.h` provides resource paths and reads, but no general watch
+subscription or event queue. Theme reload alone does not replace the app watcher.
+
+An optional file-watch API should accept multiple roots, return an owned
+subscription, and drain path events on the caller's thread. It needs explicit
+unsupported and startup-failure results, a bounded queue that reports rescan
+when events are dropped, and a generation to discard events from an old
+subscription. Shutdown must join safely even if stop races initial startup.
+Debouncing policy and Git change classification remain with the app.
+
+Current workaround: FSEvents on macOS and `NullWatcher` elsewhere. The null
+implementation silently produces no events, so it is not portable verification.
+Status: source-reviewed only. The existing `wait_for_file_change` E2E adapter
+can verify app delivery; this audit did not run native watcher lifecycle tests
+or tests on Linux or Windows.
+
+### U3. A reusable cache with a byte budget and observable ownership
+
+`src/util/byte_cache.h` provides an LRU cache used by
+`src/ui/token_cache.h` and `src/git/blob_page_cache.h`. The patch cache in
+`src/git/commit_patch_cache.h` separately implements byte accounting and eviction
+for a structured key. Token, blob-page, and patch defaults are 4 MiB, 32 MiB,
+and 32 MiB respectively. Similar budgets matter for game thumbnails, decoded
+assets, and long-running editor sessions.
+
+Afterhours already has count-bounded text measurement caches in
+`vendor/afterhours/src/core/text_cache.h` and `vendor/afterhours/src/measure_memo.h`, plus a wrapped-run cache in
+`vendor/afterhours/src/plugins/ui/text_selection.h`. The missing reusable contract is a cache for
+host-owned values with explicit byte costs, not LRU caching itself.
+
+The utility should accept the key type and a cost function, reject oversize
+entries, define replacement and eviction behavior, and expose hits, misses,
+evictions, and accounted bytes. It must state whether values are copied or
+shared and whether accounting includes bookkeeping. Shared references can keep
+a value alive after eviction; cache occupancy must not be reported as total
+process or GPU memory. Synchronization can remain an explicit wrapper, as it
+is for the app's blob cache. GPU retirement is the separate existing entry.
+
+Current workaround: the three app cache classes. Verification in this audit:
+both `test_byte_cache` tests and both `test_token_cache` tests passed after fresh
+builds. They cover eviction, replacement, oversize values, token reuse, and
+continued rendering of uncached long lines. These checks do not measure RSS or
+establish a need to increase any existing budget.
+
+### U4. Public CPU image decoding and render-thread texture upload
+
+`src/git/image_content.cpp::decode` checks encoded size and image dimensions,
+reserves a shared decoded-byte budget, and returns owned RGBA pixels from a
+worker. `src/ui/image_diff.h::poll` uploads those pixels on the UI thread through
+`afterhours::metal_texture_detail::load_texture_from_pixels`. The split is useful
+for asset streaming, thumbnails, and procedural textures, but the app reaches
+into a Metal-specific detail namespace to perform the upload.
+
+`vendor/afterhours/src/backends/sokol/drawing_helpers.h` already implements that
+pixel upload and uses it for file-backed textures. This is a public API and
+ownership gap, not a claim that Sokol cannot upload image data. A portable
+`DecodedImage` owner and a public texture-from-pixels operation would let hosts
+use the same decode/upload split without backend internals.
+
+The decode operation should accept encoded bytes, dimension and decoded-byte
+limits, and cancellation, then return either owned pixels with a known format
+or a structured error. Texture upload must state its required thread, preserve
+filtering options, and return a clear failure. Decode cancellation and upload
+failure must release the owned allocation. Shared decode accounting should be
+separate from GPU accounting; decoder scratch allocations are not covered by
+the app's current RGBA reservation.
+
+Current workaround: app-owned STB decoding, limits, and Metal upload. Status:
+source-reviewed. Existing checks are `tests/unit/test_image_content.cpp` and
+`tests/review_50/item_12.sh`; they were not rerun in this documentation audit.
+Safe retirement of an already-rendered texture remains the earlier reproduced
+`Retained texture components survive a texture-free immediate widget` entry.
+
+### U5. Focus-scoped shortcut routing over the existing input actions
+
+`src/ecs/main_content_system.h` polls raw key codes for Find, Quick Open, and
+review commands, then checks text-input focus, menu state, source-tab state,
+and comment composition independently. `src/ecs/tab_bar_system.h` and
+`src/ecs/menu_bar_system.h` handle more shortcuts. A game with chat, inventory,
+and a pause menu has the same conflict between local and global commands.
+
+Afterhours already consumes mapped actions through `UIContext::pressed` and
+`pressed_or_repeat`. It also exposes input gates, `focus_in_subtree`, and
+`ConsumesDirectionalInput`. The missing integration is an ordered route for
+host shortcuts through those scopes. Raw key polling in app systems bypasses
+that route, so the current app pattern is also adoption debt.
+
+Extend mapped actions with a dispatcher that offers a chord to the focused
+control, then its containing scopes, then the application scope. An action
+consumed at one scope must not run again in another system during that frame.
+Modal gates and repeat behavior need to apply to the same dispatch. Native
+menu actions and injected tests should use the same host command callback.
+Afterhours need not know which command means Back, stage, or pause.
+
+Current workaround: scattered focus checks and duplicated modifier handling.
+Status: source-reviewed design request. No new shortcut conflict was reproduced
+in this audit. Acceptance should include typing in a text field over a reader
+and a game canvas, nested dialogs, held modifiers, and one dispatch per frame.
+
+### U6. Focus return that survives rebuilt controls and closed scopes
+
+`src/ui/file_picker.h` focuses its input by entity ID and resets focus to
+`ctx.ROOT` when a result opens. App menus and feedback panels have separate
+open-state handling. Returning to the correct invoking control would also help
+inventory popovers, settings dialogs, and game editor inspectors.
+
+`vendor/afterhours/src/plugins/modal.h::Modal` already stores
+`previously_focused_element` and restores that raw entity ID when the modal
+closes. `ui/menu.h::HasMenuState` stores only the previous open flag. Thus the
+request is to unify focus return and validate its destination, not to add basic
+modal focus trapping or restoration.
+
+A focus-return token should identify its UI collection, owning scope, and
+logical control, with a host resolver for a control rebuilt under a new entity
+ID. Closing an overlay should resolve that token only if its owner still exists
+and the target is eligible for focus. Otherwise it should use an explicit
+fallback in the current scope. Nested overlays need a stack, and dismissal by
+an outside click must not steal focus back from the newly clicked control.
+
+Current workaround: raw entity IDs, root focus, and app-specific flags. Status:
+source-reviewed only. The unvalidated modal assignment establishes the API
+limitation; this audit did not reproduce focus jumping into a closed repository.
+A runtime test must remove or rebuild the invoking control before closing the
+overlay and verify both the normal return and fallback paths.
+
+### U7. Logical scroll anchors resolved after matching layout readiness
+
+`src/ui/reading_position.h::remember_reading_position` stores pixel offsets by
+view key, writes `scroll_offset`, `scroll_target`, and `last_eased_offset`, clears
+`anchor_child`, and retries for three frames. `src/ui/file_picker.h` writes the
+same scroll fields to reveal a result. Chat history, asset browsers, and game
+inventories also need positions to survive row rebuilds and UI scale changes.
+
+`HasScrollView` already distinguishes an unmeasured viewport and provides
+`anchor_scroll`. `ui/systems.h::apply_scroll_anchor` follows a rendered child
+entity. That supports ordinary insertions above visible content but does not
+supply a logical item key across replaced entities, pages, or document switches.
+
+Extend scroll restoration with an opaque item key, a position within the item,
+a viewport alignment fraction, and optional occlusion insets. The host resolves
+the key to current geometry after the matching content and layout generation is
+ready. A pending request needs explicit applied, unavailable, and cancelled
+results. User scrolling cancels it. Updating the scroll target and easing state
+should be one operation, without a fixed frame retry count.
+
+Current workaround: app pixel maps and manual field updates. Status:
+source-reviewed. This audit did not reproduce a zoom-restoration failure.
+Acceptance should test delayed content, replaced entities, removed anchor rows,
+resizing, zoom, and cancellation by real wheel input. The existing variable-height
+virtual-list request remains separate from the anchor contract.
+
+### U8. Read-only selection over a virtualized text source
+
+`src/ui/diff_renderer.h::diff_sel` stores endpoints as entity IDs and byte
+columns, rebuilds line records each frame, measures prefixes for hit testing,
+and copies from `lastLines`. `ordered_span` cannot resolve an endpoint whose
+rendered row has disappeared. Log viewers, chat transcripts, and scripting
+inspectors need selection independent of the rows currently rendered.
+
+Afterhours already exposes backend-independent selection geometry in
+`vendor/afterhours/src/plugins/ui/text_selection.h`, including `Selection`, `offset_nearest_x`,
+`selection_rects`, and `substring`. Text input also has cursor and word movement
+helpers. Those should be reused. The missing contract is a read-only text source
+whose positions remain valid outside the current rendered line array.
+
+A text-source adapter should provide stable positions, bounded range reads, and
+source-to-display mappings for tabs and soft wraps. A selection controller can
+then own the caret, mouse and keyboard movement, and edge autoscroll while a row
+renderer supplies current geometry. Copy must preserve source whitespace and
+line endings, report an exceeded output limit, and avoid silently truncating.
+The host owns revision identity, diff sides, and optional location headers.
+
+Current workaround: app selection records and copy assembly. Status:
+source-reviewed limitation, not a newly reproduced selection failure. No native
+selection test was run in this audit. Tests must select beyond the virtual
+viewport, return to the starting row, and compare copied bytes with the original
+source, including Unicode, tabs, and CRLF.
+
+### U9. Optional text normalization at file and clipboard boundaries
+
+`src/util/text_decode.h` converts UTF-16 to UTF-8, handles BOMs, replaces malformed
+sequences, and reports encoding and NUL content. The source reader and
+`src/util/file_page.h` need this before rendering arbitrary repository bytes.
+Text asset importers and game log viewers need the same conversion without
+embedding file-format policy in every widget.
+
+The existing `ui/text_selection.h` and `ui/text_input/utils.h` provide UTF-8
+character and cursor utilities. They are not a byte-stream decoder or a file
+encoding detector. A small optional normalization utility should return valid
+UTF-8, the selected encoding, and malformed-input status. Explicit encoding
+selection should take precedence over BOM detection, with BOM behavior documented.
+Heuristic detection should remain opt-in. Streaming callers need retained partial
+code units across input chunks and an explicit finish operation.
+
+Current workaround: app decoding and page collection. NUL-based binary detection
+and its UI presentation remain host policy. Verification in this audit: all
+eight `tests/unit/test_text_decode.cpp` cases passed after a fresh build,
+including malformed UTF-8, unmatched UTF-16 surrogates, and an odd trailing byte.
+The proposed streaming normalization API was not implemented or tested. This
+request complements the existing diagnostic JSON replacement entry; neither
+utility establishes Unicode grapheme selection or bidirectional text support.
+
+### Audit verification and limits
+
+Fresh builds used `nice -n 10 zig c++ -std=c++23 -O0 -I.` with each corresponding
+`tests/unit/test_<name>.cpp`, then ran the resulting binaries with `nice -n 10`.
+The 15 selected tests passed. Binaries remain under `/tmp/fh-afterhours-review`.
+The logs are retained in `docs/reading-navigation-evidence` as `async_task.log`,
+`byte_cache.log`, `token_cache.log`, and `text_decode.log`.
+
+This audit changed only this document. No Afterhours source was edited or upstreamed.
+UI, native lifecycle, and cross-platform acceptance work is stated separately
+in each entry. Existing screenshot and regression results elsewhere in this
+document remain historical evidence, not checks rerun by this audit.
+
+### E2E asynchronous checkpoints need explicit retry and a wall-clock deadline
+
+The first reading-journey probe returned while waiting for a rendered destination.
+Afterhours treated that as an unknown command because the handler had neither
+consumed the command nor called `PendingE2ECommand::retry`. Calling `retry` is
+the supported API; the omission was an app test-adapter error.
+
+The generic pending-command timeout counts 30 simulated ticks. Headless execution
+can consume those ticks before a cold Git read completes. The reading probe now
+uses `retry`, resets the frame counter while waiting, and fails after a 15-second
+steady-clock deadline. An optional per-command wall-clock deadline would make
+network, asset-loading, and editor tests easier to write without mutating the
+framework's frame counter. The rejected run is retained at
+`output/reading-navigation/probe/zoom-100-run-1/run.log`.
+
+A second replay showed a separate ordering limitation. `E2ERunner::tick` drains
+pending commands at script boundaries, but dispatches the next ordinary command
+even while a previous handler retries. `retry` acknowledges a pending command;
+it does not make that command a barrier. The app now pauses script dispatch while
+a reading checkpoint is pending and continues update/render passes until it
+completes or fails. The rejected evidence is in
+`output/reading-navigation/probe-retry/zoom-100-run-1/run.log`. An explicit
+blocking-command contract would help tests that must wait for a scene, asset,
+network response, or rendered destination before issuing dependent input.
+
+### Rendered registry entries can be completely clipped
+
+The 200% source capture in
+`output/reading-navigation/baseline/zoom-200-run-3/cold_source.json` includes line
+12 with `was_rendered_to_screen` true, although the screenshot ends at line 10.
+The computed clip rectangle excludes that row. That flag alone cannot prove
+viewport visibility. This is a diagnostic contract limitation, not evidence that
+the renderer painted outside its clip.
+
+The app's baseline checker now requires a positive visible rectangle and a fully
+visible first code line. Input timing also waits for a matching visible destination
+heading. A framework visibility predicate that combines rendering, clipping, and
+viewport intersection would help inventory, list, and editor tests avoid the same
+false assertion. The app uses `ui::visible_rect` as its current workaround.

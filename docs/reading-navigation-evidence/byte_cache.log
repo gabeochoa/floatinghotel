@@ -1,0 +1,4 @@
+  byte_cache_evicts_the_least_recently_used_value              OK
+  byte_cache_replacements_and_oversize_entries_preserve_the_budget OK
+
+2/2 tests passed.

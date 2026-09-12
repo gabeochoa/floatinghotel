@@ -30,6 +30,7 @@ inline size_t blob_page_owned_bytes(const BlobPage& value) {
 class BlobPageCache {
     mutable std::mutex mutex_;
     ByteCache<BlobPage> entries_;
+    size_t hits_ = 0, misses_ = 0;
     size_t budget_;
 public:
     explicit BlobPageCache(size_t budget = blobPageCacheBudget) : entries_(budget), budget_(budget) {}
@@ -38,6 +39,8 @@ public:
         if (key.empty()) return {};
         std::lock_guard lock(mutex_);
         auto* entry = entries_.get(key);
+        if (entry) ++hits_;
+        else ++misses_;
         return entry ? std::optional<BlobPage>(*entry) : std::nullopt;
     }
 
@@ -47,6 +50,11 @@ public:
         auto bytes = blob_page_owned_bytes(owned);
         std::lock_guard lock(mutex_);
         return entries_.put(key, std::move(owned), bytes);
+    }
+
+    std::pair<size_t, size_t> activity() const {
+        std::lock_guard lock(mutex_);
+        return {hits_, misses_};
     }
 
     size_t bytes() const {

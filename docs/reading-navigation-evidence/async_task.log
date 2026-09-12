@@ -1,0 +1,5 @@
+  foreground_has_a_reserved_worker                             OK
+  queue_is_bounded_and_foreground_overtakes_background         OK
+  shutdown_cancels_reads_and_drains_accepted_writes            OK
+
+3/3 tests passed.
