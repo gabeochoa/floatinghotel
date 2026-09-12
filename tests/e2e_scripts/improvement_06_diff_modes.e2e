@@ -9,12 +9,15 @@ click_ui comment_input
 type "Split review works"
 click_ui comment_add_btn
 wait_frames 10
-click_ui hunk_folded_marker
+screenshot improvement_06_commented
+click 650 281
 wait_frames 10
 screenshot improvement_06_split_review
 assert_ui sbs_row hidden=false
 assert_ui hunk_header_row w=608
 click_text "Add contributing guidelines"
+wait_frames 3
+wait_for_refresh
 wait_frames 10
 screenshot improvement_06_split_commit
 assert_ui sbs_row hidden=false

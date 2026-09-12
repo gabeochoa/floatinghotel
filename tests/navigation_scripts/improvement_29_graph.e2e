@@ -7,5 +7,7 @@ expect_text "Main work"
 assert_ui graph_lane:1 hidden=false
 assert_ui graph_branch_edge hidden=false
 click_text "Feature work"
+wait_frames 3
+wait_for_refresh
 screenshot improvement_29_branch_commit
 expect_text "feature.txt"

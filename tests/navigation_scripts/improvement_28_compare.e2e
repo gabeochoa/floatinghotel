@@ -26,5 +26,7 @@ expect_text "1 file changed"
 expect_no_text "base-only.txt"
 expect_text "target-only.txt"
 click_ui open_full_file
+wait_frames 3
+wait_for_refresh
 screenshot improvement_28_source
 expect_text "target content"

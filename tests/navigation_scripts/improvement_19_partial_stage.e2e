@@ -3,9 +3,9 @@ wait_for_refresh
 click_text lines.txt
 wait_frames 10
 screenshot improvement_19_before
-mouse_down 455 204
+mouse_down 455 300
 wait_frames 3
-mouse_move 545 204
+mouse_move 545 300
 wait_frames 3
 mouse_up
 wait_frames 5

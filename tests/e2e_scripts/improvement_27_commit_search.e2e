@@ -19,6 +19,8 @@ wait_for_refresh
 screenshot improvement_27_results
 expect_text "1 matching commits"
 click_ui commit_search_result:0
+wait_frames 3
+wait_for_refresh
 screenshot improvement_27_open
 expect_text "Add unit tests for utils"
 expect_text "tests/test_utils.cpp"

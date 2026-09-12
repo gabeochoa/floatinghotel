@@ -24,6 +24,7 @@ screenshot improvement_11_split
 assert_ui diff_find_match hidden=false
 click_text "Add contributing guidelines"
 wait_frames 5
+wait_for_refresh
 screenshot improvement_11_commit_before
 click_ui diff_find_input
 key CMD+A

@@ -3,8 +3,8 @@ resize 1280 800
 wait_for_refresh
 click_text README.md
 screenshot improvement_35_before
-mouse_down 454 244
-mouse_move 600 264
+mouse_down 454 340
+mouse_move 600 360
 mouse_up
 screenshot improvement_35_selected
 click_ui comment_selection_btn
@@ -15,8 +15,10 @@ screenshot improvement_35_note
 click_text app.cpp
 screenshot improvement_35_other_file
 click_ui basket_item_loc
+wait_for_refresh
 screenshot improvement_35_location
 expect_text "README.md @ working tree"
-expect_text "Complete file"
+expect_text "Loaded lines 4–5"
 validate source_line=4
+validate visible_source_line:4=true
 assert_ui diff_find_match hidden=false

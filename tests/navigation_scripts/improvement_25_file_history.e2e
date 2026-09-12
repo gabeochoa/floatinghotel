@@ -12,6 +12,8 @@ expect_text "History · renamed.txt · follows renames"
 expect_text "Original file before rename"
 expect_text "Rename the file"
 click_ui file_history_commit:2
+wait_frames 3
+wait_for_refresh
 screenshot improvement_25_original
 expect_text "Original file before rename"
 expect_text "original.txt"

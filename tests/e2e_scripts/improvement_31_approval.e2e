@@ -22,6 +22,7 @@ validate staged_count=2
 validate review_approved=0
 click_text "Embark to ballroom"
 click_text "Add contributing guidelines"
+wait_for_refresh
 screenshot improvement_31_commit
 click_ui approve_hunk_btn
 screenshot improvement_31_commit_approved
