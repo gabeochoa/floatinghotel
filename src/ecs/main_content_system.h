@@ -747,7 +747,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 float diffW = layout.mainContent.width;
                 auto* review = find_singleton<ReviewComponent, ActiveTab>();
                 ui::render_diff(ctx, mainBg.ent(), selectedDiffs,
-                               diffW, 0, false, fileJustChanged, sideBySide,
+                               diffW, layout.mainContent.height, false, fileJustChanged, sideBySide,
                                repo.repoPath, repo.selectedFileStaged ? nullptr : review,
                                repo.selectedFileStaged ? "index" : "wt");
             } else if (reviewing && !selUntracked) {

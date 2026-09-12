@@ -58,3 +58,8 @@ height accumulated from the rendered controls removes the extra 34 pixels.
 The native regression now checks viewport bounds with Find open at 100% and
 140%, plus every frame's overflow diagnostics while opening and closing it.
 Passing evidence is in `output/layout-followup/find-after/native.log`.
+
+Selected-file diffs also use the current panel height during resize instead
+of falling back to the previous frame's computed height.
+`output/layout-followup/resize-after/native.log` passes the basket/adjacent-diff
+overflow check through zoom, window resize, and comment editing.
