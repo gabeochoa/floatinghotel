@@ -96,6 +96,12 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_commit_patch" ]; then
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_image_content" ]; then
+    run_test "test_image_content" "tests/unit/test_image_content.cpp" \
+        "src/git/image_content.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \
+        "vendor/afterhours/src/plugins/files.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_repository_search" ]; then
     run_test "test_repository_search" "tests/unit/test_repository_search.cpp" \
         "src/git/repository_search.cpp" "src/git/git_parser.cpp" \

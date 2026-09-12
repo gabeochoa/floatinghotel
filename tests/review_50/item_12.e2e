@@ -1,0 +1,20 @@
+resize 1440 900
+wait_for_refresh
+click_text image.bmp
+wait_frames 3
+wait_for_refresh
+expect_text "Before: 64 x 64"
+expect_text "After: 64 x 64"
+assert_ui before_image_pixels hidden=false
+assert_ui after_image_pixels hidden=false
+screenshot item_12_async_images
+click_text source.txt
+wait_frames 3
+screenshot item_12_text_after_image
+expect_text "after text"
+click_text image.bmp
+wait_frames 3
+wait_for_refresh
+expect_text "Before: 64 x 64"
+expect_text "After: 64 x 64"
+screenshot item_12_reopened_images

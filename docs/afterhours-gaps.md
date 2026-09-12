@@ -550,3 +550,21 @@ extent through `HasScrollView::unbuilt_content_size` so the scrollbar spans
 the list. The sidebar file list and commit log use it as of 2026-09-10.
 Measured with `bench_frames` (tests/run_stress.sh): 1000 files went from
 2654 entities / 19.6 ms per frame to a flat ~5 ms at 100, 1000 and 5000 files.
+
+### Retained texture components survive a texture-free immediate widget — OPEN
+
+`ui/component_init.h::apply_texture` returns when a new `ComponentConfig` has
+no texture, leaving an earlier `HasTexture` on the reused UI entity.
+The renderer still submits that handle after its owner calls `unload_texture`.
+On Metal this aborts with `VALIDATE_ABND_VIEW_ALIVE` and
+`VALIDATE_ABND_SAMPLER_ALIVE` rather than completing an image-to-text transition.
+
+Reproduction: `bash tests/review_50/item_12.sh` opens the changed BMP, waits for
+both previews, switches to `source.txt`, then reopens the BMP. Before the app
+workaround, the first switch aborted after `item_12_async_images.png`.
+
+The app now removes `HasTexture` components referencing its exact retiring
+image handles before unloading those textures. No unrelated texture is removed.
+Upstream should clear absent texture configuration as it already clears absent
+shadow configuration, and provide a safe way to retire textures referenced by
+retained immediate UI entities.

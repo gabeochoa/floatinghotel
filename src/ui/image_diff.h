@@ -3,10 +3,11 @@
 #include <array>
 #include <cmath>
 #include <filesystem>
-#include <fstream>
 #include <map>
+#include <set>
 #include "../ecs/ui_imports.h"
-#include "../git/git_runner.h"
+#include "../git/image_content.h"
+#include "../util/async_task.h"
 #include "../util/diff_revisions.h"
 #include "../util/image_view_state.h"
 
@@ -15,6 +16,7 @@ namespace ui::image_diff {
 struct Preview {
     afterhours::texture_manager::Texture texture{};
     std::string status;
+    async_work::Task<image_content::Decoded> task;
 };
 struct Cache {
     std::string context;
@@ -26,6 +28,15 @@ struct Cache {
 inline Cache& cache() { static Cache value; return value; }
 
 inline void clear() {
+    std::set<unsigned> retiring;
+    for (auto& [path, pair] : cache().files)
+        for (auto& preview : pair)
+            if (preview.texture.img_id) retiring.insert(preview.texture.img_id);
+    for (const auto& entity : EntityHelper::get_entities()) {
+        if (!entity || !entity->has<afterhours::texture_manager::HasTexture>()) continue;
+        if (retiring.contains(entity->get<afterhours::texture_manager::HasTexture>().texture.img_id))
+            entity->removeComponent<afterhours::texture_manager::HasTexture>();
+    }
     for (auto& [path, pair] : cache().files)
         for (auto& preview : pair)
             if (preview.texture.img_id) afterhours::unload_texture(preview.texture);
@@ -36,46 +47,43 @@ inline void clear() {
     cache().zoom = 1.f;
 }
 
+inline void poll(Preview& preview) {
+    if (!preview.task.valid() || preview.task.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+    image_content::Decoded decoded;
+    try { decoded = preview.task.get(); }
+    catch (const std::exception& error) { preview.status = error.what(); return; }
+    if (!decoded.error.empty()) { preview.status = std::move(decoded.error); return; }
+    auto size = static_cast<size_t>(decoded.width) * static_cast<size_t>(decoded.height) * 4;
+    if (cache().bytes + size > 128 * 1024 * 1024) { preview.status = "Image exceeds preview memory limit"; return; }
+    preview.texture = afterhours::metal_texture_detail::load_texture_from_pixels(decoded.pixels.get(), decoded.width, decoded.height);
+    if (!preview.texture.img_id) { preview.status = "Unable to upload image"; return; }
+    cache().bytes += size;
+    preview.status = std::to_string(decoded.width) + " x " + std::to_string(decoded.height);
+}
+
 inline void begin(const std::string& context) {
-    if (cache().context == context) return;
-    clear();
-    cache().context = context;
+    if (cache().context != context) {
+        clear();
+        cache().context = context;
+    }
+    for (auto& [path, pair] : cache().files)
+        for (auto& preview : pair) poll(preview);
+}
+
+inline bool pending() {
+    for (auto& [path, pair] : cache().files)
+        for (auto& preview : pair)
+            if (preview.task.valid() && preview.task.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return true;
+    return false;
 }
 
 inline Preview load(const std::string& repo, const std::string& path, const std::string& revision, bool absent) {
     Preview out;
     if (absent) { out.status = "Not present"; return out; }
-    std::string bytes;
-    if (revision.empty()) {
-        std::ifstream input(std::filesystem::path(repo) / path, std::ios::binary | std::ios::ate);
-        if (!input) { out.status = "Unable to read image"; return out; }
-        if (input.tellg() > 16 * 1024 * 1024) { out.status = "Image exceeds 16 MB preview limit"; return out; }
-        input.seekg(0);
-        bytes.assign(std::istreambuf_iterator<char>(input), {});
-    } else {
-        auto result = git::git_run(repo, {"show", revision == "INDEX" ? ":" + path : revision + ":" + path});
-        if (!result.success()) { out.status = "Unable to read image revision"; return out; }
-        bytes = result.stdout_str();
-    }
-    if (bytes.size() > 16 * 1024 * 1024) { out.status = "Image exceeds 16 MB preview limit"; return out; }
-    int width = 0, height = 0, channels = 0;
-    auto* data = reinterpret_cast<const unsigned char*>(bytes.data());
-    if (!stbi_info_from_memory(data, static_cast<int>(bytes.size()), &width, &height, &channels) || width <= 0 || height <= 0) {
-        out.status = "Unsupported or invalid image";
-        return out;
-    }
-    size_t decoded = static_cast<size_t>(width) * static_cast<size_t>(height) * 4;
-    if (width > 8192 || height > 8192 || decoded > 64 * 1024 * 1024 || cache().bytes + decoded > 128 * 1024 * 1024) {
-        out.status = "Image exceeds preview memory limit";
-        return out;
-    }
-    auto* pixels = stbi_load_from_memory(data, static_cast<int>(bytes.size()), &width, &height, &channels, 4);
-    if (!pixels) { out.status = "Unable to decode image"; return out; }
-    out.texture = afterhours::metal_texture_detail::load_texture_from_pixels(pixels, width, height);
-    stbi_image_free(pixels);
-    if (!out.texture.img_id) { out.status = "Unable to upload image"; return out; }
-    cache().bytes += decoded;
-    out.status = std::to_string(width) + " x " + std::to_string(height);
+    out.status = "Loading image...";
+    out.task = async_work::launch([repo, path, revision](std::stop_token stop) {
+        return image_content::read(repo, path, revision, stop);
+    }, async_work::Priority::Foreground, image_content::Decoded{.error = "Background queue is full; reopen the image to retry"});
     return out;
 }
 
@@ -150,7 +158,8 @@ inline bool render(UIContext<InputAction>& ctx, Entity& parent, int id,
     if (button(ctx, mk(controls.ent(), 5), preset::Button("+")
             .with_size(ComponentSize{pixels(36), pixels(28)}).with_debug_name("image_zoom_in")))
         c.zoom = image_view_state::zoom_in(c.zoom);
-    const auto& pair = files.at(file.filePath);
+    auto& pair = files.at(file.filePath);
+    for (auto& preview : pair) poll(preview);
     float bodyHeight = resolve_to_pixels(h720(266), static_cast<float>(afterhours::graphics::get_screen_height()));
     if (c.mode == image_view_state::Mode::SideBySide) {
         auto row = div(ctx, mk(root.ent(), 1), ComponentConfig{}

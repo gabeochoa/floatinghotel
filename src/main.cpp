@@ -548,10 +548,10 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             // took, so summing it capped this wait at 300 frames, which a
             // git status over a few thousand files outlasts.
             constexpr auto MAX_REFRESH_WAIT = std::chrono::seconds(30);
-            bool refreshDone = true;
+            bool refreshDone = !ui::image_diff::pending();
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
-                refreshDone = !repo->refreshRequested && !repo->isRefreshing;
+                refreshDone = refreshDone && !repo->refreshRequested && !repo->isRefreshing;
                 refreshDone = refreshDone && (repo->fullFilePath.empty() || !repo->fullFileFuture.valid() ||
                     repo->fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->repoSearchFuture.valid() ||
