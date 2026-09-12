@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>floatinghotel · Review focus</title>
+<style>
+:root{color-scheme:dark;font-size:14px;--bg:#15171b;--sidebar:#1b1d22;--raised:#202329;--border:#2c2f36;--text:#e4e6eb;--muted:#9ca2af;--quiet:#7e8592;--accent:#b9cfef;--green:#a1d6b5;--red:#df9c9c;--mono:"SF Mono",Menlo,Consolas,monospace}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:1rem;-webkit-font-smoothing:antialiased}button,input{font:inherit}button{color:inherit;cursor:pointer}button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}button{border:0;background:none}button:hover{background:#ffffff09}button:disabled{opacity:.45;cursor:default}svg{width:1.15rem;height:1.15rem;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}a{color:inherit}kbd{font: .75rem var(--mono);color:var(--muted);border:1px solid #ffffff16;border-radius:4px;padding:2px 5px}input{min-width:0;color:var(--text);border:0;outline:0;background:transparent}input::placeholder{color:var(--quiet)}[hidden]{display:none!important}.muted{color:var(--muted)}.mono{font-family:var(--mono)}.grow{flex:1;min-width:0}.icon-button{display:inline-flex;align-items:center;justify-content:center;width:2rem;height:2rem;border-radius:5px;color:var(--muted)}.pill{font-size:.71rem;padding:2px 6px;border:1px solid #ffffff19;border-radius:4px;color:var(--muted)}
+.app{height:100vh;height:100dvh;display:grid;grid-template-rows:3.5rem minmax(0,1fr) 1.9rem;overflow:hidden}.titlebar{display:flex;align-items:center;gap:1.2rem;padding:0 1.25rem;border-bottom:1px solid var(--border);background:#1b1d21}.traffic{display:flex;gap:8px;flex-shrink:0}.traffic i{width:11px;height:11px;border-radius:50%;background:#ed6a60}.traffic i:nth-child(2){background:#f4be50}.traffic i:nth-child(3){background:#62c655}.brand{font-weight:600;font-size:.93rem;letter-spacing:-.02em}.title-divider{height:16px;border-left:1px solid var(--border)}.project{display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--muted)}.global-search{margin:auto;display:flex;align-items:center;gap:.6rem;background:#24262c;border:1px solid #ffffff09;border-radius:6px;padding:.4rem .65rem;width:min(29vw,28rem);font-size:.82rem;color:var(--quiet)}.global-search input{width:100%;font-size:.82rem}.global-search kbd{white-space:nowrap;flex-shrink:0}.mock-label{color:var(--quiet);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}.avatar{height:1.8rem;width:1.8rem;border-radius:50%;background:#3c414f;color:#d5dce9;font-size:.66rem;display:inline-flex;align-items:center;justify-content:center;font-weight:600;flex-shrink:0}
+.workspace{display:grid;grid-template-columns:clamp(16rem,21vw,20rem) minmax(0,1fr);min-height:0;min-width:0}.sidebar{min-height:0;min-width:0;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column}.repo{padding:1.3rem 1.25rem 1rem;display:flex;align-items:center;gap:.7rem}.repo-symbol{height:2.25rem;width:2.25rem;display:grid;place-items:center;border:1px solid #424855;border-radius:8px;background:#262b34;color:#d0ddf1}.repo strong{font-size:.95rem;font-weight:600}.branch{display:flex;align-items:center;gap:.35rem;font-size:.76rem;margin-top:4px;color:var(--muted)}.branch svg{height:.8rem;width:.8rem}.nav{display:flex;gap:4px;margin:0 1.1rem 1.2rem;padding:3px;border:1px solid var(--border);border-radius:7px}.nav button{border-radius:4px;display:flex;align-items:center;justify-content:center;gap:.45rem;flex:1;padding:.48rem .4rem;font-size:.83rem;color:var(--muted)}.nav button.active{background:#333740;color:#edf0f5;box-shadow:0 1px 2px #0003}.nav svg{height:1rem;width:1rem}.side-scroll{overflow:auto;min-height:0;scrollbar-width:thin;scrollbar-color:#41464f transparent}.section-label{display:flex;align-items:center;gap:.5rem;padding:.2rem 1.25rem .65rem;font-size:.71rem;font-weight:600;letter-spacing:.07em;color:var(--quiet);text-transform:uppercase}.section-label .count{letter-spacing:0;font-size:.75rem;color:var(--muted)}.history{position:relative;padding:0 .6rem .75rem}.commit{display:flex;position:relative;gap:.65rem;padding:.8rem .65rem .8rem .4rem;min-width:0;border:1px solid transparent;border-radius:6px;color:var(--muted)}.commit.active{background:#2b3441;border-color:#3c4a5f;color:var(--text)}.rail{position:relative;width:1.1rem;flex-shrink:0;display:flex;justify-content:center;padding-top:6px}.rail:after{position:absolute;content:"";top:17px;bottom:-2.1rem;left:50%;width:1px;background:#3f4755}.commit:last-child .rail:after{display:none}.dot{height:7px;width:7px;box-shadow:0 0 0 3px var(--sidebar);border:1px solid #8793a6;border-radius:50%;background:var(--sidebar);z-index:1}.active .dot{background:#c1d5f3;border-color:#c1d5f3;box-shadow:0 0 0 3px #2b3441}.commit-subject{font-size:.84rem;line-height:1.5;letter-spacing:-.01em}.commit-meta{font-size:.71rem;display:flex;align-items:center;gap:.55rem;margin-top:.35rem;color:var(--quiet)}.active .commit-meta{color:#a0afc3}.commit-meta .pill{font-size:.61rem;padding:0 4px;color:#c1d3ec;border-color:#657c9b}.files-section{border-top:1px solid var(--border);padding-top:1.05rem;margin-top:.1rem}.file-filter{margin:.1rem 1.2rem .9rem;border-bottom:1px solid var(--border);display:flex;gap:.45rem;padding:.5rem 0;align-items:center;color:var(--quiet)}.file-filter input{font-size:.79rem;width:100%}.file-filter svg{width:.95rem;height:.95rem}.tree-label{padding:.6rem 1.35rem .5rem;display:flex;align-items:center;gap:.45rem;color:var(--muted);font-size:.75rem}.tree-file{width:calc(100% - 1.2rem);margin:.1rem .6rem;display:flex;gap:.55rem;align-items:center;min-width:0;text-align:left;font-size:.79rem;padding:.7rem .75rem;border-radius:5px}.tree-file.selected{background:#ffffff08;color:var(--text)}.file-type{font-family:var(--mono);color:#8fafd2;font-size:.65rem}.tree-file .file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}.file-change{color:var(--green);font-family:var(--mono);font-size:.68rem}.tree-empty{font-size:.8rem;color:var(--muted);padding:1rem}.sidebar-bottom{margin-top:auto;padding:.9rem 1.2rem;display:flex;align-items:center;gap:.5rem;border-top:1px solid var(--border);font-size:.74rem;color:var(--muted)}.status-dot{width:5px;height:5px;border-radius:50%;background:var(--green)}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0}.tabs{height:3.1rem;display:flex;align-items:stretch;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;background:#181a1e;padding-left:1.8rem;min-width:0}.tab{display:flex;align-items:center;gap:.6rem;font-size:.79rem;color:var(--muted);padding:0 1.1rem;position:relative;min-width:0;white-space:nowrap}.tab span{overflow:hidden;text-overflow:ellipsis}.tab.active{color:var(--text);background:var(--bg)}.tab.active:after{position:absolute;bottom:-1px;left:1rem;right:1rem;height:2px;background:#a8bbd8;content:""}.tab .tab-mark{font-size:.65rem;color:#93aed4}.tabs .icon-button{align-self:center;margin-right:1rem}.main-body{display:flex;flex:1;min-height:0;min-width:0}.review-view,.source-view{display:flex;flex-direction:column;min-width:0;flex:1;min-height:0}.commit-header{padding:1.65rem 2.25rem 1.4rem;flex-shrink:0}.eyebrow{display:flex;align-items:center;gap:.5rem;font-size:.74rem;color:var(--muted);margin-bottom:.7rem}.eyebrow svg{height:.85rem;width:.85rem}h1{font-weight:600;font-size:1.6rem;letter-spacing:-.045em;line-height:1.25;margin:0 0 .85rem}.metadata{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;color:var(--muted);font-size:.79rem}.metadata .avatar{width:1.3rem;height:1.3rem;font-size:.5rem}.metadata .separator{margin:0 .25rem;color:#59616e}.hash{font-family:var(--mono);color:#aeb8c7;font-size:.76rem}.description{color:var(--muted);font-size:.87rem;line-height:1.65;margin:.8rem 0 0;max-width:62rem}.review-toolbar{display:flex;align-items:center;gap:.8rem;padding:0 2.25rem 1.15rem;flex-wrap:wrap}.changes-summary{display:flex;align-items:center;gap:.65rem;font-size:.78rem;color:var(--muted)}.add-count{color:var(--green);font-family:var(--mono);font-size:.76rem}.del-count{color:var(--red);font-family:var(--mono);font-size:.76rem}.text-button{display:flex;align-items:center;justify-content:center;gap:.45rem;border:1px solid var(--border);border-radius:5px;padding:.43rem .65rem;color:#c1c6d0;font-size:.77rem;white-space:nowrap}.text-button svg{width:.95rem;height:.95rem}.primary{background:#c1d6ef;color:#1e2b3e;border-color:transparent;font-weight:600}.primary:hover{background:#d7e6f8}.segmented{padding:3px;display:flex;border-radius:5px;background:#202329;border:1px solid var(--border)}.segmented button{padding:.3rem .55rem;border-radius:3px;font-size:.73rem;color:var(--muted)}.segmented button.active{background:#363b44;color:#f0f1f4}.review-scroll{overflow:auto;min-height:0;flex:1;padding:0 2.25rem 2rem;scrollbar-color:#444a55 transparent;scrollbar-width:thin}.diff-file{border:1px solid #33363e;border-radius:7px;overflow:hidden;margin-bottom:1rem;background:#181a1e}.file-heading{display:flex;align-items:center;gap:.7rem;padding:.9rem 1rem;background:#202329;border-bottom:1px solid #33363e;min-width:0}.file-title{display:flex;align-items:center;gap:.6rem;min-width:0;font: .82rem var(--mono);padding:0;text-align:left}.file-title .path{color:var(--quiet)}.file-title .basename{color:#d9dee8}.file-title .label{overflow-wrap:anywhere}.file-title svg{width:.85rem;height:.85rem;transition:transform .15s}.diff-file.folded .file-title svg{transform:rotate(-90deg)}.diff-file.folded .file-body{display:none}.diff-file.folded .file-heading{border-bottom:0}.file-heading .text-button{border:0;padding:.2rem .4rem;color:var(--muted)}.review-checkbox{display:flex;align-items:center;gap:.45rem;color:var(--muted);font-size:.72rem;white-space:nowrap}.review-checkbox input{appearance:none;-webkit-appearance:none;width:13px;height:13px;border:1px solid #737e8e;border-radius:3px;margin:0;cursor:pointer;flex-shrink:0}.review-checkbox input:checked{background:#aed6bc;border-color:#aed6bc;box-shadow:inset 0 0 0 2px #23352b}.hunk-label{display:flex;align-items:center;gap:.85rem;padding:.65rem 1.15rem;background:#1d252e;font: .72rem var(--mono);color:#91a7c0}.hunk-label button{padding:0;font-size:.75rem;color:#b3c6de}.hunk-label .context{color:#8292a4;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.code{padding:.5rem 0}.code-line{display:grid;grid-template-columns:3.4rem 3.4rem 1.6rem minmax(0,1fr);min-height:1.65rem;font-family:var(--mono);font-size:.84rem;line-height:1.65rem;padding-right:1rem;position:relative}.number{text-align:right;padding-right:.6rem;color:#68717f;user-select:none;font-size:.76rem}.sign{text-align:center;color:#647080;user-select:none}.line-content{white-space:pre-wrap;overflow-wrap:anywhere;min-width:0;color:#c9cfd9}.code-line.add{background:#1b2b25}.code-line.del{background:#302225}.code-line.add:before,.code-line.del:before{position:absolute;top:0;bottom:0;left:0;width:2px;content:"";background:#77b896}.code-line.del:before{background:#c3797d}.add .sign,.add .number{color:#739c85}.del .sign,.del .number{color:#ac777d}.kw{color:#c2a8d9}.fn{color:#a7c9e7}.type{color:#c4cddc}.str{color:#b7cd9f}.num{color:#d7b991}.comment-code{color:#75818e}.intraline{background:#75414955;border-radius:2px}.add .intraline{background:#4e805943}.inline-thread{border-top:1px solid var(--border);background:#1e2126;padding:.85rem 1.15rem;display:flex;gap:.7rem;align-items:center;min-width:0;font-size:.78rem}.inline-thread .avatar{width:1.55rem;height:1.55rem;font-size:.58rem}.thread-copy{min-width:0;line-height:1.55;color:var(--muted)}.thread-copy strong{color:#d3d8e2;font-weight:500}.inline-thread .text-button{margin-left:auto;border:0;flex-shrink:0;color:#9bb7dc}.file-note{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.65rem 1.15rem;border-top:1px solid var(--border);color:var(--quiet);font-size:.72rem}.reading-end{text-align:center;padding:1rem;font-size:.74rem;color:var(--quiet);display:flex;justify-content:center;gap:.6rem;align-items:center}.reading-end svg{width:.9rem;height:.9rem}.source-toolbar{padding:1.1rem 2rem;display:flex;align-items:center;gap:.75rem;border-bottom:1px solid var(--border);font-size:.8rem}.source-view .code-line{grid-template-columns:3.4rem minmax(0,1fr)}.source-scroll{min-height:0;overflow:auto;padding-top:1.5rem;flex:1}.source-context{padding:0 2rem 1rem;color:var(--muted);font-size:.8rem}.thread-panel{width:19rem;padding:1.3rem;border-left:1px solid var(--border);background:var(--sidebar);overflow:auto;font-size:.82rem;flex-shrink:0}.thread-panel h2{font-size:1rem;margin:0 0 1rem}.thread-panel p{line-height:1.7;color:var(--muted)}.thread-panel .text-button{margin-top:1rem}.footer{display:flex;align-items:center;gap:1rem;padding:0 1.2rem;border-top:1px solid var(--border);background:#1b1d21;color:var(--muted);font-size:.7rem;min-width:0;z-index:2}.footer svg{width:.8rem;height:.8rem}.footer-item{display:flex;align-items:center;gap:.4rem;white-space:nowrap}.zoom-controls{display:flex;align-items:center;gap:.1rem}.zoom-controls button{font-size:.7rem;padding:0 .35rem;line-height:1.5rem}.zoom-controls output{min-width:2.8rem;text-align:center}.split-code{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.split-code>div+div{border-left:1px solid var(--border)}.split-code .code-line{grid-template-columns:2.8rem 1.1rem minmax(0,1fr);font-size:.76rem}.split-code .number:first-child{display:none}.split-code .code-line{min-height:3.3rem}.split-code .line-content{white-space:pre-wrap}.empty-line{color:transparent!important;background:#1c1e23!important}.empty-line>*{visibility:hidden}.source-summary{cursor:pointer;list-style:none;display:flex;gap:.8rem;padding:.5rem 1.5rem;background:#20252d;font-family:var(--mono);color:#c6d0dd;font-size:.84rem}.source-summary::-webkit-details-marker{display:none}
+.source-view .intraline{background:none}
+@media(min-width:1600px){.commit-header,.review-toolbar,.review-scroll{padding-left:3.4rem;padding-right:3.4rem}}
+@media(max-width:1100px){.workspace{grid-template-columns:16rem minmax(0,1fr)}.commit-header{padding:1.3rem 1.4rem 1rem}.review-toolbar{padding:0 1.4rem 1rem;gap:.5rem}.review-scroll{padding:0 1.4rem 1.5rem}.thread-panel{position:absolute;right:0;top:6.6rem;bottom:1.9rem;width:min(22rem,70vw);box-shadow:-12px 0 30px #0004;z-index:3}.file-heading{gap:.5rem;flex-wrap:wrap}.file-heading .file-title{flex:1}.file-heading .grow{display:none}.file-heading .add-count,.file-heading .del-count{display:none}.titlebar .project{display:none}.mock-label{display:none}.review-toolbar>.grow{min-width:1rem}}
+@media(max-width:760px){.workspace{grid-template-columns:12rem minmax(0,1fr)}.repo{padding:1rem .75rem}.repo-symbol{display:none}.nav{margin:0 .6rem 1rem}.nav svg{display:none}.section-label{padding-left:.8rem}.commit-meta .author{display:none}.tree-label{padding-left:.8rem}.tree-file{padding:.6rem .4rem}.file-filter{margin-left:.8rem;margin-right:.8rem}.titlebar{gap:.65rem;padding:0 .8rem}.global-search{width:auto;flex:1}.global-search kbd,.title-divider{display:none}.brand{font-size:.8rem}.commit-header,.review-scroll{padding-left:1rem;padding-right:1rem}.review-toolbar{padding-left:1rem;padding-right:1rem}.review-toolbar>.grow{display:none}.review-toolbar .changes-summary{width:100%}.file-heading .text-button span{display:none}.code-line{grid-template-columns:2.3rem 2.3rem 1.1rem minmax(0,1fr);font-size:.78rem}.hunk-label .context{display:none}.inline-thread{align-items:flex-start;flex-wrap:wrap}.description{font-size:.8rem}.tabs{padding-left:0}.tab{padding:0 .7rem;font-size:.7rem}.footer{gap:.5rem}.footer .secondary{display:none}.split-code{display:block}.split-code>div+div{border-left:0;border-top:1px solid var(--border)}}
+@media(max-width:540px){.workspace{grid-template-columns:3.4rem minmax(0,1fr)}.sidebar .repo,.sidebar .section-label,.sidebar .side-scroll,.sidebar .sidebar-bottom{display:none}.nav{margin:1rem .35rem;flex-direction:column;border:0;padding:0}.nav button{padding:.65rem}.nav svg{display:block}.nav span{display:none}.traffic{display:none}.titlebar>.avatar{display:none}.brand{font-size:.72rem}.global-search{padding:.35rem}.global-search input{font-size:.7rem}.commit-header h1{font-size:1.3rem}.metadata .separator{display:none}.footer .version{display:none}.review-checkbox{font-size:.68rem}}
+</style>
+</head>
+<body>
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+<symbol id="branch" viewBox="0 0 20 20"><circle cx="5" cy="4" r="2"/><circle cx="15" cy="5" r="2"/><circle cx="5" cy="16" r="2"/><path d="M5 6v8m10-7c0 5-10 1-10 7"/></symbol>
+<symbol id="search" viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><path d="m13 13 4 4"/></symbol>
+<symbol id="chevron" viewBox="0 0 20 20"><path d="m6 8 4 4 4-4"/></symbol>
+<symbol id="commit" viewBox="0 0 20 20"><circle cx="10" cy="10" r="4"/><path d="M1 10h5m8 0h5"/></symbol>
+<symbol id="files" viewBox="0 0 20 20"><path d="M5 2h6l4 4v12H5zM11 2v5h4M2 5v12"/></symbol>
+<symbol id="check" viewBox="0 0 20 20"><path d="m4 10 4 4 8-8"/></symbol>
+<symbol id="message" viewBox="0 0 20 20"><path d="M3 3h14v10H8l-5 4z"/><path d="M6 7h8m-8 3h5"/></symbol>
+<symbol id="open" viewBox="0 0 20 20"><path d="M11 3h6v6m0-6-9 9M8 4H3v13h13v-5"/></symbol>
+<symbol id="more" viewBox="0 0 20 20"><circle cx="4" cy="10" r=".7"/><circle cx="10" cy="10" r=".7"/><circle cx="16" cy="10" r=".7"/></symbol>
+<symbol id="panel" viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="14" rx="2"/><path d="M7 3v14"/></symbol>
+<symbol id="folder" viewBox="0 0 20 20"><path d="M2 5h6l2 2h8v10H2z"/></symbol>
+</defs></svg>
+<div class="app">
+<header class="titlebar">
+<div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div><span class="brand">floatinghotel</span><span class="title-divider"></span><span class="project">Review workspace</span>
+<label class="global-search"><svg><use href="#search"/></svg><input id="global-search" placeholder="Find a file in this commit…" aria-label="Find a file in this commit"><kbd>⌘ P</kbd></label><span class="mock-label">Design preview</span><span class="avatar" aria-label="Gabe Ochoa">GO</span>
+</header>
+<div class="workspace">
+<aside class="sidebar" aria-label="Repository navigation">
+<div class="repo"><div class="repo-symbol"><svg><use href="#folder"/></svg></div><div class="grow"><strong>afterhours</strong><div class="branch"><svg><use href="#branch"/></svg> main <span class="muted">/</span> origin</div></div><span class="muted"><svg><use href="#chevron"/></svg></span></div>
+<nav class="nav" aria-label="Workspace"><button class="active" id="nav-review"><svg><use href="#commit"/></svg><span>Review</span></button><button id="nav-files"><svg><use href="#files"/></svg><span>Files</span></button></nav>
+<div class="side-scroll">
+<div class="section-label">Commit history <span class="grow"></span><span class="count">main</span></div>
+<div class="history">
+<div class="commit active"><span class="rail"><i class="dot"></i></span><div class="grow"><div class="commit-subject">Take the minimum instead of sorting</div><div class="commit-meta"><span class="author">Gabe Ochoa</span><span>2h</span><span class="pill">HEAD</span></div></div></div>
+<div class="commit"><span class="rail"><i class="dot"></i></span><div class="grow"><div class="commit-subject">Report where a test stalled</div><div class="commit-meta"><span class="author">Gabe Ochoa</span><span>3h</span><span class="mono">c8e32a1</span></div></div></div>
+<div class="commit"><span class="rail"><i class="dot"></i></span><div class="grow"><div class="commit-subject">Bind camera movement to actions</div><div class="commit-meta"><span class="author">Gabe Ochoa</span><span>4h</span><span class="mono">82bc093</span></div></div></div>
+<div class="commit"><span class="rail"><i class="dot"></i></span><div class="grow"><div class="commit-subject">Keep focus rings off until keyboard input</div><div class="commit-meta"><span class="author">Gabe Ochoa</span><span>Yesterday</span></div></div></div>
+</div>
+<section class="files-section"><div class="section-label">Changed files <span class="count">2</span><span class="grow"></span><span id="side-progress">0 / 2</span></div>
+<label class="file-filter"><svg><use href="#search"/></svg><input id="file-filter" placeholder="Filter files…" aria-label="Filter changed files"><span class="muted">⌥F</span></label>
+<div class="tree-group" data-search="src/core/entity_query.h"><div class="tree-label"><svg><use href="#chevron"/></svg>src / core</div><button class="tree-file selected" data-target="query-file"><span class="file-type">H</span><span class="file-name">entity_query.h</span><span class="file-change">+25</span></button></div>
+<div class="tree-group" data-search="tests/query_extreme_by.cpp"><div class="tree-label"><svg><use href="#chevron"/></svg>tests</div><button class="tree-file" data-target="tests-file"><span class="file-type">C++</span><span class="file-name">query_extreme_by.cpp</span><span class="file-change">+45</span></button></div><div class="tree-empty" hidden>No matching files</div>
+</section></div>
+<div class="sidebar-bottom"><span class="status-dot"></span>Working tree clean<span class="grow"></span><svg><use href="#check"/></svg></div>
+</aside>
+<main class="main">
+<div class="tabs" role="tablist" aria-label="Open views"><button class="tab active" id="review-tab" role="tab" aria-selected="true" aria-controls="review-view"><svg><use href="#commit"/></svg><span>Commit <span class="mono">94b2df2</span></span></button><button class="tab" id="source-tab" role="tab" aria-selected="false" aria-controls="source-view"><span class="tab-mark">H</span><span>entity_query.h</span></button><span class="grow"></span><button class="icon-button" id="threads-toggle" aria-label="Toggle review comments" aria-expanded="false"><svg><use href="#panel"/></svg></button></div>
+<div class="main-body">
+<section class="review-view" id="review-view" role="tabpanel" aria-labelledby="review-tab">
+<div class="commit-header"><div class="eyebrow"><svg><use href="#commit"/></svg> Commit review <span> / </span><span>main</span></div><h1>Take the minimum instead of sorting</h1><div class="metadata"><span class="avatar">GO</span><span>Gabe Ochoa</span><span class="separator">·</span><span>2 hours ago</span><span class="separator">·</span><span class="hash">94b2df2</span><span class="pill">HEAD</span></div><p class="description">Find the first ordered result in a single pass. Preserve filtering behavior and skip the full sort.</p></div>
+<div class="review-toolbar"><div class="changes-summary"><span>2 files changed</span><span class="add-count">+70</span><span class="del-count">−8</span></div><span class="grow"></span><div class="segmented" aria-label="Diff layout"><button id="unified" class="active" aria-pressed="true">Unified</button><button id="split" aria-pressed="false">Split</button></div><button class="text-button" id="comment-button"><svg><use href="#message"/></svg>1 comment</button><button class="text-button primary" id="finish-review"><svg><use href="#check"/></svg><span>Finish review</span></button></div>
+<div class="review-scroll" id="review-scroll">
+<article class="diff-file" id="query-file"><header class="file-heading"><button class="file-title" aria-expanded="true" aria-controls="query-body"><svg><use href="#chevron"/></svg><span class="file-type">H</span><span class="label"><span class="path">src/core/</span><span class="basename">entity_query.h</span></span></button><span class="grow"></span><span class="add-count">+25</span><span class="del-count">−8</span><button class="text-button open-file"><svg><use href="#open"/></svg><span>Open file</span></button><label class="review-checkbox"><input type="checkbox" data-review="query-file">Viewed</label></header><div class="file-body" id="query-body"><div class="hunk-label"><button id="expand-context" title="Show surrounding lines">↕</button><span>@@ −760,14 +760,19 @@</span><span class="context">EntityQuery::gen_first()</span></div><div class="code" id="diff-code"></div><div class="inline-thread"><span class="avatar">GO</span><div class="thread-copy"><strong>Gabe Ochoa</strong><span class="muted"> · line 768</span><br>Can we cover the empty-result case in the tests?</div><button class="text-button" id="inline-reply"><svg><use href="#message"/></svg>Reply</button></div><div class="file-note"><span id="context-note">Showing 3 lines of context</span><span>UTF-8 · C++</span></div></div></article>
+<article class="diff-file folded" id="tests-file"><header class="file-heading"><button class="file-title" aria-expanded="false" aria-controls="tests-body"><svg><use href="#chevron"/></svg><span class="file-type">C++</span><span class="label"><span class="path">tests/</span><span class="basename">query_extreme_by.cpp</span></span></button><span class="grow"></span><span class="add-count">+45</span><label class="review-checkbox"><input type="checkbox" data-review="tests-file">Viewed</label></header><div class="file-body" id="tests-body"><div class="hunk-label">@@ −0,0 +1,45 @@</div><div class="code" id="test-code"></div></div></article>
+<div class="reading-end"><svg><use href="#check"/></svg>End of commit<span>·</span><span id="bottom-progress">0 of 2 files viewed</span></div>
+</div></section>
+<section class="source-view" id="source-view" role="tabpanel" aria-labelledby="source-tab" hidden><div class="source-toolbar"><span class="file-type">H</span><span class="grow">src / core / <strong>entity_query.h</strong></span><span class="hash">94b2df2</span></div><div class="source-scroll"><div class="source-context">Read-only source at this commit</div><details open><summary class="source-summary">⌄ &nbsp; EntityQuery::gen_first()</summary><div class="code" id="source-code"></div></details></div></section>
+<aside class="thread-panel" id="thread-panel" aria-label="Review comments" hidden><div style="display:flex;align-items:center"><h2 class="grow">Review comments</h2><button class="icon-button" id="close-threads" aria-label="Close comments">×</button></div><div class="eyebrow">entity_query.h · line 768</div><span class="avatar">GO</span><p><strong>Gabe Ochoa</strong><br>Can we cover the empty-result case in the tests?</p><button class="text-button" id="resolve-thread"><svg><use href="#check"/></svg><span>Resolve conversation</span></button></aside>
+</div></main></div>
+<footer class="footer" id="footer"><span class="footer-item"><svg><use href="#branch"/></svg>main</span><span class="footer-item secondary">Read-only review</span><span class="grow"></span><span class="footer-item secondary">C++</span><span class="footer-item secondary">UTF-8</span><div class="zoom-controls" aria-label="Interface zoom"><button id="zoom-out" aria-label="Zoom out">−</button><output id="zoom-value">100%</output><button id="zoom-in" aria-label="Zoom in">+</button><button id="zoom-reset" aria-label="Reset zoom">↺</button></div><span class="version">v0.1.0</span></footer>
+</div>
+<script>
+const $ = selector => document.querySelector(selector);
+const lines = [
+['','760','760','    <span class="kw">if</span> (entities.empty()) {'],
+['','761','761','        <span class="kw">return</span> {};'],
+['','762','762','    }'],
+['','763','763',''],
+['del','764','','    <span class="fn">std::sort</span>(entities.begin(), entities.end(),'],
+['del','765','','              <span class="intraline">order_by_fn</span>);'],
+['del','766','','    <span class="kw">return</span> entities.<span class="intraline">front()</span>;'],
+['add','','764','    <span class="kw">const bool</span> can_stop_early ='],
+['add','','765','        order_by_fn.<span class="fn">has_value</span>() &amp;&amp; !has_post_filter;'],
+['add','','766',''],
+['add','','767','    <span class="kw">if</span> (can_stop_early) {'],
+['add','','768','        <span class="kw">const auto</span> best = <span class="fn intraline">std::min_element</span>('],
+['add','','769','            entities.begin(), entities.end(), *order_by_fn);'],
+['add','','770','        <span class="kw">return</span> *best;'],
+['add','','771','    }'],
+['','767','772',''],
+['','768','773','    <span class="kw">return</span> <span class="fn">apply_filters_and_order</span>(entities);'],
+['','769','774','}']
+];
+function lineHTML(line, source = false) {
+  const [kind, oldNumber, newNumber, content] = line;
+  if (source) return `<div class="code-line"><span class="number">${newNumber}</span><span class="line-content">${content || ' '}</span></div>`;
+  return `<div class="code-line ${kind}"><span class="number">${oldNumber}</span><span class="number">${newNumber}</span><span class="sign">${kind === 'add' ? '+' : kind === 'del' ? '−' : ''}</span><span class="line-content">${content || ' '}</span></div>`;
+}
+function renderCode(split = false) {
+  if (split) {
+    const left = lines.map(line => lineHTML(line[0] === 'add' ? ['empty-line','','',' '] : [line[0], '', line[1], line[3]])).join('');
+    const right = lines.map(line => lineHTML(line[0] === 'del' ? ['empty-line','','',' '] : line)).join('');
+    $('#diff-code').innerHTML = `<div class="split-code"><div>${left}</div><div>${right}</div></div>`;
+  } else $('#diff-code').innerHTML = lines.map(line => lineHTML(line)).join('');
+  $('#source-code').innerHTML = lines.filter(line => line[0] !== 'del').map(line => lineHTML(line, true)).join('');
+  $('#unified').classList.toggle('active', !split); $('#split').classList.toggle('active', split);
+  $('#unified').setAttribute('aria-pressed', String(!split)); $('#split').setAttribute('aria-pressed', String(split));
+}
+$('#test-code').innerHTML = [
+  '<span class="fn">TEST</span>(query_first_handles_empty_results) {',
+  '    <span class="type">EntityQuery</span> query;',
+  '    <span class="fn">EXPECT_FALSE</span>(query.<span class="fn">gen_first</span>().<span class="fn">has_value</span>());',
+  '}', '', '<span class="fn">TEST</span>(query_first_returns_the_minimum) {',
+  '    <span class="kw">auto</span> query = <span class="fn">make_ordered_query</span>({<span class="num">3</span>, <span class="num">1</span>, <span class="num">2</span>});',
+  '    <span class="fn">EXPECT_EQ</span>(query.<span class="fn">gen_first</span>()->value, <span class="num">1</span>);', '}'
+].map((text, index) => lineHTML(['add','',String(index + 1),text])).join('');
+function setTab(source) {
+  $('#review-view').hidden = source; $('#source-view').hidden = !source;
+  $('#review-tab').classList.toggle('active', !source); $('#source-tab').classList.toggle('active', source);
+  $('#review-tab').setAttribute('aria-selected', String(!source)); $('#source-tab').setAttribute('aria-selected', String(source));
+  $('#nav-review').classList.toggle('active', !source); $('#nav-files').classList.toggle('active', source);
+}
+$('#review-tab').onclick = $('#nav-review').onclick = () => setTab(false);
+$('#source-tab').onclick = $('#nav-files').onclick = () => setTab(true);
+document.querySelectorAll('.open-file').forEach(button => button.onclick = () => setTab(true));
+document.querySelectorAll('.file-title').forEach(button => button.onclick = () => {
+  const folded = button.closest('.diff-file').classList.toggle('folded');
+  button.setAttribute('aria-expanded', String(!folded));
+});
+document.querySelectorAll('.tree-file').forEach(button => button.onclick = () => {
+  setTab(false);
+  document.querySelectorAll('.tree-file').forEach(item => item.classList.toggle('selected', item === button));
+  const file = document.getElementById(button.dataset.target);
+  file.classList.remove('folded'); file.querySelector('.file-title').setAttribute('aria-expanded', 'true');
+  $('#review-scroll').scrollTop = file.offsetTop - $('#query-file').offsetTop;
+});
+function filterFiles(value) {
+  let visible = 0;
+  document.querySelectorAll('.tree-group').forEach(group => { group.hidden = !group.dataset.search.toLowerCase().includes(value.toLowerCase()); if (!group.hidden) visible++; });
+  $('.tree-empty').hidden = visible > 0;
+}
+$('#file-filter').oninput = event => filterFiles(event.target.value);
+$('#global-search').oninput = event => filterFiles(event.target.value);
+function toggleThreads(force) {
+  const show = typeof force === 'boolean' ? force : $('#thread-panel').hidden;
+  $('#thread-panel').hidden = !show; $('#threads-toggle').setAttribute('aria-expanded', String(show));
+}
+$('#threads-toggle').onclick = $('#comment-button').onclick = $('#inline-reply').onclick = () => toggleThreads();
+$('#close-threads').onclick = () => toggleThreads(false);
+$('#resolve-thread').onclick = () => {
+  const resolved = $('#resolve-thread').classList.toggle('resolved');
+  $('#resolve-thread span').textContent = resolved ? 'Reopen conversation' : 'Resolve conversation';
+  $('#comment-button').lastChild.textContent = resolved ? 'Resolved' : '1 comment';
+};
+function updateProgress() {
+  const count = document.querySelectorAll('[data-review]:checked').length;
+  $('#side-progress').textContent = `${count} / 2`; $('#bottom-progress').textContent = `${count} of 2 files viewed`;
+}
+document.querySelectorAll('[data-review]').forEach(input => input.onchange = updateProgress);
+$('#finish-review').onclick = () => {
+  const done = $('#finish-review').classList.toggle('finished');
+  $('#finish-review span').textContent = done ? 'Review finished' : 'Finish review';
+  document.querySelectorAll('[data-review]').forEach(input => input.checked = done); updateProgress();
+};
+$('#unified').onclick = () => renderCode(false); $('#split').onclick = () => renderCode(true);
+$('#expand-context').onclick = () => {
+  if ($('#extra-context')) { $('#extra-context').remove(); $('#context-note').textContent = 'Showing 3 lines of context'; return; }
+  const block = document.createElement('div'); block.id = 'extra-context';
+  block.innerHTML = lineHTML(['','758','758','<span class="type">Entity</span>* <span class="type">EntityQuery</span>::<span class="fn">gen_first</span>() {']) + lineHTML(['','759','759','    <span class="kw">auto</span> entities = <span class="fn">collect_matches</span>();']);
+  $('#diff-code').prepend(block); $('#context-note').textContent = 'Surrounding function context shown';
+};
+let zoom = 100;
+function setZoom(value) { zoom = Math.max(80, Math.min(160, value)); document.documentElement.style.fontSize = `${14 * zoom / 100}px`; $('#zoom-value').textContent = `${zoom}%`; }
+$('#zoom-in').onclick = () => setZoom(zoom + 10); $('#zoom-out').onclick = () => setZoom(zoom - 10); $('#zoom-reset').onclick = () => setZoom(100);
+document.addEventListener('keydown', event => {
+  if ((event.metaKey || event.ctrlKey) && ['+', '=', '-', '0'].includes(event.key)) { event.preventDefault(); setZoom(event.key === '0' ? 100 : zoom + (event.key === '-' ? -10 : 10)); }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'p') { event.preventDefault(); $('#global-search').focus(); }
+  if (event.key === 'Escape') toggleThreads(false);
+});
+renderCode();
+</script>
+</body>
+</html>
