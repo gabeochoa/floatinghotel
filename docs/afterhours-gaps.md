@@ -1113,3 +1113,34 @@ barrier that reports timeout failure and stops dependent UI commands would
 avoid misleading follow-on errors. The current host timeout behavior remains
 unchanged. The related render-generation requirement is documented above under
 `E2E target lookup needs a render checkpoint after cached view transitions`.
+
+### Dock resizing needs different geometry from the panel animation
+
+The dock sidebar remained 280 pixels wide in a 352-pixel window, leaving a
+72-pixel empty strip. The app's `review_layout::sidebar_width` capped both the
+settled dock and the animated sidebar at the saved width. This was an app
+layout error, not an Afterhours rendering defect.
+
+The settled dock now fills the logical viewport. Native window resizing updates
+the remembered sidebar width using the current zoom scale. Panel animations
+retain their fixed sidebar width, and the animation state takes precedence over
+the collapsed state during closing. The old four-pixel collapse inset was
+removed so repeated open-close cycles do not increase the remembered width.
+
+The integration footgun is the distinction between physical window dimensions,
+zoom-adjusted layout dimensions, and transient animation dimensions. Recording
+the animated width as a new user preference would reintroduce sidebar relayout.
+The width is retained in memory, not written to settings on every resize frame.
+
+`tests/review_focus/dock_resize.e2e` captures dock resizing at 300, 352, and 480
+pixels, zoom, an opened commit, and return to the dock. Its JSON geometry is
+checked by `tests/check_dock_resize.py`. `test_review_layout` covers the pure
+width calculations, including fixed width during animation. The headless host
+deliberately disables physical window animation, so these checks do not exercise
+native OS resize events or the native-only width-memory update.
+
+Verification passed on 2026-09-12: six layout unit tests, the dock geometry
+checker with both menu configurations, and the commit-splitter drag regression.
+The before capture failed at 280 of 352 pixels; the after capture fills all 352.
+Local captures are in `output/dock-resize/{before,after,native-menu}`. The
+after-capture check is `nice -n 10 python3 tests/check_dock_resize.py output/dock-resize/after`.

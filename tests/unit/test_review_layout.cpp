@@ -26,12 +26,26 @@ TEST(expanded_sidebar_leaves_room_for_main_content) {
 }
 
 TEST(collapsed_and_hidden_sidebar_respect_viewport) {
-    ASSERT_EQ(sidebar_width(284.f, 280.f, 200.f, Sidebar::Collapsed), 280.f);
+    ASSERT_EQ(sidebar_width(284.f, 280.f, 200.f, Sidebar::Collapsed), 284.f);
     ASSERT_EQ(sidebar_width(150.f, 280.f, 200.f, Sidebar::Collapsed), 150.f);
     ASSERT_EQ(sidebar_width(0.f, 280.f, 200.f, Sidebar::Collapsed), 0.f);
     ASSERT_EQ(sidebar_width(1200.f, 100.f, 200.f, Sidebar::Expanded), 200.f);
     ASSERT_EQ(sidebar_width(1200.f, 280.f, 200.f, Sidebar::Hidden), 0.f);
     ASSERT_EQ(sidebar_width(150.f, 280.f, 200.f, Sidebar::Animating), 150.f);
+}
+
+TEST(docked_sidebar_fills_resized_window_at_every_zoom) {
+    for (float scale : std::array{1.f, 1.4f, 2.f}) {
+        for (float physicalWidth : std::array{300.f, 352.f, 480.f, 700.f}) {
+            const float width = physicalWidth / scale;
+            ASSERT_EQ(sidebar_width(width, 280.f, 200.f, Sidebar::Collapsed), width);
+        }
+    }
+}
+
+TEST(resized_sidebar_stays_fixed_during_both_animation_directions) {
+    for (float width : std::array{352.f, 480.f, 800.f, 1200.f})
+        ASSERT_EQ(sidebar_width(width, 352.f, 200.f, Sidebar::Animating), 352.f);
 }
 
 TEST(zoomed_animation_uses_logical_viewport_width) {

@@ -1478,7 +1478,7 @@ int main(int argc, char* argv[]) {
     cfg.width = app_state::testModeEnabled
                     ? 1200
                     : static_cast<int>(
-                          ecs::LayoutComponent::kDefaultSidebarWidth + 4.0f);
+                          ecs::LayoutComponent::kDefaultSidebarWidth);
     cfg.height = 800;
     cfg.title = "floatinghotel";
     cfg.target_fps = 200;

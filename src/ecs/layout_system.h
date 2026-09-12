@@ -46,7 +46,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                 layout.sidebarVisible && nothingSelected && !reviewingShelf;
 
             if (!app_state::testModeEnabled) {
-                float collapsedW = (layout.sidebarWidth + 4.0f) * ui::zoom::get();
+                float collapsedW = layout.sidebarWidth * ui::zoom::get();
                 // The window opened at the default shelf width; settings may
                 // hold a different sidebar width. Square that once, silently,
                 // rather than animating a correction the user never asked for.
@@ -86,6 +86,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                                           static_cast<int>(sh));
                     sw = curW; // lay out this frame at the animated width
                 }
+                if (layout.shelfCollapsed && !layout.animating) {
+                    layout.sidebarWidth = sw / ui::zoom::get();
+                }
             }
         }
 
@@ -104,8 +107,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const float bodyH = availableH - topY;
         const bool sidebarOnly = layout.sidebarVisible && layout.shelfCollapsed;
         const auto sidebarState = !layout.sidebarVisible ? review_layout::Sidebar::Hidden
-            : sidebarOnly ? review_layout::Sidebar::Collapsed
             : layout.animating ? review_layout::Sidebar::Animating
+            : sidebarOnly ? review_layout::Sidebar::Collapsed
             : review_layout::Sidebar::Expanded;
         const float sidebarW = review_layout::sidebar_width(
             width, layout.sidebarWidth, layout.sidebarMinWidth, sidebarState);

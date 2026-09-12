@@ -1,0 +1,25 @@
+resize 352 800
+wait_for_refresh
+mouse_move 340 20
+screenshot dock_352
+resize 480 800
+wait_frames 5
+screenshot dock_480
+resize 300 600
+wait_frames 5
+screenshot dock_300
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 5
+screenshot dock_zoom
+validate footer_fixed=true
+key CMD+0
+resize 1280 800
+click_ui commit_row
+wait_for_refresh
+screenshot expanded
+click_ui commit_back_btn
+resize 352 800
+wait_frames 5
+screenshot dock_return
+validate footer_fixed=true
