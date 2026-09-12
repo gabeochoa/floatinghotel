@@ -4,7 +4,11 @@
 namespace git {
 
 std::vector<std::string> repository_search_args(const ecs::SearchQuery& query) {
-    std::vector<std::string> args{"grep", "--no-color", "-n", "-I", "-z", "--full-name", "-F", "-e", query.text};
+    std::vector<std::string> args{"grep", "--no-color", "-n", "-I", "-z", "--full-name"};
+    args.push_back(query.matching.regularExpression ? "-E" : "-F");
+    if (!query.matching.caseSensitive) args.push_back("-i");
+    if (query.matching.wholeWord) args.push_back("-w");
+    args.insert(args.end(), {"-e", query.text});
     if (query.revision.empty()) args.insert(args.end(), {"--untracked", "--exclude-standard"});
     else if (query.revision == "INDEX") args.push_back("--cached");
     else args.push_back(query.revision);
@@ -37,7 +41,7 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
             }
             if (primary) out.revision = part.revision;
             auto result = git_run(part.repoPath, repository_search_args(part), stop);
-            if (!result.success() && result.exit_code() != 1) out.error = result.stderr_str();
+            if (!result.success() && result.exit_code() != 1) out.error = "Search failed: " + result.stderr_str();
             else for (auto& match : parse_search_matches(result.stdout_str(), part.revision))
                 if (out.matches.size() < 5000) out.matches.push_back(std::move(match));
         };

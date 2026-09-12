@@ -33,4 +33,16 @@ TEST(changed_file_search_keeps_paths_literal_and_empty_scope_empty) {
     ASSERT_EQ(args.back(), ":(literal)odd:name.cpp");
 }
 
+TEST(repository_search_matching_flags_are_explicit_and_composable) {
+    ecs::SearchQuery query{"repo", "", "needle|other"};
+    auto literal = git::repository_search_args(query);
+    ASSERT_TRUE(std::find(literal.begin(), literal.end(), "-F") != literal.end());
+    query.matching = {true, false, true};
+    auto regex = git::repository_search_args(query);
+    for (const std::string flag : {"-E", "-i", "-w"})
+        ASSERT_TRUE(std::find(regex.begin(), regex.end(), flag) != regex.end());
+    ASSERT_TRUE(std::find(regex.begin(), regex.end(), "-F") == regex.end());
+    ASSERT_TRUE(std::find(regex.begin(), regex.end(), "needle|other") != regex.end());
+}
+
 int main() { RUN_ALL_TESTS(); }

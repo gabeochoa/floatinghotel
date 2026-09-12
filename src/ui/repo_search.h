@@ -26,6 +26,25 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(FontSize::Small)
         .with_debug_name("repo_search_changed_only"));
     if (scopeChanged) repo.repoSearchChangedOnly = !repo.repoSearchChangedOnly;
+    auto matchingRow = div(ctx, mk(parent, 587005), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
+    auto& matching = repo.repoSearchMatching;
+    bool matchingChanged = false;
+    if (button(ctx, mk(matchingRow.ent(), 0), preset::Button(matching.regularExpression ? "Regular expression" : "Literal text")
+            .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small).with_debug_name("repo_search_regex"))) {
+        matching.regularExpression = !matching.regularExpression;
+        matchingChanged = true;
+    }
+    if (button(ctx, mk(matchingRow.ent(), 1), preset::Button(matching.caseSensitive ? "Match case" : "Ignore case")
+            .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small).with_debug_name("repo_search_case"))) {
+        matching.caseSensitive = !matching.caseSensitive;
+        matchingChanged = true;
+    }
+    if (button(ctx, mk(matchingRow.ent(), 2), preset::Button(matching.wholeWord ? "Whole words" : "Any substring")
+            .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small).with_debug_name("repo_search_word"))) {
+        matching.wholeWord = !matching.wholeWord;
+        matchingChanged = true;
+    }
     auto row = div(ctx, mk(parent, 587001), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
     auto input = afterhours::text_input::text_input(ctx, mk(row.ent(), 0), repo.repoSearchQuery,
@@ -34,7 +53,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     if (repo.repoSearchFocus) { ctx.set_focus(input.ent().id); repo.repoSearchFocus = false; }
     auto search = button(ctx, mk(row.ent(), 1), preset::Button("Search")
         .with_size(ComponentSize{pixels(86), pixels(32)}).with_debug_name("repo_search_submit"));
-    if ((search || scopeChanged || afterhours::input::is_key_pressed(257)) && !repo.repoSearchQuery.empty()) {
+    if ((search || scopeChanged || matchingChanged || afterhours::input::is_key_pressed(257)) && !repo.repoSearchQuery.empty()) {
         repo.repoSearchResults.clear();
         repo.repoSearchError.clear();
         repo.repoSearchPath = repo.repoPath;
@@ -42,6 +61,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             repo.comparisonOpen ? diff_revisions(repo.comparisonScope).second :
             !repo.selectedCommitHash.empty() ? repo.selectedCommitHash : repo.selectedFileStaged ? "INDEX" : "";
         SearchQuery query{repo.repoPath, repo.repoSearchRevision, repo.repoSearchQuery};
+        query.matching = matching;
         query.changedOnly = repo.repoSearchChangedOnly;
         if (query.changedOnly) {
             const auto* changes = repo.selectedFileStaged ? &repo.stagedDiff : &repo.currentDiff;
@@ -87,7 +107,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                 layout.diffFindOpen = false;
                 ctx.set_focus(ctx.ROOT);
             }
-        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 126.f))})
+        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 158.f))})
             .with_debug_name("repo_search_results"));
 }
 

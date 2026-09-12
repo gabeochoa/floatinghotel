@@ -1,0 +1,31 @@
+resize 1440 900
+wait_for_refresh
+key CMD+SHIFT+F
+click_ui repo_search_input
+type needle
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "2 matches"
+click_ui repo_search_word
+wait_for_refresh
+expect_text "1 matches"
+click_ui repo_search_case
+wait_for_refresh
+expect_text "2 matches"
+click_ui repo_search_input
+key CMD+A
+type "needle|different"
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "No matches"
+click_ui repo_search_regex
+wait_for_refresh
+expect_text "3 matches"
+screenshot item_38_matching
+click_ui repo_search_input
+key CMD+A
+type "("
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "Search failed"
+screenshot item_38_invalid_regex

@@ -25,6 +25,12 @@ struct SearchMatch {
     std::string revision;
 };
 
+struct SearchMatching {
+    bool regularExpression = false;
+    bool caseSensitive = true;
+    bool wholeWord = false;
+};
+
 struct SearchQuery {
     std::string repoPath;
     std::string revision;
@@ -33,6 +39,7 @@ struct SearchQuery {
     std::vector<std::string> paths;
     std::vector<std::string> removedPaths;
     std::string beforeRevision;
+    SearchMatching matching;
 };
 
 struct SearchResult {
@@ -222,6 +229,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     async_work::Task<SearchResult> repoSearchFuture;
     std::string repoSearchRevision;
     bool repoSearchChangedOnly = false;
+    SearchMatching repoSearchMatching;
     std::vector<SearchMatch> repoSearchResults;
     int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;
