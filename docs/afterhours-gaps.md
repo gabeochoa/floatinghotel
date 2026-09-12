@@ -1217,3 +1217,30 @@ geometry check, the commit-splitter regression, and the 15-frame text-flicker
 check also passed. Logs and app captures are in `output/window-resize`.
 The native probe tests the resize boundary, not a visual reproduction of the
 user's exact magenta flash in the full app.
+
+### A hover-styled row needs to own its click target
+
+Review's changed-file rows used a hover-styled `div` around a transparent
+filename button. Afterhours assigns `hot` to the clickable child and applies
+the hover fill only to that exact entity. The parent row never highlighted,
+while its icon, change counts, and padding were not clickable. The selected
+file stayed highlighted even when the pointer moved onto a neighboring file.
+
+The fix makes the entire row a button and its filename an ordinary label.
+The row now owns both hover and activation, as the Files-tab rows already do.
+This is an app composition mistake exposed by exact-entity hover behavior,
+not evidence that pointer coordinates were shifted by one row.
+
+`tests/review_focus/tree_hover.e2e` captures hover over the filename, icon,
+and counts, and tests activation through the icon and count areas. Before the
+fix, `tests/check_tree_hover.py` failed because the row edges did not highlight;
+the icon-click check also failed to select README. The pixel check compares both
+edges of the hovered row and verifies that neighboring file rows stay unchanged.
+Run the E2E script with `FH_NATIVE_MENUS=1`, then run the checker on its capture
+directory. A framework warning for hover-styled, non-interactive containers
+would help catch this mismatch, or an explicit hover-within option for composite
+controls could make the intended behavior available.
+
+After the fix, all five hover comparisons and the icon/count activation checks
+pass. The existing row-coordinate test also passes at 100%, at 140% zoom, and
+after scrolling. Captures and logs are in `output/tree-hover`.

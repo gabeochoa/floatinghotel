@@ -1,0 +1,38 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+screenshot ready
+click 80 244
+wait_for_refresh
+validate selected_file=main.cpp
+mouse_move 1100 25
+screenshot neutral
+mouse_move 80 216
+wait_frames 2
+screenshot hover_label
+mouse_move 26 216
+wait_frames 2
+screenshot hover_icon
+mouse_move 250 216
+wait_frames 2
+screenshot hover_count
+click 26 216
+wait_for_refresh
+validate selected_file=README.md
+screenshot icon_selected
+click 250 244
+wait_for_refresh
+validate selected_file=main.cpp
+screenshot count_selected
+mouse_move 70 272
+wait_frames 2
+screenshot hover_folder
+click_ui sidebar_working_files
+native_menu_action "Tree View"
+click_ui review_workspace_toggle
+wait_frames 5
+mouse_move 1100 25
+screenshot working_neutral
+mouse_move 80 268
+wait_frames 2
+screenshot working_hover

@@ -630,18 +630,19 @@ private:
                     return;
                 }
                 const auto& file = (*files)[commitFileIndices_[node.sourceIndex]];
-                auto row = div(ctx, mk(wrapper, 0), ui::file_tree_style::row_config(sidebarPixelWidth_, node.depth,
+                auto row = button(ctx, mk(wrapper, 0), ui::file_tree_style::row_config(sidebarPixelWidth_, node.depth,
                     repo->diffTargetFile == node.path)
                     .with_debug_name("commit_changed_file"));
                 ui::set_tooltip(row.ent(), node.path);
                 div(ctx, mk(row.ent(), 3), ComponentConfig{}.with_label(ui::file_tree_style::type_marker(node.path))
                     .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(11))
                     .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("tree_file_type"));
-                if (button(ctx, mk(row.ent(), 0), preset::Button(sidebar_detail::basename_from_path(node.path))
+                div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(sidebar_detail::basename_from_path(node.path))
                         .with_size(ComponentSize{expand(), pixels(28)}).with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY).with_alignment(TextAlignment::Left)
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                        .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path))) {
+                        .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path));
+                if (row) {
                     repo->activeContent = RepoComponent::ContentView::Review;
                     repo->diffTargetFile = file.filePath;
                     repo->diffTargetFrames = 4;
