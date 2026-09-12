@@ -47,4 +47,16 @@ TEST(comparison_loading_does_not_restore_an_unrelated_branch_review) {
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), ecs::review_scope(repo));
 }
 
+TEST(saved_review_target_exits_series_mode_and_discards_its_pending_result) {
+    ecs::RepoComponent repo;
+    repo.rangeDiff.enabled = true;
+    std::promise<git::GitResult> previous;
+    repo.rangeDiff.future = async_work::Task<git::GitResult>(
+        previous.get_future(), std::stop_source{});
+    ecs::select_review_target(repo, "compare:base:target", "file.cpp");
+    ASSERT_FALSE(repo.rangeDiff.enabled);
+    ASSERT_FALSE(repo.rangeDiff.future.valid());
+    ASSERT_TRUE(repo.comparisonOpen);
+}
+
 int main() { RUN_ALL_TESTS(); }

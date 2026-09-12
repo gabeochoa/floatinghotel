@@ -10,6 +10,7 @@
 #include "../../src/util/wrap_text.h"
 #include "../../src/util/visible_rows.h"
 #include "../../src/util/file_content.h"
+#include "../../src/util/revision_range.h"
 #include <unistd.h>
 #include "../../src/util/lfs_pointer.h"
 #include <fstream>
@@ -292,6 +293,15 @@ TEST(whitespace_display_distinguishes_line_endings_without_mutating_source) {
     ASSERT_EQ(code_highlight::display_text(raw, false), "    value  ");
     ASSERT_EQ(code_highlight::display_text("value", true, true, false), "value [no newline]");
     ASSERT_EQ(raw, "\tvalue  \r");
+}
+
+TEST(revision_ranges_require_explicit_two_dot_endpoints) {
+    auto range = parse_revision_range("base..topic");
+    ASSERT_TRUE(range.has_value());
+    ASSERT_EQ(range->first, "base");
+    ASSERT_EQ(range->second, "topic");
+    for (const auto& invalid : {"", "topic", "..topic", "base..", "base...topic", "a..b..c"})
+        ASSERT_FALSE(parse_revision_range(invalid).has_value());
 }
 
 int main() { RUN_ALL_TESTS(); }

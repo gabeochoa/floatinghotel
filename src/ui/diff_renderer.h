@@ -1366,7 +1366,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
     if (!diffs.empty() && diffs.front().isFullContent && !(layout && layout->diffFindOpen)) {
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            repo && repo->fullFileTargetLine > 0 && !diffs.front().hunks.empty()) {
+            repo && diff_target(reviewScope).kind == DiffTarget::Kind::File && repo->fullFileTargetLine > 0 && !diffs.front().hunks.empty()) {
             const auto& lines = diffs.front().hunks.front().lines;
             int index = repo->fullFileTargetLine - diffs.front().hunks.front().newStart;
             if (index >= 0 && static_cast<size_t>(index) < lines.size()) {

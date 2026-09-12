@@ -449,6 +449,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
         if (reviewPtr && hasRepo) {
+            poll_range_diff(*repoPtr);
             poll_review_queue(*repoPtr, *reviewPtr);
             poll_review_snapshot(*reviewPtr);
             persist_pending_review(ctx, *reviewPtr, repoPtr);

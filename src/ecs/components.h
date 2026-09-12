@@ -2,6 +2,7 @@
 #include <atomic>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <future>
@@ -256,7 +257,20 @@ struct NavigationHistory {
     int requestedStep = 0;
 };
 
+struct RangeDiffState {
+    bool enabled = false;
+    std::string oldRange;
+    std::string newRange;
+    std::array<std::string, 4> revisions;
+    std::array<std::string, 4> resolved;
+    size_t next = 0;
+    async_work::Task<git::GitResult> future;
+    std::vector<FileDiff> display;
+    std::string error;
+};
+
 struct RepoComponent : public afterhours::BaseComponent {
+    RangeDiffState rangeDiff;
     bool reviewWorkspace = false;
     review_files::Filter fileFilter;
     ReadingPositions reading;
@@ -724,6 +738,8 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
 
 inline void select_review_target(RepoComponent& repo, const std::string& scope, const std::string& file) {
     const auto target = diff_target(scope);
+    repo.rangeDiff.enabled = false;
+    repo.rangeDiff.future = {};
     repo.selectedFilePath = target.kind == DiffTarget::Kind::WorkingTree || target.kind == DiffTarget::Kind::Index ? file : "";
     repo.selectedFileStaged = target.kind == DiffTarget::Kind::Index;
     repo.selectedCommitHash = target.kind == DiffTarget::Kind::Commit ? target.after : "";

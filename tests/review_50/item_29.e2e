@@ -1,0 +1,58 @@
+resize 1440 900
+wait_for_refresh
+click_text Edit
+click_text Compare Revisions...
+screenshot item_29_form
+click_ui comparison_mode
+screenshot item_29_series_form
+click_ui range_diff_submit
+expect_text Enter two ranges with explicit endpoints
+click_ui range_diff_old
+type base..old-series
+click_ui range_diff_new
+type base..new-series
+click_ui range_diff_submit
+screenshot item_29_loading
+wait_for_refresh
+screenshot item_29_result
+expect_text Resolved series:
+expect_text OldSeries
+expect_text NewSeries
+expect_text old implementation
+expect_text new implementation
+assert_no_overflow
+click_ui comparison_mode
+screenshot item_29_revisions
+assert_ui compare_base hidden=false
+click_ui comparison_mode
+screenshot item_29_return
+expect_text Resolved series:
+click_ui range_diff_close
+screenshot item_29_closed
+expect_no_text Resolved series:
+click_text Edit
+click_text Compare Revisions...
+click_ui comparison_mode
+screenshot item_29_comparison_form
+click_ui compare_base
+type base
+click_ui compare_target
+type new-series
+click_ui compare_submit
+wait_for_refresh
+screenshot item_29_comparison_loaded
+click_ui comment_hunk_btn
+click_ui comment_input
+type Comparison feedback
+click_ui comment_add_btn
+screenshot item_29_comparison_comment
+click_ui comparison_mode
+screenshot item_29_series_with_feedback
+click_ui basket_item_loc
+wait_for_refresh
+screenshot item_29_feedback_source
+assert_ui full_file_header hidden=false
+click_ui full_file_back
+screenshot item_29_feedback_return
+expect_text Resolved revisions:
+expect_no_text Resolved series:

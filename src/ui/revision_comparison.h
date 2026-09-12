@@ -1,6 +1,7 @@
 #pragma once
 
 #include "diff_renderer.h"
+#include "range_diff.h"
 #include "../git/git_parser.h"
 
 namespace ecs {
@@ -8,6 +9,16 @@ namespace ecs {
 inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& parent,
                                         RepoComponent& repo, LayoutComponent& layout, ReviewComponent* review = nullptr) {
     using namespace std::chrono_literals;
+    if (button(ctx, mk(parent, 598000), preset::Button(repo.rangeDiff.enabled ? "Compare revisions" : "Compare commit series")
+            .with_size(ComponentSize{pixels(240), pixels(30)}).with_debug_name("comparison_mode"))) {
+        repo.rangeDiff.enabled = !repo.rangeDiff.enabled;
+        repo.rangeDiff.future = {};
+        if (repo.rangeDiff.enabled) repo.comparisonFuture = {};
+    }
+    if (repo.rangeDiff.enabled) {
+        render_range_diff(ctx, parent, repo, layout);
+        return;
+    }
     bool changed = false;
     if (!repo.comparisonScope.empty() && !repo.comparisonFuture.valid() &&
         (repo.comparisonNeedsLoad || repo.comparisonContext != repo.diffContext || repo.comparisonIgnoreWhitespace != repo.ignoreWhitespace)) {
@@ -75,7 +86,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap));
     if (!repo.comparisonScope.empty())
         ui::render_diff(ctx, parent, repo.comparisonDiff, layout.mainContent.width,
-            layout.mainContent.height - 132.f, false, changed,
+            layout.mainContent.height - 162.f, false, changed,
             layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide, repo.repoPath, review, repo.comparisonScope);
 }
 
