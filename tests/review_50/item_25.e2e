@@ -1,0 +1,23 @@
+resize 1440 900
+wait_for_refresh
+click_text sample.cpp
+screenshot item_25_pending
+expect_text 0/1 files reviewed · 0 unresolved
+click_ui finish_review
+screenshot item_25_verdict_choices
+click_text Changes requested
+screenshot item_25_changes_requested
+expect_text Changes requested
+click_ui approve_file_btn
+screenshot item_25_ready
+expect_text 1/1 files reviewed · 0 unresolved
+click_ui finish_review
+screenshot item_25_ready_choices
+click_text Approved
+screenshot item_25_approved
+assert_ui finish_review text=Approved
+click_ui finish_review
+screenshot item_25_reopen_choices
+click_text Reopen review
+screenshot item_25_reopened
+expect_text Finish review...

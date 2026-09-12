@@ -704,6 +704,20 @@ TEST(branch_blank_lines_ignored) {
 
 // ===========================================================================
 
+TEST(binary_diff_object_ids_keep_the_full_hash_without_a_mode_field) {
+    std::string before(64, 'a'), after(64, 'b');
+    auto patch = "diff --git a/image.bin b/image.bin\nindex " + before + ".." + after +
+        "\nBinary files a/image.bin and b/image.bin differ\n";
+    auto files = git::parse_diff(patch);
+    ASSERT_EQ(files.size(), size_t{1});
+    ASSERT_EQ(files.front().oldObject, before);
+    ASSERT_EQ(files.front().newObject, after);
+    ASSERT_TRUE(files.front().isBinary);
+    auto withMode = git::parse_diff("diff --git a/image.bin b/image.bin\nindex abc..def 100644\nBinary files a/image.bin and b/image.bin differ\n");
+    ASSERT_EQ(withMode.front().oldObject, "abc");
+    ASSERT_EQ(withMode.front().newObject, "def");
+}
+
 int main() {
     printf("=== git_parser tests ===\n");
     RUN_ALL_TESTS();

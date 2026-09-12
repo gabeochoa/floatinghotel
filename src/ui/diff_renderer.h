@@ -1254,11 +1254,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         auto progress = div(ctx, mk(findParent ? *findParent : parent, 597002), ComponentConfig{}
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
+        const auto& candidates = reviewScope == "wt" ? filterRepo->currentDiff :
+            reviewScope == "index" ? filterRepo->stagedDiff : diffs;
         if (review && button(ctx, mk(progress.ent(), 0), preset::Button("Next unreviewed file")
                 .with_size(ComponentSize{children(), pixels(26)}).with_font_size(FontSize::Small)
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("next_unreviewed_file"))) {
-            const auto& candidates = reviewScope == "wt" ? filterRepo->currentDiff :
-                reviewScope == "index" ? filterRepo->stagedDiff : diffs;
             auto current = filterRepo->diffTargetFile.empty() ? filterRepo->selectedFilePath : filterRepo->diffTargetFile;
             auto next = ecs::next_unreviewed_file(*review, reviewScope, candidates, filterRepo->fileFilter, current);
             if (next) {
@@ -1266,6 +1266,30 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 filterRepo->diffTargetFrames = 4;
                 if (reviewScope == "wt" || reviewScope == "index") filterRepo->selectedFilePath = candidates[*next].filePath;
             } else afterhours::toast::send_info(ctx, "All visible files reviewed", 2.f);
+        }
+        if (review) {
+            auto counts = ecs::review_progress(*review, reviewScope, candidates);
+            auto verdict = ecs::current_review_verdict(*review, reviewScope, candidates);
+            div(ctx, mk(progress.ent(), 1), ComponentConfig{}
+                .with_label(std::to_string(counts.reviewed) + "/" + std::to_string(counts.total) + " files reviewed · " +
+                    std::to_string(counts.unresolved) + " unresolved")
+                .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(FontSize::Small)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("review_completion"));
+            if (button(ctx, mk(progress.ent(), 2), preset::Button(verdict == ReviewVerdict::InProgress ? "Finish review..." : review_verdict_label(verdict))
+                    .with_size(ComponentSize{children(), pixels(26)}).with_font_size(FontSize::Small)
+                    .with_debug_name("finish_review"))) {
+                std::vector<ContextMenuItem> choices;
+                for (auto value : {ReviewVerdict::Approved, ReviewVerdict::ChangesRequested, ReviewVerdict::Commented, ReviewVerdict::InProgress})
+                    choices.push_back(ContextMenuItem::item(value == ReviewVerdict::InProgress ? "Reopen review" : review_verdict_label(value),
+                        [scope = reviewScope, storage = review->storageScope, path = filterRepo->repoPath,
+                         signature = ecs::review_target_signature(candidates), value] {
+                            auto* active = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+                            if (!active || active->storageScope != storage || active->storageRepoPath != path) return;
+                            active->verdicts[scope] = {value, signature};
+                            active->dirty = true;
+                        }, value != ReviewVerdict::Approved || counts.can_approve()));
+                show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+            }
         }
         findHeight = 90.f;
     }

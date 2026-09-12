@@ -94,6 +94,9 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
 
     j["approved_hunks"] = review.approvedHunks;  // set<string> -> array
     j["reviewed_files"] = review.reviewedFiles;
+    j["verdicts"] = nlohmann::json::object();
+    for (const auto& [scope, decision] : review.verdicts)
+        j["verdicts"][scope] = {{"verdict", review_verdict_label(decision.verdict)}, {"signature", decision.signature}};
     j["folded_hunks"] = review.foldedHunks;
     j["seen_sig"] = review.seenSig;              // map<string,string> -> object
     j["baseline_head"] = review.baselineHead;
@@ -155,6 +158,11 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
         review.approvedHunks =
             j.value("approved_hunks", std::set<std::string>{});
         review.reviewedFiles = j.value("reviewed_files", std::map<std::string, std::string>{});
+        review.verdicts.clear();
+        if (j.contains("verdicts"))
+            for (auto it = j["verdicts"].begin(); it != j["verdicts"].end(); ++it)
+                review.verdicts[it.key()] = {parse_review_verdict(it.value().value("verdict", std::string{})),
+                    it.value().value("signature", std::string{})};
         review.foldedHunks = j.value("folded_hunks", std::set<std::string>{});
         review.seenSig =
             j.value("seen_sig", std::map<std::string, std::string>{});

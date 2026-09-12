@@ -236,6 +236,10 @@ TEST(next_unreviewed_requires_explicit_metadata_review_and_wraps) {
     ASSERT_TRUE(!ecs::file_reviewed(review, "wt", metadata));
     review.approvedHunks.insert("wt\n" + ecs::ReviewComponent::hunk_key(first.filePath, first.hunks.front()));
     ASSERT_TRUE(ecs::file_reviewed(review, "wt", first));
+    review.reviewedFiles["wt\n" + first.filePath] = ecs::diff_signature(first);
+    review.approvedHunks.clear();
+    ASSERT_TRUE(!ecs::file_reviewed(review, "wt", first));
+    review.approvedHunks.insert("wt\n" + ecs::ReviewComponent::hunk_key(first.filePath, first.hunks.front()));
     ASSERT_EQ(*ecs::next_unreviewed_file(review, "wt", files, {}, first.filePath), size_t{1});
     review.reviewedFiles["wt\n" + metadata.filePath] = ecs::diff_signature(metadata);
     ASSERT_TRUE(!ecs::next_unreviewed_file(review, "wt", files, {}, metadata.filePath));
@@ -288,6 +292,55 @@ TEST(typed_comments_preserve_drafts_edits_and_export) {
     for (auto kind : {ReviewCommentKind::Comment, ReviewCommentKind::Question, ReviewCommentKind::Suggestion,
             ReviewCommentKind::Blocker, ReviewCommentKind::Nit})
         ASSERT_EQ(parse_review_comment_kind(review_comment_kind_label(kind)), kind);
+    std::filesystem::remove(review_store::review_path(repo));
+}
+
+TEST(metadata_and_text_both_require_review) {
+    ecs::ReviewComponent review;
+    ecs::FileDiff file;
+    file.filePath = "script.sh";
+    file.oldMode = "100644";
+    file.newMode = "100755";
+    file.hunks.push_back({1, 1, 1, 1, "@@ -1 +1 @@", {"-old", "+new"}});
+    auto key = "wt\n" + ecs::ReviewComponent::hunk_key(file.filePath, file.hunks.front());
+    review.approvedHunks.insert(key);
+    ASSERT_FALSE(ecs::file_reviewed(review, "wt", file));
+    review.reviewedFiles["wt\n" + file.filePath] = ecs::diff_signature(file);
+    ASSERT_TRUE(ecs::file_reviewed(review, "wt", file));
+    review.approvedHunks.erase(key);
+    ASSERT_FALSE(ecs::file_reviewed(review, "wt", file));
+    review.approvedHunks.insert(key);
+    file.oldPath = "old-script.sh";
+    ASSERT_FALSE(ecs::file_reviewed(review, "wt", file));
+}
+
+TEST(review_verdicts_require_complete_scoped_progress_and_invalidate_on_binary_changes) {
+    ecs::ReviewComponent review;
+    ecs::FileDiff binary;
+    binary.filePath = "image.bin";
+    binary.isBinary = true;
+    binary.oldObject = "old-object";
+    binary.newObject = "new-object";
+    std::vector<ecs::FileDiff> files{binary};
+    ASSERT_TRUE(!ecs::review_progress(review, "wt", files).can_approve());
+    review.reviewedFiles["wt\nimage.bin"] = ecs::diff_signature(binary);
+    review.comments.push_back({"other-commit", "image.bin", 1, "unrelated"});
+    ASSERT_TRUE(ecs::review_progress(review, "wt", files).can_approve());
+    review.verdicts["wt"] = {ReviewVerdict::Approved, ecs::review_target_signature(files)};
+    ASSERT_EQ(ecs::current_review_verdict(review, "wt", files), ReviewVerdict::Approved);
+    ASSERT_EQ(ecs::current_review_verdict(review, "index", files), ReviewVerdict::InProgress);
+    const std::string repo = "/tmp/fh_review_verdict_test";
+    ASSERT_TRUE(review_store::save_review(repo, review));
+    ecs::ReviewComponent restored;
+    review_store::load_review(repo, restored);
+    ASSERT_EQ(ecs::current_review_verdict(restored, "wt", files), ReviewVerdict::Approved);
+    files.front().newObject = "updated-binary-object";
+    ASSERT_TRUE(!ecs::file_reviewed(restored, "wt", files.front()));
+    ASSERT_EQ(ecs::current_review_verdict(restored, "wt", files), ReviewVerdict::InProgress);
+    files.front() = binary;
+    restored.comments.push_back({"wt", "image.bin", 1, "followup"});
+    ASSERT_TRUE(!ecs::review_progress(restored, "wt", files).can_approve());
+    ASSERT_EQ(ecs::current_review_verdict(restored, "wt", files), ReviewVerdict::InProgress);
     std::filesystem::remove(review_store::review_path(repo));
 }
 

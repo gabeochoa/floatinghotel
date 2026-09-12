@@ -253,6 +253,12 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
                 currentFile->oldPath = a_path;
             }
         } else if (line.starts_with("index ") && currentFile) {
+            auto dots = line.find("..", 6);
+            if (dots != std::string::npos) {
+                currentFile->oldObject = line.substr(6, dots - 6);
+                auto end = line.find(' ', dots + 2);
+                currentFile->newObject = line.substr(dots + 2, end == std::string::npos ? end : end - dots - 2);
+            }
             auto mode = line.rfind(' ');
             if (mode != std::string::npos && line.size() - mode == 7) {
                 currentFile->oldMode = currentFile->newMode = line.substr(mode + 1);

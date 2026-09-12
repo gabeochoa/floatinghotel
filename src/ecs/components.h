@@ -22,6 +22,7 @@
 #include "../util/diff_revisions.h"
 #include "../util/review_files.h"
 #include "../util/review_comment_kind.h"
+#include "../util/review_verdict.h"
 
 namespace ecs {
 
@@ -124,6 +125,8 @@ struct FileDiff {
     std::vector<DiffHunk> hunks;
     std::string oldMode;
     std::string newMode;
+    std::string oldObject;
+    std::string newObject;
     std::uint64_t renderIdentity = next_render_identity();
     bool isPartialContent = false;
 };
@@ -387,6 +390,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::map<std::string, Comment> drafts;
     std::set<std::string> approvedHunks;
     std::map<std::string, std::string> reviewedFiles;
+    std::map<std::string, ReviewDecision> verdicts;
     std::set<std::string> foldedHunks;
     // Inline compose state: the hunk currently being commented on + its buffer.
     std::string composingKey;    // hunk key being commented, empty if none
@@ -447,6 +451,7 @@ inline void reset_review(ReviewComponent& review) {
     review.storageRepoPath.clear();
     review.approvedHunks.clear();
     review.reviewedFiles.clear();
+    review.verdicts.clear();
     review.foldedHunks.clear();
     review.composingKey.clear();
     review.composingText.clear();
@@ -490,18 +495,21 @@ inline std::string selected_review_storage_scope(const RepoComponent& repo, cons
 inline std::string diff_signature(const FileDiff& f) {
     std::string s = std::to_string(f.additions) + "," +
                     std::to_string(f.deletions) + "," +
-                    std::to_string(f.hunks.size()) + ":" + f.oldMode + ":" + f.newMode + ":" + f.oldPath;
+                    std::to_string(f.hunks.size()) + ":" + f.oldMode + ":" + f.newMode + ":" + f.oldPath +
+                    ":" + f.oldObject + ":" + f.newObject;
     for (const auto& h : f.hunks) s += "|" + hunk_signature(h);
     return s;
 }
 
 inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const FileDiff& file) {
     auto record = review.reviewedFiles.find(scope + "\n" + file.filePath);
-    if (record != review.reviewedFiles.end()) return record->second == diff_signature(file);
-    if (file.oldMode != file.newMode) return false;
-    return !file.hunks.empty() && std::all_of(file.hunks.begin(), file.hunks.end(), [&](const auto& hunk) {
-        return review.approvedHunks.contains(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
-    });
+    if ((file.oldMode != file.newMode || !file.oldPath.empty()) &&
+        (record == review.reviewedFiles.end() || record->second != diff_signature(file))) return false;
+    if (!file.hunks.empty())
+        return std::all_of(file.hunks.begin(), file.hunks.end(), [&](const auto& hunk) {
+            return review.approvedHunks.contains(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
+        });
+    return record != review.reviewedFiles.end() && record->second == diff_signature(file);
 }
 
 inline std::optional<size_t> next_unreviewed_file(const ReviewComponent& review, const std::string& scope,
@@ -566,6 +574,39 @@ inline std::string unresolved_file_badge(const ReviewComponent& review, const st
         const std::string& path, const std::string& oldPath = "") {
     auto count = unresolved_file_count(review, scope, path, oldPath);
     return count ? " · " + std::to_string(count) + " unresolved" : "";
+}
+
+struct ReviewProgress {
+    size_t reviewed = 0;
+    size_t total = 0;
+    size_t unresolved = 0;
+    bool can_approve() const { return reviewed == total && unresolved == 0; }
+};
+
+inline ReviewProgress review_progress(const ReviewComponent& review, const std::string& scope,
+        const std::vector<FileDiff>& files) {
+    ReviewProgress progress;
+    progress.total = files.size();
+    progress.reviewed = static_cast<size_t>(std::count_if(files.begin(), files.end(),
+        [&](const auto& file) { return file_reviewed(review, scope, file); }));
+    progress.unresolved = static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(),
+        [&](const auto& comment) { return comment.scope == scope && !comment.resolved; }));
+    return progress;
+}
+
+inline std::string review_target_signature(const std::vector<FileDiff>& files) {
+    std::string signature;
+    for (size_t i : visible_file_indices(files, {}))
+        signature += std::to_string(files[i].filePath.size()) + ":" + files[i].filePath + "\n" + diff_signature(files[i]) + "\n";
+    return signature;
+}
+
+inline ReviewVerdict current_review_verdict(const ReviewComponent& review, const std::string& scope,
+        const std::vector<FileDiff>& files) {
+    auto decision = review.verdicts.find(scope);
+    if (decision == review.verdicts.end() || decision->second.signature != review_target_signature(files)) return ReviewVerdict::InProgress;
+    if (decision->second.verdict == ReviewVerdict::Approved && !review_progress(review, scope, files).can_approve()) return ReviewVerdict::InProgress;
+    return decision->second.verdict;
 }
 
 inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
