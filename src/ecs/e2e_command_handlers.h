@@ -25,6 +25,7 @@
 #include "../git/git_parser.h"
 #include "../git/git_runner.h"
 #include "../util/process.h"
+#include "../platform/native_menu.h"
 
 struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
@@ -49,6 +50,19 @@ struct HandleShowToast : afterhours::System<afterhours::testing::PendingE2EComma
         else if (cmd.args[0] == "error") afterhours::toast::send_error(ctx, message);
         else { cmd.fail("Unknown toast level"); return; }
         cmd.consume();
+    }
+};
+
+struct HandleNativeMenuAction : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("native_menu_action")) return;
+        std::string joined;
+        for (const auto& part : cmd.args) { if (!joined.empty()) joined += ' '; joined += part; }
+        std::istringstream input(joined);
+        std::string title;
+        input >> std::quoted(title);
+        if (!native_menu::activate_for_test(title)) cmd.fail("Native menu item is unavailable: " + title);
+        else cmd.consume();
     }
 };
 

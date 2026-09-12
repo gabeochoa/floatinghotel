@@ -331,6 +331,8 @@ static void trace_navigation_frame() {
 // Init callback: runs after Sokol/Metal window is created
 static void app_init() {
     using namespace afterhours;
+    if (app_state::testModeEnabled && app_state::headless && std::getenv("FH_NATIVE_MENUS"))
+        native_menu::prepare_windowless();
     auto t0 = std::chrono::high_resolution_clock::now();
     log_info("  Window+GPU init: {} ms",
         std::chrono::duration_cast<std::chrono::milliseconds>(t0 - app_state::startTime).count());
@@ -547,6 +549,7 @@ static void app_init() {
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
             sm.register_update_system(std::make_unique<HandleShowToast>());
+            sm.register_update_system(std::make_unique<HandleNativeMenuAction>());
             sm.register_update_system(std::make_unique<HandleReviewRoundtrip>());
             sm.register_update_system(std::make_unique<HandleExpectReviewExport>());
             sm.register_update_system(std::make_unique<HandleResetUI>());
@@ -1074,6 +1077,7 @@ static void app_frame() {
 
 // Cleanup callback: runs when window is closing
 static void app_cleanup() {
+    native_menu::shutdown();
     async_work::executor().shutdown();
     git::set_log_callback(nullptr);
     ui::image_diff::clear();
@@ -1348,6 +1352,8 @@ int main(int argc, char* argv[]) {
             if (auto* tooltip = ecs::find_singleton<afterhours::ui::TooltipState>()) return tooltip->text;
         } else if (key == "code_font_size") {
             return std::format("{:.0f}", Settings::get().get_code_font_size());
+        } else if (key == "native_menu") {
+            return native_menu::is_installed() ? "true" : "false";
         } else if (key == "code_row_height") {
             const auto& lines = ui::diff_sel::state().lastLines;
             return lines.empty() ? "0" : std::format("{:.0f}", lines.front().rect.height);

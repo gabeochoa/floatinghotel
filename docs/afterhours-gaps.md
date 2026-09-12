@@ -878,3 +878,33 @@ missing-singleton warning above is absent in `output/spacing-audit/toast-final.l
 Tests cover duplicate notices, hover pause, expiration, persistent warnings and
 errors, dismiss clicks, wrapping, and small-window zoom. Text-highlight and
 idle-flicker checks also pass after the render-order change.
+
+### macOS menu integration
+
+Afterhours does not provide a native macOS menu adapter for this app. The app
+adds a small AppKit bridge, leaving Sokol's delegate and window-presentation
+logic intact. Native selections enqueue command IDs, and the app rechecks
+enabled state before executing existing menu actions. Repository mutations
+remain disabled in Review Workspace. The in-window fallback stays available
+for non-macOS and ordinary headless tests, above repository tabs.
+
+Native menu equivalents can consume keys before Afterhours text inputs see
+them. The existing menu Copy action handles diff selection, while keyboard
+Copy also handles text fields. Cmd+Enter has separate commit and feedback
+contexts. The bridge therefore displays app shortcuts but lets their events
+continue to Sokol; only native Quit handles its own equivalent. This avoids
+duplicating or stealing the existing keyboard actions. Physical keyboard
+delivery through an open native menu remains a manual verification item.
+
+The bridge owns Objective-C objects explicitly and compiles without ARC.
+Sokol keeps ARC enabled for screenshot readback cleanup. Native tests create
+an application with prohibited activation and no windows. The app's headless
+integration opts into that same setup with `FH_NATIVE_MENUS=1`.
+# Tab keyboard injection bypass
+
+The native-menu integration check exposed repository-tab shortcuts reading raw
+graphics key state while other app shortcuts read Afterhours input state. The
+headless runner injects into the latter and parses CMD as Control. Switching only
+the wrapper did not fix the test. Tab shortcuts now use the input wrapper and
+accept either Command or Control key, like the other app shortcuts. The test
+exercises creation and closing rather than replacing keyboard checks with clicks.

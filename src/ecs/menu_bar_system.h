@@ -1,12 +1,16 @@
 #pragma once
 
 #include <algorithm>
+#include <cstdlib>
 
 #include "../../vendor/afterhours/src/plugins/toast.h"
 #include "../ui/context_menu_render.h"
 #include "../ui/menu_setup.h"
 #include "../ui/zoom.h"
 #include "ui_imports.h"
+#include "../platform/native_menu.h"
+
+namespace app_state { extern bool testModeEnabled; }
 
 namespace ecs {
 
@@ -30,6 +34,52 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
     std::vector<menu_setup::Menu> menus_;
     bool initialized_ = false;
 
+    std::vector<menu_setup::Menu> current_menus() const {
+        auto menus = menus_;
+        if (auto* repo = find_singleton<RepoComponent, ActiveTab>(); repo && repo->reviewWorkspace)
+            for (auto& menu : menus)
+                if (menu.label == "Repository")
+                    for (auto& item : menu.items) item.enabled = false;
+        return menus;
+    }
+
+    std::vector<native_menu::Menu> native_menus(const std::vector<menu_setup::Menu>& menus) const {
+        std::vector<native_menu::Menu> result;
+        auto* layout = find_singleton<LayoutComponent>();
+        auto* repo = find_singleton<RepoComponent, ActiveTab>();
+        for (size_t m = 0; m < menus.size(); ++m) {
+            native_menu::Menu menu{menus[m].label, {}};
+            for (size_t i = 0; i < menus[m].items.size(); ++i) {
+                const auto& item = menus[m].items[i];
+                if (item.label == "Quit") continue;
+                bool checked = false;
+                if (item.label == "Copy With Location (toggle)") checked = Settings::get().get_copy_with_location();
+                if (item.label == "Review Workspace (toggle)") checked = repo && repo->reviewWorkspace;
+                if (layout) {
+                    if (item.label == "Toggle Sidebar") checked = layout->sidebarVisible;
+                    if (item.label == "Toggle Command Log") checked = layout->commandLogVisible;
+                    if (item.label == "Inline Diff") checked = layout->diffViewMode == LayoutComponent::DiffViewMode::Inline;
+                    if (item.label == "Side-by-Side Diff") checked = layout->diffViewMode == LayoutComponent::DiffViewMode::SideBySide;
+                }
+                menu.items.push_back({static_cast<native_menu::CommandId>(1 + m * 256 + i), item.label,
+                    item.shortcut, item.enabled, checked, item.isSeparator});
+            }
+            if (!menu.items.empty()) result.push_back(std::move(menu));
+        }
+        return result;
+    }
+
+    void drain_notices(UIContext<InputAction>& ctx, MenuComponent& menu) {
+        for (const auto& notice : menu.pendingToasts) {
+            switch (notice.kind) {
+                case MenuComponent::Notice::Kind::Info: afterhours::toast::send_info(ctx, notice.message); break;
+                case MenuComponent::Notice::Kind::Success: afterhours::toast::send_success(ctx, notice.message); break;
+                case MenuComponent::Notice::Kind::Error: afterhours::toast::send_error(ctx, notice.message); break;
+            }
+        }
+        menu.pendingToasts.clear();
+    }
+
     // Track header positions for hover-to-switch and dropdown placement
     struct HeaderRect {
         float x, y, width, height;
@@ -49,9 +99,29 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         if (!initialized_) {
             menus_ = menu_setup::createMenuBar();
             initialized_ = true;
+            if (!app_state::testModeEnabled || std::getenv("FH_NATIVE_MENUS"))
+                native_menu::install("floatinghotel", native_menu::CommandId{0}, native_menus(current_menus()));
         }
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
+        if (native_menu::is_installed()) {
+            for (auto command : native_menu::drain_commands()) {
+                const auto available = current_menus();
+                const auto id = static_cast<std::uint32_t>(command);
+                if (id == 0) { afterhours::graphics::request_quit(); continue; }
+                const auto menuIndex = (id - 1) / 256;
+                const auto itemIndex = (id - 1) % 256;
+                if (menuIndex < available.size() && itemIndex < available[menuIndex].items.size()) {
+                    const auto& item = available[menuIndex].items[itemIndex];
+                    if (item.enabled && item.action) item.action();
+                }
+            }
+            native_menu::refresh(native_menus(current_menus()));
+            menu.activeMenuIndex = -1;
+            drain_notices(ctx, menu);
+            ui::render_context_menu(ctx, uiRoot);
+            return;
+        }
         float barW = layout.menuBar.width;   // sidebar-width column for item/overflow math
         float barH = layout.menuBar.height;
         float barY = layout.menuBar.y;
@@ -99,11 +169,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             return static_cast<float>(label.length()) * charW + hdrPad;
         };
         std::vector<menu_setup::Menu> renderMenus;
-        auto availableMenus = menus_;
-        if (auto* repo = find_singleton<RepoComponent, ActiveTab>(); repo && repo->reviewWorkspace)
-            for (auto& available : availableMenus)
-                if (available.label == "Repository")
-                    for (auto& item : available.items) item.enabled = false;
+        auto availableMenus = current_menus();
         {
             float startX = rpx(static_cast<float>(theme::layout::PADDING));
             float total = startX;
@@ -334,14 +400,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
 
-        for (const auto& notice : menu.pendingToasts) {
-            switch (notice.kind) {
-                case MenuComponent::Notice::Kind::Info: afterhours::toast::send_info(ctx, notice.message); break;
-                case MenuComponent::Notice::Kind::Success: afterhours::toast::send_success(ctx, notice.message); break;
-                case MenuComponent::Notice::Kind::Error: afterhours::toast::send_error(ctx, notice.message); break;
-            }
-        }
-        menu.pendingToasts.clear();
+        drain_notices(ctx, menu);
 
         // Close menus on click outside
         if (anyMenuOpen && !headerInteracted && !itemInteracted) {

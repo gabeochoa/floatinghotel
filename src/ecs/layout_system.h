@@ -7,6 +7,7 @@
 #include "ui_imports.h"
 #include "../ui/zoom.h"
 #include "../util/review_layout.h"
+#include "../platform/native_menu.h"
 
 // Real OS window resize (Metal backend, defined in sokol_impl.mm) + test-mode
 // flag (defined in main.cpp) so we never resize the window during e2e.
@@ -95,7 +96,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const float statusH = std::min(26.f, height);
         const float availableH = height - statusH;
         const float tabStripH = std::min(28.f, availableH);
-        const float menuH = std::min(26.f, availableH - tabStripH);
+        const float menuH = native_menu::is_installed() ? 0.f : std::min(26.f, availableH - tabStripH);
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
         const float toolbarH = !layout.sidebarVisible && repo && !repo->reviewWorkspace
             ? std::min(42.f, availableH - tabStripH - menuH) : 0.f;
@@ -111,8 +112,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const float dividerW = sidebarW > 0.f && !sidebarOnly ? std::min(8.f, width - sidebarW) : 0.f;
         const float mainX = sidebarW + dividerW;
 
-        layout.tabStrip = {0, 0, width, tabStripH};
-        layout.menuBar = {0, tabStripH, sidebarOnly ? sidebarW : width, menuH};
+        layout.tabStrip = {0, menuH, width, tabStripH};
+        layout.menuBar = {0, 0, sidebarOnly ? sidebarW : width, menuH};
         layout.toolbar = {0, tabStripH + menuH, width, toolbarH};
         layout.sidebar = sidebarW > 0.f ? LayoutComponent::Rect{0, topY, sidebarW, bodyH} : LayoutComponent::Rect{};
         const float sidebarDividerH = std::min(LayoutComponent::kCommitSplitterHeight, bodyH);

@@ -1,0 +1,20 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+screenshot menu_order_ready
+validate native_menu=false
+assert_ui menu_bar y=0
+assert_ui tab_strip y=26
+assert_ui sidebar_bg y=54
+click_ui tab_add
+wait_frames 5
+screenshot menu_order_new_tab
+validate ui_present:tab_close=true
+key CMD+W
+wait_frames 5
+screenshot menu_order_return
+click_ui menu_header_Edit
+screenshot menu_order_edit
+validate ui_present:menu_item_Copy=true
+click 600 74
+validate footer_fixed=true

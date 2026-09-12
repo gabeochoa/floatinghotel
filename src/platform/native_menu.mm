@@ -73,6 +73,22 @@ FHApplicationCommands* action_target = nil;
 
 namespace native_menu {
 
+bool is_installed() { return installed_menu != nil; }
+
+void prepare_windowless() {
+    [NSApplication sharedApplication];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
+}
+
+bool activate_for_test(const std::string& title) {
+    for (const auto& [command, item] : command_items) {
+        (void)command;
+        if (item.enabled && title == item.title.UTF8String)
+            return [NSApp sendAction:item.action to:item.target from:item];
+    }
+    return false;
+}
+
 bool install(const std::string& app_title, CommandId quit_command,
              const std::vector<Menu>& menus) {
     assert(NSThread.isMainThread);

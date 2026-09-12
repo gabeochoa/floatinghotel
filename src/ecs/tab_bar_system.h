@@ -45,12 +45,14 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         if (!tabStripP) return;
         auto& tabStrip = *tabStripP;
 
-        // Handle Cmd+T (new tab) and Cmd+W (close tab)
-        bool cmdDown = afterhours::graphics::is_key_down(343); // LEFT_SUPER
-        if (cmdDown && afterhours::graphics::is_key_pressed(84)) { // T
+        bool cmdDown = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
+                       afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
+                       afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) ||
+                       afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL);
+        if (cmdDown && afterhours::input::is_key_pressed(84)) {
             create_new_tab(tabStrip, layout);
         }
-        if (cmdDown && afterhours::graphics::is_key_pressed(87)) { // W
+        if (cmdDown && afterhours::input::is_key_pressed(87)) {
             if (tabStrip.tabOrder.size() > 1) {
                 for (size_t i = 0; i < tabStrip.tabOrder.size(); ++i) {
                     auto opt = EntityHelper::getEntityForID(tabStrip.tabOrder[i]);
@@ -77,7 +79,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(stripW), pixels(stripH)})
                 .with_absolute_position()
-                .with_translate(0, 0)
+                .with_translate(0, layout.tabStrip.y)
                 .with_custom_background(tab_colors::STRIP_BG)
                 .with_border_bottom(tab_colors::BORDER)
                 .with_flex_direction(FlexDirection::Row)
@@ -108,7 +110,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
 
             bool hovered = afterhours::ui::is_mouse_inside(
                 mouse,
-                RectangleType{tabX, 0.0f, tabW, tabH});
+                RectangleType{tabX, layout.tabStrip.y, tabW, tabH});
 
             afterhours::Color bg = isActive ? tab_colors::TAB_ACTIVE :
                                    hovered ? tab_colors::TAB_HOVER : tab_colors::STRIP_BG;
@@ -120,7 +122,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_label(tab.label)
                     .with_size(ComponentSize{pixels(tabW), pixels(tabH)})
                     .with_absolute_position()
-                    .with_translate(tabX, 0.0f)
+                    .with_translate(tabX, layout.tabStrip.y)
                     .with_custom_background(bg)
                     .with_custom_text_color(textCol)
                     .with_font_size(pixels(12))
@@ -145,7 +147,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             if (tabStrip.tabOrder.size() > 1 && tabW >= 48.f) {
                 float closeW = 16.f;
                 float closeX = tabX + tabW - closeW - 4.f;
-                float closeY = (tabH - closeW) * 0.5f;
+                float closeY = layout.tabStrip.y + (tabH - closeW) * 0.5f;
 
                 bool closeHovered = afterhours::ui::is_mouse_inside(
                     mouse,
@@ -182,7 +184,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}.with_skip_grid_snap()
                         .with_size(ComponentSize{pixels(1), pixels(tabH * 0.5f)})
                         .with_absolute_position()
-                        .with_translate(tabX + tabW, tabH * 0.25f)
+                        .with_translate(tabX + tabW, layout.tabStrip.y + tabH * 0.25f)
                         .with_custom_background(tab_colors::BORDER)
                         .with_roundness(0.0f)
                         .with_render_layer(6)
@@ -198,7 +200,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_label("+")
                 .with_size(ComponentSize{pixels(plusW), pixels(tabH)})
                 .with_absolute_position()
-                .with_translate(std::min(tabX + 2.f, stripW - plusW), 0.0f)
+                .with_translate(std::min(tabX + 2.f, stripW - plusW), layout.tabStrip.y)
                 .with_custom_background(tab_colors::STRIP_BG)
                 .with_custom_text_color(tab_colors::PLUS_TEXT)
                 .with_font_size(afterhours::ui::FontSize::Medium)
@@ -213,7 +215,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
 
         bool plusHovered = afterhours::ui::is_mouse_inside(
             mouse,
-            RectangleType{std::min(tabX + 2.f, stripW - plusW), 0.0f, plusW, tabH});
+            RectangleType{std::min(tabX + 2.f, stripW - plusW), layout.tabStrip.y, plusW, tabH});
         (void)plusBtn;
         if (plusHovered && ctx.mouse.just_pressed) {
             create_new_tab(tabStrip, layout);

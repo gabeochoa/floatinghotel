@@ -30,11 +30,17 @@ bool install(const std::string& app_title, CommandId quit_command,
 void refresh(const std::vector<Menu>& menus);
 std::vector<CommandId> drain_commands();
 void shutdown();
+bool is_installed();
+void prepare_windowless();
+bool activate_for_test(const std::string& title);
 #else
 inline bool install(const std::string&, CommandId, const std::vector<Menu>&) { return false; }
 inline void refresh(const std::vector<Menu>&) {}
 inline std::vector<CommandId> drain_commands() { return {}; }
 inline void shutdown() {}
+inline bool is_installed() { return false; }
+inline void prepare_windowless() {}
+inline bool activate_for_test(const std::string&) { return false; }
 #endif
 
 }

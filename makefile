@@ -99,7 +99,7 @@ OUTPUT_DIR := output
 MAIN_SRC := $(shell find src -name '*.cpp')
 
 # Objective-C++ source files (for Metal/Sokol)
-MAIN_MM_SRC := $(wildcard src/*.mm)
+MAIN_MM_SRC := $(wildcard src/*.mm src/platform/*.mm)
 MAIN_MM_OBJS := $(patsubst src/%.mm,$(OBJ_DIR)/main/%.o,$(MAIN_MM_SRC))
 
 # Object files
@@ -158,6 +158,8 @@ $(OBJ_DIR)/main/%.o: src/%.mm | $(OBJ_DIR)/main
 	@echo "Compiling (ObjC++) $<..."
 	@mkdir -p $(dir $@)
 	$(CXX) -ObjC++ -fobjc-arc $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
+
+$(OBJ_DIR)/main/platform/native_menu.o: CXXFLAGS += -fno-objc-arc
 
 # Compile afterhours files.cpp
 $(OBJ_DIR)/main/vendor_afterhours_files.o: vendor/afterhours/src/plugins/files.cpp | $(OBJ_DIR)/main
