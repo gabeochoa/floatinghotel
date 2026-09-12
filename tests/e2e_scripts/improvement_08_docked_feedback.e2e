@@ -8,7 +8,7 @@ type "Keep the code visible"
 click_ui comment_add_btn
 wait_frames 10
 screenshot improvement_08_docked
-assert_ui main_content x=344 w=616
+assert_ui main_content x=352 w=608
 assert_ui feedback_basket x=960 w=320
 click_ui hunk_folded_marker
 wait_frames 5

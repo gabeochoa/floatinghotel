@@ -1,0 +1,4 @@
+ts	phase	decision	why	evidence	result
+2026-09-12T00:18:15Z	baseline	Preserve paused sidebar edits in named stash	Keep the previous unfinished request outside the 50-item stack	git stash list: paused-sidebar-fill-before-review-50	Preserved
+2026-09-12T00:18:15Z	baseline	Run existing unit and native suites before feature work	Establish the current behavior and expose stale expectations	tests/run_unit_tests.sh; tests/check_improvements.sh	7 unit suites passed; 53 of 55 native scenarios passed; two expected the old divider width
+2026-09-12T00:18:15Z	baseline	Update two geometry expectations for the committed 12-pixel divider	The panel now starts at 352 and is 608 pixels wide beside feedback	tests/e2e_scripts/improvement_06_diff_modes.e2e; tests/e2e_scripts/improvement_08_docked_feedback.e2e	Both corrected native scenarios passed
