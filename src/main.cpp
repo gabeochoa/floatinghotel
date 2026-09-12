@@ -895,6 +895,21 @@ int main(int argc, char* argv[]) {
             if (auto* r = repo()) return r->selectedFilePath;
         } else if (key == "source_line") {
             if (auto* r = repo()) return std::to_string(r->fullFileTargetLine);
+        } else if (key.starts_with("visible_source_line:")) {
+            for (const auto& row : ui::diff_sel::state().lastLines) {
+                if (std::to_string(row.lineNo) != key.substr(20)) continue;
+                auto node = afterhours::ui::UICollectionHolder::getEntityForID(row.ent);
+                while (node.valid() && node.asE().has<afterhours::ui::UIComponent>()) {
+                    auto& entity = node.asE();
+                    if (entity.has<afterhours::ui::HasScrollView>()) {
+                        auto viewport = afterhours::testing::ui_commands::get_screen_rect(entity);
+                        return row.rect.y >= viewport.y && row.rect.y + row.rect.height <= viewport.y + viewport.height
+                            ? "true" : "false";
+                    }
+                    node = afterhours::ui::UICollectionHolder::getEntityForID(entity.get<afterhours::ui::UIComponent>().parent);
+                }
+            }
+            return "false";
         } else if (key == "review_cursor") {
             if (auto* r = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
                 return std::to_string(r->cursor);

@@ -42,7 +42,8 @@ void set_log_callback(LogCallback cb);
 // Synchronous git execution
 // Runs: git -C <repo_path> <args...>
 GitResult git_run(const std::string& repo_path,
-                  const std::vector<std::string>& args, std::stop_token stop = {});
+                  const std::vector<std::string>& args, std::stop_token stop = {},
+                  std::function<bool(std::string_view)> consumeOutput = {});
 
 // Asynchronous git execution (for push/pull/fetch)
 // Reads started before the window exists, adopted by the first refresh.

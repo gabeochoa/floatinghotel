@@ -1,0 +1,51 @@
+resize 1440 900
+wait_for_refresh
+click_text large.txt
+wait_frames 3
+click_ui open_full_file
+wait_frames 3
+wait_for_refresh
+expect_text "working source"
+expect_text "Loaded lines 1–4096"
+expect_text "Copy loaded page"
+expect_no_text "faraway needle"
+screenshot item_02_first_page
+click_ui file_page_next
+wait_frames 3
+wait_for_refresh
+expect_text "Loaded lines 4097–8192"
+expect_text "second page marker"
+screenshot item_02_next_page
+click_ui file_page_previous
+wait_frames 3
+wait_for_refresh
+expect_text "working source"
+key CMD+SHIFT+F
+click_ui repo_search_input
+type "faraway needle"
+click_ui repo_search_submit
+wait_for_refresh
+click_ui repo_search_result
+wait_frames 3
+wait_for_refresh
+expect_text "Loaded lines 12000–15000"
+expect_text "faraway needle"
+screenshot item_02_distant_line
+mouse_move 900 500
+scroll_wheel 0 -20000
+wait_frames 30
+screenshot item_02_page_end
+expect_text END_OF_LARGE_FILE
+validate visible_source_line:15000=true
+validate diff_rows_bounded=true
+click_ui full_file_back
+click_text latest
+wait_for_refresh
+wait_frames 3
+click_ui open_full_file
+wait_frames 3
+wait_for_refresh
+expect_text "historical source"
+expect_no_text "working source"
+expect_text "Loaded lines 1–4096"
+screenshot item_02_historical_page

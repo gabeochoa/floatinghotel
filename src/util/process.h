@@ -3,6 +3,7 @@
 #include <functional>
 #include <future>
 #include <string>
+#include <string_view>
 #include <stop_token>
 #include <vector>
 #include "async_task.h"
@@ -12,6 +13,7 @@ struct ProcessResult {
     std::string stderr_str;
     int exit_code = -1;
     bool cancelled = false;
+    bool outputStopped = false;
     bool success() const { return exit_code == 0; }
 };
 
@@ -20,7 +22,8 @@ struct ProcessResult {
 // forever (the historical behaviour).
 ProcessResult run_process(const std::string& working_dir,
                           const std::vector<std::string>& args,
-                          int timeout_ms = 0, std::stop_token stop = {});
+                          int timeout_ms = 0, std::stop_token stop = {},
+                          std::function<bool(std::string_view)> consumeOutput = {});
 
 // Asynchronous -- for slow git operations (push, pull, fetch)
 async_work::Task<ProcessResult> run_process_async(

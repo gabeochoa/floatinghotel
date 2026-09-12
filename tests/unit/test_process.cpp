@@ -140,6 +140,27 @@ TEST(process_cancel_after_output_closes) {
     ASSERT_TRUE(pending.get().cancelled);
 }
 
+TEST(streamed_output_stops_intentionally_without_retaining_full_output) {
+    size_t bytes = 0;
+    auto result = run_process("", {"sh", "-c", "while :; do printf xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx; done"}, 1000, {},
+        [&](std::string_view chunk) { bytes += chunk.size(); return bytes < 100; });
+    ASSERT_TRUE(result.outputStopped);
+    ASSERT_FALSE(result.cancelled);
+    ASSERT_FALSE(result.success());
+    ASSERT_TRUE(result.stdout_str.empty());
+    ASSERT_TRUE(bytes <= 4196);
+}
+
+TEST(streamed_output_preserves_cancellation_and_timeout_outcomes) {
+    std::stop_source stop;
+    auto cancelled = run_process("", {"sh", "-c", "printf hello; sleep 2"}, 1000, stop.get_token(),
+        [&](std::string_view) { stop.request_stop(); return false; });
+    ASSERT_TRUE(cancelled.cancelled);
+    auto timeout = run_process("", {"sh", "-c", "printf hello; sleep 2"}, 20, {}, [](std::string_view) { return true; });
+    ASSERT_FALSE(timeout.outputStopped);
+    ASSERT_TRUE(timeout.stderr_str.find("timed out") != std::string::npos);
+}
+
 int main() {
     printf("=== process tests ===\n");
     RUN_ALL_TESTS();

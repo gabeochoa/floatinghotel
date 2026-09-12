@@ -1,5 +1,6 @@
 #include "test_framework.h"
 #include "../../src/git/content_reader.h"
+#include "../../src/util/file_page.h"
 
 #include <filesystem>
 #include <fstream>
@@ -69,6 +70,104 @@ TEST(cancelled_tokens_do_not_cancel_accepted_git_writes) {
     ASSERT_TRUE(git::git_run(path, {"config", "test.completed", "yes"}, stop.get_token()).success());
     ASSERT_EQ(git::git_run(path, {"config", "--get", "test.completed"}).stdout_str(), "yes\n");
     ASSERT_TRUE(git::git_run(path, {"status"}, stop.get_token()).raw.cancelled);
+}
+
+TEST(file_pages_bound_lines_navigate_both_directions_and_load_distant_targets) {
+    char directory[] = "/tmp/fh-page-lines.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    { std::ofstream file(std::filesystem::path(path) / "large.txt");
+      for (int i = 1; i <= 15000; ++i) file << "line " << i << '\n'; }
+    auto first = git::read_file({path, "large.txt", ""});
+    ASSERT_TRUE(first.error.empty());
+    ASSERT_TRUE(first.raw.size() <= file_page::byteLimit);
+    ASSERT_EQ(first.diff.hunks[0].newCount, file_page::lineLimit);
+    ASSERT_EQ(first.page.next.line, 4097);
+    ASSERT_TRUE(first.diff.isPartialContent);
+    git::FileRequest request{path, "large.txt", ""};
+    request.page = {ecs::FilePageRequest::Action::Next, first.page.next, 0, first.page.sourceIdentity};
+    request.detectedEncoding = first.page.encoding;
+    auto second = git::read_file(request);
+    ASSERT_TRUE(second.error.empty());
+    ASSERT_EQ(second.diff.hunks[0].newStart, 4097);
+    ASSERT_EQ(second.diff.hunks[0].lines[0], " line 4097");
+    request.page = {ecs::FilePageRequest::Action::Previous, second.page.begin, 0, second.page.sourceIdentity};
+    ASSERT_EQ(git::read_file(request).raw, first.raw);
+    request.page = {ecs::FilePageRequest::Action::TargetLine, {}, 14000};
+    auto target = git::read_file(request);
+    ASSERT_EQ(target.diff.hunks[0].newStart, 14000);
+    ASSERT_EQ(target.diff.hunks[0].lines[0], " line 14000");
+    request.page = {ecs::FilePageRequest::Action::Previous, target.page.begin, 0, target.page.sourceIdentity};
+    auto beforeTarget = git::read_file(request);
+    ASSERT_EQ(beforeTarget.page.next.offset, target.page.begin.offset);
+    ASSERT_EQ(beforeTarget.diff.hunks[0].lines.back(), " line 13999");
+    request.page = {ecs::FilePageRequest::Action::TargetLine, {}, 16000};
+    ASSERT_FALSE(git::read_file(request).error.empty());
+    { std::ofstream file(std::filesystem::path(path) / "large.txt"); file << "changed\n"; }
+    request.page = {ecs::FilePageRequest::Action::Next, first.page.next, 0, first.page.sourceIdentity};
+    ASSERT_FALSE(git::read_file(request).error.empty());
+    std::filesystem::remove_all(path);
+}
+
+TEST(file_pages_keep_utf16_units_and_long_line_fragments_intact) {
+    std::string bytes("\xff\xfe", 2);
+    for (size_t i = 0; i < (file_page::byteLimit - 4) / 2; ++i) bytes += std::string("A\0", 2);
+    bytes += std::string("\x3d\xd8\x00\xde\n\0Z\0", 8);
+    file_page::Collector first({}, "auto", "");
+    for (size_t i = 0; i < bytes.size(); i += 3)
+        if (!first.consume(std::string_view(bytes).substr(i, 3))) break;
+    first.finish();
+    ASSERT_EQ(first.encoding, "utf16le");
+    ASSERT_TRUE(first.raw.size() <= file_page::byteLimit);
+    ASSERT_EQ(first.raw.size() % 2, 0u);
+    ASSERT_TRUE(first.next.continuation);
+    file_page::Collector second({ecs::FilePageRequest::Action::Next, first.next}, "auto", first.encoding);
+    second.consume(bytes);
+    second.finish();
+    ASSERT_EQ(first.raw + second.raw, bytes);
+    ASSERT_FALSE(text_decode::decode(second.raw, second.encoding).malformed);
+    ASSERT_EQ(second.begin.line, 1);
+    ASSERT_EQ(second.next.line, 2);
+}
+
+TEST(file_pages_do_not_split_utf8_codepoints_at_the_byte_budget) {
+    auto bytes = std::string(file_page::byteLimit - 1, 'x') + "\xf0\x9f\x98\x80\n";
+    file_page::Collector first({}, "utf8", "");
+    first.consume(bytes);
+    first.finish();
+    ASSERT_EQ(first.raw.size(), file_page::byteLimit - 1);
+    file_page::Collector second({ecs::FilePageRequest::Action::Next, first.next}, "utf8", "");
+    second.consume(bytes);
+    second.finish();
+    ASSERT_EQ(first.raw + second.raw, bytes);
+    ASSERT_FALSE(text_decode::decode(second.raw, "utf8").malformed);
+    ASSERT_EQ(file_page::decode("\xef\xbb\xbftext", "utf8", 10).text, "\xef\xbb\xbftext");
+    ASSERT_EQ(file_page::decode(std::string("\xff\xfeZ\0", 4), "utf16le", 10).text, "\xef\xbb\xbfZ");
+}
+
+TEST(historical_reads_are_bounded_and_index_is_resolved_fresh) {
+    char directory[] = "/tmp/fh-page-history.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    ASSERT_TRUE(git::git_run(path, {"init", "-q"}).success());
+    { std::ofstream file(std::filesystem::path(path) / "large.txt"); file << std::string(file_page::byteLimit * 4, 'x'); }
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    auto first = git::read_file({path, "large.txt", "INDEX"});
+    ASSERT_TRUE(first.error.empty());
+    ASSERT_EQ(first.raw.size(), file_page::byteLimit);
+    ASSERT_EQ(first.page.totalBytes, file_page::byteLimit * 4);
+    ASSERT_FALSE(first.page.blob.empty());
+    { std::ofstream file(std::filesystem::path(path) / "large.txt"); file << "new index\n"; }
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    auto next = git::read_file({path, "large.txt", "INDEX"});
+    ASSERT_TRUE(first.page.blob != next.page.blob);
+    ASSERT_EQ(next.raw, "new index\n");
+    std::filesystem::remove_all(path);
+}
+
+TEST(later_utf16_pages_preserve_binary_nuls) {
+    ASSERT_TRUE(file_page::decode(std::string(4, '\0'), "utf16le", 256).binary);
+    ASSERT_TRUE(file_page::decode(std::string(4, '\0'), "utf16be", 256).binary);
 }
 
 int main() { RUN_ALL_TESTS(); }

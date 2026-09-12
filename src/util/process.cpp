@@ -26,7 +26,8 @@ void set_nonblocking(int fd) {
 
 ProcessResult run_process(const std::string& working_dir,
                           const std::vector<std::string>& args,
-                          int timeout_ms, std::stop_token stop) {
+                          int timeout_ms, std::stop_token stop,
+                          std::function<bool(std::string_view)> consumeOutput) {
     ProcessResult result;
 
     if (stop.stop_requested()) {
@@ -127,7 +128,14 @@ ProcessResult run_process(const std::string& working_dir,
         ssize_t n = -1;
         while (!stop.stop_requested() && (n = read(fd, buf.data(), buf.size())) > 0)
         {
-            out.append(buf.data(), static_cast<size_t>(n));
+            if (fd == stdout_pipe[0] && consumeOutput) {
+                if (!consumeOutput(std::string_view(buf.data(), static_cast<size_t>(n)))) {
+                    result.outputStopped = true;
+                    return;
+                }
+            } else if (consumeOutput) {
+                out.append(buf.data(), std::min(static_cast<size_t>(n), size_t{65536} - out.size()));
+            } else out.append(buf.data(), static_cast<size_t>(n));
             if (timeout_ms > 0 && clock::now() >= deadline) { timed_out = true; return; }
         }
         if (stop.stop_requested()) return;
@@ -138,7 +146,7 @@ ProcessResult run_process(const std::string& working_dir,
     };
 
     while (open_out || open_err || !exited) {
-        if (timed_out) break;
+        if (timed_out || result.outputStopped) break;
         if (stop.stop_requested()) { result.cancelled = true; break; }
         if (!exited) {
             auto waited = waitpid(pid, &status, WNOHANG);
@@ -172,9 +180,10 @@ ProcessResult run_process(const std::string& working_dir,
             drain(stderr_pipe[0], result.stderr_str, open_err);
     }
 
-    if (timed_out || result.cancelled || poll_failed) {
+    if (stop.stop_requested()) result.cancelled = true;
+    if (timed_out || result.cancelled || poll_failed || result.outputStopped) {
         kill(-pid, SIGKILL);
-        if (!poll_failed) result.stderr_str = result.cancelled ? "Read cancelled" :
+        if (!poll_failed && (!result.outputStopped || result.cancelled)) result.stderr_str = result.cancelled ? "Read cancelled" :
             "timed out after " + std::to_string(timeout_ms) + "ms";
     }
 
@@ -183,7 +192,7 @@ ProcessResult run_process(const std::string& working_dir,
 
     if (!exited) while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
     result.exit_code =
-        (timed_out || result.cancelled || poll_failed) ? -1 : (WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+        (timed_out || result.cancelled || poll_failed || result.outputStopped) ? -1 : (WIFEXITED(status) ? WEXITSTATUS(status) : -1);
 
     posix_spawn_file_actions_destroy(&actions);
     return result;

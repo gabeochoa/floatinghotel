@@ -119,12 +119,37 @@ struct FileDiff {
     std::string oldMode;
     std::string newMode;
     std::uint64_t renderIdentity = next_render_identity();
+    bool isPartialContent = false;
+};
+
+struct FilePageCursor {
+    uint64_t offset = 0;
+    int line = 1;
+    bool continuation = false;
+};
+
+struct FilePageRequest {
+    enum class Action { Start, Next, Previous, TargetLine };
+    Action action = Action::Start;
+    FilePageCursor cursor;
+    int targetLine = 0;
+    std::string sourceIdentity;
+};
+
+struct FilePage {
+    FilePageCursor begin;
+    FilePageCursor next;
+    uint64_t totalBytes = 0;
+    std::string blob;
+    std::string encoding;
+    std::string sourceIdentity;
 };
 
 struct FullFileContent {
     FileDiff diff;
     std::string raw;
     std::string error;
+    FilePage page;
     std::string encodingLabel;
 };
 
@@ -218,12 +243,16 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fullFilePath;
     std::string fullFileRevision;
     std::string fullFileCacheKey;
-    std::string fullFileEncodingOverride = "auto";
-    std::string fullFileEncodingLabel;
+    std::string fullFileSourceKey;
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
     std::string fullFileBytes;
     async_work::Task<FullFileContent> fullFileFuture;
+    FilePage fullFilePage;
+    FilePageRequest fullFilePageRequest;
+    std::string fullFileEncodingOverride = "auto";
+    std::string fullFileEncodingLabel;
+    int fullFileRequestedTargetLine = 0;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;

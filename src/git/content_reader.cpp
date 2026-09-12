@@ -1,6 +1,6 @@
 #include "content_reader.h"
 #include "../util/file_content.h"
-#include "../util/text_decode.h"
+#include "../util/file_page.h"
 
 #include <filesystem>
 #include <array>
@@ -8,6 +8,7 @@
 #include <iterator>
 #include <sstream>
 #include <thread>
+#include <charconv>
 
 namespace git {
 
@@ -33,17 +34,30 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
     ecs::FullFileContent content;
     std::string mode;
     if (stop.stop_requested()) { content.error = "File load cancelled"; return content; }
+    auto offset = request.page.action == ecs::FilePageRequest::Action::Next ? request.page.cursor.offset : 0;
+    file_page::Collector collector(request.page, request.encoding, request.detectedEncoding, request.revision.empty() ? offset : 0);
+    auto consume = [&](std::string_view bytes) { return !stop.stop_requested() && collector.consume(bytes); };
     if (request.revision.empty()) {
-        auto result = file_content::read_working_file(std::filesystem::path(request.repo) / request.path, stop);
-        content.raw = std::move(result.bytes);
+        auto result = file_content::read_working_file(std::filesystem::path(request.repo) / request.path, stop,
+            std::numeric_limits<size_t>::max(), consume, offset);
         mode = std::move(result.mode);
         content.error = std::move(result.error);
+        content.page.totalBytes = result.totalBytes;
+        content.page.sourceIdentity = std::move(result.identity);
     } else {
         std::string spec = request.revision == "INDEX" ? ":" + request.path
                           : request.revision + ":" + request.path;
-        auto result = git_run(request.repo, {"show", spec}, stop);
-        if (result.success()) content.raw = std::move(result.raw.stdout_str);
-        else content.error = result.stderr_str();
+        auto resolved = git_run(request.repo, {"rev-parse", "--verify", "--end-of-options", spec}, stop);
+        if (resolved.success()) {
+            content.page.blob = resolved.stdout_str();
+            while (!content.page.blob.empty() && (content.page.blob.back() == '\n' || content.page.blob.back() == '\r')) content.page.blob.pop_back();
+        } else content.error = resolved.stderr_str();
+        if (content.error.empty()) {
+            auto measured = git_run(request.repo, {"cat-file", "-s", content.page.blob}, stop);
+            auto text = measured.stdout_str();
+            auto parsed = std::from_chars(text.data(), text.data() + text.size(), content.page.totalBytes);
+            if (!measured.success() || parsed.ec != std::errc{}) content.error = "Unable to measure file revision";
+        }
         if (content.error.empty()) {
             auto modes = git_run(request.repo, request.revision == "INDEX"
                 ? std::vector<std::string>{"ls-files", "--stage", "-z", "--", ":(literal)" + request.path}
@@ -51,13 +65,32 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
             if (modes.success()) mode = file_content::mode_for_path(modes.stdout_str(), request.path);
             else content.error = modes.stderr_str();
         }
+        if (content.error.empty()) {
+            auto result = git_run(request.repo, {"cat-file", "blob", content.page.blob}, stop, consume);
+            if (!result.success() && !result.raw.outputStopped) content.error = result.stderr_str();
+        }
     }
+    if (!request.revision.empty()) content.page.sourceIdentity = content.page.blob;
+    if (!request.page.sourceIdentity.empty() && request.page.sourceIdentity != content.page.sourceIdentity)
+        content.error = "File source changed; reload from the beginning";
     if (stop.stop_requested()) content.error = "File load cancelled";
     if (content.error.empty()) {
-        auto decoded = text_decode::decode(content.raw, request.encoding);
+        collector.finish();
+        content.error = std::move(collector.error);
+        content.raw = std::move(collector.raw);
+        content.page.begin = collector.begin;
+        content.page.next = collector.next;
+        content.page.encoding = std::move(collector.encoding);
+        auto decoded = file_page::decode(content.raw, content.page.encoding, content.page.begin.offset);
         content.encodingLabel = decoded.encoding;
         content.diff = parse_complete_file(request.path, decoded.text);
         content.diff.isBinary = decoded.binary;
+        content.diff.isPartialContent = content.page.begin.offset != 0 || content.page.next.offset < content.page.totalBytes;
+        if (!content.diff.hunks.empty()) {
+            auto& hunk = content.diff.hunks.front();
+            hunk.oldStart = hunk.newStart = content.page.begin.line;
+            if (content.diff.isPartialContent) hunk.header = "Loaded page";
+        }
         content.diff.oldMode = content.diff.newMode = mode;
     }
     return content;

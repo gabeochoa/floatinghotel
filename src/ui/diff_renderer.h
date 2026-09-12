@@ -293,7 +293,12 @@ const auto& DIFF_ADD_BG    = theme::DIFF_ADD_BG;
 const auto& DIFF_DEL_BG    = theme::DIFF_DEL_BG;
 const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
 
-inline float code_line_height() { return Settings::get().get_code_font_size() + 4.f; }
+inline float code_line_height() {
+    float height = static_cast<float>(afterhours::graphics::get_screen_height());
+    afterhours::ui::AutoLayout grid({afterhours::graphics::get_screen_width(), static_cast<int>(height)});
+    float pixels = resolve_to_pixels(h720(Settings::get().get_code_font_size() + 4.f), height);
+    return grid.snap_to_8pt_grid(pixels, Axis::Y, afterhours::ui::AutoLayout::SnapDir::Up) * 720.f / height;
+}
 inline float hunk_header_height() { return std::max(24.f, Settings::get().get_code_font_size() + 8.f); }
 constexpr float FILE_HEADER_H = 28.0f;
 constexpr float DIFF_HEADER_H = 28.0f;
@@ -368,7 +373,10 @@ struct DiffViewport {
     float curY = 0.f;           // running content-Y of the next row (px)
     float pending = 0.f;        // height of skipped rows not yet flushed (px)
 
-    float px(float raw720) const { return resolve_to_pixels(h720(raw720), screenH); }
+    float px(float raw720) const {
+        afterhours::ui::AutoLayout grid({afterhours::graphics::get_screen_width(), static_cast<int>(screenH)});
+        return grid.snap_to_8pt_grid(resolve_to_pixels(h720(raw720), screenH), Axis::Y);
+    }
 
     // Is a row of height raw720 at curY within the visible window?
     bool visible(float raw720) const {
@@ -1178,9 +1186,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             repo && repo->fullFileTargetLine > 0 && !diffs.front().hunks.empty()) {
             const auto& lines = diffs.front().hunks.front().lines;
-            if (static_cast<size_t>(repo->fullFileTargetLine) <= lines.size()) {
+            int index = repo->fullFileTargetLine - diffs.front().hunks.front().newStart;
+            if (index >= 0 && static_cast<size_t>(index) < lines.size()) {
                 sess.findMatch = ecs::DiffMatch{diffs.front().filePath, repo->fullFileTargetLine, ' ', 0};
-                sess.findQuery = lines[repo->fullFileTargetLine - 1].substr(1);
+                sess.findQuery = lines[static_cast<size_t>(index)].substr(1);
                 sess.findNavigate = repo->fullFileNavigateFrames > 0;
                 if (repo->fullFileNavigateFrames > 0) --repo->fullFileNavigateFrames;
             }
@@ -1581,7 +1590,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     }
             }
             auto fileCopyBtn = button(ctx, mk(fileBtns.ent(), 1),
-                preset::Button(fileDiff.isFullContent ? "Copy file" : "Copy Diff")
+                preset::Button(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy Diff")
                     .with_size(ComponentSize{children(), h720(18)})
                     .with_padding(Padding{
                         .top = h720(2), .right = w1280(8),
@@ -1592,7 +1601,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_debug_name("copy_file_diff_btn"));
             if (fileCopyBtn) {
                 afterhours::clipboard::set_text(diffText);
-                afterhours::toast::send_info(ctx, "Copied diff to clipboard", 1.5f);
+                afterhours::toast::send_info(ctx, fileDiff.isPartialContent ? "Copied loaded page to clipboard" : "Copied diff to clipboard", 1.5f);
             }
         }
 

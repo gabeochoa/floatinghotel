@@ -107,7 +107,8 @@ async_work::Task<RevisionComparison> git_compare_async(const std::string& repo,
 }
 
 GitResult git_run(const std::string& repo_path,
-                  const std::vector<std::string>& args, std::stop_token stop) {
+                  const std::vector<std::string>& args, std::stop_token stop,
+                  std::function<bool(std::string_view)> consumeOutput) {
     std::vector<std::string> cmd = {"git"};
     if (!repo_path.empty()) {
         cmd.push_back("-C");
@@ -134,7 +135,7 @@ GitResult git_run(const std::string& repo_path,
             }
         }
         t1 = clock::now();
-        result.raw = run_process("", cmd, GIT_TIMEOUT_MS, stop);
+        result.raw = run_process("", cmd, GIT_TIMEOUT_MS, stop, std::move(consumeOutput));
     } else {
         std::unique_lock<std::shared_timed_mutex> lock(*repositoryMutex);
         t1 = clock::now();

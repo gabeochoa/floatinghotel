@@ -517,6 +517,22 @@ machine's daemons, not the app.
 - App workaround: assert individual spans plus cache state and inspect the composed line in a screenshot. Use a single-span marker when testing context expansion.
 - Maintainer request: register the composed visible label for text assertions while retaining per-span bounds for hit testing.
 
+### Grid-snapped placement can exceed the scrollable extent — OPEN
+
+- Status: reproduced in review items 02 and 43 on b385dc9.
+- Reproduction: at 1440×900, a source row requested at 22.5 physical pixels advances by 25 pixels after grid snapping. The page-end text assertion passed, but the screenshot stopped at line 14994 instead of 15000. The binary viewer reproduced the same issue: `/tmp/fh-peer43-dump.log` records a viewport at y94, height684, scroll4972, and the final `ff0` row at y830, outside the viewport.
+- Boundary: `autolayout.h` snaps placement/cursor positions, including paths where a child requests `skip_grid_snap`; `ui/systems.h` computes scroll content size from unsnapped child heights. Virtual spacers and placed rows therefore disagree about the content extent.
+- App workaround: calculate row heights with public `AutoLayout` grid rounding, and use the same grid for virtual viewport metrics. The binary viewer also accounts for its content padding. `output/review-50/item-02-grid.log` passes the actual viewport-bounds gate, and the inspected `item_02_page_end.png` shows line 15000.
+- Maintainer request: share effective snapped extents between placement and scroll measurement, and make `skip_grid_snap` semantics consistent for sizes and positions.
+
+### E2E text assertions can match clipped or overscan rows — OPEN
+
+- Status: reproduced in review item 02 on b385dc9.
+- Reproduction: `expect_text END_OF_LARGE_FILE` passed while the final six lines remained below the scroll viewport. Screenshot inspection caught the failure that the text assertion missed.
+- Boundary: text registration alone does not prove that the composed label is inside its ancestor clip rectangles.
+- App workaround: `visible_source_line:15000` walks the source row's UI ancestors and requires its full vertical bounds to lie within the scroll viewport, after a render checkpoint. The corrected native test passes in `output/review-50/item-02-grid.log`.
+- Maintainer request: offer a visibility assertion that intersects label bounds with ancestor clipping, separately from text existence assertions.
+
 ### Synchronized scroll views — RESOLVED upstream (dd579a4), and not needed here
 `HasScrollView::sync_group` — give two or more views the same non-zero id and
 scrolling any one moves the rest, on their enabled axes only.

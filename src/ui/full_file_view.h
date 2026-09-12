@@ -20,9 +20,23 @@ inline std::string bookmark_display(const CodeBookmark& bookmark) {
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
     const auto& bookmarks = Settings::get().get_code_bookmarks(repo.repoPath);
-    std::string key = repo.repoPath + "\n" + repo.fullFileRevision + "\n" + repo.fullFilePath;
-    if (repo.fullFileRevision.empty() || repo.fullFileRevision == "INDEX") key += ":" + std::to_string(repo.dataGeneration);
-    key += "\n" + repo.fullFileEncodingOverride;
+    std::string sourceKey = repo.repoPath + "\n" + repo.fullFileRevision + "\n" + repo.fullFilePath;
+    if (repo.fullFileRevision.empty() || repo.fullFileRevision == "INDEX") sourceKey += ":" + std::to_string(repo.dataGeneration);
+    if (repo.fullFileSourceKey != sourceKey) {
+        repo.fullFileSourceKey = sourceKey;
+        repo.fullFilePage = {};
+        repo.fullFilePageRequest = {};
+        repo.fullFileRequestedTargetLine = 0;
+    }
+    if (repo.fullFileTargetLine > 0 && repo.fullFileRequestedTargetLine != repo.fullFileTargetLine) {
+        repo.fullFileRequestedTargetLine = repo.fullFileTargetLine;
+        int lastLine = repo.fullFilePage.next.line - (repo.fullFilePage.next.continuation ? 0 : 1);
+        if (repo.fullFileDiff.empty() || repo.fullFileTargetLine < repo.fullFilePage.begin.line || repo.fullFileTargetLine > lastLine)
+            repo.fullFilePageRequest = {FilePageRequest::Action::TargetLine, {}, repo.fullFileTargetLine};
+    }
+    const auto& pageRequest = repo.fullFilePageRequest;
+    std::string key = sourceKey + "\n" + repo.fullFileEncodingOverride + ":" +
+        std::to_string(static_cast<int>(pageRequest.action)) + ":" + std::to_string(pageRequest.cursor.offset) + ":" + std::to_string(pageRequest.targetLine);
     bool changed = repo.fullFileCacheKey != key;
     if (changed) {
         repo.fullFileCacheKey = key;
@@ -31,12 +45,14 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFileBytes.clear();
         repo.blameOpen = false;
         repo.blameFuture = {};
-        repo.fullFileFuture = git::read_file_async({repo.repoPath, repo.fullFilePath, repo.fullFileRevision, repo.fullFileEncodingOverride});
+        repo.fullFileFuture = git::read_file_async({repo.repoPath, repo.fullFilePath, repo.fullFileRevision,
+            pageRequest, repo.fullFileEncodingOverride, repo.fullFilePage.encoding});
     }
     if (repo.fullFileFuture.valid() && repo.fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto content = repo.fullFileFuture.get();
         repo.fullFileError = std::move(content.error);
         repo.fullFileBytes = std::move(content.raw);
+        repo.fullFilePage = std::move(content.page);
         repo.fullFileEncodingLabel = std::move(content.encodingLabel);
         if (repo.fullFileError.empty()) repo.fullFileDiff.push_back(std::move(content.diff));
         changed = true;
@@ -66,6 +82,42 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("encoding_cycle"))) {
         repo.fullFileEncodingOverride = text_decode::next_override(repo.fullFileEncodingOverride);
         repo.fullFileCacheKey.clear();
+        repo.fullFilePage = {};
+        repo.fullFilePageRequest = {};
+        repo.fullFileTargetLine = repo.fullFileRequestedTargetLine = 0;
+    }
+    const auto& page = repo.fullFilePage;
+    bool partial = page.begin.offset != 0 || page.next.offset < page.totalBytes;
+    float pageHeight = partial || repo.fullFileFuture.valid() || !repo.fullFileError.empty() ? 64.f : 0.f;
+    if (pageHeight > 0) {
+        auto controls = div(ctx, mk(parent, 585020), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
+        auto requestPage = [&](FilePageRequest request) {
+            repo.fullFilePageRequest = std::move(request);
+            repo.fullFileTargetLine = repo.fullFileRequestedTargetLine = 0;
+            repo.fullFileNavigateFrames = 0;
+            repo.fullFileCacheKey.clear();
+        };
+        if (button(ctx, mk(controls.ent(), 0), preset::Button("Previous page")
+                .with_size(ComponentSize{expand(), pixels(30)}).with_disabled(page.begin.offset == 0 || repo.fullFileFuture.valid())
+                .with_debug_name("file_page_previous")))
+            requestPage({FilePageRequest::Action::Previous, page.begin, 0, page.sourceIdentity});
+        if (button(ctx, mk(controls.ent(), 1), preset::Button("Next page")
+                .with_size(ComponentSize{expand(), pixels(30)}).with_disabled(page.next.offset >= page.totalBytes || repo.fullFileFuture.valid())
+                .with_debug_name("file_page_next")))
+            requestPage({FilePageRequest::Action::Next, page.next, 0, page.sourceIdentity});
+        if (button(ctx, mk(controls.ent(), 2), preset::Button("Reload from start")
+                .with_size(ComponentSize{expand(), pixels(30)}).with_debug_name("file_page_start"))) {
+            repo.fullFilePage.encoding.clear();
+            requestPage({});
+        }
+        auto range = repo.fullFileFuture.valid() ? "Loading bounded file page..." :
+            "Loaded lines " + std::to_string(page.begin.line) + "–" + std::to_string(page.next.line - (page.next.continuation ? 0 : 1)) +
+            " · bytes " + std::to_string(page.begin.offset) + "–" + std::to_string(page.next.offset) + " of " + std::to_string(page.totalBytes) +
+            (page.begin.continuation || (page.next.offset < page.totalBytes && page.next.continuation) ? " · line fragment" : "") + " · Find and Copy cover this page only";
+        div(ctx, mk(parent, 585021), ComponentConfig{}.with_label(range)
+            .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(FontSize::Small)
+            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));
     }
     const auto& selection = ui::diff_sel::state();
     int selectedLine = 0;
@@ -79,7 +131,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     };
     bool bookmarked = std::any_of(bookmarks.begin(), bookmarks.end(), sameBookmark);
     if (button(ctx, mk(actions.ent(), 4), preset::Button(bookmarked ? "Remove bookmark" : "Bookmark line " + std::to_string(bookmarkLine))
-            .with_size(ComponentSize{pixels(bookmarked ? 135 : 130), pixels(30)})
+            .with_size(ComponentSize{pixels(170), pixels(30)}).with_font_size(FontSize::Small)
             .with_debug_name("bookmark_line"))) {
         auto updated = bookmarks;
         if (bookmarked) {
@@ -187,7 +239,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_debug_name("full_file_error"));
     } else {
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
-                        layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight, false, changed, false,
+                        layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight, false, changed, false,
                         repo.repoPath, nullptr, "file:" + repo.fullFileRevision);
     }
 }
