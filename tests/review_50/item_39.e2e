@@ -1,0 +1,28 @@
+resize 1440 900
+wait_for_refresh
+key CMD+SHIFT+F
+click_ui repo_search_input
+type needle
+click_ui repo_search_include
+type "**/*.cpp"
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "cpp needle"
+expect_no_text "text needle"
+screenshot item_39_include
+click_ui repo_search_exclude
+type "**/*.cpp"
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "No matches"
+click_ui repo_search_include
+key CMD+A
+key BACKSPACE
+click_ui repo_search_exclude
+key CMD+A
+type "**/*.txt"
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "cpp needle"
+expect_no_text "text needle"
+screenshot item_39_exclude

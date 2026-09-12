@@ -4,6 +4,7 @@
 #include "../git/git_parser.h"
 #include "../git/repository_search.h"
 #include "../util/diff_revisions.h"
+#include "tooltip.h"
 
 namespace ecs {
 
@@ -24,6 +25,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Medium));
     bool scopeChanged = button(ctx, mk(parent, 587004), preset::Button(repo.repoSearchChangedOnly ? "Changed files only · deleted files use their previous revision" : "All repository files")
         .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(FontSize::Small)
+        .with_custom_background(repo.repoSearchChangedOnly ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
         .with_debug_name("repo_search_changed_only"));
     if (scopeChanged) repo.repoSearchChangedOnly = !repo.repoSearchChangedOnly;
     auto matchingRow = div(ctx, mk(parent, 587005), ComponentConfig{}
@@ -31,20 +33,35 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     auto& matching = repo.repoSearchMatching;
     bool matchingChanged = false;
     if (button(ctx, mk(matchingRow.ent(), 0), preset::Button(matching.regularExpression ? "Regular expression" : "Literal text")
+            .with_custom_background(matching.regularExpression ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
             .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small).with_debug_name("repo_search_regex"))) {
         matching.regularExpression = !matching.regularExpression;
         matchingChanged = true;
     }
     if (button(ctx, mk(matchingRow.ent(), 1), preset::Button(matching.caseSensitive ? "Match case" : "Ignore case")
+            .with_custom_background(!matching.caseSensitive ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
             .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small).with_debug_name("repo_search_case"))) {
         matching.caseSensitive = !matching.caseSensitive;
         matchingChanged = true;
     }
     if (button(ctx, mk(matchingRow.ent(), 2), preset::Button(matching.wholeWord ? "Whole words" : "Any substring")
+            .with_custom_background(matching.wholeWord ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
             .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small).with_debug_name("repo_search_word"))) {
         matching.wholeWord = !matching.wholeWord;
         matchingChanged = true;
     }
+    auto pathRow = div(ctx, mk(parent, 587006), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
+    div(ctx, mk(pathRow.ent(), 0), ComponentConfig{}.with_label("Include glob")
+        .with_size(ComponentSize{pixels(90), pixels(32)}).with_font_size(FontSize::Small));
+    auto include = afterhours::text_input::text_input(ctx, mk(pathRow.ent(), 1), repo.repoSearchIncludeGlob,
+        ComponentConfig{}.with_size(ComponentSize{expand(), pixels(32)}).with_debug_name("repo_search_include"));
+    div(ctx, mk(pathRow.ent(), 2), ComponentConfig{}.with_label("Exclude glob")
+        .with_size(ComponentSize{pixels(90), pixels(32)}).with_font_size(FontSize::Small));
+    auto exclude = afterhours::text_input::text_input(ctx, mk(pathRow.ent(), 3), repo.repoSearchExcludeGlob,
+        ComponentConfig{}.with_size(ComponentSize{expand(), pixels(32)}).with_debug_name("repo_search_exclude"));
+    ui::set_tooltip(include.ent(), "One repository-relative glob, for example src/** or **/*.cpp. Blank includes all paths.");
+    ui::set_tooltip(exclude.ent(), "One repository-relative glob, for example **/fixtures/**. Blank excludes no paths.");
     auto row = div(ctx, mk(parent, 587001), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
     auto input = afterhours::text_input::text_input(ctx, mk(row.ent(), 0), repo.repoSearchQuery,
@@ -62,6 +79,8 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             !repo.selectedCommitHash.empty() ? repo.selectedCommitHash : repo.selectedFileStaged ? "INDEX" : "";
         SearchQuery query{repo.repoPath, repo.repoSearchRevision, repo.repoSearchQuery};
         query.matching = matching;
+        query.includeGlob = repo.repoSearchIncludeGlob;
+        query.excludeGlob = repo.repoSearchExcludeGlob;
         query.changedOnly = repo.repoSearchChangedOnly;
         if (query.changedOnly) {
             const auto* changes = repo.selectedFileStaged ? &repo.stagedDiff : &repo.currentDiff;
@@ -107,7 +126,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                 layout.diffFindOpen = false;
                 ctx.set_focus(ctx.ROOT);
             }
-        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 158.f))})
+        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 192.f))})
             .with_debug_name("repo_search_results"));
 }
 

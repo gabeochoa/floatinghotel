@@ -40,6 +40,8 @@ struct SearchQuery {
     std::vector<std::string> removedPaths;
     std::string beforeRevision;
     SearchMatching matching;
+    std::string includeGlob;
+    std::string excludeGlob;
 };
 
 struct SearchResult {
@@ -230,6 +232,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string repoSearchRevision;
     bool repoSearchChangedOnly = false;
     SearchMatching repoSearchMatching;
+    std::string repoSearchIncludeGlob;
+    std::string repoSearchExcludeGlob;
     std::vector<SearchMatch> repoSearchResults;
     int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;

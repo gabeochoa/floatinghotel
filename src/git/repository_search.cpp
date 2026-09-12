@@ -1,5 +1,6 @@
 #include "repository_search.h"
 #include "git_parser.h"
+#include "../util/path_glob.h"
 
 namespace git {
 
@@ -14,6 +15,10 @@ std::vector<std::string> repository_search_args(const ecs::SearchQuery& query) {
     else args.push_back(query.revision);
     args.push_back("--");
     for (const auto& path : query.paths) args.push_back(":(literal)" + path);
+    if (!query.changedOnly) {
+        if (!query.includeGlob.empty()) args.push_back(":(glob)" + query.includeGlob);
+        if (!query.excludeGlob.empty()) args.push_back(":(glob,exclude)" + query.excludeGlob);
+    }
     return args;
 }
 
@@ -31,6 +36,14 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
     ecs::SearchResult rejected{query.revision, {}, "Background queue is full; search again to retry"};
     return async_work::launch([query = std::move(query)](std::stop_token stop) mutable {
         ecs::SearchResult out;
+        if (query.changedOnly) {
+            auto excluded = [&](const std::string& path) {
+                return (!query.includeGlob.empty() && !path_glob_matches(query.includeGlob, path)) ||
+                    (!query.excludeGlob.empty() && path_glob_matches(query.excludeGlob, path));
+            };
+            std::erase_if(query.paths, excluded);
+            std::erase_if(query.removedPaths, excluded);
+        }
         out.revision = query.revision;
         auto append = [&](ecs::SearchQuery part, bool primary) {
             if (!part.revision.empty() && part.revision != "INDEX") {

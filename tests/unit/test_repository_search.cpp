@@ -1,5 +1,6 @@
 #include "test_framework.h"
 #include "../../src/git/repository_search.h"
+#include "../../src/util/path_glob.h"
 
 TEST(repository_search_arguments_keep_tree_index_and_working_tree_distinct) {
     auto working = git::repository_search_args({"repo", "", "needle"});
@@ -43,6 +44,24 @@ TEST(repository_search_matching_flags_are_explicit_and_composable) {
         ASSERT_TRUE(std::find(regex.begin(), regex.end(), flag) != regex.end());
     ASSERT_TRUE(std::find(regex.begin(), regex.end(), "-F") == regex.end());
     ASSERT_TRUE(std::find(regex.begin(), regex.end(), "needle|other") != regex.end());
+}
+
+TEST(search_globs_support_nested_paths_and_do_not_broaden_changed_scope) {
+    ASSERT_TRUE(path_glob_matches("**/*.cpp", "main.cpp"));
+    ASSERT_TRUE(path_glob_matches("**/*.cpp", "src/deep/main.cpp"));
+    ASSERT_FALSE(path_glob_matches("*.cpp", "src/main.cpp"));
+    ASSERT_TRUE(path_glob_matches("src/[ab]?.cpp", "src/a1.cpp"));
+    ecs::SearchQuery query{"", "", "needle"};
+    query.includeGlob = "**/*.cpp";
+    query.excludeGlob = "**/test*";
+    auto args = git::repository_search_args(query);
+    ASSERT_EQ(args[args.size() - 2], ":(glob)**/*.cpp");
+    ASSERT_EQ(args.back(), ":(glob,exclude)**/test*");
+    query.changedOnly = true;
+    query.paths = {"notes.txt"};
+    auto result = git::search_repository_async(query).get();
+    ASSERT_TRUE(result.matches.empty());
+    ASSERT_TRUE(result.error.empty());
 }
 
 int main() { RUN_ALL_TESTS(); }
