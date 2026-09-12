@@ -1,0 +1,6 @@
+click_text File
+screenshot startup_empty_menu
+assert_ui dropdown_File hidden=false
+expect_text "No repository open"
+expect_no_text "Working tree clean"
+expect_no_text Loading

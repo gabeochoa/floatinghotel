@@ -20,6 +20,10 @@
 #ifdef __APPLE__
 extern "C" void metal_activate_app(void);
 extern "C" void metal_draw_first_frame_early(void);
+extern "C" void metal_defer_window_presentation(void);
+extern "C" void metal_present_ready_frame(void);
+extern "C" bool metal_startup_presented(void);
+extern "C" void metal_wait_for_gpu(void);
 extern "C" void metal_headless_frame(void (*fn)(void));
 extern "C" void metal_hide_window(void);
 extern "C" void metal_wait_all_screenshots(void);
@@ -280,6 +284,41 @@ struct HandleIdlePacingCommands : afterhours::System<afterhours::testing::Pendin
     }
 };
 
+static void trace_navigation_frame() {
+    static bool enabled = std::getenv("FH_NAVIGATION_TIMING") != nullptr;
+    if (!enabled) return;
+    auto elapsed = std::chrono::duration<double, std::milli>(
+        std::chrono::high_resolution_clock::now() - app_state::startTime).count();
+    static bool first = true;
+    static bool list = false;
+    static std::string selected;
+    static std::string installed;
+    if (first) { log_info("NAV first_frame {:.2f}", elapsed); first = false; }
+    if (!list) {
+        for (const auto& entity : afterhours::EntityHelper::get_entities()) {
+            if (!entity || !entity->has<afterhours::ui::UIComponentDebug>() ||
+                !entity->has<afterhours::ui::UIComponent>()) continue;
+            const auto& name = entity->get<afterhours::ui::UIComponentDebug>();
+            if (name.name_value == "commit_row" && entity->get<afterhours::ui::UIComponent>().was_rendered_to_screen) {
+                log_info("NAV commit_list_rendered {:.2f}", elapsed);
+                list = true;
+                break;
+            }
+        }
+    }
+    auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
+    if (repo && !repo->selectedCommitHash.empty() && selected != repo->selectedCommitHash) {
+        selected = repo->selectedCommitHash;
+        log_info("NAV commit_click_accepted {:.2f}", elapsed);
+    }
+    if (detail && !selected.empty() && detail->cachedCommitHash == selected && !detail->patchFuture.valid() &&
+        !detail->commitDetailDiff.empty() && installed != selected) {
+        installed = selected;
+        log_info("NAV commit_patch_rendered {:.2f}", elapsed);
+    }
+}
+
 // Init callback: runs after Sokol/Metal window is created
 static void app_init() {
     using namespace afterhours;
@@ -302,13 +341,25 @@ static void app_init() {
         Settings::get().auto_save_enabled = false;
         Settings::get().load_save_file();
         if (app_state::testModeEnabled) Settings::get().set_code_font_size(14.f);
+        if (app_state::testModeEnabled) {
+            if (const char* path = std::getenv("FH_NAVIGATION_REPOS")) {
+                std::ifstream input(path);
+                std::vector<std::string> repos;
+                for (std::string repo; std::getline(input, repo);) if (!repo.empty()) repos.push_back(repo);
+                Settings::get().set_open_repos(repos);
+                Settings::get().set_last_active_repo(repos.empty() ? "" : repos.back());
+            }
+        }
     }
 
     // Restored tabs: the paths only become known here, but this still beats
     // waiting for the first frame by the cost of UI setup and font loading.
-    if (!app_state::testModeEnabled && app_state::repoPath.empty()) {
-        for (const auto& path : Settings::get().get_open_repos())
-            git::prefetch_repo(path);
+    if ((!app_state::testModeEnabled || std::getenv("FH_NAVIGATION_PREFETCH")) && app_state::repoPath.empty()) {
+        const auto& repos = Settings::get().get_open_repos();
+        auto active = Settings::get().get_last_active_repo();
+        if (!repos.empty() && std::find(repos.begin(), repos.end(), active) == repos.end())
+            active = repos.front();
+        if (!active.empty()) git::prefetch_repo(active);
     }
 
     {
@@ -877,6 +928,7 @@ static void app_draw(float dt) {
     afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
     app_state::systemManager->render(entities, dt);
     afterhours::graphics::end_drawing();
+    trace_navigation_frame();
     app_state::lastRenderedUiActivity = capture_ui_activity_snapshot();
 }
 
@@ -945,6 +997,29 @@ static void app_frame() {
 
     float dt = afterhours::graphics::get_frame_time();
 
+    if (!app_state::headless && !metal_startup_presented()) {
+        app_update_and_maybe_draw(dt, true);
+        auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        if ((!repo || repo->repoPath.empty() ||
+             (repo->hasLoadedOnce && !repo->refreshRequested && !repo->isRefreshing)) &&
+            !ui::image_diff::pending()) {
+            static bool logged = false;
+            if (!logged && std::getenv("FH_NAVIGATION_TIMING")) {
+                int loaded = 0;
+                for (const auto& entity : afterhours::EntityHelper::get_entities())
+                    if (entity && entity->has<ecs::RepoComponent>() &&
+                        entity->get<ecs::RepoComponent>().hasLoadedOnce) ++loaded;
+                const auto elapsed = std::chrono::duration<double, std::milli>(
+                    std::chrono::high_resolution_clock::now() - app_state::startTime).count();
+                log_info("NAV startup_ready loaded_tabs={} active_commits={} elapsed_ms={:.2f}", loaded,
+                    repo ? repo->commitLog.size() : 0, elapsed);
+                logged = true;
+            }
+            metal_present_ready_frame();
+        }
+        return;
+    }
+
     if (app_state::testModeEnabled &&
         (app_state::e2eRunner.has_commands() || !s_readyScreenshotName.empty())) {
         e2e_tick_loop(dt);
@@ -963,7 +1038,10 @@ static void app_frame() {
             // it throw bad_variant_access. This is what _exit() used to be
             // dodging -- and _exit() also skipped flushing stdio, so the
             // summary printed one line above never reached the log.
+            async_work::executor().shutdown();
+            git::set_log_callback(nullptr);
             ui::image_diff::clear();
+            if (!app_state::headless) metal_wait_for_gpu();
             afterhours::shutdown();
             std::exit(code);
         }
@@ -1011,6 +1089,7 @@ static void app_cleanup() {
 }
 
 int main(int argc, char* argv[]) {
+    if (std::getenv("FH_NAVIGATION_TIMING")) std::setvbuf(stdout, nullptr, _IOLBF, 0);
     auto mainStart = std::chrono::high_resolution_clock::now();
     {
         // exec -> main: dyld, fixups, static init. Not covered by any timer
@@ -1285,7 +1364,7 @@ int main(int argc, char* argv[]) {
     // fixture repo is rebuilt after launch and prefetched output would be for
     // the old one. Saved-tab repos are prefetched in app_init instead, once
     // settings are readable.
-    if (!app_state::testModeEnabled && !app_state::repoPath.empty()) {
+    if ((!app_state::testModeEnabled || std::getenv("FH_NAVIGATION_PREFETCH")) && !app_state::repoPath.empty()) {
         git::prefetch_repo(app_state::repoPath);
     }
 
@@ -1345,6 +1424,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    metal_defer_window_presentation();
     metal_draw_first_frame_early();
     afterhours::graphics::run(cfg);
 

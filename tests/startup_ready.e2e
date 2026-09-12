@@ -1,0 +1,19 @@
+click_text "Timed commit"
+wait_frames 3
+wait_for_refresh
+screenshot startup_first_click
+expect_text "timed patch content"
+click_ui tab_inactive1
+wait_frames 3
+screenshot startup_inactive_loading
+click_text "active (main)"
+wait_frames 3
+screenshot startup_active_while_inactive_loads
+expect_text "timed patch content"
+click_text inactive1
+wait_frames 3
+wait_for_refresh
+click_text slow.txt
+wait_frames 3
+screenshot startup_inactive_loaded
+expect_text after

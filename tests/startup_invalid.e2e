@@ -1,0 +1,14 @@
+click_text File
+screenshot startup_invalid_menu
+assert_ui dropdown_File hidden=false
+expect_text "Repository unavailable"
+expect_no_text "Working tree clean"
+click_text File
+screenshot startup_invalid_error
+expect_text "fatal: not a git repository"
+click_ui retry_repository_read
+wait_frames 3
+wait_for_refresh
+screenshot startup_invalid_retry
+expect_text "Repository unavailable"
+expect_text "fatal: not a git repository"

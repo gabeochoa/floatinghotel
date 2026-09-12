@@ -492,6 +492,15 @@ machine's daemons, not the app.
 
 ## Feature Requests (Lower Priority)
 
+### Native startup has no deferred-presentation API
+
+- Boundary: the pinned Sokol `applicationDidFinishLaunching` creates the window, sets regular activation policy, and calls `makeKeyAndOrderFront` before the application's first frame. Neither `sapp_desc` nor the afterhours run configuration exposes start-hidden or present-when-ready behavior. Moving an already-visible window offscreen cannot prevent its initial flash.
+- App workaround: `src/sokol_impl.mm` gates ordering and key status on the app's Sokol window class. An app-owned `NSApplication` subclass defers activation and regular activation policy. A timer draws the hidden Metal view until the active repository's initial refresh settles. A fence on the public Metal command queue completes before the window appears. Untouched inactive repositories start their initial reads only when activated.
+- Verification: `nice -n 10 bash tests/check_startup_ready.sh` exercises restored tabs, welcome, and an invalid restored repository in real windows. Each case requires hidden and non-key state with a different frontmost application before presentation, then visible and key state afterward. The first scripted action clicks a control without an extra readiness wait. The restored case also switches away from an in-progress tab load and checks that untouched tabs never start their slow filters.
+- Evidence: `/tmp/fh-startup-windowed-gate5.log` passes all three cases. Sokol's synthetic activation event sets `NSApp.isActive` before reveal even with prohibited activation policy, but `NSWorkspace.frontmostApplication` remains a different process. The test therefore checks actual system focus rather than that internal flag. No event suppression is needed.
+- Maintainer request: expose deferred initial presentation and activation, keep hidden-frame callbacks available, and provide a ready-frame presentation operation after GPU submission. The app should not need the private Sokol window class for this lifecycle.
+- Windowed E2E teardown constraint: direct `std::exit` after a frame can destroy Sokol's in-flight semaphore before GPU completion. The reproduced crash is `floatinghotel.exe-2026-09-11-224841.ips`. The app now stops workers, detaches the Git callback, retires image handles, and drains the public Metal queue before E2E teardown. This is an explicit-exit host integration requirement, not an ordinary window-close failure.
+
 ### E2E target lookup needs a render checkpoint after cached view transitions
 
 - Status: host integration constraint, reproduced during review item 01 on b385dc9. Not a claim that ordinary pointer input is broken.
@@ -500,6 +509,7 @@ machine's daemons, not the app.
 - App workaround: `tests/review_50/item_01.e2e` takes `item_01_commit_again` before the repeated open, then asserts `full_file_header`. Text assertions alone can match code in the wrong view.
 - Maintainer request: expose a render-generation checkpoint for UI commands, or document the required render boundary when a host batches logic ticks. A target command should wait for the current view generation rather than use an earlier drawn view.
 - Additional reproduction in item 41: resizing from 1280 to 960 before `assert_no_overflow` reports an obsolete `full_file_loading` rectangle at x352 with width928, even though loading has finished. `output/review-50/item-41.log` fails; adding a screenshot checkpoint before the assertion passes in `item-41-drawn.log`. The inspected screenshot shows no loading row or overflow. Validation also needs a current render generation.
+- Startup reproduction: `expect_text "Timed commit"` followed by `click_text "Timed commit"` dispatches the click before the text assertion settles. `runner.h` retries pending assertions without blocking subsequent commands, while `click_text` fails immediately if its target is absent. No blocking text-or-UI wait command was found in the pinned E2E plugin. Use the host's `wait_for_refresh` and a render checkpoint for ordinary async navigation. The windowed startup regression instead clicks immediately after the host presentation gate has drawn the ready UI. This is test sequencing, not an ordinary input defect.
 
 ### E2E property assertions do not parse quoted values
 

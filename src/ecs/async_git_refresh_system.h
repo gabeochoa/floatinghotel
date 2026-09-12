@@ -35,6 +35,9 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
         auto id = entity.id;
 
+        if (!entity.has<ActiveTab>() && !repo.hasLoadedOnce && !repo.isRefreshing)
+            return;
+
         // Phase 1: kick off async operations for any tab that requests refresh
         if (repo.refreshRequested && !repo.isRefreshing) {
             if (repo.repoPath.empty()) {

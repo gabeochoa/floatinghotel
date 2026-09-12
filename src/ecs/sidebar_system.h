@@ -1492,9 +1492,27 @@ private:
     void render_file_list(UIContext<InputAction>& ctx,
                           Entity& scrollParent,
                           RepoComponent& repo) {
+        if (repo.repoPath.empty()) {
+            div(ctx, mk(scrollParent, 2500), preset::EmptyStateText("No repository open")
+                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_debug_name("no_repository"));
+            return;
+        }
+        if (!repo.filesError.empty()) {
+            if (button(ctx, mk(scrollParent, 2500), preset::Button("Retry repository read")
+                    .with_size(ComponentSize{percent(1.0f), h720(28)})
+                    .with_debug_name("retry_repository_read")))
+                repo.refreshRequested = true;
+            div(ctx, mk(scrollParent, 2501), preset::EmptyStateText(
+                    repo.filesError.substr(0, repo.filesError.find('\n')))
+                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_debug_name("repository_read_error"));
+            return;
+        }
         if (!allFilesMode_ && (!repo.stagedFiles.empty() || !repo.unstagedFiles.empty() || !repo.untrackedFiles.empty()) &&
             (repo.fileFilter.hideGenerated || repo.fileFilter.hideVendor || repo.fileFilter.hideLockfiles ||
-             !repo.fileFilter.language.empty() || repo.fileFilter.change != ' ') && fileIndices_.empty()) {
+             repo.fileFilter.onlyUnresolved || !repo.fileFilter.language.empty() || repo.fileFilter.change != ' ') && fileIndices_.empty()) {
             div(ctx, mk(scrollParent, 2598), preset::EmptyStateText("No files match the review filters")
                 .with_size(ComponentSize{percent(1.f), h720(28)}).with_debug_name("filtered_files_empty"));
             return;

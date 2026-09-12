@@ -44,7 +44,13 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         // === Left text: branch (or detached HEAD) ===
         std::string leftText;
         std::string rightText;
-        if (repo) {
+        if (!repo || repo->repoPath.empty()) {
+            leftText = "No repository";
+        } else if (!repo->filesError.empty()) {
+            leftText = "Repository unavailable";
+        } else if (!repo->hasLoadedOnce) {
+            leftText = "Loading repository";
+        } else {
             if (detached) {
                 std::string shortHash = repo->headCommitHash.substr(
                     0, std::min<size_t>(7, repo->headCommitHash.size()));
@@ -68,8 +74,6 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
             } else {
                 rightText = "clean";
             }
-        } else {
-            leftText = "No repository";
         }
 
         float sw = static_cast<float>(afterhours::graphics::get_screen_width());

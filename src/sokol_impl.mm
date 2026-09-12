@@ -93,6 +93,109 @@ extern "C" void metal_set_window_size(int width, int height) {
 
 #import <objc/runtime.h>
 
+static bool startup_presented = false;
+static bool startup_submitted = false;
+static NSTimer* startup_draw_timer = nil;
+static void (*startup_order_window)(id, SEL, NSWindowOrderingMode, NSInteger);
+static void (*startup_make_key)(id, SEL, id);
+static BOOL (*startup_can_become_key)(id, SEL);
+
+@interface FloatingHotelApplication : NSApplication
+@end
+
+@implementation FloatingHotelApplication
+- (BOOL)setActivationPolicy:(NSApplicationActivationPolicy)policy {
+    return [super setActivationPolicy:startup_presented ? policy : NSApplicationActivationPolicyProhibited];
+}
+- (void)activateIgnoringOtherApps:(BOOL)flag {
+    if (startup_presented) [super activateIgnoringOtherApps:flag];
+}
+- (void)activate {
+    if (startup_presented) [super activate];
+}
+@end
+
+static void startup_order(id window, SEL selector, NSWindowOrderingMode mode, NSInteger relative) {
+    if (startup_presented || mode == NSWindowOut)
+        startup_order_window(window, selector, mode, relative);
+}
+
+static void startup_make_key_and_order(id window, SEL selector, id sender) {
+    if (startup_presented) startup_make_key(window, selector, sender);
+}
+
+static BOOL startup_can_key(id window, SEL selector) {
+    return startup_presented && startup_can_become_key(window, selector);
+}
+
+extern "C" void metal_defer_window_presentation(void) {
+    [FloatingHotelApplication sharedApplication];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
+    if (std::getenv("FH_NAVIGATION_TIMING"))
+        fprintf(stdout, "[INFO] NAV application_class=%s\n", class_getName([NSApp class]));
+    Class windowClass = [_sapp_macos_window class];
+    Method order = class_getInstanceMethod(windowClass, @selector(orderWindow:relativeTo:));
+    startup_order_window = reinterpret_cast<decltype(startup_order_window)>(method_getImplementation(order));
+    class_addMethod(windowClass, @selector(orderWindow:relativeTo:),
+        reinterpret_cast<IMP>(startup_order), method_getTypeEncoding(order));
+    Method key = class_getInstanceMethod(windowClass, @selector(makeKeyAndOrderFront:));
+    startup_make_key = reinterpret_cast<decltype(startup_make_key)>(method_getImplementation(key));
+    class_addMethod(windowClass, @selector(makeKeyAndOrderFront:),
+        reinterpret_cast<IMP>(startup_make_key_and_order), method_getTypeEncoding(key));
+    Method canKey = class_getInstanceMethod(windowClass, @selector(canBecomeKeyWindow));
+    startup_can_become_key = reinterpret_cast<decltype(startup_can_become_key)>(method_getImplementation(canKey));
+    class_addMethod(windowClass, @selector(canBecomeKeyWindow),
+        reinterpret_cast<IMP>(startup_can_key), method_getTypeEncoding(canKey));
+}
+
+extern "C" bool metal_startup_presented(void) {
+    if (!startup_presented && std::getenv("FH_NAVIGATION_TIMING")) {
+        static bool logged = false;
+        NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
+        if (!logged) {
+            fprintf(stdout, "[INFO] NAV hidden visible=%d key=%d active=%d\n",
+                window.isVisible, window.isKeyWindow, NSApp.isActive);
+            logged = true;
+        }
+        if (window.isVisible || window.isKeyWindow)
+            fprintf(stdout, "[ERROR] NAV premature_window\n");
+        if (NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == getpid())
+            fprintf(stdout, "[ERROR] NAV premature_focus\n");
+    }
+    return startup_presented;
+}
+
+extern "C" void metal_present_ready_frame(void) {
+    if (startup_submitted) return;
+    startup_submitted = true;
+    id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)sg_mtl_command_queue();
+    id<MTLCommandBuffer> fence = [queue commandBuffer];
+    [fence addCompletedHandler:^(id<MTLCommandBuffer>) {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
+            fprintf(stdout, "[INFO] NAV before_present visible=%d key=%d active=%d frontmost=%d policy=%ld\n",
+                window.isVisible, window.isKeyWindow, NSApp.isActive,
+                NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == getpid(),
+                static_cast<long>(NSApp.activationPolicy));
+            startup_presented = true;
+            [startup_draw_timer invalidate];
+            startup_draw_timer = nil;
+            [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+            [NSApp activateIgnoringOtherApps:YES];
+            [window makeKeyAndOrderFront:nil];
+            fprintf(stdout, "[INFO] NAV presented visible=%d key=%d\n", window.isVisible, window.isKeyWindow);
+        });
+    }];
+    [fence commit];
+}
+
+extern "C" void metal_wait_for_gpu(void) {
+    id<MTLCommandQueue> queue = (__bridge id<MTLCommandQueue>)sg_mtl_command_queue();
+    id<MTLCommandBuffer> fence = [queue commandBuffer];
+    [fence commit];
+    [fence waitUntilCompleted];
+}
+
 static id _e2e_activity_token = nil;
 
 extern "C" void metal_activate_app(void) {
@@ -238,6 +341,8 @@ extern "C" void metal_draw_first_frame_early(void) {
             NSWindow* w = (__bridge NSWindow*)sapp_macos_get_window();
             MTKView* v = (MTKView*)[w contentView];
             if (v) {
+                startup_draw_timer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 60.0
+                    repeats:YES block:^(NSTimer*) { [v draw]; }];
                 [v draw];
                 fprintf(stdout, "[INFO] First frame drawn from applicationDidFinishLaunching\n");
             }
