@@ -50,6 +50,11 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_repository_lock" ]; then
+    run_test "test_repository_lock" "tests/unit/test_repository_lock.cpp" \
+        "src/git/git_runner.cpp" "src/util/process.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_async_task" ]; then
     run_test "test_async_task" "tests/unit/test_async_task.cpp"
 fi

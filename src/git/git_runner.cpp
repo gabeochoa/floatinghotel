@@ -1,4 +1,5 @@
 #include "git_runner.h"
+#include "repository_lock.h"
 
 #include "../../vendor/afterhours/src/logging.h"
 
@@ -13,15 +14,6 @@ namespace git {
 static LogCallback g_log_callback = nullptr;
 static std::mutex g_log_mutex;
 
-// Serializes git writes against the repo. Reads run async on detached threads
-// (git_run_async, the refresh systems) while writes like `git apply --cached`
-// (Approve) run on the main thread; without this they race on
-// .git/index.lock and the write fails ("Unable to create index.lock").
-// Reads take the lock shared so the five startup commands overlap: on a
-// loaded machine each spawn costs seconds, and running them back to back put
-// the commit log 7 s behind the window and the last command 17 s behind.
-static std::shared_timed_mutex g_git_mutex;
-
 // Commands that never touch the index or refs, so they may overlap each other
 // and only need to be kept apart from writes.
 static bool is_read_only(const std::vector<std::string>& args) {
@@ -29,25 +21,25 @@ static bool is_read_only(const std::vector<std::string>& args) {
     const std::string& verb = args[0];
     if (verb == "status" || verb == "log" || verb == "diff" || verb == "grep" || verb == "blame" ||
         verb == "rev-parse" || verb == "show" || verb == "for-each-ref" || verb == "merge-base" ||
-        verb == "ls-files" || verb == "cat-file" || verb == "rev-list" ||
-        verb == "remote" || verb == "ls-remote")
+        verb == "ls-files" || verb == "ls-tree" || verb == "cat-file" || verb == "rev-list" ||
+        verb == "range-diff" || verb == "ls-remote")
         return true;
+    if (verb == "remote") return args.size() == 1 ||
+        (args.size() == 2 && (args[1] == "-v" || args[1] == "--verbose"));
     if (verb == "branch") {
-        for (const auto& a : args)
-            if (a == "-d" || a == "-D" || a == "-m" || a == "-M" || a == "-c" ||
-                a == "-C" || a == "--delete" || a == "--move" ||
-                a == "--copy" || a == "-u" || a == "--set-upstream-to" ||
-                a == "--unset-upstream")
+        for (size_t i = 1; i < args.size(); ++i) {
+            const auto& a = args[i];
+            if (a != "-a" && a != "-r" && a != "-v" && a != "-vv" && a != "--list" &&
+                a != "--all" && a != "--remotes" && a != "--show-current" && a != "--no-color" &&
+                !a.starts_with("--format=") && !a.starts_with("--sort="))
                 return false;
+        }
         return true;
     }
     if (verb == "stash") return args.size() > 1 && args[1] == "list";
     return false;
 }
 
-// Backstop so a wedged git (e.g. a network op stuck mid-connection) can't hold
-// g_git_mutex forever and freeze the app. Generous enough for normal
-// push/pull/fetch; local ops finish in well under a second.
 static constexpr int GIT_TIMEOUT_MS = 60000;
 
 // The usual "hang" is git blocking on an interactive credential prompt; with no
@@ -121,6 +113,8 @@ GitResult git_run(const std::string& repo_path,
         cmd.push_back("-C");
         cmd.push_back(repo_path);
     }
+    const bool readOnly = is_read_only(args);
+    if (readOnly) cmd.push_back("--no-optional-locks");
     cmd.insert(cmd.end(), args.begin(), args.end());
 
     disable_git_prompts_once();
@@ -129,8 +123,9 @@ GitResult git_run(const std::string& repo_path,
     using clock = std::chrono::steady_clock;
     const auto t0 = clock::now();
     clock::time_point t1;
-    if (is_read_only(args)) {
-        std::shared_lock<std::shared_timed_mutex> lock(g_git_mutex, std::defer_lock);
+    auto repositoryMutex = repository_mutex(repo_path);
+    if (readOnly) {
+        std::shared_lock<std::shared_timed_mutex> lock(*repositoryMutex, std::defer_lock);
         while (!lock.try_lock_for(std::chrono::milliseconds(20))) {
             if (stop.stop_requested()) {
                 result.raw.cancelled = true;
@@ -141,7 +136,7 @@ GitResult git_run(const std::string& repo_path,
         t1 = clock::now();
         result.raw = run_process("", cmd, GIT_TIMEOUT_MS, stop);
     } else {
-        std::unique_lock<std::shared_timed_mutex> lock(g_git_mutex);
+        std::unique_lock<std::shared_timed_mutex> lock(*repositoryMutex);
         t1 = clock::now();
         result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
     }
