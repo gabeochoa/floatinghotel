@@ -67,6 +67,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         auto zoomButton = [&](int id, const std::string& text, float x, const std::string& debugName) {
             return button(ctx, mk(root, id), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(text).with_size(ComponentSize{pixels(26), pixels(height)})
+                .with_padding(Padding{.left = pixels(0)})
                 .with_absolute_position().with_translate(x, rect.y)
                 .with_custom_background(background).with_custom_hover_bg(theme::PANEL_BG)
                 .with_custom_text_color(theme::STATUS_BAR_TEXT).with_font_size(pixels(13))

@@ -99,6 +99,7 @@ struct ToastSystem : afterhours::System<ui_imm::UIContextType> {
             div(ctx, mk(body.ent(), 0), preset::BodyText(message)
                 .with_size(ComponentSize{percent(1.f), pixels(textHeight)})
                 .with_font_size(pixels(14)).with_text_overflow(TextOverflow::Wrap)
+                .with_text_inset(5.f)
                 .with_render_layer(100).with_debug_name("toast"));
             bottom = y - 8.f;
             ++visible;

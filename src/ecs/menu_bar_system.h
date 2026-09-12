@@ -231,6 +231,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             auto headerResult = button(ctx, mk(uiRoot, 1010 + i),
                 ComponentConfig{}
                     .with_label(renderMenus[i].label)
+                    .with_padding(Padding{.left = pixels(0)})
                     .with_size(ComponentSize{pixels(headerW), pixels(barH)})
                     .with_absolute_position()
                     .with_translate(headerX, barY)
@@ -347,6 +348,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     auto itemResult = button(ctx, mk(uiRoot, 9500 + menuIdx * 100 + itemIdx),
                         ComponentConfig{}
                             .with_label("  " + item.label)
+                            .with_padding(Padding{.left = pixels(0)})
                             .with_size(ComponentSize{pixels(itemW), pixels(ITEM_HEIGHT)})
                             .with_absolute_position()
                             .with_translate(itemX, itemY)

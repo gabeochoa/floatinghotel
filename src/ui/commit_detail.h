@@ -266,7 +266,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     auto metadataHeader = div(ctx, mk(heading.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
-        .with_padding(Padding{.left = pixels(PAD), .right = pixels(PAD)}));
+        .with_padding(Padding{}));
     div(ctx, mk(metadataHeader.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
         .with_label(selectedCommit->hash.substr(0, 7) + "  " + selectedCommit->author + "  " + selectedCommit->authorDate.substr(0, 10))
         .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(12))
@@ -279,7 +279,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         auto preview = div(ctx, mk(heading.ent(), 593011), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), pixels(32)})
             .with_flex_direction(FlexDirection::Row).with_no_wrap()
-            .with_padding(Padding{.left = pixels(PAD), .right = pixels(PAD)}));
+            .with_padding(Padding{}));
         div(ctx, mk(preview.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
             .with_label(detailCache.commitDetailBody.substr(0, detailCache.commitDetailBody.find('\n')))
             .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))

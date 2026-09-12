@@ -156,6 +156,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                 auto closeBtn = button(ctx, mk(uiRoot, 950 + static_cast<int>(i)),
                     ComponentConfig{}.with_skip_grid_snap()
                         .with_label("\xc3\x97")
+                        .with_padding(Padding{.left = pixels(0)})
                         .with_size(ComponentSize{pixels(closeW), pixels(closeW)})
                         .with_absolute_position()
                         .with_translate(closeX, closeY)
@@ -198,6 +199,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         auto plusBtn = button(ctx, mk(uiRoot, 999),
             ComponentConfig{}.with_skip_grid_snap()
                 .with_label("+")
+                .with_padding(Padding{.left = pixels(0)})
                 .with_size(ComponentSize{pixels(plusW), pixels(tabH)})
                 .with_absolute_position()
                 .with_translate(std::min(tabX + 2.f, stripW - plusW), layout.tabStrip.y)
