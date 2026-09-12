@@ -40,6 +40,10 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ui/context_menu.h"
 #include "ui/zoom.h"
 #include "util/frame_pacer.h"
+#include "util/file_page_stats.h"
+#include "util/grep_capture.h"
+#include "git/blob_page_cache.h"
+#include "git/commit_patch_cache.h"
 #include <afterhours/src/plugins/ui/validation_systems.h>
 #include "util/process.h"
 
@@ -1241,6 +1245,40 @@ int main(int argc, char* argv[]) {
             return ui::diff_sel::state().hasSel ? "true" : "false";
         } else if (key == "diff_rows_bounded") {
             return ui::diff_sel::state().lastLines.size() < 300 ? "true" : "false";
+        } else if (key == "file_page_content_bounded") {
+            if (auto* r = repo()) return file_page::stats(r->fullFileBytes, r->fullFileDiff, r->fullFileDecodedText).bounded() ? "true" : "false";
+        } else if (key == "file_page_raw_bytes") {
+            if (auto* r = repo()) return std::to_string(r->fullFileBytes.size());
+        } else if (key == "file_page_line_count") {
+            if (auto* r = repo()) return std::to_string(file_page::stats(r->fullFileBytes, r->fullFileDiff).lines);
+        } else if (key == "blob_cache_bytes") {
+            return std::to_string(git::blob_page_cache().bytes());
+        } else if (key == "blob_cache_bounded") {
+            return git::blob_page_cache().bytes() <= git::blobPageCacheBudget ? "true" : "false";
+        } else if (key == "blob_cache_populated") {
+            return git::blob_page_cache().bytes() > 1024 ? "true" : "false";
+        } else if (key == "patch_cache_bytes") {
+            return std::to_string(git::commit_patch_cache().bytes());
+        } else if (key == "patch_cache_bounded") {
+            return git::commit_patch_cache().bytes() <= git::commitPatchCacheBudget ? "true" : "false";
+        } else if (key == "patch_cache_populated") {
+            return git::commit_patch_cache().bytes() > 0 ? "true" : "false";
+        } else if (key == "image_decode_bytes") {
+            return std::to_string(image_content::decodedBytes.load());
+        } else if (key == "image_texture_bytes") {
+            return std::to_string(ui::image_diff::cache().bytes);
+        } else if (key == "image_caches_bounded") {
+            return image_content::decodedBytes.load() <= image_content::totalDecodedLimit &&
+                ui::image_diff::cache().bytes <= 128 * 1024 * 1024 ? "true" : "false";
+        } else if (key == "search_result_count") {
+            if (auto* r = repo()) return std::to_string(r->repoSearchResults.size());
+        } else if (key == "search_captured_bytes") {
+            if (auto* r = repo()) return std::to_string(r->repoSearchCapturedBytes);
+        } else if (key == "search_truncated") {
+            if (auto* r = repo()) return r->repoSearchTruncated ? "true" : "false";
+        } else if (key == "search_results_bounded") {
+            if (auto* r = repo()) return r->repoSearchResults.size() <= grep_capture::matchLimit &&
+                r->repoSearchCapturedBytes <= grep_capture::byteLimit ? "true" : "false";
         } else if (key == "message_rows_bounded") {
             if (auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
                 return detail->messageVisibleRows < 300 ? "true" : "false";

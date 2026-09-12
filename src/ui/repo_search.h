@@ -22,6 +22,8 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             repo.repoSearchError = std::move(result.error);
             repo.repoSearchRevision = std::move(result.revision);
             repo.repoSearchResults = std::move(result.matches);
+            repo.repoSearchTruncated = result.truncated;
+            repo.repoSearchCapturedBytes = result.capturedBytes;
         }
     }
     div(ctx, mk(parent, 587000), ComponentConfig{}
@@ -79,6 +81,8 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         repo.repoSearchPreviewOpen = false;
         repo.repoSearchPreviewFuture = {};
         repo.repoSearchError.clear();
+        repo.repoSearchTruncated = false;
+        repo.repoSearchCapturedBytes = 0;
         repo.repoSearchPath = repo.repoPath;
         repo.repoSearchRevision = !repo.fullFilePath.empty() ? repo.fullFileRevision :
             repo.comparisonOpen ? diff_revisions(repo.comparisonScope).second :
@@ -109,7 +113,9 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         if (repo.repoSearchError.empty()) repo.repoSearchFuture = git::search_repository_async(std::move(query));
     }
     std::string status = repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchResults.empty() ? "No matches" :
-        std::to_string(repo.repoSearchResults.size()) + (repo.repoSearchResults.size() == 5000 ? " matches (first 5000 shown)" : " matches");
+        std::to_string(repo.repoSearchResults.size()) + " matches";
+    if (!repo.repoSearchFuture.valid() && repo.repoSearchTruncated)
+        status = std::to_string(repo.repoSearchResults.size()) + " matches · Results limited to 5000 matches or 4 MiB; refine your search";
     if (!repo.repoSearchError.empty()) status = repo.repoSearchError;
     div(ctx, mk(parent, 587002), ComponentConfig{}.with_label(status)
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Small)
@@ -120,7 +126,8 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             const auto& match = repo.repoSearchResults[i];
             auto resultRow = div(ctx, mk(item, 10), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
-            if (button(ctx, mk(resultRow.ent(), 0), preset::Button(match.file + ":" + std::to_string(match.line) + "  " + match.text)
+            auto previewText = match.text.substr(0, 512) + (match.text.size() > 512 ? "…" : "");
+            if (button(ctx, mk(resultRow.ent(), 0), preset::Button(match.file + ":" + std::to_string(match.line) + "  " + previewText)
                     .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
                     .with_font_size(FontSize::Small).with_custom_background(theme::PANEL_BG)
                     .with_debug_name("repo_search_result"))) {

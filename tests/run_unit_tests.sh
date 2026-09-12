@@ -23,6 +23,7 @@ mkdir -p "$OUT_DIR"
 PASSED=0
 FAILED=0
 TOTAL=0
+SKIPPED=0
 
 run_test() {
     local name="$1"
@@ -30,6 +31,11 @@ run_test() {
     shift 2
 
     TOTAL=$((TOTAL + 1))
+    if [ "${FH_SKIP_UNIT_TESTS:-0}" = 1 ]; then
+        printf 'SKIP %s (FH_SKIP_UNIT_TESTS=1)\n' "$name"
+        SKIPPED=$((SKIPPED + 1))
+        return
+    fi
     local exe="$OUT_DIR/$name"
 
     echo "--- Compiling $name ---"
@@ -56,6 +62,14 @@ fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_files" ]; then
     run_test "test_review_files" "tests/unit/test_review_files.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_file_page_stats" ]; then
+    run_test "test_file_page_stats" "tests/unit/test_file_page_stats.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_grep_capture" ]; then
+    run_test "test_grep_capture" "tests/unit/test_grep_capture.cpp"
 fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_code_gutter" ]; then
@@ -192,8 +206,13 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 
+if [ -n "$FILTER" ] && [ "$TOTAL" -eq 0 ]; then
+    printf 'Unknown test suite: %s\n' "$FILTER" >&2
+    exit 1
+fi
+
 echo "========================================"
-echo "Results: $PASSED/$TOTAL passed, $FAILED failed"
+echo "Results: $PASSED/$TOTAL passed, $FAILED failed, $SKIPPED skipped"
 echo "========================================"
 
 [ "$FAILED" -eq 0 ]

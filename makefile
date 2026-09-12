@@ -91,7 +91,8 @@ INCLUDES := -isystem vendor/ -isystem vendor/afterhours/vendor/
 LDFLAGS := -L. -Lvendor/ -Wl,-dead_strip $(FRAMEWORKS)
 
 # Directories
-OBJ_DIR := output/objs
+OPT_TAG := $(subst /,_,$(subst -,_,$(subst =,_,$(OPT))))
+OBJ_DIR := output/objs/$(OPT_TAG)
 OUTPUT_DIR := output
 
 # Source files (recursive -- includes subdirectories)
@@ -111,6 +112,7 @@ MAIN_DEPS := $(MAIN_OBJS:.o=.d)
 
 # Output executable
 MAIN_EXE := $(OUTPUT_DIR)/floatinghotel$(EXT)
+PROFILE_EXE := $(OBJ_DIR)/floatinghotel$(EXT)
 
 # Create directories
 $(OUTPUT_DIR)/.stamp:
@@ -125,10 +127,15 @@ $(OBJ_DIR)/main:
 all: $(MAIN_EXE)
 
 # Main executable
-$(MAIN_EXE): $(MAIN_OBJS) | $(OUTPUT_DIR)/.stamp
-	@echo "Linking $(MAIN_EXE)..."
+$(MAIN_EXE): $(PROFILE_EXE) | $(OUTPUT_DIR)/.stamp
+	@cmp -s "$<" "$@" || { cp "$<" "$@.$(OPT_TAG).tmp" && mv -f "$@.$(OPT_TAG).tmp" "$@"; }
+
+.PHONY: $(MAIN_EXE)
+
+$(PROFILE_EXE): $(MAIN_OBJS) | $(OUTPUT_DIR)/.stamp
+	@echo "Linking $(PROFILE_EXE)..."
 	$(CXX) $(CXXFLAGS) $(MAIN_OBJS) $(LDFLAGS) -o $@
-	@echo "Built $(MAIN_EXE)"
+	@echo "Built $(PROFILE_EXE)"
 
 # Include dependency files
 -include $(MAIN_DEPS)

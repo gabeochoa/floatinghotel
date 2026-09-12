@@ -5,8 +5,10 @@ wait_frames 3
 wait_for_refresh
 expect_text "Before: 64 x 64"
 expect_text "After: 64 x 64"
-assert_ui before_image_pixels hidden=false
-assert_ui after_image_pixels hidden=false
+assert_ui image_before_pixels hidden=false
+assert_ui image_after_pixels hidden=false
+validate image_caches_bounded=true
+validate image_texture_bytes=32768
 screenshot item_12_async_images
 click_text source.txt
 wait_frames 3
@@ -18,3 +20,5 @@ wait_for_refresh
 expect_text "Before: 64 x 64"
 expect_text "After: 64 x 64"
 screenshot item_12_reopened_images
+validate image_caches_bounded=true
+validate image_texture_bytes=32768

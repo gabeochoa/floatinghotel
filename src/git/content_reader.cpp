@@ -35,7 +35,7 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
 
 ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop) {
     ecs::FullFileContent content;
-    static BlobPageCache cache;
+    auto& cache = blob_page_cache();
     std::string cacheKey;
     bool cacheHit = false;
     std::string mode;

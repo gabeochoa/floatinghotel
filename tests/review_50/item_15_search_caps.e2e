@@ -1,0 +1,23 @@
+resize 1440 900
+wait_for_refresh
+key CMD+SHIFT+F
+click_ui repo_search_input
+type manyneedle
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "Results limited to 5000 matches or 4 MiB"
+validate search_results_bounded=true
+validate search_result_count=5000
+validate search_truncated=true
+screenshot item_15_search_hit_cap
+click_ui repo_search_input
+key CMD+A
+type hugeneedle
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "Results limited to 5000 matches or 4 MiB"
+validate search_results_bounded=true
+validate search_result_count=0
+validate search_captured_bytes=4194304
+validate search_truncated=true
+screenshot item_15_search_byte_cap

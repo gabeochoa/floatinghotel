@@ -1,6 +1,7 @@
 #include "test_framework.h"
 #include "../../src/git/repository_search.h"
 #include "../../src/util/path_glob.h"
+#include "../../src/util/grep_capture.h"
 #include <filesystem>
 #include <fstream>
 #include <unistd.h>
@@ -98,6 +99,65 @@ TEST(search_preview_caps_working_and_historical_reads_and_does_not_follow_symlin
     auto index = git::search_preview_async(directory, {"small", 2, "needle", "INDEX"}).get();
     ASSERT_EQ(index.lines[2].second, "after");
     std::filesystem::remove_all(path);
+}
+
+TEST(repository_search_drops_an_oversized_record_before_publishing_results) {
+    char pattern[] = "/tmp/fh-search-cap.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    { std::ofstream file(std::filesystem::path(directory) / "large.txt"); file << "needle" << std::string(5 * 1024 * 1024, 'x') << '\n'; }
+    ASSERT_TRUE(git::git_run(directory, {"init", "-q"}).success());
+    auto result = git::search_repository_async({directory, "", "needle"}).get();
+    std::filesystem::remove_all(directory);
+    ASSERT_TRUE(result.error.empty());
+    ASSERT_TRUE(result.matches.empty());
+    ASSERT_TRUE(result.truncated);
+    ASSERT_EQ(result.capturedBytes, grep_capture::byteLimit);
+}
+
+static ecs::SearchResult changed_search_with_removed_file(int lines, const std::string& text) {
+    char pattern[] = "/tmp/fh-search-shared-cap.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    std::filesystem::path root(directory);
+    { std::ofstream file(root / "removed\nname.txt"); for (int i = 0; i < lines; ++i) file << text << '\n'; }
+    ASSERT_TRUE(git::git_run(directory, {"init", "-q"}).success());
+    ASSERT_TRUE(git::git_run(directory, {"add", "."}).success());
+    ASSERT_TRUE(git::git_run(directory, {"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "baseline"}).success());
+    std::filesystem::remove(root / "removed\nname.txt");
+    { std::ofstream file(root / "active\nname.txt"); for (int i = 0; i < lines; ++i) file << text << '\n'; }
+    ecs::SearchQuery query{directory, "", "needle", true};
+    query.paths = {"active\nname.txt"};
+    query.removedPaths = {"removed\nname.txt"};
+    query.beforeRevision = "HEAD";
+    auto result = git::search_repository_async(std::move(query)).get();
+    std::filesystem::remove_all(root);
+    return result;
+}
+
+TEST(repository_search_shares_the_hit_budget_with_deleted_file_queries) {
+    auto result = changed_search_with_removed_file(3000, "needle");
+    ASSERT_TRUE(result.error.empty());
+    ASSERT_TRUE(result.truncated);
+    ASSERT_EQ(result.matches.size(), grep_capture::matchLimit);
+    ASSERT_TRUE(result.capturedBytes < grep_capture::byteLimit);
+    ASSERT_EQ(result.matches[2999].file, "active\nname.txt");
+    ASSERT_TRUE(result.matches[2999].revision.empty());
+    ASSERT_EQ(result.matches[3000].file, "removed\nname.txt");
+    ASSERT_EQ(result.matches[3000].revision.size(), 40u);
+    ASSERT_EQ(result.matches.back().line, 2000);
+    ASSERT_EQ(result.matches.back().text, "needle");
+}
+
+TEST(repository_search_shares_the_byte_budget_with_deleted_file_queries) {
+    auto text = "needle" + std::string(2048, 'x');
+    auto result = changed_search_with_removed_file(1200, text);
+    ASSERT_TRUE(result.error.empty());
+    ASSERT_TRUE(result.truncated);
+    ASSERT_EQ(result.capturedBytes, grep_capture::byteLimit);
+    ASSERT_TRUE(result.matches.size() > 1200 && result.matches.size() < 2400);
+    ASSERT_EQ(result.matches.back().file, "removed\nname.txt");
+    ASSERT_EQ(result.matches.back().text, text);
 }
 
 int main() { RUN_ALL_TESTS(); }

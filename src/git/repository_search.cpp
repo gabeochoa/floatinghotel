@@ -2,6 +2,7 @@
 #include "git_parser.h"
 #include "../util/path_glob.h"
 #include "../util/file_content.h"
+#include "../util/grep_capture.h"
 #include <charconv>
 #include <filesystem>
 
@@ -56,13 +57,22 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
                 while (!part.revision.empty() && (part.revision.back() == '\n' || part.revision.back() == '\r')) part.revision.pop_back();
             }
             if (primary) out.revision = part.revision;
-            auto result = git_run(part.repoPath, repository_search_args(part), stop);
-            if (!result.success() && result.exit_code() != 1) out.error = "Search failed: " + result.stderr_str();
-            else for (auto& match : parse_search_matches(result.stdout_str(), part.revision))
-                if (out.matches.size() < 5000) out.matches.push_back(std::move(match));
+            grep_capture::Collector capture(grep_capture::byteLimit - out.capturedBytes,
+                                            grep_capture::matchLimit - out.matches.size());
+            auto result = git_run(part.repoPath, repository_search_args(part), stop,
+                [&](std::string_view chunk) { return capture.consume(chunk); });
+            capture.finish();
+            out.capturedBytes += capture.bytes();
+            out.truncated = capture.truncated();
+            if (stop.stop_requested() || result.raw.cancelled) out.error = "Search cancelled";
+            else if (!result.success() && result.exit_code() != 1 &&
+                     !(result.raw.outputStopped && capture.truncated()))
+                out.error = "Search failed: " + result.stderr_str();
+            else for (auto& match : parse_search_matches(capture.output(), part.revision))
+                out.matches.push_back(std::move(match));
         };
         if (!query.changedOnly || !query.paths.empty()) append(query, true);
-        if (query.changedOnly && !query.removedPaths.empty()) {
+        if (query.changedOnly && !query.removedPaths.empty() && !out.truncated && out.error.empty()) {
             query.revision = query.beforeRevision;
             query.paths = std::move(query.removedPaths);
             append(std::move(query), false);

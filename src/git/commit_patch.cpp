@@ -29,7 +29,7 @@ ecs::CommitPatch read_commit_patch(const CommitPatchRequest& request, std::stop_
     while (!commonDirectory.empty() && (commonDirectory.back() == '\n' || commonDirectory.back() == '\r')) commonDirectory.pop_back();
     CommitPatchKey key{repository.string(), commonDirectory, out.resolvedCommit, out.resolvedParent, request.context, request.ignoreWhitespace};
     bool cacheable = !identityError && common.success() && !commonDirectory.empty();
-    static CommitPatchCache cache;
+    auto& cache = commit_patch_cache();
     if (cacheable) {
         if (auto cached = cache.get(key)) {
             log_info("commit patch cache hit for {}", out.resolvedCommit);

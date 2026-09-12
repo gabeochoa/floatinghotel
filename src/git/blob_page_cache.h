@@ -7,6 +7,8 @@
 
 namespace git {
 
+inline constexpr size_t blobPageCacheBudget = 32 * 1024 * 1024;
+
 struct BlobPage {
     std::string raw;
     ecs::FilePage page;
@@ -30,7 +32,7 @@ class BlobPageCache {
     ByteCache<BlobPage> entries_;
     size_t budget_;
 public:
-    explicit BlobPageCache(size_t budget = 32 * 1024 * 1024) : entries_(budget), budget_(budget) {}
+    explicit BlobPageCache(size_t budget = blobPageCacheBudget) : entries_(budget), budget_(budget) {}
 
     std::optional<BlobPage> get(const std::string& key) {
         if (key.empty()) return {};
@@ -52,5 +54,10 @@ public:
         return entries_.bytes();
     }
 };
+
+inline BlobPageCache& blob_page_cache() {
+    static BlobPageCache cache;
+    return cache;
+}
 
 }

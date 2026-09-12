@@ -153,7 +153,7 @@ GitResult git_run(const std::string& repo_path,
         if (g_log_callback) {
             if (result.raw.outputStopped && !result.raw.cancelled)
                 g_log_callback(build_command_string(cmd),
-                               "Output capture stopped at the requested page boundary",
+                               "Output capture stopped at the requested output limit",
                                result.stderr_str(), true);
             else
                 g_log_callback(build_command_string(cmd), result.stdout_str(),

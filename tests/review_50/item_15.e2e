@@ -1,0 +1,107 @@
+resize 1440 900
+wait_for_refresh
+click_text huge.cpp
+wait_for_refresh
+wait_frames 10
+bench_frames 120
+expect_p99_below 30
+validate diff_rows_bounded=true
+validate syntax_cache_bounded=true
+validate diff_metrics_bounded=true
+mouse_move 900 450
+scroll_wheel 0 -20000
+wait_frames 10
+bench_frames 120
+expect_p99_below 20
+validate diff_rows_bounded=true
+validate syntax_cache_bounded=true
+validate diff_metrics_bounded=true
+scroll_wheel 0 20000
+wait_frames 10
+click_ui open_full_file
+wait_for_refresh
+wait_frames 10
+assert_ui full_file_header hidden=false
+validate file_page_content_bounded=true
+validate file_page_line_count=4096
+validate blob_cache_bounded=true
+bench_frames 120
+expect_p99_below 20
+validate diff_rows_bounded=true
+validate syntax_cache_bounded=true
+validate diff_metrics_bounded=true
+click_ui full_file_back
+click_text "Large history message"
+wait_for_refresh
+wait_frames 10
+bench_frames 120
+expect_p99_below 15
+validate message_rows_bounded=true
+validate patch_cache_bounded=true
+validate patch_cache_populated=true
+click_ui commit_message_toggle
+wait_frames 10
+bench_frames 120
+expect_p99_below 20
+validate message_rows_bounded=true
+screenshot item_15_perf_budget
+click_text Baseline
+wait_for_refresh
+wait_frames 5
+click_ui open_full_file
+wait_for_refresh
+wait_frames 5
+validate file_page_content_bounded=true
+validate file_page_line_count=4096
+validate blob_cache_bounded=true
+validate blob_cache_populated=true
+validate patch_cache_bounded=true
+validate image_caches_bounded=true
+click_ui file_page_next
+wait_for_refresh
+wait_frames 5
+validate file_page_content_bounded=true
+validate file_page_line_count=2404
+validate blob_cache_bounded=true
+click_ui file_page_start
+wait_for_refresh
+wait_frames 5
+validate file_page_content_bounded=true
+validate file_page_line_count=4096
+validate blob_cache_bounded=true
+screenshot item_15_bounded_historical_pages
+click_ui full_file_back
+click_ui review_progress
+click_text Baseline
+wait_for_refresh
+wait_frames 5
+bench_frames 120
+expect_p99_below 20
+click_ui comment_hunk_btn
+click_ui comment_input
+type Review the large patch hot path
+click_ui comment_add_btn
+wait_frames 5
+validate review_unresolved=1
+click 700 518
+wait_frames 5
+expect_text "value_00001"
+screenshot item_15_large_patch_unresolved_comment
+bench_frames 120
+expect_p99_below 20
+validate diff_rows_bounded=true
+click_ui basket_item_resolve
+click_ui approve_file_btn
+click_ui finish_review
+click_text Approved
+wait_frames 5
+assert_ui finish_review text=Approved
+click_text "Show approved"
+click_text "Show resolved"
+wait_frames 5
+expect_text "value_00001"
+bench_frames 120
+expect_p99_below 20
+validate diff_rows_bounded=true
+validate patch_cache_bounded=true
+screenshot item_15_large_patch_reviewed_with_comment

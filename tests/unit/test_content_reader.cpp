@@ -275,7 +275,7 @@ TEST(intentional_page_capture_is_logged_as_success_without_hiding_its_stop_resul
     ASSERT_TRUE(result.raw.outputStopped);
     ASSERT_FALSE(result.success());
     ASSERT_TRUE(loggedSuccess);
-    ASSERT_TRUE(loggedOutput.find("requested page boundary") != std::string::npos);
+    ASSERT_TRUE(loggedOutput.find("requested output limit") != std::string::npos);
     std::filesystem::remove_all(path);
 }
 

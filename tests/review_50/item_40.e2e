@@ -20,6 +20,11 @@ screenshot item_40_closed_preview
 expect_no_text "historical before"
 click_ui repo_search_result
 wait_for_refresh
+expect_text "historical needle"
+expect_text "Loaded lines 2–3"
+expect_no_text "working before"
+click_ui file_page_start
+wait_for_refresh
 expect_text "historical before"
 expect_no_text "working before"
 screenshot item_40_open_result

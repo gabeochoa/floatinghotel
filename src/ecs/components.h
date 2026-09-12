@@ -59,6 +59,8 @@ struct SearchResult {
     std::string revision;
     std::vector<SearchMatch> matches;
     std::string error;
+    bool truncated = false;
+    size_t capturedBytes = 0;
 };
 
 struct SearchPreview {
@@ -344,6 +346,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string repoSearchQuery;
     std::string repoSearchPath;
     std::string repoSearchError;
+    bool repoSearchTruncated = false;
+    size_t repoSearchCapturedBytes = 0;
     async_work::Task<SearchResult> repoSearchFuture;
     std::string repoSearchRevision;
     bool repoSearchChangedOnly = false;

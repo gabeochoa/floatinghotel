@@ -7,6 +7,8 @@
 
 namespace git {
 
+inline constexpr size_t commitPatchCacheBudget = 32 * 1024 * 1024;
+
 struct CommitPatchKey {
     std::string repository;
     std::string commonDirectory;
@@ -48,7 +50,7 @@ class CommitPatchCache {
     size_t budget_;
     size_t bytes_ = 0;
 public:
-    explicit CommitPatchCache(size_t budget = 32 * 1024 * 1024) : budget_(budget) {}
+    explicit CommitPatchCache(size_t budget = commitPatchCacheBudget) : budget_(budget) {}
 
     std::optional<ecs::CommitPatch> get(const CommitPatchKey& key) {
         std::lock_guard lock(mutex_);
@@ -80,5 +82,10 @@ public:
         return bytes_;
     }
 };
+
+inline CommitPatchCache& commit_patch_cache() {
+    static CommitPatchCache cache;
+    return cache;
+}
 
 }
