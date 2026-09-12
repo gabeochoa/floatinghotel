@@ -88,6 +88,10 @@ binary-searches for the longest fitting prefix and appends "...".
 The hang this entry reported with `expand()`/`children()` sizing is fixed
 upstream, so the "fixed pixel widths only" restriction no longer applies.
 
+This resolution does not cover colored spans. The styled-label renderer still
+bypasses truncation, as recorded under
+[Styled labels bypass ellipsis truncation](#styled-labels-bypass-ellipsis-truncation).
+
 ---
 
 ### Div backgrounds render opaque — no alpha blend for overlays — RESOLVED, adopted
@@ -102,16 +106,19 @@ re-drawn-substring workaround this entry described is gone.
 
 ---
 
-### No Rich Text / Multi-Color Text in a Single Label — RESOLVED, and moot
+### Styled labels are available; per-column layout remains separate
 
 `with_styled_label({{"M ", STATUS_MODIFIED}, {"theme.h ", TEXT_PRIMARY}, ...})`
-is on `ComponentConfig` (`component_config.h:658`).
+is on `ComponentConfig` in `component_config.h`.
 
-Deliberately not adopted: `render_file_row_impl` already solved this with three
-sized child divs (status glyph, filename, dir), which is what gives each column
-its own width and ellipsis. A styled label would trade that away to save two
-entities. The workaround described below — baking everything into one string
-and losing the coloured status letter — has not been the code for a while.
+`render_file_row_impl` keeps separate child divs for the status glyph, filename,
+and directory. Each column has its own width and ellipsis. A single styled label
+would lose that separation. The original workaround below no longer describes
+these file rows.
+
+Styled labels are now used for diff paths and hunk captions. That adoption
+exposed the styled-ellipsis bug linked above. Availability of both APIs does
+not mean their combination works.
 
 <details><summary>original entry</summary>
 
@@ -991,12 +998,19 @@ side gutters in new captures.
 ### Tree chevrons cannot rely on the current font atlas
 
 The initial styled tree used Unicode disclosure arrows, but the open arrow was
-invisible in the native screenshot. The current font atlas does not include all
-UI symbol glyphs. Folder disclosure now uses a small rotated two-sided border,
+invisible in the native screenshot. The current font path did not draw that
+symbol; this does not establish whether the cause was face coverage or atlas
+handling. Folder disclosure now uses a small rotated two-sided border,
 so its shape does not depend on text glyph coverage. Folder and search markers
 also use native geometry. The first tree checker additionally used the wrong
 JSON field name, `label` instead of `text`. That test error was corrected before
 accepting the tree unit.
+
+The row's presence, text, and nonzero bounds all passed before the missing arrow
+was caught visually. `tests/check_mock_tree.py` now checks the disclosure's
+captured pixels too. Layout validity alone does not prove a glyph was drawn.
+The Sokol glyph-coverage API limitation is recorded above under
+`Font codepoint coverage helpers are raylib-only`.
 
 ### Wheel input ignores ancestor scrolling and clipping
 
@@ -1011,6 +1025,14 @@ clip before accepting wheel input. Registration replaces only the framework's
 scroll-input system inside its post-update bridge. This depends on the public
 bridge system list, so upstream changes to that registration need review.
 `mock_tree_working.e2e` exercises the previously unresponsive visible area.
+
+The installation itself is fragile. `registerUIPostLayoutSystems` walks
+`SystemManager::update_systems_`, finds `UIPluginPostUpdateBridge<InputAction>`,
+then replaces its `HandleScrollInput<InputAction>` child. If an upstream change
+keeps those types available but changes registration, the search can find no
+matching child and silently leave the workaround uninstalled. A supported
+replacement hook with an explicit success result would avoid this dependency.
+This is a risk in our adapter, not another reproduced scrolling failure.
 
 ### Nominal font pixels do not give browser-equivalent type size
 
@@ -1055,3 +1077,39 @@ same frame. The next frame calculates the expanded height. This is an app
 ordering issue exposed by immediate-mode construction, not a persistent
 overflow or proof of a framework defect. A layout invalidation or deferred
 state-change convention would make these transitions easier to reason about.
+
+### Mixed-height diff virtualization requires duplicate size accounting
+
+The adopted `virtual_list` covers fixed-height sidebar rows. Our diff also has
+file headers, hunks, code rows, comments, footers, and folded sections with
+different heights. `src/ui/diff_renderer.h::DiffViewport` therefore tracks its
+own running extent through `built`, `skipped`, and `flush`.
+
+Adding a visible footer requires both a UI height and a matching `vp.built`
+call. Moving spacing across a `continue` changes whether folded or binary files
+receive it. During the parity pass, file spacing moved before each subsequent
+file so those branches receive the same gap. The two-folded-file capture and
+`tests/check_mock_file_spacing.py` verify the resulting 14-pixel separation.
+
+This is an integration maintenance cost, not a reproduced new framework bug.
+A variable-height virtual-list API with one source of row extents would reduce
+the risk of scroll geometry diverging from rendered geometry.
+
+### The host refresh wait times out without failing its command
+
+This is an app test-harness footgun, not an Afterhours Git-loading defect.
+`src/main.cpp::HandleWaitForRefresh` consumes the E2E command before its
+asynchronous work finishes. The host later logs a warning after 30 seconds
+and lets the runner continue, even if the repository is not ready.
+
+In `output/mock-parity/clipping-check/mock_diff.log`, that warning preceded
+missing commit and button targets. Git history arrived after about 57 seconds.
+The test was running during compilation, but that does not establish why Git
+was slow. The resulting screenshots were rejected, and the native checks
+passed after compilation finished.
+
+The wait is not a readiness guarantee after its timeout. A pending-command
+barrier that reports timeout failure and stops dependent UI commands would
+avoid misleading follow-on errors. The current host timeout behavior remains
+unchanged. The related render-generation requirement is documented above under
+`E2E target lookup needs a render checkpoint after cached view transitions`.
