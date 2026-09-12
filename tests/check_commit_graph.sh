@@ -18,6 +18,10 @@ printf 'main\n' > "$graph_repo/main.txt"
 git -C "$graph_repo" add .
 git -C "$graph_repo" commit -qm 'Main work'
 git -C "$graph_repo" merge -q --no-ff feature -m 'Merge feature'
+git -C "$graph_repo" commit -q --allow-empty -m 'Empty checkpoint'
+capture_dir=${1:-output/screenshots/improvements}
+mkdir -p "$capture_dir"
+git -C "$graph_repo" log --all --graph --format='%h %p %s' > "$capture_dir/git-graph.txt"
 output/floatinghotel.exe "$graph_repo" --test-mode --headless \
   --test-script=tests/navigation_scripts/improvement_29_graph.e2e \
-  --screenshot-dir=output/screenshots/improvements --e2e-timeout=40
+  --screenshot-dir="$capture_dir" --e2e-timeout=40

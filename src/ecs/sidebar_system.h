@@ -564,8 +564,11 @@ private:
         auto config = preset::ScrollPanel().with_size(ComponentSize{percent(1.f), pixels(std::max(0.f, height - 70.f))})
             .with_debug_name("commit_files_scroll");
         if (commitTreeRows_.empty()) {
-            div(ctx, mk(section.ent(), 3), config.with_label(files->empty() ? empty : "No matching files")
-                .with_font_size(pixels(12)).with_padding(Padding{.left = pixels(14)}));
+            auto emptyPanel = div(ctx, mk(section.ent(), 3), config);
+            div(ctx, mk(emptyPanel.ent(), 0), preset::BodyText(files->empty() ? empty : "No matching files")
+                .with_size(ComponentSize{percent(1.f), pixels(28)})
+                .with_font_size(pixels(12)).with_text_inset(12.f, 0.f)
+                .with_debug_name("commit_files_empty"));
             return;
         }
         ui::virtual_list(ctx, mk(section.ent(), 3), commitTreeRows_.size(), 30.f,
@@ -2018,26 +2021,26 @@ private:
 
         constexpr float DOT_SIZE = 8.0f;
         constexpr float LINE_W = 1.0f;
-        float GRAPH_COL_W = std::min(8.f + static_cast<float>(graph_.columns) * 14.f, std::max(22.f, sidebarW - 160.f));
-        float laneWidth = (GRAPH_COL_W - 8.f) / static_cast<float>(graph_.columns);
+        float GRAPH_COL_W = std::min(4.f + static_cast<float>(graph_.columns) * 12.f, std::max(16.f, sidebarW - 160.f));
+        float laneWidth = (GRAPH_COL_W - 4.f) / static_cast<float>(graph_.columns);
         const auto& graphRow = graph_.rows.at(commit.hash);
-        auto laneX = [&](size_t lane) { return 4.f + (static_cast<float>(lane) + 0.5f) * laneWidth; };
+        auto laneX = [&](size_t lane) { return 2.f + (static_cast<float>(lane) + 0.5f) * laneWidth; };
         constexpr afterhours::Color laneColors[] = {{92, 104, 122, 255}, {91, 112, 122, 255}, {125, 116, 98, 255}, {99, 120, 107, 255}, {122, 102, 115, 255}};
         auto laneColor = [&](size_t lane) { return laneColors[lane % 5]; };
         // Small left inset so the graph line/dots/HEAD ring aren't flush against
         // the window edge (#26).
-        constexpr float ROW_INSET_L = 6.0f;
+        constexpr float ROW_INSET_L = 4.0f;
 
         auto row = div(ctx, mk(parent, baseId),
             preset::SelectableRow(selected)
-                .with_size(ComponentSize{pixels(std::max(0.f, sidebarW - 16.f)), pixels(ROW_H)})
-                .with_margin(Margin{.left = pixels(8), .right = pixels(8)})
+                .with_size(ComponentSize{pixels(std::max(0.f, sidebarW - 8.f)), pixels(ROW_H)})
+                .with_margin(Margin{.left = pixels(4), .right = pixels(4)})
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
                 .with_border(selected ? afterhours::Color{69, 83, 103, 255} : afterhours::Color{0, 0, 0, 0}, pixels(1))
                 .with_padding(Padding{
                     .top = pixels(0), .right = pixels(4),
                     .bottom = pixels(0), .left = pixels(ROW_INSET_L)})
-                .with_gap(pixels(4))
+                .with_gap(pixels(8))
                 .with_debug_name("commit_row"));
         ui::set_tooltip(row.ent(), commit.subject + "\n" + commit.hash + "\n" + commit.decorations);
 
@@ -2093,20 +2096,17 @@ private:
         auto text = div(ctx, mk(row.ent(), 2), ComponentConfig{}
             .with_size(ComponentSize{expand(), pixels(ROW_H)})
             .with_flex_direction(FlexDirection::Row).with_no_wrap()
-            .with_align_items(AlignItems::Center).with_gap(pixels(6))
-            .with_padding(Padding{.right = pixels(8)}));
+            .with_align_items(AlignItems::Center).with_gap(pixels(8))
+            .with_padding(Padding{}));
         div(ctx, mk(text.ent(), 0), preset::BodyText(commit.subject)
             .with_size(ComponentSize{expand(), pixels(22)})
             .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
-            .with_font_size(pixels(13)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_font_size(pixels(13)).with_text_inset(0.f).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("commit_subject"));
         auto metadata = div(ctx, mk(text.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{children(), pixels(20)})
             .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
-            .with_gap(pixels(6)));
-        div(ctx, mk(metadata.ent(), 1), preset::MetaText(relative_time(commit.authorDate))
-            .with_size(ComponentSize{pixels(34), pixels(20)}).with_font_size(pixels(11))
-            .with_alignment(TextAlignment::Left).with_debug_name("commit_age"));
+            .with_gap(pixels(8)));
         if (!badges.empty()) {
             const auto* badge = &badges.front();
             for (const auto& value : badges)
@@ -2123,6 +2123,9 @@ private:
             div(ctx, mk(metadata.ent(), 3), preset::Badge(std::to_string(commentCount), theme::BUTTON_SECONDARY, theme::STATUS_MODIFIED)
                 .with_size(ComponentSize{pixels(22), pixels(18)}).with_font_size(pixels(11))
                 .with_debug_name("commit_comment_badge"));
+        div(ctx, mk(metadata.ent(), 1), preset::MetaText(relative_time(commit.authorDate))
+            .with_size(ComponentSize{pixels(34), pixels(20)}).with_font_size(pixels(11))
+            .with_alignment(TextAlignment::Right).with_text_inset(0.f).with_debug_name("commit_age"));
 
         // Click -> select this commit
         if (row.ent().get<HasClickListener>().down) {

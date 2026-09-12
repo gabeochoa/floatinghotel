@@ -11,3 +11,29 @@ wait_frames 3
 wait_for_refresh
 screenshot improvement_29_branch_commit
 expect_text "feature.txt"
+click_text "Empty checkpoint"
+wait_for_refresh
+screenshot graph_empty_commit
+expect_text "No changed files"
+assert_ui commit_files_empty h=28
+click_text "Merge feature"
+wait_for_refresh
+screenshot graph_merge_first_parent
+expect_text Compare against parent 1
+expect_text feature.txt
+click_ui merge_parent_select
+screenshot graph_merge_choices
+click_text Parent 2
+wait_for_refresh
+screenshot graph_merge_second_parent
+expect_text Compare against parent 2
+expect_text main.txt
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 5
+screenshot graph_zoom
+validate ui_scale=1.40
+validate footer_fixed=true
+assert_ui graph_lane:1 hidden=false

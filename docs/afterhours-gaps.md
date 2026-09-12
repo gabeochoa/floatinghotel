@@ -834,3 +834,15 @@ spacing audit cannot distinguish nested insets from layout errors. The app adds
 framework's screen-rectangle calculation, including scroll offsets. The app
 records unrounded geometry, spacing, parent links, and full text without vendor
 changes. See `docs/ui-layout-dumps.md` for the schema and capture command.
+
+### Immediate plain labels ignore the configured text inset
+
+`draw_text_in_rect` receives the resolved `HasLabel::text_inset`, but its
+single-line path constructs a new `{5, 5}` margin instead. At revision
+`b385dc9`, `.with_text_inset(12, 0)` still draws five pixels from the left,
+and `.with_text_inset(0)` does not remove that margin. The styled and batched
+paths use the supplied inset. Layout padding also affects children, not the
+component's own label. The spacing audit reproduced this in sidebar headers
+and `commit_files_empty`; compare `output/spacing-audit/graph/graph_empty_commit.png`
+with its JSON sidecar. The sidebar geometry fix does not change this renderer
+behavior. A further workaround must preserve code-selection glyph alignment.
