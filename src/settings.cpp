@@ -13,7 +13,9 @@
 #include <afterhours/src/logging.h>
 
 struct Settings::Data {
-    int windowWidth = 1200;
+    int windowWidth = 280;
+    int expandedWindowWidth = 1200;
+    bool windowCollapsed = true;
     int windowHeight = 800;
     int windowX = 100;
     int windowY = 100;
@@ -56,11 +58,16 @@ bool Settings::load_save_file() {
         std::ifstream f(path);
         nlohmann::json j = nlohmann::json::parse(f);
 
-        data_->windowWidth = j.value("window_width", 1200);
-        data_->windowHeight = j.value("window_height", 800);
+        data_->windowHeight = std::clamp(j.value("window_height", 800), 200, 16384);
         data_->windowX = j.value("window_x", 100);
         data_->windowY = j.value("window_y", 100);
         data_->sidebarWidth = j.value("sidebar_width", 280.0f);
+        if (!std::isfinite(data_->sidebarWidth)) data_->sidebarWidth = 280.f;
+        data_->sidebarWidth = std::clamp(data_->sidebarWidth, 200.f, 16384.f);
+        data_->windowCollapsed = j.value("window_shelf_collapsed", true);
+        data_->windowWidth = std::clamp(j.contains("window_shelf_collapsed") ? j.value("window_width", 280) :
+            static_cast<int>(data_->sidebarWidth), 200, 16384);
+        data_->expandedWindowWidth = std::clamp(j.value("expanded_window_width", 1200), 648, 16384);
         data_->commitLogRatio = j.value("commit_log_ratio", 0.4f);
         data_->codeFontSize = bounded_code_font_size(j.value("code_font_size", kDefaultCodeFontSize));
         data_->openRepos =
@@ -104,6 +111,8 @@ void Settings::write_save_file() {
     nlohmann::json j;
     j["window_width"] = data_->windowWidth;
     j["window_height"] = data_->windowHeight;
+    j["window_shelf_collapsed"] = data_->windowCollapsed;
+    j["expanded_window_width"] = data_->expandedWindowWidth;
     j["window_x"] = data_->windowX;
     j["window_y"] = data_->windowY;
     j["sidebar_width"] = data_->sidebarWidth;
@@ -164,6 +173,18 @@ void Settings::set_window_geometry(int x, int y, int w, int h) {
     data_->windowWidth = w;
     data_->windowHeight = h;
     save_if_auto();
+}
+
+bool Settings::get_window_collapsed() const { return data_->windowCollapsed; }
+int Settings::get_expanded_window_width() const { return data_->expandedWindowWidth; }
+
+void Settings::remember_window_size(int width, int height, bool collapsed, int expandedWidth, float sidebarWidth) {
+    if (width <= 0 || height <= 0) return;
+    data_->windowWidth = width;
+    data_->windowHeight = height;
+    data_->windowCollapsed = collapsed;
+    data_->expandedWindowWidth = expandedWidth;
+    data_->sidebarWidth = sidebarWidth;
 }
 
 // Layout

@@ -8,12 +8,41 @@
 #include "../../src/util/review_selection.h"
 #include "../../src/util/navigation.h"
 #include "../../src/util/wrap_text.h"
+#include "../../src/util/code_wrap.h"
 #include "../../src/util/visible_rows.h"
 #include "../../src/util/file_content.h"
 #include "../../src/util/revision_range.h"
 #include <unistd.h>
 #include "../../src/util/lfs_pointer.h"
 #include <fstream>
+
+#ifdef __APPLE__
+TEST(code_wrap_keeps_composed_characters_together) {
+    std::string family = "👨‍👩‍👧‍👦", flag = "🇺🇸", accent = "é";
+    auto text = family + flag + accent;
+    auto ends = code_wrap::character_ends(text);
+    ASSERT_EQ(ends, (std::vector<size_t>{family.size(), family.size() + flag.size(), text.size()}));
+    auto breaks = code_wrap::breaks(text, 1.f, [](std::string_view) { return 1.f; });
+    ASSERT_EQ(breaks, (std::vector<size_t>{0, family.size(), family.size() + flag.size(), text.size()}));
+}
+#endif
+
+TEST(code_wrap_preserves_bytes_and_decoded_boundaries) {
+    std::string text = "  abc\t新しい🙂code  \r";
+    auto measure = [](std::string_view glyph) { return glyph == "\t" ? 4.f : glyph == "\r" ? 0.f : 1.f; };
+    auto breaks = code_wrap::breaks(text, 5.f, measure);
+    std::string restored;
+    for (size_t i = 0; i + 1 < breaks.size(); ++i) {
+        auto part = text.substr(breaks[i], breaks[i + 1] - breaks[i]);
+        ASSERT_FALSE(part.empty());
+        ASSERT_TRUE((static_cast<unsigned char>(part.front()) & 0xc0) != 0x80);
+        restored += part;
+    }
+    ASSERT_EQ(restored, text);
+    ASSERT_EQ(code_wrap::breaks("", 5.f, measure).size(), 2u);
+    ASSERT_EQ(code_wrap::breaks("abcdefgh", 3.f, measure), (std::vector<size_t>{0, 3, 6, 8}));
+    ASSERT_EQ(code_wrap::intersect({2, 7}, 3, 6), (std::pair<size_t, size_t>{0, 3}));
+}
 
 TEST(lfs_availability_is_refreshed_with_repository_generation) {
     char pattern[] = "/tmp/fh-lfs-cache.XXXXXX";

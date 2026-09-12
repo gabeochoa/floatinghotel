@@ -62,7 +62,6 @@ Preload::Preload() {}
 
 Preload& Preload::init(const char* /*title*/) {
     files::init("floatinghotel", resolve_resource_root());
-    afterhours::graphics::set_exit_key(0);
 
     return *this;
 }

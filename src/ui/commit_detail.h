@@ -81,7 +81,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     auto requestKey = [&] {
         return commit_review_scope(repo) + "\n" + std::to_string(repo.diffContext) + ":" + std::to_string(repo.ignoreWhitespace);
     };
-    bool staleRequest = (detailCache.patchFuture.valid() || detailCache.infoFuture.valid()) &&
+    bool staleRequest = (detailCache.patchFuture.valid()) &&
         !navigation::accepts(repo, detailCache.requestStamp, requestKey());
     bool commitJustChanged = staleRequest || detailCache.cachedCommitHash != repo.selectedCommitHash() || detailCache.cachedRepoPath != repo.repoPath ||
         detailCache.cachedParentHash != selectedParent || detailCache.cachedContext != repo.diffContext ||
@@ -97,10 +97,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         detailCache.requestStamp = navigation::stamp(repo, requestKey());
         detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash(),
             selectedParent, repo.diffContext, repo.ignoreWhitespace});
-        detailCache.infoFuture = {};
-        if (reading::is_object_id(repo.selectedCommitHash()))
-            detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", repo.selectedCommitHash(), "--no-patch",
-                "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
         detailCache.cachedCommitHash = repo.selectedCommitHash();
         detailCache.cachedParentHash = selectedParent;
         detailCache.cachedRepoPath = repo.repoPath;
@@ -111,34 +107,24 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         try {
             auto patch = detailCache.patchFuture.get();
             if (!navigation::accepts(repo, detailCache.requestStamp, requestKey())) return;
-            bool unresolved = !reading::is_object_id(repo.selectedCommitHash());
             navigation::resolve_review(repo, detailCache.requestStamp, patch.resolvedCommit, patch.resolvedParent);
-            if (unresolved && reading::is_object_id(patch.resolvedCommit))
-                detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", patch.resolvedCommit, "--no-patch",
-                    "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
             detailCache.cachedCommitHash = repo.selectedCommitHash();
             detailCache.cachedParentHash = selected_commit_parent(repo);
             detailCache.requestStamp = navigation::stamp(repo, requestKey());
             detailCache.commitDetailDiff = std::move(patch.files);
             navigation::remember_review_files(repo, detailCache.commitDetailDiff);
             detailCache.commitDetailError = std::move(patch.error);
+            if (detailCache.commitDetailError.empty()) {
+                auto info = cdv::parse_commit_info(patch.metadata);
+                info.entry.hash = repo.selectedCommitHash();
+                info.entry.shortHash = repo.selectedCommitHash().substr(0, 7);
+                info.entry.decorations = detailCache.entry.decorations;
+                detailCache.entry = std::move(info.entry);
+                detailCache.commitDetailBody = std::move(info.body);
+                detailCache.commitDetailAuthorEmail = std::move(info.authorEmail);
+                detailCache.commitDetailParents = std::move(info.parents);
+            }
         } catch (const std::exception& error) { detailCache.commitDetailError = error.what(); }
-    }
-    if (detailCache.infoFuture.valid() && detailCache.infoFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-        auto infoResult = detailCache.infoFuture.get();
-        if (!navigation::accepts(repo, detailCache.requestStamp, requestKey())) return;
-        detailCache.infoFuture = {};
-        if (infoResult.success()) {
-            auto info = cdv::parse_commit_info(infoResult.stdout_str());
-            info.entry.hash = repo.selectedCommitHash();
-            info.entry.shortHash = repo.selectedCommitHash().substr(0, 7);
-            detailCache.entry = std::move(info.entry);
-            detailCache.commitDetailBody = info.body;
-            detailCache.commitDetailAuthorEmail = info.authorEmail;
-            detailCache.commitDetailParents = info.parents;
-        } else {
-            detailCache.commitDetailError += " Unable to load commit metadata: " + infoResult.stderr_str();
-        }
     }
     const auto* selectedCommit = &detailCache.entry;
 
@@ -161,21 +147,15 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         }
         return lines;
     };
-    auto titleLines = boundedLines(selectedCommit->subject, contentW - 16.f, "ui-bold", 28.f, 2);
+    auto titleLines = boundedLines(selectedCommit->subject, contentW - 100.f, "ui-bold", 20.f, 2);
     std::string titleText;
     for (const auto& line : titleLines) { if (!titleText.empty()) titleText += '\n'; titleText += line; }
-    const float titleHeight = std::max(1.f, static_cast<float>(titleLines.size())) * 36.f;
-    auto paragraph = std::string_view(detailCache.commitDetailBody).substr(0, detailCache.commitDetailBody.find("\n\n"));
-    auto previewLines = boundedLines(paragraph, contentW - 112.f, afterhours::ui::UIComponent::DEFAULT_FONT,
-        16.f, contentW < 680.f ? 1 : 2);
-    std::string previewText;
-    for (const auto& line : previewLines) { if (!previewText.empty()) previewText += '\n'; previewText += line; }
-    const float previewHeight = paragraph.empty() ? 0.f : std::max(28.f, static_cast<float>(previewLines.size()) * 22.f);
-    float headerHeight = 12.f + 20.f + titleHeight + 32.f + previewHeight + 12.f;
+    const float titleHeight = std::max(1.f, static_cast<float>(titleLines.size())) * 26.f;
+    const float headerHeight = titleHeight + 8.f;
     auto heading = div(ctx, mk(parent, 593010), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{percent(1.f), pixels(headerHeight)})
-        .with_padding(Padding{.top = pixels(12), .right = pixels(0), .bottom = pixels(12), .left = pixels(0)})
-        .with_flex_direction(FlexDirection::Column).with_no_wrap()
+        .with_padding(Padding{.top = pixels(4), .right = pixels(0), .bottom = pixels(4), .left = pixels(0)})
+        .with_flex_direction(FlexDirection::Row).with_no_wrap()
         .with_debug_name("commit_heading"));
 
     auto findHost = div(ctx, mk(parent, 593000), ComponentConfig{}.with_skip_grid_snap()
@@ -193,43 +173,70 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     ui::remember_reading_position(repo, scrollContainer.ent(), "commit:" + reviewScope +
         (layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide ? "\nsplit" : "\ninline"),
-        !detailCache.patchFuture.valid() && !detailCache.infoFuture.valid());
+        !detailCache.patchFuture.valid());
     if (review) render_review_queue(ctx, scrollContainer.ent(), nextId++, repo, *review, detailCache);
-
-    auto eyebrow = div(ctx, mk(heading.ent(), 593013), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), pixels(20)})
-        .with_flex_direction(FlexDirection::Row).with_no_wrap());
-    div(ctx, mk(eyebrow.ent(), 0), ComponentConfig{}
-        .with_label("Commit review  /  " + repo.currentBranch)
-        .with_size(ComponentSize{expand(), pixels(20)}).with_font_size(pixels(13))
-        .with_custom_text_color(theme::TEXT_SECONDARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-        .with_debug_name("commit_review_context"));
-    auto backBtn = button(ctx, mk(eyebrow.ent(), nextId++),
-        preset::Button("‹ History")
-            .with_size(ComponentSize{pixels(80), pixels(20)})
-            .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
-            .with_transparent_bg()
-            .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(pixels(13))
-            .with_debug_name("commit_back_btn"));
-
-    if (backBtn) {
-        navigation::open(repo, reading::review("wt"));
-        return;
-    }
 
     auto subjectLabel = div(ctx, mk(heading.ent(), nextId++),
         ComponentConfig{}.with_skip_grid_snap()
             .with_label(titleText)
-            .with_size(ComponentSize{percent(1.0f), pixels(titleHeight)})
+            .with_size(ComponentSize{expand(), pixels(titleHeight)})
             .with_padding(Padding{.top = pixels(0), .right = pixels(0), .bottom = pixels(0), .left = pixels(0)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font("ui-bold", pixels(28))
+            .with_font("ui-bold", pixels(20))
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_roundness(0.0f)
             .with_debug_name("commit_detail_subject"));
     ui::set_tooltip(subjectLabel.ent(), selectedCommit->subject);
+    auto revision = div(ctx, mk(heading.ent(), 593014), ComponentConfig{}
+        .with_label(selectedCommit->shortHash).with_size(ComponentSize{pixels(88), pixels(titleHeight)})
+        .with_font("mono", pixels(13)).with_custom_text_color(theme::TEXT_SECONDARY)
+        .with_debug_name("commit_sticky_revision"));
+    ui::set_tooltip(revision.ent(), selectedCommit->hash);
+
+
+    auto metadataHeader = div(ctx, mk(scrollContainer.ent(), 593012), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row)
+        .with_align_items(AlignItems::Center).with_no_wrap().with_gap(pixels(6))
+        .with_debug_name("commit_meta_compact"));
+    auto metadataWidth = [&](const std::string& text, float size) {
+        return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
+            size * ui::zoom::get()).x / ui::zoom::get() + 12.f;
+    };
+    div(ctx, mk(metadataHeader.ent(), 0), ComponentConfig{}
+        .with_label(selectedCommit->author).with_size(ComponentSize{contentW < 680.f ? expand() :
+            pixels(std::min(160.f, metadataWidth(selectedCommit->author, 14.f))), pixels(28)})
+        .with_font_size(pixels(14)).with_custom_text_color(theme::TEXT_SECONDARY)
+        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_author"));
+    const auto relativeDate = "· " + git_helpers::relative_time(selectedCommit->authorDate, true);
+    auto date = div(ctx, mk(metadataHeader.ent(), 2), ComponentConfig{}
+        .with_label(relativeDate)
+        .with_size(ComponentSize{pixels(metadataWidth(relativeDate, 14.f)), pixels(28)}).with_font_size(pixels(14))
+        .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_relative_date"));
+    ui::set_tooltip(date.ent(), selectedCommit->authorDate);
+    auto hash = div(ctx, mk(metadataHeader.ent(), 3), ComponentConfig{}
+        .with_label("· " + selectedCommit->hash.substr(0, 7))
+        .with_size(ComponentSize{pixels(84), pixels(28)}).with_font("mono", pixels(13))
+        .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("commit_short_hash"));
+    ui::set_tooltip(hash.ent(), selectedCommit->hash);
+    const auto decorations = cdv::parse_decorations(selectedCommit->decorations);
+    if (!decorations.empty() && contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 4),
+        preset::Button(decorations.front().label).with_size(ComponentSize{
+            pixels(std::min(100.f, metadataWidth(decorations.front().label, 12.f) + 8.f)), pixels(22)})
+            .with_transparent_bg().with_border(theme::BORDER, pixels(1)).with_font_size(pixels(12))
+            .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_compact_badge"));
+    if (contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 5), ComponentConfig{}
+        .with_size(ComponentSize{expand(), pixels(28)}));
+    if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(layout.commitMetadataExpanded ? "Less detail" : "Details")
+        .with_size(ComponentSize{pixels(80), pixels(28)}).with_transparent_bg()
+        .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(13)).with_debug_name("commit_meta_toggle")))
+        layout.commitMetadataExpanded = !layout.commitMetadataExpanded;
+
+    if (!detailCache.commitDetailBody.empty() && button(ctx, mk(metadataHeader.ent(), 593011),
+            preset::Button(detailCache.messageExpanded ? "Less" : "Full message")
+                .with_size(ComponentSize{pixels(96), pixels(26)}).with_font_size(pixels(13))
+                .with_transparent_bg().with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_debug_name("commit_message_toggle"))) detailCache.messageExpanded = !detailCache.messageExpanded;
 
     // While reviewing, comments on a commit's hunks are scoped to its SHA and
     // meant to be applied as fixups — make that explicit (mock's fixup banner).
@@ -302,59 +309,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         }
         div(ctx, mk(origin.ent(), 1 + static_cast<int>(count)), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), pixels(static_cast<float>(count - last) * 18.f)}));
-    }
-
-    auto metadataHeader = div(ctx, mk(heading.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap()
-        .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row)
-        .with_align_items(AlignItems::Center).with_no_wrap().with_gap(pixels(6))
-        .with_debug_name("commit_meta_compact"));
-    auto metadataWidth = [&](const std::string& text, float size) {
-        return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
-            size * ui::zoom::get()).x / ui::zoom::get() + 12.f;
-    };
-    div(ctx, mk(metadataHeader.ent(), 0), ComponentConfig{}
-        .with_label(selectedCommit->author).with_size(ComponentSize{contentW < 680.f ? expand() :
-            pixels(std::min(160.f, metadataWidth(selectedCommit->author, 14.f))), pixels(28)})
-        .with_font_size(pixels(14)).with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_author"));
-    const auto relativeDate = "· " + git_helpers::relative_time(selectedCommit->authorDate, true);
-    auto date = div(ctx, mk(metadataHeader.ent(), 2), ComponentConfig{}
-        .with_label(relativeDate)
-        .with_size(ComponentSize{pixels(metadataWidth(relativeDate, 14.f)), pixels(28)}).with_font_size(pixels(14))
-        .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_relative_date"));
-    ui::set_tooltip(date.ent(), selectedCommit->authorDate);
-    auto hash = div(ctx, mk(metadataHeader.ent(), 3), ComponentConfig{}
-        .with_label("· " + selectedCommit->hash.substr(0, 7))
-        .with_size(ComponentSize{pixels(84), pixels(28)}).with_font("mono", pixels(13))
-        .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("commit_short_hash"));
-    ui::set_tooltip(hash.ent(), selectedCommit->hash);
-    const auto decorations = cdv::parse_decorations(selectedCommit->decorations);
-    if (!decorations.empty() && contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 4),
-        preset::Button(decorations.front().label).with_size(ComponentSize{
-            pixels(std::min(100.f, metadataWidth(decorations.front().label, 12.f) + 8.f)), pixels(22)})
-            .with_transparent_bg().with_border(theme::BORDER, pixels(1)).with_font_size(pixels(12))
-            .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_compact_badge"));
-    if (contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 5), ComponentConfig{}
-        .with_size(ComponentSize{expand(), pixels(28)}));
-    if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(layout.commitMetadataExpanded ? "Less detail" : "Details")
-        .with_size(ComponentSize{pixels(80), pixels(28)}).with_transparent_bg()
-        .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(13)).with_debug_name("commit_meta_toggle")))
-        layout.commitMetadataExpanded = !layout.commitMetadataExpanded;
-
-    if (!detailCache.commitDetailBody.empty()) {
-        auto preview = div(ctx, mk(heading.ent(), 593011), ComponentConfig{}.with_skip_grid_snap()
-            .with_size(ComponentSize{percent(1.f), pixels(previewHeight)})
-            .with_flex_direction(FlexDirection::Row).with_no_wrap()
-            .with_padding(Padding{}));
-        div(ctx, mk(preview.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
-            .with_label(previewText)
-            .with_size(ComponentSize{expand(), pixels(previewHeight)}).with_font_size(pixels(16))
-            .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_debug_name("commit_message_preview"));
-        if (button(ctx, mk(preview.ent(), 1), preset::Button(detailCache.messageExpanded ? "Less" : "Full message")
-                .with_size(ComponentSize{pixels(96), pixels(26)}).with_font_size(pixels(13))
-                .with_transparent_bg().with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_debug_name("commit_message_toggle"))) detailCache.messageExpanded = !detailCache.messageExpanded;
     }
 
     std::istringstream parentStream(detailCache.commitDetailParents);
@@ -548,7 +502,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("commit_sep"));
 
-    if (detailCache.patchFuture.valid() || detailCache.infoFuture.valid()) {
+    if (detailCache.patchFuture.valid()) {
         div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("Loading commit details...")
             .with_size(ComponentSize{percent(1.f), pixels(50)}).with_font_size(pixels(14))
             .with_debug_name("commit_detail_loading"));
@@ -788,7 +742,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
                 .with_debug_name("diff_sep"));
     }
-    if (!detailCache.patchFuture.valid() && !detailCache.infoFuture.valid() && detailCache.commitDetailError.empty()) {
+    if (!detailCache.patchFuture.valid() && detailCache.commitDetailError.empty()) {
         ui::render_diff(ctx, scrollContainer.ent(),
                                detailCache.commitDetailDiff,
                                layout.mainContent.width,

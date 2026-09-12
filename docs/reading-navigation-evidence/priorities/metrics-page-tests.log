@@ -1,0 +1,11 @@
+--- Compiling test_diff_metrics ---
+--- Running test_diff_metrics ---
+  diff_metrics_reuse_published_content_across_view_copies      OK
+  new_content_gets_new_metrics_even_at_the_same_path           OK
+  a_bounded_source_page_reuses_all_wrap_measurements           OK
+
+3/3 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

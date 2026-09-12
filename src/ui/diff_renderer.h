@@ -37,9 +37,14 @@ inline void begin_diff_comment(ecs::ReviewComponent& review, const std::string& 
 
 inline std::vector<afterhours::ui::TextSpan> highlighted_code(
     const std::string& prefix, const std::string& content, const std::string& path,
-    bool visibleWhitespace = false, bool hasNewline = true) {
+    bool visibleWhitespace = false, bool hasNewline = true,
+    const std::string* original = nullptr, size_t offset = 0, bool finalFragment = true, const std::string& ending = "") {
     std::vector<afterhours::ui::TextSpan> spans{{prefix, theme::TEXT_SECONDARY}};
-    auto tokens = code_highlight::token_cache().get(code_highlight::display_text(content, visibleWhitespace, true, hasNewline), path);
+    const auto& source = original ? *original : content;
+    auto tokens = code_highlight::token_cache().get(code_highlight::display_text(source, visibleWhitespace), path);
+    size_t begin = code_highlight::display_text(std::string_view(source).substr(0, offset), visibleWhitespace).size();
+    size_t end = begin + code_highlight::display_text(content, visibleWhitespace).size();
+    size_t position = 0;
     for (const auto& token : *tokens) {
         auto color = theme::TEXT_PRIMARY;
         switch (token.kind) {
@@ -49,8 +54,12 @@ inline std::vector<afterhours::ui::TextSpan> highlighted_code(
             case code_highlight::Kind::Number: color = {215, 185, 145, 255}; break;
             case code_highlight::Kind::Comment: color = {117, 129, 142, 255}; break;
         }
-        spans.push_back({token.text, color});
+        auto first = std::clamp(begin, position, position + token.text.size()) - position;
+        auto last = std::clamp(end, position, position + token.text.size()) - position;
+        if (last > first) spans.push_back({token.text.substr(first, last - first), color});
+        position += token.text.size();
     }
+    if (visibleWhitespace && finalFragment) spans.push_back({ending.empty() ? code_highlight::display_text(source.ends_with('\r') ? "\r" : "", true, true, hasNewline) : ending, theme::TEXT_SECONDARY});
     return spans;
 }
 
@@ -79,6 +88,7 @@ struct Rec {
     char sign = ' ';
     int oldLine = 0;
     int newLine = 0;
+    size_t sourceOffset = 0;
 };
 
 struct State {
@@ -132,11 +142,28 @@ inline float mw(const Session& s, const std::string& t) {
 
 inline float content_x_offset(const Session& s, const std::string& gutter) {
     constexpr float afterhoursTextInsetPx = 5.f;
-    return afterhoursTextInsetPx + mw(s, gutter);
+    return afterhoursTextInsetPx + mw(s, std::string(gutter.size(), ' '));
 }
 
 inline float code_mw(const Session& s, const std::string& raw) {
     return mw(s, code_highlight::display_text(raw, s.visibleWhitespace));
+}
+
+inline std::string ending_label(const Session& session, const std::string& text, bool newline, float available) {
+    if (!session.visibleWhitespace) return "";
+    auto label = code_highlight::display_text(text.ends_with('\r') ? "\r" : "", true, true, newline);
+    if (mw(session, label) > available) label = newline ? text.ends_with('\r') ? " CRLF" : " LF" : " EOF";
+    if (mw(session, label) > available) label = "*";
+    return label;
+}
+
+inline std::vector<size_t> wrapped_rows(const Session& session, const std::string& text, float available, bool newline) {
+    auto breaks = diff_metrics().wraps(text, available, session.fontSize, session.visibleWhitespace,
+        [&](std::string_view glyph) { return code_mw(session, std::string(glyph)); });
+    if (session.visibleWhitespace && !text.empty() &&
+        code_mw(session, text.substr(breaks[breaks.size() - 2])) + mw(session, ending_label(session, text, newline, available)) > available)
+        breaks.push_back(text.size());
+    return breaks;
 }
 
 inline bool found_line(const Session* s, const std::string& file, int line, char sign) {
@@ -160,10 +187,12 @@ inline void render_changed_range(UIContext<InputAction>& ctx, Entity& entity,
 }
 
 inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
-                              Session& s, const std::string& content, float prefix) {
-    size_t at = std::min(s.findMatch->column, content.size());
+                              Session& s, const std::string& content, float prefix, size_t sourceOffset = 0) {
+    auto range = code_wrap::intersect({s.findMatch->column, s.findMatch->column + s.findQuery.size()}, sourceOffset, sourceOffset + content.size());
+    if (range.first == range.second) return;
+    size_t at = range.first;
     float x = prefix + code_mw(s, content.substr(0, at));
-    float width = code_mw(s, content.substr(at, s.findQuery.size()));
+    float width = code_mw(s, content.substr(at, range.second - range.first));
     div(ctx, mk(lineEntity, 90002), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{pixels(width / zoom::get()), percent(1.f)})
         .with_absolute_position(x / zoom::get(), 0.f)
@@ -217,15 +246,18 @@ inline std::string build_copy_text(State& st, bool withLocation) {
         out += "\n";
     }
     bool emitted = false;
+    int previous = i1;
     for (int k = i1; k <= i2; ++k) {
         if (st.lastLines[k].side != st.lastLines[i1].side ||
             st.lastLines[k].filePath != st.lastLines[i1].filePath) continue;
         const std::string& c = st.lastLines[k].content;
         int a = std::min((k == i1) ? c1 : 0, (int)c.size());
         int b = std::min((k == i2) ? c2 : (int)c.size(), (int)c.size());
-        if (emitted) out += "\n";
+        if (emitted && (st.lastLines[k].sourceOffset == 0 ||
+            st.lastLines[k].lineNo != st.lastLines[previous].lineNo || st.lastLines[k].sign != st.lastLines[previous].sign)) out += "\n";
         out += c.substr(a, b - a);
         emitted = true;
+        previous = k;
     }
     return out;
 }
@@ -240,11 +272,11 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     auto colAt = [&](const Rec& r) -> int {
         float rel = mx - r.contentX0;
         if (rel <= 0) return 0;
-        int n = (int)r.content.size();
-        float best = 1e30f; int bc = 0;
-        for (int c = 0; c <= n; ++c) {
-            float d = std::fabs(code_mw(sess, r.content.substr(0, c)) - rel);
-            if (d < best) { best = d; bc = c; }
+        float best = std::fabs(rel);
+        int bc = 0;
+        for (size_t column : code_wrap::character_ends(r.content)) {
+            float distance = std::fabs(code_mw(sess, r.content.substr(0, column)) - rel);
+            if (distance < best) { best = distance; bc = static_cast<int>(column); }
         }
         return bc;
     };
@@ -300,9 +332,9 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
 namespace diff_detail {
 
 // Diff colors — all defined in theme.h, aliased here for brevity
-const auto& DIFF_ADD_BG    = theme::DIFF_ADD_BG;
-const auto& DIFF_DEL_BG    = theme::DIFF_DEL_BG;
-const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
+inline const auto& DIFF_ADD_BG    = theme::DIFF_ADD_BG;
+inline const auto& DIFF_DEL_BG    = theme::DIFF_DEL_BG;
+inline const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
 
 inline float code_line_height() {
     return Settings::get().get_code_font_size() + 8.f;
@@ -440,7 +472,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               const std::string& filePath = "",
                               diff_sel::Session* sel = nullptr,
                               code_highlight::Range changed = {},
-                              bool hasNewline = true, bool moved = false, bool fullContent = false) {
+                              bool hasNewline = true, bool moved = false, bool fullContent = false,
+                              size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
@@ -474,8 +507,11 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     // The dedicated sign column makes add/del/context scannable without
     // relying on background color alone.
     std::string gutter = code_gutter::prefix(oldNum, newNum, sign, fullContent);
+    if (sourceOffset) gutter.assign(gutter.size(), ' ');
     std::string label = gutter + content;
 
+    float available = std::max(1.f, contentWidth * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
+    auto ending = diff_sel::ending_label(*sel, original ? *original : content, hasNewline, available);
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
     auto lineDiv = div(ctx, mk(parent, id),
         ComponentConfig{}.with_skip_grid_snap()
@@ -484,7 +520,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_border_left(prefix == '+' ? theme::DIFF_ADD_TEXT : prefix == '-' ? theme::DIFF_DEL_TEXT : bgColor, pixels(2))
             .with_custom_text_color(textColor)
             .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
-                                                sel && sel->visibleWhitespace, hasNewline))
+                                                sel && sel->visibleWhitespace, hasNewline, original, sourceOffset, finalFragment, ending))
             .with_font("mono", pixels(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
@@ -494,6 +530,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("diff_line"));
     if (moved) set_tooltip(lineDiv.ent(), "Moved unchanged code");
+    if (sel->visibleWhitespace && finalFragment) set_tooltip(lineDiv.ent(), !hasNewline ? "No newline at end of file" :
+        (original ? *original : content).ends_with('\r') ? "Line ending: CRLF" : "Line ending: LF");
 
     if (sel && sel->enabled) {
         // Register this line (using the prior frame's resolved rect) so the next
@@ -508,9 +546,9 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                                   : (!oldNum.empty() ? std::stoi(oldNum) : 0);
         diff_sel::state().curLines.push_back(
             {lineDiv.ent().id, content, filePath, lno, r, cx0, 0, prefix,
-             oldNum.empty() ? 0 : std::stoi(oldNum), newNum.empty() ? 0 : std::stoi(newNum)});
+             oldNum.empty() ? 0 : std::stoi(oldNum), newNum.empty() ? 0 : std::stoi(newNum), sourceOffset});
         if (diff_sel::found_line(sel, filePath, lno, prefix))
-            diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, prefixW);
+            diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, prefixW, sourceOffset);
 
         // Draw the selection highlight for the covered column range, if any.
         auto it = diff_sel::state().hl.find(lineDiv.ent().id);
@@ -875,37 +913,34 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     int newLine = hunk.newStart;
 
     auto changedRanges = code_highlight::hunk_ranges(hunk.lines);
-    for (auto& line : hunk.lines) {
-        // Always consume an id per line so a given line keeps a stable entity
-        // id across frames whether or not it's built (avoids scroll churn).
-        int lineId = nextId++;
-        char findSign = line.empty() ? ' ' : line.front();
-        if (sel && sel->findNavigate && vp &&
-            diff_sel::found_line(sel, fileDiff.filePath, findSign == '-' ? oldLine : newLine, findSign))
-            vp->reveal();
-        if (!vp || !vp->active) {
-            render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
-                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
-                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
-                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())),
-                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())), fileDiff.isFullContent);
-        } else if (vp->visible(diff_detail::code_line_height())) {
-            vp->flush(ctx, parent, nextId);
-            render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
-                             lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
-                             changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
-                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())),
-                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())), fileDiff.isFullContent);
-            vp->built(diff_detail::code_line_height());
-        } else {
-            // Offscreen: advance line-number counters so gutters stay correct
-            // when this line scrolls into view, but don't build the div.
-            char prefix = line.empty() ? ' ' : line[0];
-            if (prefix == '+') ++newLine;
-            else if (prefix == '-') ++oldLine;
-            else { ++oldLine; ++newLine; }
-            vp->skipped(diff_detail::code_line_height());
+    for (size_t index = 0; index < hunk.lines.size(); ++index) {
+        const auto& line = hunk.lines[index];
+        char sign = line.empty() ? ' ' : line.front();
+        std::string content = line.empty() ? "" : line.substr(1);
+        auto gutter = code_gutter::prefix(sign == '+' ? "" : std::to_string(oldLine),
+            sign == '-' ? "" : std::to_string(newLine), sign, fileDiff.isFullContent);
+        float width = lineWidth > 0 ? lineWidth : contentWidth;
+        float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
+        auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index));
+        for (size_t part = 0; part + 1 < breaks.size(); ++part) {
+            int lineId = nextId++;
+            auto begin = breaks[part], end = breaks[part + 1];
+            if (sel->findNavigate && vp &&
+                diff_sel::found_line(sel, fileDiff.filePath, sign == '-' ? oldLine : newLine, sign) &&
+                sel->findMatch->column >= begin && (sel->findMatch->column < end || part + 2 == breaks.size()))
+                vp->reveal();
+            if (!vp || vp->visible(diff_detail::code_line_height())) {
+                if (vp) vp->flush(ctx, parent, nextId);
+                int oldNumber = oldLine, newNumber = newLine;
+                render_diff_line(ctx, parent, lineId, std::string(1, sign) + content.substr(begin, end - begin),
+                    oldNumber, newNumber, width, fileDiff.filePath, sel,
+                    code_wrap::intersect(changedRanges[index], begin, end), !hunk.noNewline.contains(index),
+                    hunk.movedLines.contains(index), fileDiff.isFullContent, begin, part + 2 == breaks.size(), &content);
+                if (vp) vp->built(diff_detail::code_line_height());
+            } else vp->skipped(diff_detail::code_line_height());
         }
+        if (sign != '+') ++oldLine;
+        if (sign != '-') ++newLine;
     }
 }
 
@@ -921,7 +956,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                             SbsKind kind, bool leftBorder,
                             const std::string& filePath, diff_sel::Session* sel,
                             code_highlight::Range changed = {},
-                            bool hasNewline = true, bool moved = false) {
+                            bool hasNewline = true, bool moved = false, size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr, float available = 0.f) {
     afterhours::Color bg, fg;
     char sign = ' ';
     // Only the background carries add/del color; text stays one color.
@@ -939,14 +974,17 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     }
 
     if (moved) bg = afterhours::Color{35, 55, 85, 255};
-    std::string label = code_gutter::pad(num) + "  " + sign + " " + content;
+    std::string gutter = code_gutter::pad(num) + "  " + sign + " ";
+    if (sourceOffset) gutter.assign(gutter.size(), ' ');
+    std::string label = gutter + content;
 
+    auto ending = diff_sel::ending_label(*sel, original ? *original : content, hasNewline, available);
     auto cfg = ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{percent(0.5f), pixels(code_line_height())})
         .with_custom_background(bg)
         .with_custom_text_color(fg)
         .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
-                                            sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline))
+                                            sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline, original, sourceOffset, finalFragment, ending))
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
         .with_font("mono", pixels(Settings::get().get_code_font_size()))
         .with_alignment(TextAlignment::Left)
@@ -958,6 +996,8 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
     auto cell = div(ctx, mk(row, id), cfg);
     if (moved) set_tooltip(cell.ent(), "Moved unchanged code");
+    if (sel->visibleWhitespace && finalFragment) set_tooltip(cell.ent(), !hasNewline ? "No newline at end of file" :
+        (original ? *original : content).ends_with('\r') ? "Line ending: CRLF" : "Line ending: LF");
     if (sel && sel->enabled && kind != SbsKind::Empty) {
         auto rect = afterhours::ui::detail::apply_scroll_offset(
             cell.ent(), cell.ent().get<afterhours::ui::UIComponent>().rect());
@@ -967,10 +1007,10 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             {cell.ent().id, content, filePath, num.empty() ? 0 : std::stoi(num),
              rect, rect.x + prefix, leftBorder ? 1 : 2, sign,
              leftBorder && !num.empty() ? std::stoi(num) : 0,
-             !leftBorder && !num.empty() ? std::stoi(num) : 0});
+             !leftBorder && !num.empty() ? std::stoi(num) : 0, sourceOffset});
         if (diff_sel::found_line(sel, filePath, num.empty() ? 0 : std::stoi(num), sign) &&
             (kind != SbsKind::Context || !leftBorder))
-            diff_sel::render_find_match(ctx, cell.ent(), *sel, content, prefix);
+            diff_sel::render_find_match(ctx, cell.ent(), *sel, content, prefix, sourceOffset);
         auto it = diff_sel::state().hl.find(cell.ent().id);
         if (it != diff_sel::state().hl.end()) {
             auto a = std::min(static_cast<size_t>(it->second.first), content.size());
@@ -1085,38 +1125,44 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
     auto emitRow = [&](const std::string& lNum, const std::string& lContent,
                        SbsKind lKind, const std::string& rNum,
                        const std::string& rContent, SbsKind rKind) {
-        // Same id-per-row discipline as the inline path so a row keeps its
-        // entity across frames whether or not it was built.
-        int rowId = nextId++;
-        if (sel && sel->findNavigate && vp &&
-            ((!lNum.empty() && diff_sel::found_line(sel, fileDiff.filePath, std::stoi(lNum),
-                                                   lKind == SbsKind::Del ? '-' : ' ')) ||
-             (!rNum.empty() && diff_sel::found_line(sel, fileDiff.filePath, std::stoi(rNum),
-                                                   rKind == SbsKind::Add ? '+' : ' '))))
-            vp->reveal();
-        if (culling) {
-            if (!vp->visible(diff_detail::code_line_height())) {
+        float gutter = diff_sel::content_x_offset(*sel, code_gutter::pad(lNum.size() > rNum.size() ? lNum : rNum) + "  + ");
+        float available = std::max(1.f, contentWidth * zoom::get() * .5f - gutter - 12.f);
+        auto left = diff_sel::wrapped_rows(*sel, lContent, available, lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)));
+        auto right = diff_sel::wrapped_rows(*sel, rContent, available, rNum.empty() || !newNoNewline.contains(std::stoi(rNum)));
+        auto changes = lKind == SbsKind::Del && rKind == SbsKind::Add
+            ? code_highlight::changed_ranges(lContent, rContent)
+            : std::pair<code_highlight::Range, code_highlight::Range>{};
+        for (size_t part = 0; part + 1 < std::max(left.size(), right.size()); ++part) {
+            int rowId = nextId++;
+            bool hasLeft = part + 1 < left.size(), hasRight = part + 1 < right.size();
+            auto found = [&](bool exists, const std::vector<size_t>& breaks, const std::string& num, char sign) {
+                return exists && !num.empty() && diff_sel::found_line(sel, fileDiff.filePath, std::stoi(num), sign) &&
+                    sel->findMatch->column >= breaks[part] &&
+                    (sel->findMatch->column < breaks[part + 1] || part + 2 == breaks.size());
+            };
+            if (sel->findNavigate && vp && (found(hasLeft, left, lNum, lKind == SbsKind::Del ? '-' : ' ') ||
+                found(hasRight, right, rNum, rKind == SbsKind::Add ? '+' : ' '))) vp->reveal();
+            if (culling && !vp->visible(diff_detail::code_line_height())) {
                 vp->skipped(diff_detail::code_line_height());
-                return;
+                continue;
             }
-            vp->flush(ctx, parent, nextId);
-            vp->built(diff_detail::code_line_height());
-        }
-        auto rowDiv = div(ctx, mk(parent, rowId),
-            ComponentConfig{}.with_skip_grid_snap()
+            if (vp) { vp->flush(ctx, parent, nextId); vp->built(diff_detail::code_line_height()); }
+            auto rowDiv = div(ctx, mk(parent, rowId), ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{w, pixels(diff_detail::code_line_height())})
-                .with_flex_direction(FlexDirection::Row)
-                .with_roundness(0.0f)
-                .with_debug_name("sbs_row"));
-        std::pair<code_highlight::Range, code_highlight::Range> changes;
-        if (lKind == SbsKind::Del && rKind == SbsKind::Add)
-            changes = code_highlight::changed_ranges(lContent, rContent);
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true, fileDiff.filePath, sel, changes.first,
-                                     lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)),
-                                     !lNum.empty() && oldMoved.contains(std::stoi(lNum)));
-        diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false, fileDiff.filePath, sel, changes.second,
-                                     rNum.empty() || !newNoNewline.contains(std::stoi(rNum)),
-                                     !rNum.empty() && newMoved.contains(std::stoi(rNum)));
+                .with_flex_direction(FlexDirection::Row).with_no_wrap().with_roundness(0.f).with_debug_name("sbs_row"));
+            auto cell = [&](bool exists, const std::vector<size_t>& breaks, const std::string& num,
+                            const std::string& text, SbsKind kind, bool isLeft, code_highlight::Range change) {
+                size_t begin = exists ? breaks[part] : 0, end = exists ? breaks[part + 1] : 0;
+                diff_detail::render_sbs_cell(ctx, rowDiv.ent(), isLeft ? 0 : 1, exists ? num : "",
+                    text.substr(begin, end - begin), exists ? kind : SbsKind::Empty, isLeft, fileDiff.filePath, sel,
+                    code_wrap::intersect(change, begin, end), num.empty() ||
+                        !(isLeft ? oldNoNewline : newNoNewline).contains(std::stoi(num)),
+                    !num.empty() && (isLeft ? oldMoved : newMoved).contains(std::stoi(num)), begin,
+                    exists && part + 2 == breaks.size(), exists ? &text : nullptr, available);
+            };
+            cell(hasLeft, left, lNum, lContent, lKind, true, changes.first);
+            cell(hasRight, right, rNum, rContent, rKind, false, changes.second);
+        }
     };
 
     auto flush = [&]() {
@@ -1487,7 +1533,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
     bool selEnabled = true;
     if (selEnabled) {
-        std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline");
+        std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline") +
+            std::to_string(contentWidth) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(Settings::get().get_code_font_size()) +
+            (sess.visibleWhitespace ? ":spaces" : ":plain");
         for (const auto& diff : diffs) if (fileVisible(diff)) context += "\n" + diff.filePath + diff_metrics().signature(diff);
         if (diff_sel::state().context != context) {
             diff_sel::reset();
@@ -1549,16 +1597,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
         contentParent = &scrollContainer.ent();
     }
     float codeWidth = contentWidth;
-    for (const auto& file : diffs) {
-        if (!fileVisible(file)) continue;
-        float width = diff_metrics().width(file, sess.fontSize, sess.visibleWhitespace, sideBySide,
-            [&](const std::string& line) {
-                float measured = diff_sel::mw(sess, code_highlight::display_text(line, sess.visibleWhitespace, true) +
-                    std::string(file.isFullContent ? 8 : sideBySide ? 10 : 16, ' ')) + (sess.visibleWhitespace ? 90.f : 24.f);
-                return sideBySide ? measured * 2.f : measured;
-            });
-        codeWidth = std::max(codeWidth, width / zoom::get());
-    }
 
     diff_detail::DiffViewport vp;
     {
@@ -1609,8 +1647,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             (sess.findMatch && sess.findMatch->file == fileDiff.filePath))) review->foldedFiles.erase(fileFoldKey);
         bool fileFolded = review && review->foldedFiles.contains(fileFoldKey);
         const bool narrowFile = contentWidth < 600.f;
-        const float actionsHeight = !fileDiff.isFullContent && narrowFile &&
-            (contentWidth < 420.f || diff_sel::state().hasSel) ? 64.f : 32.f;
+        const float actionsHeight = !fileDiff.isFullContent && narrowFile ? 64.f : 32.f;
         float fileHeaderHeight = fileDiff.isFullContent ? (narrowFile ? 64.f : 40.f)
             : narrowFile ? 40.f + actionsHeight : 44.f;
 
@@ -1690,7 +1727,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
             .with_debug_name("file_header_btns"));
         if (!fileDiff.isFullContent) {
-            std::string stateLabel = fileDiff.isRenamed ? "Renamed" : fileDiff.isNew ? "New file" :
+            std::string stateLabel = fileDiff.isPartialContent ? "Partial preview" : fileDiff.isRenamed ? "Renamed" : fileDiff.isNew ? "New file" :
                 fileDiff.isDeleted ? "Deleted" : fileDiff.isBinary ? "Binary" : "";
             const auto unresolved = review ? ecs::unresolved_file_count(*review, reviewScope,
                 fileDiff.filePath, fileDiff.oldPath) : 0;
@@ -1790,7 +1827,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (showApproveFile) {
             bool viewed = ecs::file_reviewed(*review, reviewScope, fileDiff);
             auto approveFileBtn = button(ctx, mk(fileBtns.ent(), 0),
-                preset::Button("")
+                preset::Button("", !fileDiff.isPartialContent)
                     .with_size(ComponentSize{pixels(78), pixels(28)})
                     .with_padding(Padding{
                         .top = pixels(6), .right = pixels(4),
@@ -1800,6 +1837,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font_size(pixels(12))
                     .with_debug_name("approve_file_btn"));
+            if (fileDiff.isPartialContent) set_tooltip(approveFileBtn.ent(),
+                "Only part of this file is loaded. A preview cannot mark the whole file reviewed.");
             auto checkbox = div(ctx, mk(approveFileBtn.ent(), 0), ComponentConfig{}
                 .with_size(ComponentSize{pixels(16), pixels(16)})
                 .with_border(viewed ? theme::DIFF_ADD_TEXT : theme::TEXT_TERTIARY, pixels(1))

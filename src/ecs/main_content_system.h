@@ -320,7 +320,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 bool dismissPicker = layout.filePickerOpen;
                 if (effect.changed) {
                     layout.diffFindOpen = layout.shelfCollapsed = false;
-                    layout.reviewTab = repoPtr->selectedFileStaged() ? LayoutComponent::ReviewTab::Staged : LayoutComponent::ReviewTab::ToReview;
+                    if (const auto* working = std::get_if<reading::WorkingChanges>(&repoPtr->workspace().review().destination);
+                        working && repoPtr->workspace().active() == reading::Slot::Review) {
+                        const bool untracked = std::find(repoPtr->untrackedFiles.begin(), repoPtr->untrackedFiles.end(),
+                            repoPtr->selectedFilePath()) != repoPtr->untrackedFiles.end();
+                        layout.reviewTab = working->staged ? LayoutComponent::ReviewTab::Staged :
+                            untracked ? LayoutComponent::ReviewTab::Untracked : LayoutComponent::ReviewTab::ToReview;
+                    }
                     if (auto* review = find_singleton<ReviewComponent, ActiveTab>()) {
                         review->sinceReviewOpen = false;
                         if (effect.reviewing && review->reviewing != *effect.reviewing) {
@@ -390,7 +396,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             const auto* recentReview = workspace.document(workspace.review());
             const auto* recentSource = workspace.recent(reading::Slot::Source);
             std::optional<reading::DocumentId> activate;
-            bool closeSource = false;
+            std::optional<reading::DocumentId> closeDocument;
             for (const auto& document : workspace.documents()) {
                 const auto* source = std::get_if<reading::SourceLocation>(&document.location);
                 const bool active = document.id == workspace.active_id();
@@ -401,7 +407,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     if (const auto* commit = std::get_if<reading::CommitReview>(&review.destination))
                         title = "Commit " + reading::revision_text(commit->commit).substr(0, 7);
                     else if (const auto* changes = std::get_if<reading::WorkingChanges>(&review.destination))
-                        title = changes->staged ? "Staged changes" : "Working changes";
+                        title = changes->staged ? "Staged changes" : "Unstaged changes";
                     else title = "Comparison";
                 }
                 const float textWidth = afterhours::ui::measure_text_line(title, afterhours::ui::UIComponent::DEFAULT_FONT,
@@ -436,11 +442,45 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ui::set_tooltip(tab.ent(), source ? source->destination.path + " @ " +
                     (reading::revision_text(source->destination.revision).empty() ? "working tree" : reading::revision_text(source->destination.revision)) : title);
                 if (tab) activate = document.id;
-                if (source && active && button(ctx, mk(tab.ent(), 20), preset::Button("×")
-                        .with_size(ComponentSize{pixels(24), percent(1.f)})
-                        .with_debug_name("content_source_close"))) closeSource = true;
+                auto close = button(ctx, mk(tab.ent(), 20), preset::Button("")
+                    .with_size(ComponentSize{pixels(24), percent(1.f)})
+                    .with_padding(Padding{.top = pixels(0), .right = pixels(0), .bottom = pixels(0), .left = pixels(0)})
+                    .with_align_items(AlignItems::Center).with_justify_content(JustifyContent::Center)
+                    .with_transparent_bg().with_custom_hover_bg({0, 0, 0, 0})
+                    .with_roundness(0.f).with_corner_radius(0.f)
+                    .with_debug_name("close_document_" + std::to_string(document.id.value)));
+                auto closeRect = afterhours::ui::detail::apply_scroll_offset(close.ent(), close.ent().get<afterhours::ui::UIComponent>().rect());
+                const float highlightSize = 20.f * ui::zoom::get();
+                Rectangle highlightRect{closeRect.x + (closeRect.width - highlightSize) * .5f,
+                    closeRect.y + (closeRect.height - highlightSize) * .5f, highlightSize, highlightSize};
+                const bool closeHovered = afterhours::ui::is_mouse_inside(
+                    ctx.mouse.pos, highlightRect);
+                div(ctx, mk(close.ent(), 0), ComponentConfig{}.with_label("×")
+                    .with_size(ComponentSize{pixels(20), pixels(20)}).with_font_size(pixels(14))
+                    .with_text_inset(0.f).with_alignment(TextAlignment::Center)
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
+                    .with_custom_background(closeHovered ? theme::BUTTON_SECONDARY : afterhours::Color{0, 0, 0, 0})
+                    .with_corner_radius(4.f).with_debug_name("document_close_glyph"));
+                if (close) closeDocument = document.id;
+                if (ctx.is_right_click(tab.ent().id)) {
+                    auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
+                    auto target = [ownerId = owner ? owner->id : -1, path = repoPtr->repoPath]() -> RepoComponent* {
+                        auto* current = find_singleton_entity<RepoComponent, ActiveTab>();
+                        return current && current->id == ownerId && current->get<RepoComponent>().repoPath == path
+                            ? &current->get<RepoComponent>() : nullptr;
+                    };
+                    const auto id = document.id;
+                    ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+                        ui::ContextMenuItem::item("Close", [target, id] { if (auto* repo = target()) navigation::close(*repo, id); }, true, "Cmd+W"),
+                        ui::ContextMenuItem::item("Close Others", [target, id] { if (auto* repo = target()) navigation::close_others(*repo, id); }),
+                        ui::ContextMenuItem::item("Close Tabs to the Right", [target, id] { if (auto* repo = target()) navigation::close_others(*repo, id, true); }),
+                        ui::ContextMenuItem::separator(),
+                        ui::ContextMenuItem::item("Reopen Closed Tab", [target] { if (auto* repo = target()) navigation::reopen_closed(*repo); },
+                            !workspace.closed().empty(), "Cmd+Shift+T")
+                    });
+                }
             }
-            if (closeSource) navigation::close_source(*repoPtr);
+            if (closeDocument) navigation::close(*repoPtr, *closeDocument);
             else if (activate) navigation::activate(*repoPtr, *activate);
         }
 
@@ -472,9 +512,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (!repoPtr->comparisonOpen()) repoPtr->comparisonFuture = {};
             if (repoPtr->selectedCommitHash().empty()) {
                 if (auto* detail = find_singleton<CommitDetailCache, ActiveTab>();
-                    detail && (detail->patchFuture.valid() || detail->infoFuture.valid())) {
+                    detail && (detail->patchFuture.valid())) {
                     detail->patchFuture = {};
-                    detail->infoFuture = {};
                     detail->cachedCommitHash.clear();
                 }
             }
@@ -486,7 +525,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (reviewPtr && hasRepo && repoPtr->hasLoadedOnce && !repoPtr->isRefreshing && !repoPtr->refreshRequested) {
             auto scope = selected_review_storage_scope(*repoPtr, *reviewPtr);
             if (reviewPtr->storageScope != scope || reviewPtr->storageRepoPath != repoPtr->repoPath) {
-                bool initialScope = reviewPtr->storageScope.empty();
                 if (!review_store::switch_review_scope(repoPtr->repoPath, scope, *reviewPtr, !app_state::testModeEnabled)) {
                     div(ctx, mk(mainBg.ent(), 591000), ComponentConfig{}
                         .with_label("Cannot save the previous review. Keep this tab open and retry after checking storage.")
@@ -494,8 +532,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     return;
                 }
                 navigation::restore_draft(*repoPtr, *reviewPtr);
-                if (initialScope && !app_state::testModeEnabled && std::filesystem::exists(review_store::review_path(repoPtr->repoPath)))
-                    afterhours::toast::send_info(ctx, "Older unscoped review kept in your local review folder", 4.f);
             }
         }
         if (reviewPtr && hasRepo) {
@@ -613,15 +649,19 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             !repo.selectedFilePath().empty();
         bool hasSelectedCommit = !repo.selectedCommitHash().empty();
 
-        // In the ballroom: show EVERY working-tree file stacked in one scroll so
-        // you can approve -> scroll -> approve without reopening files. A selected
-        // commit still takes over (to review/comment that commit's diff).
-        if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit && !(hasSelectedFile && repo.selectedFileStaged())) {
+        if (reviewPtr && reviewPtr->reviewing && std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination)) {
+            const bool staged = repo.selectedFileStaged();
+            const auto& files = staged ? repo.stagedDiff : repo.currentDiff;
+            const std::string scope = staged ? "index" : "wt";
             float diffW = layout.mainContent.width;
+            div(ctx, mk(mainBg.ent(), 592009), ComponentConfig{}
+                .with_label(std::string(staged ? "Staged changes" : "Unstaged changes") + " · " + std::to_string(files.size()) + (files.size() == 1 ? " file" : " files"))
+                .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font("ui-bold", pixels(20))
+                .with_debug_name("working_review_heading"));
             auto baselineActions = div(ctx, mk(mainBg.ent(), 592010), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
                 .with_gap(pixels(4)));
-            if (!reviewPtr->snapshotFuture.valid()) {
+            if (!staged && !reviewPtr->snapshotFuture.valid()) {
                 if (button(ctx, mk(baselineActions.ent(), 0), preset::Button("Save review baseline")
                     .with_size(ComponentSize{pixels(165), pixels(28)}).with_debug_name("save_review_baseline")))
                     start_review_snapshot(repo, *reviewPtr, true);
@@ -632,12 +672,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }
             div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}
-                .with_label(reviewPtr->snapshotFuture.valid() ? "Saving contents..." : reviewPtr->snapshotError)
+                .with_label(reviewPtr->snapshotFuture.valid() ? "Saving contents..." :
+                    !reviewPtr->snapshotError.empty() ? reviewPtr->snapshotError :
+                    staged ? "" : repo.untrackedReviewFuture.valid() ? "Loading new files..." : repo.untrackedReviewNotice)
                 .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12)));
-            if (repo.currentDiff.empty()) {
+            if (files.empty()) {
                 auto done = div(ctx, mk(mainBg.ent(), 3080),
                     ComponentConfig{}
-                        .with_size(ComponentSize{percent(1.0f), pixels(layout.mainContent.height - 30.f)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(layout.mainContent.height - 62.f)})
                         .with_flex_direction(FlexDirection::Column)
                         .with_justify_content(JustifyContent::Center)
                         .with_align_items(AlignItems::Center)
@@ -646,7 +688,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("ballroom_done"));
                 div(ctx, mk(done.ent(), 1),
                     ComponentConfig{}
-                        .with_label("Working tree matches the index")
+                        .with_label(staged ? "No staged changes" : repo.untrackedReviewFuture.valid() ? "Loading unstaged changes..." : "No unstaged changes")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::STATUS_ADDED)
                         .with_font_size(pixels(16))
@@ -665,16 +707,16 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             } else {
                 // Reserve a keyboard-hint footer under the diff (mock cockpit).
                 constexpr float keyhintH = 24.f;
-                float diffH = layout.mainContent.height - keyhintH - 30.f;
+                float diffH = layout.mainContent.height - keyhintH - 62.f;
                 if (diffH < 40.0f) diffH = layout.mainContent.height;
-                ui::render_diff(ctx, mainBg.ent(), repo.currentDiff,
-                                       diffW, diffH, false, false,
+                ui::render_diff(ctx, mainBg.ent(), files,
+                                       diffW, diffH, staged, false,
                                        layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
-                                       repo.repoPath, reviewPtr);
+                                       repo.repoPath, reviewPtr, scope);
                 div(ctx, mk(mainBg.ent(), 3090),
                     ComponentConfig{}
                         .with_label("j/k move    a approve    c comment    "
-                                    "Cmd+Enter copy feedback    esc hide")
+                                    "Cmd+Enter copy feedback")
                         .with_size(ComponentSize{percent(1.0f), pixels(keyhintH)})
                         .with_flex_direction(FlexDirection::Row)
                         .with_align_items(AlignItems::Center)

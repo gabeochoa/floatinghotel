@@ -1,0 +1,56 @@
+make_test_repo
+resize 1600 1000
+wait_for_refresh
+click_ui review_unstaged_changes
+wait_for_refresh
+expect_text "TODO.md"
+expect_text "icon.png"
+screenshot unstaged_review
+expect_text "Unstaged changes"
+expect_text "README.md"
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Please check this before committing."
+click_ui comment_add_btn
+wait_frames 5
+screenshot unstaged_feedback
+expect_text "Please check this before committing."
+click_ui basket_close
+click_ui review_staged_changes
+wait_for_refresh
+screenshot staged_review
+expect_text "Staged changes"
+expect_text ".gitignore"
+click_text "Add contributing guidelines"
+wait_for_refresh
+screenshot compact_commit
+hover_ui commit_detail_scroll
+scroll_wheel 0 -5
+wait_frames 10
+screenshot compact_commit_scrolled
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "README.md"
+key ENTER
+wait_for_refresh
+screenshot text_default
+key CMD+EQUAL
+wait_frames 5
+screenshot text_larger
+validate ui_scale=1.00
+key CMD+0
+wait_frames 5
+screenshot text_reset
+right_click_ui content_document_3
+wait_frames 3
+screenshot tab_context
+click_text "Close Tabs to the Right"
+wait_for_refresh
+screenshot tabs_right_closed
+key CMD+SHIFT+T
+wait_for_refresh
+screenshot tab_reopened
+key CMD+W
+wait_for_refresh
+screenshot tab_keyboard_closed

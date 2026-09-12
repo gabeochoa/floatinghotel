@@ -3,8 +3,8 @@ resize 1280 800
 wait_for_refresh
 click_text main.cpp
 screenshot improvement_48_default
-validate code_font_size=16
-validate code_row_height=24
+validate code_font_size=18
+validate code_row_height=26
 validate ui_scale=1.00
 click_text View
 click_text "Larger Code Text"
@@ -42,5 +42,5 @@ validate code_row_height=31
 click_text View
 click_text "Reset Code Text"
 screenshot improvement_48_reset
-validate code_font_size=16
+validate code_font_size=18
 validate ui_scale=1.00

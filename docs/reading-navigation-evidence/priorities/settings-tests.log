@@ -1,0 +1,47 @@
+--- Compiling test_settings ---
+--- Running test_settings ---
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+=== settings tests ===
+  settings_default_values                                      OK
+  settings_window_geometry                                     OK
+  settings_sidebar_width                                       OK
+  settings_commit_log_ratio_clamped                            OK
+  settings_open_repos                                          OK
+  settings_open_repos_no_duplicates                            OK
+  settings_open_repos_remove                                   OK
+  settings_add_empty_repo_ignored                              OK
+  settings_last_active_repo                                    OK
+  settings_unstaged_policy_valid                               OK
+  settings_unstaged_policy_invalid_resets_to_ask               OK
+  settings_code_font_size                                      [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_write_and_load_roundtrip                            [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_load_missing_file_returns_false                     [INFO] No settings file found at /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json, using defaults
+OK
+  settings_load_malformed_json                                 [WARN] Failed to parse settings file /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json: [json.exception.parse_error.101] parse error at line 1, column 2: syntax error while parsing object key - unexpected '{'; expected string literal (using defaults)
+OK
+  settings_load_partial_json_uses_defaults                     [INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_code_bookmarks_roundtrip                            [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_bookmarks_have_one_authoritative_repository_value   OK
+  settings_ignore_malformed_bookmarks_without_losing_valid_entries [INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_remembers_expanded_and_collapsed_window_sizes       [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+
+20/20 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

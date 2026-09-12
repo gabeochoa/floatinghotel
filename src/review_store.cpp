@@ -200,10 +200,12 @@ bool switch_review_scope(const std::string& repoPath, const std::string& scope,
     if (review.storageScope == scope && review.storageRepoPath == repoPath) return true;
     auto oldRepo = review.storageRepoPath.empty() ? repoPath : review.storageRepoPath;
     if (persist && !persist_review(oldRepo, review)) return false;
+    const bool reading = review.reviewing;
     ecs::reset_review(review);
     review.storageRepoPath = repoPath;
     review.storageScope = scope;
     if (persist) load_review(repoPath, review);
+    review.reviewing = reading;
     return true;
 }
 

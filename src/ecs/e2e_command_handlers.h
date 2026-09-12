@@ -15,6 +15,7 @@
 #include <afterhours/src/plugins/e2e_testing/e2e_testing.h>
 
 #include "app_reset.h"
+#include "layout_system.h"
 #include "components.h"
 #include "query_helpers.h"
 #include "tab_bar_system.h"
@@ -26,6 +27,20 @@
 #include "../git/git_runner.h"
 #include "../util/process.h"
 #include "../platform/native_menu.h"
+
+struct HandleSaveWindowState : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("save_window_state")) return;
+        auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+        if (!std::getenv("FH_TEST_SETTINGS_DIR") || !layout) {
+            cmd.fail("save_window_state requires isolated test settings");
+            return;
+        }
+        ecs::remember_window_size(*layout, afterhours::graphics::get_screen_width(), afterhours::graphics::get_screen_height());
+        Settings::get().write_save_file();
+        cmd.consume();
+    }
+};
 
 struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
@@ -283,6 +298,12 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             }
 
             auto diffResult = git::git_diff(repoPath);
+            auto stagedResult = git::git_run(repoPath, {"diff", "--cached"});
+            repo.stagedDiff = stagedResult.success() ? git::parse_diff(stagedResult.stdout_str()) : std::vector<ecs::FileDiff>{};
+            repo.untrackedReviewFuture = {};
+            repo.untrackedReviewGeneration.reset();
+            repo.untrackedReviewNotice.clear();
+            ++repo.dataGeneration;
             auto filesResult = git::git_run(repoPath, {"ls-files", "--cached", "--others", "--exclude-standard", "-z"});
             repo.allFilePaths = git::parse_null_paths(filesResult.stdout_str());
             if (diffResult.success()) {

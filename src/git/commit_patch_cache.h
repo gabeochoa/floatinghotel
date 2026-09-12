@@ -16,6 +16,7 @@ struct CommitPatchKey {
     std::string parent;
     int context = 3;
     bool ignoreWhitespace = false;
+    bool firstParent = false;
     bool operator==(const CommitPatchKey&) const = default;
 };
 
@@ -23,7 +24,7 @@ inline size_t commit_patch_owned_bytes(const CommitPatchKey& key, const ecs::Com
     size_t bytes = sizeof(key) + sizeof(patch) + sizeof(size_t) + 2 * sizeof(void*);
     auto text = [&](const std::string& value) { bytes += value.capacity() + 1; };
     for (const auto* value : {&key.repository, &key.commonDirectory, &key.commit, &key.parent,
-             &patch.error, &patch.resolvedCommit, &patch.resolvedParent}) text(*value);
+             &patch.metadata, &patch.error, &patch.resolvedCommit, &patch.resolvedParent}) text(*value);
     bytes += patch.files.capacity() * sizeof(ecs::FileDiff);
     for (const auto& file : patch.files) {
         for (const auto* value : {&file.filePath, &file.oldPath, &file.oldMode, &file.newMode,

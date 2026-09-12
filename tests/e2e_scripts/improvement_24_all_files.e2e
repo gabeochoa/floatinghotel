@@ -7,6 +7,7 @@ click_ui sidebar_working_files
 screenshot improvement_24_all_files
 expect_text "CONTRIBUTING.md"
 click_text "CONTRIBUTING.md"
+wait_for_refresh
 screenshot improvement_24_unchanged_file
 expect_text "CONTRIBUTING.md @ working tree"
 expect_text "Complete file"

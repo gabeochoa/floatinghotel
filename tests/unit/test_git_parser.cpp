@@ -718,6 +718,25 @@ TEST(binary_diff_object_ids_keep_the_full_hash_without_a_mode_field) {
     ASSERT_EQ(withMode.front().newObject, "def");
 }
 
+TEST(status_nul_records_preserve_renames_and_control_characters_in_paths) {
+    std::string output;
+    for (const auto& record : {std::string("# branch.head main"),
+            std::string("2 R. N... 100644 100644 100644 abc def R100 new\n名.cpp"),
+            std::string("old\t名.cpp"), std::string("? new/名\nfile.cpp"),
+            std::string("1 .M N... 100644 100644 100644 abc def quote\"file.cpp")}) {
+        output += record;
+        output += '\0';
+    }
+    auto status = git::parse_status(output);
+    ASSERT_EQ(status.branchName, "main");
+    ASSERT_EQ(status.stagedFiles.size(), 1u);
+    ASSERT_EQ(status.stagedFiles[0].path, "new\n名.cpp");
+    ASSERT_EQ(status.stagedFiles[0].origPath, "old\t名.cpp");
+    ASSERT_EQ(status.untrackedFiles, (std::vector<std::string>{"new/名\nfile.cpp"}));
+    ASSERT_EQ(status.unstagedFiles[0].path, "quote\"file.cpp");
+}
+
+
 int main() {
     printf("=== git_parser tests ===\n");
     RUN_ALL_TESTS();

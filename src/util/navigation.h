@@ -27,6 +27,7 @@ struct navigation {
         for (const auto& file : files) {
             reading::FileSummary summary{file.filePath, file.additions, file.deletions, file.oldPath,
                 ecs::file_change(file), ecs::diff_signature(file)};
+            summary.partial = file.isPartialContent;
             summary.requiresFileRecord = file.oldMode != file.newMode || !file.oldPath.empty();
             for (const auto& hunk : file.hunks)
                 summary.hunkKeys.push_back(ecs::ReviewComponent::hunk_key(file.filePath, hunk));
@@ -71,7 +72,7 @@ struct navigation {
         if (!reading::same_document(before, after)) release_source(repo);
         repo.originFileSummaries.clear();
         if (source) {
-            const auto* origin = repo.workspace_.document(repo.workspace_.review());
+            const auto* origin = repo.workspace_.retained_review();
             if (origin && origin->files) {
                 for (const auto& file : *origin->files) {
                     ecs::FileDiff summary;
@@ -79,6 +80,7 @@ struct navigation {
                     summary.additions = file.additions;
                     summary.deletions = file.deletions;
                     summary.oldPath = file.oldPath;
+                    summary.isPartialContent = file.partial;
                     summary.isNew = file.change == 'A';
                     summary.isDeleted = file.change == 'D';
                     summary.isRenamed = file.change == 'R';
@@ -140,10 +142,30 @@ struct navigation {
     }
 
     static void close_source(ecs::RepoComponent& repo) {
+        if (const auto* source = repo.workspace_.recent(reading::Slot::Source)) close(repo, source->id);
+    }
+
+    static void close(ecs::RepoComponent& repo, reading::DocumentId id) {
         auto before = repo.workspace_.location();
-        bool changed = repo.workspace_.close_source(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
+        bool changed = repo.workspace_.close(id, repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         finish(repo, before, changed);
-        ecs::cancel_hidden_file_read(repo);
+    }
+
+    static void close_others(ecs::RepoComponent& repo, reading::DocumentId id, bool onlyRight = false) {
+        if (!repo.workspace_.document(id)) return;
+        std::vector<reading::DocumentId> closing;
+        bool past = false;
+        for (const auto& tab : repo.workspace_.documents()) {
+            if (tab.id == id) { past = true; continue; }
+            if (!onlyRight || past) closing.push_back(tab.id);
+        }
+        for (auto target : closing) close(repo, target);
+    }
+
+    static void reopen_closed(ecs::RepoComponent& repo) {
+        auto before = repo.workspace_.location();
+        bool changed = repo.workspace_.reopen(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
+        finish(repo, before, changed);
     }
 
     static void step(ecs::RepoComponent& repo, int direction) {

@@ -22,16 +22,101 @@ TEST(commit_patches_are_parsed_on_workers_with_resolved_revision_identity) {
     ASSERT_EQ(root.files.size(), 1u);
     ASSERT_TRUE(root.files[0].isNew);
     ASSERT_TRUE(root.resolvedParent.empty());
+    size_t commands = 0;
+    git::set_log_callback([&](const auto&, const auto&, const auto&, bool) { ++commands; });
+    auto warm = git::read_commit_patch({directory, root.resolvedCommit});
+    git::set_log_callback({});
+    ASSERT_EQ(commands, 1u);
+    ASSERT_TRUE(warm.error.empty());
+    ASSERT_EQ(warm.metadata, root.metadata);
+    ASSERT_FALSE(warm.metadata.empty());
+    ASSERT_EQ(warm.files[0].hunks[0].lines, root.files[0].hunks[0].lines);
     { std::ofstream file(path / "app.cpp"); file << "after\n"; }
     ASSERT_TRUE(git::git_run(directory, commit).success());
     auto next = git::load_commit_patch_async({directory, "HEAD", root.resolvedCommit, 0}).get();
     ASSERT_TRUE(next.error.empty());
     ASSERT_EQ(next.resolvedParent, root.resolvedCommit);
     ASSERT_EQ(next.files[0].hunks[0].lines.back(), "+after");
+    ASSERT_NE(next.resolvedCommit, root.resolvedCommit);
     ASSERT_FALSE(git::read_commit_patch({directory, "HEAD", "missing-parent"}).error.empty());
+    ASSERT_FALSE(git::read_commit_patch({directory, std::string(40, 'f')}).error.empty());
+    ASSERT_FALSE(git::read_commit_patch({directory, std::string(40, 'f'), root.resolvedCommit}).error.empty());
     std::stop_source cancelled;
     cancelled.request_stop();
     ASSERT_TRUE(git::read_commit_patch({directory, "HEAD"}, cancelled.get_token()).error.find("cancelled") != std::string::npos);
+    std::filesystem::remove_all(path);
+}
+
+TEST(merge_parent_cache_entries_are_distinct_and_missing_cached_objects_fail) {
+    char pattern[] = "/tmp/fh-commit-merge.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    std::filesystem::path path(directory);
+    auto run = [&](std::vector<std::string> args) {
+        args.insert(args.begin(), {"-c", "user.name=Test", "-c", "user.email=test@example.invalid"});
+        return git::git_run(directory, args);
+    };
+    ASSERT_TRUE(run({"init", "-q"}).success());
+    { std::ofstream file(path / "root"); file << "root\n"; }
+    ASSERT_TRUE(run({"add", "."}).success());
+    ASSERT_TRUE(run({"commit", "-qm", "root"}).success());
+    ASSERT_TRUE(run({"branch", "side"}).success());
+    { std::ofstream file(path / "main"); file << "main\n"; }
+    ASSERT_TRUE(run({"add", "."}).success());
+    ASSERT_TRUE(run({"commit", "-qm", "main"}).success());
+    ASSERT_TRUE(run({"checkout", "side"}).success());
+    { std::ofstream file(path / "side"); file << "side\n"; }
+    ASSERT_TRUE(run({"add", "."}).success());
+    ASSERT_TRUE(run({"commit", "-qm", "side"}).success());
+    ASSERT_TRUE(run({"checkout", "-"}).success());
+    ASSERT_TRUE(run({"merge", "--no-ff", "side", "-m", "merge"}).success());
+    auto primary = git::read_commit_patch({directory, "HEAD"});
+    auto secondary = git::read_commit_patch({directory, "HEAD", "HEAD^2"});
+    ASSERT_TRUE(primary.error.empty());
+    ASSERT_TRUE(secondary.error.empty());
+    ASSERT_NE(primary.resolvedParent, secondary.resolvedParent);
+    ASSERT_EQ(primary.files[0].filePath, "side");
+    ASSERT_EQ(secondary.files[0].filePath, "main");
+    for (const auto& parent : {std::string{}, primary.resolvedParent, secondary.resolvedParent}) {
+        ASSERT_TRUE(git::read_commit_patch({directory, primary.resolvedCommit, parent}).error.empty());
+        size_t commands = 0;
+        git::set_log_callback([&](const auto&, const auto&, const auto&, bool) { ++commands; });
+        auto warm = git::read_commit_patch({directory, primary.resolvedCommit, parent});
+        git::set_log_callback({});
+        ASSERT_EQ(commands, 1u);
+        ASSERT_TRUE(warm.error.empty());
+        ASSERT_EQ(warm.resolvedParent, parent.empty() ? primary.resolvedParent : parent);
+    }
+    auto object = path / ".git/objects" / primary.resolvedCommit.substr(0, 2) / primary.resolvedCommit.substr(2);
+    ASSERT_TRUE(std::filesystem::remove(object));
+    ASSERT_FALSE(git::read_commit_patch({directory, primary.resolvedCommit}).error.empty());
+    std::filesystem::remove_all(path);
+}
+
+TEST(commit_patch_cache_invalidates_when_a_shallow_boundary_is_deepened) {
+    char pattern[] = "/tmp/fh-commit-shallow.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    std::filesystem::path path(directory);
+    ASSERT_TRUE(git::git_run(directory, {"init", "-q"}).success());
+    const std::vector<std::string> commit{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qam", "fixture"};
+    { std::ofstream file(path / "app.cpp"); file << "before\n"; }
+    ASSERT_TRUE(git::git_run(directory, {"add", "."}).success());
+    ASSERT_TRUE(git::git_run(directory, commit).success());
+    { std::ofstream file(path / "app.cpp"); file << "after\n"; }
+    ASSERT_TRUE(git::git_run(directory, commit).success());
+    auto shallow = path / "shallow";
+    ASSERT_TRUE(git::git_run(directory, {"clone", "--depth=1", "file://" + path.string(), shallow.string()}).success());
+    auto boundary = git::read_commit_patch({shallow.string(), "HEAD"});
+    ASSERT_TRUE(boundary.error.empty());
+    ASSERT_TRUE(boundary.resolvedParent.empty());
+    ASSERT_TRUE(boundary.files[0].isNew);
+    ASSERT_TRUE(git::git_run(shallow.string(), {"fetch", "--deepen=1"}).success());
+    auto complete = git::read_commit_patch({shallow.string(), boundary.resolvedCommit});
+    ASSERT_TRUE(complete.error.empty());
+    ASSERT_FALSE(complete.resolvedParent.empty());
+    ASSERT_FALSE(complete.files[0].isNew);
+    ASSERT_EQ(complete.files[0].hunks[0].lines.front(), "-before");
     std::filesystem::remove_all(path);
 }
 
@@ -66,6 +151,7 @@ TEST(commit_patch_cache_bounds_all_owned_content_and_evicts_least_recently_used)
     auto b = a; b.commit = "bbbbbbbb";
     auto c = a; c.commit = "cccccccc";
     ecs::CommitPatch patch;
+    patch.metadata = std::string(2000, 'm');
     patch.resolvedCommit = a.commit;
     patch.resolvedParent = a.parent;
     ecs::FileDiff file;
@@ -87,6 +173,8 @@ TEST(commit_patch_cache_bounds_all_owned_content_and_evicts_least_recently_used)
     auto owned = cache.get(a);
     ASSERT_TRUE(owned.has_value());
     ASSERT_EQ(owned->files[0].renderIdentity, patch.files[0].renderIdentity);
+    owned->metadata = "changed";
+    ASSERT_EQ(cache.get(a)->metadata, patch.metadata);
     owned->files[0].hunks[0].lines[0] = "edited in view";
     ASSERT_EQ(cache.get(a)->files[0].hunks[0].lines[0], "-before");
     ASSERT_TRUE(cache.put(c, patch));
@@ -110,7 +198,7 @@ TEST(commit_patch_cache_keys_include_repository_parent_and_all_diff_options) {
     git::CommitPatchKey key{"repo", "common", "commit", "parent", 3, false};
     git::CommitPatchCache cache;
     ASSERT_TRUE(cache.put(key, {}));
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < 7; ++i) {
         auto changed = key;
         if (i == 0) changed.repository = "another repo";
         if (i == 1) changed.commonDirectory = "another common directory";
@@ -118,6 +206,7 @@ TEST(commit_patch_cache_keys_include_repository_parent_and_all_diff_options) {
         if (i == 3) changed.parent = "another parent";
         if (i == 4) changed.context = 23;
         if (i == 5) changed.ignoreWhitespace = true;
+        if (i == 6) changed.firstParent = true;
         ASSERT_FALSE(cache.get(changed).has_value());
     }
     ecs::CommitPatch failed;

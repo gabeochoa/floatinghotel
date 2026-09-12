@@ -162,6 +162,16 @@ TEST(deletion_is_persisted_and_failed_writes_keep_the_dirty_flag) {
     std::filesystem::remove(review_store::review_path(path));
 }
 
+TEST(changing_feedback_scope_keeps_the_current_reading_panel_open) {
+    ecs::ReviewComponent review;
+    review.reviewing = true;
+    ASSERT_TRUE(review_store::switch_review_scope("/tmp/fh-reading-panel", "new-scope", review, false));
+    ASSERT_TRUE(review.reviewing);
+    review.reviewing = false;
+    ASSERT_TRUE(review_store::switch_review_scope("/tmp/fh-reading-panel", "another-scope", review, false));
+    ASSERT_FALSE(review.reviewing);
+}
+
 TEST(review_state_is_isolated_by_branch_and_revision) {
     const std::string repo = "/tmp/floatinghotel_scoped_review";
     ecs::ReviewComponent review;

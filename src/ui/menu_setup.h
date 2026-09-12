@@ -174,17 +174,17 @@ inline std::vector<Menu> createMenuBar() {
             if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::All;
         }),
         MenuItem::separator(),
-        MenuItem::item("Zoom In", "Cmd+=", [] { ui::zoom::step(ui::zoom::kStep); }),
-        MenuItem::item("Zoom Out", "Cmd+-", [] { ui::zoom::step(-ui::zoom::kStep); }),
-        MenuItem::item("Reset Zoom", "Cmd+0", [] { ui::zoom::reset(); }),
+        MenuItem::item("Zoom In", "", [] { ui::zoom::step(ui::zoom::kStep); }),
+        MenuItem::item("Zoom Out", "", [] { ui::zoom::step(-ui::zoom::kStep); }),
+        MenuItem::item("Reset Zoom", "", [] { ui::zoom::reset(); }),
         MenuItem::separator(),
-        MenuItem::item("Larger Code Text", "", [] {
+        MenuItem::item("Larger Code Text", "Cmd+=", [] {
             Settings::get().set_code_font_size(Settings::get().get_code_font_size() + 1.f);
         }),
-        MenuItem::item("Smaller Code Text", "", [] {
+        MenuItem::item("Smaller Code Text", "Cmd+-", [] {
             Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 1.f);
         }),
-        MenuItem::item("Reset Code Text", "", [] { Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize); }),
+        MenuItem::item("Reset Code Text", "Cmd+0", [] { Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize); }),
     }});
 
     // Git menu

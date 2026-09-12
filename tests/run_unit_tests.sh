@@ -15,6 +15,10 @@ CXXFLAGS="$CXXSTD -g -O0 -Wall -Wextra -Wpedantic \
     -Wno-deprecated-volatile -Wno-missing-field-initializers \
     -Wno-sign-conversion -Wno-implicit-int-float-conversion"
 
+if [ "$(uname -s)" = Darwin ]; then
+    CXXFLAGS="$CXXFLAGS -framework CoreFoundation"
+fi
+
 INCLUDES="-isystem vendor/ -isystem vendor/afterhours/vendor/ -I."
 
 OUT_DIR="output/tests"
@@ -109,7 +113,7 @@ fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_content_reader" ]; then
     run_test "test_content_reader" "tests/unit/test_content_reader.cpp" \
-        "src/git/content_reader.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \
+        "src/git/content_reader.cpp" "src/git/git_parser.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 

@@ -395,4 +395,61 @@ TEST(resolving_reviews_updates_retained_source_origins_and_history) {
     }
 }
 
+TEST(document_close_reopens_reading_location_and_keeps_origin_summaries) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::review("commit", "original.cpp"));
+    auto review = repo.workspace().active_id();
+    ecs::FileDiff file;
+    file.filePath = "original.cpp";
+    file.hunks.push_back({});
+    file.hunks[0].lines = {"+line"};
+    navigation::remember_review_files(repo, {file});
+    navigation::open(repo, reading::source("original.cpp", "commit", 42));
+    auto source = repo.workspace().active_id();
+    navigation::activate(repo, review);
+    navigation::close(repo, review);
+    ASSERT_EQ(repo.workspace().active_id(), source);
+    ASSERT_EQ(repo.originFileSummaries.size(), 1u);
+    navigation::return_to_review(repo);
+    auto recreated = repo.workspace().active_id();
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.workspace().active_id(), recreated);
+    ASSERT_EQ(repo.workspace().document(recreated)->files->size(), 1u);
+    navigation::close(repo, source);
+    ASSERT_EQ(repo.workspace().active_id(), recreated);
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.fullFileTargetLine(), 42);
+}
+
+TEST(document_close_history_is_bounded_and_final_fallback_does_not_fill_it) {
+    ecs::RepoComponent repo;
+    for (int i = 0; i < 25; ++i) {
+        navigation::open(repo, reading::source(std::to_string(i), ""));
+        navigation::close(repo, repo.workspace().active_id());
+    }
+    ASSERT_EQ(repo.workspace().closed().size(), 20u);
+    ASSERT_EQ(repo.workspace().documents().size(), 1u);
+    auto lastClosed = repo.workspace().closed().back().id;
+    auto fallback = repo.workspace().active_id();
+    navigation::close(repo, fallback);
+    ASSERT_EQ(repo.workspace().active_id(), fallback);
+    ASSERT_EQ(repo.workspace().closed().back().id, lastClosed);
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.workspace().active_id(), lastClosed);
+}
+
+TEST(closed_source_origins_resolve_with_their_review) {
+    ecs::RepoComponent repo;
+    const std::string oid(40, 'a');
+    navigation::open(repo, reading::review("main"));
+    auto review = repo.workspace().active_id();
+    navigation::open(repo, reading::source("source.cpp", oid));
+    navigation::close(repo, repo.workspace().active_id());
+    navigation::activate(repo, review);
+    auto stamp = navigation::stamp(repo, "request");
+    ASSERT_TRUE(navigation::resolve_review(repo, stamp, oid, ""));
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.workspace().source()->origin->destination, reading::review(oid).destination);
+}
+
 int main() { RUN_ALL_TESTS(); }

@@ -49,19 +49,14 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                        afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
                        afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) ||
                        afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL);
-        if (cmdDown && afterhours::input::is_key_pressed(84)) {
+        const bool shiftDown = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) ||
+                               afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
+        if (cmdDown && !shiftDown && afterhours::input::is_key_pressed(84)) {
             create_new_tab(tabStrip, layout);
         }
-        if (cmdDown && afterhours::input::is_key_pressed(87)) {
-            if (tabStrip.tabOrder.size() > 1) {
-                for (size_t i = 0; i < tabStrip.tabOrder.size(); ++i) {
-                    auto opt = EntityHelper::getEntityForID(tabStrip.tabOrder[i]);
-                    if (opt.valid() && opt->has<ActiveTab>()) {
-                        close_tab(tabStrip, tabStrip.tabOrder[i], i, true, layout);
-                        break;
-                    }
-                }
-            }
+        if (auto* repo = find_singleton<RepoComponent, ActiveTab>()) {
+            if (cmdDown && afterhours::input::is_key_pressed(87)) navigation::close(*repo, repo->workspace().active_id());
+            if (cmdDown && shiftDown && afterhours::input::is_key_pressed(84)) navigation::reopen_closed(*repo);
         }
 
         if (layout.tabStrip.height <= 0.0f) return;

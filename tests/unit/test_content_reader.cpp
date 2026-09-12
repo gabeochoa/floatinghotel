@@ -1,6 +1,7 @@
 #include "test_framework.h"
 #include "../../src/util/navigation.h"
 #include "../../src/git/content_reader.h"
+#include "../../src/git/git_parser.h"
 #include "../../src/util/file_page.h"
 #include "../../src/git/blob_page_cache.h"
 #include "../../src/git/repository_lock.h"
@@ -364,6 +365,59 @@ TEST(historical_navigation_pins_a_revision_even_after_the_branch_moves) {
     auto missing = git::read_file({path, "deleted.cpp", "HEAD"});
     ASSERT_FALSE(missing.error.empty());
     ASSERT_TRUE(missing.raw.empty());
+    std::filesystem::remove_all(path);
+}
+
+TEST(untracked_review_preserves_text_and_bounds_large_previews) {
+    char directory[] = "/tmp/fh-untracked-review.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    { std::ofstream out(std::filesystem::path(path) / "new.cpp"); out << "α\r\n\nlast"; }
+    { std::ofstream out(std::filesystem::path(path) / "large.txt"); for (int i = 0; i < 6000; ++i) out << "line\n"; }
+    auto result = git::read_untracked_review_files_async(path, {"new.cpp", "large.txt", "missing"}).get();
+    ASSERT_EQ(result.files.size(), 3u);
+    const auto& file = result.files[0];
+    ASSERT_TRUE(file.isNew);
+    ASSERT_FALSE(file.isFullContent);
+    ASSERT_FALSE(file.isPartialContent);
+    ASSERT_EQ(file.additions, 3);
+    ASSERT_EQ(file.deletions, 0);
+    ASSERT_EQ(file.hunks[0].oldCount, 0);
+    ASSERT_EQ(file.hunks[0].lines, (std::vector<std::string>{"+α\r", "+", "+last"}));
+    ASSERT_TRUE(file.hunks[0].noNewline.contains(2));
+    ASSERT_TRUE(result.files[1].isPartialContent);
+    ecs::ReviewComponent review;
+    const auto& partial = result.files[1];
+    review.reviewedFiles["wt\n" + partial.filePath] = ecs::diff_signature(partial);
+    for (const auto& hunk : partial.hunks)
+        review.approvedHunks.insert("wt\n" + ecs::ReviewComponent::hunk_key(partial.filePath, hunk));
+    ASSERT_FALSE(ecs::file_reviewed(review, "wt", partial));
+    ASSERT_FALSE(ecs::review_progress(review, "wt", std::vector<ecs::FileDiff>{partial}).can_approve());
+    ASSERT_TRUE(result.files[1].additions <= 4096);
+    ASSERT_TRUE(result.files[2].isPartialContent);
+    ASSERT_FALSE(result.notice.empty());
+    std::stop_source stopped;
+    stopped.request_stop();
+    ASSERT_TRUE(git::read_untracked_review_files(path, {"new.cpp"}, stopped.get_token()).files.empty());
+    std::filesystem::remove_all(path);
+}
+
+TEST(untracked_review_includes_files_inside_new_directories) {
+    char pattern[] = "/tmp/fh-untracked-nested.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    std::filesystem::path path(directory);
+    ASSERT_TRUE(git::git_run(directory, {"init", "-q"}).success());
+    std::filesystem::create_directories(path / "new/dir");
+    { std::ofstream file(path / "new/dir/新\nfile.cpp"); file << "new nested content\n"; }
+    auto status = git::git_status(directory);
+    ASSERT_TRUE(status.success());
+    auto parsed = git::parse_status(status.stdout_str());
+    ASSERT_EQ(parsed.untrackedFiles, (std::vector<std::string>{"new/dir/新\nfile.cpp"}));
+    auto preview = git::read_untracked_review_files(directory, parsed.untrackedFiles);
+    ASSERT_TRUE(preview.notice.empty());
+    ASSERT_EQ(preview.files[0].filePath, "new/dir/新\nfile.cpp");
+    ASSERT_EQ(preview.files[0].hunks[0].lines[0], "+new nested content");
     std::filesystem::remove_all(path);
 }
 

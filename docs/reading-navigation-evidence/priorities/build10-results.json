@@ -1,0 +1,41 @@
+{
+  "binary_sha256": "6236f4bc94bc114e4f7fe07b4fe4c39f6735a1ade40699688a0d62a26ce0ed37",
+  "from_stage": "priority",
+  "results": [
+    {
+      "name": "priority",
+      "exit_code": 0,
+      "seconds": 11.90193587495014
+    },
+    {
+      "name": "priority-geometry",
+      "exit_code": 0,
+      "seconds": 0.404880499932915
+    },
+    {
+      "name": "native-menu",
+      "exit_code": 0,
+      "seconds": 4.1021428749663755
+    },
+    {
+      "name": "default-font",
+      "exit_code": 0,
+      "seconds": 2.5301337080309168
+    },
+    {
+      "name": "font-controls",
+      "exit_code": 0,
+      "seconds": 2.377712875022553
+    },
+    {
+      "name": "full-message",
+      "exit_code": 0,
+      "seconds": 2.1942442080471665
+    },
+    {
+      "name": "metrics-regression",
+      "exit_code": 1,
+      "seconds": 7.26087054098025
+    }
+  ]
+}

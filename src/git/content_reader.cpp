@@ -131,4 +131,51 @@ async_work::Task<ecs::FullFileContent> read_file_async(FileRequest request) {
     }, async_work::Priority::Foreground, ecs::FullFileContent{{}, {}, "Background queue is full; reopen the file to retry"});
 }
 
+ecs::UntrackedReviewFiles read_untracked_review_files(const std::string& repo, const std::vector<std::string>& paths,
+                                                     std::stop_token stop) {
+    ecs::UntrackedReviewFiles result;
+    size_t remaining = 8 * 1024 * 1024;
+    for (const auto& path : paths) {
+        if (stop.stop_requested()) return {};
+        ecs::FileDiff file;
+        file.filePath = path;
+        file.isNew = true;
+        if (remaining >= 256 * 1024) {
+            auto content = read_file({repo, path}, stop);
+            if (stop.stop_requested()) return {};
+            remaining -= std::min(remaining, content.raw.size());
+            if (content.error.empty()) {
+                file = std::move(content.diff);
+                file.isNew = true;
+                file.isFullContent = false;
+                file.isPartialContent = content.page.next.offset < content.page.totalBytes;
+                file.additions = 0;
+                file.deletions = 0;
+                for (auto& hunk : file.hunks) {
+                    hunk.oldStart = hunk.oldCount = 0;
+                    for (auto& line : hunk.lines) {
+                        if (line.empty()) line = "+";
+                        else line[0] = '+';
+                    }
+                    hunk.header = "@@ -0,0 +" + std::to_string(hunk.newStart) + "," + std::to_string(hunk.newCount) + " @@ (new file)";
+                    file.additions += hunk.newCount;
+                }
+            } else {
+                file.isPartialContent = true;
+                result.notice = "Some new files could not be read: " + content.error;
+            }
+        } else file.isPartialContent = true;
+        if (file.isPartialContent && result.notice.empty())
+            result.notice = "Large new files show a bounded preview. Open source to read more.";
+        result.files.push_back(std::move(file));
+    }
+    return result;
+}
+
+async_work::Task<ecs::UntrackedReviewFiles> read_untracked_review_files_async(std::string repo, std::vector<std::string> paths) {
+    return async_work::launch([repo = std::move(repo), paths = std::move(paths)](std::stop_token stop) {
+        return read_untracked_review_files(repo, paths, stop);
+    }, async_work::Priority::Background, ecs::UntrackedReviewFiles{.notice = "New file previews are busy; refresh to retry."});
+}
+
 }

@@ -1,16 +1,9 @@
 #pragma once
 
-// Trackpad pinch and Cmd+= / Cmd+- / Cmd+0, all driving Theme::ui_scale.
-//
-// Pinch needs the macOS gesture monitor, which is opt-in at build time
-// (-fblocks -framework AppKit -DAFTER_HOURS_ENABLE_MACOS_GESTURES) and
-// installed once from main(). Without it get_pinch_delta() reads 0, which is
-// the right answer on a machine with no trackpad -- the keyboard path still
-// works either way.
-
 #include <afterhours/src/plugins/input_system.h>
 
 #include "../ui/zoom.h"
+#include "../settings.h"
 #include "ui_imports.h"
 
 namespace ecs {
@@ -38,11 +31,11 @@ struct ZoomSystem : afterhours::System<> {
         // parser maps "CMD+" onto Ctrl, so a script writing Cmd+0 lands here
         // as Control either way.
         if (input::is_key_pressed(afterhours::keys::EQUAL))
-            ui::zoom::step(ui::zoom::kStep);
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() + 1.f);
         if (input::is_key_pressed(afterhours::keys::MINUS))
-            ui::zoom::step(-ui::zoom::kStep);
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 1.f);
         if (input::is_key_pressed(afterhours::keys::ZERO))
-            ui::zoom::reset();
+            Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize);
     }
 };
 

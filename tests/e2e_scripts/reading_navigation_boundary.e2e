@@ -23,9 +23,10 @@ expect_text "Add contributing guidelines"
 click_ui content_source_tab
 screenshot boundary_retained_source
 expect_text "README.md @ working tree"
-click_ui content_source_close
+click_ui close_document_4
+wait_for_refresh
 screenshot boundary_closed_source
-expect_text "Add contributing guidelines"
+expect_text "CONTRIBUTING.md @"
 key ALT+LEFT
 wait_for_refresh
 screenshot boundary_revisited_source

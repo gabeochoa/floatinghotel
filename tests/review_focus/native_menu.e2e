@@ -12,10 +12,10 @@ screenshot native_menu_commit
 native_menu_action "Larger Code Text"
 wait_frames 5
 screenshot native_menu_larger
-validate code_font_size=17
+validate code_font_size=19
 native_menu_action "Reset Code Text"
 wait_frames 5
-validate code_font_size=16
+validate code_font_size=18
 native_menu_action "Copy With Location (toggle)"
 wait_frames 5
 screenshot native_menu_notice
@@ -24,7 +24,8 @@ native_menu_action "Copy With Location (toggle)"
 key CMD+EQUAL
 wait_frames 5
 screenshot native_menu_zoom
-validate ui_scale=1.10
+validate ui_scale=1.00
+validate code_font_size=19
 validate footer_fixed=true
 key CMD+0
 native_menu_action "Toggle Sidebar"

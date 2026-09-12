@@ -11,6 +11,7 @@
 #include "../../vendor/afterhours/src/core/system.h"
 #include "../../vendor/afterhours/src/logging.h"
 #include "../git/git_parser.h"
+#include "../git/content_reader.h"
 #include "../git/git_runner.h"
 #include "components.h"
 
@@ -90,7 +91,30 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             // subprocess is one more spawn on the startup path.
         }
 
-        if (!repo.isRefreshing) return;
+        if (!repo.isRefreshing) {
+            if (repo.untrackedReviewFuture.valid() &&
+                (repo.untrackedReviewGeneration != repo.dataGeneration || repo.untrackedReviewRepository != repo.repoPath))
+                repo.untrackedReviewFuture = {};
+            if (repo.untrackedReviewFuture.valid() && repo.untrackedReviewFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                auto result = repo.untrackedReviewFuture.get();
+                repo.untrackedReviewNotice = std::move(result.notice);
+                for (auto& file : result.files) {
+                    if (std::none_of(repo.currentDiff.begin(), repo.currentDiff.end(), [&](const auto& existing) {
+                        return existing.filePath == file.filePath;
+                    })) repo.currentDiff.push_back(std::move(file));
+                }
+                ++repo.patchGeneration;
+            }
+            if (repo.hasLoadedOnce && (repo.untrackedReviewGeneration != repo.dataGeneration ||
+                                      repo.untrackedReviewRepository != repo.repoPath)) {
+                repo.untrackedReviewGeneration = repo.dataGeneration;
+                repo.untrackedReviewRepository = repo.repoPath;
+                repo.untrackedReviewNotice.clear();
+                if (!repo.untrackedFiles.empty())
+                    repo.untrackedReviewFuture = git::read_untracked_review_files_async(repo.repoPath, repo.untrackedFiles);
+            }
+            return;
+        }
 
         auto it = pending_.find(id);
         if (it == pending_.end()) {

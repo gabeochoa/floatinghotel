@@ -1,0 +1,21 @@
+{
+  "binary_sha256": "dee93199d3de443cf7f4e4d356eb75036d392bdd43ac5366cb7105f469aaa8d1",
+  "from_stage": "metrics-regression",
+  "results": [
+    {
+      "name": "metrics-regression",
+      "exit_code": 0,
+      "seconds": 14.864029625081457
+    },
+    {
+      "name": "native-resize",
+      "exit_code": 0,
+      "seconds": 42.93851754197385
+    },
+    {
+      "name": "reading",
+      "exit_code": 1,
+      "seconds": 61.86182837502565
+    }
+  ]
+}

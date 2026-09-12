@@ -1,0 +1,56 @@
+[
+  {
+    "zoom": 100,
+    "run": 1,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 100,
+    "run": 2,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 100,
+    "run": 3,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 140,
+    "run": 1,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 140,
+    "run": 2,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 140,
+    "run": 3,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 200,
+    "run": 1,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 200,
+    "run": 2,
+    "exit_code": 0,
+    "errors": []
+  },
+  {
+    "zoom": 200,
+    "run": 3,
+    "exit_code": 0,
+    "errors": []
+  }
+]

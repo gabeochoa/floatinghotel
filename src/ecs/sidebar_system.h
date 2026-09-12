@@ -267,7 +267,25 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 if (index == 0 && repoPtr) navigation::activate(*repoPtr, reading::Slot::Review);
             }
         }
-        constexpr float repoHeaderH = 104.f;
+        if (!filesNavigation && repoPtr) {
+            auto views = div(ctx, mk(sidebarRoot.ent(), 2081), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(36)})
+                .with_padding(Padding{.left = pixels(12), .right = pixels(12), .bottom = pixels(4)})
+                .with_flex_direction(FlexDirection::Row).with_gap(pixels(4)).with_no_wrap()
+                .with_debug_name("working_review_views"));
+            for (bool staged : {false, true}) {
+                const auto count = staged ? repoPtr->stagedFiles.size() : repoPtr->unstagedFiles.size() + repoPtr->untrackedFiles.size();
+                const auto label = std::string(staged ? "Staged" : "Unstaged") + " (" + std::to_string(count) + ")";
+                const bool active = std::holds_alternative<reading::WorkingChanges>(repoPtr->workspace().review().destination) &&
+                    repoPtr->selectedFileStaged() == staged;
+                if (button(ctx, mk(views.ent(), staged ? 1 : 0), preset::Button(label)
+                        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(13))
+                        .with_custom_background(active ? ui::segment_selected_color() : theme::SIDEBAR_BG)
+                        .with_debug_name(staged ? "review_staged_changes" : "review_unstaged_changes")))
+                    navigation::open(*repoPtr, reading::review(staged ? "index" : "wt"), true);
+            }
+        }
+        const float repoHeaderH = filesNavigation ? 104.f : 140.f;
         if (filesNavigation) {
             auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
             const bool showGit = repoPtr && !repoPtr->repoPath.empty() && !repoPtr->reviewWorkspace;
@@ -535,7 +553,7 @@ private:
         if (repo && source_tab_active(*repo) &&
             !std::holds_alternative<reading::WorkingChanges>(repo->workspace().review().destination)) {
             scope = commit_review_scope(*repo);
-            const auto* origin = repo->workspace().document(repo->workspace().review());
+            const auto* origin = repo->workspace().retained_review();
             if (origin && origin->files) files = &repo->originFileSummaries;
             else empty = "Review files have not loaded";
         } else if (repo && !repo->comparisonScope().empty()) {
@@ -571,7 +589,7 @@ private:
             .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11))
             .with_custom_text_color(theme::TEXT_TERTIARY));
         if (files && review) {
-            const auto* origin = repo && source_tab_active(*repo) ? repo->workspace().document(repo->workspace().review()) : nullptr;
+            const auto* origin = repo && source_tab_active(*repo) ? repo->workspace().retained_review() : nullptr;
             const auto progress = origin && origin->files ? review_progress(*review, scope, *origin->files) :
                 review_progress(*review, scope, *files);
             div(ctx, mk(heading.ent(), 1), preset::BodyText(std::to_string(progress.reviewed) + " / " + std::to_string(progress.total))
@@ -666,7 +684,7 @@ private:
                         for (const auto& hunk : file.hunks)
                             review->foldedHunks.erase(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
                         if (source_tab_active(*repo)) {
-                            const auto* origin = repo->workspace().document(repo->workspace().review());
+                            const auto* origin = repo->workspace().retained_review();
                             if (origin && origin->files)
                                 for (const auto& summary : *origin->files)
                                     if (summary.path == file.filePath)
@@ -2070,7 +2088,7 @@ private:
                 .with_padding(Padding{
                     .top = pixels(0), .right = pixels(4),
                     .bottom = pixels(0), .left = pixels(ROW_INSET_L)})
-                .with_gap(pixels(8))
+                .with_gap(pixels(2))
                 .with_debug_name("commit_row"));
         ui::set_tooltip(row.ent(), commit.subject + "\n" + commit.hash + "\n" + commit.decorations);
 

@@ -195,6 +195,7 @@ std::chrono::high_resolution_clock::time_point startTime;
 bool testModeEnabled = false;
 bool e2eNoResize = false;
 bool headless = false;
+bool restoreWindowSize = false;
 std::string testScriptPath;
 std::string testScriptDir;
 std::string screenshotDir = "output/screenshots";
@@ -343,15 +344,14 @@ static void app_init() {
     afterhours::gestures::install_pinch_monitor();
 
     {
-        Preload::get().init("floatinghotel").make_singleton();
+        Preload::get().make_singleton();
+        afterhours::graphics::set_exit_key(0);
     }
     auto t1 = std::chrono::high_resolution_clock::now();
     log_info("  Preload+fonts: {} ms",
         std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count());
 
     {
-        Settings::get().auto_save_enabled = false;
-        Settings::get().load_save_file();
         if (app_state::testModeEnabled) Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize);
         if (app_state::testModeEnabled) {
             if (const char* path = std::getenv("FH_NAVIGATION_REPOS")) {
@@ -402,7 +402,16 @@ static void app_init() {
     auto& entity = EntityHelper::createEntity();
     app_state::editorEntity = &entity;
 
-    entity.addComponent<ecs::LayoutComponent>();
+    auto& restoredLayout = entity.addComponent<ecs::LayoutComponent>();
+    if (app_state::restoreWindowSize) {
+        restoredLayout.sidebarWidth = Settings::get().get_window_collapsed() ?
+            static_cast<float>(Settings::get().get_window_width()) : Settings::get().get_sidebar_width();
+        restoredLayout.commitLogRatio = Settings::get().get_commit_log_ratio();
+        restoredLayout.reviewPanelWidth = std::max(368.f,
+            static_cast<float>(Settings::get().get_expanded_window_width()) - restoredLayout.sidebarWidth);
+        restoredLayout.lastShelfCollapsed = Settings::get().get_window_collapsed();
+        restoredLayout.didInitialWidthSync = true;
+    }
     entity.addComponent<ecs::MenuComponent>();
 
     auto& cmdLog = entity.addComponent<ecs::CommandLogComponent>();
@@ -469,6 +478,12 @@ static void app_init() {
             // Fresh start: empty welcome tab
             createTab("", true);
         }
+    }
+
+    if (app_state::restoreWindowSize && !Settings::get().get_window_collapsed()) {
+        if (auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>()) review->reviewing = true;
+        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>(); repo && !repo->repoPath.empty())
+            navigation::open(*repo, reading::review("wt"), true);
     }
 
     // Wire git log callback to record all git commands in the CommandLogComponent.
@@ -549,6 +564,7 @@ static void app_init() {
                 sm.register_update_system(std::make_unique<SkipResizeCommand>());
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
+            sm.register_update_system(std::make_unique<HandleSaveWindowState>());
             sm.register_update_system(std::make_unique<HandleShowToast>());
             sm.register_update_system(std::make_unique<HandleNativeMenuAction>());
             sm.register_update_system(std::make_unique<HandleReviewRoundtrip>());
@@ -696,6 +712,9 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
                 refreshDone = refreshDone && !repo->refreshRequested && !repo->isRefreshing;
+                refreshDone = refreshDone && (repo->untrackedFiles.empty() ||
+                    (repo->untrackedReviewGeneration == repo->dataGeneration &&
+                     repo->untrackedReviewRepository == repo->repoPath && !repo->untrackedReviewFuture.valid()));
                 refreshDone = refreshDone && (repo->fullFilePath().empty() || !repo->fullFileFuture.valid() ||
                     repo->fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->repoSearchFuture.valid() ||
@@ -724,8 +743,6 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             if (auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>()) {
                 refreshDone = refreshDone && (!detail->patchFuture.valid() ||
                     detail->patchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!detail->infoFuture.valid() ||
-                    detail->infoFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
             }
             if (!refreshDone && waited > MAX_REFRESH_WAIT) {
                 log_warn("wait_for_refresh: refresh still running after {} s",
@@ -879,6 +896,7 @@ static bool app_has_pending_work() {
         .for_each_stream([&](afterhours::Entity& entity) {
             const auto& repo = entity.get<ecs::RepoComponent>();
             pending = pending || repo.refreshRequested || repo.isRefreshing ||
+                frame_pacer::in_flight(repo.untrackedReviewFuture) ||
                 frame_pacer::in_flight(repo.fullFileFuture) || frame_pacer::in_flight(repo.repoSearchFuture) ||
                 frame_pacer::in_flight(repo.repoSearchPreviewFuture) || frame_pacer::in_flight(repo.codeownersFuture) ||
                 frame_pacer::in_flight(repo.fileHistoryFuture) || frame_pacer::in_flight(repo.blameFuture) ||
@@ -899,7 +917,7 @@ static bool app_has_pending_work() {
         .whereHasComponent<ecs::ActiveTab>()
         .for_each_stream([&](afterhours::Entity& entity) {
             const auto& detail = entity.get<ecs::CommitDetailCache>();
-            pending = pending || frame_pacer::in_flight(detail.patchFuture) || frame_pacer::in_flight(detail.infoFuture);
+            pending = pending || frame_pacer::in_flight(detail.patchFuture);
         });
     if (pending) return true;
     if (auto* ops = ecs::find_singleton<ecs::NetworkOpsComponent>())
@@ -1121,7 +1139,14 @@ static void app_cleanup() {
         }
     }
 
-    if (!app_state::testModeEnabled) Settings::get().write_save_file();
+    if (!app_state::testModeEnabled) {
+        if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
+            const int width = afterhours::graphics::get_screen_width();
+            const int height = afterhours::graphics::get_screen_height();
+            ecs::remember_window_size(*layout, width, height);
+        }
+        Settings::get().write_save_file();
+    }
 }
 
 int main(int argc, char* argv[]) {
@@ -1352,8 +1377,8 @@ int main(int argc, char* argv[]) {
             return code_highlight::token_cache().hits() > code_highlight::token_cache().misses() ? "true" : "false";
         } else if (key == "syntax_cache_bounded") {
             return code_highlight::token_cache().bytes() <= 4 * 1024 * 1024 ? "true" : "false";
-        } else if (key == "diff_metric_scans") {
-            return std::to_string(ui::diff_metrics().width_scans());
+        } else if (key == "diff_metrics_reused") {
+            return ui::diff_metrics().wrap_hits() > ui::diff_metrics().wrap_scans() ? "true" : "false";
         } else if (key == "diff_metrics_bounded") {
             return ui::diff_metrics().bytes() <= 5 * 1024 * 1024 ? "true" : "false";
         } else if (key == "tooltip_showing") {
@@ -1460,6 +1485,16 @@ int main(int argc, char* argv[]) {
     }
 
     app_state::repoPath = repoPath;
+    Preload::get().init("floatinghotel");
+    app_state::restoreWindowSize = !app_state::testModeEnabled;
+    if (app_state::testModeEnabled) {
+        if (const char* directory = std::getenv("FH_TEST_SETTINGS_DIR")) {
+            afterhours::EntityHelper::get_singleton_cmp_enforce<afterhours::files::ProvidesResourcePaths>().config_folder_path = directory;
+            app_state::restoreWindowSize = true;
+        }
+    }
+    Settings::get().auto_save_enabled = false;
+    Settings::get().load_save_file();
 
     {
         auto preGfxMs = std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -1481,15 +1516,8 @@ int main(int argc, char* argv[]) {
     app_state::startTime = std::chrono::high_resolution_clock::now();
 
     afterhours::graphics::RunConfig cfg;
-    // Open as the shelf: sidebar only, no diff pane, since nothing is selected
-    // yet. LayoutUpdateSystem widens the window the moment a file or commit is
-    // opened. Test mode keeps the old 1200 so headless baselines (and the
-    // screenshots named for it) do not move.
-    cfg.width = app_state::testModeEnabled
-                    ? 1200
-                    : static_cast<int>(
-                          ecs::LayoutComponent::kDefaultSidebarWidth);
-    cfg.height = 800;
+    cfg.width = app_state::restoreWindowSize ? Settings::get().get_window_width() : 1200;
+    cfg.height = app_state::restoreWindowSize ? Settings::get().get_window_height() : 800;
     cfg.title = "floatinghotel";
     cfg.target_fps = 200;
     cfg.flags = afterhours::graphics::FLAG_WINDOW_RESIZABLE;

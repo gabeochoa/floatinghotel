@@ -31,7 +31,7 @@ namespace fs = std::filesystem;
 TEST(settings_default_values) {
     auto& s = Settings::get();
     // Defaults as per Settings::Data
-    ASSERT_EQ(s.get_window_width(), 1200);
+    ASSERT_EQ(s.get_window_width(), 280);
     ASSERT_EQ(s.get_window_height(), 800);
     ASSERT_EQ(s.get_window_x(), 100);
     ASSERT_EQ(s.get_window_y(), 100);
@@ -39,7 +39,7 @@ TEST(settings_default_values) {
     ASSERT_TRUE(s.get_open_repos().empty());
     ASSERT_STREQ(s.get_last_active_repo(), "");
     ASSERT_STREQ(s.get_unstaged_policy(), "ask");
-    ASSERT_EQ(s.get_code_font_size(), 16.f);
+    ASSERT_EQ(s.get_code_font_size(), 17.6f);
 }
 
 TEST(settings_window_geometry) {
@@ -147,7 +147,7 @@ TEST(settings_code_font_size) {
     s.set_code_font_size(-1.f);
     ASSERT_EQ(s.get_code_font_size(), 10.f);
     s.set_code_font_size(std::numeric_limits<float>::quiet_NaN());
-    ASSERT_EQ(s.get_code_font_size(), 16.f);
+    ASSERT_EQ(s.get_code_font_size(), 17.6f);
     s.set_code_font_size(19.f);
     s.write_save_file();
     s.set_code_font_size(14.f);
@@ -164,7 +164,7 @@ TEST(settings_code_font_size) {
         file << R"({})";
     }
     ASSERT_TRUE(s.load_save_file());
-    ASSERT_EQ(s.get_code_font_size(), 16.f);
+    ASSERT_EQ(s.get_code_font_size(), 17.6f);
     {
         std::ofstream file(s.get_settings_path());
         file << R"({"code_font_size": 14})";
@@ -253,7 +253,7 @@ TEST(settings_load_partial_json_uses_defaults) {
     }
     bool loaded = s.load_save_file();
     ASSERT_TRUE(loaded);
-    ASSERT_EQ(s.get_window_width(), 2560);
+    ASSERT_EQ(s.get_window_width(), 280);
     ASSERT_EQ(s.get_window_height(), 1440);
     // Fields not in JSON should use defaults
     ASSERT_EQ(s.get_window_x(), 100);
@@ -305,6 +305,26 @@ TEST(settings_ignore_malformed_bookmarks_without_losing_valid_entries) {
     const auto& bookmarks = settings.get_code_bookmarks("repo");
     ASSERT_EQ(bookmarks.size(), 1u);
     ASSERT_EQ(bookmarks[0].line, 7);
+    fs::remove(settings.get_settings_path());
+}
+
+TEST(settings_remembers_expanded_and_collapsed_window_sizes) {
+    auto& settings = Settings::get();
+    settings.remember_window_size(1333, 999, false, 1333.f, 350.f);
+    settings.write_save_file();
+    settings.remember_window_size(1, 1, true, 1.f, 1.f);
+    ASSERT_TRUE(settings.load_save_file());
+    ASSERT_EQ(settings.get_window_width(), 1333);
+    ASSERT_EQ(settings.get_window_height(), 999);
+    ASSERT_FALSE(settings.get_window_collapsed());
+    ASSERT_EQ(settings.get_expanded_window_width(), 1333.f);
+    settings.remember_window_size(350, 777, true, 1333.f, 350.f);
+    settings.write_save_file();
+    ASSERT_TRUE(settings.load_save_file());
+    ASSERT_EQ(settings.get_window_width(), 350);
+    ASSERT_EQ(settings.get_window_height(), 777);
+    ASSERT_TRUE(settings.get_window_collapsed());
+    ASSERT_EQ(settings.get_expanded_window_width(), 1333.f);
     fs::remove(settings.get_settings_path());
 }
 

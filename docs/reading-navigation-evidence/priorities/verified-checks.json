@@ -1,0 +1,125 @@
+{
+  "hover": {
+    "name": "hover",
+    "exit_code": 0,
+    "seconds": 23.188781791948713,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "wrap": {
+    "name": "wrap",
+    "exit_code": 0,
+    "seconds": 36.56553024996538,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "selection": {
+    "name": "selection",
+    "exit_code": 0,
+    "seconds": 21.739279833971523,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "window": {
+    "name": "window",
+    "exit_code": 0,
+    "seconds": 4.293458582949825,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "large-source": {
+    "name": "large-source",
+    "exit_code": 0,
+    "seconds": 2.3185803330270573,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "divider": {
+    "name": "divider",
+    "exit_code": 0,
+    "seconds": 33.288148917024955,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "header": {
+    "name": "header",
+    "exit_code": 0,
+    "seconds": 6.054308834020048,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "tabs": {
+    "name": "tabs",
+    "exit_code": 0,
+    "seconds": 22.298600042006,
+    "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+    "source": "output/priority-polish/replay-build9/results.json"
+  },
+  "navigation": {
+    "passed": true,
+    "binary_sha256": "dee93199d3de443cf7f4e4d356eb75036d392bdd43ac5366cb7105f469aaa8d1",
+    "source": "navigation-final-results.json"
+  },
+  "priority": {
+    "name": "priority",
+    "exit_code": 0,
+    "seconds": 11.90193587495014,
+    "binary_sha256": "6236f4bc94bc114e4f7fe07b4fe4c39f6735a1ade40699688a0d62a26ce0ed37",
+    "source": "output/priority-polish/replay-build10/results.json"
+  },
+  "priority-geometry": {
+    "name": "priority-geometry",
+    "exit_code": 0,
+    "seconds": 0.404880499932915,
+    "binary_sha256": "6236f4bc94bc114e4f7fe07b4fe4c39f6735a1ade40699688a0d62a26ce0ed37",
+    "source": "output/priority-polish/replay-build10/results.json"
+  },
+  "native-menu": {
+    "name": "native-menu",
+    "exit_code": 0,
+    "seconds": 4.1021428749663755,
+    "binary_sha256": "6236f4bc94bc114e4f7fe07b4fe4c39f6735a1ade40699688a0d62a26ce0ed37",
+    "source": "output/priority-polish/replay-build10/results.json"
+  },
+  "default-font": {
+    "name": "default-font",
+    "exit_code": 0,
+    "seconds": 2.5301337080309168,
+    "binary_sha256": "6236f4bc94bc114e4f7fe07b4fe4c39f6735a1ade40699688a0d62a26ce0ed37",
+    "source": "output/priority-polish/replay-build10/results.json"
+  },
+  "font-controls": {
+    "name": "font-controls",
+    "exit_code": 0,
+    "seconds": 2.377712875022553,
+    "binary_sha256": "6236f4bc94bc114e4f7fe07b4fe4c39f6735a1ade40699688a0d62a26ce0ed37",
+    "source": "output/priority-polish/replay-build10/results.json"
+  },
+  "full-message": {
+    "name": "full-message",
+    "exit_code": 0,
+    "seconds": 2.1942442080471665,
+    "binary_sha256": "6236f4bc94bc114e4f7fe07b4fe4c39f6735a1ade40699688a0d62a26ce0ed37",
+    "source": "output/priority-polish/replay-build10/results.json"
+  },
+  "metrics-regression": {
+    "name": "metrics-regression",
+    "exit_code": 0,
+    "seconds": 14.864029625081457,
+    "binary_sha256": "dee93199d3de443cf7f4e4d356eb75036d392bdd43ac5366cb7105f469aaa8d1",
+    "source": "output/priority-polish/replay-build11/results.json"
+  },
+  "native-resize": {
+    "name": "native-resize",
+    "exit_code": 0,
+    "seconds": 42.93851754197385,
+    "binary_sha256": "dee93199d3de443cf7f4e4d356eb75036d392bdd43ac5366cb7105f469aaa8d1",
+    "source": "output/priority-polish/replay-build11/results.json"
+  },
+  "reading": {
+    "passed": true,
+    "binary_sha256": "dee93199d3de443cf7f4e4d356eb75036d392bdd43ac5366cb7105f469aaa8d1",
+    "source": "reading-outcomes.json",
+    "samples": 90
+  }
+}

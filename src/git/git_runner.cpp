@@ -203,7 +203,7 @@ bool take_prefetched(const std::string& repo_path, PrefetchedReads& out) {
 
 GitResult git_status(const std::string& repo_path, std::stop_token stop) {
     return git_run(repo_path,
-                   {"status", "--porcelain=v2", "--branch"}, stop);
+                   {"status", "--porcelain=v2", "--branch", "--untracked-files=all", "-z"}, stop);
 }
 
 GitResult git_log(const std::string& repo_path, int max_count, int skip, std::stop_token stop) {

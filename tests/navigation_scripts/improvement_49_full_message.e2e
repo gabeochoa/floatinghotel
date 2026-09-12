@@ -3,12 +3,12 @@ wait_for_refresh
 click_text "Long commit message"
 wait_for_refresh
 screenshot improvement_49_preview
-expect_text "Message line 1"
+expect_no_text "Message line 1"
 expect_no_text FULL_MESSAGE_END
 expect_text "Full message"
 click_ui commit_message_toggle
 screenshot improvement_49_expanded
-expect_text FULL_MESSAGE_END
+expect_text "Message line 1"
 mouse_move 900 400
 scroll_wheel 0 -100
 wait_frames 30

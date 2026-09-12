@@ -10,7 +10,7 @@ expectations = {
     "boundary_second_source": ("full_file_revision", "README.md @ working tree"),
     "boundary_retained_review": ("commit_detail_subject", "Add contributing guidelines"),
     "boundary_retained_source": ("full_file_revision", "README.md @ working tree"),
-    "boundary_closed_source": ("commit_detail_subject", "Add contributing guidelines"),
+    "boundary_closed_source": ("full_file_revision", "CONTRIBUTING.md @"),
     "boundary_revisited_source": ("full_file_revision", "README.md @ working tree"),
     "boundary_comparison": (None, "Resolved revisions:"),
     "boundary_comparison_file": (None, "Resolved revisions:"),

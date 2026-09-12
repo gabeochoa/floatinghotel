@@ -1,0 +1,33 @@
+{
+  "selection_ms": {
+    "min": 2.518417,
+    "p95": 9.262542,
+    "max": 10.97025,
+    "count": 90
+  },
+  "warm_commit_ms": {
+    "min": 121.341041,
+    "p95": 205.401,
+    "max": 205.401,
+    "count": 9
+  },
+  "cold_commit_ms": {
+    "min": 397.475542,
+    "p95": 2206.724291,
+    "max": 2206.724291,
+    "count": 9
+  },
+  "max_owned_content_bytes": 15245,
+  "render_p99_ms": {
+    "zoom-200-run-1": 2.52,
+    "zoom-140-run-1": 3.7,
+    "zoom-100-run-1": 5.35,
+    "zoom-200-run-3": 3.56,
+    "zoom-200-run-2": 16.96,
+    "zoom-140-run-2": 3.44,
+    "zoom-140-run-3": 3.96,
+    "zoom-100-run-2": 7.81,
+    "zoom-100-run-3": 5.12
+  },
+  "warm_cached_over_100ms": 27
+}

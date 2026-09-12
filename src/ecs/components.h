@@ -203,10 +203,16 @@ inline std::vector<size_t> visible_file_indices(const std::vector<FileDiff>& fil
 }
 
 struct CommitPatch {
+    std::string metadata;
     std::vector<FileDiff> files;
     std::string error;
     std::string resolvedCommit;
     std::string resolvedParent;
+};
+
+struct UntrackedReviewFiles {
+    std::vector<FileDiff> files;
+    std::string notice;
 };
 
 inline std::string hunk_signature(const DiffHunk& hunk) {
@@ -290,6 +296,10 @@ public:
 
     std::vector<FileDiff> currentDiff;
     std::vector<FileDiff> stagedDiff;
+    async_work::Task<UntrackedReviewFiles> untrackedReviewFuture;
+    std::optional<unsigned> untrackedReviewGeneration;
+    std::string untrackedReviewRepository;
+    std::string untrackedReviewNotice;
 
     std::string cachedFilePath;
     std::string untrackedDiffKey;
@@ -447,7 +457,6 @@ struct CommitDetailRuntime {
     async_work::Task<CommitPatch> patchFuture;
     int cachedContext = -1;
     bool cachedIgnoreWhitespace = false;
-    async_work::Task<git::GitResult> infoFuture;
     std::vector<FileDiff> commitDetailDiff;
     std::string commitDetailBody;
     bool messageExpanded = false;
@@ -605,6 +614,7 @@ inline std::string diff_signature(const FileDiff& f) {
 }
 
 inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const FileDiff& file) {
+    if (file.isPartialContent) return false;
     auto record = review.reviewedFiles.find(scope + "\n" + file.filePath);
     if ((file.oldMode != file.newMode || !file.oldPath.empty()) &&
         (record == review.reviewedFiles.end() || record->second != diff_signature(file))) return false;
@@ -718,6 +728,7 @@ inline ReviewProgress review_progress(const ReviewComponent& review, const std::
     ReviewProgress progress;
     progress.total = files.size();
     for (const auto& file : files) {
+        if (file.partial) continue;
         auto record = review.reviewedFiles.find(scope + "\n" + file.path);
         bool recorded = record != review.reviewedFiles.end() && record->second == file.signature;
         if (file.requiresFileRecord && !recorded) continue;
@@ -749,7 +760,7 @@ inline bool review_queue_completion_is_stale(const ReviewComponent& review, cons
         const CommitDetailCache& cache) {
     if (!review.queue.completed.contains(repo.selectedCommitHash()) || !selected_commit_parent(repo).empty()) return false;
     if (cache.cachedCommitHash != repo.selectedCommitHash() || !cache.cachedParentHash.empty()) return false;
-    if (cache.patchFuture.valid() || cache.infoFuture.valid() || !cache.commitDetailError.empty()) return false;
+    if (cache.patchFuture.valid() || !cache.commitDetailError.empty()) return false;
     return current_review_verdict(review, repo.selectedCommitHash(), cache.commitDetailDiff) == ReviewVerdict::InProgress;
 }
 

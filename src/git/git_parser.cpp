@@ -95,7 +95,8 @@ StatusResult parse_status(const std::string& output) {
     std::istringstream stream(output);
     std::string line;
 
-    while (std::getline(stream, line)) {
+    const bool nulTerminated = output.find('\0') != std::string::npos;
+    while (std::getline(stream, line, nulTerminated ? '\0' : '\n')) {
         if (line.empty()) continue;
 
         if (line.starts_with("# branch.head ")) {
@@ -139,7 +140,10 @@ StatusResult parse_status(const std::string& output) {
                 if (path_start != std::string::npos) {
                     std::string paths = line.substr(path_start);
                     size_t tab_pos = paths.find('\t');
-                    if (tab_pos != std::string::npos) {
+                    if (nulTerminated) {
+                        fs.path = paths;
+                        std::getline(stream, fs.origPath, '\0');
+                    } else if (tab_pos != std::string::npos) {
                         fs.path = paths.substr(0, tab_pos);
                         fs.origPath = paths.substr(tab_pos + 1);
                     } else {

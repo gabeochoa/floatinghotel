@@ -153,6 +153,7 @@ struct FileSummary {
     std::string signature;
     std::vector<std::string> hunkKeys;
     bool requiresFileRecord = false;
+    bool partial = false;
 };
 
 struct Document {
@@ -165,6 +166,7 @@ struct Document {
 class ReadingWorkspace {
     friend struct ::navigation;
     std::vector<Document> documents_{{DocumentId{1}}};
+    std::vector<Document> closed_;
     DocumentId active_{1};
     std::uint64_t nextId_ = 2;
     std::vector<Visit> history_{{}};
@@ -188,6 +190,7 @@ class ReadingWorkspace {
     }
 public:
     const std::vector<Document>& documents() const { return documents_; }
+    const std::vector<Document>& closed() const { return closed_; }
     DocumentId active_id() const { return active_; }
     const Document* document(DocumentId id) const {
         auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == id; });
@@ -198,6 +201,13 @@ public:
             return same_document(tab.location, location);
         });
         return found == documents_.end() ? nullptr : &*found;
+    }
+    const Document* retained_review() const {
+        if (const auto* open = document(review()); open && open->files) return open;
+        auto found = std::find_if(closed_.rbegin(), closed_.rend(), [&](const auto& tab) {
+            return same_document(tab.location, review());
+        });
+        return found == closed_.rend() ? document(review()) : &*found;
     }
     const Document* recent(Slot slot) const {
         const Document* found = nullptr;
@@ -239,13 +249,34 @@ private:
         select(visit.location);
         return true;
     }
-    bool close_source(bool reviewing = false) {
-        const auto* sourceTab = recent(Slot::Source);
-        if (!sourceTab) return false;
-        auto id = sourceTab->id;
-        if (id == active_) open(review(), reviewing);
-        std::erase_if(documents_, [&](const auto& tab) { return tab.id == id; });
+    bool close(DocumentId id, bool reviewing) {
+        auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == id; });
+        if (found == documents_.end()) return false;
+        if (documents_.size() == 1 && found->location == Location{ReviewLocation{}}) return false;
+        const auto index = static_cast<size_t>(found - documents_.begin());
+        const bool wasActive = id == active_;
+        closed_.push_back(std::move(*found));
+        if (closed_.size() > 20) closed_.erase(closed_.begin());
+        documents_.erase(found);
+        if (!wasActive) return false;
+        if (documents_.empty()) documents_.push_back({DocumentId{nextId_++}});
+        active_ = documents_[std::min(index, documents_.size() - 1)].id;
+        auto next = location();
+        ++generation_;
+        open(std::move(next), reviewing);
         return true;
+    }
+    bool reopen(bool reviewing) {
+        if (closed_.empty()) return false;
+        auto restored = std::move(closed_.back());
+        closed_.pop_back();
+        auto next = restored.location;
+        auto existing = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) {
+            return same_document(tab.location, next);
+        });
+        if (existing == documents_.end()) documents_.push_back(std::move(restored));
+        else if (!existing->files && restored.files) existing->files = std::move(restored.files);
+        return open(std::move(next), reviewing);
     }
     bool step(int direction) {
         if (direction == 0 || (direction < 0 && index_ == 0) ||
@@ -282,6 +313,7 @@ private:
                 source->origin->destination = after;
         };
         for (auto& document : documents_) resolve(document.location);
+        for (auto& document : closed_) resolve(document.location);
         for (auto& visit : history_) resolve(visit.location);
     }
     bool resolve_source(std::uint64_t generation, const std::string& oid) {

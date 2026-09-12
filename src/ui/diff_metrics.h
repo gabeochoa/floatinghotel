@@ -3,13 +3,14 @@
 #include "../ecs/components.h"
 #include "../util/byte_cache.h"
 #include <bit>
+#include "../util/code_wrap.h"
 
 namespace ui {
 
 class DiffMetricsCache {
-    ByteCache<std::string> signatures_{4 * 1024 * 1024};
-    ByteCache<float> widths_{1024 * 1024};
-    size_t signatureScans_ = 0, widthScans_ = 0;
+    ByteCache<std::string> signatures_{2 * 1024 * 1024};
+    ByteCache<std::vector<size_t>> wraps_{3 * 1024 * 1024};
+    size_t signatureScans_ = 0, wrapScans_ = 0, wrapHits_ = 0;
 public:
     std::string signature(const ecs::FileDiff& file) {
         auto key = std::to_string(file.renderIdentity);
@@ -21,20 +22,20 @@ public:
         return value;
     }
     template<class Measure>
-    float width(const ecs::FileDiff& file, float fontSize, bool whitespace, bool split, Measure measure) {
-        auto key = std::to_string(file.renderIdentity) + ":" + std::to_string(std::bit_cast<std::uint32_t>(fontSize)) +
-            (whitespace ? ":spaces" : ":plain") + (split ? ":split" : ":inline");
-        if (const auto* value = widths_.get(key)) return *value;
-        ++widthScans_;
-        float widest = 0.f;
-        for (const auto& hunk : file.hunks)
-            for (const auto& line : hunk.lines) widest = std::max(widest, measure(line));
-        widths_.put(std::move(key), widest, 0);
-        return widest;
+    std::vector<size_t> wraps(const std::string& text, float width, float fontSize, bool whitespace, Measure measure) {
+        auto key = std::to_string(std::bit_cast<std::uint32_t>(width)) + ":" +
+            std::to_string(std::bit_cast<std::uint32_t>(fontSize)) + (whitespace ? ":spaces:" : ":plain:") + text;
+        if (const auto* value = wraps_.get(key)) { ++wrapHits_; return *value; }
+        ++wrapScans_;
+        auto value = code_wrap::breaks(text, width, measure);
+        auto bytes = value.capacity() * sizeof(size_t);
+        wraps_.put(std::move(key), value, bytes);
+        return value;
     }
     size_t signature_scans() const { return signatureScans_; }
-    size_t width_scans() const { return widthScans_; }
-    size_t bytes() const { return signatures_.bytes() + widths_.bytes(); }
+    size_t wrap_scans() const { return wrapScans_; }
+    size_t wrap_hits() const { return wrapHits_; }
+    size_t bytes() const { return signatures_.bytes() + wraps_.bytes(); }
 };
 
 inline DiffMetricsCache& diff_metrics() {

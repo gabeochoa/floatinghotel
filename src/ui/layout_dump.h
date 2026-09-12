@@ -6,6 +6,8 @@
 #include <afterhours/src/plugins/e2e_testing/ui_commands.h>
 #include <afterhours/src/plugins/ui/systems.h>
 #include "zoom.h"
+#include "diff_renderer.h"
+#include "../input_mapping.h"
 
 namespace ui {
 
@@ -35,13 +37,14 @@ inline nlohmann::json layout_snapshot() {
         return nlohmann::json{{"top", edges[Axis::top]}, {"right", edges[Axis::right]},
                               {"bottom", edges[Axis::bottom]}, {"left", edges[Axis::left]}};
     };
+    auto* context = EntityHelper::get_singleton_cmp<UIContext<InputAction>>();
     auto nodes = nlohmann::json::array();
     for (Entity& entity : EntityQuery<>(UICollectionHolder::get().collection,
              {.force_merge = true, .ignore_temp_warning = true}).whereHasComponent<UIComponent>().gen()) {
         const auto& cmp = entity.get<UIComponent>();
         const auto rect = screen_rect(entity);
         nlohmann::json node{
-            {"id", entity.id}, {"parent", cmp.parent}, {"children", cmp.children},
+            {"id", entity.id}, {"hot", context && context->is_hot(entity.id)}, {"parent", cmp.parent}, {"children", cmp.children},
             {"rendered", cmp.was_rendered_to_screen}, {"hidden", cmp.should_hide},
             {"rect", rect_json(rect)}, {"visible_rect", rect_json(visible_rect(entity))},
             {"padding", edges_json(cmp.computed_padd)},
@@ -56,6 +59,11 @@ inline nlohmann::json layout_snapshot() {
         if (entity.has<HasLabel>()) {
             const auto& label = entity.get<HasLabel>();
             node["text"] = label.label;
+            if (entity.has<UIComponentDebug>() &&
+                (entity.get<UIComponentDebug>().name() == "diff_line" || entity.get<UIComponentDebug>().name() == "sbs_cell")) {
+                node["measured_text_width"] = EntityHelper::get_singleton_cmp_enforce<TextMeasureCache>().measure_width(
+                    label.label, cmp.font_name, Settings::get().get_code_font_size() * zoom::get());
+            }
             node["font"] = cmp.font_name;
             node["text_spans"] = nlohmann::json::array();
             for (const auto& span : label.spans)
@@ -76,8 +84,16 @@ inline nlohmann::json layout_snapshot() {
         }
         nodes.push_back(std::move(node));
     }
-    return {{"schema_version", 1}, {"units", "physical_pixels"}, {"ui_scale", zoom::get()},
+    auto reading = nlohmann::json::array();
+    for (const auto& row : diff_sel::state().lastLines) {
+        reading.push_back({{"id", row.ent}, {"text", row.content}, {"path", row.filePath},
+            {"line", row.lineNo}, {"side", row.side}, {"sign", std::string(1, row.sign)},
+            {"offset", row.sourceOffset}, {"rect", rect_json(row.rect)}, {"content_x", row.contentX0}});
+    }
+    return {{"reading_rows", std::move(reading)}, {"selection_text", diff_sel::build_copy_text(diff_sel::state(), false)},
+            {"selection_location", diff_sel::build_copy_text(diff_sel::state(), true)}, {"schema_version", 1}, {"units", "physical_pixels"}, {"ui_scale", zoom::get()},
             {"viewport", {{"width", graphics::get_screen_width()}, {"height", graphics::get_screen_height()}}},
+            {"pointer", {{"x", context ? context->mouse.pos.x : 0.f}, {"y", context ? context->mouse.pos.y : 0.f}}},
             {"nodes", std::move(nodes)}};
 }
 
@@ -114,7 +130,7 @@ struct HandleLayoutClick : afterhours::System<afterhours::testing::PendingE2ECom
         using namespace afterhours;
         using namespace afterhours::ui;
         if (cmd.is_consumed()) return;
-        const bool named = cmd.is("click_ui") || cmd.is("right_click_ui");
+        const bool named = cmd.is("click_ui") || cmd.is("right_click_ui") || cmd.is("hover_ui");
         const bool text = cmd.is("click_text") || cmd.is("right_click_text") || cmd.is("click_button");
         if (!named && !text) return;
         if (!cmd.has_args(1)) { cmd.fail("Click requires a UI name or label"); return; }
@@ -128,7 +144,8 @@ struct HandleLayoutClick : afterhours::System<afterhours::testing::PendingE2ECom
             if (rect.width <= 0.f || rect.height <= 0.f) continue;
             const float x = rect.x + rect.width * 0.5f;
             const float y = rect.y + rect.height * 0.5f;
-            if (cmd.is("right_click_ui") || cmd.is("right_click_text")) testing::test_input::simulate_right_click(x, y);
+            if (cmd.is("hover_ui")) testing::test_input::set_mouse_position(x, y);
+            else if (cmd.is("right_click_ui") || cmd.is("right_click_text")) testing::test_input::simulate_right_click(x, y);
             else testing::test_input::simulate_click(x, y);
             cmd.consume();
             return;

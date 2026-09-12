@@ -1,0 +1,62 @@
+--- Compiling test_git_parser ---
+--- Running test_git_parser ---
+=== git_parser tests ===
+  diff_file_modes_preserve_permission_and_creation_changes     OK
+  diff_marks_unique_unchanged_blocks_as_moved                  OK
+  blame_line_preserves_original_location_and_author            OK
+  status_empty_output                                          OK
+  status_branch_name                                           OK
+  status_detached_head                                         OK
+  status_upstream_branch                                       OK
+  status_ahead_behind                                          OK
+  status_ahead_only                                            OK
+  status_ordinary_staged_file                                  OK
+  status_ordinary_unstaged_file                                OK
+  status_submodule_pointer_change                              OK
+  status_ordinary_file_not_submodule                           OK
+  status_both_staged_and_unstaged                              OK
+  status_added_file                                            OK
+  status_deleted_file                                          OK
+  status_rename_entry                                          OK
+  status_untracked_file                                        OK
+  status_ignored_file_skipped                                  OK
+  status_multiple_entries                                      OK
+  status_unmerged_entry                                        OK
+  status_blank_lines_ignored                                   OK
+  log_empty_output                                             OK
+  log_single_commit                                            OK
+  log_multiple_commits                                         OK
+  log_no_decorations                                           OK
+  log_blank_lines_ignored                                      OK
+  log_too_few_fields_skipped                                   OK
+  diff_empty_output                                            OK
+  diff_simple_modification                                     OK
+  diff_submodule_pointer_change                                OK
+  diff_new_file                                                OK
+  diff_deleted_file                                            OK
+  diff_renamed_file                                            OK
+  diff_binary_file                                             OK
+  diff_multiple_files                                          OK
+  diff_multiple_hunks                                          OK
+  diff_single_line_hunk_no_comma                               OK
+  diff_context_lines_preserved                                 OK
+  diff_windows_line_endings_stripped                           OK
+  diff_preserves_crlf_content_and_missing_newline              OK
+  null_paths_preserve_spaces_and_tabs                          OK
+  grep_matches_parse_nul_separated_locations                   OK
+  branch_empty_output                                          OK
+  branch_single_current                                        OK
+  branch_non_current                                           OK
+  branch_multiple_sorted                                       OK
+  branch_detached_head_skipped                                 OK
+  branch_no_upstream                                           OK
+  branch_minimal_fields                                        OK
+  branch_blank_lines_ignored                                   OK
+  binary_diff_object_ids_keep_the_full_hash_without_a_mode_field OK
+  status_nul_records_preserve_renames_and_control_characters_in_paths OK
+
+53/53 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

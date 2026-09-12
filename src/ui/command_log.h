@@ -51,17 +51,14 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             [](Entity& /*e*/) {});
         auto& drag = dragDiv.ent().get<HasDragListener>();
         if (drag.down) {
-            auto mousePos = afterhours::graphics::get_mouse_position();
-            float mouseY = static_cast<float>(mousePos.y);
+            float mouseY = ctx.mouse.pos.y / ui::zoom::get();
             float bottomY = layout.statusBar.y;
             float topY = layout.mainContent.y + 60.0f;
             float newLogH = bottomY - mouseY;
             newLogH = std::clamp(newLogH, 80.0f, bottomY - topY);
-            float sh = static_cast<float>(afterhours::graphics::get_screen_height());
-            float unscaledLogH = newLogH * 720.0f / sh;
 
             auto* lc = find_singleton<LayoutComponent>();
-            if (lc) lc->commandLogHeight = unscaledLogH;
+            if (lc) lc->commandLogHeight = newLogH;
         }
     }
 

@@ -1,0 +1,317 @@
+{
+  "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+  "files": [
+    {
+      "path": "output/priority-polish/replay-build9/hover/100/neutral.png",
+      "sha256": "450a829db463e5990c9204edd2211ed44b828981d52520cfebbd7d4a6d96e92d"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/100/neutral.json",
+      "sha256": "8f909a8ee6f0f51e89a9c169b870e7711ce305393f498c8a2c6c1b469a62748f"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/100/hover_close.png",
+      "sha256": "e3d36c2a30bbd5807683c5f11cf67126e1b7cec99e77d59aa9625eb20965e87f"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/100/hover_close.json",
+      "sha256": "e806300c648cd8e775a1492d371e929e2b5121ccbadb8e6cfb5bc97f703a2493"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/100/before.png",
+      "sha256": "3666f28772cbab8834b49cbc7d5a9ee3752fcf919a6e3d11584b642acc9e77cb"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/100/before.json",
+      "sha256": "164bed803e286fd55ba6815a9ff71f7c6543726b9b22c970713095aadf54b05e"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/100/after.png",
+      "sha256": "b94a8bebb3e2deb3674692a397030b9172aee5713bf1f6da14b3e9a54de8961b"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/100/after.json",
+      "sha256": "96c419a67e8eb8d271699258cf1802938087be4c9e4cb01884597186de1249bb"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/divider/100/after.png",
+      "sha256": "f4a7c3551be0f2e4871b8e1ebc264bf38f4a165d4bc6502eeffb5840ed082abc"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/divider/100/after.json",
+      "sha256": "185d337618aab38abf8783a59163679cb97916c60daf4416090f9a4450c9ad42"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/tabs/100/tabs_all.png",
+      "sha256": "703f82caa3da7cc7b7b196bfcca2a493b3fc1523267bd28bf370f4e1ace2831d"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/tabs/100/tabs_all.json",
+      "sha256": "3d100c7f38598c429d976fa0facaf65a7893200ab91e56403f0de9ac691dc4d2"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/100-unified/wrapped.png",
+      "sha256": "d31cbb7be58290d4f179b992ef2ed24712eb9929c246d5d76d41bab84c43f236"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/100-unified/wrapped.json",
+      "sha256": "3cec3d41be2d5b99605d011a67fc27fae341dea278cda61cfce66bc728928cb1"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/100-unified/selected.png",
+      "sha256": "73289ae6321db4142745a806c7570929d8794c5faa5def0f7bbb566b036cfa2b"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/100-unified/selected.json",
+      "sha256": "cd4c92ad8239e9c2adcbb5f5bfb6305383368443f71b4d3af767e56554eb21d2"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/100-split/wrapped.png",
+      "sha256": "27b85745948283b5f26f610960afcf542eeee046aa447dafc1030b2ec49149b8"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/100-split/wrapped.json",
+      "sha256": "31447b1a544e4ea99e82161ec76ceed3502b086b5adeef47fb9c26871f2b556e"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/100-split/selected.png",
+      "sha256": "33518912495588c65d4bcbf221a9335fdb7057f83899af174586e0351de9bd0d"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/100-split/selected.json",
+      "sha256": "8f9d62aaa94865fe24921f381c68ae537492b08a92c4c44ab3872e86f3cced57"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/100-source/wrapped.png",
+      "sha256": "e01e72ade89ce8fa73428681dcc9def3fadd8dfff4dfe41c1af8d8c939139658"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/100-source/wrapped.json",
+      "sha256": "edc3b9368160d0fd4b93af4a934fe1c6a18f5e9d6f46e54f6882b6fb569c28f4"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/100-source/selected.png",
+      "sha256": "8e958f337ebf26c5547b39aaea54a5a0729bd3fe77cb8338ca39fa2b05bb5e81"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/100-source/selected.json",
+      "sha256": "9b05e16dfb0ae7f59539f1f0b48db9e8f2266f90402d5d571dfc49e9c3f366b7"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/140/neutral.png",
+      "sha256": "c77450f38cd929676c3a8957b841b81c2835cf637a860b86fb1a718748d2f754"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/140/neutral.json",
+      "sha256": "765049c36f852cb7e7feaa404d4d6b59347da91ad500fe8d9dfd34cf50c620df"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/140/hover_close.png",
+      "sha256": "c7b61b063a4793dd862140d9d4ff2280057580ce8116b3abd8acbae4c8bb268c"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/140/hover_close.json",
+      "sha256": "c73f5d453853c8a62bcbf9a435d3a348f213701b7d481249c2faf49d515a4bc6"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/140/before.png",
+      "sha256": "52c370df3e0f1d87c6a109470a6535897ba8bafaba23ace1d40e87b92858e4a0"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/140/before.json",
+      "sha256": "0774d6731b0fb988cb20cb8e6bb53c6d12dc37cf4ff46098a361e5568a825c08"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/140/after.png",
+      "sha256": "fec1ca07cb779016ccd08d0515e7fef9dd13aa7ccc58c2344439747f908b18ef"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/140/after.json",
+      "sha256": "aa8829cb07b761195579fb5a7ef0f78e03180eaf55370d633942e037dd23132b"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/divider/140/after.png",
+      "sha256": "9d0e0c9408a92ff3309bb86cfe05ea4910fbd8dfd0145012c156c00cb08abcaa"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/divider/140/after.json",
+      "sha256": "0269e0e00cd2d359cfe5693e8bf5a82635eb7bac38608fe8d616f4ee8b74c09b"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/tabs/140/tabs_all.png",
+      "sha256": "cce8bffad370a5572d06f78438b038b12698872e39cb8ed03028ed73d7e4bc7b"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/tabs/140/tabs_all.json",
+      "sha256": "112c0abafb3434b6b9a343a89c5b186c7ef38506675c15b84bf371d85560b714"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/140-unified/wrapped.png",
+      "sha256": "5956176b6175dec993d49e1320eb17f423f51bc7207286920994692017df7849"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/140-unified/wrapped.json",
+      "sha256": "cf0324cb8f6789cf8945769887c144f653c269977311ca6a66631d105ddde8b2"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/140-unified/selected.png",
+      "sha256": "ef062895882596a043a70f2ca134b3fb5ffc6a4acfd13036e7a4da6e8f4a741f"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/140-unified/selected.json",
+      "sha256": "1265efccc6b35044f7655d72b243b56315d5d273024db7fa55d99abc252bfb8b"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/140-split/wrapped.png",
+      "sha256": "465bb251aba44b9417d9c6aaae9671d6c9c221619e0598612687e7e0ae05d506"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/140-split/wrapped.json",
+      "sha256": "904650fcb678d680046409128eb379a3edee6d98adffe6695e14e73fa9175735"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/140-split/selected.png",
+      "sha256": "07124efe2f12f90097659a629d8f0f824e12526704335eb701e2ea439048c8df"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/140-split/selected.json",
+      "sha256": "b9a8beb5d195925d47bdb0a09ab4f8a959ffe146dd82ca2a17592b7d88bcb489"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/140-source/wrapped.png",
+      "sha256": "12f63e4eaa6eb04a412f38ed037d8bd3851995d5a6260af84ce5374a572a7248"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/140-source/wrapped.json",
+      "sha256": "c23d26d1422eb395c66646d72b551f16a01542d94e14889aa8485d55fac8d0e5"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/140-source/selected.png",
+      "sha256": "ea5dd08f5aa878be54819d0f065772c227c36278c1da0c1f00e23e2ca7d97755"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/140-source/selected.json",
+      "sha256": "769ecc9eed84c91a1a373677c3ee0370598825a6e424c373a2731e45eb4ef3ec"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/200/neutral.png",
+      "sha256": "666bb26c995b5c669870bf984ee0e888512b9a57a77bfaed39187289a516319c"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/200/neutral.json",
+      "sha256": "37cd92036a66ce5acf5e54df5763467bd5af95ab1fa6987be35d4a59c19aa268"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/200/hover_close.png",
+      "sha256": "7553b1f8e1d546a298ade662bfd916708623b550440b125c7fec533fff341131"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/hover/200/hover_close.json",
+      "sha256": "3dc7f455b9a5c1981feb79ebf80f9583a450e1a82d542169cbdbfdd5eb64626a"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/200/before.png",
+      "sha256": "1567f4029fff88714024a8fb4c29646a399217ac129eb638b9120749305a6846"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/200/before.json",
+      "sha256": "b5ab29d237f7065e6bde2188624dc5a8ee1e4501195bae7f069afa644dbe209a"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/200/after.png",
+      "sha256": "28b8f27daf7628a4f7f022f1799cd48b25e447f0862374dcfab53704a4cf45fe"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/header/200/after.json",
+      "sha256": "aec5be11b8db5a80252f9c160c3c6967992ce34d1d56af5c650145b7b84510b9"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/divider/200/after.png",
+      "sha256": "cd9ab545072f3b00bbd30b9fa5c736ca65786e242a063564ea768812f062ac19"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/divider/200/after.json",
+      "sha256": "21fdfba16ae679968a7c560ae09d252f60ed7739826f6247b9b47177bb510ba3"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/tabs/200/tabs_all.png",
+      "sha256": "2b5689513e82f9641f33078117265a8c6af40a9a94777ce9d1ca94638e2a3e3a"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/tabs/200/tabs_all.json",
+      "sha256": "bc3570d9e0975056e9795ff566258215f7f89e539a3141a5097b09aa3d624553"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/200-unified/wrapped.png",
+      "sha256": "3b358c15edfae5cb08788c44c602ebf85d2be2777e1eef77a42cfc940e1c631c"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/200-unified/wrapped.json",
+      "sha256": "46be47a9ce4e71847148fea4029663740c0590aea281cf81199478453cbcd626"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/200-unified/selected.png",
+      "sha256": "7e370bdd615833ddae5644ce9adcba154c224f1099cad42ae38b76fd866019d0"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/200-unified/selected.json",
+      "sha256": "a414b1c6b5390e70c59b27fbe6de42de23c18b9ec839b2ee1780d5e5edb181a9"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/200-split/wrapped.png",
+      "sha256": "b088887f5d32f6f983e5f3fd70c6a731457dcb21776bdb5c65915f2b21f55aeb"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/200-split/wrapped.json",
+      "sha256": "19911e6faaa460fb540bdad15932552f41246903184171a041d75fef6a1b0846"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/200-split/selected.png",
+      "sha256": "928f717a673a78a448d96fd97690a7a13a30f3e5227b487cff88496c11666822"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/200-split/selected.json",
+      "sha256": "68213d5c6d02e7abd50fb3aeac6c7bfc49eb9282cdcccb6a4e57b1770d39388d"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/200-source/wrapped.png",
+      "sha256": "4b0e02a088597e7dfd111db78b5a75792e0b8760fea1c9499b5cf1df32022589"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/wrap/200-source/wrapped.json",
+      "sha256": "a88dd7aa8fc4c2412ffb6249ba8f4d7ae1f9c0eba62f34e5d2aea978a06492ca"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/200-source/selected.png",
+      "sha256": "31018d9826f9709be2665cbd631b6762a34dd0dc3838d0be19424f0b5f483abe"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/selection/200-source/selected.json",
+      "sha256": "a2ccea315500fdf35912fcd0034c73995fa8ca77512f8cd1bdd74a3cfd4eb3a5"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/window/resize/resized.png",
+      "sha256": "0c54d727b165c922a32c9f8a03095037a20c315d14cf0770f9b852c1b1c044ef"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/window/resize/resized.json",
+      "sha256": "2f290e07b25cad8ae6f28504d68f21c0e79df730d630b6efdb44b67bfd686334"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/window/restart/initial.png",
+      "sha256": "dc286b9416dcb9cac0490fa7198894cae5c9d9e65ddfaa8039e5b895430f6211"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/window/restart/initial.json",
+      "sha256": "f2a2395f3b3df6a87f0cf0c41af488641d610d5aea65b98f1aa3d3fc867b09e0"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/window/dock/initial.png",
+      "sha256": "6abd5b65abb12680bb8c48a03a6474b19596804c72ebfd3fe92ad0c5035e9332"
+    },
+    {
+      "path": "output/priority-polish/replay-build9/window/dock/initial.json",
+      "sha256": "4c3b2af330d5ca5be9c901e353c29e377dc05d4aa7387c106c3c22bd9998a64e"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "path": "output/priority-polish/replay-build11/reading/zoom-140-run-1/run.log",
+    "evidence": [
+      "[INFO] bench_frames: 120 frames, 192 entities: avg 5.43 ms  p50 3.10  p99 24.19  max 91.02",
+      "[WARN] [E2E ERROR] expect_p99_below (line 87): P99 24.19ms is above maximum 20.00ms"
+    ]
+  },
+  {
+    "path": "output/priority-polish/reading-build11-repeat/zoom-100-run-2/run.log",
+    "evidence": [
+      "[INFO] bench_frames: 120 frames, 214 entities: avg 5.32 ms  p50 3.23  p99 32.20  max 54.73",
+      "[WARN] [E2E ERROR] expect_p99_below (line 83): P99 32.20ms is above maximum 20.00ms"
+    ]
+  }
+]

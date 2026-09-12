@@ -142,6 +142,7 @@ def main():
             snapshot.write_bytes((ROOT / name).read_bytes())
     (output / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     rows = []
+    outcomes = []
     for zoom in args.zooms:
         for iteration in range(args.runs):
             directory = output / f"zoom-{zoom}-run-{iteration + 1}"
@@ -149,12 +150,17 @@ def main():
             scenario = directory / "journey.e2e"
             scenario.write_text(script(commits["head"], zoom))
             with (directory / "run.log").open("w") as log:
-                run(str(binary), str(repo), "--test-mode", "--headless", f"--test-script={scenario}",
-                    f"--screenshot-dir={directory}", "--e2e-timeout=45", cwd=ROOT,
+                result = subprocess.run([str(binary), str(repo), "--test-mode", "--headless", f"--test-script={scenario}",
+                    f"--screenshot-dir={directory}", "--e2e-timeout=45"], cwd=ROOT,
                     env=dict(os.environ, FH_NATIVE_MENUS="1"), stdout=log, stderr=subprocess.STDOUT, timeout=120)
-            assert "E2E ERROR" not in (directory / "run.log").read_text()
+            errors = [line for line in (directory / "run.log").read_text().splitlines()
+                      if any(marker in line for marker in ("E2E ERROR", "[TIMEOUT]", "(FAIL)"))]
+            assert not any("expect_p99_below" not in error for error in errors), errors
+            assert result.returncode == 0 or errors, (directory, result.returncode)
             rows.extend(check(directory, commits["head"], zoom))
-            print(f"PASS zoom={zoom} run={iteration + 1}", flush=True)
+            outcomes.append(dict(zoom=zoom, run=iteration + 1, exit_code=result.returncode, errors=errors))
+            (output / "outcomes.json").write_text(json.dumps(outcomes, indent=2) + "\n")
+            print(f"{'FAIL frame gate' if errors else 'PASS'} zoom={zoom} run={iteration + 1}", flush=True)
     (output / "samples.json").write_text(json.dumps(rows, indent=2) + "\n")
     summary = []
     for zoom in args.zooms:
@@ -168,6 +174,8 @@ def main():
                 summary.append(result)
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(f"Evidence: {output}")
+    if any(row["exit_code"] != 0 or row["errors"] for row in outcomes):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

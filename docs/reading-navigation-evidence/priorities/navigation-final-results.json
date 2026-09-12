@@ -1,0 +1,59 @@
+{
+  "binary_sha256": "dee93199d3de443cf7f4e4d356eb75036d392bdd43ac5366cb7105f469aaa8d1",
+  "binary_unchanged": true,
+  "results": [
+    {
+      "script": "improvement_21_file_picker",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_22_repo_search",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_24_all_files",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_27_commit_search",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_35_comment_jump",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_44_navigation",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "reading_navigation_boundary",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    }
+  ],
+  "sources": [
+    "output/priority-polish/navigation-build11/results.json",
+    "output/priority-polish/navigation-all-files-ready/results.json"
+  ]
+}

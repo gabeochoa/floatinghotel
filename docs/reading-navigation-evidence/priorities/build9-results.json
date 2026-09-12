@@ -1,0 +1,60 @@
+{
+  "binary_sha256": "66deeadf812d24840291847a323529288959559f74c45332a1acffac4c7d176f",
+  "results": [
+    {
+      "name": "hover",
+      "exit_code": 0,
+      "seconds": 23.188781791948713
+    },
+    {
+      "name": "wrap",
+      "exit_code": 0,
+      "seconds": 36.56553024996538
+    },
+    {
+      "name": "selection",
+      "exit_code": 0,
+      "seconds": 21.739279833971523
+    },
+    {
+      "name": "window",
+      "exit_code": 0,
+      "seconds": 4.293458582949825
+    },
+    {
+      "name": "large-source",
+      "exit_code": 0,
+      "seconds": 2.3185803330270573
+    },
+    {
+      "name": "divider",
+      "exit_code": 0,
+      "seconds": 33.288148917024955
+    },
+    {
+      "name": "header",
+      "exit_code": 0,
+      "seconds": 6.054308834020048
+    },
+    {
+      "name": "tabs",
+      "exit_code": 0,
+      "seconds": 22.298600042006
+    },
+    {
+      "name": "navigation",
+      "exit_code": 0,
+      "seconds": 44.35120149992872
+    },
+    {
+      "name": "priority",
+      "exit_code": 0,
+      "seconds": 9.539132042089477
+    },
+    {
+      "name": "priority-geometry",
+      "exit_code": 1,
+      "seconds": 0.2952323330100626
+    }
+  ]
+}

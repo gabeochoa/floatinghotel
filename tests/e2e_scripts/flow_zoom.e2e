@@ -1,5 +1,3 @@
-# Zoom: trackpad pinch and Cmd+0 both drive Theme::ui_scale, and Adaptive
-# scaling means that one value resizes the whole UI.
 make_test_repo
 resize 1280 720
 wait_frames 5
@@ -20,6 +18,9 @@ validate ui_scale=0.98
 screenshot zoom_03_pinched_out
 
 key CMD+0
+wait_frames 5
+validate ui_scale=0.98
+native_menu_action "Reset Zoom"
 wait_frames 5
 validate ui_scale=1.00
 screenshot zoom_04_reset

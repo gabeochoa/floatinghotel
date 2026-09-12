@@ -72,7 +72,7 @@ inline void render_review_queue(UIContext<InputAction>& ctx, Entity& parent, int
         if (button(ctx, mk(row.ent(), 3), preset::Button("Reviewed and next")
                 .with_size(ComponentSize{children(), pixels(28)}).with_font_size(FontSize::Small).with_debug_name("review_queue_complete"))) {
             if (cache.cachedCommitHash != repo.selectedCommitHash() || cache.cachedParentHash != selected_commit_parent(repo) || cache.patchFuture.valid() ||
-                cache.infoFuture.valid() || !cache.commitDetailError.empty() ||
+                !cache.commitDetailError.empty() ||
                 current_review_verdict(review, commit_review_scope(repo), cache.commitDetailDiff) == ReviewVerdict::InProgress)
                 afterhours::toast::send_info(ctx, "Finish this commit's review before completing it", 2.f);
             else {

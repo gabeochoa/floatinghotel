@@ -1,0 +1,78 @@
+--- Compiling test_commit_patch ---
+--- Running test_commit_patch ---
+  commit_patches_are_parsed_on_workers_with_resolved_revision_identity [INFO] git: 461 ms (waited 0 ms for lock): git init
+[INFO] git: 230 ms (waited 0 ms for lock): git add
+[INFO] git: 316 ms (waited 0 ms for lock): git -c
+[INFO] git: 121 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 125 ms (waited 0 ms for lock): git show
+[INFO] git: 121 ms (waited 0 ms for lock): git show
+[INFO] git: 101 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 4ff71b2bd79e7799560095e1d3aca46ca6e60cbc
+[INFO] git: 164 ms (waited 0 ms for lock): git -c
+[INFO] git: 97 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 126 ms (waited 0 ms for lock): git diff
+[INFO] git: 130 ms (waited 0 ms for lock): git show
+[INFO] git: 110 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 106 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 117 ms (waited 0 ms for lock): git rev-parse
+OK
+  merge_parent_cache_entries_are_distinct_and_missing_cached_objects_fail [INFO] git: 255 ms (waited 0 ms for lock): git -c
+[INFO] git: 150 ms (waited 0 ms for lock): git -c
+[INFO] git: 198 ms (waited 0 ms for lock): git -c
+[INFO] git: 119 ms (waited 0 ms for lock): git -c
+[INFO] git: 131 ms (waited 0 ms for lock): git -c
+[INFO] git: 121 ms (waited 0 ms for lock): git -c
+[INFO] git: 94 ms (waited 0 ms for lock): git -c
+[INFO] git: 126 ms (waited 0 ms for lock): git -c
+[INFO] git: 142 ms (waited 0 ms for lock): git -c
+[INFO] git: 114 ms (waited 0 ms for lock): git -c
+[INFO] git: 182 ms (waited 0 ms for lock): git -c
+[INFO] git: 112 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 115 ms (waited 0 ms for lock): git show
+[INFO] git: 133 ms (waited 0 ms for lock): git show
+[INFO] git: 156 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 151 ms (waited 0 ms for lock): git diff
+[INFO] git: 154 ms (waited 0 ms for lock): git show
+[INFO] git: 140 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 950ff7bcbfff80626b41e79b173406310f903f24
+[INFO] git: 146 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 950ff7bcbfff80626b41e79b173406310f903f24
+[INFO] git: 121 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 110 ms (waited 0 ms for lock): git diff
+[INFO] git: 97 ms (waited 0 ms for lock): git show
+[INFO] git: 113 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 950ff7bcbfff80626b41e79b173406310f903f24
+[INFO] git: 97 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 950ff7bcbfff80626b41e79b173406310f903f24
+[INFO] git: 111 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 950ff7bcbfff80626b41e79b173406310f903f24
+[INFO] git: 108 ms (waited 0 ms for lock): git rev-parse
+OK
+  commit_patch_cache_invalidates_when_a_shallow_boundary_is_deepened [INFO] git: 138 ms (waited 0 ms for lock): git init
+[INFO] git: 107 ms (waited 0 ms for lock): git add
+[INFO] git: 136 ms (waited 0 ms for lock): git -c
+[INFO] git: 150 ms (waited 0 ms for lock): git -c
+[INFO] git: 255 ms (waited 0 ms for lock): git clone
+[INFO] git: 106 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 167 ms (waited 0 ms for lock): git show
+[INFO] git: 128 ms (waited 0 ms for lock): git show
+[INFO] git: 323 ms (waited 0 ms for lock): git fetch
+[INFO] git: 91 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 118 ms (waited 0 ms for lock): git show
+[INFO] git: 110 ms (waited 0 ms for lock): git show
+OK
+  commit_patch_cancellation_stops_an_active_textconv           [INFO] git: 144 ms (waited 0 ms for lock): git init
+[INFO] git: 178 ms (waited 0 ms for lock): git add
+[INFO] git: 263 ms (waited 0 ms for lock): git -c
+[INFO] git: 110 ms (waited 0 ms for lock): git config
+[INFO] git: 100 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 562 ms (waited 0 ms for lock): git show
+OK
+  commit_patch_cache_bounds_all_owned_content_and_evicts_least_recently_used OK
+  commit_patch_cache_keys_include_repository_parent_and_all_diff_options OK
+
+6/6 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

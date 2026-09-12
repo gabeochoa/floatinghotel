@@ -82,7 +82,7 @@ void rendered() {
     else if (probe.revision.empty()) ready = !repo->isRefreshing && !repo->refreshRequested;
     else if (detail)
         ready = detail->cachedCommitHash == probe.revision && !detail->patchFuture.valid() &&
-            !detail->infoFuture.valid() && !detail->commitDetailDiff.empty() && detail->commitDetailError.empty();
+            !detail->commitDetailDiff.empty() && detail->commitDetailError.empty();
     if (ready) probe.readyMs = elapsed;
 }
 

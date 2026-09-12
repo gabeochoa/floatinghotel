@@ -11,7 +11,7 @@ SINGLETON_FWD(Settings)
 struct Settings {
     SINGLETON(Settings)
 
-    static constexpr float kDefaultCodeFontSize = 16.f;
+    static constexpr float kDefaultCodeFontSize = 17.6f;
 
     Settings();
     ~Settings();
@@ -28,6 +28,9 @@ struct Settings {
     int get_window_x() const;
     int get_window_y() const;
     void set_window_geometry(int x, int y, int w, int h);
+    bool get_window_collapsed() const;
+    int get_expanded_window_width() const;
+    void remember_window_size(int width, int height, bool collapsed, int expandedWidth, float sidebarWidth);
 
     // Layout
     float get_sidebar_width() const;

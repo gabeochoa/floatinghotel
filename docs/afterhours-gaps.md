@@ -1599,3 +1599,105 @@ Step 02 also found stale fixed mouse coordinates in the comment-jump replay: y=3
 ### Text assertions see styled runs separately
 
 The commit-search replay displayed `tests/test_utils.cpp` correctly, but `expect_text` could only see the styled runs `tests/` and `test_utils.cpp`. The layout dump retained the complete label on `file_header_label`. Workaround: assert the visible filename and header entity, then check the combined label and geometry in the layout JSON. Evidence: `output/navigation-design/regressions-final/improvement_27_commit_search`. An element-scoped text assertion that uses the complete label would help other apps verify styled breadcrumbs and filenames without depending on color-run boundaries.
+
+### Zoom-safe app pointer coordinates and text sizing
+
+The command-log resize handle mixed `LayoutComponent` logical coordinates with
+`graphics::get_mouse_position()` screen coordinates, then applied a second
+screen-height conversion. At increased UI zoom this moves or clamps the divider
+away from the pointer. The app now reads the injected/real UI pointer through
+`ctx.mouse.pos`, divides by `ui::zoom::get()` once, and stores a logical height.
+This is an app integration bug; no vendor changes were required.
+
+A framework conversion API that distinguishes layout coordinates from rendered
+coordinates would help other apps and games implement draggable panels. Keep
+rendering, clipping, pointer hit testing, and test-driver targeting on the same
+rectangle helpers. The app's `hover_ui` test command uses the visible rendered
+rectangle, and layout captures now record the pointer and resolved hover target.
+`tests/zoom_hover.py` exercises row labels, icons, counts, and tab close controls
+at 100%, 140%, and 200% zoom, with pixel checks for the entire row highlight.
+
+The framework has font-size tiers but no independent text-scale setting covering
+both tier-based and explicit pixel fonts. A shared text scale applied before
+measurement, wrapping, selection geometry, and rendering would be useful for
+accessibility in native apps and games. This patch uses the existing code-font
+preference for Cmd± and raises its default from 16 to 17.6; UI zoom remains a
+separate menu/pinch operation. It does not add a partial framework text-scale
+hook that changes drawing without changing measurements.
+
+### Wrapped code needs source-position mappings
+
+A styled label with `TextOverflow::Wrap` does not make a fixed-height code row
+into a wrapped reader. This app also widened the scroll content to the longest
+line, so wrapping never had a useful width constraint. The app now creates
+measured visual fragments inside the viewport, retaining each fragment's source
+byte offset, line number, and diff side. Continuation gutters are blank; copying
+joins fragments without inserting source newlines. Full-line syntax tokens are
+sliced for display, and fragment rows use the existing viewport culling.
+
+A framework text-layout result exposing visual rows, decoded byte ranges,
+advances, and hit testing would benefit log viewers, chat, terminals, editors,
+and in-game consoles. The current workaround shares the existing diff-metrics
+cache budget rather than introducing another retention budget. Source-position
+selection that survives reflow and offscreen dragging remains in planned steps
+13 and 48; the current reader clears a selection on reflow instead of allowing
+its entity IDs to refer to different text.
+
+### Restore window dimensions before native creation
+
+The application stored window-size fields but never updated them on normal
+shutdown or applied them to native startup. The fix loads configuration before
+creating the window and persists expanded/dock dimensions separately. This is
+application lifecycle integration, not a missing native resize operation.
+A reusable persisted-window-state helper should expose initial size and a
+settled resize notification, without animating or briefly showing a default
+size. Tests use an isolated configuration directory and actual application
+restarts; no user settings are overwritten by the restart runner.
+
+The wrap fixture includes Japanese text, combining accents, flags, and family
+emoji. Captures show missing-glyph boxes for several characters in the bundled
+monospace font. Wrapping and copying retain their bytes; glyph coverage is still
+a renderer/font limitation. Native wrapping now uses CoreFoundation composed
+character ranges, and selection uses the same boundaries. A shared text layout
+with font fallback and grapheme mapping would remove this app-specific adapter.
+Line-ending annotations move to a continuation row when they do not fit beside
+the source text; exceptionally narrow cells use a compact label with the full
+line-ending description in its tooltip.
+
+The geometry-driven selection replay caught an application layout bug at 200%
+zoom: selecting code increased a narrow file header from one action row to two,
+moving the code under the pointer. Narrow headers now reserve their action
+height before selection. The regression asserts unchanged header geometry and
+performs forward and reverse drags using measured source positions. This is an
+app layout fix; it does not require a framework change.
+
+Tab close controls now separate the full-height click target from a centered
+20-pixel hover treatment. The outer button explicitly overrides its hover
+background with transparency; the inner visual only highlights inside its own
+rectangle. This uses existing Afterhours primitives. A reusable control primitive
+with separate visual and hit bounds would help compact toolbars and game HUDs.
+
+A 4,000-line source-page replay measured 43.85 ms render p99 and no wrap-cache
+reuse with a 1 MiB wrap allocation. The total metrics budget remains 5 MiB, now
+split as 2 MiB for signatures and 3 MiB for wrap positions. A unit test requires
+all 4,000 lines to reuse their measurements; the native test also checks bounded
+rendered rows and the existing 20 ms p99 gate. This is a measured redistribution
+of existing retention, not an added cache budget.
+
+`Padding{}` means unspecified padding for an Afterhours button, so it activates
+the default button padding. A compact transparent close target must explicitly
+set all four sides to `pixels(0)`. The first compact-close pixel check caught the
+implicit padding shifting the glyph beyond the hit target; the corrected test
+asserts matching centers, transparent idle edges, and a smaller hover rectangle.
+
+After redistributing the metrics cache, the same large-page replay improved to
+9.73 ms average but still missed the render gate at 28.26 ms p99. The renderer
+was measuring each distinct line-number gutter even for offscreen rows. The
+framework text cache has 4,096 entries, close to a full source page before
+ordinary labels are counted. The app now measures equal-length spaces for its
+monospace gutters. A reusable monospace cell-advance measurement would help
+large tables, terminals, logs, and game consoles avoid this cache pressure.
+
+The gutter change passed the same native replay at 4.62 ms average and 6.46 ms
+p99, with 172 rendered entities and unchanged cache limits. Evidence:
+`output/priority-polish/large-build9/run.log`.
