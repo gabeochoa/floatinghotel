@@ -38,6 +38,8 @@ click_ui diff_find_input
 type "3456"
 wait_frames 5
 screenshot source_find
+validate ui_in_viewport:diff_scroll=true
+validate footer_fixed=true
 dump_ui source_find_geometry diff_find_match
 assert_ui diff_find_match x=377
 assert_ui diff_find_match w=24
@@ -71,6 +73,8 @@ assert_ui diff_sel_hl w=90
 key CMD+F
 wait_frames 5
 screenshot source_zoom_find
+validate ui_in_viewport:diff_scroll=true
+validate footer_fixed=true
 assert_ui diff_find_match x=532
 assert_ui diff_find_match w=36
 click_ui diff_find_close

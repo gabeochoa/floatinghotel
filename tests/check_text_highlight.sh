@@ -17,3 +17,7 @@ mkdir -p "$capture_dir"
 nice -n 10 output/floatinghotel.exe "$highlight_repo" --test-mode --headless \
     --test-script=tests/review_focus/text_highlight.e2e \
     --screenshot-dir="$capture_dir" --e2e-timeout=60 > "$capture_dir/native.log" 2>&1
+if grep -E "Layout (overflow|wrap): 'diff_scroll'.*'main_content'" "$capture_dir/native.log"; then
+    printf 'Source viewport overflowed while toggling Find\n' >&2
+    exit 1
+fi

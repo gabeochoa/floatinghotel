@@ -48,7 +48,9 @@ origin. The focused native check covers both drag directions, unified and split
 diffs, 140% zoom, and selection at the bottom of a source file.
 `output/text-highlight/after-expanded/native.log` contains the passing run.
 
-That run also emits `diff_scroll` height-overflow warnings while opening and
-closing Find in source view. One reports a bottom edge of 706 inside a
-672-pixel parent. This separate app layout issue remains open. The highlight
-checks do not establish that the source viewport fits with Find open.
+The Find-toggle overflow is fixed. The closing frame rendered the Find bar,
+then recalculated the viewport as if that bar were already gone. Keeping the
+height accumulated from the rendered controls removes the extra 34 pixels.
+The native regression now checks viewport bounds with Find open at 100% and
+140%, plus every frame's overflow diagnostics while opening and closing it.
+Passing evidence is in `output/layout-followup/find-after/native.log`.

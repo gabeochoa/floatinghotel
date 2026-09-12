@@ -1468,8 +1468,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // We always resolve contentParent to the entity that will own the diff rows.
     Entity* contentParent = &parent;
     float stickyHeight = diffs.empty() || diffs.front().isFullContent ? 0.f : 24.f;
-    findHeight = diff_controls_height(contentWidth, layout && layout->diffOptionsOpen,
-        layout && layout->diffFindOpen, filterRepo && filterable, !diffs.empty()) - stickyHeight;
     auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::WINDOW_BG));
     if (!embedInParentScroll) {
