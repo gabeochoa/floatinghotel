@@ -1567,6 +1567,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         auto& fileDiff = diffs[fileIndex];
         contextLocations.push_back({vp.curY, &fileDiff, nullptr});
         std::string fileLabel = diff_detail::file_header_label(fileDiff);
+        if (review) fileLabel += ecs::unresolved_file_badge(*review, reviewScope, fileDiff.filePath, fileDiff.oldPath);
 
         vp.flush(ctx, *contentParent, nextId);
         int fileHeaderRowId = nextId++;

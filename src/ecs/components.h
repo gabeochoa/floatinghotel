@@ -547,6 +547,20 @@ inline size_t unresolved_comment_count(const ReviewComponent& review) {
         [](const auto& comment) { return !comment.resolved; }));
 }
 
+inline size_t unresolved_file_count(const ReviewComponent& review, const std::string& scope,
+        const std::string& path, const std::string& oldPath = "") {
+    return static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(), [&](const auto& comment) {
+        return !comment.resolved && comment.scope == scope &&
+            (comment.file == path || (!oldPath.empty() && comment.oldSide && comment.file == oldPath));
+    }));
+}
+
+inline std::string unresolved_file_badge(const ReviewComponent& review, const std::string& scope,
+        const std::string& path, const std::string& oldPath = "") {
+    auto count = unresolved_file_count(review, scope, path, oldPath);
+    return count ? " · " + std::to_string(count) + " unresolved" : "";
+}
+
 inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
     return {review.composingScope, review.composingFile, review.composingLine,
         review.composingText, review.composingEndLine, review.composingOldSide, false,

@@ -1,0 +1,15 @@
+resize 1440 900
+wait_for_refresh
+click_text sample.cpp
+screenshot item_23_initial
+click_ui comment_hunk_btn
+click_ui comment_input
+type Clarify this change
+click_ui comment_add_btn
+screenshot item_23_unresolved
+validate review_unresolved=1
+expect_text sample.cpp · 1 unresolved
+click_ui basket_item_resolve
+screenshot item_23_resolved
+validate review_unresolved=0
+expect_no_text sample.cpp · 1 unresolved

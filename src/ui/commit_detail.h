@@ -591,6 +591,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             if (fd.isRenamed && !fd.oldPath.empty()) {
                 fname = fd.oldPath + " -> " + fd.filePath;
             }
+            if (review) fname += unresolved_file_badge(*review, repo.selectedCommitHash, fd.filePath, fd.oldPath);
             auto fileName = button(ctx, mk(fileRow.ent(), 2),
                 ComponentConfig{}
                     .with_label(fname)

@@ -1594,7 +1594,7 @@ private:
             statusChar = staged ? 'A' : 'M';
         }
         render_file_row_impl(ctx, parent, id, file.path, statusChar, repo,
-                             file.isSubmodule, staged);
+                             file.isSubmodule, staged, file.origPath);
     }
 
     void render_untracked_row(UIContext<InputAction>& ctx,
@@ -1608,11 +1608,13 @@ private:
                                Entity& parent, int id,
                                const std::string& path, char statusChar,
                                RepoComponent& repo, bool isSubmodule,
-                               bool staged) {
+                               bool staged, const std::string& oldPath = "") {
         bool selected = (path == repo.selectedFilePath);
         constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
 
         std::string fname = sidebar_detail::basename_from_path(path);
+        if (auto* review = find_singleton<ReviewComponent, ActiveTab>())
+            fname += unresolved_file_badge(*review, staged ? "index" : "wt", path, oldPath);
         std::string dir = sidebar_detail::dir_from_path(path);
         if (treeMode_) {
             fname = std::string(static_cast<size_t>(std::count(path.begin(), path.end(), '/')) * 3, ' ') + fname;

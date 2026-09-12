@@ -249,6 +249,18 @@ TEST(next_unreviewed_requires_explicit_metadata_review_and_wraps) {
     ASSERT_TRUE(!ecs::next_unreviewed_file(review, "wt", files, filter, ""));
 }
 
+TEST(unresolved_file_counts_are_target_scoped_and_include_old_rename_side) {
+    ecs::ReviewComponent review;
+    review.comments = {{"wt", "new.cpp", 1, "question"}, {"commit", "new.cpp", 1, "other target"},
+        {"wt", "old.cpp", 1, "old-side rename", 1, true}, {"wt", "old.cpp", 1, "different file"},
+        {"wt", "new.cpp", 2, "resolved", 2, false, true}};
+    ASSERT_EQ(ecs::unresolved_file_count(review, "wt", "new.cpp", "old.cpp"), size_t{2});
+    ASSERT_EQ(ecs::unresolved_file_count(review, "commit", "new.cpp"), size_t{1});
+    review.comments.front().resolved = true;
+    ASSERT_EQ(ecs::unresolved_file_count(review, "wt", "new.cpp"), size_t{0});
+    ASSERT_EQ(ecs::unresolved_file_badge(review, "index", "new.cpp"), "");
+}
+
 int main() {
     afterhours::files::init("floatinghotel_test", "resources");
     printf("=== review_store tests ===\n");
