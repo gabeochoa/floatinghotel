@@ -1,5 +1,7 @@
 #pragma once
 
+#include "review_comment_kind.h"
+
 #include "../ecs/ui_imports.h"
 #include "../git/git_commands.h"
 #include "../settings.h"
@@ -813,7 +815,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         afterhours::text_input::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 24.f)), pixels(editorH)})
+                .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 134.f)), pixels(editorH)})
                 .with_custom_background(theme::INPUT_BG)
                 .with_font("mono", h720(14.f))
                 .with_line_height(pixels(resolve_to_pixels(h720(22.f), screenH)))
@@ -822,6 +824,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_corner_radius(4.0f)
                 .with_debug_name("comment_input"));
         if (previousDraft != sel->review->composingText) sel->review->dirty = true;
+        render_comment_kind(ctx, composeRow.ent(), 2, *sel->review, false);
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
             preset::Button(addLabel)
                 .with_size(ComponentSize{pixels(addWidth), h720(18)})

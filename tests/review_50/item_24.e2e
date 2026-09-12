@@ -1,0 +1,23 @@
+resize 1440 900
+wait_for_refresh
+click_text sample.cpp
+screenshot item_24_initial
+click_ui comment_hunk_btn
+screenshot item_24_compose
+click_ui compose_comment_kind
+screenshot item_24_categories
+click_text Question
+click_ui comment_input
+type Why this value?
+click_ui comment_add_btn
+screenshot item_24_question
+expect_text Question: Why this value?
+click_ui basket_item_edit
+screenshot item_24_editing
+click_ui edit_comment_kind
+screenshot item_24_edit_categories
+click_text Blocker
+click_ui basket_edit_save
+screenshot item_24_blocker
+expect_text Blocker: Why this value?
+validate review_unresolved=1

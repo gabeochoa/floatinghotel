@@ -19,7 +19,7 @@ namespace {
 nlohmann::json encode_comment(const ecs::ReviewComponent::Comment& c) {
     return {{"scope", c.scope}, {"file", c.file}, {"line", c.line},
         {"end_line", c.endLine}, {"old_side", c.oldSide}, {"resolved", c.resolved}, {"text", c.text},
-        {"revision", c.revision}, {"code_context", c.codeContext}};
+        {"revision", c.revision}, {"code_context", c.codeContext}, {"kind", review_comment_kind_label(c.kind)}};
 }
 
 ecs::ReviewComponent::Comment decode_comment(const nlohmann::json& value) {
@@ -33,6 +33,7 @@ ecs::ReviewComponent::Comment decode_comment(const nlohmann::json& value) {
     comment.text = value.value("text", std::string{});
     comment.revision = value.value("revision", std::string{});
     comment.codeContext = value.value("code_context", std::string{});
+    comment.kind = parse_review_comment_kind(value.value("kind", std::string{}));
     return comment;
 }
 
@@ -89,6 +90,7 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["active_draft"] = review.composingKey;
     j["editing_comment"] = review.editingComment;
     j["editing_text"] = review.editingCommentText;
+    j["editing_kind"] = review_comment_kind_label(review.editingCommentKind);
 
     j["approved_hunks"] = review.approvedHunks;  // set<string> -> array
     j["reviewed_files"] = review.reviewedFiles;
@@ -143,6 +145,7 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
         if (review.drafts.contains(activeDraft)) ecs::begin_comment(review, activeDraft, review.drafts.at(activeDraft));
         review.editingComment = j.value("editing_comment", -1);
         review.editingCommentText = j.value("editing_text", std::string{});
+        review.editingCommentKind = parse_review_comment_kind(j.value("editing_kind", std::string{}));
         if (review.editingComment < 0 || static_cast<size_t>(review.editingComment) >= review.comments.size()) {
             review.editingComment = -1;
             review.editingCommentText.clear();

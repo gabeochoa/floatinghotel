@@ -144,8 +144,9 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         for (int i = 0; i < static_cast<int>(review.comments.size()); ++i) {
             const auto& c = review.comments[i];
             if (c.scope != scope || (c.resolved && !review.showResolved)) continue;
+            auto commentText = c.kind == ReviewCommentKind::Comment ? c.text : review_comment_kind_label(c.kind) + ": " + c.text;
             float textH = afterhours::ui::measure_text_wrapped(
-                measure, c.text, "mono", fontSize, txtW - 8.f).height + 8.f;
+                measure, commentText, "mono", fontSize, txtW - 8.f).height + 8.f;
             bool editing = review.editingComment == i;
             if (editing) textH = 132.f;
             auto itemRow = div(ctx, mk(list.ent(), id++),
@@ -207,9 +208,10 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     review.editingCommentText.clear();
                     review.dirty = true;
                 }
+                ui::render_comment_kind(ctx, actions.ent(), 2, review, true);
             } else div(ctx, mk(itemRow.ent(), 0),
                 ComponentConfig{}
-                    .with_label(c.text)
+                    .with_label(commentText)
                     .with_size(ComponentSize{pixels(txtW), pixels(textH)})
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font("mono", pixels(fontSize))
@@ -221,6 +223,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
                 review.editingComment = i;
                 review.editingCommentText = c.text;
+                review.editingCommentKind = c.kind;
                 review.dirty = true;
             }
             if (!editing && button(ctx, mk(heading.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")

@@ -21,6 +21,7 @@
 #include "../util/markdown_preview.h"
 #include "../util/diff_revisions.h"
 #include "../util/review_files.h"
+#include "../util/review_comment_kind.h"
 
 namespace ecs {
 
@@ -373,6 +374,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
         bool resolved = false;
         std::string revision;
         std::string codeContext;
+        ReviewCommentKind kind = ReviewCommentKind::Comment;
     };
     bool reviewing = false;
     bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
@@ -381,6 +383,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::vector<Comment> comments;
     int editingComment = -1;
     std::string editingCommentText;
+    ReviewCommentKind editingCommentKind = ReviewCommentKind::Comment;
     std::map<std::string, Comment> drafts;
     std::set<std::string> approvedHunks;
     std::map<std::string, std::string> reviewedFiles;
@@ -395,6 +398,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     bool composingOldSide = false;
     std::string composingRevision;
     std::string composingCodeContext;
+    ReviewCommentKind composingKind = ReviewCommentKind::Comment;
     // Keyboard chunk cursor (vim-style j/k/n nav; a approve, c comment).
     int cursor = 0;              // index of the highlighted visible hunk
     bool cursorMoved = false;
@@ -435,6 +439,7 @@ inline void reset_review(ReviewComponent& review) {
     review.comments.clear();
     review.editingComment = -1;
     review.editingCommentText.clear();
+    review.editingCommentKind = ReviewCommentKind::Comment;
     review.drafts.clear();
     review.dirty = false;
     review.nextSaveAttempt = {};
@@ -452,6 +457,7 @@ inline void reset_review(ReviewComponent& review) {
     review.composingOldSide = false;
     review.composingRevision.clear();
     review.composingCodeContext.clear();
+    review.composingKind = ReviewCommentKind::Comment;
     review.cursor = 0;
     review.cursorMoved = false;
     review.hunkCount = 0;
@@ -522,6 +528,7 @@ inline bool save_comment_edit(ReviewComponent& review) {
     if (review.editingComment < 0 || static_cast<size_t>(review.editingComment) >= review.comments.size() ||
         review.editingCommentText.empty()) return false;
     review.comments[review.editingComment].text = review.editingCommentText;
+    review.comments[review.editingComment].kind = review.editingCommentKind;
     review.editingComment = -1;
     review.editingCommentText.clear();
     review.dirty = true;
@@ -564,7 +571,7 @@ inline std::string unresolved_file_badge(const ReviewComponent& review, const st
 inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
     return {review.composingScope, review.composingFile, review.composingLine,
         review.composingText, review.composingEndLine, review.composingOldSide, false,
-        review.composingRevision, review.composingCodeContext};
+        review.composingRevision, review.composingCodeContext, review.composingKind};
 }
 
 inline ReviewComponent::Comment comment_with_context(ReviewComponent::Comment comment,
@@ -611,6 +618,7 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
     review.composingText = std::move(location.text);
     review.composingRevision = std::move(location.revision);
     review.composingCodeContext = std::move(location.codeContext);
+    review.composingKind = location.kind;
     review.dirty = true;
 }
 
@@ -680,6 +688,7 @@ inline std::string build_review_markdown(const ReviewComponent& review,
         for (const auto& c : review.comments)
             if (c.scope == scope && !c.resolved) {
                 out += "\n#### " + comment_location(c) + "\n\n" + c.text + "\n\n";
+                out += "Type: " + review_comment_kind_label(c.kind) + "\n";
                 out += "Revision: " + (c.revision.empty() ? "not captured for this older comment" : c.revision) + "\n";
                 if (c.codeContext.empty()) out += "Code context unavailable for this comment.\n";
                 else {

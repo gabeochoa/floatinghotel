@@ -261,6 +261,36 @@ TEST(unresolved_file_counts_are_target_scoped_and_include_old_rename_side) {
     ASSERT_EQ(ecs::unresolved_file_badge(review, "index", "new.cpp"), "");
 }
 
+TEST(typed_comments_preserve_drafts_edits_and_export) {
+    ecs::ReviewComponent review;
+    ecs::ReviewComponent::Comment draft{"wt", "typed.cpp", 1, "Why this value?"};
+    draft.kind = ReviewCommentKind::Question;
+    ecs::begin_comment(review, "typed-hunk", draft);
+    const std::string repo = "/tmp/fh_review_typed_comment_test";
+    ASSERT_TRUE(review_store::save_review(repo, review));
+    ecs::ReviewComponent restored;
+    review_store::load_review(repo, restored);
+    ASSERT_EQ(restored.composingKind, ReviewCommentKind::Question);
+    ecs::commit_pending_comment(restored);
+    ASSERT_EQ(restored.comments.front().kind, ReviewCommentKind::Question);
+    restored.editingComment = 0;
+    restored.editingCommentText = "Please change this value";
+    restored.editingCommentKind = ReviewCommentKind::Blocker;
+    ASSERT_TRUE(review_store::save_review(repo, restored));
+    ecs::ReviewComponent editing;
+    review_store::load_review(repo, editing);
+    ASSERT_EQ(editing.editingCommentKind, ReviewCommentKind::Blocker);
+    ASSERT_TRUE(ecs::save_comment_edit(editing));
+    ASSERT_EQ(editing.comments.front().kind, ReviewCommentKind::Blocker);
+    ASSERT_TRUE(ecs::build_review_markdown(editing, "main").find("Type: Blocker") != std::string::npos);
+    ASSERT_EQ(parse_review_comment_kind(""), ReviewCommentKind::Comment);
+    ASSERT_EQ(parse_review_comment_kind("unknown-new-kind"), ReviewCommentKind::Comment);
+    for (auto kind : {ReviewCommentKind::Comment, ReviewCommentKind::Question, ReviewCommentKind::Suggestion,
+            ReviewCommentKind::Blocker, ReviewCommentKind::Nit})
+        ASSERT_EQ(parse_review_comment_kind(review_comment_kind_label(kind)), kind);
+    std::filesystem::remove(review_store::review_path(repo));
+}
+
 int main() {
     afterhours::files::init("floatinghotel_test", "resources");
     printf("=== review_store tests ===\n");
