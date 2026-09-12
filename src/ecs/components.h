@@ -18,6 +18,7 @@
 #include "../util/code_bookmark.h"
 #include "../util/hex_view.h"
 #include "../util/markdown_preview.h"
+#include "../util/diff_revisions.h"
 
 namespace ecs {
 
@@ -307,6 +308,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::vector<CommitEntry> commitSearchEntries;
     std::string commitSearchError;
     bool comparisonOpen = false;
+    bool comparisonNeedsLoad = false;
     std::string comparisonBase;
     std::string comparisonTarget;
     bool comparisonMergeBase = false;
@@ -450,6 +452,14 @@ inline std::string review_scope(const RepoComponent& repo) {
         "\nrevision:" + (repo.headCommitHash.empty() ? "unborn" : repo.headCommitHash);
 }
 
+inline std::string selected_review_storage_scope(const RepoComponent& repo, const ReviewComponent& review) {
+    if (repo.comparisonOpen) {
+        if (!repo.comparisonScope.empty()) return repo.comparisonScope;
+        if (review.storageRepoPath == repo.repoPath && !review.storageScope.empty()) return review.storageScope;
+    }
+    return review_scope(repo);
+}
+
 inline std::string diff_signature(const FileDiff& f) {
     std::string s = std::to_string(f.additions) + "," +
                     std::to_string(f.deletions) + "," +
@@ -504,7 +514,11 @@ inline ReviewComponent::Comment comment_with_context(ReviewComponent::Comment co
     const DiffHunk& hunk, const std::string& head) {
     if (comment.scope == "wt") comment.revision = std::string(comment.oldSide ? "Index" : "Working tree") +
         " at HEAD " + (head.empty() ? "unborn" : head);
-    else comment.revision = comment.scope + (comment.oldSide ? "^ (parent)" : "");
+    else {
+        const auto target = diff_target(comment.scope);
+        comment.revision = comment.oldSide ? target.before : target.after;
+        if (comment.oldSide && target.kind == DiffTarget::Kind::Commit) comment.revision += " (parent)";
+    }
     comment.revision += "; hunk " + hunk_signature(hunk);
     int oldLine = hunk.oldStart, newLine = hunk.newStart;
     for (const auto& line : hunk.lines) {
@@ -543,6 +557,25 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
     review.dirty = true;
 }
 
+inline void select_review_target(RepoComponent& repo, const std::string& scope, const std::string& file) {
+    const auto target = diff_target(scope);
+    repo.selectedFilePath = target.kind == DiffTarget::Kind::WorkingTree || target.kind == DiffTarget::Kind::Index ? file : "";
+    repo.selectedFileStaged = target.kind == DiffTarget::Kind::Index;
+    repo.selectedCommitHash = target.kind == DiffTarget::Kind::Commit ? target.after : "";
+    repo.comparisonOpen = target.kind == DiffTarget::Kind::Comparison;
+    if (repo.comparisonOpen) {
+        if (repo.comparisonScope != scope) {
+            repo.comparisonFuture = {};
+            repo.comparisonDiff.clear();
+            repo.comparisonError.clear();
+            repo.comparisonNeedsLoad = true;
+        }
+        repo.comparisonScope = scope;
+        repo.comparisonBase = target.before;
+        repo.comparisonTarget = target.after;
+    }
+}
+
 inline void restore_draft_selection(RepoComponent& repo, const ReviewComponent& review) {
     std::string file, scope;
     if (!review.composingKey.empty()) { file = review.composingFile; scope = review.composingScope; }
@@ -550,8 +583,7 @@ inline void restore_draft_selection(RepoComponent& repo, const ReviewComponent& 
         file = review.comments[review.editingComment].file;
         scope = review.comments[review.editingComment].scope;
     } else return;
-    repo.selectedFilePath = scope == "wt" ? file : "";
-    repo.selectedCommitHash = scope == "wt" ? "" : scope;
+    select_review_target(repo, scope, file);
     repo.fullFilePath.clear();
 }
 
@@ -587,8 +619,7 @@ inline std::string build_review_markdown(const ReviewComponent& review,
         if (!c.resolved && std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
             scopes.push_back(c.scope);
     for (const auto& scope : scopes) {
-        out += (scope == "wt") ? "\n### working tree (uncommitted)\n"
-                               : "\n### commit " + scope + "\n";
+        out += "\n### " + diff_target_label(scope) + "\n";
         for (const auto& c : review.comments)
             if (c.scope == scope && !c.resolved) {
                 out += "\n#### " + comment_location(c) + "\n\n" + c.text + "\n\n";

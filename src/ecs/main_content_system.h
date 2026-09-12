@@ -117,8 +117,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     int removeIdx = -1;
     for (const auto& scope : scopes) {
         std::string gh;
-        if (scope == "wt") {
-            gh = "working tree (uncommitted)";
+        if (diff_target(scope).kind != DiffTarget::Kind::Commit) {
+            gh = diff_target_label(scope);
         } else {
             gh = "commit " + scope.substr(0, 7);
             // Enrich with the commit subject so multi-commit reviews are legible.
@@ -176,13 +176,10 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 repo->fullFileCacheKey.clear();
                 repo->fullFileTargetLine = c.line;
                 repo->fullFileNavigateFrames = 3;
-                repo->selectedFilePath = c.scope == "wt" ? c.file : "";
-                repo->selectedFileStaged = false;
-                repo->selectedCommitHash = c.scope == "wt" ? "" : c.scope;
+                select_review_target(*repo, c.scope, c.file);
                 repo->fileHistoryOpen = false;
                 repo->commitSearchOpen = false;
                 repo->repoSearchOpen = false;
-                repo->comparisonOpen = false;
                 if (auto* layout = find_singleton<LayoutComponent>()) {
                     layout->filePickerOpen = false;
                     layout->diffFindOpen = false;
@@ -417,7 +414,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // no text input being focused so it never eats typed characters.
         auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
         if (reviewPtr && hasRepo && repoPtr->hasLoadedOnce && !repoPtr->isRefreshing && !repoPtr->refreshRequested) {
-            auto scope = review_scope(*repoPtr);
+            auto scope = selected_review_storage_scope(*repoPtr, *reviewPtr);
             if (reviewPtr->storageScope != scope || reviewPtr->storageRepoPath != repoPtr->repoPath) {
                 bool initialScope = reviewPtr->storageScope.empty();
                 if (!review_store::switch_review_scope(repoPtr->repoPath, scope, *reviewPtr, !app_state::testModeEnabled)) {
@@ -529,7 +526,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             return;
         }
         if (repo.comparisonOpen) {
-            render_revision_comparison(ctx, mainBg.ent(), repo, layout);
+            render_revision_comparison(ctx, mainBg.ent(), repo, layout, reviewPtr);
             return;
         }
         bool hasSelectedFile = !repo.selectedFilePath.empty();

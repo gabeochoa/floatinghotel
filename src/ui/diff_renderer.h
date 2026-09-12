@@ -1181,7 +1181,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
     diff_sel::Session sess;
     sess.reviewActions =
-        (review != nullptr) && (reviewScope == "wt" || review->reviewing);
+        (review != nullptr) && (reviewScope == "wt" || diff_target(reviewScope).kind == DiffTarget::Kind::Comparison || review->reviewing);
     sess.embedded = embedInParentScroll;
     sess.repoPath = repoPath;
     sess.review = review;

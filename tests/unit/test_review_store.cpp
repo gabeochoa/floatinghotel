@@ -59,6 +59,25 @@ TEST(review_store_missing_is_noop) {
     ASSERT_TRUE(r.comments.empty());
 }
 
+TEST(comparison_comments_keep_both_revisions_and_restore_the_comparison) {
+    ecs::DiffHunk hunk;
+    hunk.oldStart = hunk.newStart = 1;
+    hunk.header = "@@ -1 +1 @@";
+    hunk.lines = {"-before", "+after"};
+    auto comment = ecs::comment_with_context({"compare:base:target", "file.cpp", 1, "question", 1, true}, hunk, "head");
+    ASSERT_TRUE(comment.revision.starts_with("base"));
+    ASSERT_TRUE(comment.revision.find("compare:base:target^") == std::string::npos);
+    ecs::ReviewComponent review;
+    ecs::begin_comment(review, "comparison-hunk", comment);
+    ecs::RepoComponent repo;
+    repo.comparisonScope = comment.scope;
+    ecs::restore_draft_selection(repo, review);
+    ASSERT_TRUE(repo.comparisonOpen);
+    ASSERT_TRUE(repo.selectedCommitHash.empty());
+    review.comments.push_back(comment);
+    ASSERT_TRUE(ecs::build_review_markdown(review, "branch").find("comparison base → target") != std::string::npos);
+}
+
 TEST(editing_a_comment_preserves_its_location) {
     ecs::ReviewComponent review;
     review.comments.push_back({"abc", "file.cpp", 12, "before", 14, true});

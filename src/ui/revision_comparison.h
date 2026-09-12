@@ -6,16 +6,17 @@
 namespace ecs {
 
 inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& parent,
-                                        RepoComponent& repo, LayoutComponent& layout) {
+                                        RepoComponent& repo, LayoutComponent& layout, ReviewComponent* review = nullptr) {
     using namespace std::chrono_literals;
     bool changed = false;
     if (!repo.comparisonScope.empty() && !repo.comparisonFuture.valid() &&
-        (repo.comparisonContext != repo.diffContext || repo.comparisonIgnoreWhitespace != repo.ignoreWhitespace)) {
+        (repo.comparisonNeedsLoad || repo.comparisonContext != repo.diffContext || repo.comparisonIgnoreWhitespace != repo.ignoreWhitespace)) {
         auto [base, target] = diff_revisions(repo.comparisonScope);
         repo.comparisonFuture = git::git_compare_async(repo.repoPath, base, target, false,
             repo.diffContext, repo.ignoreWhitespace);
         repo.comparisonContext = repo.diffContext;
         repo.comparisonIgnoreWhitespace = repo.ignoreWhitespace;
+        repo.comparisonNeedsLoad = false;
     }
     if (repo.comparisonFuture.valid() && repo.comparisonFuture.wait_for(0s) == std::future_status::ready) {
         auto result = repo.comparisonFuture.get();
@@ -43,9 +44,11 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         repo.comparisonMergeBase = !repo.comparisonMergeBase;
     if (button(ctx, mk(actions.ent(), 1), preset::Button("Compare")
             .with_size(ComponentSize{pixels(90), pixels(30)}).with_debug_name("compare_submit"))) {
+        repo.comparisonFuture = {};
         repo.comparisonError.clear();
         repo.comparisonDiff.clear();
         repo.comparisonScope.clear();
+        repo.comparisonNeedsLoad = false;
         repo.comparisonContext = repo.diffContext;
         repo.comparisonIgnoreWhitespace = repo.ignoreWhitespace;
         if (repo.comparisonBase.empty() || repo.comparisonTarget.empty()) repo.comparisonError = "Enter both revisions (branch, tag, or commit).";
@@ -63,7 +66,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
     if (!repo.comparisonScope.empty())
         ui::render_diff(ctx, parent, repo.comparisonDiff, layout.mainContent.width,
             layout.mainContent.height - 132.f, false, changed,
-            layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide, repo.repoPath, nullptr, repo.comparisonScope);
+            layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide, repo.repoPath, review, repo.comparisonScope);
 }
 
 }

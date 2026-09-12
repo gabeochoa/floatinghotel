@@ -1,0 +1,28 @@
+resize 1440 900
+wait_for_refresh
+click_text "Edit"
+click_text "Compare Revisions..."
+click_ui compare_base
+type "HEAD^"
+click_ui compare_target
+type "HEAD"
+click_ui compare_submit
+wait_for_refresh
+screenshot item_17_comparison
+click_ui comment_hunk_btn
+click_ui comment_input
+type "Compare both revisions"
+click_ui comment_add_btn
+screenshot item_17_comment
+validate review_unresolved=1
+expect_text "Compare both revisions"
+expect_text "comparison"
+click_ui basket_item_loc
+wait_for_refresh
+screenshot item_17_comment_source
+assert_ui full_file_header hidden=false
+expect_text "target version"
+click_ui full_file_back
+screenshot item_17_back_to_comparison
+expect_text "Resolved revisions:"
+expect_text "Compare both revisions"
