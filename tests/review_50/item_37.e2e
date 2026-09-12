@@ -1,0 +1,16 @@
+resize 1440 900
+wait_for_refresh
+key CMD+SHIFT+F
+click_ui repo_search_changed_only
+click_ui repo_search_input
+type needle
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "changed needle"
+expect_text "deleted needle"
+expect_no_text "unchanged needle"
+screenshot item_37_changed_search
+click_text "removed.txt:1"
+wait_for_refresh
+expect_text "deleted needle"
+screenshot item_37_deleted_result

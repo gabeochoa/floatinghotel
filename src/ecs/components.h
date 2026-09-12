@@ -29,6 +29,10 @@ struct SearchQuery {
     std::string repoPath;
     std::string revision;
     std::string text;
+    bool changedOnly = false;
+    std::vector<std::string> paths;
+    std::vector<std::string> removedPaths;
+    std::string beforeRevision;
 };
 
 struct SearchResult {
@@ -217,6 +221,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string repoSearchError;
     async_work::Task<SearchResult> repoSearchFuture;
     std::string repoSearchRevision;
+    bool repoSearchChangedOnly = false;
     std::vector<SearchMatch> repoSearchResults;
     int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;

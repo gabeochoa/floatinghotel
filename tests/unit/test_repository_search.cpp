@@ -22,4 +22,15 @@ TEST(repository_search_removes_only_the_known_revision_prefix) {
     ASSERT_EQ(working[0].file, "abc123:odd:name.cpp");
 }
 
+TEST(changed_file_search_keeps_paths_literal_and_empty_scope_empty) {
+    ecs::SearchQuery query{"", "", "needle", true};
+    auto empty = git::search_repository_async(query).get();
+    ASSERT_TRUE(empty.error.empty());
+    ASSERT_TRUE(empty.matches.empty());
+    query.paths = {"src/[literal].cpp", "odd:name.cpp"};
+    auto args = git::repository_search_args(query);
+    ASSERT_EQ(args[args.size() - 2], ":(literal)src/[literal].cpp");
+    ASSERT_EQ(args.back(), ":(literal)odd:name.cpp");
+}
+
 int main() { RUN_ALL_TESTS(); }

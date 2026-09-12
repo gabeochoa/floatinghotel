@@ -9,6 +9,7 @@ std::vector<std::string> repository_search_args(const ecs::SearchQuery& query) {
     else if (query.revision == "INDEX") args.push_back("--cached");
     else args.push_back(query.revision);
     args.push_back("--");
+    for (const auto& path : query.paths) args.push_back(":(literal)" + path);
     return args;
 }
 
@@ -26,16 +27,26 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
     ecs::SearchResult rejected{query.revision, {}, "Background queue is full; search again to retry"};
     return async_work::launch([query = std::move(query)](std::stop_token stop) mutable {
         ecs::SearchResult out;
-        if (!query.revision.empty() && query.revision != "INDEX") {
-            auto revision = git_run(query.repoPath, {"rev-parse", "--verify", "--end-of-options", query.revision + "^{commit}"}, stop);
-            if (!revision.success()) { out.error = revision.stderr_str(); return out; }
-            query.revision = revision.stdout_str();
-            while (!query.revision.empty() && (query.revision.back() == '\n' || query.revision.back() == '\r')) query.revision.pop_back();
-        }
         out.revision = query.revision;
-        auto result = git_run(query.repoPath, repository_search_args(query), stop);
-        if (!result.success() && result.exit_code() != 1) out.error = result.stderr_str();
-        else out.matches = parse_search_matches(result.stdout_str(), query.revision);
+        auto append = [&](ecs::SearchQuery part, bool primary) {
+            if (!part.revision.empty() && part.revision != "INDEX") {
+                auto revision = git_run(part.repoPath, {"rev-parse", "--verify", "--end-of-options", part.revision + "^{commit}"}, stop);
+                if (!revision.success()) { out.error = revision.stderr_str(); return; }
+                part.revision = revision.stdout_str();
+                while (!part.revision.empty() && (part.revision.back() == '\n' || part.revision.back() == '\r')) part.revision.pop_back();
+            }
+            if (primary) out.revision = part.revision;
+            auto result = git_run(part.repoPath, repository_search_args(part), stop);
+            if (!result.success() && result.exit_code() != 1) out.error = result.stderr_str();
+            else for (auto& match : parse_search_matches(result.stdout_str(), part.revision))
+                if (out.matches.size() < 5000) out.matches.push_back(std::move(match));
+        };
+        if (!query.changedOnly || !query.paths.empty()) append(query, true);
+        if (query.changedOnly && !query.removedPaths.empty()) {
+            query.revision = query.beforeRevision;
+            query.paths = std::move(query.removedPaths);
+            append(std::move(query), false);
+        }
         return out;
     }, async_work::Priority::Foreground, std::move(rejected));
 }
