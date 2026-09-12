@@ -968,3 +968,12 @@ UTF-8. Geometry remains exact, while invalid text bytes become U+FFFD. The crash
 is recorded in `flows-verified.log` and the macOS report
 `floatinghotel.exe-2026-09-12-045621.ips`. A JSON diagnostic should not assume
 that every label string is valid Unicode.
+
+### Legacy zoom flows still report sidebar overflow
+
+The passing 74-flow run in `output/spacing-audit/flows-final.log` still reports
+layout overflow for sidebar mode tabs and sync controls in a legacy zoom flow.
+The focused captured layouts pass their geometry checks. The remaining warnings
+have not been traced to a root cause and should not be dismissed as harmless or
+reported as fixed. Some legacy Git controls also retain window-relative font
+sizes, which makes their text small at enlarged zoom.

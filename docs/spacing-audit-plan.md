@@ -9,7 +9,7 @@
 - [x] Review feedback: compare two ballroom layouts, then simplify the chosen workflow.
 - [x] Spacing: audit primary screens at normal and enlarged zoom using screenshots and JSON.
 - [x] Graph: exercise branches and merges in a disposable repository.
-- [ ] Final: run regressions, inspect screenshots, and obtain an independent trail review.
+- [x] Final: run regressions, inspect screenshots, and obtain an independent trail review.
 
 Success means commit rows remain single-line with a stable right-aligned age,
 the sidebar boundary reaches the top of its column, empty file lists start at

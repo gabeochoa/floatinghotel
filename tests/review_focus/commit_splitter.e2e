@@ -62,16 +62,17 @@ screenshot commit_splitter_files
 validate ui_height:sidebar_h_divider=16.0
 dump_ui splitter_files sidebar_h_divider
 dump_ui files_list sidebar_files
-assert_ui sidebar_files h=60
+assert_ui sidebar_files h=80
+assert_ui files_controls_scroll h=314
 mouse_down 140 480
 wait_frames 5
-assert_ui sidebar_files h=60
+assert_ui files_controls_scroll h=314
 mouse_move 140 530
 wait_frames 5
-assert_ui sidebar_files h=110
+assert_ui files_controls_scroll h=364
 mouse_move 140 480
 wait_frames 5
-assert_ui sidebar_files h=60
+assert_ui files_controls_scroll h=314
 mouse_up
 wait_frames 5
 click_ui sidebar_review

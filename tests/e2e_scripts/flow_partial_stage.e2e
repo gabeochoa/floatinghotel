@@ -5,6 +5,9 @@ make_test_repo
 resize 1280 720
 wait_frames 5
 click_ui sidebar_working_files
+mouse_move 190 180
+scroll_wheel 0 -1000
+wait_frames 10
 screenshot flow_partial_stage_files_navigation
 
 # Select a file with changes

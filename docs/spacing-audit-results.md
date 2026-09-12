@@ -31,10 +31,17 @@ The stacked working review retains file and hunk navigation, approval, baseline
 comparison, and commit browsing. Feedback has separate location and action
 rows, an explicit close control, and one local Markdown/clipboard export.
 Copying does not send feedback to a remote service.
+Headless tests disable automatic draft persistence, so their feedback captures
+can show "Local draft pending save" even when the export check succeeds.
 
 Native macOS menus were exercised through windowless AppKit and the headless
 app. Physical menu tracking and OS keyboard delivery through an open menu still
 need a desktop check. The non-native fallback places menus above repo tabs.
+
+The final 74-flow run still logs layout overflow warnings for sidebar mode tabs
+and sync controls in a legacy zoom scenario. Focused captured layouts pass their
+geometry checks, but the app is not warning-free. The framework gaps document
+also records the plain-label inset and older XML nested-scroll coordinate limits.
 
 Branch verification uses a disposable divergent history, a non-fast-forward
 merge, both parent comparisons, and an empty commit. The broad legacy flow suite
@@ -42,3 +49,9 @@ also contains placeholder scenarios; its pass count is not proof of every
 feature named by those scenarios.
 
 Use `docs/spacing-audit.tsv` for final evidence paths and verification results.
+
+Re-run the focused capture and interaction checks after building:
+
+```sh
+nice -n 10 bash tests/check_review_spacing.sh
+```
