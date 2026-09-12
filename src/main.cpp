@@ -918,6 +918,10 @@ int main(int argc, char* argv[]) {
             return code_highlight::token_cache().hits() > code_highlight::token_cache().misses() ? "true" : "false";
         } else if (key == "syntax_cache_bounded") {
             return code_highlight::token_cache().bytes() <= 4 * 1024 * 1024 ? "true" : "false";
+        } else if (key == "diff_metric_scans") {
+            return std::to_string(ui::diff_metrics().width_scans());
+        } else if (key == "diff_metrics_bounded") {
+            return ui::diff_metrics().bytes() <= 5 * 1024 * 1024 ? "true" : "false";
         } else if (key == "tooltip_showing") {
             auto* tooltip = ecs::find_singleton<afterhours::ui::TooltipState>();
             return tooltip && tooltip->is_showing() ? "true" : "false";

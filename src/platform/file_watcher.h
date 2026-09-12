@@ -8,6 +8,10 @@
 
 #include "../../vendor/afterhours/src/logging.h"
 
+#ifdef __APPLE__
+#include <CoreServices/CoreServices.h>
+#endif
+
 namespace platform {
 
 template <typename T>
@@ -21,8 +25,6 @@ concept FileWatcherBackend = requires(T& t, const std::string& path) {
 // Apple — FSEvents
 // =============================================================================
 #ifdef __APPLE__
-
-#include <CoreServices/CoreServices.h>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"

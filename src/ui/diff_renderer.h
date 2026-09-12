@@ -5,6 +5,7 @@
 #include "../settings.h"
 #include "code_highlight.h"
 #include "token_cache.h"
+#include "diff_metrics.h"
 #include "image_diff.h"
 #include "reading_position.h"
 #include "../util/review_selection.h"
@@ -1180,7 +1181,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     bool selEnabled = true;
     if (selEnabled) {
         std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline");
-        for (const auto& diff : diffs) context += "\n" + diff.filePath + diff_signature(diff);
+        for (const auto& diff : diffs) context += "\n" + diff.filePath + diff_metrics().signature(diff);
         if (diff_sel::state().context != context) {
             diff_sel::reset();
             diff_sel::state().context = std::move(context);
@@ -1245,13 +1246,15 @@ inline void render_diff(UIContext<InputAction>& ctx,
         contentParent = &scrollContainer.ent();
     }
     float codeWidth = contentWidth;
-    for (const auto& file : diffs)
-        for (const auto& hunk : file.hunks)
-            for (const auto& line : hunk.lines) {
-                float width = diff_sel::mw(sess, code_highlight::display_text(line, sess.visibleWhitespace, true) +
-                                                std::string(sideBySide ? 10 : 16, ' ')) + (sess.visibleWhitespace ? 90.f : 24.f);
-                codeWidth = std::max(codeWidth, sideBySide ? width * 2.f : width);
-            }
+    for (const auto& file : diffs) {
+        float width = diff_metrics().width(file, sess.fontSize, sess.visibleWhitespace, sideBySide,
+            [&](const std::string& line) {
+                float measured = diff_sel::mw(sess, code_highlight::display_text(line, sess.visibleWhitespace, true) +
+                    std::string(sideBySide ? 10 : 16, ' ')) + (sess.visibleWhitespace ? 90.f : 24.f);
+                return sideBySide ? measured * 2.f : measured;
+            });
+        codeWidth = std::max(codeWidth, width);
+    }
 
     diff_detail::DiffViewport vp;
     {

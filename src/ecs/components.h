@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 
 #include <algorithm>
 #include <chrono>
@@ -64,6 +65,11 @@ struct DiffHunk {
     std::set<size_t> movedLines;
 };
 
+inline std::uint64_t next_render_identity() {
+    static std::atomic<std::uint64_t> next{1};
+    return next.fetch_add(1, std::memory_order_relaxed);
+}
+
 struct FileDiff {
     std::string filePath;
     std::string oldPath;       // For renames
@@ -78,6 +84,7 @@ struct FileDiff {
     std::vector<DiffHunk> hunks;
     std::string oldMode;
     std::string newMode;
+    std::uint64_t renderIdentity = next_render_identity();
 };
 
 struct FullFileContent {
@@ -167,6 +174,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool selectedFileStaged = false;
 
     std::string cachedFilePath;
+    std::string untrackedDiffKey;
+    std::optional<FileDiff> untrackedDiff;
 
     bool refreshRequested = false;
     bool ignoreWhitespace = false;

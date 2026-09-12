@@ -1,0 +1,29 @@
+resize 1440 900
+wait_for_refresh
+click_text source.cpp
+screenshot item_05_inline
+validate diff_metric_scans=1
+wait_frames 30
+validate diff_metric_scans=1
+click_text Side-by-Side
+screenshot item_05_split
+validate diff_metric_scans=2
+wait_frames 30
+validate diff_metric_scans=2
+click_text Inline
+screenshot item_05_return
+validate diff_metric_scans=2
+validate diff_metrics_bounded=true
+click_text "Untracked"
+screenshot item_05_untracked_tab
+click_text new.cpp
+screenshot item_05_untracked
+validate diff_metric_scans=3
+wait_frames 30
+validate diff_metric_scans=3
+click_text link
+screenshot item_05_untracked_link
+expect_text "Symbolic link target"
+expect_text missing-target
+wait_frames 30
+validate diff_metric_scans=4

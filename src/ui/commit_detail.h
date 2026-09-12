@@ -10,6 +10,7 @@
 #include "../git/git_runner.h"
 #include "../util/git_helpers.h"
 #include "../util/visible_rows.h"
+#include "../util/file_content.h"
 #include "../ecs/ui_imports.h"
 #include "diff_renderer.h"
 
@@ -698,21 +699,9 @@ inline std::optional<FileDiff> build_new_file_diff(
     namespace fs = std::filesystem;
     fs::path fullPath = fs::path(repoPath) / relPath;
 
-    std::error_code ec;
-    if (!fs::exists(fullPath, ec) || fs::is_directory(fullPath, ec))
-        return std::nullopt;
-
-    auto fileSize = fs::file_size(fullPath, ec);
-    if (ec) return std::nullopt;
-
-    constexpr std::uintmax_t MAX_SIZE = 1 * 1024 * 1024;
-    if (fileSize > MAX_SIZE) return std::nullopt;
-
-    std::ifstream ifs(fullPath, std::ios::binary);
-    if (!ifs) return std::nullopt;
-
-    std::string contents((std::istreambuf_iterator<char>(ifs)),
-                          std::istreambuf_iterator<char>());
+    auto source = file_content::read_working_file(fullPath, {}, 1024 * 1024);
+    if (!source.error.empty()) return std::nullopt;
+    std::string contents = std::move(source.bytes);
 
     bool isBinary = false;
     {
@@ -725,6 +714,7 @@ inline std::optional<FileDiff> build_new_file_diff(
     FileDiff diff;
     diff.filePath = relPath;
     diff.isNew = true;
+    diff.newMode = std::move(source.mode);
 
     if (isBinary) {
         diff.isBinary = true;
@@ -744,6 +734,7 @@ inline std::optional<FileDiff> build_new_file_diff(
         hunk.lines.push_back("+" + line);
     }
     hunk.newCount = lineNum;
+    if (!contents.empty() && !contents.ends_with('\n')) hunk.noNewline.insert(hunk.lines.size() - 1);
     hunk.header = "@@ -0,0 +1," + std::to_string(lineNum) + " @@ (new file)";
     diff.additions = lineNum;
     diff.hunks.push_back(std::move(hunk));

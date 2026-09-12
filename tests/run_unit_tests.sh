@@ -50,6 +50,10 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_diff_metrics" ]; then
+    run_test "test_diff_metrics" "tests/unit/test_diff_metrics.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_byte_cache" ]; then
     run_test "test_byte_cache" "tests/unit/test_byte_cache.cpp"
 fi

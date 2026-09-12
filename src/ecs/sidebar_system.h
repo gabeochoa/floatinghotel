@@ -17,6 +17,7 @@
 #include "../ui/context_menu.h"
 #include "../ui/file_history.h"
 #include "../ui/review_snapshot.h"
+#include "../ui/diff_metrics.h"
 
 #include "../../vendor/afterhours/src/plugins/clipboard.h"
 #include "../../vendor/afterhours/src/plugins/modal.h"
@@ -1572,7 +1573,7 @@ private:
                 if (it != review->seenSig.end()) {
                     for (auto& fd : repo.currentDiff) {
                         if (fd.filePath == path) {
-                            if (diff_signature(fd) != it->second)
+                            if (ui::diff_metrics().signature(fd) != it->second)
                                 textCol = afterhours::Color{78, 161, 255, 255};
                             break;
                         }

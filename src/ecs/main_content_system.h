@@ -640,11 +640,15 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             // files. During review, a tracked file with no working-tree diff was
             // just approved (staged) — don't fake a new-file diff for it.
             if (selectedDiffs.empty() && selUntracked && !repo.selectedFileStaged) {
-                auto synth = build_new_file_diff(repo.repoPath,
-                                                  repo.selectedFilePath);
-                if (synth.has_value()) {
-                    selectedDiffs.push_back(std::move(*synth));
+                std::string key = repo.repoPath + "\n" + repo.selectedFilePath + "\n" + std::to_string(repo.dataGeneration);
+                if (repo.untrackedDiffKey != key) {
+                    repo.untrackedDiffKey = std::move(key);
+                    repo.untrackedDiff = build_new_file_diff(repo.repoPath, repo.selectedFilePath);
                 }
+                if (repo.untrackedDiff) selectedDiffs.push_back(*repo.untrackedDiff);
+            } else {
+                repo.untrackedDiffKey.clear();
+                repo.untrackedDiff.reset();
             }
 
             if (!selectedDiffs.empty()) {
@@ -652,7 +656,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // Only flag dirty when the signature actually changes, else we'd
                 // re-save every frame while a file is open.
                 if (reviewPtr) {
-                    std::string sig = diff_signature(selectedDiffs[0]);
+                    std::string sig = ui::diff_metrics().signature(selectedDiffs[0]);
                     std::string& slot = reviewPtr->seenSig[repo.selectedFilePath];
                     if (slot != sig) { slot = sig; reviewPtr->dirty = true; }
                 }
