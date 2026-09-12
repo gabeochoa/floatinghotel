@@ -12,6 +12,7 @@
 #include "image_diff.h"
 #include "reading_position.h"
 #include "zoom.h"
+#include "text_area.h"
 #include "../util/review_selection.h"
 #include "../util/code_gutter.h"
 #include "../util/lfs_pointer.h"
@@ -809,7 +810,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         float addWidth = static_cast<float>(afterhours::graphics::measure_text(addLabel.c_str(),
             static_cast<int>(12.f * zoom::get()))) / zoom::get() + 24.f;
         auto previousDraft = sel->review->composingText;
-        afterhours::text_input::text_area(
+        ui::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
             ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 134.f)), pixels(editorH)})

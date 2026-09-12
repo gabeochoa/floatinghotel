@@ -21,6 +21,7 @@
 #include "../ui/review_snapshot.h"
 #include "../ui/diff_metrics.h"
 #include "../ui/virtual_list.h"
+#include "../ui/text_area.h"
 #include "../ui/zoom.h"
 
 #include "../../vendor/afterhours/src/plugins/clipboard.h"
@@ -1033,7 +1034,7 @@ private:
         // Multi-line message: Enter commits (submit_on_enter), Shift+Enter adds
         // a body line. The whole string is the commit message — build_message
         // passes a multi-line subject through as subject + body.
-        auto inputResult = afterhours::text_input::text_area(
+        auto inputResult = ui::text_area(
             ctx, mk(commitArea.ent(), 1),
             editor.subject,
             ComponentConfig{}

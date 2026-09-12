@@ -674,8 +674,17 @@ field's computed physical width, then becomes `pixels(viewport_width)` for
 each generated line. Adaptive layout applies zoom to that value again.
 
 The field clips overflow, but line sizing and wrapping should share one unit
-system. This upstream text-editor issue remains open; the review-focus changes
-do not copy or alter the text-input implementation.
+system. The app now routes all three text-area callers through
+`src/ui/text_area.h`. After creating the framework field, this adapter gives
+its generated `text_area_line` children a width of `percent(1.f)`.
+The rows follow the available content width without converting a computed
+physical width back into logical pixels. Cursor and selection children are
+not changed. No framework implementation is copied or edited.
+
+`tests/check_text_area_layout.sh` fails before this adapter and passes after it
+at 100% and 140%, including zoom reset and preserved draft text. The basket
+compose/edit flow and code-highlight tests also pass without text-row width
+warnings. This workaround does not claim to fix other text-editor geometry.
 
 ### Text inset is hardcoded and separate from component padding
 

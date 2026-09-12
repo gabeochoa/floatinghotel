@@ -20,6 +20,7 @@
 #include "../ui/review_snapshot.h"
 #include "../ui/keyboard_shortcuts.h"
 #include "../ui/zoom.h"
+#include "../ui/text_area.h"
 #include "../util/navigation.h"
 #include "ui_imports.h"
 
@@ -210,7 +211,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             }
             if (editing) {
                 auto previousEdit = review.editingCommentText;
-                afterhours::text_input::text_area(ctx, mk(itemRow.ent(), 5), review.editingCommentText,
+                ui::text_area(ctx, mk(itemRow.ent(), 5), review.editingCommentText,
                     ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})
                         .with_font("mono", pixels(fontSize)).with_line_height(pixels(22.f))
                         .with_word_wrap(true).with_overflow(Overflow::Hidden)

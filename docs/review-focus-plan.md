@@ -42,9 +42,10 @@ Startup readiness passes for restored, empty, and invalid repositories. Two
 launches against the real saved workspace accepted the first commit click in
 834 ms and 737 ms, with the window hidden until ready.
 
-The Files sidebar's upstream text-area zoom-width issue remains documented in
-`docs/afterhours-gaps.md`. The review viewer uses the app-local virtual-list
-adapter; no framework implementation was copied or changed.
+The Files sidebar's upstream text-area zoom-width issue is handled by the
+app-local text-area adapter documented in `docs/afterhours-gaps.md`.
+The review viewer uses the app-local virtual-list adapter. No framework
+implementation was copied or changed.
 
 Text-selection, search, and intraline highlights now share the rendered text
 origin. The focused native check covers both drag directions, unified and split

@@ -1,0 +1,25 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_ui sidebar_working_files
+screenshot text_area_files
+click_ui commit_msg_input
+type "Draft commit message"
+wait_frames 5
+screenshot text_area_100
+validate commit_message=Draft commit message
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 5
+screenshot text_area_140
+validate commit_message=Draft commit message
+dump_ui text_area_geometry text_area_field
+key CMD+0
+wait_frames 5
+screenshot text_area_reset
+validate commit_message=Draft commit message
