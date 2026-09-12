@@ -23,6 +23,7 @@
 #include "../util/review_files.h"
 #include "../util/review_comment_kind.h"
 #include "../util/review_verdict.h"
+#include "../util/async_task.h"
 
 namespace ecs {
 
@@ -177,6 +178,13 @@ inline std::vector<size_t> visible_file_indices(const std::vector<FileDiff>& fil
     });
     return indices;
 }
+
+struct CommitPatch {
+    std::vector<FileDiff> files;
+    std::string error;
+    std::string resolvedCommit;
+    std::string resolvedParent;
+};
 
 inline std::string hunk_signature(const DiffHunk& hunk) {
     std::uint64_t hash = 14695981039346656037ull;
@@ -350,7 +358,9 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     std::string cachedCommitHash;
     std::string cachedRepoPath;
     CommitEntry entry;
-    async_work::Task<git::GitResult> patchFuture;
+    async_work::Task<CommitPatch> patchFuture;
+    int cachedContext = -1;
+    bool cachedIgnoreWhitespace = false;
     async_work::Task<git::GitResult> infoFuture;
     std::vector<FileDiff> commitDetailDiff;
     std::string commitDetailBody;

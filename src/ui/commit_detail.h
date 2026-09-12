@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../git/git_parser.h"
+#include "../git/commit_patch.h"
 #include "../git/git_runner.h"
 #include "../util/git_helpers.h"
 #include "../util/visible_rows.h"
@@ -72,7 +73,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                                   ReviewComponent* review = nullptr) {
     namespace cdv = commit_detail_view;
 
-    bool commitJustChanged = detailCache.cachedCommitHash != repo.selectedCommitHash || detailCache.cachedRepoPath != repo.repoPath;
+    bool commitJustChanged = detailCache.cachedCommitHash != repo.selectedCommitHash || detailCache.cachedRepoPath != repo.repoPath ||
+        detailCache.cachedContext != repo.diffContext || detailCache.cachedIgnoreWhitespace != repo.ignoreWhitespace;
     if (commitJustChanged) {
         repo.diffTargetFile.clear();
         repo.diffTargetFrames = 0;
@@ -83,7 +85,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         detailCache.messageLines.clear();
         detailCache.commitDetailAuthorEmail.clear();
         detailCache.commitDetailParents.clear();
-        detailCache.fileOverviewExpanded = true;
         detailCache.entry = {};
         detailCache.entry.hash = repo.selectedCommitHash;
         detailCache.entry.shortHash = repo.selectedCommitHash.substr(0, 7);
@@ -91,23 +92,20 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
             for (const auto& entry : *entries)
                 if (entry.hash == repo.selectedCommitHash) detailCache.entry = entry;
-        std::vector<std::string> diffArgs{"show", repo.selectedCommitHash, "--format="};
-        diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
-        if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
-        detailCache.patchFuture = git::git_run_async(repo.repoPath, diffArgs);
+        detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash, "", repo.diffContext, repo.ignoreWhitespace});
         detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", repo.selectedCommitHash, "--no-patch",
             "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
         detailCache.cachedCommitHash = repo.selectedCommitHash;
         detailCache.cachedRepoPath = repo.repoPath;
+        detailCache.cachedContext = repo.diffContext;
+        detailCache.cachedIgnoreWhitespace = repo.ignoreWhitespace;
     }
     if (detailCache.patchFuture.valid() && detailCache.patchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-        auto diffResult = detailCache.patchFuture.get();
-        detailCache.patchFuture = {};
-        if (diffResult.success()) {
-            detailCache.commitDetailDiff = git::parse_diff(diffResult.stdout_str());
-        } else {
-            detailCache.commitDetailError = "Unable to load commit diff: " + diffResult.stderr_str();
-        }
+        try {
+            auto patch = detailCache.patchFuture.get();
+            detailCache.commitDetailDiff = std::move(patch.files);
+            detailCache.commitDetailError = std::move(patch.error);
+        } catch (const std::exception& error) { detailCache.commitDetailError = error.what(); }
     }
     if (detailCache.infoFuture.valid() && detailCache.infoFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto infoResult = detailCache.infoFuture.get();
@@ -143,6 +141,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_no_wrap()  // a scroll list must stack, never wrap into columns
             .with_custom_background(theme::WINDOW_BG)
             .with_roundness(0.0f)
+            .with_skip_grid_snap()
             .with_debug_name("commit_detail_scroll"));
 
     ui::remember_reading_position(repo, scrollContainer.ent(), "commit:" + repo.selectedCommitHash +
@@ -166,6 +165,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_debug_name("commit_back_btn"));
 
     if (backBtn) {
+        detailCache.patchFuture = {};
         repo.selectedCommitHash.clear();
         detailCache.cachedCommitHash.clear();
         return;

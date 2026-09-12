@@ -524,6 +524,8 @@ machine's daemons, not the app.
 - Boundary: `autolayout.h` snaps placement/cursor positions, including paths where a child requests `skip_grid_snap`; `ui/systems.h` computes scroll content size from unsnapped child heights. Virtual spacers and placed rows therefore disagree about the content extent.
 - App workaround: calculate row heights with public `AutoLayout` grid rounding, and use the same grid for virtual viewport metrics. The binary viewer also accounts for its content padding. `output/review-50/item-02-grid.log` passes the actual viewport-bounds gate, and the inspected `item_02_page_end.png` shows line 15000.
 - Maintainer request: share effective snapped extents between placement and scroll measurement, and make `skip_grid_snap` semantics consistent for sizes and positions.
+- Horizontal reproduction in item 11: at 1440×1000, `commit_detail_scroll` had width1086 while its pixel-sized diff rows had width1088. Horizontal input moved the whole panel by two pixels. At 1440×900, the working-tree viewport had width1088 but its percentage-sized statistics row rounded up to1090, causing the same two-pixel scroll. Dumps are in `/tmp/fh-infra-scroll-probe.log` and `/tmp/fh-infra-working-scroll.log`; `/tmp/fh-infra11-width-red.log` contains the failing native width assertion.
+- Horizontal workaround: keep the commit viewport pixel-exact with `skip_grid_snap`, and use the existing pixel width for the diff statistics row. `tests/review_50/item_11.sh` checks zero horizontal offset for short commit and working-tree content at resized window sizes, while a 4096-character line still scrolls to its end. Percentage widths should never round beyond their available parent width.
 
 ### E2E text assertions can match clipped or overscan rows — OPEN
 

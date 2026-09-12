@@ -1,0 +1,65 @@
+resize 1440 900
+wait_for_refresh
+click_text latest
+wait_for_refresh
+expect_text "latest source"
+screenshot item_11_latest_commit
+click_ui commit_files_toggle
+screenshot item_11_collapsed
+expect_text "Show files"
+click_ui expand_diff_context
+wait_for_refresh
+screenshot item_11_context_reload
+expect_text "Show files"
+expect_text "latest source"
+click_text "View"
+screenshot item_11_view_menu
+click_text "Ignore Whitespace (toggle)"
+wait_for_refresh
+screenshot item_11_whitespace_reload
+expect_text "Show files"
+expect_text "latest source"
+click_text baseline
+wait_for_refresh
+expect_text "root source"
+expect_no_text "latest source"
+screenshot item_11_root_commit
+click_text latest
+wait_for_refresh
+expect_text "latest source"
+resize 1440 1000
+screenshot item_11_short_width
+assert_ui commit_detail_scroll w=1088
+mouse_move 900 500
+scroll_wheel -10000 0
+wait_frames 30
+screenshot item_11_short_after_horizontal_wheel
+dump_ui short_width commit_detail_scroll
+click_text "Long line"
+wait_for_refresh
+screenshot item_11_long_before_horizontal_wheel
+mouse_move 900 500
+scroll_wheel -10000 0
+wait_frames 30
+screenshot item_11_long_after_horizontal_wheel
+expect_text END_OF_LONG_LINE
+dump_ui long_width commit_detail_scroll
+click_text app.cpp
+resize 1440 900
+screenshot item_11_working_width
+assert_ui diff_stats_header w=1088
+mouse_move 900 500
+scroll_wheel -10000 0
+wait_frames 30
+screenshot item_11_working_after_horizontal_wheel
+dump_ui working_width diff_scroll
+click_text latest
+wait_for_refresh
+resize 1280 800
+screenshot item_11_normal_width
+assert_ui commit_detail_scroll w=928
+mouse_move 900 500
+scroll_wheel -10000 0
+wait_frames 30
+screenshot item_11_normal_after_horizontal_wheel
+dump_ui normal_width commit_detail_scroll

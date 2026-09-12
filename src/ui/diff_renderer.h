@@ -1499,7 +1499,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         vp.flush(ctx, *contentParent, nextId);
         auto statsRow = div(ctx, mk(*contentParent, nextId++),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(diff_detail::DIFF_HEADER_H)})
+                .with_size(ComponentSize{w, h720(diff_detail::DIFF_HEADER_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_justify_content(JustifyContent::SpaceBetween)
                 .with_align_items(AlignItems::Center)
