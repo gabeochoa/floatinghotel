@@ -32,8 +32,11 @@ All 29 unit suites and 74 legacy UI flows pass. The 50 feature scenarios pass th
 including Markdown and hex navigation at 140% zoom. Item 15 still misses one
 p99 timing limit: 26.89 ms against a 20 ms budget. Its cache bounds and functional
 checks pass; the performance suite is not green.
-The feedback basket also emits a `basket_title` height-overflow warning. This
-is an app layout issue, separate from the framework text-area zoom issue.
+The feedback basket uses logical pixel heights throughout. Its former
+`basket_title` overflow came from mixing screen-relative controls with a
+logical-height scroll area. `output/layout-followup/basket-final/native.log`
+verifies the title, footer, resize, comment resolution, and editing at 140% zoom
+without basket-overflow warnings.
 
 Startup readiness passes for restored, empty, and invalid repositories. Two
 launches against the real saved workspace accepted the first commit click in

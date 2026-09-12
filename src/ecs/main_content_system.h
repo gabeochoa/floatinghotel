@@ -85,17 +85,17 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_debug_name("feedback_basket"));
 
     auto title = div(ctx, mk(panel.ent(), 0), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), h720(22)}).with_flex_direction(FlexDirection::Row));
+        .with_size(ComponentSize{percent(1.f), pixels(22)}).with_flex_direction(FlexDirection::Row));
     div(ctx, mk(title.ent(), 0),
         ComponentConfig{}
             .with_label("Feedback basket  " + std::to_string(unresolved_comment_count(review)))
-            .with_size(ComponentSize{expand(), h720(22)})
+            .with_size(ComponentSize{expand(), pixels(22)})
             .with_custom_text_color(theme::STATUS_MODIFIED)
             .with_font_size(pixels(14))
             .with_debug_name("basket_title"));
     if (unresolved_comment_count(review) < review.comments.size()) {
         if (button(ctx, mk(title.ent(), 1), preset::Button(review.showResolved ? "Hide resolved" : "Show resolved")
-                .with_size(ComponentSize{pixels(108), h720(20)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{pixels(108), pixels(20)}).with_font_size(pixels(12))
                 .with_debug_name("basket_toggle_resolved"))) review.showResolved = !review.showResolved;
     }
 
@@ -105,7 +105,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     auto& measure = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
     auto list = div(ctx, mk(panel.ent(), 903),
         ComponentConfig{}
-            .with_size(ComponentSize{pixels(itemW), pixels(std::max(40.f, hgt - 112.f))})
+            .with_size(ComponentSize{pixels(itemW), pixels(std::max(0.f, hgt - 112.f))})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()
@@ -136,8 +136,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         div(ctx, mk(list.ent(), id++),
             ComponentConfig{}
                 .with_label(gh)
-                .with_size(ComponentSize{percent(1.0f), h720(18)})
-                .with_padding(Padding{.top = h720(4)})
+                .with_size(ComponentSize{percent(1.0f), pixels(18)})
+                .with_padding(Padding{.top = pixels(4)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -177,16 +177,16 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_debug_name("basket_item"));
             auto heading = div(ctx, mk(itemRow.ent(), 4),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(txtW), h720(24)})
+                    .with_size(ComponentSize{pixels(txtW), pixels(24)})
                     .with_flex_direction(FlexDirection::Row)
                     .with_debug_name("basket_item_heading"));
             auto location = button(ctx, mk(heading.ent(), 3),
                 ComponentConfig{}
                     .with_label((c.resolved ? "Resolved · " : "") + comment_location(c))
-                    .with_size(ComponentSize{expand(), h720(20)})
+                    .with_size(ComponentSize{expand(), pixels(20)})
                     .with_custom_background(theme::SIDEBAR_BG)
                     .with_custom_text_color(afterhours::Color{100, 180, 255, 255})
-                    .with_font("mono", h720(11.0f))
+                    .with_font("mono", pixels(11.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("basket_item_loc"));
             if (location && repo) {
@@ -239,7 +239,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                     .with_debug_name("basket_item_text"));
             if (button(ctx, mk(heading.ent(), 2), preset::Button("Edit")
-                    .with_size(ComponentSize{pixels(42), h720(18)}).with_font_size(pixels(12))
+                    .with_size(ComponentSize{pixels(42), pixels(18)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
                 review.editingComment = i;
                 review.editingCommentText = c.text;
@@ -247,14 +247,14 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 review.dirty = true;
             }
             if (!editing && button(ctx, mk(heading.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
-                    .with_size(ComponentSize{pixels(66), h720(18)}).with_font_size(pixels(12))
+                    .with_size(ComponentSize{pixels(66), pixels(18)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_resolve"))) {
                 review.comments[i].resolved = !c.resolved;
                 review.dirty = true;
             }
             auto rmBtn = button(ctx, mk(heading.ent(), 1),
                 preset::Button("x")
-                    .with_size(ComponentSize{pixels(18), h720(18)})
+                    .with_size(ComponentSize{pixels(18), pixels(18)})
                     .with_custom_background(afterhours::Color{60, 60, 65, 255})
                     .with_custom_text_color(theme::STATUS_DELETED)
                     .with_font_size(pixels(12))
@@ -269,13 +269,13 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
 
     auto sendBtn = button(ctx, mk(panel.ent(), 900),
         preset::Button("\xe2\x8c\x98\xe2\x8f\x8e Send all feedback")
-            .with_size(ComponentSize{percent(1.0f), h720(28)})
+            .with_size(ComponentSize{percent(1.0f), pixels(28)})
             .with_debug_name("basket_send_btn"));
     if (sendBtn) send_review(ctx, review, repo);
 
     auto copyBtn = button(ctx, mk(panel.ent(), 901),
         preset::Button("Copy all")
-            .with_size(ComponentSize{percent(1.0f), h720(24)})
+            .with_size(ComponentSize{percent(1.0f), pixels(24)})
             .with_custom_background(afterhours::Color{62, 62, 64, 255})
             .with_custom_text_color(theme::TEXT_PRIMARY)
             .with_debug_name("basket_copy_btn"));
@@ -296,8 +296,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     div(ctx, mk(panel.ent(), 902),
         ComponentConfig{}
             .with_label("saved to your local review folder")
-            .with_size(ComponentSize{percent(1.0f), h720(16)})
-            .with_padding(Padding{.top = h720(4)})
+            .with_size(ComponentSize{percent(1.0f), pixels(16)})
+            .with_padding(Padding{.top = pixels(4)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_font_size(pixels(12))
             .with_alignment(TextAlignment::Center)

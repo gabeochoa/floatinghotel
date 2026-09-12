@@ -1,0 +1,56 @@
+make_test_repo
+resize 1440 900
+wait_for_refresh
+click_ui sidebar_working_files
+screenshot basket_files
+click_text main.cpp
+wait_for_refresh
+screenshot basket_diff
+click_ui comment_hunk_btn
+wait_frames 5
+screenshot basket_compose
+click_ui comment_input
+type "Check this change"
+click_ui comment_add_btn
+wait_frames 5
+screenshot basket_100
+validate review_unresolved=1
+validate ui_in_viewport:feedback_basket=true
+validate footer_fixed=true
+dump_ui basket_title_100 basket_title
+validate ui_height:basket_title=22.0
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 5
+screenshot basket_140
+validate ui_in_viewport:feedback_basket=true
+validate footer_fixed=true
+dump_ui basket_title_140 basket_title
+validate ui_height:basket_title=30.8
+resize 1100 720
+wait_frames 5
+screenshot basket_small
+validate ui_in_viewport:feedback_basket=true
+validate footer_fixed=true
+click_ui basket_item_resolve
+wait_frames 5
+screenshot basket_resolved
+validate review_unresolved=0
+click_ui basket_toggle_resolved
+wait_frames 5
+screenshot basket_show_resolved
+click_ui basket_item_edit
+wait_frames 5
+screenshot basket_edit
+click_ui basket_edit_input
+key CMD+A
+type "Revised review note"
+click_ui basket_edit_save
+wait_frames 5
+screenshot basket_saved
+expect_text "Revised review note"
