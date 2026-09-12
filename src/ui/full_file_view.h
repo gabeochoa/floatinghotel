@@ -1,13 +1,24 @@
 #pragma once
 
+#include <algorithm>
+#include "../settings.h"
 #include "diff_renderer.h"
 #include "file_history.h"
 #include "../git/content_reader.h"
 
 namespace ecs {
 
+inline std::string bookmark_display(const CodeBookmark& bookmark) {
+    std::string label = bookmark.label.empty()
+        ? bookmark.path + ":L" + std::to_string(bookmark.line)
+        : bookmark.label;
+    if (!bookmark.revision.empty()) label += " @ " + bookmark.revision.substr(0, std::min<size_t>(7, bookmark.revision.size()));
+    return label;
+}
+
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
+    const auto& bookmarks = Settings::get().get_code_bookmarks(repo.repoPath);
     std::string key = repo.repoPath + "\n" + repo.fullFileRevision + "\n" + repo.fullFilePath;
     if (repo.fullFileRevision.empty()) key += ":" + std::to_string(repo.dataGeneration);
     bool changed = repo.fullFileCacheKey != key;
@@ -46,6 +57,29 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     int selectedLine = 0;
     for (const auto& line : selection.lastLines)
         if (line.ent == selection.anchor.ent && line.filePath == repo.fullFilePath) selectedLine = line.lineNo;
+    int bookmarkLine = selectedLine > 0 ? selectedLine : std::max(1, repo.fullFileTargetLine);
+    auto sameBookmark = [&](const CodeBookmark& bookmark) {
+        return bookmark.path == repo.fullFilePath &&
+               bookmark.revision == repo.fullFileRevision &&
+               bookmark.line == bookmarkLine;
+    };
+    bool bookmarked = std::any_of(bookmarks.begin(), bookmarks.end(), sameBookmark);
+    if (button(ctx, mk(header.ent(), 4), preset::Button(bookmarked ? "Remove bookmark" : "Bookmark line " + std::to_string(bookmarkLine))
+            .with_size(ComponentSize{pixels(bookmarked ? 135 : 130), pixels(30)})
+            .with_debug_name("bookmark_line"))) {
+        auto updated = bookmarks;
+        if (bookmarked) {
+            std::erase_if(updated, sameBookmark);
+        } else {
+            updated.push_back(CodeBookmark{
+                repo.fullFilePath,
+                repo.fullFileRevision,
+                bookmarkLine,
+                repo.fullFilePath + ":L" + std::to_string(bookmarkLine),
+            });
+        }
+        Settings::get().set_code_bookmarks(repo.repoPath, updated);
+    }
     if (selectedLine > 0 && repo.fullFileRevision != "INDEX") {
         if (button(ctx, mk(header.ent(), 3), preset::Button("Blame line " + std::to_string(selectedLine))
                 .with_size(ComponentSize{pixels(120), pixels(30)}).with_debug_name("blame_selected_line"))) {
@@ -56,6 +90,49 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             repo.blameLine = {};
             repo.blameError.clear();
             repo.blameOpen = true;
+        }
+    }
+    float bookmarkHeight = bookmarks.empty() ? 0.f : 30.f;
+    if (!bookmarks.empty()) {
+        constexpr size_t pageSize = 3;
+        size_t pageCount = (bookmarks.size() + pageSize - 1) / pageSize;
+        repo.bookmarkPage = std::min(repo.bookmarkPage, pageCount - 1);
+        auto row = div(ctx, mk(parent, 585009), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(bookmarkHeight)})
+            .with_flex_direction(FlexDirection::Row)
+            .with_align_items(AlignItems::Center)
+            .with_gap(pixels(6))
+            .with_padding(Padding{.left = pixels(8), .right = pixels(8)})
+            .with_custom_background(theme::SECTION_HEADER_BG)
+            .with_debug_name("bookmarks_row"));
+        div(ctx, mk(row.ent(), 0), ComponentConfig{}
+            .with_label("Bookmarks")
+            .with_size(ComponentSize{pixels(78), pixels(24)})
+            .with_font_size(FontSize::Small)
+            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_debug_name("bookmarks_label"));
+        if (button(ctx, mk(row.ent(), 1), preset::Button("<")
+                .with_size(ComponentSize{pixels(28), pixels(24)})
+                .with_disabled(repo.bookmarkPage == 0).with_debug_name("bookmarks_previous"))) --repo.bookmarkPage;
+        if (button(ctx, mk(row.ent(), 2), preset::Button(">")
+                .with_size(ComponentSize{pixels(28), pixels(24)})
+                .with_disabled(repo.bookmarkPage + 1 >= pageCount).with_debug_name("bookmarks_next"))) ++repo.bookmarkPage;
+        for (size_t i = repo.bookmarkPage * pageSize; i < std::min(bookmarks.size(), (repo.bookmarkPage + 1) * pageSize); ++i) {
+            const auto& bookmark = bookmarks[i];
+            auto label = bookmark_display(bookmark);
+            auto item = button(ctx, mk(row.ent(), static_cast<int>(i % pageSize) + 3), preset::Button(label)
+                    .with_size(ComponentSize{expand(), pixels(24)})
+                    .with_font_size(FontSize::Small)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("code_bookmark"));
+            ui::set_tooltip(item.ent(), label);
+            if (item) {
+                repo.fullFilePath = bookmark.path;
+                repo.fullFileRevision = bookmark.revision;
+                repo.fullFileCacheKey.clear();
+                repo.fullFileTargetLine = bookmark.line;
+                repo.fullFileNavigateFrames = 3;
+            }
         }
     }
     if (repo.blameFuture.valid() && repo.blameFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
@@ -96,7 +173,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_debug_name("full_file_error"));
     } else {
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
-                        layout.mainContent.height - 34.f - blameHeight, false, changed, false,
+                        layout.mainContent.height - 34.f - bookmarkHeight - blameHeight, false, changed, false,
                         repo.repoPath, nullptr, "file:" + repo.fullFileRevision);
     }
 }

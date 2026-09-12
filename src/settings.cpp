@@ -4,6 +4,7 @@
 #include <cmath>
 #include <filesystem>
 #include <fstream>
+#include <map>
 
 #include <nlohmann/json.hpp>
 
@@ -24,6 +25,7 @@ struct Settings::Data {
     std::string unstagedPolicy = "ask";
     bool copyWithLocation = true;
     std::vector<std::string> recentRepos;
+    std::map<std::string, std::vector<CodeBookmark>> codeBookmarks;
 };
 
 Settings::Settings() { data_ = new Data(); }
@@ -68,6 +70,26 @@ bool Settings::load_save_file() {
         data_->copyWithLocation = j.value("copy_with_location", true);
         data_->recentRepos =
             j.value("recent_repos", std::vector<std::string>{});
+        data_->codeBookmarks.clear();
+        if (j.contains("code_bookmarks") && j["code_bookmarks"].is_object()) {
+            for (const auto& [repo, values] : j["code_bookmarks"].items()) {
+                if (!values.is_array()) continue;
+                auto& list = data_->codeBookmarks[repo];
+                for (const auto& value : values) {
+                    if (!value.is_object()) continue;
+                    if (!value.contains("path") || !value["path"].is_string()) continue;
+                    if (value.contains("revision") && !value["revision"].is_string()) continue;
+                    if (value.contains("label") && !value["label"].is_string()) continue;
+                    if (value.contains("line") && !value["line"].is_number_integer()) continue;
+                    CodeBookmark bookmark;
+                    bookmark.path = value.value("path", std::string{});
+                    bookmark.revision = value.value("revision", std::string{});
+                    bookmark.line = std::max(1, value.value("line", 1));
+                    bookmark.label = value.value("label", std::string{});
+                    if (!bookmark.path.empty()) list.push_back(std::move(bookmark));
+                }
+            }
+        }
 
         log_info("Settings loaded from {}", path);
         return true;
@@ -92,6 +114,20 @@ void Settings::write_save_file() {
     j["commit_unstaged_policy"] = data_->unstagedPolicy;
     j["copy_with_location"] = data_->copyWithLocation;
     j["recent_repos"] = data_->recentRepos;
+    nlohmann::json bookmarks = nlohmann::json::object();
+    for (const auto& [repo, values] : data_->codeBookmarks) {
+        nlohmann::json list = nlohmann::json::array();
+        for (const auto& bookmark : values) {
+            list.push_back({
+                {"path", bookmark.path},
+                {"revision", bookmark.revision},
+                {"line", bookmark.line},
+                {"label", bookmark.label},
+            });
+        }
+        bookmarks[repo] = std::move(list);
+    }
+    j["code_bookmarks"] = std::move(bookmarks);
 
     std::string path = get_settings_path();
     std::ofstream f(path);
@@ -223,5 +259,18 @@ void Settings::add_recent_repo(const std::string& path) {
     if (data_->recentRepos.size() > 10) {
         data_->recentRepos.resize(10);
     }
+    save_if_auto();
+}
+
+const std::vector<CodeBookmark>& Settings::get_code_bookmarks(const std::string& repoPath) const {
+    static const std::vector<CodeBookmark> empty;
+    auto it = data_->codeBookmarks.find(repoPath);
+    return it == data_->codeBookmarks.end() ? empty : it->second;
+}
+
+void Settings::set_code_bookmarks(const std::string& repoPath,
+                                  const std::vector<CodeBookmark>& bookmarks) {
+    if (repoPath.empty()) return;
+    data_->codeBookmarks[repoPath] = bookmarks;
     save_if_auto();
 }

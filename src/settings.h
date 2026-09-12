@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include "util/code_bookmark.h"
+
 SINGLETON_FWD(Settings)
 struct Settings {
     SINGLETON(Settings)
@@ -58,6 +60,10 @@ struct Settings {
     // Recent repos (for welcome screen)
     std::vector<std::string> get_recent_repos() const;
     void add_recent_repo(const std::string& path);
+
+    const std::vector<CodeBookmark>& get_code_bookmarks(const std::string& repoPath) const;
+    void set_code_bookmarks(const std::string& repoPath,
+                            const std::vector<CodeBookmark>& bookmarks);
 
     std::string get_settings_path() const;
 

@@ -15,6 +15,7 @@
 #include "../git/git_runner.h"
 #include "../git/history_query.h"
 #include "../util/codeowners.h"
+#include "../util/code_bookmark.h"
 
 namespace ecs {
 
@@ -276,6 +277,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool comparisonIgnoreWhitespace = false;
     std::string diffTargetFile;
     int diffTargetFrames = 0;
+    size_t bookmarkPage = 0;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent {

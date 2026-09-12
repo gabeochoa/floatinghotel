@@ -499,6 +499,7 @@ machine's daemons, not the app.
 - Boundary: `src/plugins/e2e_testing/ui_commands.h` filters target lookup with `UIComponent::was_rendered_to_screen`. The host's `e2e_tick_loop` runs multiple `tick_all` calls before a render. A completed model refresh therefore does not establish that the target view has been drawn.
 - App workaround: `tests/review_50/item_01.e2e` takes `item_01_commit_again` before the repeated open, then asserts `full_file_header`. Text assertions alone can match code in the wrong view.
 - Maintainer request: expose a render-generation checkpoint for UI commands, or document the required render boundary when a host batches logic ticks. A target command should wait for the current view generation rather than use an earlier drawn view.
+- Additional reproduction in item 41: resizing from 1280 to 960 before `assert_no_overflow` reports an obsolete `full_file_loading` rectangle at x352 with width928, even though loading has finished. `output/review-50/item-41.log` fails; adding a screenshot checkpoint before the assertion passes in `item-41-drawn.log`. The inspected screenshot shows no loading row or overflow. Validation also needs a current render generation.
 
 ### E2E property assertions do not parse quoted values
 

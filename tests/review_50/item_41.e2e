@@ -1,0 +1,39 @@
+resize 1280 800
+wait_for_refresh
+click_text "bookmarks.txt"
+wait_frames 5
+click_ui open_full_file
+wait_for_refresh
+expect_text "Bookmark line 1"
+click_ui bookmark_line
+wait_frames 3
+expect_text "Remove bookmark"
+assert_ui bookmarks_row hidden=false
+assert_ui code_bookmark hidden=false
+screenshot item_41_bookmark_added
+click_ui code_bookmark
+wait_for_refresh
+validate source_line=1
+screenshot item_41_bookmark_jump
+click_text beta
+wait_frames 3
+expect_text "Bookmark line 2"
+click_ui bookmark_line
+click_text gamma
+wait_frames 3
+expect_text "Bookmark line 3"
+click_ui bookmark_line
+click_text delta
+wait_frames 3
+expect_text "Bookmark line 4"
+click_ui bookmark_line
+click_ui bookmarks_next
+wait_frames 3
+expect_text "bookmarks.txt:L4"
+click_ui code_bookmark
+wait_for_refresh
+validate source_line=4
+resize 960 720
+wait_frames 5
+screenshot item_41_bookmark_page
+assert_no_overflow

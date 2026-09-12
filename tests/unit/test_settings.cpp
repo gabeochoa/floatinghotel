@@ -249,6 +249,52 @@ TEST(settings_load_partial_json_uses_defaults) {
     fs::remove(path);
 }
 
+TEST(settings_code_bookmarks_roundtrip) {
+    auto& s = Settings::get();
+    s.auto_save_enabled = false;
+    std::string path = s.get_settings_path();
+    s.set_code_bookmarks("/tmp/bookmark-repo", {
+        CodeBookmark{"src/a.cpp", "", 12, "src/a.cpp:L12"},
+        CodeBookmark{"src/b.cpp", "abc1234", 7, "custom label"},
+    });
+    s.write_save_file();
+    ASSERT_TRUE(s.load_save_file());
+    auto bookmarks = s.get_code_bookmarks("/tmp/bookmark-repo");
+    ASSERT_EQ(bookmarks.size(), static_cast<size_t>(2));
+    ASSERT_STREQ(bookmarks[0].path, "src/a.cpp");
+    ASSERT_STREQ(bookmarks[0].revision, "");
+    ASSERT_EQ(bookmarks[0].line, 12);
+    ASSERT_STREQ(bookmarks[1].path, "src/b.cpp");
+    ASSERT_STREQ(bookmarks[1].revision, "abc1234");
+    ASSERT_EQ(bookmarks[1].line, 7);
+    ASSERT_STREQ(bookmarks[1].label, "custom label");
+    fs::remove(path);
+}
+
+TEST(settings_bookmarks_have_one_authoritative_repository_value) {
+    auto& settings = Settings::get();
+    settings.set_code_bookmarks("same-repo", {{"a.cpp", "", 1, "a"}});
+    const auto& firstTab = settings.get_code_bookmarks("same-repo");
+    auto update = settings.get_code_bookmarks("same-repo");
+    update.push_back({"b.cpp", "", 2, "b"});
+    settings.set_code_bookmarks("same-repo", update);
+    ASSERT_EQ(firstTab.size(), 2u);
+    ASSERT_EQ(firstTab.back().path, "b.cpp");
+}
+
+TEST(settings_ignore_malformed_bookmarks_without_losing_valid_entries) {
+    auto& settings = Settings::get();
+    {
+        std::ofstream file(settings.get_settings_path());
+        file << R"({"code_bookmarks":{"repo":[{"path":false},{"path":"bad","line":null},{"path":"good.cpp","line":7}]}})";
+    }
+    ASSERT_TRUE(settings.load_save_file());
+    const auto& bookmarks = settings.get_code_bookmarks("repo");
+    ASSERT_EQ(bookmarks.size(), 1u);
+    ASSERT_EQ(bookmarks[0].line, 7);
+    fs::remove(settings.get_settings_path());
+}
+
 int main() {
     // Initialize the files plugin with a temp directory so settings writes
     // go to an isolated location.
