@@ -1,0 +1,7 @@
+resize 1440 900
+wait_for_refresh
+click_text run.sh
+expect_text "File mode: 100644 -> 100755"
+expect_text "executable enabled"
+assert_ui file_mode_change hidden=false
+screenshot item_31_mode

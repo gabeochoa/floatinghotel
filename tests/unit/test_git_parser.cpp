@@ -9,6 +9,24 @@
 
 #include <string>
 
+TEST(diff_file_modes_preserve_permission_and_creation_changes) {
+    auto modes = git::parse_diff("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n");
+    ASSERT_EQ(modes.size(), 1u);
+    ASSERT_EQ(modes[0].oldMode, "100644");
+    ASSERT_EQ(modes[0].newMode, "100755");
+    ASSERT_TRUE(modes[0].hunks.empty());
+    auto created = git::parse_diff("diff --git a/new b/new\nnew file mode 100755\nindex 0000000..1234567\n");
+    ASSERT_TRUE(created[0].isNew);
+    ASSERT_EQ(created[0].newMode, "100755");
+    ASSERT_TRUE(created[0].oldMode.empty());
+    auto deleted = git::parse_diff("diff --git a/old b/old\ndeleted file mode 100644\nindex 1234567..0000000\n");
+    ASSERT_TRUE(deleted[0].isDeleted);
+    ASSERT_EQ(deleted[0].oldMode, "100644");
+    ASSERT_TRUE(deleted[0].newMode.empty());
+    auto same = git::parse_diff("diff --git a/a b/a\nindex 1234567..abcdef0 100644\n");
+    ASSERT_EQ(same[0].oldMode, same[0].newMode);
+}
+
 TEST(blame_line_preserves_original_location_and_author) {
     auto line = git::parse_blame_line(std::string(40, 'a') + " 3 9 1\nauthor Ada Lovelace\nsummary Initial algorithm\nfilename old name.cpp\n\treturn answer;\n");
     ASSERT_EQ(line.author, "Ada Lovelace");

@@ -74,6 +74,8 @@ struct FileDiff {
     bool isFullContent = false;
     bool isSubmodule = false;  // gitlink change (index mode 160000)
     std::vector<DiffHunk> hunks;
+    std::string oldMode;
+    std::string newMode;
 };
 
 struct FullFileContent {

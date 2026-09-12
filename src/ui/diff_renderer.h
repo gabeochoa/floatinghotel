@@ -1575,6 +1575,19 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
 
+        if (fileDiff.oldMode != fileDiff.newMode) {
+            std::string modeLabel = "File mode: " + (fileDiff.oldMode.empty() ? "absent" : fileDiff.oldMode) +
+                " -> " + (fileDiff.newMode.empty() ? "absent" : fileDiff.newMode);
+            if (fileDiff.oldMode == "100644" && fileDiff.newMode == "100755") modeLabel += " · executable enabled";
+            if (fileDiff.oldMode == "100755" && fileDiff.newMode == "100644") modeLabel += " · executable removed";
+            vp.flush(ctx, *contentParent, nextId);
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+                .with_label(modeLabel).with_size(ComponentSize{w, h720(28)})
+                .with_font_size(FontSize::Small).with_custom_text_color(theme::STATUS_MODIFIED)
+                .with_debug_name("file_mode_change"));
+            vp.built(28.f);
+        }
+
         // Binary files: just show the header, no hunks
         if (fileDiff.isBinary) {
             vp.flush(ctx, *contentParent, nextId);

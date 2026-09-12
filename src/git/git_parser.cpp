@@ -252,10 +252,24 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
                 currentFile->oldPath = a_path;
             }
         } else if (line.starts_with("index ") && currentFile) {
+            auto mode = line.rfind(' ');
+            if (mode != std::string::npos && line.size() - mode == 7) {
+                currentFile->oldMode = currentFile->newMode = line.substr(mode + 1);
+            }
             // "index <old>..<new> 160000" marks a submodule (gitlink) change.
             if (line.find(" 160000") != std::string::npos) {
                 currentFile->isSubmodule = true;
             }
+        } else if (line.starts_with("old mode ") && currentFile) {
+            currentFile->oldMode = line.substr(9);
+        } else if (line.starts_with("new mode ") && currentFile) {
+            currentFile->newMode = line.substr(9);
+        } else if (line.starts_with("new file mode ") && currentFile) {
+            currentFile->isNew = true;
+            currentFile->newMode = line.substr(14);
+        } else if (line.starts_with("deleted file mode ") && currentFile) {
+            currentFile->isDeleted = true;
+            currentFile->oldMode = line.substr(18);
         } else if (line.starts_with("--- ")) {
             if (currentFile) {
                 std::string path = line.substr(4);
