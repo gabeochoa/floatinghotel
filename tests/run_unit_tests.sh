@@ -137,6 +137,11 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_hex_view" ]; then
         "tests/unit/test_hex_view.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_image_view_state" ]; then
+    run_test "test_image_view_state" \
+        "tests/unit/test_image_view_state.cpp"
+fi
+
 # --- test_review_store ---
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
     run_test "test_review_store" \

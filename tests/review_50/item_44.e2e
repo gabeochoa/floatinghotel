@@ -1,0 +1,39 @@
+resize 1280 800
+wait_for_refresh
+click_text "image.png"
+wait_frames 10
+expect_text "Side by side · 100%"
+assert_ui image_before_pixels hidden=false
+assert_ui image_after_pixels hidden=false
+screenshot item_44_side
+click_ui image_mode_overlay
+wait_frames 5
+expect_text "Overlay · 100%"
+assert_ui before_overlay_pixels hidden=false
+assert_ui after_overlay_pixels hidden=false
+screenshot item_44_overlay
+click_ui image_mode_wipe
+wait_frames 5
+expect_text "Wipe · 100%"
+assert_ui before_wipe_pixels hidden=false
+assert_ui after_wipe_pixels hidden=false
+screenshot item_44_wipe
+click_ui image_zoom_in
+wait_frames 3
+expect_text "Wipe · 125%"
+screenshot item_44_zoomed
+click_ui image_zoom_in
+click_ui image_zoom_in
+click_ui image_zoom_in
+click_ui image_zoom_in
+click_ui image_zoom_in
+click_ui image_zoom_in
+expect_text Wipe · 400%
+screenshot item_44_zoom_limit
+expect_text Wipe 50% · Before left / After right
+click_ui image_mode_overlay
+screenshot item_44_zoom_overlay
+expect_text Overlay 50%
+click_ui image_mode_side
+screenshot item_44_zoom_side
+expect_text Side by side · 400%
