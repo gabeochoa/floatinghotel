@@ -944,14 +944,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     // The window opens at the default sidebar width, but the saved one is only
     // known after settings load, so the first frame corrects the difference.
     bool didInitialWidthSync = false;
-    int expandedWidth = 0;            // window width to restore when expanding
-    // Smooth tray animation: window width is tweened frame-by-frame (each step an
-    // instant resize) and the whole UI is laid out at the animated width, so the
-    // window + content move together (like the HTML mock's CSS width transition).
-    bool animating = false;
-    float animFrom = 0.f;
-    float animTarget = 0.f;
-    float animT = 1.f;
+    float reviewPanelWidth = 920.f;
 
     float commandLogHeight = 200.0f;
 

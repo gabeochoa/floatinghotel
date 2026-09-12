@@ -33,23 +33,25 @@
 
 // Screenshot support (macOS screencapture via window ID)
 #import <AppKit/AppKit.h>
+#include <optional>
+#include <utility>
+
+static std::optional<std::pair<int, int>> pending_window_size;
+
+extern "C" bool metal_window_resize_pending(void) {
+    return pending_window_size.has_value();
+}
 
 extern "C" void metal_set_window_size(int width, int height) {
-    @autoreleasepool {
-        NSWindow* window = [NSApp mainWindow];
+    if (width <= 0 || height <= 0) return;
+    const bool scheduled = pending_window_size.has_value();
+    pending_window_size = {width, height};
+    if (scheduled) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        const auto [targetWidth, targetHeight] = *pending_window_size;
+        NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
         if (!window) {
-            window = [NSApp keyWindow];
-        }
-        if (!window) {
-            NSArray<NSWindow*>* windows = [NSApp windows];
-            for (NSWindow* w in windows) {
-                if ([w isVisible]) {
-                    window = w;
-                    break;
-                }
-            }
-        }
-        if (!window) {
+            pending_window_size.reset();
             NSLog(@"metal_set_window_size: no window available");
             return;
         }
@@ -58,8 +60,8 @@ extern "C" void metal_set_window_size(int width, int height) {
         // Keep the top-left corner anchored (macOS uses bottom-left origin).
         NSRect frame = [window frame];
         CGFloat titleBarHeight = frame.size.height - [[window contentView] frame].size.height;
-        CGFloat newHeight = (CGFloat)height + titleBarHeight;
-        CGFloat newWidth = (CGFloat)width;
+        CGFloat newHeight = (CGFloat)targetHeight + titleBarHeight;
+        CGFloat newWidth = (CGFloat)targetWidth;
 
         // Dark window background so any area exposed during a resize doesn't
         // flash white before the app redraws it.
@@ -87,8 +89,10 @@ extern "C" void metal_set_window_size(int width, int height) {
         CGFloat deltaH = newHeight - frame.size.height;
         NSRect newFrame = NSMakeRect(frame.origin.x, frame.origin.y - deltaH,
                                      newWidth, newHeight);
-        [window setFrame:newFrame display:YES animate:NO];
-    }
+        [window setFrame:newFrame display:NO animate:NO];
+        pending_window_size.reset();
+        [contentView setNeedsDisplay:YES];
+    });
 }
 
 #import <objc/runtime.h>

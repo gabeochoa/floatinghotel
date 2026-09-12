@@ -7,9 +7,15 @@
 using review_layout::Sidebar;
 using review_layout::sidebar_width;
 
-TEST(sidebar_width_stays_fixed_while_panel_opens) {
-    for (float width : std::array{284.f, 400.f, 640.f, 1200.f})
-        ASSERT_EQ(sidebar_width(width, 280.f, 200.f, Sidebar::Animating), 280.f);
+TEST(opening_preserves_the_resized_dock_and_review_widths) {
+    for (float dock : std::array{280.f, 352.f, 480.f, 700.f}) {
+        for (float panel : std::array{368.f, 920.f, 1100.f}) {
+            const float width = review_layout::window_width(dock, panel, false);
+            ASSERT_EQ(width, dock + panel);
+            ASSERT_EQ(sidebar_width(width, dock, 200.f, Sidebar::Expanded), dock);
+            ASSERT_EQ(review_layout::window_width(dock, width - dock, true), dock);
+        }
+    }
 }
 
 TEST(expanded_sidebar_leaves_room_for_main_content) {
@@ -31,7 +37,6 @@ TEST(collapsed_and_hidden_sidebar_respect_viewport) {
     ASSERT_EQ(sidebar_width(0.f, 280.f, 200.f, Sidebar::Collapsed), 0.f);
     ASSERT_EQ(sidebar_width(1200.f, 100.f, 200.f, Sidebar::Expanded), 200.f);
     ASSERT_EQ(sidebar_width(1200.f, 280.f, 200.f, Sidebar::Hidden), 0.f);
-    ASSERT_EQ(sidebar_width(150.f, 280.f, 200.f, Sidebar::Animating), 150.f);
 }
 
 TEST(docked_sidebar_fills_resized_window_at_every_zoom) {
@@ -43,18 +48,18 @@ TEST(docked_sidebar_fills_resized_window_at_every_zoom) {
     }
 }
 
-TEST(resized_sidebar_stays_fixed_during_both_animation_directions) {
-    for (float width : std::array{352.f, 480.f, 800.f, 1200.f})
-        ASSERT_EQ(sidebar_width(width, 352.f, 200.f, Sidebar::Animating), 352.f);
+TEST(opening_keeps_a_usable_review_panel) {
+    ASSERT_EQ(review_layout::window_width(352.f, 0.f, false), 720.f);
+    ASSERT_EQ(review_layout::window_width(352.f, 0.f, true), 352.f);
 }
 
-TEST(zoomed_animation_uses_logical_viewport_width) {
+TEST(opening_at_zoom_preserves_the_dock_width) {
     for (float scale : std::array{1.f, 1.4f, 1.6f, 2.f}) {
-        for (float logicalWidth : std::array{284.f, 400.f, 640.f, 1200.f}) {
-            const float physicalWidth = logicalWidth * scale;
-            const float sidebar = sidebar_width(physicalWidth / scale, 280.f, 200.f, Sidebar::Animating);
-            ASSERT_EQ(sidebar, 280.f);
-            ASSERT_TRUE(std::abs(sidebar * scale - 280.f * scale) < 0.001f);
+        for (float dock : std::array{400.f, 480.f, 700.f}) {
+            const float logicalDock = dock / scale;
+            const float opened = review_layout::window_width(logicalDock, 920.f, false);
+            const float sidebar = sidebar_width(opened, logicalDock, 200.f, Sidebar::Expanded);
+            ASSERT_TRUE(std::abs(sidebar * scale - dock) < 0.001f);
         }
     }
     ASSERT_EQ(sidebar_width(800.f / 2.f, 280.f, 200.f, Sidebar::Expanded), 32.f);

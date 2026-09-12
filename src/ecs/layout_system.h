@@ -12,6 +12,7 @@
 // Real OS window resize (Metal backend, defined in sokol_impl.mm) + test-mode
 // flag (defined in main.cpp) so we never resize the window during e2e.
 extern "C" void metal_set_window_size(int width, int height);
+extern "C" bool metal_window_resize_pending(void);
 namespace app_state { extern bool testModeEnabled; }
 
 namespace ecs {
@@ -20,18 +21,12 @@ namespace ecs {
 // current screen size, sidebar width, and commit log ratio.
 struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
     void for_each_with(Entity& /*entity*/, LayoutComponent& layout,
-                       float dt) override {
+                       float) override {
         int screenW = afterhours::graphics::get_screen_width();
         int screenH = afterhours::graphics::get_screen_height();
         float sw = static_cast<float>(screenW);
         float sh = static_cast<float>(screenH);
 
-        // ---- Shelf state + smooth tray animation ----
-        // The window width is tweened frame-by-frame; each step resizes the OS
-        // window and lays out the whole UI at the animated width, so the window
-        // and diff pane grow together (HTML mock's CSS-transition feel).
-        // metal_set_window_size pins the Metal view's layer to the top-left, so
-        // the sidebar stays pixel-stable through every step instead of stretching.
         {
             auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
@@ -55,38 +50,17 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                     if (layout.shelfCollapsed && std::fabs(sw - collapsedW) > 1.0f) {
                         metal_set_window_size(static_cast<int>(collapsedW),
                                               static_cast<int>(sh));
-                        sw = collapsedW;
                     }
                 }
                 if (layout.shelfCollapsed != layout.lastShelfCollapsed) {
-                    if (layout.shelfCollapsed && sw > collapsedW + 40.f)
-                        layout.expandedWidth = static_cast<int>(sw);
-                    layout.animFrom = sw;
-                    layout.animTarget =
-                        layout.shelfCollapsed
-                            ? collapsedW
-                            : (layout.expandedWidth > 0
-                                   ? static_cast<float>(layout.expandedWidth)
-                                   : 1200.f);
-                    layout.animT = 0.f;
-                    layout.animating = true;
+                    if (layout.shelfCollapsed)
+                        layout.reviewPanelWidth = std::max(368.f, sw / ui::zoom::get() - layout.sidebarWidth);
+                    const float target = review_layout::window_width(
+                        layout.sidebarWidth, layout.reviewPanelWidth, layout.shelfCollapsed) * ui::zoom::get();
+                    metal_set_window_size(static_cast<int>(std::round(target)), screenH);
                     layout.lastShelfCollapsed = layout.shelfCollapsed;
                 }
-                if (layout.animating) {
-                    layout.animT += (dt > 0.f ? dt : 0.016f) / 0.18f;
-                    if (layout.animT >= 1.f) {
-                        layout.animT = 1.f;
-                        layout.animating = false;
-                    }
-                    float t = layout.animT;
-                    float ease = t * t * (3.f - 2.f * t); // smoothstep
-                    float curW = layout.animFrom +
-                                 (layout.animTarget - layout.animFrom) * ease;
-                    metal_set_window_size(static_cast<int>(curW),
-                                          static_cast<int>(sh));
-                    sw = curW; // lay out this frame at the animated width
-                }
-                if (layout.shelfCollapsed && !layout.animating) {
+                if (layout.shelfCollapsed && !metal_window_resize_pending()) {
                     layout.sidebarWidth = sw / ui::zoom::get();
                 }
             }
@@ -107,7 +81,6 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const float bodyH = availableH - topY;
         const bool sidebarOnly = layout.sidebarVisible && layout.shelfCollapsed;
         const auto sidebarState = !layout.sidebarVisible ? review_layout::Sidebar::Hidden
-            : layout.animating ? review_layout::Sidebar::Animating
             : sidebarOnly ? review_layout::Sidebar::Collapsed
             : review_layout::Sidebar::Expanded;
         const float sidebarW = review_layout::sidebar_width(

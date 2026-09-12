@@ -1144,3 +1144,76 @@ checker with both menu configurations, and the commit-splitter drag regression.
 The before capture failed at 280 of 352 pixels; the after capture fills all 352.
 Local captures are in `output/dock-resize/{before,after,native-menu}`. The
 after-capture check is `nice -n 10 python3 tests/check_dock_resize.py output/dock-resize/after`.
+
+### Native resizing must happen outside the Metal draw callback
+
+The user reported a magenta flash during panel animation and a return to the
+default window width. The app resized its `NSWindow` from `LayoutUpdateSystem`
+inside the draw callback. Sokol's `_sapp_macos_frame` explicitly warns against
+updating dimensions there because Metal render targets can have different sizes.
+`setFrame` triggers `windowDidResize`, which updates the drawable dimensions.
+Pinning the layer to the top-left did not fix that ordering problem.
+
+The hidden native test in `tests/native/window_resize.mm` failed before the fix
+with `window dimensions changed inside the Metal draw callback`. This proves
+the unsafe dimension change, not the exact color of the user's transient frame
+or a hardware fault. Its Metal validation run uses the real Sokol view and the
+app's resize implementation, rather than the headless render target.
+
+The app now queues and coalesces resize requests on the main dispatch queue.
+The resize runs after the draw callback returns, uses Sokol's actual window,
+and does not request synchronous AppKit display. Rendering and first-window
+presentation wait while a resize is pending. Opening and closing perform one
+resize with no tween. The review panel remembers its own logical width, so
+changing the dock width does not restore an obsolete total window width.
+This replaces the animation-specific workaround in the preceding entry.
+
+### Afterhours can own the Objective-C++ window helper
+
+The C++ API `graphics::set_window_size` already exists. Its Sokol backend
+implements headless resizing but logs `@notimplemented set_window_size` for a
+native window. `set_window_min_size` is also unimplemented. App-owned
+Objective-C++ fills that gap today.
+
+The useful upstream change is a C++ window API backed by one platform-owned
+implementation. The public header can remain ordinary C++. A private macOS
+helper compiles with the Sokol implementation, like the existing capture helper.
+The app should not need AppKit types or Objective-C syntax to request a resize.
+
+The resize contract needs these guarantees:
+
+- Requests made during update or drawing apply between draw callbacks.
+- Several pending requests coalesce to the latest size.
+- Size units are content-area points, independent of Retina framebuffer pixels.
+- A pending or completed resize is observable so callers do not draw a mismatched
+  layout or present the first window before its requested size is ready.
+- Top-left anchoring and minimum content size are explicit options.
+- Native tests cover actual drawable sizes. Headless resizing alone is not proof
+  that AppKit and Metal agree.
+
+First-ready-frame presentation belongs in the same backend-owned window support.
+The app currently suppresses activation and window ordering with Objective-C
+runtime hooks. A supported deferred-show option would remove those hooks too.
+
+The native test initially stalled because hidden `MTKView::draw` did not drive
+the callback. Making that hidden window main also raised an AppKit exception.
+The test now drives the hidden view and provides the old implementation's window
+lookup without activating it. These were test setup errors, not proof of a
+framework rendering failure. An external process timeout prevents a stalled
+native check from blocking the suite. The runnable check is
+`nice -n 10 bash tests/check_native_window_resize.sh` after an `OPT=-O2` build.
+
+The first passing-frame run exposed another test teardown mistake: `std::exit`
+destroyed Sokol's Metal semaphore while GPU work was still in flight. The crash
+report identified `Semaphore object deallocated while in use` in the Sokol
+backend destructor. The probe now fences submitted GPU work and calls
+`sg_shutdown` before exit. This is lifecycle misuse in the probe, not evidence
+that the resize itself failed.
+
+Verification passed on 2026-09-12: the native probe completed six coalesced
+resizes and 28 matching Metal frames at each of 1x and 2x DPI, with Metal API
+validation enabled and no visible window. Six layout unit tests, the dock JSON
+geometry check, the commit-splitter regression, and the 15-frame text-flicker
+check also passed. Logs and app captures are in `output/window-resize`.
+The native probe tests the resize boundary, not a visual reproduction of the
+user's exact magenta flash in the full app.

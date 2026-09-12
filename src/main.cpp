@@ -959,6 +959,7 @@ static void app_update_and_maybe_draw(float dt, bool forceRender) {
     bool pendingBefore = app_has_pending_work();
     bool injectedInput = app_inject_pending_paced_input();
     app_update(dt);
+    if (!app_state::headless && metal_window_resize_pending()) return;
     bool activity = app_has_input_activity();
     bool pendingAfter = app_has_pending_work();
     auto currentActivity = capture_ui_activity_snapshot();
@@ -1024,6 +1025,7 @@ static void app_frame() {
 
     if (!app_state::headless && !metal_startup_presented()) {
         app_update_and_maybe_draw(dt, true);
+        if (metal_window_resize_pending()) return;
         auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if ((!repo || repo->repoPath.empty() ||
              (repo->hasLoadedOnce && !repo->refreshRequested && !repo->isRefreshing)) &&
