@@ -532,9 +532,12 @@ inline bool file_reviewed(const ReviewComponent& review, const std::string& scop
     return record != review.reviewedFiles.end() && record->second == diff_signature(file);
 }
 
+inline std::vector<size_t> visible_review_file_indices(const std::vector<FileDiff>& files,
+    const review_files::Filter& filter, const ReviewComponent* review, const std::string& scope);
+
 inline std::optional<size_t> next_unreviewed_file(const ReviewComponent& review, const std::string& scope,
         const std::vector<FileDiff>& files, const review_files::Filter& filter, const std::string& current) {
-    auto indices = visible_file_indices(files, filter);
+    auto indices = visible_review_file_indices(files, filter, &review, scope);
     if (indices.empty()) return std::nullopt;
     auto found = std::find_if(indices.begin(), indices.end(), [&](size_t i) { return files[i].filePath == current; });
     size_t start = found == indices.end() ? indices.size() - 1 : static_cast<size_t>(found - indices.begin());
@@ -588,6 +591,19 @@ inline size_t unresolved_file_count(const ReviewComponent& review, const std::st
         return !comment.resolved && comment.scope == scope &&
             (comment.file == path || (!oldPath.empty() && comment.oldSide && comment.file == oldPath));
     }));
+}
+
+inline bool review_file_visible(const FileDiff& file, const review_files::Filter& filter,
+        const ReviewComponent* review, const std::string& scope) {
+    return file.isFullContent || (review_files::matches(filter, file.filePath, file_change(file)) &&
+        (!filter.onlyUnresolved || (review && unresolved_file_count(*review, scope, file.filePath, file.oldPath) > 0)));
+}
+
+inline std::vector<size_t> visible_review_file_indices(const std::vector<FileDiff>& files,
+        const review_files::Filter& filter, const ReviewComponent* review, const std::string& scope) {
+    auto indices = visible_file_indices(files, filter);
+    std::erase_if(indices, [&](size_t i) { return !review_file_visible(files[i], filter, review, scope); });
+    return indices;
 }
 
 inline std::string unresolved_file_badge(const ReviewComponent& review, const std::string& scope,

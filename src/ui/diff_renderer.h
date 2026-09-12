@@ -1200,18 +1200,22 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_debug_name("review_file_filters"));
         auto toggle = [&](int id, const std::string& label, const std::string& debugName, bool& hidden) {
             if (button(ctx, mk(filters.ent(), id), preset::Button(label + (hidden ? ": hidden" : ": shown"))
-                    .with_size(ComponentSize{percent(0.25f), pixels(26)}).with_font_size(FontSize::Small)
+                    .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(FontSize::Small)
                     .with_custom_background(hidden ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
                     .with_debug_name(debugName))) hidden = !hidden;
         };
         toggle(0, "Generated", "filter_Generated", filterRepo->fileFilter.hideGenerated);
         toggle(1, "Vendor", "filter_Vendor", filterRepo->fileFilter.hideVendor);
         toggle(2, "Lockfiles", "filter_Lockfiles", filterRepo->fileFilter.hideLockfiles);
+        if (button(ctx, mk(filters.ent(), 4), preset::Button(filterRepo->fileFilter.onlyUnresolved ? "Unresolved: only" : "Unresolved: all")
+                .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_custom_background(filterRepo->fileFilter.onlyUnresolved ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
+                .with_debug_name("filter_unresolved"))) filterRepo->fileFilter.onlyUnresolved = !filterRepo->fileFilter.onlyUnresolved;
         auto hidden = std::count_if(diffs.begin(), diffs.end(), [&](const auto& file) {
-            return !review_files::matches(filterRepo->fileFilter, file.filePath, ecs::file_change(file));
+            return !ecs::review_file_visible(file, filterRepo->fileFilter, review, reviewScope);
         });
         div(ctx, mk(filters.ent(), 3), ComponentConfig{}.with_label(std::to_string(hidden) + " hidden by filters")
-            .with_size(ComponentSize{percent(0.25f), pixels(26)}).with_font_size(FontSize::Small));
+            .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(FontSize::Small));
         auto facets = div(ctx, mk(findParent ? *findParent : parent, 597001), ComponentConfig{}
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
         if (button(ctx, mk(facets.ent(), 0), preset::Button("Language: " + (filterRepo->fileFilter.language.empty() ? "All" : filterRepo->fileFilter.language))
@@ -1294,9 +1298,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
         findHeight = 90.f;
     }
     auto fileVisible = [&](const ecs::FileDiff& file) {
-        return !filterable || !filterRepo || review_files::matches(filterRepo->fileFilter, file.filePath, ecs::file_change(file));
+        return !filterable || !filterRepo || ecs::review_file_visible(file, filterRepo->fileFilter, review, reviewScope);
     };
-    auto fileOrder = ecs::visible_file_indices(diffs, filterRepo ? filterRepo->fileFilter : review_files::Filter{});
+    auto fileOrder = ecs::visible_review_file_indices(diffs, filterRepo ? filterRepo->fileFilter : review_files::Filter{}, review, reviewScope);
     size_t visibleFiles = fileOrder.size();
     if (layout && layout->diffFindOpen) {
         findHeight += 34.f;
@@ -1590,6 +1594,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
     struct ContextLocation { float y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
     std::vector<ContextLocation> contextLocations;
+    if (fileOrder.empty() && !diffs.empty())
+        div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_label("No files match these filters")
+            .with_size(ComponentSize{pixels(contentWidth), pixels(32)}).with_font_size(FontSize::Small));
     for (size_t fileIndex : fileOrder) {
         auto& fileDiff = diffs[fileIndex];
         contextLocations.push_back({vp.curY, &fileDiff, nullptr});

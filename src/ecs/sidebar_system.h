@@ -1385,6 +1385,7 @@ private:
         LayoutComponent::ReviewTab tab;
         LayoutComponent::FileViewMode mode;
         review_files::Filter filter;
+        std::set<std::pair<std::string, bool>> unresolved;
         bool operator==(const FileRowsKey&) const = default;
     };
     std::optional<FileRowsKey> fileRowsKey_;
@@ -1395,6 +1396,11 @@ private:
         if (allFilesMode_) return;
         auto tab = active_review_tab();
         FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, tab, layout.fileViewMode, repo.fileFilter};
+        auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        std::string scope = tab == LayoutComponent::ReviewTab::Staged ? "index" : "wt";
+        if (repo.fileFilter.onlyUnresolved && review)
+            for (const auto& comment : review->comments)
+                if (!comment.resolved && comment.scope == scope) key.unresolved.emplace(comment.file, comment.oldSide);
         auto it = layout.collapsedDirectories.find(repo.repoPath);
         const std::set<std::string> noCollapsedDirectories;
         const auto& collapsed = it == layout.collapsedDirectories.end() ? noCollapsedDirectories : it->second;
@@ -1408,16 +1414,17 @@ private:
         fileRowsKey_ = std::move(key);
         std::vector<std::string> paths;
         fileIndices_.clear();
-        auto append = [&](const std::string& path, size_t index, char change) {
-            if (review_files::matches(repo.fileFilter, path, change)) {
+        auto append = [&](const std::string& path, size_t index, char change, const std::string& oldPath = "") {
+            if (review_files::matches(repo.fileFilter, path, change) &&
+                (!repo.fileFilter.onlyUnresolved || (review && unresolved_file_count(*review, scope, path, oldPath) > 0))) {
                 paths.push_back(path);
                 fileIndices_.push_back(index);
             }
         };
         if (tab == LayoutComponent::ReviewTab::ToReview) {
-            for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) append(repo.unstagedFiles[i].path, i, repo.unstagedFiles[i].workTreeStatus);
+            for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) append(repo.unstagedFiles[i].path, i, repo.unstagedFiles[i].workTreeStatus, repo.unstagedFiles[i].origPath);
         } else if (tab == LayoutComponent::ReviewTab::Staged) {
-            for (size_t i = 0; i < repo.stagedFiles.size(); ++i) append(repo.stagedFiles[i].path, i, repo.stagedFiles[i].indexStatus);
+            for (size_t i = 0; i < repo.stagedFiles.size(); ++i) append(repo.stagedFiles[i].path, i, repo.stagedFiles[i].indexStatus, repo.stagedFiles[i].origPath);
         } else for (size_t i = 0; i < repo.untrackedFiles.size(); ++i) append(repo.untrackedFiles[i], i, 'A');
         std::map<std::string, int> changes;
         for (const auto& file : tab == LayoutComponent::ReviewTab::Staged ? repo.stagedDiff : repo.currentDiff)

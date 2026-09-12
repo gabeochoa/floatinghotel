@@ -242,6 +242,13 @@ TEST(next_unreviewed_requires_explicit_metadata_review_and_wraps) {
     ASSERT_TRUE(!ecs::file_reviewed(review, "wt", first));
     review.approvedHunks.insert("wt\n" + ecs::ReviewComponent::hunk_key(first.filePath, first.hunks.front()));
     ASSERT_EQ(*ecs::next_unreviewed_file(review, "wt", files, {}, first.filePath), size_t{1});
+    first.oldMode = "100644";
+    first.newMode = "100755";
+    ASSERT_TRUE(!ecs::file_reviewed(review, "wt", first));
+    review.reviewedFiles["wt\n" + first.filePath] = ecs::diff_signature(first);
+    ASSERT_TRUE(ecs::file_reviewed(review, "wt", first));
+    first.oldMode.clear();
+    first.newMode.clear();
     review.reviewedFiles["wt\n" + metadata.filePath] = ecs::diff_signature(metadata);
     ASSERT_TRUE(!ecs::next_unreviewed_file(review, "wt", files, {}, metadata.filePath));
     ASSERT_TRUE(!ecs::file_reviewed(review, "index", metadata));
@@ -370,6 +377,26 @@ TEST(comment_anchors_relocate_only_unique_matches_and_keep_original_evidence) {
     ASSERT_EQ(comment.codeContext, "1: before\n2: saved target\n3: after\n");
     comment.codeContext.clear();
     ASSERT_EQ(review_anchor::locate(comment, &files).status, review_anchor::Status::Unknown);
+}
+
+TEST(unresolved_filter_intersects_path_facets_and_ignores_other_targets) {
+    ecs::ReviewComponent review;
+    ecs::FileDiff a, b;
+    a.filePath = "a.cpp";
+    b.filePath = "b.py";
+    std::vector<ecs::FileDiff> files{a, b};
+    review.comments = {{"wt", "a.cpp", 1, "question"}, {"other-commit", "b.py", 1, "other target"}};
+    review_files::Filter filter;
+    filter.onlyUnresolved = true;
+    ASSERT_EQ(ecs::visible_review_file_indices(files, filter, &review, "wt"), (std::vector<size_t>{0}));
+    ASSERT_EQ(*ecs::next_unreviewed_file(review, "wt", files, filter, "b.py"), size_t{0});
+    filter.language = "Python";
+    ASSERT_TRUE(ecs::visible_review_file_indices(files, filter, &review, "wt").empty());
+    filter.language.clear();
+    review.comments.front().resolved = true;
+    ASSERT_TRUE(ecs::visible_review_file_indices(files, filter, &review, "wt").empty());
+    ASSERT_TRUE(ecs::visible_review_file_indices(files, filter, nullptr, "wt").empty());
+    ASSERT_EQ(ecs::review_progress(review, "wt", files).total, size_t{2});
 }
 
 int main() {

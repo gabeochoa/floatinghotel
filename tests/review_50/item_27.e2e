@@ -1,0 +1,21 @@
+resize 1440 900
+wait_for_refresh
+click_text a.cpp
+screenshot item_27_initial
+click_ui comment_hunk_btn
+click_ui comment_input
+type Still needs attention
+click_ui comment_add_btn
+screenshot item_27_commented
+click_ui filter_unresolved
+screenshot item_27_filtered
+expect_no_text b.cpp
+expect_text 0/2 files reviewed · 1 unresolved
+click_ui basket_item_resolve
+screenshot item_27_resolved
+expect_text No files match these filters
+expect_text 0/2 files reviewed · 0 unresolved
+click_ui filter_unresolved
+screenshot item_27_restored
+expect_text b.cpp
+assert_no_overflow

@@ -13,6 +13,7 @@ struct Filter {
     bool hideGenerated = false;
     bool hideVendor = false;
     bool hideLockfiles = false;
+    bool onlyUnresolved = false;
     std::string language;
     char change = ' ';
     Sort sort = Sort::Path;

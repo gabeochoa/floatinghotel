@@ -542,7 +542,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         float fileNameW = contentW - PAD * 2 - BADGE_W - BAR_MARGIN - STATS_W - BAR_W - 8.0f * 4;
         if (fileNameW < 80.0f) fileNameW = 80.0f;
 
-        if (detailCache.fileOverviewExpanded) for (size_t fi : visible_file_indices(detailCache.commitDetailDiff, repo.fileFilter)) {
+        if (detailCache.fileOverviewExpanded) for (size_t fi : visible_review_file_indices(detailCache.commitDetailDiff, repo.fileFilter, review, repo.selectedCommitHash)) {
             auto& fd = detailCache.commitDetailDiff[fi];
 
             std::string badge = "M";
