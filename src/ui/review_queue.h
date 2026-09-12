@@ -45,6 +45,8 @@ inline void render_review_queue(UIContext<InputAction>& ctx, Entity& parent, int
         review.dirty = true;
     };
     bool active = repo.selectedCommitHash == queue.commits[queue.position].hash;
+    if (review_queue_completion_is_stale(review, repo, cache) && queue.completed.erase(repo.selectedCommitHash) > 0)
+        review.dirty = true;
     div(ctx, mk(row.ent(), 0), ComponentConfig{}
         .with_label(active ? "Queue " + std::to_string(queue.position + 1) + "/" + std::to_string(queue.commits.size()) +
             " · " + std::to_string(queue.completed.size()) + " reviewed" : "Browsing outside review queue")

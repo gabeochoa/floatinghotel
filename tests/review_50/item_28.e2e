@@ -34,6 +34,18 @@ screenshot item_28_back_loading
 wait_for_refresh
 screenshot item_28_back
 assert_ui commit_detail_subject text=StepOne
+expect_text Queue 1/2 · 1 reviewed
+click_ui toggle_approved
+click_ui approve_hunk_btn
+screenshot item_28_unapproved_hunk
+expect_text Queue 1/2 · 0 reviewed
+click_ui approve_file_btn
+click_ui finish_review
+click_text Approved
+click_ui review_queue_complete
+wait_for_refresh
+click_ui review_queue_previous
+wait_for_refresh
 click_ui finish_review
 screenshot item_28_reopen_menu
 click_text Reopen review

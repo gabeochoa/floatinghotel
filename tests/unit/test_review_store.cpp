@@ -11,6 +11,7 @@
 #include "../../src/util/review_anchor.h"
 
 #include <filesystem>
+#include <future>
 
 TEST(review_store_roundtrip) {
     ecs::ReviewComponent r;
@@ -423,6 +424,53 @@ TEST(commit_review_queue_resumes_position_and_keeps_scope_isolated) {
     review_store::load_review(repo, unrelated);
     ASSERT_TRUE(unrelated.queue.commits.empty());
     std::filesystem::remove(review_store::review_path(repo, review.storageScope));
+}
+
+TEST(queue_completion_stale_uses_loaded_default_commit_verdict) {
+    ecs::RepoComponent repo;
+    repo.selectedCommitHash = std::string(40, 'a');
+    repo.reviewQueueScope = "queue:base:target";
+    ecs::ReviewComponent review;
+    review.queue.completed.insert(repo.selectedCommitHash);
+    ecs::FileDiff file;
+    file.filePath = "file.cpp";
+    file.hunks.push_back({1, 1, 1, 1, "", {"-old", "+new"}});
+    ecs::CommitDetailCache cache;
+    cache.cachedCommitHash = repo.selectedCommitHash;
+    cache.commitDetailDiff = {file};
+    auto key = repo.selectedCommitHash + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, file.hunks.front());
+    review.approvedHunks.insert(key);
+    review.verdicts[repo.selectedCommitHash] = {ReviewVerdict::Approved, ecs::review_target_signature(cache.commitDetailDiff)};
+    ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    review.approvedHunks.clear();
+    ASSERT_TRUE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    review.approvedHunks.insert(key);
+    review.verdicts.clear();
+    ASSERT_TRUE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    review.verdicts[repo.selectedCommitHash] = {ReviewVerdict::Approved, ecs::review_target_signature(cache.commitDetailDiff)};
+    cache.commitDetailDiff.front().additions = 9;
+    ASSERT_TRUE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    cache.commitDetailDiff.front() = file;
+    repo.commitParents[repo.selectedCommitHash] = std::string(40, 'b');
+    ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    repo.commitParents.clear();
+    review.approvedHunks.clear();
+    cache.commitDetailError = "Unable to read patch";
+    ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    cache.commitDetailError.clear();
+    cache.cachedCommitHash = std::string(40, 'c');
+    ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    cache.cachedCommitHash = repo.selectedCommitHash;
+    review.verdicts[repo.selectedCommitHash].verdict = ReviewVerdict::ChangesRequested;
+    ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    review.verdicts[repo.selectedCommitHash].verdict = ReviewVerdict::Approved;
+    review.queue.completed.clear();
+    ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    review.queue.completed.insert(repo.selectedCommitHash);
+    ASSERT_TRUE(ecs::review_queue_completion_is_stale(review, repo, cache));
+    std::promise<ecs::CommitPatch> pending;
+    cache.patchFuture = async_work::Task<ecs::CommitPatch>(pending.get_future(), std::stop_source{});
+    ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
 }
 
 int main() {

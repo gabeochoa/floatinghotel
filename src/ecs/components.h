@@ -698,6 +698,14 @@ inline ReviewVerdict current_review_verdict(const ReviewComponent& review, const
     return decision->second.verdict;
 }
 
+inline bool review_queue_completion_is_stale(const ReviewComponent& review, const RepoComponent& repo,
+        const CommitDetailCache& cache) {
+    if (!review.queue.completed.contains(repo.selectedCommitHash) || !selected_commit_parent(repo).empty()) return false;
+    if (cache.cachedCommitHash != repo.selectedCommitHash || !cache.cachedParentHash.empty()) return false;
+    if (cache.patchFuture.valid() || cache.infoFuture.valid() || !cache.commitDetailError.empty()) return false;
+    return current_review_verdict(review, repo.selectedCommitHash, cache.commitDetailDiff) == ReviewVerdict::InProgress;
+}
+
 inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
     return {review.composingScope, review.composingFile, review.composingLine,
         review.composingText, review.composingEndLine, review.composingOldSide, false,
