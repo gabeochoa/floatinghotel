@@ -36,8 +36,15 @@ inline afterhours::Entity& getUIRootEntity() {
     return root.asE();
 }
 
+struct ClearPendingUIDraws : afterhours::System<UIContextType> {
+    void for_each_with(afterhours::Entity&, UIContextType& context, float) override {
+        context.render_cmds.clear();
+    }
+};
+
 inline void registerUIPreLayoutSystems(
     afterhours::SystemManager& manager) {
+    manager.register_update_system(std::make_unique<ClearPendingUIDraws>());
     afterhours::ui::register_before_ui_updates<InputAction>(manager);
 }
 

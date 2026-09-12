@@ -771,3 +771,48 @@ Reproduce with `tests/e2e_scripts/flow_sidebar_scroll.e2e`. Current evidence is
 `output/layout-followup/final-flows.log`. No workaround is included in the
 splitter fix. The next investigation needs to distinguish app height budgeting
 from framework flex shrinking before assigning an upstream bug.
+
+### Skipped redraws retain earlier UI draw commands
+
+At Afterhours revision `b385dc9`, `BeginUIContextManager` does not clear
+`UIContext::render_cmds`. The immediate and batched renderers clear it only
+after drawing. Updating the UI without rendering therefore retains commands
+from every skipped frame.
+
+The app's idle frame pacing exposed this assumption. A native capture recorded
+252 UI commands on an ordinary redraw and 3,276 after 12 skipped redraws.
+The overloaded frames lost menu text and much of the sidebar. Captures are in
+`output/text-flicker/before/idle_001.png` and `idle_003.png`.
+The renderer emitted no overflow warning during this reproduction.
+
+The app now registers `ClearPendingUIDraws` before the framework's UI update
+systems. It clears the prior frame's queue before any widgets are rebuilt,
+including normal updates, test ticks, and benchmark frames. Idle redraw skipping
+remains enabled. No vendor files are changed. Upstream should scope the draw
+queue to a UI update, not require a render after every update.
+
+The previous screenshot tests forced extra redraws before capture and missed
+the bad frames. `capture_idle_frames` now captures each redraw inside the idle
+benchmark without forcing additional draws. Run
+`nice -n 10 bash tests/check_text_flicker.sh` to compare text pixels and command
+counts across those frames. The checker requires Python with Pillow.
+Each run keeps its captures in a separate directory.
+
+The fixed run in `output/text-flicker/after/run.ENEZrH` captured 15 redraws
+across 120 updates, with 105 redraws skipped. Every captured frame has 252 UI
+commands and identical menu, sidebar-header, and code pixels. The failing
+pixel check is reproducible against `output/text-flicker/before`.
+
+Related verification passed: 74 UI flows in `output/text-flicker/flows.log`,
+idle input and file-watcher checks in `output/text-flicker/idle-inputs.log`,
+six frame-pacing unit tests in `output/text-flicker/frame-pacer-unit.log`, and
+27 splitter assertions in `output/text-flicker/splitter.log`.
+
+### Startup reports a missing toast singleton
+
+Both the failing and fixed flicker runs log a missing
+`afterhours::toast::ToastRoot` singleton during startup. The diagnostic does not
+identify the caller. The app registers toast singleton enforcement before its
+UI systems, so identifying the earlier lookup needs a separate trace. This
+warning remains unresolved and is not evidence of the flicker cause. See
+`output/text-flicker/after/run.ENEZrH/native.log`.

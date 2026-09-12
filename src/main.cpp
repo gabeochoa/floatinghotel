@@ -250,6 +250,8 @@ struct HandleClearGitCommandLog : afterhours::System<afterhours::testing::Pendin
 
 namespace e2e_idle_bench {
 inline int requested = 0;
+inline bool capture = false;
+inline int captured = 0;
 }
 
 namespace e2e_paced_input {
@@ -263,8 +265,9 @@ struct HandleIdlePacingCommands : afterhours::System<afterhours::testing::Pendin
             app_state::idlePacingTestEnabled = true;
             app_state::pacer.reset_stats();
             cmd.consume();
-        } else if (cmd.is("bench_idle_frames")) {
+        } else if (cmd.is("bench_idle_frames") || cmd.is("capture_idle_frames")) {
             e2e_idle_bench::requested = std::max(1, cmd.has_args(1) ? cmd.arg_as<int>(0) : 120);
+            e2e_idle_bench::capture = cmd.is("capture_idle_frames");
             app_state::pacer.reset_stats();
             cmd.consume();
         } else if (cmd.is("pace_type")) {
@@ -932,10 +935,20 @@ static void app_update(float dt) {
 
 static void app_draw(float dt) {
     auto& entities = afterhours::EntityHelper::get_entities_for_mod();
+    if (e2e_idle_bench::capture) {
+        auto* ctx = ecs::find_singleton<afterhours::ui::UIContext<InputAction>>();
+        log_info("idle_capture frame={} commands={}", e2e_idle_bench::captured,
+                 ctx ? ctx->render_cmds.size() : 0);
+    }
     afterhours::graphics::begin_drawing();
     afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
     app_state::systemManager->render(entities, dt);
     afterhours::graphics::end_drawing();
+    if (e2e_idle_bench::capture) {
+        const auto directory = std::filesystem::absolute(app_state::screenshotDir);
+        std::filesystem::create_directories(directory);
+        write_screenshot((directory / std::format("idle_{:03}.png", e2e_idle_bench::captured++)).string());
+    }
     trace_navigation_frame();
     app_state::lastRenderedUiActivity = capture_ui_activity_snapshot();
 }
@@ -962,6 +975,7 @@ static void run_idle_bench_frames(float dt) {
     e2e_idle_bench::requested = 0;
     for (int i = 0; i < n; ++i)
         app_update_and_maybe_draw(dt, false);
+    e2e_idle_bench::capture = false;
     app_state::lastIdleBenchRendered = app_state::pacer.rendered;
     app_state::lastIdleBenchSkipped = app_state::pacer.skipped;
     log_info("bench_idle_frames: {} frames, {} rendered, {} skipped",
