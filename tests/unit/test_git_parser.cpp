@@ -27,6 +27,21 @@ TEST(diff_file_modes_preserve_permission_and_creation_changes) {
     ASSERT_EQ(same[0].oldMode, same[0].newMode);
 }
 
+TEST(diff_marks_unique_unchanged_blocks_as_moved) {
+    auto diff = git::parse_diff("diff --git a/a.cpp b/a.cpp\n--- a/a.cpp\n+++ b/a.cpp\n"
+        "@@ -1,3 +1 @@\n-long moved first line\n-long moved second line\n anchor\n"
+        "@@ -8 +6,3 @@\n tail\n+long moved first line\n+long moved second line\n");
+    ASSERT_EQ(diff[0].hunks[0].movedLines, (std::set<size_t>{0, 1}));
+    ASSERT_EQ(diff[0].hunks[1].movedLines, (std::set<size_t>{1, 2}));
+    auto changed = git::parse_diff("diff --git a/a.cpp b/a.cpp\n@@ -1,2 +1,2 @@\n"
+        "-long moved first line\n-long moved second line\n+long moved first line\n+edited second line\n");
+    ASSERT_TRUE(changed[0].hunks[0].movedLines.empty());
+    auto ambiguous = git::parse_diff("diff --git a/a.cpp b/a.cpp\n@@ -1,4 +1,2 @@\n"
+        "-long moved first line\n-long moved second line\n anchor\n"
+        "-long moved first line\n-long moved second line\n+long moved first line\n+long moved second line\n");
+    ASSERT_TRUE(ambiguous[0].hunks[0].movedLines.empty());
+}
+
 TEST(blame_line_preserves_original_location_and_author) {
     auto line = git::parse_blame_line(std::string(40, 'a') + " 3 9 1\nauthor Ada Lovelace\nsummary Initial algorithm\nfilename old name.cpp\n\treturn answer;\n");
     ASSERT_EQ(line.author, "Ada Lovelace");

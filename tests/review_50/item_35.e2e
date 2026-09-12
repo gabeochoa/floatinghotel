@@ -1,0 +1,9 @@
+resize 1440 900
+wait_for_refresh
+click_text move.cpp
+expect_text "Exact moved blocks are blue"
+assert_ui moved_code_legend hidden=false
+screenshot item_35_inline_move
+click_text Side-by-Side
+expect_text "Exact moved blocks are blue"
+screenshot item_35_split_move

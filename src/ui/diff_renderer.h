@@ -410,7 +410,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               const std::string& filePath = "",
                               diff_sel::Session* sel = nullptr,
                               code_highlight::Range changed = {},
-                              bool hasNewline = true) {
+                              bool hasNewline = true, bool moved = false) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
@@ -438,6 +438,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         sign      = ' ';
     }
 
+    if (moved) bgColor = afterhours::Color{35, 55, 85, 255};
+
     // Format: "OldLn NewLn  <sign> content"
     // The dedicated sign column makes add/del/context scannable without
     // relying on background color alone.
@@ -462,6 +464,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_skip_grid_snap()
             .with_debug_name("diff_line"));
+    if (moved) set_tooltip(lineDiv.ent(), "Moved unchanged code");
 
     if (sel && sel->enabled) {
         // Register this line (using the prior frame's resolved rect) so the next
@@ -789,13 +792,15 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
                              changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
-                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())));
+                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())),
+                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())));
         } else if (vp->visible(diff_detail::code_line_height())) {
             vp->flush(ctx, parent, nextId);
             render_diff_line(ctx, parent, lineId, line, oldLine, newLine,
                              lineWidth > 0 ? lineWidth : contentWidth, fileDiff.filePath, sel,
                              changedRanges[static_cast<size_t>(&line - hunk.lines.data())],
-                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())));
+                             !hunk.noNewline.contains(static_cast<size_t>(&line - hunk.lines.data())),
+                             hunk.movedLines.contains(static_cast<size_t>(&line - hunk.lines.data())));
             vp->built(diff_detail::code_line_height());
         } else {
             // Offscreen: advance line-number counters so gutters stay correct
@@ -821,7 +826,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                             SbsKind kind, bool leftBorder,
                             const std::string& filePath, diff_sel::Session* sel,
                             code_highlight::Range changed = {},
-                            bool hasNewline = true) {
+                            bool hasNewline = true, bool moved = false) {
     afterhours::Color bg, fg;
     char sign = ' ';
     // Only the background carries add/del color; text stays one color.
@@ -838,6 +843,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             bg = theme::PANEL_BG; fg = theme::TEXT_PRIMARY; break;
     }
 
+    if (moved) bg = afterhours::Color{35, 55, 85, 255};
     std::string label = pad_gutter(num) + "  " + sign + " " + content;
 
     auto cfg = ComponentConfig{}
@@ -857,6 +863,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         .with_debug_name("sbs_cell");
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
     auto cell = div(ctx, mk(row, id), cfg);
+    if (moved) set_tooltip(cell.ent(), "Moved unchanged code");
     if (sel && sel->enabled && kind != SbsKind::Empty) {
         auto rect = afterhours::ui::detail::apply_scroll_offset(
             cell.ent(), cell.ent().get<afterhours::ui::UIComponent>().rect());
@@ -959,9 +966,14 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
 
     // Buffers of pending deletions/additions to pair up at each flush point.
     std::set<int> oldNoNewline, newNoNewline;
+    std::set<int> oldMoved, newMoved;
     int oldNumber = oldLine, newNumber = newLine;
     for (size_t i = 0; i < hunk.lines.size(); ++i) {
         char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i].front();
+        if (hunk.movedLines.contains(i)) {
+            if (sign == '-') oldMoved.insert(oldNumber);
+            if (sign == '+') newMoved.insert(newNumber);
+        }
         if (hunk.noNewline.contains(i)) {
             if (sign != '+') oldNoNewline.insert(oldNumber);
             if (sign != '-') newNoNewline.insert(newNumber);
@@ -1003,9 +1015,11 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         if (lKind == SbsKind::Del && rKind == SbsKind::Add)
             changes = code_highlight::changed_ranges(lContent, rContent);
         diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 0, lNum, lContent, lKind, true, fileDiff.filePath, sel, changes.first,
-                                     lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)));
+                                     lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)),
+                                     !lNum.empty() && oldMoved.contains(std::stoi(lNum)));
         diff_detail::render_sbs_cell(ctx, rowDiv.ent(), 1, rNum, rContent, rKind, false, fileDiff.filePath, sel, changes.second,
-                                     rNum.empty() || !newNoNewline.contains(std::stoi(rNum)));
+                                     rNum.empty() || !newNoNewline.contains(std::stoi(rNum)),
+                                     !rNum.empty() && newMoved.contains(std::stoi(rNum)));
     };
 
     auto flush = [&]() {
@@ -1593,6 +1607,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
 
+        if (std::any_of(fileDiff.hunks.begin(), fileDiff.hunks.end(), [](const auto& hunk) { return !hunk.movedLines.empty(); })) {
+            vp.flush(ctx, *contentParent, nextId);
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+                .with_label("Exact moved blocks are blue · addition and deletion signs are preserved")
+                .with_size(ComponentSize{w, h720(28)}).with_font_size(FontSize::Small)
+                .with_custom_text_color(afterhours::Color{125, 180, 255, 255}).with_debug_name("moved_code_legend"));
+            vp.built(28.f);
+        }
         if (ownerRepo && reviewScope != "snapshot" && !ownerRepo->codeownersDocument.path.empty()) {
             if (!vp.visible(28.f)) {
                 vp.skipped(28.f);

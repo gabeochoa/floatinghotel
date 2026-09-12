@@ -1,4 +1,5 @@
 #include "git_parser.h"
+#include "../util/moved_code.h"
 
 #include <algorithm>
 #include <charconv>
@@ -352,6 +353,7 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
         }
     }
 
+    moved_code::mark_blocks(diffs);
     return diffs;
 }
 

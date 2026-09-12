@@ -61,6 +61,7 @@ struct DiffHunk {
     std::string header;        // The @@ line
     std::vector<std::string> lines; // Lines with +/-/space prefix
     std::set<size_t> noNewline;
+    std::set<size_t> movedLines;
 };
 
 struct FileDiff {
