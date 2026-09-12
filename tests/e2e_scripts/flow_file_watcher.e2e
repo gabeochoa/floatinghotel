@@ -3,6 +3,8 @@ make_test_repo
 resize 1280 720
 enable_file_watcher
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_file_watcher_files_navigation
 
 # Baseline: 1 staged, 3 unstaged, 2 untracked
 validate staged_count=1
@@ -30,6 +32,9 @@ validate unstaged_count=3
 
 # The new file should be visible in the sidebar (untracked files under "Untracked" tab)
 click_text "Untracked"
+wait_frames 5
+mouse_move 130 400
+scroll_wheel 0 -100
 wait_frames 5
 expect_text watcher_test.txt
 screenshot file_watcher_04_new_file_visible

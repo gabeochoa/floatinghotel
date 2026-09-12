@@ -1,0 +1,22 @@
+resize 1440 1000
+wait_for_refresh
+click_text "Take the minimum instead of sorting"
+wait_frames 3
+wait_for_refresh
+mouse_move 1100 25
+wait_frames 5
+screenshot review
+click_ui open_full_file
+wait_frames 3
+wait_for_refresh
+screenshot source
+click_ui full_file_back
+wait_frames 3
+resize 1100 760
+pinch 0.4
+wait_frames 5
+validate ui_scale=1.40
+mouse_move 800 550
+scroll_wheel 0 -20000
+wait_frames 5
+screenshot zoomed_bottom

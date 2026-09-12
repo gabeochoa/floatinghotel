@@ -67,12 +67,11 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         .with_flex_direction(FlexDirection::Row).with_debug_name("full_file_header"));
     if (button(ctx, mk(header.ent(), 0), preset::Button("Back to diff")
             .with_size(ComponentSize{pixels(110), pixels(30)}).with_debug_name("full_file_back"))) {
-        repo.fullFilePath.clear();
-        ecs::cancel_hidden_file_read(repo);
+        repo.activeContent = RepoComponent::ContentView::Review;
     }
     div(ctx, mk(header.ent(), 1), ComponentConfig{}
         .with_label(repo.fullFilePath + " @ " + (repo.fullFileRevision.empty() ? "working tree" : repo.fullFileRevision))
-        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small)
+        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(12))
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
         .with_debug_name("full_file_revision"));
     if (button(ctx, mk(header.ent(), 2), preset::Button("History")
@@ -83,7 +82,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         .with_size(ComponentSize{percent(1.f), pixels(32)})
         .with_flex_direction(FlexDirection::Row).with_debug_name("full_file_actions"));
     if (button(ctx, mk(actions.ent(), 5), preset::Button(text_decode::override_label(repo.fullFileEncodingOverride, repo.fullFileEncodingLabel))
-            .with_size(ComponentSize{pixels(155), pixels(30)})
+            .with_size(ComponentSize{expand(), pixels(30)})
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("encoding_cycle"))) {
         repo.fullFileEncodingOverride = text_decode::next_override(repo.fullFileEncodingOverride);
         repo.fullFileCacheKey.clear();
@@ -121,13 +120,13 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             " · bytes " + std::to_string(page.begin.offset) + "–" + std::to_string(page.next.offset) + " of " + std::to_string(page.totalBytes) +
             (page.begin.continuation || (page.next.offset < page.totalBytes && page.next.continuation) ? " · line fragment" : "") + " · Find and Copy cover this page only";
         div(ctx, mk(parent, 585021), ComponentConfig{}.with_label(range)
-            .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(FontSize::Small)
+            .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));
     }
     bool markdown = markdown_preview::is_markdown_path(repo.fullFilePath) &&
                     !repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary;
     if (markdown && button(ctx, mk(actions.ent(), 6), preset::Button(repo.fullFileMarkdownPreview ? "Raw Markdown" : "Preview")
-            .with_size(ComponentSize{pixels(105), pixels(30)}).with_debug_name("markdown_preview_toggle")))
+            .with_size(ComponentSize{expand(), pixels(30)}).with_debug_name("markdown_preview_toggle")))
         repo.fullFileMarkdownPreview = !repo.fullFileMarkdownPreview;
     const auto& selection = ui::diff_sel::state();
     int selectedLine = 0;
@@ -141,7 +140,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     };
     bool bookmarked = std::any_of(bookmarks.begin(), bookmarks.end(), sameBookmark);
     if (button(ctx, mk(actions.ent(), 4), preset::Button(bookmarked ? "Remove bookmark" : "Bookmark line " + std::to_string(bookmarkLine))
-            .with_size(ComponentSize{pixels(170), pixels(30)}).with_font_size(FontSize::Small)
+            .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(12))
             .with_debug_name("bookmark_line"))) {
         auto updated = bookmarks;
         if (bookmarked) {
@@ -158,7 +157,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     }
     if (selectedLine > 0 && repo.fullFileRevision != "INDEX") {
         if (button(ctx, mk(actions.ent(), 3), preset::Button("Blame line " + std::to_string(selectedLine))
-                .with_size(ComponentSize{pixels(120), pixels(30)}).with_debug_name("blame_selected_line"))) {
+                .with_size(ComponentSize{expand(), pixels(30)}).with_debug_name("blame_selected_line"))) {
             std::vector<std::string> args{"blame", "--line-porcelain", "-L", std::to_string(selectedLine) + "," + std::to_string(selectedLine)};
             if (!repo.fullFileRevision.empty()) args.push_back(repo.fullFileRevision);
             args.insert(args.end(), {"--", repo.fullFilePath});
@@ -184,7 +183,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         div(ctx, mk(row.ent(), 0), ComponentConfig{}
             .with_label("Bookmarks")
             .with_size(ComponentSize{pixels(78), pixels(24)})
-            .with_font_size(FontSize::Small)
+            .with_font_size(pixels(12))
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_debug_name("bookmarks_label"));
         if (button(ctx, mk(row.ent(), 1), preset::Button("<")
@@ -198,12 +197,13 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             auto label = bookmark_display(bookmark);
             auto item = button(ctx, mk(row.ent(), static_cast<int>(i % pageSize) + 3), preset::Button(label)
                     .with_size(ComponentSize{expand(), pixels(24)})
-                    .with_font_size(FontSize::Small)
+                    .with_font_size(pixels(12))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("code_bookmark"));
             ui::set_tooltip(item.ent(), label);
             if (item) {
                 repo.fullFilePath = bookmark.path;
+                repo.activeContent = RepoComponent::ContentView::Source;
                 repo.fullFileRevision = bookmark.revision;
                 repo.fullFileCacheKey.clear();
                 repo.fullFileTargetLine = bookmark.line;
@@ -233,7 +233,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_size(ComponentSize{percent(1.f), pixels(blameHeight)}).with_flex_direction(FlexDirection::Row)
             .with_custom_background(theme::PANEL_BG));
         div(ctx, mk(panel.ent(), 0), ComponentConfig{}.with_label(label)
-            .with_size(ComponentSize{expand(), pixels(blameHeight)}).with_font_size(FontSize::Small)
+            .with_size(ComponentSize{expand(), pixels(blameHeight)}).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_debug_name("blame_attribution"));
         if (button(ctx, mk(panel.ent(), 1), preset::Button("Close")
                 .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.blameOpen = false;
@@ -241,11 +241,11 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     if (repo.fullFileFuture.valid()) {
         div(ctx, mk(parent, 585003), ComponentConfig{}
             .with_label("Loading file...").with_size(ComponentSize{percent(1.f), pixels(40)})
-            .with_font_size(FontSize::Medium).with_debug_name("full_file_loading"));
+            .with_font_size(pixels(14)).with_debug_name("full_file_loading"));
     } else if (!repo.fullFileError.empty()) {
         div(ctx, mk(parent, 585001), ComponentConfig{}
             .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(100)})
-            .with_font_size(FontSize::Medium).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
+            .with_font_size(pixels(14)).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_debug_name("full_file_error"));
     } else if (!repo.fullFileDiff.empty() && repo.fullFileDiff.front().isBinary) {
         if (repo.fullFileHexPreviewKey != repo.fullFileCacheKey) {
@@ -254,8 +254,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         }
         const auto& preview = repo.fullFileHexPreview;
         float bodyHeight = layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight;
-        afterhours::ui::AutoLayout grid({afterhours::graphics::get_screen_width(), afterhours::graphics::get_screen_height()});
-        float summaryHeight = grid.snap_to_8pt_grid(24.f, Axis::Y, afterhours::ui::AutoLayout::SnapDir::Up);
+        constexpr float summaryHeight = 24.f;
         auto body = div(ctx, mk(parent, 585004), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(bodyHeight)})
             .with_flex_direction(FlexDirection::Column)
@@ -266,12 +265,12 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         div(ctx, mk(body.ent(), 0), ComponentConfig{}
             .with_label(hex_view::summary(preview))
             .with_size(ComponentSize{percent(1.f), pixels(summaryHeight)})
-            .with_font_size(FontSize::Small)
+            .with_font_size(pixels(12))
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_debug_name("hex_preview_summary"));
-        float offset = body.ent().get<afterhours::ui::HasScrollView>().scroll_offset.y;
-        float fontSize = resolve_to_pixels(h720(Settings::get().get_code_font_size()), static_cast<float>(afterhours::graphics::get_screen_height()));
-        float rowHeight = grid.snap_to_8pt_grid(std::max(14.f, fontSize) * 1.4f, Axis::Y, afterhours::ui::AutoLayout::SnapDir::Up);
+        float offset = body.ent().get<afterhours::ui::HasScrollView>().scroll_offset.y / ui::zoom::get();
+        float fontSize = Settings::get().get_code_font_size();
+        float rowHeight = std::max(14.f, fontSize) * 1.4f;
         auto [first, last] = hex_view::visible_rows(preview.lines.size(), std::max(0.f, offset - summaryHeight), bodyHeight, rowHeight);
         auto spacer = [&](int id, float height) {
             if (height > 0.f) div(ctx, mk(body.ent(), id), ComponentConfig{}
@@ -283,7 +282,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_label(preview.lines[row])
                 .with_size(ComponentSize{percent(1.f), pixels(rowHeight)})
                 .with_skip_grid_snap()
-                .with_font("mono", h720(Settings::get().get_code_font_size()))
+                .with_font("mono", pixels(fontSize))
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_debug_name("hex_preview_line"));
         }
@@ -293,13 +292,12 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         auto& fonts = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::FontManager>();
         const auto bodyFont = fonts.get_font(afterhours::ui::UIComponent::DEFAULT_FONT);
         const auto codeFont = fonts.get_font("mono");
-        float screenHeight = static_cast<float>(afterhours::graphics::get_screen_height());
-        afterhours::ui::AutoLayout grid({afterhours::graphics::get_screen_width(), static_cast<int>(screenHeight)});
+        const float zoom = ui::zoom::get();
         markdown_preview::update(cache, repo.fullFileCacheKey, repo.fullFileDecodedText,
-            std::max(1.f, layout.mainContent.width - 48.f), screenHeight / 720.f,
-            resolve_to_pixels(h720(Settings::get().get_code_font_size()), screenHeight), grid.grid_unit(),
+            std::max(1.f, layout.mainContent.width - 48.f), 1.f,
+            Settings::get().get_code_font_size(), 1.f,
             [&](const std::string& text, markdown_preview::Kind kind, float size) {
-                return afterhours::measure_text(kind == markdown_preview::Kind::Code ? codeFont : bodyFont, text.c_str(), size, 1.f).x;
+                return afterhours::measure_text(kind == markdown_preview::Kind::Code ? codeFont : bodyFont, text.c_str(), size * zoom, zoom).x / zoom;
             });
         float bodyHeight = layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight;
         auto body = div(ctx, mk(parent, 585005), ComponentConfig{}
@@ -310,7 +308,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_padding(Padding{.top = pixels(8), .right = pixels(16), .bottom = pixels(8), .left = pixels(16)})
             .with_debug_name("markdown_preview"));
         ui::remember_reading_position(repo, body.ent(), "markdown:" + repo.fullFileCacheKey);
-        float offset = body.ent().get<afterhours::ui::HasScrollView>().scroll_offset.y;
+        float offset = body.ent().get<afterhours::ui::HasScrollView>().scroll_offset.y / zoom;
         auto [first, last] = markdown_preview::visible_rows(cache, offset, bodyHeight);
         auto spacer = [&](int id, float height) {
             if (height > 0.f) div(ctx, mk(body.ent(), id), ComponentConfig{}

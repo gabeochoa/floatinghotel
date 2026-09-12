@@ -1,5 +1,7 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_13_files_navigation
 click_text "README.md"
 wait_frames 5
 validate selected_file=README.md
@@ -15,6 +17,7 @@ validate commit_message=idle
 validate idle_rendered_frames=5
 click_ui diff_scroll
 wait_frames 5
+bench_idle_frames 20
 bench_idle_frames 20
 validate last_idle_bench_rendered=4
 validate last_idle_bench_skipped=16

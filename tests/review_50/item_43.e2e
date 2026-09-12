@@ -1,5 +1,7 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_43_files_navigation
 click_text "binary.dat"
 wait_frames 5
 click_ui open_full_file
@@ -33,3 +35,15 @@ wait_frames 30
 screenshot item_43_top_again
 expect_text 00000000
 assert_no_overflow
+pinch 0.4
+wait_frames 5
+mouse_move 900 500
+scroll_wheel 0 -20000
+wait_frames 30
+screenshot item_43_zoomed_bottom
+expect_text 00000ff0
+expect_no_text 00000000
+validate footer_fixed=true
+scroll_wheel 0 20000
+wait_frames 30
+expect_text 00000000

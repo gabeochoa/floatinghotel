@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_s3_pull_sidebar_files_navigation
 
 # Sidebar is visible by default
 validate sidebar_visible=true

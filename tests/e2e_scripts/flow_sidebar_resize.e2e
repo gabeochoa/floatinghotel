@@ -7,24 +7,26 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_sidebar_resize_files_navigation
 
 # The divider only renders once the diff shelf is open, which needs a selection.
 click_text "README.md"
 wait_frames 5
-validate sidebar_width=340
+validate sidebar_width=280
 screenshot sidebar_resize_01_default
 
-mouse_down 341 400
+mouse_down 281 400
 wait_frames 3
-mouse_move 441 400
+mouse_move 381 400
 wait_frames 3
 mouse_up
 wait_frames 3
-validate sidebar_width=440
+validate sidebar_width=380
 screenshot sidebar_resize_02_wider
 
 # Past the minimum it clamps rather than inverting the panes.
-mouse_down 441 400
+mouse_down 381 400
 wait_frames 3
 mouse_move 60 400
 wait_frames 3

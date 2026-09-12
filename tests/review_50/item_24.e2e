@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_24_files_navigation
 click_text sample.cpp
 screenshot item_24_initial
 click_ui comment_hunk_btn

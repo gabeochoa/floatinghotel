@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_r2_unstage_file_files_navigation
 
 # Baseline: 1 staged
 validate staged_count=1

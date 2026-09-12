@@ -25,6 +25,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         repo.selectedFileStaged = false;
         repo.selectedCommitHash.clear();
         repo.fullFilePath = path;
+        repo.activeContent = RepoComponent::ContentView::Source;
         repo.fullFileRevision.clear();
         repo.fullFileCacheKey.clear();
         repo.fullFileTargetLine = 0;

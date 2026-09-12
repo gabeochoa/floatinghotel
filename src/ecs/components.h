@@ -312,6 +312,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string lastRefreshScope;
     bool ignoreWhitespace = false;
     int diffContext = 3;
+    enum class ContentView { Review, Source };
+    ContentView activeContent = ContentView::Review;
     std::string fullFilePath;
     std::string fullFileRevision;
     std::string fullFileCacheKey;
@@ -396,6 +398,10 @@ struct RepoComponent : public afterhours::BaseComponent {
     size_t bookmarkPage = 0;
 };
 
+inline bool source_tab_active(const RepoComponent& repo) {
+    return repo.activeContent == RepoComponent::ContentView::Source && !repo.fullFilePath.empty();
+}
+
 inline void cancel_hidden_file_read(RepoComponent& repo) {
     if (repo.fullFilePath.empty() && repo.fullFileFuture.valid()) {
         repo.fullFileFuture = {};
@@ -432,7 +438,7 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     std::string commitDetailAuthorEmail;
     std::string commitDetailParents;
     std::string commitDetailError;
-    bool fileOverviewExpanded = true;
+    bool fileOverviewExpanded = false;
 };
 
 // Per-tab "Ballroom" review state (see docs/mocks/ballroom.html).
@@ -463,6 +469,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::map<std::string, ReviewDecision> verdicts;
     CommitReviewQueue queue;
     std::set<std::string> foldedHunks;
+    std::set<std::string> foldedFiles;
     // Inline compose state: the hunk currently being commented on + its buffer.
     std::string composingKey;    // hunk key being commented, empty if none
     std::string composingText;   // in-progress comment text
@@ -525,6 +532,7 @@ inline void reset_review(ReviewComponent& review) {
     review.verdicts.clear();
     review.queue = {};
     review.foldedHunks.clear();
+    review.foldedFiles.clear();
     review.composingKey.clear();
     review.composingText.clear();
     review.composingFile.clear();
@@ -791,7 +799,7 @@ inline void restore_draft_selection(RepoComponent& repo, const ReviewComponent& 
         scope = review.comments[review.editingComment].scope;
     } else return;
     select_review_target(repo, scope, file);
-    repo.fullFilePath.clear();
+    repo.activeContent = RepoComponent::ContentView::Review;
 }
 
 // Commit the in-progress comment into the basket and auto-fold its hunk.
@@ -899,13 +907,15 @@ struct LayoutComponent : public afterhours::BaseComponent {
     std::string diffFindQuery;
     int diffFindIndex = 0;
     int diffFindNavigate = 0;
-    static constexpr float kDefaultSidebarWidth = 340.0f;
+    static constexpr float kDefaultSidebarWidth = 280.0f;
     float sidebarWidth = kDefaultSidebarWidth;
     float sidebarMinWidth = 200.0f;
     float commitLogRatio = 0.4f;
 
     enum class SidebarMode { Changes, Refs };
     SidebarMode sidebarMode = SidebarMode::Changes;
+    enum class SidebarNavigation { Review, Files };
+    SidebarNavigation sidebarNavigation = SidebarNavigation::Review;
     // Review tabs within the Changes view (mock: To review / Approved / Untracked).
     enum class ReviewTab { ToReview, Staged, Untracked };
     ReviewTab reviewTab = ReviewTab::ToReview;
@@ -917,6 +927,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     enum class DiffViewMode { Inline, SideBySide };
     DiffViewMode diffViewMode = DiffViewMode::Inline;
     bool commitMetadataExpanded = false;
+    bool diffOptionsOpen = false;
     bool shortcutsOpen = false;
 
     bool sidebarVisible = true;
@@ -951,6 +962,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     Rect sidebarFiles{};
     Rect sidebarLog{};
     Rect mainContent{};
+    Rect contentTabs{};
     Rect feedback{};
     Rect commandLog{};
     Rect statusBar{};

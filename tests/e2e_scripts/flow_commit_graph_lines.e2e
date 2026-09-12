@@ -16,7 +16,7 @@ screenshot graph_lines_02_selected_commit
 
 # The log is windowed: scroll it to the bottom so the oldest commit is built
 mouse_move 160 560
-scroll_wheel 0 -100
+scroll_wheel 0 -20000
 wait_frames 5
 # Click a different commit to see selection moves while lines stay
 click_text "Initial commit"

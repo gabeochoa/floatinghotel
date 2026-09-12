@@ -1,5 +1,7 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_01_files_navigation
 click_text source.cpp
 wait_frames 5
 click_ui open_full_file

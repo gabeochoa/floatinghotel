@@ -1,0 +1,54 @@
+make_test_repo
+resize 1440 1000
+wait_frames 5
+wait_for_refresh
+click_text "Add contributing guidelines"
+wait_frames 5
+wait_for_refresh
+mouse_move 1100 25
+screenshot zoom_100
+validate ui_scale=1.00
+validate ui_in_viewport:main_content=true
+validate ui_in_viewport:sidebar_bg=true
+validate ui_in_viewport:content_tabs=true
+validate footer_fixed=true
+resize 1100 760
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 5
+mouse_move 800 550
+scroll_wheel 0 -20000
+wait_frames 5
+screenshot zoom_140_bottom
+validate ui_scale=1.40
+validate ui_height:commit_row=78.4
+validate ui_in_viewport:main_content=true
+validate ui_in_viewport:sidebar_bg=true
+validate ui_in_viewport:content_tabs=true
+validate footer_fixed=true
+key CMD+EQUAL
+wait_frames 2
+key CMD+EQUAL
+wait_frames 5
+screenshot zoom_160_bottom
+validate ui_scale=1.60
+validate ui_height:commit_row=89.6
+validate ui_in_viewport:main_content=true
+validate ui_in_viewport:sidebar_bg=true
+validate ui_in_viewport:content_tabs=true
+validate footer_fixed=true
+mouse_move 100 250
+scroll_wheel 0 -20000
+wait_frames 5
+screenshot zoom_160_history_bottom
+validate footer_fixed=true
+key CMD+0
+wait_frames 5
+screenshot zoom_reset
+validate ui_scale=1.00
+validate footer_fixed=true

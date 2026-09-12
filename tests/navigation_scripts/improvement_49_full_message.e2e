@@ -5,7 +5,7 @@ wait_for_refresh
 screenshot improvement_49_preview
 expect_text "Message line 1"
 expect_no_text FULL_MESSAGE_END
-expect_text "Show full message"
+expect_text "Full message"
 click_ui commit_message_toggle
 screenshot improvement_49_expanded
 expect_text FULL_MESSAGE_END
@@ -21,4 +21,4 @@ screenshot improvement_49_top
 click_ui commit_message_toggle
 screenshot improvement_49_collapsed
 expect_no_text FULL_MESSAGE_END
-expect_text "Show full message"
+expect_text "Full message"

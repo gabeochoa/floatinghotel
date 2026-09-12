@@ -11,6 +11,7 @@
 #include "context_menu.h"
 #include "image_diff.h"
 #include "reading_position.h"
+#include "zoom.h"
 #include "../util/review_selection.h"
 #include "../util/code_gutter.h"
 #include "../util/lfs_pointer.h"
@@ -40,10 +41,10 @@ inline std::vector<afterhours::ui::TextSpan> highlighted_code(
         auto color = theme::TEXT_PRIMARY;
         switch (token.kind) {
             case code_highlight::Kind::Plain: break;
-            case code_highlight::Kind::Keyword: color = {125, 180, 255, 255}; break;
-            case code_highlight::Kind::String: color = {220, 170, 135, 255}; break;
-            case code_highlight::Kind::Number: color = {170, 205, 160, 255}; break;
-            case code_highlight::Kind::Comment: color = {135, 170, 125, 255}; break;
+            case code_highlight::Kind::Keyword: color = {194, 168, 217, 255}; break;
+            case code_highlight::Kind::String: color = {183, 205, 159, 255}; break;
+            case code_highlight::Kind::Number: color = {215, 185, 145, 255}; break;
+            case code_highlight::Kind::Comment: color = {117, 129, 142, 255}; break;
         }
         spans.push_back({token.text, color});
     }
@@ -142,9 +143,9 @@ inline void render_changed_range(UIContext<InputAction>& ctx, Entity& entity,
     if (range.second <= range.first || range.second > content.size()) return;
     float x = prefix + code_mw(session, content.substr(0, range.first));
     float width = code_mw(session, content.substr(range.first, range.second - range.first));
-    div(ctx, mk(entity, 90003), ComponentConfig{}
-        .with_size(ComponentSize{pixels(width), percent(1.f)})
-        .with_absolute_position(x, 0.f)
+    div(ctx, mk(entity, 90003), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{pixels(width / zoom::get()), percent(1.f)})
+        .with_absolute_position(x / zoom::get(), 0.f)
         .with_custom_background(deletion ? afterhours::Color{240, 100, 100, 90}
                                          : afterhours::Color{90, 230, 140, 80})
         .with_roundness(0.f)
@@ -156,9 +157,9 @@ inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
     size_t at = std::min(s.findMatch->column, content.size());
     float x = prefix + code_mw(s, content.substr(0, at));
     float width = code_mw(s, content.substr(at, s.findQuery.size()));
-    div(ctx, mk(lineEntity, 90002), ComponentConfig{}
-        .with_size(ComponentSize{pixels(width), percent(1.f)})
-        .with_absolute_position(x, 0.f)
+    div(ctx, mk(lineEntity, 90002), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{pixels(width / zoom::get()), percent(1.f)})
+        .with_absolute_position(x / zoom::get(), 0.f)
         .with_custom_background(afterhours::Color{230, 180, 30, 100})
         .with_roundness(0.f)
         .with_debug_name("diff_find_match"));
@@ -297,14 +298,9 @@ const auto& DIFF_DEL_BG    = theme::DIFF_DEL_BG;
 const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
 
 inline float code_line_height() {
-    float height = static_cast<float>(afterhours::graphics::get_screen_height());
-    afterhours::ui::AutoLayout grid({afterhours::graphics::get_screen_width(), static_cast<int>(height)});
-    float pixels = resolve_to_pixels(h720(Settings::get().get_code_font_size() + 4.f), height);
-    return grid.snap_to_8pt_grid(pixels, Axis::Y, afterhours::ui::AutoLayout::SnapDir::Up) * 720.f / height;
+    return Settings::get().get_code_font_size() + 8.f;
 }
 inline float hunk_header_height() { return std::max(24.f, Settings::get().get_code_font_size() + 8.f); }
-constexpr float FILE_HEADER_H = 28.0f;
-constexpr float DIFF_HEADER_H = 28.0f;
 constexpr float CODE_PAD_LEFT = 8.0f;
 constexpr float COMMENT_COMPOSE_H = 104.0f;
 
@@ -377,8 +373,7 @@ struct DiffViewport {
     float pending = 0.f;        // height of skipped rows not yet flushed (px)
 
     float px(float raw720) const {
-        afterhours::ui::AutoLayout grid({afterhours::graphics::get_screen_width(), static_cast<int>(screenH)});
-        return grid.snap_to_8pt_grid(resolve_to_pixels(h720(raw720), screenH), Axis::Y);
+        return raw720 * zoom::get();
     }
 
     // Is a row of height raw720 at curY within the visible window?
@@ -409,8 +404,8 @@ struct DiffViewport {
         if (!active || pending <= 0.5f) return;
         auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
         div(ctx, mk(parent, nextId++),
-            ComponentConfig{}
-                .with_size(ComponentSize{w, pixels(pending)})
+            ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{w, pixels(pending / zoom::get())})
                 .with_custom_background(theme::PANEL_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("diff_virt_spacer"));
@@ -470,20 +465,20 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
 
     auto w = contentWidth > 0 ? pixels(contentWidth) : percent(1.0f);
     auto lineDiv = div(ctx, mk(parent, id),
-        ComponentConfig{}
-            .with_size(ComponentSize{w, h720(diff_detail::code_line_height())})
+        ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{w, pixels(diff_detail::code_line_height())})
             .with_custom_background(bgColor)
+            .with_border_left(prefix == '+' ? theme::DIFF_ADD_TEXT : prefix == '-' ? theme::DIFF_DEL_TEXT : bgColor, pixels(2))
             .with_custom_text_color(textColor)
             .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
                                                 sel && sel->visibleWhitespace, hasNewline))
-            .with_font("mono", h720(Settings::get().get_code_font_size()))
+            .with_font("mono", pixels(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
-                .top = h720(0), .right = w1280(0),
-                .bottom = h720(0), .left = w1280(diff_detail::CODE_PAD_LEFT)})
+                .top = pixels(0), .right = pixels(0),
+                .bottom = pixels(0), .left = pixels(diff_detail::CODE_PAD_LEFT)})
             .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_roundness(0.0f)
-            .with_skip_grid_snap()
             .with_debug_name("diff_line"));
     if (moved) set_tooltip(lineDiv.ent(), "Moved unchanged code");
 
@@ -518,10 +513,10 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                 // line tints the selected span while the text shows through — no
                 // need to re-draw the text on an opaque box anymore.
                 div(ctx, mk(lineDiv.ent(), 90001),
-                    ComponentConfig{}
-                        .with_size(ComponentSize{pixels(x1 - x0),
-                                                 h720(diff_detail::code_line_height())})
-                        .with_absolute_position(x0, 0.f)
+                    ComponentConfig{}.with_skip_grid_snap()
+                        .with_size(ComponentSize{pixels((x1 - x0) / zoom::get()),
+                                                 pixels(diff_detail::code_line_height())})
+                        .with_absolute_position(x0 / zoom::get(), 0.f)
                         .with_custom_background(afterhours::Color{58, 130, 210, 90})
                         .with_roundness(0.0f)
                         .with_debug_name("diff_sel_hl"));
@@ -599,8 +594,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     } else {
     if (vp) vp->flush(ctx, parent, nextId);
     auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
-        ComponentConfig{}
-            .with_size(ComponentSize{w, h720(diff_detail::hunk_header_height())})
+        ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{w, pixels(diff_detail::hunk_header_height())})
             .with_flex_direction(FlexDirection::Row)
             .with_justify_content(JustifyContent::SpaceBetween)
             .with_align_items(AlignItems::Center)
@@ -675,34 +670,34 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     // This used to subtract a hardcoded reserve, because percent(1.0) took the
     // whole row and shoved the buttons off-screen.
     div(ctx, mk(hunkRow.ent(), 0),
-        ComponentConfig{}
+        ComponentConfig{}.with_skip_grid_snap()
             .with_label(hunk.header)
             .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
-            .with_font("mono", h720(Settings::get().get_code_font_size()))
+            .with_font("mono", pixels(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
-                .top = h720(4), .right = w1280(0),
-                .bottom = h720(4), .left = w1280(12)})
+                .top = pixels(4), .right = pixels(0),
+                .bottom = pixels(4), .left = pixels(12)})
             .with_debug_name("hunk_header_label"));
 
     // Buttons live in a right-aligned group so they cluster together instead of
     // being spread apart by the row's SpaceBetween.
     auto hunkBtns = div(ctx, mk(hunkRow.ent(), 9),
-        ComponentConfig{}
+        ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{children(), percent(1.0f)})
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
             .with_gap(pixels(6))
-            .with_margin(Margin{.right = w1280(8)})
+            .with_margin(Margin{.right = pixels(8)})
             .with_transparent_bg()
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_btns"));
 
     if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent) {
         auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button("Show surrounding lines")
-            .with_size(ComponentSize{children(), h720(18)})
-            .with_font_size(FontSize::Small)
+            .with_size(ComponentSize{children(), pixels(18)})
+            .with_font_size(pixels(12))
             .with_custom_background(theme::BUTTON_SECONDARY)
             .with_debug_name("expand_diff_context"));
         set_tooltip(context.ent(), "Show 20 more unchanged lines before and after each change.");
@@ -724,13 +719,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         std::string hunkText = diff_detail::hunk_to_text(hunk);
         auto copyBtn = button(ctx, mk(hunkBtns.ent(), 1),
             preset::Button("Copy")
-                .with_size(ComponentSize{children(), h720(18)})
+                .with_size(ComponentSize{children(), pixels(18)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(8)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = pixels(8)})
                 .with_custom_background(afterhours::Color{78, 78, 86, 255})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_font_size(pixels(12))
                 .with_debug_name("copy_hunk_btn"));
         if (copyBtn) {
             afterhours::clipboard::set_text(hunkText);
@@ -743,13 +738,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             bool approved = sel->review->approvedHunks.contains(hkey);
             auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
                 preset::Button(approved ? "Unapprove" : "Approve")
-                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_size(ComponentSize{children(), pixels(18)})
                     .with_padding(Padding{
-                        .top = h720(2), .right = w1280(8),
-                        .bottom = h720(2), .left = w1280(8)})
+                        .top = pixels(2), .right = pixels(8),
+                        .bottom = pixels(2), .left = pixels(8)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_font_size(pixels(12))
                     .with_debug_name("approve_hunk_btn"));
             if (approveBtn) {
                 if (approved) sel->review->approvedHunks.erase(hkey);
@@ -761,8 +756,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         auto* hunkRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if (sel->reviewScope == "wt" && (!hunkRepo || !hunkRepo->reviewWorkspace)) {
             if (button(ctx, mk(hunkBtns.ent(), 5), preset::Button("Stage")
-                    .with_size(ComponentSize{children(), h720(18)})
-                    .with_font_size(FontSize::Small).with_custom_background(theme::BUTTON_SECONDARY)
+                    .with_size(ComponentSize{children(), pixels(18)})
+                    .with_font_size(pixels(12)).with_custom_background(theme::BUTTON_SECONDARY)
                     .with_debug_name("stage_hunk_btn"))) {
                 auto res = fileDiff.isSubmodule
                     ? git::stage_file(sel->repoPath, fileDiff.filePath)
@@ -775,13 +770,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
         auto commentBtn = button(ctx, mk(hunkBtns.ent(), 3),
             preset::Button("Comment")
-                .with_size(ComponentSize{children(), h720(18)})
+                .with_size(ComponentSize{children(), pixels(18)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(8)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = pixels(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_font_size(pixels(12))
                 .with_debug_name("comment_hunk_btn"));
         if (commentBtn) {
             int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
@@ -795,30 +790,29 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     if (reviewOn && sel->review->composingKey == hkey) {
         if (vp) { vp->flush(ctx, parent, nextId); vp->built(diff_detail::COMMENT_COMPOSE_H); }
         auto composeRow = div(ctx, mk(parent, nextId++),
-            ComponentConfig{}
-                .with_size(ComponentSize{w, h720(diff_detail::COMMENT_COMPOSE_H)})
+            ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{w, pixels(diff_detail::COMMENT_COMPOSE_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_custom_background(afterhours::Color{35, 35, 39, 255})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(12)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = pixels(12)})
                 .with_debug_name("comment_compose_row"));
-        float screenH = static_cast<float>(afterhours::graphics::get_screen_height());
-        float editorH = resolve_to_pixels(h720(diff_detail::COMMENT_COMPOSE_H - 8.f), screenH);
+        float editorH = diff_detail::COMMENT_COMPOSE_H - 8.f;
         std::string addLabel = "Add L" + std::to_string(sel->review->composingLine) +
             (sel->review->composingEndLine > sel->review->composingLine ? "-" + std::to_string(sel->review->composingEndLine) : "") +
             (sel->review->composingOldSide ? " (old)" : "");
         float addWidth = static_cast<float>(afterhours::graphics::measure_text(addLabel.c_str(),
-            static_cast<int>(resolve_to_pixels(h720(12.f), screenH)))) + 24.f;
+            static_cast<int>(12.f * zoom::get()))) / zoom::get() + 24.f;
         auto previousDraft = sel->review->composingText;
         afterhours::text_input::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
-            ComponentConfig{}
+            ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 134.f)), pixels(editorH)})
                 .with_custom_background(theme::INPUT_BG)
-                .with_font("mono", h720(14.f))
-                .with_line_height(pixels(resolve_to_pixels(h720(22.f), screenH)))
+                .with_font("mono", pixels(14.f))
+                .with_line_height(pixels(22.f))
                 .with_word_wrap(true)
                 .with_overflow(afterhours::ui::Overflow::Hidden)
                 .with_corner_radius(4.0f)
@@ -827,8 +821,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         render_comment_kind(ctx, composeRow.ent(), 2, *sel->review, false);
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
             preset::Button(addLabel)
-                .with_size(ComponentSize{pixels(addWidth), h720(18)})
-                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_size(ComponentSize{pixels(addWidth), pixels(18)})
+                .with_font_size(pixels(12))
                 .with_debug_name("comment_add_btn"));
         if (addBtn)
             ecs::commit_pending_comment(*sel->review);
@@ -838,14 +832,14 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     if (reviewOn && sel->review->foldedHunks.count(hkey)) {
         if (vp) { vp->flush(ctx, parent, nextId); vp->built(20.0f); }
         auto expand = button(ctx, mk(parent, nextId++),
-            ComponentConfig{}
+            ComponentConfig{}.with_skip_grid_snap()
                 .with_label("\xe2\x9c\x8e commented \xc2\xb7 click to expand")
-                .with_size(ComponentSize{w, h720(20)})
+                .with_size(ComponentSize{w, pixels(20)})
                 .with_custom_text_color(theme::STATUS_MODIFIED)
-                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_font_size(pixels(12))
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(52)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = pixels(52)})
                 .with_debug_name("hunk_folded_marker"));
         if (expand) {
             sel->review->foldedHunks.erase(hkey);
@@ -930,20 +924,19 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     if (moved) bg = afterhours::Color{35, 55, 85, 255};
     std::string label = code_gutter::pad(num) + "  " + sign + " " + content;
 
-    auto cfg = ComponentConfig{}
-        .with_size(ComponentSize{percent(0.5f), h720(code_line_height())})
+    auto cfg = ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{percent(0.5f), pixels(code_line_height())})
         .with_custom_background(bg)
         .with_custom_text_color(fg)
         .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
                                             sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline))
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
-        .with_font("mono", h720(Settings::get().get_code_font_size()))
+        .with_font("mono", pixels(Settings::get().get_code_font_size()))
         .with_alignment(TextAlignment::Left)
         .with_padding(Padding{
-            .top = h720(0), .right = w1280(0),
-            .bottom = h720(0), .left = w1280(CODE_PAD_LEFT)})
+            .top = pixels(0), .right = pixels(0),
+            .bottom = pixels(0), .left = pixels(CODE_PAD_LEFT)})
         .with_roundness(0.0f)
-        .with_skip_grid_snap()
         .with_debug_name("sbs_cell");
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
     auto cell = div(ctx, mk(row, id), cfg);
@@ -967,9 +960,9 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             auto b = std::min(static_cast<size_t>(it->second.second), content.size());
             float x0 = prefix + diff_sel::code_mw(*sel, content.substr(0, a));
             float x1 = prefix + diff_sel::code_mw(*sel, content.substr(0, b));
-            div(ctx, mk(cell.ent(), 90001), ComponentConfig{}
-                .with_size(ComponentSize{pixels(std::max(0.f, x1 - x0)), h720(code_line_height())})
-                .with_absolute_position(x0, 0.f)
+            div(ctx, mk(cell.ent(), 90001), ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{pixels(std::max(0.f, x1 - x0) / zoom::get()), pixels(code_line_height())})
+                .with_absolute_position(x0 / zoom::get(), 0.f)
                 .with_custom_background(afterhours::Color{58, 130, 210, 90})
                 .with_roundness(0.f)
                 .with_debug_name("diff_sel_hl"));
@@ -1004,8 +997,8 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
     } else {
     if (culling) vp->flush(ctx, parent, nextId);
     auto hunkRow = div(ctx, mk(parent, hunkHeaderId),
-        ComponentConfig{}
-            .with_size(ComponentSize{w, h720(diff_detail::hunk_header_height())})
+        ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{w, pixels(diff_detail::hunk_header_height())})
             .with_flex_direction(FlexDirection::Row)
             .with_justify_content(JustifyContent::SpaceBetween)
             .with_align_items(AlignItems::Center)
@@ -1014,28 +1007,28 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             .with_debug_name("sbs_hunk_header_row"));
     if (culling) vp->built(diff_detail::hunk_header_height());
     div(ctx, mk(hunkRow.ent(), 0),
-        ComponentConfig{}
+        ComponentConfig{}.with_skip_grid_snap()
             .with_label(hunk.header)
             .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
-            .with_font("mono", h720(Settings::get().get_code_font_size()))
+            .with_font("mono", pixels(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
-                .top = h720(4), .right = w1280(0),
-                .bottom = h720(4), .left = w1280(12)})
+                .top = pixels(4), .right = pixels(0),
+                .bottom = pixels(4), .left = pixels(12)})
             .with_debug_name("sbs_hunk_header_label"));
     {
         std::string hunkText = diff_detail::hunk_to_text(hunk);
         auto copyBtn = button(ctx, mk(hunkRow.ent(), 1),
             preset::Button("Copy")
-                .with_size(ComponentSize{children(), h720(18)})
-                .with_margin(Margin{.right = w1280(8)})
+                .with_size(ComponentSize{children(), pixels(18)})
+                .with_margin(Margin{.right = pixels(8)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = w1280(8),
-                    .bottom = h720(2), .left = w1280(8)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = pixels(8)})
                 .with_custom_background(afterhours::Color{60, 60, 65, 255})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_font_size(pixels(12))
                 .with_debug_name("copy_sbs_hunk_btn"));
         if (copyBtn) {
             afterhours::clipboard::set_text(hunkText);
@@ -1089,11 +1082,10 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             vp->built(diff_detail::code_line_height());
         }
         auto rowDiv = div(ctx, mk(parent, rowId),
-            ComponentConfig{}
-                .with_size(ComponentSize{w, h720(diff_detail::code_line_height())})
+            ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{w, pixels(diff_detail::code_line_height())})
                 .with_flex_direction(FlexDirection::Row)
                 .with_roundness(0.0f)
-                .with_skip_grid_snap()
                 .with_debug_name("sbs_row"));
         std::pair<code_highlight::Range, code_highlight::Range> changes;
         if (lKind == SbsKind::Del && rKind == SbsKind::Add)
@@ -1146,6 +1138,12 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
 // This is the main entry point called by MainContentSystem.
 // When embedInParentScroll is true, diff content is added directly to the parent
 // without creating a nested scroll container (used by commit detail view).
+inline float diff_controls_height(float width, bool optionsOpen, bool findOpen,
+                                  bool filterable, bool hasDiffs) {
+    return (filterable ? (width < 680.f ? 72.f : 36.f) + (optionsOpen ? 90.f : 0.f) : 0.f) +
+        (findOpen ? 34.f : 0.f) + (filterable && hasDiffs ? 24.f : 0.f);
+}
+
 inline void render_diff(UIContext<InputAction>& ctx,
                         Entity& parent,
                         const std::vector<ecs::FileDiff>& diffs,
@@ -1195,13 +1193,80 @@ inline void render_diff(UIContext<InputAction>& ctx,
     float findHeight = 0.f;
     auto* filterRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     bool filterable = diffs.empty() || !diffs.front().isFullContent;
-    if (filterRepo && filterable) {
-        auto filters = div(ctx, mk(findParent ? *findParent : parent, 597000), ComponentConfig{}
+    if (filterRepo && filterable && layout) {
+        const auto& candidates = reviewScope == "wt" ? filterRepo->currentDiff :
+            reviewScope == "index" ? filterRepo->stagedDiff : diffs;
+        bool narrow = contentWidth < 680.f;
+        auto toolbar = div(ctx, mk(findParent ? *findParent : parent, 597010), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{percent(1.f), pixels(narrow ? 72.f : 36.f)})
+            .with_flex_direction(narrow ? FlexDirection::Column : FlexDirection::Row)
+            .with_align_items(AlignItems::Center).with_no_wrap()
+            .with_debug_name("review_primary_toolbar"));
+        int additions = 0, deletions = 0;
+        for (const auto& file : diffs) {
+            additions += file.additions;
+            deletions += file.deletions;
+        }
+        div(ctx, mk(toolbar.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
+            .with_label(std::to_string(diffs.size()) + " files changed   +" + std::to_string(additions) + "  -" + std::to_string(deletions))
+            .with_size(ComponentSize{narrow ? percent(1.f) : expand(), pixels(30)})
+            .with_padding(Padding{.left = pixels(16)})
+            .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
+            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("diff_stats_label"));
+        auto actions = div(ctx, mk(toolbar.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{narrow ? percent(1.f) : pixels(398), pixels(32)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
+            .with_padding(Padding{.right = pixels(8)}).with_debug_name("diff_mode_toggle"));
+        auto modeButton = [&](int id, const char* label, bool active) {
+            return button(ctx, mk(actions.ent(), id), preset::Button(label)
+                .with_size(ComponentSize{percent(0.16f), pixels(28)})
+                .with_custom_background(active ? theme::SELECTED_BG : theme::BUTTON_SECONDARY)
+                .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
+                .with_font_size(pixels(12))
+                .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
+                .with_debug_name(active ? "diff_mode_active" : "diff_mode_inactive"));
+        };
+        if (modeButton(0, "Unified", !sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
+        if (modeButton(1, "Split", sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::SideBySide;
+        if (review && button(ctx, mk(actions.ent(), 2), preset::Button("Comments")
+                .with_size(ComponentSize{percent(0.22f), pixels(28)}).with_font_size(pixels(12))
+                .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
+                .with_debug_name("basket_toggle_btn"))) review->basketOpen = !review->basketOpen;
+        if (review) {
+            auto counts = ecs::review_progress(*review, reviewScope, candidates);
+            auto verdict = ecs::current_review_verdict(*review, reviewScope, candidates);
+            if (button(ctx, mk(actions.ent(), 3), preset::Button(verdict == ReviewVerdict::InProgress ? "Finish review" : review_verdict_label(verdict))
+                    .with_size(ComponentSize{percent(0.27f), pixels(28)}).with_font_size(pixels(12))
+                    .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
+                    .with_custom_background(theme::TEXT_ACCENT).with_custom_text_color(theme::WINDOW_BG)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("finish_review"))) {
+                std::vector<ContextMenuItem> choices;
+                for (auto value : {ReviewVerdict::Approved, ReviewVerdict::ChangesRequested, ReviewVerdict::Commented, ReviewVerdict::InProgress})
+                    choices.push_back(ContextMenuItem::item(value == ReviewVerdict::InProgress ? "Reopen review" : review_verdict_label(value),
+                        [scope = reviewScope, storage = review->storageScope, path = filterRepo->repoPath,
+                         signature = ecs::review_target_signature(candidates), value] {
+                            auto* active = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+                            if (!active || active->storageScope != storage || active->storageRepoPath != path) return;
+                            active->verdicts[scope] = {value, signature};
+                            if (value == ReviewVerdict::InProgress) active->queue.completed.erase(diff_target(scope).after);
+                            active->dirty = true;
+                        }, value != ReviewVerdict::Approved || counts.can_approve()));
+                show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+            }
+        }
+        if (button(ctx, mk(actions.ent(), 4), preset::Button("Options")
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+                .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
+                .with_debug_name("diff_options_toggle"))) layout->diffOptionsOpen = !layout->diffOptionsOpen;
+        findHeight = narrow ? 72.f : 36.f;
+    }
+    if (filterRepo && filterable && layout && layout->diffOptionsOpen) {
+        auto filters = div(ctx, mk(findParent ? *findParent : parent, 597000), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row)
             .with_debug_name("review_file_filters"));
         auto toggle = [&](int id, const std::string& label, const std::string& debugName, bool& hidden) {
             if (button(ctx, mk(filters.ent(), id), preset::Button(label + (hidden ? ": hidden" : ": shown"))
-                    .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(FontSize::Small)
+                    .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(pixels(12))
                     .with_custom_background(hidden ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
                     .with_debug_name(debugName))) hidden = !hidden;
         };
@@ -1209,18 +1274,18 @@ inline void render_diff(UIContext<InputAction>& ctx,
         toggle(1, "Vendor", "filter_Vendor", filterRepo->fileFilter.hideVendor);
         toggle(2, "Lockfiles", "filter_Lockfiles", filterRepo->fileFilter.hideLockfiles);
         if (button(ctx, mk(filters.ent(), 4), preset::Button(filterRepo->fileFilter.onlyUnresolved ? "Unresolved: only" : "Unresolved: all")
-                .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_background(filterRepo->fileFilter.onlyUnresolved ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
                 .with_debug_name("filter_unresolved"))) filterRepo->fileFilter.onlyUnresolved = !filterRepo->fileFilter.onlyUnresolved;
         auto hidden = std::count_if(diffs.begin(), diffs.end(), [&](const auto& file) {
             return !ecs::review_file_visible(file, filterRepo->fileFilter, review, reviewScope);
         });
-        div(ctx, mk(filters.ent(), 3), ComponentConfig{}.with_label(std::to_string(hidden) + " hidden by filters")
-            .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(FontSize::Small));
-        auto facets = div(ctx, mk(findParent ? *findParent : parent, 597001), ComponentConfig{}
+        div(ctx, mk(filters.ent(), 3), ComponentConfig{}.with_skip_grid_snap().with_label(std::to_string(hidden) + " hidden by filters")
+            .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(pixels(12)));
+        auto facets = div(ctx, mk(findParent ? *findParent : parent, 597001), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
         if (button(ctx, mk(facets.ent(), 0), preset::Button("Language: " + (filterRepo->fileFilter.language.empty() ? "All" : filterRepo->fileFilter.language))
-                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_language"))) {
             std::set<std::string> languages;
             for (const auto& file : diffs) languages.insert(review_files::language(file.filePath));
@@ -1236,7 +1301,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
         if (button(ctx, mk(facets.ent(), 1), preset::Button("Change: " + review_files::change_label(filterRepo->fileFilter.change))
-                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_change"))) {
             std::vector<ContextMenuItem> choices;
             for (char value : {' ', 'A', 'M', 'D', 'R'})
@@ -1247,7 +1312,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
         if (button(ctx, mk(facets.ent(), 2), preset::Button("Sort: " + review_files::sort_label(filterRepo->fileFilter.sort))
-                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("review_file_sort"))) {
             std::vector<ContextMenuItem> choices;
             for (auto value : {review_files::Sort::Path, review_files::Sort::MostChanges, review_files::Sort::FewestChanges})
@@ -1257,12 +1322,12 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 }));
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
-        auto progress = div(ctx, mk(findParent ? *findParent : parent, 597002), ComponentConfig{}
+        auto progress = div(ctx, mk(findParent ? *findParent : parent, 597002), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
         const auto& candidates = reviewScope == "wt" ? filterRepo->currentDiff :
             reviewScope == "index" ? filterRepo->stagedDiff : diffs;
         if (review && button(ctx, mk(progress.ent(), 0), preset::Button("Next unreviewed file")
-                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("next_unreviewed_file"))) {
             auto current = filterRepo->diffTargetFile.empty() ? filterRepo->selectedFilePath : filterRepo->diffTargetFile;
             auto next = ecs::next_unreviewed_file(*review, reviewScope, candidates, filterRepo->fileFilter, current);
@@ -1274,46 +1339,31 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         if (review) {
             auto counts = ecs::review_progress(*review, reviewScope, candidates);
-            auto verdict = ecs::current_review_verdict(*review, reviewScope, candidates);
-            div(ctx, mk(progress.ent(), 1), ComponentConfig{}
+            div(ctx, mk(progress.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(std::to_string(counts.reviewed) + "/" + std::to_string(counts.total) + " files reviewed · " +
                     std::to_string(counts.unresolved) + " unresolved")
-                .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("review_completion"));
-            if (button(ctx, mk(progress.ent(), 2), preset::Button(verdict == ReviewVerdict::InProgress ? "Finish review..." : review_verdict_label(verdict))
-                    .with_size(ComponentSize{children(), pixels(26)}).with_font_size(FontSize::Small)
-                    .with_debug_name("finish_review"))) {
-                std::vector<ContextMenuItem> choices;
-                for (auto value : {ReviewVerdict::Approved, ReviewVerdict::ChangesRequested, ReviewVerdict::Commented, ReviewVerdict::InProgress})
-                    choices.push_back(ContextMenuItem::item(value == ReviewVerdict::InProgress ? "Reopen review" : review_verdict_label(value),
-                        [scope = reviewScope, storage = review->storageScope, path = filterRepo->repoPath,
-                         signature = ecs::review_target_signature(candidates), value] {
-                            auto* active = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
-                            if (!active || active->storageScope != storage || active->storageRepoPath != path) return;
-                            active->verdicts[scope] = {value, signature};
-                            if (value == ReviewVerdict::InProgress) active->queue.completed.erase(diff_target(scope).after);
-                            active->dirty = true;
-                        }, value != ReviewVerdict::Approved || counts.can_approve()));
-                show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
-            }
+            if (!review->approvedHunks.empty() && button(ctx, mk(progress.ent(), 2), preset::Button(review->showApproved ? "Hide approved" : "Show approved")
+                    .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+                    .with_debug_name("toggle_approved"))) review->showApproved = !review->showApproved;
         }
-        findHeight = 90.f;
+        findHeight += 90.f;
     }
     auto fileVisible = [&](const ecs::FileDiff& file) {
         return !filterable || !filterRepo || ecs::review_file_visible(file, filterRepo->fileFilter, review, reviewScope);
     };
     auto fileOrder = ecs::visible_review_file_indices(diffs, filterRepo ? filterRepo->fileFilter : review_files::Filter{}, review, reviewScope);
-    size_t visibleFiles = fileOrder.size();
     if (layout && layout->diffFindOpen) {
         findHeight += 34.f;
-        auto bar = div(ctx, mk(findParent ? *findParent : parent, 580001), ComponentConfig{}
+        auto bar = div(ctx, mk(findParent ? *findParent : parent, 580001), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(contentWidth), pixels(34.f)})
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
             .with_debug_name("diff_find_bar"));
         auto previous = layout->diffFindQuery;
         auto input = afterhours::text_input::text_input(ctx, mk(bar.ent(), 0), layout->diffFindQuery,
-            ComponentConfig{}
+            ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - 240.f)), pixels(28)})
                 .with_debug_name("diff_find_input"));
         if (layout->diffFindFocus) {
@@ -1357,10 +1407,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 }
             }
         }
-        div(ctx, mk(bar.ent(), 3), ComponentConfig{}
+        div(ctx, mk(bar.ent(), 3), ComponentConfig{}.with_skip_grid_snap()
             .with_label(count == 0 ? "No matches" : std::to_string(layout->diffFindIndex + 1) + "/" + std::to_string(count))
             .with_size(ComponentSize{pixels(80), pixels(28)})
-            .with_font_size(FontSize::Small).with_debug_name("diff_find_count"));
+            .with_font_size(pixels(12)).with_debug_name("diff_find_count"));
         if (button(ctx, mk(bar.ent(), 4), preset::Button("x")
                 .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_close")))
             layout->diffFindOpen = false;
@@ -1389,11 +1439,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
         sess.enabled = true;
         sess.tmc = &EntityHelper::get_singleton_cmp_enforce<
             afterhours::ui::TextMeasureCache>();
-        float screenH = (float)afterhours::graphics::get_screen_height();
-        float screenW = (float)afterhours::graphics::get_screen_width();
-        sess.fontSize = resolve_to_pixels(h720(Settings::get().get_code_font_size()), screenH);
-        sess.padLeftPx =
-            resolve_to_pixels(w1280(diff_detail::CODE_PAD_LEFT), screenW);
+        sess.fontSize = Settings::get().get_code_font_size() * zoom::get();
+        sess.padLeftPx = diff_detail::CODE_PAD_LEFT * zoom::get();
         diff_sel::handle_mouse(ctx, sess); // update selection from prior frame
 
         // Cmd+C copies the current selection (keyboard path; the header button
@@ -1419,15 +1466,17 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // We always resolve contentParent to the entity that will own the diff rows.
     Entity* contentParent = &parent;
     float stickyHeight = diffs.empty() || diffs.front().isFullContent ? 0.f : 24.f;
-    auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}
-        .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::SECTION_HEADER_BG));
+    findHeight = diff_controls_height(contentWidth, layout && layout->diffOptionsOpen,
+        layout && layout->diffFindOpen, filterRepo && filterable, !diffs.empty()) - stickyHeight;
+    auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::WINDOW_BG));
     if (!embedInParentScroll) {
         auto h = contentHeight > 0
-                     ? pixels(contentHeight - diff_detail::DIFF_HEADER_H - findHeight - stickyHeight)
-                     : (findHeight + stickyHeight > 0 ? pixels(std::max(40.f, parent.get<afterhours::ui::UIComponent>().rect().height - findHeight - stickyHeight))
+                     ? pixels(std::max(0.f, contentHeight - findHeight - stickyHeight))
+                     : (findHeight + stickyHeight > 0 ? pixels(std::max(0.f, parent.get<afterhours::ui::UIComponent>().rect().height / zoom::get() - findHeight - stickyHeight))
                                        : percent(1.0f));
         auto scrollContainer = div(ctx, mk(parent, nextId++),
-            ComponentConfig{}
+            ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{w, h})
                 .with_overflow(Overflow::Scroll)
                 .with_flex_direction(FlexDirection::Column)
@@ -1454,7 +1503,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     std::string(file.isFullContent ? 8 : sideBySide ? 10 : 16, ' ')) + (sess.visibleWhitespace ? 90.f : 24.f);
                 return sideBySide ? measured * 2.f : measured;
             });
-        codeWidth = std::max(codeWidth, width);
+        codeWidth = std::max(codeWidth, width / zoom::get());
     }
 
     diff_detail::DiffViewport vp;
@@ -1469,7 +1518,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             scrollY = sv.scroll_offset.y;
             viewportH = sv.viewport_or_zero().y;
             if (embedInParentScroll) {
-                auto origin = div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+                auto origin = div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                     .with_size(ComponentSize{w, pixels(0)}).with_debug_name("embedded_diff_origin"));
                 auto rect = afterhours::ui::detail::apply_scroll_offset(
                     origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
@@ -1478,152 +1527,50 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         if (viewportH <= 0.f)
             viewportH = contentHeight > 0
-                            ? (contentHeight - diff_detail::DIFF_HEADER_H)
+                            ? contentHeight * zoom::get()
                             : vp.screenH;
         float overscan = viewportH; // one screen of pre-built rows each side
         vp.top = scrollY - overscan;
         vp.bottom = scrollY + viewportH + overscan;
     }
 
-    // Stats summary header inside scroll. Suppressed when embedded in the
-    // commit-detail view, which already renders its own "FILES CHANGED" summary.
-    if (!embedInParentScroll && (diffs.empty() || !diffs.front().isFullContent)) {
-        int totalAdditions = 0, totalDeletions = 0;
-        for (auto& d : diffs) {
-            if (!fileVisible(d)) continue;
-            totalAdditions += d.additions;
-            totalDeletions += d.deletions;
-        }
-        std::string stats = std::to_string(visibleFiles) + " file"
-            + (visibleFiles != 1 ? "s" : "") + " changed  +"
-            + std::to_string(totalAdditions) + "  -"
-            + std::to_string(totalDeletions);
-
-        // Header row: stats label on the left, Inline/Side-by-Side segmented
-        // toggle on the right. The toggle is only shown in the main diff view
-        // (not the embedded commit-detail diff).
-        vp.flush(ctx, *contentParent, nextId);
-        auto statsRow = div(ctx, mk(*contentParent, nextId++),
-            ComponentConfig{}
-                .with_size(ComponentSize{w, h720(diff_detail::DIFF_HEADER_H)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_justify_content(JustifyContent::SpaceBetween)
-                .with_align_items(AlignItems::Center)
-                .with_custom_background(afterhours::Color{35, 35, 38, 255})
-                .with_roundness(0.0f)
-                .with_debug_name("diff_stats_header"));
-        vp.built(diff_detail::DIFF_HEADER_H);
-
-        div(ctx, mk(statsRow.ent(), 0),
-            ComponentConfig{}
-                .with_size(ComponentSize{children(), percent(1.0f)})
-                .with_padding(Padding{
-                    .top = h720(6), .right = w1280(12),
-                    .bottom = h720(4), .left = w1280(12)})
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_label(stats)
-                .with_font_size(afterhours::ui::FontSize::Medium)
-                .with_alignment(TextAlignment::Left)
-                .with_roundness(0.0f)
-                .with_debug_name("diff_stats_label"));
-
-        if (!embedInParentScroll) {
-            auto toggle = div(ctx, mk(statsRow.ent(), 1),
-                ComponentConfig{}
-                    .with_size(ComponentSize{children(), h720(diff_detail::DIFF_HEADER_H - 6)})
-                    .with_flex_direction(FlexDirection::Row)
-                    .with_margin(Margin{.right = w1280(10)})
-                    .with_transparent_bg()
-                    .with_roundness(0.0f)
-                    .with_debug_name("diff_mode_toggle"));
-
-            auto segBtn = [&](int id, const char* label, bool active) -> bool {
-                afterhours::Color bg = active ? theme::BUTTON_PRIMARY
-                                              : theme::BUTTON_SECONDARY;
-                afterhours::Color fg = active ? afterhours::Color{255, 255, 255, 255}
-                                              : theme::TEXT_SECONDARY;
-                return (bool)button(ctx, mk(toggle.ent(), id),
-                    preset::Button(label)
-                        .with_size(ComponentSize{children(), percent(1.0f)})
-                        .with_padding(Padding{
-                            .top = h720(2), .right = w1280(12),
-                            .bottom = h720(2), .left = w1280(12)})
-                        .with_custom_background(bg)
-                        .with_custom_text_color(fg)
-                        .with_font_size(afterhours::ui::FontSize::Small)
-                        .with_roundness(0.0f)
-                        .with_debug_name(active ? "diff_mode_active"
-                                                : "diff_mode_inactive"));
-            };
-
-            bool inlineClicked = segBtn(0, "Inline", !sideBySide);
-            bool sbsClicked = segBtn(1, "Side-by-Side", sideBySide);
-            if (review && !review->approvedHunks.empty()) {
-                if (button(ctx, mk(toggle.ent(), 3), preset::Button(review->showApproved ? "Hide approved" : "Show approved")
-                        .with_size(ComponentSize{children(), percent(1.f)}).with_font_size(FontSize::Small)
-                        .with_debug_name("toggle_approved"))) review->showApproved = !review->showApproved;
-            }
-            if (inlineClicked || sbsClicked) {
-                if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {
-                    l->diffViewMode = inlineClicked
-                        ? ecs::LayoutComponent::DiffViewMode::Inline
-                        : ecs::LayoutComponent::DiffViewMode::SideBySide;
-                }
-            }
-
-            // Feedback basket show/hide toggle (only when comments are queued).
-            if (review && !review->comments.empty()) {
-                bool open = review->basketOpen;
-                auto fbBtn = button(ctx, mk(toggle.ent(), 2),
-                    preset::Button("Feedback (" +
-                        std::to_string(review->comments.size()) + ")")
-                        .with_size(ComponentSize{children(), percent(1.0f)})
-                        .with_margin(Margin{.left = w1280(8)})
-                        .with_padding(Padding{
-                            .top = h720(2), .right = w1280(12),
-                            .bottom = h720(2), .left = w1280(12)})
-                        .with_custom_background(open
-                            ? afterhours::Color{51, 42, 24, 255}
-                            : theme::BUTTON_SECONDARY)
-                        .with_custom_text_color(theme::STATUS_MODIFIED)
-                        .with_font_size(afterhours::ui::FontSize::Small)
-                        .with_roundness(0.0f)
-                        .with_debug_name("basket_toggle_btn"));
-                if (fbBtn) review->basketOpen = !review->basketOpen;
-            }
-        }
-    }
-
     struct ContextLocation { float y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
     std::vector<ContextLocation> contextLocations;
     if (fileOrder.empty() && !diffs.empty())
-        div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_label("No files match these filters")
-            .with_size(ComponentSize{pixels(contentWidth), pixels(32)}).with_font_size(FontSize::Small));
+        div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("No files match these filters")
+            .with_size(ComponentSize{pixels(contentWidth), pixels(32)}).with_font_size(pixels(12)));
     for (size_t fileIndex : fileOrder) {
         auto& fileDiff = diffs[fileIndex];
         contextLocations.push_back({vp.curY, &fileDiff, nullptr});
         std::string fileLabel = diff_detail::file_header_label(fileDiff);
         if (review) fileLabel += ecs::unresolved_file_badge(*review, reviewScope, fileDiff.filePath, fileDiff.oldPath);
+        std::string fileFoldKey = reviewScope + "\n" + fileDiff.filePath;
+        if (review && ((filterRepo && filterRepo->diffTargetFrames > 0 && filterRepo->diffTargetFile == fileDiff.filePath) ||
+            (sess.findMatch && sess.findMatch->file == fileDiff.filePath))) review->foldedFiles.erase(fileFoldKey);
+        bool fileFolded = review && review->foldedFiles.contains(fileFoldKey);
+        float fileHeaderHeight = contentWidth < 600.f ? 64.f : 40.f;
 
         vp.flush(ctx, *contentParent, nextId);
         int fileHeaderRowId = nextId++;
         auto fileHeaderRow = div(ctx, mk(*contentParent, fileHeaderRowId),
-            ComponentConfig{}
-                .with_size(ComponentSize{w, h720(diff_detail::FILE_HEADER_H)})
-                .with_flex_direction(FlexDirection::Row)
+            ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{w, pixels(fileHeaderHeight)})
+                .with_flex_direction(contentWidth < 600.f ? FlexDirection::Column : FlexDirection::Row)
+                .with_no_wrap()
                 .with_justify_content(JustifyContent::SpaceBetween)
                 .with_align_items(AlignItems::Center)
                 .with_custom_background(theme::SIDEBAR_BG)
-                .with_border_bottom(theme::BORDER)
-                .with_roundness(0.0f)
+                .with_border(theme::BORDER, pixels(1))
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_corner_radius(6.f)
                 .with_debug_name("file_header_row"));
         set_tooltip(fileHeaderRow.ent(), fileLabel);
-        vp.built(diff_detail::FILE_HEADER_H);
+        vp.built(fileHeaderHeight);
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             repo && repo->diffTargetFrames > 0 && repo->diffTargetFile == fileDiff.filePath &&
             contentParent->has<afterhours::ui::HasScrollView>()) {
             auto& scroll = contentParent->get<afterhours::ui::HasScrollView>();
-            float target = vp.curY - vp.px(diff_detail::FILE_HEADER_H);
+            float target = vp.curY - vp.px(fileHeaderHeight);
             target = std::clamp(target, 0.f, std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
             scroll.scroll_offset = scroll.scroll_target = scroll.last_eased_offset = {0.f, target};
             vp.top = target - scroll.viewport_or_zero().y;
@@ -1631,29 +1578,39 @@ inline void render_diff(UIContext<InputAction>& ctx,
             --repo->diffTargetFrames;
         }
 
-        bool showApproveFile = sess.reviewActions;
-        div(ctx, mk(fileHeaderRow.ent(), 0),
-            ComponentConfig{}
+        bool showApproveFile = review && !fileDiff.isFullContent;
+        auto fileTitle = div(ctx, mk(fileHeaderRow.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{contentWidth < 600.f ? percent(1.f) : expand(), pixels(32)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_align_items(AlignItems::Center));
+        if (review && !fileDiff.isFullContent && button(ctx, mk(fileTitle.ent(), 1), preset::Button(fileFolded ? "›" : "⌄")
+                .with_size(ComponentSize{pixels(28), pixels(28)})
+                .with_padding(Padding{}).with_transparent_bg().with_font_size(pixels(14))
+                .with_debug_name("fold_file:" + fileDiff.filePath))) {
+            if (fileFolded) review->foldedFiles.erase(fileFoldKey);
+            else review->foldedFiles.insert(fileFoldKey);
+            fileFolded = !fileFolded;
+        }
+        div(ctx, mk(fileTitle.ent(), 0),
+            ComponentConfig{}.with_skip_grid_snap()
                 .with_label(fileLabel)
                 .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(afterhours::ui::FontSize::Large)
+                .with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_padding(Padding{
-                    .top = h720(8), .right = w1280(0),
-                    .bottom = h720(8), .left = w1280(16)})
+                    .right = pixels(4), .left = pixels(8)})
                 .with_debug_name("file_header_label"));
 
         // Right-aligned action cluster: [Approve file] [Copy Diff].
         auto fileBtns = div(ctx, mk(fileHeaderRow.ent(), 1),
-            ComponentConfig{}
-                .with_size(ComponentSize{children(), percent(1.0f)})
+            ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{children(), pixels(32)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_no_wrap()
                 .with_gap(pixels(6))
-                .with_margin(Margin{.right = w1280(12)})
+                .with_margin(Margin{.right = pixels(12)})
                 .with_transparent_bg()
                 .with_roundness(0.0f)
             .with_debug_name("file_header_btns"));
@@ -1667,7 +1624,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
             if (!selectedLines.empty()) {
                 if (button(ctx, mk(fileBtns.ent(), 6), preset::Button("Comment selection")
-                        .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                        .with_size(ComponentSize{children(), pixels(18)}).with_font_size(pixels(12))
                         .with_debug_name("comment_selection_btn"))) {
                     auto range = review_selection::range(selectedLines);
                     if (!range) afterhours::toast::send_info(ctx, "Select lines from one side of the diff", 2.f);
@@ -1687,17 +1644,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 }
             }
         }
-        if (embedInParentScroll && review && !review->approvedHunks.empty()) {
-            if (button(ctx, mk(fileBtns.ent(), 5), preset::Button(review->showApproved ? "Hide approved" : "Show approved")
-                    .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
-                    .with_debug_name("toggle_approved"))) review->showApproved = !review->showApproved;
-        }
-
         auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if ((!activeRepo || !activeRepo->reviewWorkspace) && reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
             !fileDiff.isSubmodule && diff_sel::state().hasSel) {
             auto stage = button(ctx, mk(fileBtns.ent(), 3), preset::Button("Stage selection")
-                .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{children(), pixels(18)}).with_font_size(pixels(12))
                 .with_debug_name("stage_selected_lines"));
             if (stage) {
                 std::vector<std::set<size_t>> selected(fileDiff.hunks.size());
@@ -1728,41 +1679,53 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
         if (!fileDiff.isFullContent && !repoPath.empty() && reviewScope != "snapshot") {
             auto open = button(ctx, mk(fileBtns.ent(), 2), preset::Button(fileDiff.isDeleted ? "Open previous file" : "Open file")
-                .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{children(), pixels(18)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("open_full_file"));
             if (open) {
                 if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
-                    repo->fullFilePath = fileDiff.isDeleted && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
                     auto [before, after] = diff_revisions(reviewScope);
-                    repo->fullFileRevision = fileDiff.isDeleted ? before : after;
-                    repo->fullFileCacheKey.clear();
-                    repo->fullFileTargetLine = 0;
+                    auto path = fileDiff.isDeleted && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
+                    auto revision = fileDiff.isDeleted ? before : after;
+                    if (repo->fullFilePath != path || repo->fullFileRevision != revision) {
+                        repo->fullFileCacheKey.clear();
+                        repo->fullFileTargetLine = 0;
+                    }
+                    repo->fullFilePath = std::move(path);
+                    repo->fullFileRevision = std::move(revision);
+                    repo->activeContent = ecs::RepoComponent::ContentView::Source;
                 }
             }
         }
 
         if (showApproveFile) {
+            bool viewed = ecs::file_reviewed(*review, reviewScope, fileDiff);
             auto approveFileBtn = button(ctx, mk(fileBtns.ent(), 0),
-                preset::Button("Approve file")
-                    .with_size(ComponentSize{children(), h720(18)})
+                preset::Button(viewed ? "✓ Viewed" : "Viewed")
+                    .with_size(ComponentSize{children(), pixels(18)})
                     .with_padding(Padding{
-                        .top = h720(2), .right = w1280(8),
-                        .bottom = h720(2), .left = w1280(8)})
+                        .top = pixels(2), .right = pixels(8),
+                        .bottom = pixels(2), .left = pixels(8)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_font_size(pixels(12))
                     .with_debug_name("approve_file_btn"));
             if (approveFileBtn) {
-                review->reviewedFiles[reviewScope + "\n" + fileDiff.filePath] = ecs::diff_signature(fileDiff);
-                for (const auto& hunk : fileDiff.hunks)
-                    review->approvedHunks.insert(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
+                if (viewed) {
+                    review->reviewedFiles.erase(reviewScope + "\n" + fileDiff.filePath);
+                    for (const auto& hunk : fileDiff.hunks)
+                        review->approvedHunks.erase(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
+                } else {
+                    review->reviewedFiles[reviewScope + "\n" + fileDiff.filePath] = ecs::diff_signature(fileDiff);
+                    for (const auto& hunk : fileDiff.hunks)
+                        review->approvedHunks.insert(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
+                }
                 review->dirty = true;
-                afterhours::toast::send_info(ctx, "File approved for review; index unchanged", 1.5f);
+                afterhours::toast::send_info(ctx, viewed ? "File marked unreviewed; index unchanged" : "File approved for review; index unchanged", 1.5f);
             }
         }
         if (reviewScope == "wt" && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
             if (button(ctx, mk(fileBtns.ent(), 4), preset::Button("Stage file")
-                    .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
+                    .with_size(ComponentSize{children(), pixels(18)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("stage_file_btn"))) {
                 auto result = git::stage_file(repoPath, fileDiff.filePath);
                 if (result.success()) {
@@ -1783,13 +1746,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
             auto fileCopyBtn = button(ctx, mk(fileBtns.ent(), 1),
                 preset::Button(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy Diff")
-                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_size(ComponentSize{children(), pixels(18)})
                     .with_padding(Padding{
-                        .top = h720(2), .right = w1280(8),
-                        .bottom = h720(2), .left = w1280(8)})
-                    .with_custom_background(afterhours::Color{92, 92, 100, 255})
+                        .top = pixels(2), .right = pixels(8),
+                        .bottom = pixels(2), .left = pixels(8)})
+                    .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_font_size(pixels(12))
                     .with_debug_name("copy_file_diff_btn"));
             if (fileCopyBtn) {
                 afterhours::clipboard::set_text(diffText);
@@ -1797,11 +1760,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
 
+        if (fileFolded) continue;
+
         if (std::any_of(fileDiff.hunks.begin(), fileDiff.hunks.end(), [](const auto& hunk) { return !hunk.movedLines.empty(); })) {
             vp.flush(ctx, *contentParent, nextId);
-            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label("Exact moved blocks are blue · addition and deletion signs are preserved")
-                .with_size(ComponentSize{w, h720(28)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{w, pixels(28)}).with_font_size(pixels(12))
                 .with_custom_text_color(afterhours::Color{125, 180, 255, 255}).with_debug_name("moved_code_legend"));
             vp.built(28.f);
         }
@@ -1817,9 +1782,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
             const auto& owners = owner->second;
             auto label = document.error.empty() ? "Owners: " + (owners.empty() ? "no matching owners" : owners) + " · " + document.path : document.error;
             vp.flush(ctx, *contentParent, nextId);
-            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
-                .with_label(label).with_size(ComponentSize{w, h720(28)})
-                .with_font_size(FontSize::Small).with_custom_text_color(theme::TEXT_SECONDARY)
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
+                .with_label(label).with_size(ComponentSize{w, pixels(28)})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_debug_name("codeowners_label"));
             vp.built(28.f);
             }
@@ -1841,9 +1806,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
                         (lfs_pointer::cached_availability(repoPath, *pointer, lfsRepo ? lfsRepo->dataGeneration : 0) ? "Available in default local LFS cache" : "Not present in default local LFS cache") +
                         " · pointer shown; no asset download";
                     vp.flush(ctx, *contentParent, nextId);
-                    div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
-                        .with_label(label).with_size(ComponentSize{w, h720(48)})
-                        .with_font_size(FontSize::Small).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
+                    div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
+                        .with_label(label).with_size(ComponentSize{w, pixels(48)})
+                        .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                         .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("lfs_asset_metadata"));
                     vp.built(48.f);
                 }
@@ -1851,9 +1816,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         if (fileDiff.oldMode == "120000" || fileDiff.newMode == "120000") {
             vp.flush(ctx, *contentParent, nextId);
-            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label("Symbolic link target · target text only, link not followed")
-                .with_size(ComponentSize{w, h720(28)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{w, pixels(28)}).with_font_size(pixels(12))
                 .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("symlink_target_notice"));
             vp.built(28.f);
         }
@@ -1863,9 +1828,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
             if (fileDiff.oldMode == "100644" && fileDiff.newMode == "100755") modeLabel += " · executable enabled";
             if (fileDiff.oldMode == "100755" && fileDiff.newMode == "100644") modeLabel += " · executable removed";
             vp.flush(ctx, *contentParent, nextId);
-            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
-                .with_label(modeLabel).with_size(ComponentSize{w, h720(28)})
-                .with_font_size(FontSize::Small).with_custom_text_color(theme::STATUS_MODIFIED)
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
+                .with_label(modeLabel).with_size(ComponentSize{w, pixels(28)})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_debug_name("file_mode_change"));
             vp.built(28.f);
         }
@@ -1878,16 +1843,16 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 continue;
             }
             div(ctx, mk(*contentParent, nextId++),
-                ComponentConfig{}
-                    .with_size(ComponentSize{w, h720(24)})
+                ComponentConfig{}.with_skip_grid_snap()
+                    .with_size(ComponentSize{w, pixels(24)})
                     .with_custom_background(theme::PANEL_BG)
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_label("Binary file not shown")
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_alignment(TextAlignment::Center)
                     .with_padding(Padding{
-                        .top = h720(4), .right = w1280(8),
-                        .bottom = h720(4), .left = w1280(8)})
+                        .top = pixels(4), .right = pixels(8),
+                        .bottom = pixels(4), .left = pixels(8)})
                     .with_roundness(0.0f)
                     .with_debug_name("binary_notice"));
             vp.built(24.0f);
@@ -1906,8 +1871,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (fileIndex != fileOrder.back()) {
             vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++),
-                ComponentConfig{}
-                    .with_size(ComponentSize{w, h720(8)})
+                ComponentConfig{}.with_skip_grid_snap()
+                    .with_size(ComponentSize{w, pixels(8)})
                     .with_custom_background(theme::PANEL_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_spacer"));
@@ -1928,8 +1893,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         std::string label = diff_detail::file_header_label(*current.file);
         if (current.hunk) label += "   " + current.hunk->header;
-        auto stickyLabel = div(ctx, mk(stickyHost.ent(), 0), ComponentConfig{}.with_label(label)
-            .with_size(ComponentSize{w, pixels(stickyHeight)}).with_font_size(FontSize::Small)
+        if (scrollY <= contextLocations.front().y) label.clear();
+        auto stickyLabel = div(ctx, mk(stickyHost.ent(), 0), ComponentConfig{}.with_skip_grid_snap().with_label(label)
+            .with_size(ComponentSize{w, pixels(stickyHeight)}).with_font_size(pixels(12))
             .with_padding(Padding{.left = pixels(8), .right = pixels(8)})
             .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("sticky_diff_context"));

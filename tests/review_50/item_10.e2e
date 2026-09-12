@@ -1,5 +1,7 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_10_files_navigation
 clear_git_command_log
 enable_file_watcher
 wait_frames 90

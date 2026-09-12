@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_34_files_navigation
 click_text code.cpp
 wait_for_refresh
 expect_text "Owners: @current-team"
@@ -7,6 +9,8 @@ expect_no_text "Owners: @fallback"
 screenshot item_34_working_owners
 click_text baseline
 wait_for_refresh
+click_ui sidebar_review
+screenshot item_34_review_navigation
 click_ui jump_to_diff:code.cpp
 wait_frames 3
 wait_for_refresh

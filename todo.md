@@ -233,6 +233,8 @@ toolbar, section headers (count pills), row spacing/contrast.
       file size and whether it changed vs the previous diff.
 
 ## Bugs
+- [ ] Cmd+plus zoom must fit every control into the window. Review panels now pass at 100%, 140%, and 160%; Files text-area width remains tracked in afterhours-gaps.
+- [x] Keep the footer visible when scrolling to the bottom; only the content panes should scroll.
 - [ ] File-list scroll: text scrolled off-screen stops rendering, but the rows
       are still present and clickable (render/cull mismatch in the scroll view).
 

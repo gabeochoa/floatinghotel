@@ -69,7 +69,7 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
                     .with_debug_name("commit_search_result:" + std::to_string(i)))) {
                 repo.selectedCommitHash = commit.hash;
                 repo.selectedFilePath.clear();
-                repo.fullFilePath.clear();
+                repo.activeContent = RepoComponent::ContentView::Review;
                 repo.commitSearchOpen = false;
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 270.f))}));

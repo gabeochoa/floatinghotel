@@ -1,18 +1,20 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_49_files_navigation
 click_text main.cpp
-click_text File
+click_ui menu_header_File
 screenshot item_49_file
 expect_text Quit
 expect_no_text "Open Repository..."
 expect_no_text "Close Tab"
 key ESCAPE
-click_text Edit
+click_ui menu_header_Edit
 screenshot item_49_edit
 expect_text "Find..."
 expect_no_text "Select All"
 key ESCAPE
-click_text Help
+click_ui menu_header_Help
 screenshot item_49_help
 expect_text "Keyboard Shortcuts"
 expect_no_text "About floatinghotel"

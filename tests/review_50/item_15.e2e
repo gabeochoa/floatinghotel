@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_15_files_navigation
 click_text huge.cpp
 wait_for_refresh
 wait_frames 10
@@ -83,7 +85,7 @@ type Review the large patch hot path
 click_ui comment_add_btn
 wait_frames 5
 validate review_unresolved=1
-click 700 518
+click_ui hunk_folded_marker
 wait_frames 5
 expect_text "value_00001"
 screenshot item_15_large_patch_unresolved_comment
@@ -96,8 +98,11 @@ click_ui finish_review
 click_text Approved
 wait_frames 5
 assert_ui finish_review text=Approved
+click_ui diff_options_toggle
 click_text "Show approved"
 click_text "Show resolved"
+wait_frames 5
+click_ui hunk_folded_marker
 wait_frames 5
 expect_text "value_00001"
 bench_frames 120

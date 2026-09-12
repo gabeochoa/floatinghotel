@@ -13,6 +13,7 @@
 
 #include "input_mapping.h"
 #include "rl.h"
+#include "ui/theme.h"
 
 #include <afterhours/src/core/key_codes.h>
 
@@ -101,26 +102,28 @@ Preload& Preload::make_singleton() {
     fontMgr.load_font(ui::UIComponent::SYMBOL_FONT,
                       fontMgr.fonts[ui::UIComponent::DEFAULT_FONT]);
     fontMgr.load_font("mono", mono_font_path.c_str());
+    fontMgr.load_font("ui-bold", files::get_resource_path("fonts", "Roboto-Bold.ttf").string().c_str());
 
     // Dark theme setup
     {
         ui::imm::ThemeDefaults::get()
             .set_theme_color(ui::Theme::Usage::Primary,
-                             afterhours::Color{0, 122, 204, 255})
+                             ::theme::BUTTON_PRIMARY)
             .set_theme_color(ui::Theme::Usage::Error,
                              afterhours::Color{220, 76, 71, 255})
             .set_theme_color(ui::Theme::Usage::Font,
-                             afterhours::Color{204, 204, 204, 255})
+                             ::theme::TEXT_PRIMARY)
             .set_theme_color(ui::Theme::Usage::DarkFont,
-                             afterhours::Color{30, 30, 30, 255})
+                             ::theme::WINDOW_BG)
             .set_theme_color(ui::Theme::Usage::Background,
-                             afterhours::Color{30, 30, 30, 255})
+                             ::theme::WINDOW_BG)
             .set_theme_color(ui::Theme::Usage::Surface,
-                             afterhours::Color{37, 37, 38, 255})
+                             ::theme::SIDEBAR_BG)
             .set_theme_color(ui::Theme::Usage::Secondary,
-                             afterhours::Color{58, 58, 58, 255})
+                             ::theme::BORDER)
             .set_theme_color(ui::Theme::Usage::Accent,
-                             afterhours::Color{0, 122, 204, 255});
+                             ::theme::TEXT_ACCENT)
+            .set_theme_color(ui::Theme::Usage::Focus, ::theme::FOCUS_RING);
 
         // Four typography tiers (values are h720 reference pixels):
         //   Small/Caption = 12, Body/Medium = 14, Subhead/Large = 16,
@@ -135,9 +138,11 @@ Preload& Preload::make_singleton() {
         theme.font_sizing.medium = 14.0f;
         theme.font_sizing.large = 16.0f;
         theme.font_sizing.xl = 22.0f;
+        theme.focus_ring_thickness = 1.5f;
+        theme.focus_ring_offset = 1.f;
         defaults.set_theme(theme);
 
-        ui::imm::UIStylingDefaults::get().set_grid_snapping(true);
+        ui::imm::UIStylingDefaults::get().set_grid_snapping(false);
     }
 
     return *this;

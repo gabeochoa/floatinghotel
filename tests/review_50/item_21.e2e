@@ -1,9 +1,13 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_21_files_navigation
 click_text SortSet
 wait_for_refresh
 screenshot item_21_path_order
 assert_ui file_name text=a-small.cpp
+click_ui diff_options_toggle
+screenshot item_21_options
 click_ui review_file_sort
 screenshot item_21_sort_choices
 click_text "Most changes"

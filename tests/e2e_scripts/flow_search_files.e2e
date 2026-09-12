@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_search_files_files_navigation
 
 # Should see all files
 screenshot flow_search_01_all_files

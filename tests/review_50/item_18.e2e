@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_18_files_navigation
 click_text sample.txt
 screenshot item_18_context
 expect_text "neighbor after"

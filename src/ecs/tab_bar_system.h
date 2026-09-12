@@ -4,6 +4,7 @@
 
 #include "../settings.h"
 #include "../review_store.h"
+#include "../ui/zoom.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -23,13 +24,13 @@ inline std::string repo_display_name(const std::string& path) {
 }
 
 namespace tab_colors {
-    constexpr afterhours::Color STRIP_BG     = {25, 25, 25, 255};
-    constexpr afterhours::Color TAB_ACTIVE   = {45, 45, 45, 255};
-    constexpr afterhours::Color TAB_HOVER    = {38, 38, 38, 255};
-    constexpr afterhours::Color TAB_TEXT     = {160, 160, 160, 255};
-    constexpr afterhours::Color TAB_TEXT_ACT = {230, 230, 230, 255};
+    constexpr afterhours::Color STRIP_BG     = {27, 29, 33, 255};
+    constexpr afterhours::Color TAB_ACTIVE   = {43, 52, 65, 255};
+    constexpr afterhours::Color TAB_HOVER    = {32, 35, 41, 255};
+    constexpr afterhours::Color TAB_TEXT     = {156, 162, 175, 255};
+    constexpr afterhours::Color TAB_TEXT_ACT = {228, 230, 235, 255};
     constexpr afterhours::Color CLOSE_HOVER  = {80, 80, 80, 255};
-    constexpr afterhours::Color BORDER       = {58, 58, 58, 255};
+    constexpr afterhours::Color BORDER       = {44, 47, 54, 255};
     constexpr afterhours::Color PLUS_TEXT    = {128, 128, 128, 255};
 }
 
@@ -67,14 +68,13 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         float stripW = layout.tabStrip.width;
         float stripH = layout.tabStrip.height;
 
-        float screenH = static_cast<float>(afterhours::graphics::get_screen_height());
-        auto rpx = [screenH](float design_px) {
-            return resolve_to_pixels(h720(design_px), screenH);
-        };
+        auto mouse = ctx.mouse.pos;
+        mouse.x /= ui::zoom::get();
+        mouse.y /= ui::zoom::get();
 
         // Tab strip background
         div(ctx, mk(uiRoot, 900),
-            ComponentConfig{}
+            ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(stripW), pixels(stripH)})
                 .with_absolute_position()
                 .with_translate(0, 0)
@@ -88,8 +88,11 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
 
         float tabX = 0.0f;
         float tabH = stripH;
-        float minTabW = rpx(80.0f);
-        float maxTabW = rpx(200.0f);
+        const float plusW = std::min(28.f, stripW);
+        const float availableTabsW = std::max(0.f, stripW - plusW - 2.f);
+        const float maxTabW = std::min(200.f, availableTabsW /
+            static_cast<float>(std::max<size_t>(1, tabStrip.tabOrder.size())));
+        const float minTabW = std::min(80.f, maxTabW);
 
         for (size_t i = 0; i < tabStrip.tabOrder.size(); ++i) {
             auto tabId = tabStrip.tabOrder[i];
@@ -100,11 +103,11 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             auto& tab = tabEntity.get<Tab>();
             bool isActive = tabEntity.has<ActiveTab>();
 
-            float labelW = static_cast<float>(tab.label.size()) * rpx(7.0f) + rpx(40.0f);
+            float labelW = static_cast<float>(tab.label.size()) * 7.f + 40.f;
             float tabW = std::clamp(labelW, minTabW, maxTabW);
 
             bool hovered = afterhours::ui::is_mouse_inside(
-                ctx.mouse.pos,
+                mouse,
                 RectangleType{tabX, 0.0f, tabW, tabH});
 
             afterhours::Color bg = isActive ? tab_colors::TAB_ACTIVE :
@@ -113,17 +116,17 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
 
             // Tab background
             auto tabDiv = button(ctx, mk(uiRoot, 910 + static_cast<int>(i)),
-                ComponentConfig{}
+                ComponentConfig{}.with_skip_grid_snap()
                     .with_label(tab.label)
                     .with_size(ComponentSize{pixels(tabW), pixels(tabH)})
                     .with_absolute_position()
                     .with_translate(tabX, 0.0f)
                     .with_custom_background(bg)
                     .with_custom_text_color(textCol)
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(12))
                     .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                    .with_padding(Padding{.left = pixels(rpx(10.0f)), .right = pixels(rpx(24.0f))})
+                    .with_padding(Padding{.left = pixels(10), .right = pixels(tabW >= 48.f ? 24.f : 0.f)})
                     .with_justify_content(JustifyContent::Center)
                     .with_align_items(AlignItems::Center)
                     .with_click_activation(ClickActivationMode::Press)
@@ -139,17 +142,17 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             // Close button (only show when > 1 tab)
-            if (tabStrip.tabOrder.size() > 1) {
-                float closeW = rpx(16.0f);
-                float closeX = tabX + tabW - closeW - rpx(4.0f);
+            if (tabStrip.tabOrder.size() > 1 && tabW >= 48.f) {
+                float closeW = 16.f;
+                float closeX = tabX + tabW - closeW - 4.f;
                 float closeY = (tabH - closeW) * 0.5f;
 
                 bool closeHovered = afterhours::ui::is_mouse_inside(
-                    ctx.mouse.pos,
+                    mouse,
                     RectangleType{closeX, closeY, closeW, closeW});
 
                 auto closeBtn = button(ctx, mk(uiRoot, 950 + static_cast<int>(i)),
-                    ComponentConfig{}
+                    ComponentConfig{}.with_skip_grid_snap()
                         .with_label("\xc3\x97")
                         .with_size(ComponentSize{pixels(closeW), pixels(closeW)})
                         .with_absolute_position()
@@ -161,7 +164,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                         .with_justify_content(JustifyContent::Center)
                         .with_align_items(AlignItems::Center)
                         .with_click_activation(ClickActivationMode::Press)
-                        .with_corner_radius(rpx(2.0f))
+                        .with_corner_radius(2.f)
                         .with_render_layer(7)
                         .with_debug_name("tab_close"));
 
@@ -176,7 +179,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             // Right border between tabs
             if (i < tabStrip.tabOrder.size() - 1) {
                 div(ctx, mk(uiRoot, 970 + static_cast<int>(i)),
-                    ComponentConfig{}
+                    ComponentConfig{}.with_skip_grid_snap()
                         .with_size(ComponentSize{pixels(1), pixels(tabH * 0.5f)})
                         .with_absolute_position()
                         .with_translate(tabX + tabW, tabH * 0.25f)
@@ -190,13 +193,12 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         // "+" button to add new tab
-        float plusW = rpx(28.0f);
         auto plusBtn = button(ctx, mk(uiRoot, 999),
-            ComponentConfig{}
+            ComponentConfig{}.with_skip_grid_snap()
                 .with_label("+")
                 .with_size(ComponentSize{pixels(plusW), pixels(tabH)})
                 .with_absolute_position()
-                .with_translate(tabX + rpx(2.0f), 0.0f)
+                .with_translate(std::min(tabX + 2.f, stripW - plusW), 0.0f)
                 .with_custom_background(tab_colors::STRIP_BG)
                 .with_custom_text_color(tab_colors::PLUS_TEXT)
                 .with_font_size(afterhours::ui::FontSize::Medium)
@@ -210,8 +212,8 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("tab_add"));
 
         bool plusHovered = afterhours::ui::is_mouse_inside(
-            ctx.mouse.pos,
-            RectangleType{tabX + rpx(2.0f), 0.0f, plusW, tabH});
+            mouse,
+            RectangleType{std::min(tabX + 2.f, stripW - plusW), 0.0f, plusW, tabH});
         (void)plusBtn;
         if (plusHovered && ctx.mouse.just_pressed) {
             create_new_tab(tabStrip, layout);

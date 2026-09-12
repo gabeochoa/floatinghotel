@@ -1,5 +1,7 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_45_files_navigation
 click_text "README.md"
 wait_frames 5
 click_ui open_full_file
@@ -33,6 +35,20 @@ wait_frames 10
 screenshot item_45_reflowed
 expect_text Review notes
 assert_no_overflow
+pinch 0.4
+wait_frames 5
+mouse_move 900 500
+scroll_wheel 0 -500
+wait_frames 30
+screenshot item_45_zoomed_bottom
+expect_text End of preview
+expect_no_text Review notes
+validate footer_fixed=true
+scroll_wheel 0 500
+wait_frames 30
+expect_text Review notes
+key CMD+0
+wait_frames 5
 click_ui markdown_preview_toggle
 wait_frames 3
 expect_text "Preview"

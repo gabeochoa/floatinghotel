@@ -1,16 +1,18 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_05_files_navigation
 click_text source.cpp
 screenshot item_05_inline
 validate diff_metric_scans=1
 wait_frames 30
 validate diff_metric_scans=1
-click_text Side-by-Side
+click_text Split
 screenshot item_05_split
 validate diff_metric_scans=2
 wait_frames 30
 validate diff_metric_scans=2
-click_text Inline
+click_text Unified
 screenshot item_05_return
 validate diff_metric_scans=2
 validate diff_metrics_bounded=true

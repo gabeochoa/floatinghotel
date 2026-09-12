@@ -3,6 +3,8 @@ wait_for_refresh
 click_text FilterSet
 wait_for_refresh
 screenshot item_20_all
+click_ui diff_options_toggle
+screenshot item_20_options
 click_ui filter_language
 screenshot item_20_language_choices
 click_text "C++"

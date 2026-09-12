@@ -19,6 +19,7 @@
 #include "../ui/revision_comparison.h"
 #include "../ui/review_snapshot.h"
 #include "../ui/keyboard_shortcuts.h"
+#include "../ui/zoom.h"
 #include "../util/navigation.h"
 #include "ui_imports.h"
 
@@ -62,8 +63,7 @@ inline void send_review(UIContext<InputAction>& ctx, ReviewComponent& review,
 inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                           ReviewComponent& review, RepoComponent* repo,
                           const LayoutComponent::Rect& bounds) {
-    float sw = static_cast<float>(afterhours::graphics::get_screen_width());
-    float sh = static_cast<float>(afterhours::graphics::get_screen_height());
+    const float zoom = ui::zoom::get();
     float panelW = bounds.width;
     float x = bounds.x;
     float y = bounds.y;
@@ -78,8 +78,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()
             .with_padding(Padding{
-                .top = h720(8), .right = w1280(10),
-                .bottom = h720(8), .left = w1280(10)})
+                .top = pixels(8), .right = pixels(10),
+                .bottom = pixels(8), .left = pixels(10)})
             .with_render_layer(6)
             .with_roundness(0.0f)
             .with_debug_name("feedback_basket"));
@@ -91,21 +91,21 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_label("Feedback basket  " + std::to_string(unresolved_comment_count(review)))
             .with_size(ComponentSize{expand(), h720(22)})
             .with_custom_text_color(theme::STATUS_MODIFIED)
-            .with_font_size(afterhours::ui::FontSize::Medium)
+            .with_font_size(pixels(14))
             .with_debug_name("basket_title"));
     if (unresolved_comment_count(review) < review.comments.size()) {
         if (button(ctx, mk(title.ent(), 1), preset::Button(review.showResolved ? "Hide resolved" : "Show resolved")
-                .with_size(ComponentSize{pixels(108), h720(20)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{pixels(108), h720(20)}).with_font_size(pixels(12))
                 .with_debug_name("basket_toggle_resolved"))) review.showResolved = !review.showResolved;
     }
 
-    float itemW = panelW - resolve_to_pixels(w1280(20.0f), sw);
+    float itemW = panelW - 20.f;
     float txtW = std::max(20.f, itemW - 12.f);
-    float fontSize = resolve_to_pixels(h720(14.f), sh);
+    constexpr float fontSize = 14.f;
     auto& measure = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
     auto list = div(ctx, mk(panel.ent(), 903),
         ComponentConfig{}
-            .with_size(ComponentSize{pixels(itemW), pixels(std::max(40.f, hgt - resolve_to_pixels(h720(112.f), sh)))})
+            .with_size(ComponentSize{pixels(itemW), pixels(std::max(40.f, hgt - 112.f))})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()
@@ -139,7 +139,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 .with_size(ComponentSize{percent(1.0f), h720(18)})
                 .with_padding(Padding{.top = h720(4)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(afterhours::ui::FontSize::Small)
+                .with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("basket_group"));
 
@@ -165,12 +165,12 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             if (anchor.status == review_anchor::Status::Outdated || anchor.status == review_anchor::Status::Relocated)
                 commentText += "\nSaved: " + review_anchor::preview(anchor.saved) + "\nNow: " + review_anchor::preview(anchor.current);
             float textH = afterhours::ui::measure_text_wrapped(
-                measure, commentText, "mono", fontSize, txtW - 8.f).height + 8.f;
+                measure, commentText, "mono", fontSize * zoom, (txtW - 8.f) * zoom).height / zoom + 8.f;
             bool editing = review.editingComment == i;
             if (editing) textH = 132.f;
             auto itemRow = div(ctx, mk(list.ent(), id++),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(itemW), pixels(textH + resolve_to_pixels(h720(26.f), sh))})
+                    .with_size(ComponentSize{pixels(itemW), pixels(textH + 26.f)})
                     .with_flex_direction(FlexDirection::Column)
                     .with_no_wrap()
                     .with_transparent_bg()
@@ -192,6 +192,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             if (location && repo) {
                 auto [before, after] = diff_revisions(c.scope);
                 repo->fullFilePath = c.file;
+                repo->activeContent = RepoComponent::ContentView::Source;
                 repo->fullFileRevision = c.oldSide ? before : after;
                 repo->fullFileCacheKey.clear();
                 repo->fullFileTargetLine = anchor.status == review_anchor::Status::Relocated ? anchor.line : c.line;
@@ -238,7 +239,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                     .with_debug_name("basket_item_text"));
             if (button(ctx, mk(heading.ent(), 2), preset::Button("Edit")
-                    .with_size(ComponentSize{pixels(42), h720(18)}).with_font_size(FontSize::Small)
+                    .with_size(ComponentSize{pixels(42), h720(18)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
                 review.editingComment = i;
                 review.editingCommentText = c.text;
@@ -246,7 +247,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 review.dirty = true;
             }
             if (!editing && button(ctx, mk(heading.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
-                    .with_size(ComponentSize{pixels(66), h720(18)}).with_font_size(FontSize::Small)
+                    .with_size(ComponentSize{pixels(66), h720(18)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_resolve"))) {
                 review.comments[i].resolved = !c.resolved;
                 review.dirty = true;
@@ -256,7 +257,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_size(ComponentSize{pixels(18), h720(18)})
                     .with_custom_background(afterhours::Color{60, 60, 65, 255})
                     .with_custom_text_color(theme::STATUS_DELETED)
-                    .with_font_size(afterhours::ui::FontSize::Small)
+                    .with_font_size(pixels(12))
                     .with_debug_name("basket_item_remove"));
             if (rmBtn) removeIdx = i;
         }
@@ -298,7 +299,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_size(ComponentSize{percent(1.0f), h720(16)})
             .with_padding(Padding{.top = h720(4)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(afterhours::ui::FontSize::Small)
+            .with_font_size(pixels(12))
             .with_alignment(TextAlignment::Center)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("basket_path_hint"));
@@ -332,15 +333,15 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 repoPtr->selectedFilePath = destination->kind == Kind::File ? destination->path : "";
                 repoPtr->selectedFileStaged = destination->staged;
                 repoPtr->selectedCommitHash = destination->kind == Kind::Commit ? destination->revision : "";
-                repoPtr->fullFilePath = destination->kind == Kind::FullFile ? destination->path : "";
-                repoPtr->fullFileRevision = destination->revision;
+                repoPtr->activeContent = destination->kind == Kind::FullFile ? RepoComponent::ContentView::Source : RepoComponent::ContentView::Review;
+                if (destination->kind == Kind::FullFile) repoPtr->fullFilePath = destination->path;
                 if (destination->kind == Kind::FullFile) {
+                    repoPtr->fullFileRevision = destination->revision;
                     if (destination->revision.empty() || destination->revision == "INDEX") {
                         repoPtr->selectedFilePath = destination->path;
                         repoPtr->selectedFileStaged = destination->revision == "INDEX";
                     } else repoPtr->selectedCommitHash = destination->revision;
                 }
-                repoPtr->fullFileCacheKey.clear();
                 repoPtr->fullFileTargetLine = 0;
                 repoPtr->fullFileNavigateFrames = 0;
                 repoPtr->repoSearchOpen = repoPtr->fileHistoryOpen = repoPtr->commitSearchOpen = repoPtr->comparisonOpen = false;
@@ -381,8 +382,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 layout.filePickerOpen = false;
                 return;
             }
-            if (repoPtr && !repoPtr->fullFilePath.empty()) {
-                repoPtr->fullFilePath.clear();
+            if (repoPtr && source_tab_active(*repoPtr)) {
+                repoPtr->activeContent = RepoComponent::ContentView::Review;
                 return;
             }
             if (repoPtr && repoPtr->comparisonOpen) {
@@ -402,14 +403,56 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
 
+        if (repoPtr && layout.contentTabs.height > 0.f) {
+            auto tabs = div(ctx, mk(uiRoot, 2990), ComponentConfig{}
+                .with_size(ComponentSize{pixels(layout.contentTabs.width), pixels(layout.contentTabs.height)})
+                .with_absolute_position().with_translate(layout.contentTabs.x, layout.contentTabs.y).with_skip_grid_snap()
+                .with_custom_background(theme::SIDEBAR_BG).with_border_bottom(theme::BORDER)
+                .with_flex_direction(FlexDirection::Row).with_no_wrap()
+                .with_overflow(Overflow::Hidden).with_debug_name("content_tabs"));
+            auto selected = source_tab_active(*repoPtr);
+            auto tabConfig = [&](const std::string& title, bool active) {
+                return preset::Button(title)
+                    .with_size(ComponentSize{pixels(std::min(220.f, layout.contentTabs.width * 0.45f)), percent(1.f)})
+                    .with_custom_background(active ? theme::WINDOW_BG : theme::SIDEBAR_BG)
+                    .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
+                    .with_border_bottom(active ? theme::SELECTED_ACCENT : theme::BORDER)
+                    .with_alignment(TextAlignment::Left)
+                    .with_font_size(pixels(12)).with_roundness(0.f)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis);
+            };
+            auto commitLabel = repoPtr->selectedCommitHash.empty() ? "Working changes" :
+                "Commit  " + repoPtr->selectedCommitHash.substr(0, 7);
+            if (button(ctx, mk(tabs.ent(), 0), tabConfig(commitLabel, !selected)
+                    .with_debug_name("content_review_tab")))
+                repoPtr->activeContent = RepoComponent::ContentView::Review;
+            if (!repoPtr->fullFilePath.empty()) {
+                auto path = std::filesystem::path(repoPtr->fullFilePath).filename().string();
+                auto revision = repoPtr->fullFileRevision.empty() ? "working tree" : repoPtr->fullFileRevision.substr(0, 7);
+                auto sourceTab = button(ctx, mk(tabs.ent(), 1), tabConfig(path + "  ·  " + revision, selected)
+                    .with_debug_name("content_source_tab"));
+                ui::set_tooltip(sourceTab.ent(), repoPtr->fullFilePath + " @ " + repoPtr->fullFileRevision);
+                if (sourceTab) repoPtr->activeContent = RepoComponent::ContentView::Source;
+                if (button(ctx, mk(tabs.ent(), 2), preset::Button("×")
+                        .with_size(ComponentSize{pixels(32), percent(1.f)})
+                        .with_debug_name("content_source_close"))) {
+                    repoPtr->activeContent = RepoComponent::ContentView::Review;
+                    repoPtr->fullFilePath.clear();
+                    cancel_hidden_file_read(*repoPtr);
+                }
+            }
+        }
+
         auto mainBg = div(ctx, mk(uiRoot, 3000),
             ComponentConfig{}
                 .with_size(ComponentSize{pixels(layout.mainContent.width),
                                         pixels(layout.mainContent.height)})
                 .with_absolute_position()
                 .with_translate(layout.mainContent.x, layout.mainContent.y)
+                .with_skip_grid_snap()
                 .with_custom_background(theme::WINDOW_BG)
                 .with_flex_direction(FlexDirection::Column)
+                .with_overflow(Overflow::Hidden)
                 .with_roundness(0.0f)
                 .with_debug_name("main_content"));
 
@@ -417,6 +460,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (hasRepo) {
             if (repoPtr->fullFilePath.empty()) {
                 repoPtr->blameFuture = {};
+                repoPtr->blameOpen = false;
             }
             if (!repoPtr->repoSearchOpen) {
                 repoPtr->repoSearchFuture = {};
@@ -445,7 +489,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 if (!review_store::switch_review_scope(repoPtr->repoPath, scope, *reviewPtr, !app_state::testModeEnabled)) {
                     div(ctx, mk(mainBg.ent(), 591000), ComponentConfig{}
                         .with_label("Cannot save the previous review. Keep this tab open and retry after checking storage.")
-                        .with_size(ComponentSize{percent(1.f), pixels(80)}).with_font_size(FontSize::Medium));
+                        .with_size(ComponentSize{percent(1.f), pixels(80)}).with_font_size(pixels(14)));
                     return;
                 }
                 restore_draft_selection(*repoPtr, *reviewPtr);
@@ -462,7 +506,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (repoPtr && !repoPtr->reviewQueueScope.empty() && repoPtr->selectedCommitHash.empty()) {
             div(ctx, mk(mainBg.ent(), 592000), ComponentConfig{}
                 .with_label(repoPtr->reviewQueueFuture.valid() ? "Loading review queue..." : repoPtr->reviewQueueError)
-                .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(FontSize::Small));
+                .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(pixels(12)));
             if (button(ctx, mk(mainBg.ent(), 592001), preset::Button("Close review queue")
                     .with_size(ComponentSize{children(), pixels(30)}))) close_review_queue(*repoPtr);
             return;
@@ -490,7 +534,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool editingText = focused.valid() && focused->has<afterhours::text_input::HasTextInputState>();
         auto* keyboardMenu = find_singleton<MenuComponent>();
         bool keyboardMenuOpen = keyboardMenu && keyboardMenu->activeMenuIndex >= 0;
-        if (!shortcutsActive && reviewPtr && repoPtr && repoPtr->fullFilePath.empty() && !editingText && !keyboardMenuOpen &&
+        if (!shortcutsActive && reviewPtr && repoPtr && !source_tab_active(*repoPtr) && !editingText && !keyboardMenuOpen &&
             reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
             if (!superDown) {
                 int previousCursor = reviewPtr->cursor;
@@ -556,7 +600,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             render_file_picker(ctx, mainBg.ent(), repo, layout);
             return;
         }
-        if (!repo.fullFilePath.empty()) {
+        if (source_tab_active(repo)) {
             render_full_file(ctx, mainBg.ent(), repo, layout);
             return;
         }
@@ -586,7 +630,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
             div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}
                 .with_label(reviewPtr->snapshotFuture.valid() ? "Saving contents..." : reviewPtr->snapshotError)
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(FontSize::Small));
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12)));
             if (repo.currentDiff.empty()) {
                 auto done = div(ctx, mk(mainBg.ent(), 3080),
                     ComponentConfig{}
@@ -602,7 +646,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label("Working tree matches the index")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::STATUS_ADDED)
-                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_font_size(pixels(16))
                         .with_transparent_bg()
                         .with_debug_name("ballroom_done_msg"));
                 div(ctx, mk(done.ent(), 2),
@@ -612,7 +656,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             " review approvals saved")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_font_size(pixels(14))
                         .with_transparent_bg()
                         .with_debug_name("ballroom_done_sub"));
             } else {
@@ -725,7 +769,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label("All reviewed here")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::STATUS_ADDED)
-                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_font_size(pixels(16))
                         .with_transparent_bg()
                         .with_debug_name("all_reviewed_msg"));
                 div(ctx, mk(done.ent(), 2),
@@ -734,7 +778,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                                     " approved this session \xc2\xb7 refresh to reset")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_font_size(pixels(14))
                         .with_transparent_bg()
                         .with_debug_name("all_reviewed_sub"));
             } else {
@@ -803,7 +847,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label(rel)
                         .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
                         .with_custom_text_color(theme::TEXT_PRIMARY)
-                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_font_size(pixels(16))
                         .with_alignment(TextAlignment::Left)
                         .with_padding(Padding{
                             .top = h720(8), .right = w1280(0),
@@ -815,7 +859,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label(sizeStr + "   ·   " + changeStatus)
                         .with_size(ComponentSize{percent(1.0f), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_font_size(pixels(12))
                         .with_alignment(TextAlignment::Left)
                         .with_padding(Padding{
                             .top = h720(10), .right = w1280(16),
@@ -828,7 +872,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label("No diff available for this file")
                         .with_size(ComponentSize{percent(1.0f), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
-                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_font_size(pixels(14))
                         .with_alignment(TextAlignment::Left)
                         .with_padding(Padding{
                             .top = h720(6), .right = w1280(16),
@@ -885,7 +929,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label("Loading repository\xe2\x80\xa6")
                         .with_size(ComponentSize{children(), children()})
-                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_font_size(pixels(14))
                         .with_padding(Padding{
                             .top = h720(0), .right = w1280(8),
                             .bottom = h720(6), .left = w1280(8)})
@@ -913,7 +957,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label("Select a file or commit")
                         .with_size(ComponentSize{children(), children()})
-                        .with_font_size(afterhours::ui::FontSize::Large)
+                        .with_font_size(pixels(16))
                         .with_padding(Padding{
                             .top = h720(0), .right = w1280(8),
                             .bottom = h720(6), .left = w1280(8)})
@@ -927,7 +971,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label("to view changes")
                         .with_size(ComponentSize{children(), children()})
-                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_font_size(pixels(14))
                         .with_padding(Padding{
                             .top = h720(0), .right = w1280(8),
                             .bottom = h720(4), .left = w1280(8)})
@@ -942,7 +986,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("j/k navigate  Enter view  s stage  c commit")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_padding(Padding{
                         .top = h720(16), .right = w1280(8),
                         .bottom = h720(0), .left = w1280(8)})
@@ -964,11 +1008,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
     void render_sidebar_divider(UIContext<InputAction>& ctx, Entity& uiRoot,
                                  LayoutComponent& layout) {
-        float dividerH = layout.mainContent.height;
+        float dividerH = layout.mainContent.height + layout.contentTabs.height;
         if (layout.commandLogVisible) {
             dividerH += layout.commandLog.height;
         }
-        float dividerY = layout.mainContent.y;
+        float dividerY = layout.mainContent.y - layout.contentTabs.height;
         float fullDividerH = dividerH;
         // imm::divider handles the drag: it reports this frame's travel in
         // rect() space, which is already letterbox-corrected. The old form
@@ -977,7 +1021,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         auto vDivider = afterhours::ui::imm::divider(
             ctx, mk(uiRoot, 3100), afterhours::ui::Axis::X,
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(12), pixels(fullDividerH)})
+                .with_size(ComponentSize{pixels(8), pixels(fullDividerH)})
                 .with_absolute_position()
                 .with_translate(layout.sidebar.width, dividerY)
                 .with_custom_background(theme::WINDOW_BG)
@@ -987,15 +1031,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("sidebar_divider"));
 
         if (vDivider) {
-            const float sw =
-                static_cast<float>(afterhours::graphics::get_screen_width());
-            // sidebarWidth is in 1280-normalised units, the travel is in
-            // screen pixels.
-            const float delta1280 = vDivider.as<float>() * 1280.0f / sw;
+            const float delta = vDivider.as<float>() / ui::zoom::get();
             auto* lc = find_singleton<LayoutComponent>();
             if (lc)
                 lc->sidebarWidth =
-                    std::clamp(lc->sidebarWidth + delta1280,
+                    std::clamp(lc->sidebarWidth + delta,
                                layout.sidebarMinWidth, 640.0f);
         }
     }
@@ -1028,7 +1068,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}
                 .with_label("Welcome to floatinghotel")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(afterhours::ui::FontSize::XL)
+                .with_font_size(pixels(22))
                 .with_padding(Padding{.bottom = h720(6)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_PRIMARY)
@@ -1040,7 +1080,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}
                 .with_label("Open a repository to get started")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(afterhours::ui::FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_padding(Padding{.bottom = h720(24)})
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
@@ -1082,7 +1122,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("Recently Opened")
                     .with_size(ComponentSize{w1280(400), children()})
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_padding(Padding{.bottom = h720(8)})
                     .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_SECONDARY)
@@ -1123,7 +1163,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label(basename)
                         .with_size(ComponentSize{percent(1.0f), children()})
-                        .with_font_size(afterhours::ui::FontSize::Medium)
+                        .with_font_size(pixels(14))
                         .with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY)
                         .with_alignment(TextAlignment::Left)
@@ -1134,7 +1174,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ComponentConfig{}
                         .with_label(dirPath)
                         .with_size(ComponentSize{percent(1.0f), children()})
-                        .with_font_size(afterhours::ui::FontSize::Small)
+                        .with_font_size(pixels(12))
                         .with_transparent_bg()
                         .with_custom_text_color(afterhours::Color{100, 100, 100, 255})
                         .with_alignment(TextAlignment::Left)
@@ -1156,7 +1196,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label("No recent repositories")
                     .with_size(ComponentSize{children(), children()})
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_padding(Padding{.bottom = h720(8)})
                     .with_transparent_bg()
                     .with_custom_text_color(afterhours::Color{70, 70, 70, 255})
@@ -1169,7 +1209,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}
                 .with_label("Cmd+O to open a repository")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(afterhours::ui::FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_padding(Padding{.top = h720(20)})
                 .with_transparent_bg()
                 .with_custom_text_color(afterhours::Color{60, 60, 60, 255})

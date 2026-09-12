@@ -8,7 +8,7 @@ namespace navigation {
 inline ecs::NavigationLocation location(const ecs::RepoComponent& repo, bool reviewing = false) {
     using Kind = ecs::NavigationLocation::Kind;
     ecs::NavigationLocation next;
-    if (!repo.fullFilePath.empty()) next = {Kind::FullFile, repo.fullFilePath, repo.fullFileRevision};
+    if (ecs::source_tab_active(repo)) next = {Kind::FullFile, repo.fullFilePath, repo.fullFileRevision};
     else if (!repo.selectedCommitHash.empty()) next = {Kind::Commit, "", repo.selectedCommitHash};
     else if (!repo.selectedFilePath.empty() && (!reviewing || repo.selectedFileStaged))
         next = {Kind::File, repo.selectedFilePath, "", repo.selectedFileStaged};

@@ -56,6 +56,10 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_layout" ]; then
+    run_test "test_review_layout" "tests/unit/test_review_layout.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_target" ]; then
     run_test "test_review_target" "tests/unit/test_review_target.cpp"
 fi

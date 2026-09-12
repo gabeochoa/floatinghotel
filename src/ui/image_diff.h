@@ -95,21 +95,21 @@ inline float scale_for(const afterhours::texture_manager::Texture& texture, floa
 inline void render_one(UIContext<InputAction>& ctx, Entity& parent, int id,
                        const Preview& preview, const char* caption, float width, float height, float zoom,
                        const char* debugName) {
-    auto column = div(ctx, mk(parent, id), ComponentConfig{}
+    auto column = div(ctx, mk(parent, id), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{pixels(width), pixels(height)})
         .with_flex_direction(FlexDirection::Column).with_align_items(AlignItems::Center)
         .with_overflow(Overflow::Hidden)
         .with_debug_name(debugName));
-    div(ctx, mk(column.ent(), 0), ComponentConfig{}
+    div(ctx, mk(column.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
         .with_label(std::string(caption) + ": " + preview.status)
-        .with_size(ComponentSize{percent(1.f), h720(28)})
-        .with_font_size(FontSize::Small).with_debug_name("image_caption"));
+        .with_size(ComponentSize{percent(1.f), pixels(28)})
+        .with_font_size(pixels(12)).with_debug_name("image_caption"));
     if (preview.texture.img_id) {
-        auto canvas = div(ctx, mk(column.ent(), 1), ComponentConfig{}
+        auto canvas = div(ctx, mk(column.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), pixels(height - 34.f)})
             .with_overflow(Overflow::Hidden));
         float scale = scale_for(preview.texture, width - 16.f, height - 36.f, zoom);
-        afterhours::ui::imm::image(ctx, mk(canvas.ent(), 0), ComponentConfig{}
+        afterhours::ui::imm::image(ctx, mk(canvas.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(preview.texture.width * scale), pixels(preview.texture.height * scale)})
             .with_texture(preview.texture, afterhours::texture_manager::HasTexture::Alignment::Center)
             .with_absolute_position((width - preview.texture.width * scale) * 0.5f,
@@ -131,12 +131,12 @@ inline bool render(UIContext<InputAction>& ctx, Entity& parent, int id,
             load(repo, file.oldPath.empty() ? file.filePath : file.oldPath, before, file.isNew || file.isFullContent),
             load(repo, file.filePath, after, file.isDeleted)};
     }
-    auto root = div(ctx, mk(parent, id), ComponentConfig{}
-        .with_size(ComponentSize{pixels(width), h720(300)})
+    auto root = div(ctx, mk(parent, id), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{pixels(width), pixels(300)})
         .with_flex_direction(FlexDirection::Column).with_debug_name("image_diff"));
     auto& c = cache();
-    auto controls = div(ctx, mk(root.ent(), 0), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), h720(34)})
+    auto controls = div(ctx, mk(root.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{percent(1.f), pixels(34)})
         .with_flex_direction(FlexDirection::Row).with_gap(pixels(6))
         .with_debug_name("image_controls"));
     if (button(ctx, mk(controls.ent(), 0), preset::Button("Side")
@@ -151,34 +151,34 @@ inline bool render(UIContext<InputAction>& ctx, Entity& parent, int id,
     if (button(ctx, mk(controls.ent(), 3), preset::Button("-")
             .with_size(ComponentSize{pixels(36), pixels(28)}).with_debug_name("image_zoom_out")))
         c.zoom = image_view_state::zoom_out(c.zoom);
-    div(ctx, mk(controls.ent(), 4), ComponentConfig{}
+    div(ctx, mk(controls.ent(), 4), ComponentConfig{}.with_skip_grid_snap()
         .with_label(image_view_state::label(c.mode) + " · " + image_view_state::zoom_label(c.zoom))
         .with_size(ComponentSize{pixels(170), pixels(28)})
-        .with_font_size(FontSize::Small).with_debug_name("image_mode_label"));
+        .with_font_size(pixels(12)).with_debug_name("image_mode_label"));
     if (button(ctx, mk(controls.ent(), 5), preset::Button("+")
             .with_size(ComponentSize{pixels(36), pixels(28)}).with_debug_name("image_zoom_in")))
         c.zoom = image_view_state::zoom_in(c.zoom);
     auto& pair = files.at(file.filePath);
     for (auto& preview : pair) poll(preview);
-    float bodyHeight = resolve_to_pixels(h720(266), static_cast<float>(afterhours::graphics::get_screen_height()));
+    constexpr float bodyHeight = 266.f;
     if (c.mode == image_view_state::Mode::SideBySide) {
-        auto row = div(ctx, mk(root.ent(), 1), ComponentConfig{}
+        auto row = div(ctx, mk(root.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), pixels(bodyHeight)})
             .with_flex_direction(FlexDirection::Row).with_debug_name("image_side_by_side"));
         render_one(ctx, row.ent(), 0, pair[0], "Before", width * 0.5f, bodyHeight, c.zoom, "image_before");
         render_one(ctx, row.ent(), 1, pair[1], "After", width * 0.5f, bodyHeight, c.zoom, "image_after");
     } else {
         bool overlay = c.mode == image_view_state::Mode::Overlay;
-        auto panel = div(ctx, mk(root.ent(), 2), ComponentConfig{}
+        auto panel = div(ctx, mk(root.ent(), 2), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), pixels(bodyHeight)})
             .with_flex_direction(FlexDirection::Column)
             .with_overflow(Overflow::Hidden)
             .with_debug_name(overlay ? "image_overlay" : "image_wipe"));
-        div(ctx, mk(panel.ent(), 0), ComponentConfig{}
+        div(ctx, mk(panel.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
             .with_label(overlay ? "Overlay 50% · Before: " + pair[0].status + " · After: " + pair[1].status : "Wipe 50% · Before left / After right")
-            .with_size(ComponentSize{percent(1.f), h720(28)})
-            .with_font_size(FontSize::Small).with_debug_name(overlay ? "image_caption" : "image_wipe_label"));
-        auto canvas = div(ctx, mk(panel.ent(), 1), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(28)})
+            .with_font_size(pixels(12)).with_debug_name(overlay ? "image_caption" : "image_wipe_label"));
+        auto canvas = div(ctx, mk(panel.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), pixels(bodyHeight - 34.f)})
             .with_overflow(Overflow::Hidden).with_debug_name("image_compare_canvas"));
         float canvasWidth = static_cast<float>(std::max(pair[0].texture.width, pair[1].texture.width));
@@ -191,7 +191,7 @@ inline bool render(UIContext<InputAction>& ctx, Entity& parent, int id,
                 image_view_state::wipe_crop(static_cast<float>(preview.texture.width), canvasWidth, side == 1);
             if (crop.width <= 0.f) continue;
             afterhours::texture_manager::Rectangle source{crop.x, 0.f, crop.width, static_cast<float>(preview.texture.height)};
-            afterhours::ui::imm::sprite(ctx, mk(canvas.ent(), static_cast<int>(side)), preview.texture, source, ComponentConfig{}
+            afterhours::ui::imm::sprite(ctx, mk(canvas.ent(), static_cast<int>(side)), preview.texture, source, ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(crop.width * placement.scale), pixels(preview.texture.height * placement.scale)})
                 .with_absolute_position(8.f + placement.x + crop.x * placement.scale, 1.f + placement.y)
                 .with_opacity(overlay && side == 1 && pair[0].texture.img_id ? 0.5f : 1.f)

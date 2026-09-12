@@ -1,5 +1,7 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_46_files_navigation
 click_text "contextual.txt"
 wait_frames 5
 expect_no_text "base line 10"

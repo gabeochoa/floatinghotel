@@ -1172,7 +1172,45 @@ int main(int argc, char* argv[]) {
             return ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         };
 
-        if (key == "sidebar_visible") {
+        if (key.starts_with("ui_present:") || key.starts_with("ui_height:")) {
+            auto name = key.substr(key.find(':') + 1);
+            bool found = false;
+            float height = 0.f;
+            afterhours::EntityQuery().whereHasComponent<afterhours::ui::UIComponentDebug>()
+                .whereHasComponent<afterhours::ui::UIComponent>()
+                .for_each_stream([&](afterhours::Entity& entity) {
+                    const auto& debug = entity.get<afterhours::ui::UIComponentDebug>();
+                    const auto& cmp = entity.get<afterhours::ui::UIComponent>();
+                    if (debug.name_value != name || !cmp.was_rendered_to_screen) return;
+                    found = true;
+                    height = cmp.rect().height;
+                });
+            return key.starts_with("ui_present:") ? (found ? "true" : "false") : std::format("{:.1f}", height);
+        } else if (key.starts_with("ui_in_viewport:") || key == "footer_fixed") {
+            auto name = key == "footer_fixed" ? "status_bar_bg" : key.substr(15);
+            bool found = false;
+            bool inside = true;
+            afterhours::EntityQuery().whereHasComponent<afterhours::ui::UIComponentDebug>()
+                .whereHasComponent<afterhours::ui::UIComponent>()
+                .for_each_stream([&](afterhours::Entity& entity) {
+                    const auto& debug = entity.get<afterhours::ui::UIComponentDebug>();
+                    const auto& cmp = entity.get<afterhours::ui::UIComponent>();
+                    if (debug.name_value != name || !cmp.was_rendered_to_screen) return;
+                    found = true;
+                    auto rect = afterhours::ui::detail::apply_scroll_offset(entity, cmp.rect());
+                    float width = afterhours::graphics::get_screen_width();
+                    float height = afterhours::graphics::get_screen_height();
+                    inside = inside && rect.x >= -2.f && rect.y >= -2.f &&
+                        rect.x + rect.width <= width + 2.f && rect.y + rect.height <= height + 2.f;
+                    if (key == "footer_fixed") inside = inside &&
+                        std::abs(rect.y + rect.height - height) <= 2.f && rect.width >= width - 2.f;
+                });
+            return found && inside ? "true" : "false";
+        } else if (key == "active_content") {
+            if (auto* r = repo()) return ecs::source_tab_active(*r) ? "Source" : "Review";
+        } else if (key == "source_revision") {
+            if (auto* r = repo()) return r->fullFileRevision;
+        } else if (key == "sidebar_visible") {
             if (auto* l = layout()) return l->sidebarVisible ? "true" : "false";
         } else if (key == "command_log_visible") {
             if (auto* l = layout()) return l->commandLogVisible ? "true" : "false";

@@ -36,7 +36,7 @@ struct ToolbarSystem : afterhours::System<UIContext<InputAction>> {
         // sidebar under the repo header (SidebarSystem::render_sync_row), so
         // there's no separate top toolbar strip. Only the sidebar-hidden layout
         // shows a full-width toolbar.
-        if (layout.sidebarVisible || (repo && repo->reviewWorkspace)) return;
+        if (layout.toolbar.height <= 0.f) return;
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
         float toolbarX = layout.toolbar.x;

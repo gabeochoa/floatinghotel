@@ -124,7 +124,7 @@ $(OBJ_DIR)/main:
 
 # Default target
 .DEFAULT_GOAL := all
-all: $(MAIN_EXE)
+all: $(MAIN_EXE) copy-resources
 
 # Main executable
 $(MAIN_EXE): $(PROFILE_EXE) | $(OUTPUT_DIR)/.stamp

@@ -10,16 +10,16 @@ namespace theme {
 using Color = afterhours::Color;
 
 // Window chrome
-inline Color WINDOW_BG = {30, 30, 30, 255};   // #1E1E1E
-inline Color SIDEBAR_BG = {37, 37, 38, 255};  // #252526
-inline Color PANEL_BG = {30, 30, 30, 255};    // #1E1E1E
-inline Color BORDER = {58, 58, 58, 255};      // #3A3A3A
+inline Color WINDOW_BG = {21, 23, 27, 255};
+inline Color SIDEBAR_BG = {27, 29, 34, 255};
+inline Color PANEL_BG = {21, 23, 27, 255};
+inline Color BORDER = {44, 47, 54, 255};
 
 // Text
-inline Color TEXT_PRIMARY = {204, 204, 204, 255};    // #CCCCCC
-inline Color TEXT_SECONDARY = {128, 128, 128, 255};  // #808080
-inline Color TEXT_ACCENT = {78, 154, 6, 255};
-inline Color SECTION_HEADER_TEXT = {180, 180, 180, 255};  // uppercase group labels
+inline Color TEXT_PRIMARY = {228, 230, 235, 255};
+inline Color TEXT_SECONDARY = {156, 162, 175, 255};
+inline Color TEXT_ACCENT = {185, 207, 239, 255};
+inline Color SECTION_HEADER_TEXT = {156, 162, 175, 255};
 
 // Status badges
 inline Color STATUS_MODIFIED = {227, 179, 65, 255};    // Yellow
@@ -30,35 +30,34 @@ inline Color STATUS_UNTRACKED = {128, 128, 128, 255};  // Gray
 inline Color STATUS_CONFLICT = {220, 140, 50, 255};    // Orange
 
 // Diff colors
-inline Color DIFF_ADD_BG = {35, 52, 35, 255};         // #233423 — green tint
-inline Color DIFF_ADD_TEXT = {126, 231, 135, 255};    // #7EE787
-inline Color DIFF_DEL_BG = {61, 17, 23, 255};         // #3D1117
-inline Color DIFF_DEL_TEXT = {255, 123, 114, 255};    // #FF7B72
-inline Color DIFF_HUNK_HEADER = {78, 154, 220, 255};  // #4E9ADC
-inline Color DIFF_HUNK_BG = {26, 35, 50, 255};        // #1A2332
-inline Color GUTTER_BG = {30, 30, 30, 255};      // #1E1E1E (matches WINDOW_BG)
-inline Color GUTTER_BORDER = {58, 58, 58, 255};  // #3A3A3A (matches BORDER)
-inline Color GUTTER_ADD_BG = {13, 51, 23, 255};  // #0D3317
-inline Color GUTTER_DEL_BG = {77, 17, 23, 255};  // #4D1117
+inline Color DIFF_ADD_BG = {27, 43, 37, 255};
+inline Color DIFF_ADD_TEXT = {161, 214, 181, 255};
+inline Color DIFF_DEL_BG = {48, 34, 37, 255};
+inline Color DIFF_DEL_TEXT = {223, 156, 156, 255};
+inline Color DIFF_HUNK_HEADER = {156, 175, 198, 255};
+inline Color DIFF_HUNK_BG = {29, 37, 46, 255};
+inline Color GUTTER_BG = {21, 23, 27, 255};
+inline Color GUTTER_BORDER = {44, 47, 54, 255};
+inline Color GUTTER_ADD_BG = {27, 43, 37, 255};
+inline Color GUTTER_DEL_BG = {48, 34, 37, 255};
 
 // Disabled state (unified across all interactive elements)
 inline Color DISABLED_BG = {48, 48, 52, 255};        // #303034 (reads as inactive vs dark UI)
 inline Color DISABLED_TEXT = {140, 140, 146, 255};   // #8C8C92 (legible label on the darker bg)
 
 // Input fields
-inline Color INPUT_BG = {60, 60, 60, 255};  // #3C3C3C (VS Code input background)
+inline Color INPUT_BG = {32, 35, 41, 255};
 
 // Interactive
-inline Color BUTTON_PRIMARY = {0, 122, 204, 255};   // Blue
-inline Color BUTTON_SECONDARY = {62, 62, 64, 255};  // #3E3E40
-inline Color HOVER_BG = {42, 42, 44, 255};          // #2A2A2C (subtle)
-inline Color SELECTED_BG = {40, 60, 86,
-                            255};  // Muted selection fill (not the loud accent)
-inline Color SELECTED_ACCENT = {58, 130, 210, 255};  // left accent bar on selection
-inline Color FOCUS_RING = {0, 122, 204, 255};
+inline Color BUTTON_PRIMARY = {62, 82, 111, 255};
+inline Color BUTTON_SECONDARY = {32, 35, 41, 255};
+inline Color HOVER_BG = {39, 43, 51, 255};
+inline Color SELECTED_BG = {40, 48, 61, 255};
+inline Color SELECTED_ACCENT = {185, 207, 239, 255};
+inline Color FOCUS_RING = {185, 207, 239, 255};
 
 // Toolbar
-inline Color TOOLBAR_BG = {55, 55, 58, 255};  // #37373A (distinct from sidebar)
+inline Color TOOLBAR_BG = {27, 29, 34, 255};
 inline Color TOOLBAR_BTN_HOVER = {55, 55, 55, 255};  // #373737
 inline Color TOOLBAR_BTN_ACTIVE = {0, 122, 204,
                                    255};  // #007ACC (blue flash on press)
@@ -85,8 +84,8 @@ inline Color SIDEBAR_DIVIDER = {70, 70, 70, 255};  // #464646 (clearly visible)
 inline Color EMPTY_STATE_TEXT = {120, 120, 120, 255};  // #787878
 
 // Status bar
-inline Color STATUS_BAR_BG = {0, 122, 204, 255};       // Blue (#007ACC)
-inline Color STATUS_BAR_TEXT = {255, 255, 255, 255};   // White
+inline Color STATUS_BAR_BG = {27, 29, 34, 255};
+inline Color STATUS_BAR_TEXT = {156, 162, 175, 255};
 inline Color STATUS_BAR_CLEAN = {115, 201, 145, 255};  // Green dot (#73C991)
 inline Color STATUS_BAR_DIRTY = {227, 179, 65, 255};   // Yellow dot (#E3B341)
 inline Color STATUS_BAR_DETACHED_BG = {204, 102, 51,
@@ -94,14 +93,13 @@ inline Color STATUS_BAR_DETACHED_BG = {204, 102, 51,
 inline Color STATUS_BAR_BTN_HOVER = {255, 255, 255, 25};  // Subtle white hover
 
 // Section header background (used for sidebar section headers)
-inline Color SECTION_HEADER_BG = {32, 32, 33, 255};  // #202021
+inline Color SECTION_HEADER_BG = {27, 29, 34, 255};
 
 // Selected row (solid, for file/commit rows)
-inline Color SELECTED_BG_SOLID = {40, 60, 86,
-                                  255};  // Same as SELECTED_BG but solid
+inline Color SELECTED_BG_SOLID = {40, 48, 61, 255};
 
 // Tertiary text
-inline Color TEXT_TERTIARY = {90, 90, 90, 255};  // #5A5A5A
+inline Color TEXT_TERTIARY = {126, 133, 146, 255};
 
 // ---- Swappable themes ----
 // The inline Color globals above are the LIVE palette the immediate-mode UI

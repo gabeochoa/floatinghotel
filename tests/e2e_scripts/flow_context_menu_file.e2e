@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_context_menu_file_files_navigation
 
 validate staged_count=1
 expect_text "README.md"

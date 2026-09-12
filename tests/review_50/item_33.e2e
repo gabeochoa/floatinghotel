@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_33_files_navigation
 click_text asset.dat
 expect_text "Git LFS asset"
 expect_text "Before: 3 bytes"

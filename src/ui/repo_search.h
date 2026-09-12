@@ -84,7 +84,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         repo.repoSearchTruncated = false;
         repo.repoSearchCapturedBytes = 0;
         repo.repoSearchPath = repo.repoPath;
-        repo.repoSearchRevision = !repo.fullFilePath.empty() ? repo.fullFileRevision :
+        repo.repoSearchRevision = source_tab_active(repo) ? repo.fullFileRevision :
             repo.comparisonOpen ? diff_revisions(repo.comparisonScope).second :
             !repo.selectedCommitHash.empty() ? repo.selectedCommitHash : repo.selectedFileStaged ? "INDEX" : "";
         SearchQuery query{repo.repoPath, repo.repoSearchRevision, repo.repoSearchQuery};
@@ -132,6 +132,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                     .with_font_size(FontSize::Small).with_custom_background(theme::PANEL_BG)
                     .with_debug_name("repo_search_result"))) {
                 repo.fullFilePath = repo.selectedFilePath = match.file;
+                repo.activeContent = RepoComponent::ContentView::Source;
                 repo.selectedFileStaged = match.revision == "INDEX";
                 repo.selectedCommitHash = match.revision == "INDEX" ? "" : match.revision;
                 repo.fullFileRevision = match.revision;

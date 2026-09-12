@@ -2,6 +2,10 @@ resize 1280 800
 wait_for_refresh
 click_text "Overview fixture"
 wait_for_refresh
+click_ui diff_options_toggle
+screenshot item_47_options
+click_ui commit_files_toggle
+screenshot item_47_expanded_setup
 expect_text "FILES CHANGED"
 expect_text "Hide files"
 assert_ui file_summary_row hidden=false

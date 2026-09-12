@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_stage_unstage_files_navigation
 
 # Initial state: 1 staged, 2 unstaged, 2 untracked
 screenshot flow_stage_01_initial

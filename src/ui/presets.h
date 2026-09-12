@@ -35,24 +35,20 @@ using afterhours::ui::imm::ComponentConfig;
 // Buttons
 // ============================================================================
 
-// Standard button. Default style is primary (blue bg, white text).
-// Override bg/text for secondary (.with_custom_background(theme::BUTTON_SECONDARY))
-// or destructive (.with_custom_background(theme::STATUS_DELETED)) variants.
-//
-// Default size: children() x h720(32). No explicit font size (uses framework default).
-// Toolbar/tab buttons should chain .with_font_size() and .with_size() as needed.
 inline ComponentConfig Button(const std::string& label, bool enabled = true) {
-    auto bg = enabled ? theme::BUTTON_PRIMARY : theme::DISABLED_BG;
-    auto text = enabled ? Color{255, 255, 255, 255} : theme::DISABLED_TEXT;
+    auto bg = enabled ? theme::BUTTON_SECONDARY : theme::DISABLED_BG;
+    auto text = enabled ? theme::TEXT_PRIMARY : theme::DISABLED_TEXT;
     auto config = ComponentConfig{}
+        .with_skip_grid_snap()
         .with_label(label)
         .with_size(ComponentSize{children(), h720(32)})
         .with_padding(Padding{
-            .top = h720(0), .right = w1280(16),
-            .bottom = h720(0), .left = w1280(16)})
+            .top = pixels(0), .right = pixels(10),
+            .bottom = pixels(0), .left = pixels(10)})
         .with_custom_background(bg)
         .with_custom_text_color(text)
-        .with_font_size(FontSize::Medium)
+        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+        .with_font_size(pixels(14))
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
         .with_corner_radius(theme::layout::RADIUS_BUTTON)
         .with_alignment(TextAlignment::Center);
@@ -97,7 +93,7 @@ inline ComponentConfig SectionHeader(const std::string& label) {
             .left = pixels(theme::layout::SPACE_2)})
         .with_transparent_bg()
         .with_custom_text_color(theme::SECTION_HEADER_TEXT)
-        .with_font_size(FontSize::Medium)
+        .with_font_size(pixels(14))
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }
@@ -143,7 +139,7 @@ inline ComponentConfig Badge(const std::string& label, Color bg, Color text) {
             .bottom = pixels(1), .left = pixels(5)})
         .with_custom_background(bg)
         .with_custom_text_color(text)
-        .with_font_size(FontSize::Small)
+        .with_font_size(pixels(12))
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
         .with_roundness(theme::layout::ROUNDNESS_BADGE)
         .with_alignment(TextAlignment::Center);
@@ -161,7 +157,7 @@ inline ComponentConfig BodyText(const std::string& label) {
         .with_size(ComponentSize{percent(1.0f), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_PRIMARY)
-        .with_font_size(FontSize::Medium)
+        .with_font_size(pixels(14))
         .with_alignment(TextAlignment::Left)
         .with_roundness(0.0f);
 }
@@ -174,7 +170,7 @@ inline ComponentConfig MetaText(const std::string& label) {
         .with_size(ComponentSize{children(), children()})
         .with_transparent_bg()
         .with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_font_size(FontSize::Small)
+        .with_font_size(pixels(12))
         .with_roundness(0.0f);
 }
 
@@ -196,7 +192,7 @@ inline ComponentConfig CaptionText(const std::string& label) {
         .with_label(label)
         .with_size(ComponentSize{children(), children()})
         .with_custom_text_color(theme::TEXT_SECONDARY)
-        .with_font_size(FontSize::Small)
+        .with_font_size(pixels(12))
         .with_roundness(0.0f);
 }
 

@@ -3,6 +3,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_stub_toast_stash_files_navigation
 
 # Sidebar is visible by default, showing the compact toolbar with Stash button
 validate sidebar_visible=true

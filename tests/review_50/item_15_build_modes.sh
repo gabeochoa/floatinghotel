@@ -4,7 +4,7 @@ cd "$(dirname "$0")/../.."
 project_dir="$PWD"
 fixture_dir=$(mktemp -d /tmp/fh-review-build-modes.XXXXXX)
 trap 'rm -rf "$fixture_dir"' EXIT
-mkdir -p "$fixture_dir/src"
+mkdir -p "$fixture_dir/src" "$fixture_dir/resources"
 cp tests/review_50/build_mode.cpp "$fixture_dir/src/main.cpp"
 build_mode() {
     nice -n 10 make -s -j1 -C "$fixture_dir" -f "$project_dir/makefile" \

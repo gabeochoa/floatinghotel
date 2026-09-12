@@ -1,6 +1,8 @@
 make_test_repo
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot flow_stub_toast_edit_menu_files_navigation
 click_text main.cpp
 click_text Edit
 expect_no_text "Select All"

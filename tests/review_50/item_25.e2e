@@ -1,7 +1,11 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_25_files_navigation
 click_text sample.cpp
 screenshot item_25_pending
+click_ui diff_options_toggle
+screenshot item_25_options
 expect_text 0/1 files reviewed · 0 unresolved
 click_ui finish_review
 screenshot item_25_verdict_choices
@@ -20,4 +24,4 @@ click_ui finish_review
 screenshot item_25_reopen_choices
 click_text Reopen review
 screenshot item_25_reopened
-expect_text Finish review...
+expect_text Finish review

@@ -4,6 +4,8 @@ click_text ChangeSet
 wait_for_refresh
 screenshot item_19_all_files
 expect_text "vendor/dependency.txt"
+click_ui diff_options_toggle
+screenshot item_19_options
 click_ui filter_Vendor
 screenshot item_19_vendor_hidden
 expect_no_text "vendor/dependency.txt"

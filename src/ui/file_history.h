@@ -53,7 +53,7 @@ inline void render_file_history(UIContext<InputAction>& ctx, Entity& parent,
                     .with_debug_name("file_history_commit:" + std::to_string(i)))) {
                 repo.selectedCommitHash = commit.hash;
                 repo.selectedFilePath.clear();
-                repo.fullFilePath.clear();
+                repo.activeContent = RepoComponent::ContentView::Review;
                 repo.fileHistoryOpen = false;
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 100.f))}));

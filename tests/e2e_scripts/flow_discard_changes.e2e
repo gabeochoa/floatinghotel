@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_discard_changes_files_navigation
 
 # Should have 2 unstaged files (README.md, main.cpp)
 screenshot flow_discard_01_initial

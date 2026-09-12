@@ -5,6 +5,7 @@
 #include "../../vendor/afterhours/src/plugins/toast.h"
 #include "../ui/context_menu_render.h"
 #include "../ui/menu_setup.h"
+#include "../ui/zoom.h"
 #include "ui_imports.h"
 
 namespace ecs {
@@ -66,7 +67,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{pixels(barBgW), pixels(barH)})
                 .with_absolute_position()
                 .with_translate(0, barY)
-                .with_custom_background(menu_colors::BAR_BG)
+                .with_custom_background(theme::SIDEBAR_BG)
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_roundness(0.0f)
@@ -79,10 +80,11 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         // Render menu headers and track positions.
         // Font scales with screen height (h720), so header widths must also
         // scale with height to keep text from overflowing.
-        float screenH = static_cast<float>(afterhours::graphics::get_screen_height());
-        auto rpx = [screenH](float design_px) {
-            return resolve_to_pixels(h720(design_px), screenH);
-        };
+        const float scale = ui::zoom::get();
+        auto mouse = ctx.mouse.pos;
+        mouse.x /= scale;
+        mouse.y /= scale;
+        auto rpx = [](float design_px) { return design_px; };
         float charW = rpx(10.0f);   // ~10px per char at 720p, 18px font
         float hdrPad = rpx(24.0f);  // padding in screen pixels
                                     // (keep 24: smaller values let all menus fit
@@ -155,7 +157,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
 
             // Check mouse hover over this header
             bool mouseOverHeader = afterhours::ui::is_mouse_inside(
-                ctx.mouse.pos,
+                mouse,
                 RectangleType{headerX, barY, headerW, barH});
 
             bool highlighted = isActive || (anyMenuOpen && mouseOverHeader);
@@ -168,7 +170,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_translate(headerX, barY)
                     .with_custom_background(highlighted ? menu_colors::ACTIVE_BG : menu_colors::BAR_BG)
                     .with_custom_text_color(highlighted ? menu_colors::ACTIVE_TEXT : menu_colors::HEADER_TEXT)
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_alignment(TextAlignment::Center)
                     .with_justify_content(JustifyContent::Center)
                     .with_align_items(AlignItems::Center)
@@ -266,7 +268,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 } else {
                     // Check hover
                     bool hovered = afterhours::ui::is_mouse_inside(
-                        ctx.mouse.pos,
+                        mouse,
                         RectangleType{dropdownX + rpx(2.0f), itemY, maxWidth - rpx(4.0f), ITEM_HEIGHT}) && item.enabled;
 
                     float itemW = maxWidth - rpx(4.0f);
@@ -284,7 +286,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                             .with_translate(itemX, itemY)
                             .with_custom_background(hovered ? menu_colors::ITEM_HOVER_BG : menu_colors::DROPDOWN_BG)
                             .with_custom_text_color(labelColor)
-                            .with_font_size(afterhours::ui::FontSize::Medium)
+                            .with_font_size(pixels(14))
                             .with_alignment(TextAlignment::Left)
                             .with_justify_content(JustifyContent::Center)
                             .with_click_activation(ClickActivationMode::Press)
@@ -305,7 +307,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                                 .with_custom_background(hovered ? menu_colors::ITEM_HOVER_BG : menu_colors::DROPDOWN_BG)
                                 .with_custom_text_color(
                                     hovered ? menu_colors::ITEM_HOVER_TEXT : menu_colors::SHORTCUT_TEXT)
-                                .with_font_size(afterhours::ui::FontSize::Medium)
+                                .with_font_size(pixels(14))
                                 .with_alignment(TextAlignment::Right)
                                 .with_padding(Padding{.right = w1280(8.0f)})
                                 .with_justify_content(JustifyContent::Center)
@@ -346,7 +348,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 // Check header rects
                 for (int i = 0; i < static_cast<int>(headerRects_.size()); ++i) {
                     auto& r = headerRects_[i];
-                    if (afterhours::ui::is_mouse_inside(ctx.mouse.pos,
+                    if (afterhours::ui::is_mouse_inside(mouse,
                             RectangleType{r.x, r.y, r.width, r.height})) {
                         clickInMenu = true;
                         break;
@@ -372,7 +374,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                         if (totalW > maxWidth) maxWidth = totalW;
                     }
 
-                    if (afterhours::ui::is_mouse_inside(ctx.mouse.pos,
+                    if (afterhours::ui::is_mouse_inside(mouse,
                             RectangleType{dropdownX, dropdownY, maxWidth, dropdownHeight})) {
                         clickInMenu = true;
                     }

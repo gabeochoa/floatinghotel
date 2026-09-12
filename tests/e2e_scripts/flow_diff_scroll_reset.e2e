@@ -1,6 +1,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_diff_scroll_reset_files_navigation
 
 # Select README.md — diff should show the Development section addition
 click_text "README.md"

@@ -3,6 +3,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_binary_file_files_navigation
 
 # Click the binary file (icon.png) - untracked files live under the "Untracked" tab
 click_text "Untracked"

@@ -1,9 +1,10 @@
-click_text File
+click_ui menu_header_File
 screenshot startup_invalid_menu
 assert_ui dropdown_File hidden=false
 expect_text "Repository unavailable"
 expect_no_text "Working tree clean"
-click_text File
+click_ui menu_header_File
+click_ui sidebar_working_files
 screenshot startup_invalid_error
 expect_text "fatal: not a git repository"
 click_ui retry_repository_read

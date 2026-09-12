@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_06_files_navigation
 click_text source.cpp
 screenshot item_06_highlighted
 expect_text " answer = "
@@ -7,7 +9,7 @@ expect_text "42"
 wait_frames 20
 validate syntax_cache_reused=true
 validate syntax_cache_bounded=true
-click_text Side-by-Side
+click_text Split
 screenshot item_06_split
 expect_text " answer = "
 expect_text "42"

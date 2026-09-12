@@ -36,11 +36,13 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
     auto& state = get_context_menu_state();
     if (!state.isOpen || state.items.empty()) return;
 
-    const float sw = static_cast<float>(afterhours::graphics::get_screen_width());
-    const float sh = static_cast<float>(afterhours::graphics::get_screen_height());
-    const auto rpx = [sh](float design_px) {
-        return afterhours::ui::resolve_to_pixels(h720(design_px), sh);
-    };
+    const float scale = ctx.theme.ui_scale;
+    const float sw = static_cast<float>(afterhours::graphics::get_screen_width()) / scale;
+    const float sh = static_cast<float>(afterhours::graphics::get_screen_height()) / scale;
+    const auto rpx = [](float design_px) { return design_px; };
+    auto mouse = ctx.mouse.pos;
+    mouse.x /= scale;
+    mouse.y /= scale;
 
     const float itemH = rpx(24.0f);
     const float sepH = rpx(9.0f);
@@ -68,12 +70,12 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
             w += textW(item.shortcutText) + rpx(24.0f);
         widest = std::max(widest, w);
     }
-    const float panelW = std::max(widest, rpx(140.0f));
+    const float panelW = std::min(sw, std::max(widest, rpx(140.0f)));
 
     // Flip rather than clip near an edge, so a right-click on the last row in
     // the window still gets a usable menu.
-    float x = state.x;
-    float y = state.y;
+    float x = state.x / scale;
+    float y = state.y / scale;
     if (x + panelW > sw) x = std::max(0.f, sw - panelW);
     if (y + height > sh) y = std::max(0.f, y - height);
 
@@ -113,7 +115,7 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
         const bool hovered =
             item.enabled &&
             afterhours::ui::is_mouse_inside(
-                ctx.mouse.pos, RectangleType{itemX, itemY, itemW, itemH});
+                mouse, RectangleType{itemX, itemY, itemW, itemH});
 
         afterhours::Color textColor = ITEM_TEXT;
         if (!item.enabled)
@@ -131,7 +133,7 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
                 .with_translate(itemX, itemY)
                 .with_custom_background(hovered ? ITEM_HOVER_BG : PANEL_BG)
                 .with_custom_text_color(textColor)
-                .with_font_size(afterhours::ui::FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Left)
                 .with_justify_content(JustifyContent::Center)
                 .with_click_activation(
@@ -151,7 +153,7 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
                     .with_custom_background(hovered ? ITEM_HOVER_BG : PANEL_BG)
                     .with_custom_text_color(hovered ? ITEM_HOVER_TEXT
                                                     : SHORTCUT_TEXT)
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_alignment(TextAlignment::Right)
                     .with_padding(Padding{.right = w1280(8.0f)})
                     .with_justify_content(JustifyContent::Center)

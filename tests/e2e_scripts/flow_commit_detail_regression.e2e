@@ -4,10 +4,12 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_commit_detail_regression_files_navigation
 
 # Sidebar elements should be visible
 expect_text "Changes"
-expect_text "STACK"
+expect_text "Commit history"
 
 # Click a commit to open detail view
 click_text "Add contributing guidelines"
@@ -21,12 +23,14 @@ expect_text "Add contributing guidelines"
 expect_text "Commit:"
 expect_text "Author:"
 expect_text "Date:"
-expect_text "<- Back"
+assert_ui commit_back_btn hidden=false
+click_ui diff_options_toggle
+screenshot flow_commit_detail_options
 expect_text "FILES CHANGED"
 
 # Sidebar must remain visible while viewing commit detail
 expect_text "Changes"
-expect_text "STACK"
+expect_text "Commit history"
 
 screenshot commit_detail_regression_01_first
 
@@ -38,12 +42,12 @@ expect_text "Add unit tests for utils"
 expect_text "Commit:"
 expect_text "Author:"
 expect_text "FILES CHANGED"
-expect_text "<- Back"
+assert_ui commit_back_btn hidden=false
 
 screenshot commit_detail_regression_02_second
 
 # Click back — should return to default view
-click_text "<- Back"
+click_ui commit_back_btn
 wait_frames 5
 
 # Screenshot first: it is the only command that forces a render, and
@@ -56,9 +60,9 @@ screenshot commit_detail_regression_03_back
 # Back returns to the default view: the commit detail (and its "<- Back"
 # button) must be dismissed. The diff shelf collapses when nothing is selected,
 # so assert the detail is gone rather than the collapse-sensitive empty hint.
-expect_no_text "<- Back"
+validate ui_present:commit_back_btn=false
 expect_text "Changes"
-expect_text "STACK"
+expect_text "Commit history"
 
 # Re-select a commit after going back — must not leave blank UI
 click_text "Add contributing guidelines"
@@ -68,6 +72,6 @@ expect_text "Add contributing guidelines"
 expect_text "Commit:"
 expect_text "Author:"
 expect_text "FILES CHANGED"
-expect_text "<- Back"
+assert_ui commit_back_btn hidden=false
 
 screenshot commit_detail_regression_04_reselect

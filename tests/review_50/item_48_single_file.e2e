@@ -1,8 +1,10 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_48_single_file_files_navigation
 click_text consolidated.txt
 wait_frames 5
-click_text Side-by-Side
+click_text Split
 wait_frames 5
 click_ui open_full_file
 wait_for_refresh

@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_v5_diff_header_toggle_files_navigation
 
 click_text "main.cpp"
 wait_frames 5
@@ -11,13 +13,13 @@ validate diff_view_mode=Inline
 screenshot v5_01_inline_with_toggle
 
 # Click the "Side-by-Side" segment in the diff header
-click_text "Side-by-Side"
+click_text "Split"
 wait_frames 5
 validate diff_view_mode=SideBySide
 screenshot v5_02_after_toggle_sbs
 
 # Click "Inline" segment to switch back
-click_text "Inline"
+click_text "Unified"
 wait_frames 5
 validate diff_view_mode=Inline
 screenshot v5_03_back_to_inline

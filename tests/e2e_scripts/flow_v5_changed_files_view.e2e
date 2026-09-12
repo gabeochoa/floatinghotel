@@ -3,6 +3,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_v5_changed_files_view_files_navigation
 
 # Default is Flat
 validate file_view_mode=Flat

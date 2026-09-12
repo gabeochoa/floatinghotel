@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_scroll_long_diff_files_navigation
 
 # Select a modified file
 click_text "README.md"

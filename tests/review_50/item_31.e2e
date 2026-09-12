@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_31_files_navigation
 click_text run.sh
 expect_text "File mode: 100644 -> 100755"
 expect_text "executable enabled"

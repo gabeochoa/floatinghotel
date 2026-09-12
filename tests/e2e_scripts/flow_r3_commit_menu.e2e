@@ -4,6 +4,8 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
+click_ui sidebar_working_files
+screenshot flow_r3_commit_menu_files_navigation
 
 # We have staged files, so commit should be possible
 validate staged_count=1

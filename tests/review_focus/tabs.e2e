@@ -1,0 +1,58 @@
+resize 1440 1000
+wait_for_refresh
+click_text "Take the minimum instead of sorting"
+wait_frames 5
+wait_for_refresh
+mouse_move 1100 25
+screenshot tabs_commit
+validate active_content=Review
+validate ui_present:commit_author=false
+validate ui_present:commit_subject=true
+validate ui_present:commit_age=true
+expect_text "One ordered result needs the minimum"
+click_ui fold_file:src/core/entity_query.h
+wait_frames 5
+screenshot tabs_folded_file
+expect_no_text "One ordered result needs the minimum"
+click_ui fold_file:src/core/entity_query.h
+wait_frames 5
+screenshot tabs_unfolded_file
+expect_text "One ordered result needs the minimum"
+click_ui open_full_file
+wait_frames 5
+wait_for_refresh
+screenshot tabs_source
+validate active_content=Source
+validate source_revision=94b2df2afc19da14cc17d662830fee0053de8fbe
+assert_ui content_source_tab hidden=false
+click_ui content_review_tab
+wait_frames 5
+screenshot tabs_return_commit
+validate active_content=Review
+assert_ui content_source_tab hidden=false
+click_ui content_source_tab
+wait_frames 5
+wait_for_refresh
+screenshot tabs_reopen_source
+validate active_content=Source
+validate source_revision=94b2df2afc19da14cc17d662830fee0053de8fbe
+assert_ui full_file_header hidden=false
+click_ui content_review_tab
+wait_frames 5
+screenshot tabs_commit_again
+click_text "Say what stalled when a script times out"
+wait_frames 5
+wait_for_refresh
+screenshot tabs_other_commit
+validate active_content=Review
+click_ui content_source_tab
+wait_frames 5
+wait_for_refresh
+screenshot tabs_retained_revision
+validate active_content=Source
+validate source_revision=94b2df2afc19da14cc17d662830fee0053de8fbe
+click_ui content_source_close
+wait_frames 5
+screenshot tabs_closed
+validate active_content=Review
+validate ui_present:content_source_tab=false

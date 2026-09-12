@@ -1,130 +1,83 @@
 #pragma once
 
+#include <cmath>
+
 #include "ui_imports.h"
+#include "../ui/zoom.h"
 
 namespace ecs {
 
-// StatusBarSystem: Renders the status bar at the bottom of the window.
-// Shows branch name, dirty indicator, ahead/behind counts, and command log toggle.
-//
-// NOTE: Due to a framework issue where children of absolute-positioned elements
-// render at screen (0,0) instead of the parent's translated position, the status
-// bar renders its content as a SINGLE composed label rather than multiple child
-// elements. The "Show Log" button uses a separate absolute div.
 struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
-    void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
-                       float) override {
+    void for_each_with(Entity&, UIContext<InputAction>& ctx, float) override {
         auto* layout = find_singleton<LayoutComponent>();
         if (!layout) return;
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
+        Entity& root = ui_imm::getUIRootEntity();
+        const auto& rect = layout->statusBar;
+        const float width = rect.width;
+        const float height = rect.height;
+        const bool detached = repo && repo->isDetachedHead;
+        const auto background = detached ? theme::STATUS_BAR_DETACHED_BG : theme::STATUS_BAR_BG;
 
-        Entity& uiRoot = ui_imm::getUIRootEntity();
-        float w = layout->statusBar.width;
-        float h = layout->statusBar.height;
-        float y = layout->statusBar.y;
+        div(ctx, mk(root, 4000), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{pixels(width), pixels(height)})
+            .with_absolute_position().with_translate(0.f, rect.y)
+            .with_custom_background(background).with_border_top(theme::BORDER)
+            .with_roundness(0.f).with_render_layer(5)
+            .with_debug_name("status_bar_bg"));
 
-        // Determine background color (orange for detached HEAD, blue normally)
-        bool detached = repo && repo->isDetachedHead;
-        auto barBg = detached ? theme::STATUS_BAR_DETACHED_BG : theme::STATUS_BAR_BG;
-
-        // === Status bar background (render_layer 5 so it draws above content) ===
-        // Extend 1px upward so the bar fully seals the seam with the main
-        // content above it (content ends exactly at statusBar.y; a subpixel
-        // rasterization seam let a thin diff-deletion sliver show through).
-        div(ctx, mk(uiRoot, 4000),
-            ComponentConfig{}
-                .with_size(ComponentSize{pixels(w), pixels(h + 1.0f)})
-                .with_absolute_position()
-                .with_translate(0, y - 1.0f)
-                .with_custom_background(barBg)
-                .with_roundness(0.0f)
-                .with_render_layer(5)
-                .with_debug_name("status_bar_bg"));
-
-        // === Left text: branch (or detached HEAD) ===
-        std::string leftText;
-        std::string rightText;
-        if (!repo || repo->repoPath.empty()) {
-            leftText = "No repository";
-        } else if (!repo->filesError.empty()) {
-            leftText = "Repository unavailable";
-        } else if (!repo->hasLoadedOnce) {
-            leftText = "Loading repository";
-        } else {
-            if (detached) {
-                std::string shortHash = repo->headCommitHash.substr(
-                    0, std::min<size_t>(7, repo->headCommitHash.size()));
-                leftText = "HEAD " + shortHash;
-            } else {
-                leftText = repo->currentBranch.empty() ? "main" : repo->currentBranch;
-            }
-
-            // File counts (staged, unstaged)
-            int stagedCount = static_cast<int>(repo->stagedFiles.size());
-            int unstagedCount = static_cast<int>(
-                repo->unstagedFiles.size() + repo->untrackedFiles.size());
-
-            if (stagedCount > 0 || unstagedCount > 0) {
-                if (stagedCount > 0)
-                    rightText += std::to_string(stagedCount) + " staged";
-                if (stagedCount > 0 && unstagedCount > 0)
-                    rightText += ", ";
-                if (unstagedCount > 0)
-                    rightText += std::to_string(unstagedCount) + " unstaged";
-            } else {
-                rightText = "clean";
-            }
+        std::string branch;
+        std::string counts;
+        if (!repo || repo->repoPath.empty()) branch = "No repository";
+        else if (!repo->filesError.empty()) branch = "Repository unavailable";
+        else if (!repo->hasLoadedOnce) branch = "Loading repository";
+        else {
+            branch = detached ? "HEAD " + repo->headCommitHash.substr(0, 7)
+                : repo->currentBranch.empty() ? "main" : repo->currentBranch;
+            const auto staged = repo->stagedFiles.size();
+            const auto unstaged = repo->unstagedFiles.size() + repo->untrackedFiles.size();
+            if (staged > 0) counts = std::to_string(staged) + " staged";
+            if (staged > 0 && unstaged > 0) counts += ", ";
+            if (unstaged > 0) counts += std::to_string(unstaged) + " unstaged";
+            if (counts.empty()) counts = "Working tree clean";
+            if (repo->reviewWorkspace && width >= 700.f) branch += "   Read-only review";
         }
 
-        float sw = static_cast<float>(afterhours::graphics::get_screen_width());
-        float padX = afterhours::ui::resolve_to_pixels(w1280(8), sw);
-        // Counts are hidden when the window is too narrow to fit them.
-        bool narrow = w < 520.0f;
-
-        // Status info label (absolute, rendered at correct position)
-        div(ctx, mk(uiRoot, 4010),
-            ComponentConfig{}
-                .with_label(leftText)
-                .with_size(ComponentSize{pixels(w * 0.5f), pixels(h)})
-                .with_absolute_position()
-                .with_translate(padX, y)
-                .with_padding(Padding{
-                    .top = h720(4), .right = w1280(8),
-                    .bottom = h720(4), .left = w1280(8)})
-                .with_transparent_bg()
-                .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_size(afterhours::ui::FontSize::Medium)
-                .with_alignment(TextAlignment::Left)
-                .with_roundness(0.0f)
-                .with_render_layer(5)
-                .with_debug_name("status_info"));
-
-        // Right-aligned counts, flush to the window edge (padding aside).
-        // Hidden when the window is too narrow to fit them.
-        if (!rightText.empty() && !narrow) {
-            float countsW = w;
-            if (countsW < 20.0f) countsW = 20.0f;
-            div(ctx, mk(uiRoot, 4020),
-                ComponentConfig{}
-                    .with_label(rightText)
-                    .with_size(ComponentSize{pixels(countsW), pixels(h)})
-                    .with_absolute_position()
-                    .with_translate(0, y)
-                    .with_padding(Padding{
-                        .top = h720(4), .right = w1280(8),
-                        .bottom = h720(4), .left = w1280(8)})
-                    .with_transparent_bg()
-                    .with_custom_text_color(theme::STATUS_BAR_TEXT)
-                    .with_font_size(afterhours::ui::FontSize::Medium)
-                    .with_alignment(TextAlignment::Right)
-                    .with_roundness(0.0f)
-                    .with_render_layer(5)
-                    .with_debug_name("status_counts"));
+        const float zoomWidth = std::min(120.f, width);
+        const float infoWidth = std::max(0.f, width - zoomWidth);
+        auto label = [&](int id, const std::string& text, float x, float labelWidth,
+                         TextAlignment alignment, const std::string& debugName) {
+            div(ctx, mk(root, id), ComponentConfig{}.with_skip_grid_snap()
+                .with_label(text).with_size(ComponentSize{pixels(labelWidth), pixels(height)})
+                .with_absolute_position().with_translate(x, rect.y)
+                .with_padding(Padding{.left = pixels(10), .right = pixels(10)})
+                .with_transparent_bg().with_custom_text_color(theme::STATUS_BAR_TEXT)
+                .with_font_size(pixels(11)).with_alignment(alignment)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_roundness(0.f).with_render_layer(5).with_debug_name(debugName));
+        };
+        if (infoWidth > 0.f)
+            label(4010, branch, 0.f, infoWidth, TextAlignment::Left, "status_info");
+        if (!counts.empty() && width >= 620.f)
+            label(4020, counts, width * 0.45f, infoWidth - width * 0.45f,
+                  TextAlignment::Right, "status_counts");
+        const float zoomX = width - zoomWidth;
+        label(4030, std::to_string(static_cast<int>(std::lround(ui::zoom::get() * 100.f))) + "%",
+              zoomX + 26.f, std::max(0.f, zoomWidth - 52.f), TextAlignment::Center, "status_zoom");
+        auto zoomButton = [&](int id, const std::string& text, float x, const std::string& debugName) {
+            return button(ctx, mk(root, id), ComponentConfig{}.with_skip_grid_snap()
+                .with_label(text).with_size(ComponentSize{pixels(26), pixels(height)})
+                .with_absolute_position().with_translate(x, rect.y)
+                .with_custom_background(background).with_custom_hover_bg(theme::PANEL_BG)
+                .with_custom_text_color(theme::STATUS_BAR_TEXT).with_font_size(pixels(13))
+                .with_alignment(TextAlignment::Center).with_roundness(0.f)
+                .with_render_layer(6).with_debug_name(debugName));
+        };
+        if (width >= 120.f) {
+            if (zoomButton(4031, "-", zoomX, "zoom_out")) ui::zoom::step(-ui::zoom::kStep);
+            if (zoomButton(4032, "+", width - 26.f, "zoom_in")) ui::zoom::step(ui::zoom::kStep);
         }
-
-        // The command-log pane is toggled from the View menu (see menu_setup.h),
-        // not from the status bar.
     }
 };
 
-}  // namespace ecs
+}

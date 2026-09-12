@@ -5,6 +5,8 @@
 
 #include <afterhours/src/logging.h>
 #include "ui_imports.h"
+#include "../ui/zoom.h"
+#include "../util/review_layout.h"
 
 // Real OS window resize (Metal backend, defined in sokol_impl.mm) + test-mode
 // flag (defined in main.cpp) so we never resize the window during e2e.
@@ -43,7 +45,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                 layout.sidebarVisible && nothingSelected && !reviewingShelf;
 
             if (!app_state::testModeEnabled) {
-                float collapsedW = layout.sidebarWidth + 4.0f;
+                float collapsedW = (layout.sidebarWidth + 4.0f) * ui::zoom::get();
                 // The window opened at the default shelf width; settings may
                 // hold a different sidebar width. Square that once, silently,
                 // rather than animating a correction the user never asked for.
@@ -86,113 +88,78 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             }
         }
 
-        auto rpxH = [sh](float design_px) {
-            return resolve_to_pixels(h720(design_px), sh);
-        };
-        auto rpxW = [sw](float design_px) {
-            return resolve_to_pixels(w1280(design_px), sw);
-        };
+        const auto viewport = afterhours::ui::LayoutInfo::make(
+            sw, sh, ui::zoom::get(), afterhours::ui::ScalingMode::Adaptive);
+        const float width = viewport.logical_w;
+        const float height = viewport.logical_h;
+        const float statusH = std::min(26.f, height);
+        const float availableH = height - statusH;
+        const float tabStripH = std::min(28.f, availableH);
+        const float menuH = std::min(26.f, availableH - tabStripH);
+        auto* repo = find_singleton<RepoComponent, ActiveTab>();
+        const float toolbarH = !layout.sidebarVisible && repo && !repo->reviewWorkspace
+            ? std::min(42.f, availableH - tabStripH - menuH) : 0.f;
+        const float topY = tabStripH + menuH + toolbarH;
+        const float bodyH = availableH - topY;
+        const bool sidebarOnly = layout.sidebarVisible && layout.shelfCollapsed;
+        const auto sidebarState = !layout.sidebarVisible ? review_layout::Sidebar::Hidden
+            : sidebarOnly ? review_layout::Sidebar::Collapsed
+            : layout.animating ? review_layout::Sidebar::Animating
+            : review_layout::Sidebar::Expanded;
+        const float sidebarW = review_layout::sidebar_width(
+            width, layout.sidebarWidth, layout.sidebarMinWidth, sidebarState);
+        const float dividerW = sidebarW > 0.f && !sidebarOnly ? std::min(8.f, width - sidebarW) : 0.f;
+        const float mainX = sidebarW + dividerW;
 
-        float tabStripH = std::max(rpxH(28.0f), 18.0f);
-        float menuH = std::max(rpxH(static_cast<float>(theme::layout::MENU_BAR_HEIGHT)), 16.0f);
-        float toolbarH = std::max(rpxH(static_cast<float>(theme::layout::TOOLBAR_HEIGHT)), 28.0f);
-        float statusH = std::max(rpxH(static_cast<float>(theme::layout::STATUS_BAR_HEIGHT)), 16.0f);
-
-        float actualTabStripH = tabStripH;
-
-        layout.tabStrip = {0, 0, sw, actualTabStripH};
-
-        // Sidebar is a FIXED logical-pixel width so it never relayouts when the
-        // window resizes (the tray/diff grows into the extra space instead).
-        // Only clamped to not exceed the window itself (narrow/collapsed case).
-        float scaledSidebarW = std::min(layout.sidebarWidth, sw);
-        if (scaledSidebarW < layout.sidebarMinWidth)
-            scaledSidebarW = std::min(layout.sidebarMinWidth, sw);
-
-        // Menu bar spans the full window so File/Edit/View/... expand normally.
-        // Only in sidebar-only mode (diff pane collapsed, sidebar owns the
-        // window) does it shrink to the sidebar column and collapse overflow
-        // into a "More" menu.
-        bool sidebarOnly = layout.sidebarVisible && layout.shelfCollapsed;
-        float menuBarW = sidebarOnly ? scaledSidebarW : sw;
-        layout.menuBar = {0, actualTabStripH, menuBarW, menuH};
-
-        float dividerW = 12.f;
-
-        float topY = actualTabStripH + menuH;
-
-        if (layout.sidebarVisible) {
-            // Sync actions (Push/Pull/Stash) now live inside the sidebar body
-            // (SidebarSystem::render_sync_row), so there is no toolbar strip
-            // above the sidebar — the sidebar starts right under the menu bar.
-            layout.toolbar = {0, 0, 0, 0};
-
-            float sidebarContentY = topY;
-            float sidebarContentH = std::max(sh - topY - statusH, 40.0f);
-            layout.sidebar = {0, sidebarContentY, scaledSidebarW, sidebarContentH};
-
-            float dividerH = rpxH(5.0f);
-            float usableH = std::max(sidebarContentH - dividerH, 20.0f);
-            float filesH = usableH * (1.0f - layout.commitLogRatio);
-            float commitsH = usableH * layout.commitLogRatio;
-            layout.sidebarFiles = {0, sidebarContentY, scaledSidebarW, filesH};
-            layout.sidebarLog = {0, sidebarContentY + filesH, scaledSidebarW, commitsH};
-
-            float mainX = scaledSidebarW + dividerW;
-            float mainW = std::max(sw - scaledSidebarW - dividerW, 20.0f);
-            float mainContentY = topY;
-            float mainContentH = std::max(sh - topY - statusH, 20.0f);
-
-            if (layout.shelfCollapsed) {
-                // Diff pane hidden — sidebar owns the whole window.
-                layout.mainContent = {0, 0, 0, 0};
-                layout.commandLog = {0, 0, 0, 0};
-            } else if (layout.commandLogVisible) {
-                float scaledLogH = rpxH(layout.commandLogHeight);
-                float logH = std::clamp(scaledLogH, rpxH(80.0f), mainContentH * 0.6f);
-                layout.commandLogHeight = logH * 720.0f / sh;
-                float mainH = mainContentH - logH;
-                layout.mainContent = {mainX, mainContentY, mainW, mainH};
-                layout.commandLog = {mainX, mainContentY + mainH, mainW, logH};
-            } else {
-                layout.mainContent = {mainX, mainContentY, mainW, mainContentH};
-                layout.commandLog = {0, 0, 0, 0};
-            }
-        } else {
-            layout.sidebar = {0, 0, 0, 0};
-            layout.sidebarFiles = {0, 0, 0, 0};
-            layout.sidebarLog = {0, 0, 0, 0};
-
-            float contentY = topY + toolbarH;
-            float contentH = std::max(sh - topY - toolbarH - statusH, 20.0f);
-            layout.toolbar = {0, topY, sw, toolbarH};
-
-            float mainX = 0;
-            float mainW = sw;
-
-            if (layout.commandLogVisible) {
-                float scaledLogH = rpxH(layout.commandLogHeight);
-                float logH = std::clamp(scaledLogH, rpxH(80.0f), contentH * 0.6f);
-                layout.commandLogHeight = logH * 720.0f / sh;
-                float mainH = contentH - logH;
-                layout.mainContent = {mainX, contentY, mainW, mainH};
-                layout.commandLog = {mainX, contentY + mainH, mainW, logH};
-            } else {
-                layout.mainContent = {mainX, contentY, mainW, contentH};
-                layout.commandLog = {0, 0, 0, 0};
-            }
+        layout.tabStrip = {0, 0, width, tabStripH};
+        layout.menuBar = {0, tabStripH, sidebarOnly ? sidebarW : width, menuH};
+        layout.toolbar = {0, tabStripH + menuH, width, toolbarH};
+        layout.sidebar = sidebarW > 0.f ? LayoutComponent::Rect{0, topY, sidebarW, bodyH} : LayoutComponent::Rect{};
+        const float sidebarDividerH = std::min(5.f, bodyH);
+        const float usableSidebarH = bodyH - sidebarDividerH;
+        const float commitsH = usableSidebarH * std::clamp(layout.commitLogRatio, 0.f, 1.f);
+        const float filesH = usableSidebarH - commitsH;
+        layout.sidebarFiles = {0, topY, sidebarW, filesH};
+        layout.sidebarLog = {0, topY + filesH + sidebarDividerH, sidebarW, commitsH};
+        layout.mainContent = sidebarOnly ? LayoutComponent::Rect{}
+            : LayoutComponent::Rect{mainX, topY, width - mainX, bodyH};
+        layout.commandLog = {};
+        if (layout.commandLogVisible && !sidebarOnly) {
+            const float logH = std::min(std::max(80.f, layout.commandLogHeight), bodyH * 0.6f);
+            layout.mainContent.height -= logH;
+            layout.commandLog = {mainX, topY + layout.mainContent.height, width - mainX, logH};
         }
 
-        layout.feedback = {};
+        layout.contentTabs = {};
         auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        const bool hasContent = repo && (!repo->selectedCommitHash.empty() ||
+            !repo->selectedFilePath.empty() || !repo->fullFilePath.empty() ||
+            repo->comparisonOpen || (review && review->reviewing));
+        if (hasContent && !sidebarOnly) {
+            const float tabsH = std::min(40.f, layout.mainContent.height);
+            layout.contentTabs = {layout.mainContent.x, layout.mainContent.y,
+                                  layout.mainContent.width, tabsH};
+            layout.mainContent.y += tabsH;
+            layout.mainContent.height -= tabsH;
+        }
+        if (hasContent && !sidebarOnly) {
+            const float inset = std::min(24.f, layout.mainContent.width * 0.04f);
+            layout.mainContent.x += inset;
+            layout.mainContent.width = std::max(0.f, layout.mainContent.width - inset * 2.f);
+            const float topInset = std::min(8.f, layout.mainContent.height);
+            layout.mainContent.y += topInset;
+            layout.mainContent.height -= topInset;
+        }
+        layout.feedback = {};
         if (review && review->basketOpen && !review->comments.empty() &&
             layout.mainContent.width > 0) {
-            float width = std::min(320.f, layout.mainContent.width * 0.4f);
-            layout.mainContent.width -= width;
-            layout.feedback = {layout.mainContent.x + layout.mainContent.width,
-                               layout.mainContent.y, width, layout.mainContent.height};
+            const bool overlay = layout.mainContent.width < 720.f;
+            const float feedbackW = std::min(300.f, layout.mainContent.width);
+            if (!overlay) layout.mainContent.width -= feedbackW;
+            layout.feedback = {layout.mainContent.x + layout.mainContent.width - (overlay ? feedbackW : 0.f),
+                               layout.mainContent.y, feedbackW, layout.mainContent.height};
         }
-        layout.statusBar = {0, sh - statusH, sw, statusH};
+        layout.statusBar = {0, height - statusH, width, statusH};
     }
 };
 

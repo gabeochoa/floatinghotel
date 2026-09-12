@@ -148,7 +148,26 @@ TEST(navigation_records_the_visible_review_destination) {
     ASSERT_EQ(reviewing.kind, ecs::NavigationLocation::Kind::WorkingTree);
     ASSERT_TRUE(reviewing.reviewing);
     repo.fullFilePath = "file.txt";
+    repo.activeContent = ecs::RepoComponent::ContentView::Source;
     ASSERT_EQ(navigation::location(repo, true).kind, ecs::NavigationLocation::Kind::FullFile);
+}
+
+TEST(source_tab_keeps_revision_when_review_is_active) {
+    ecs::RepoComponent repo;
+    repo.selectedCommitHash = "new-commit";
+    repo.fullFilePath = "old.cpp";
+    repo.fullFileRevision = "old-commit";
+    repo.activeContent = ecs::RepoComponent::ContentView::Source;
+    ASSERT_TRUE(ecs::source_tab_active(repo));
+    ASSERT_EQ(navigation::location(repo).revision, "old-commit");
+    repo.activeContent = ecs::RepoComponent::ContentView::Review;
+    ASSERT_FALSE(ecs::source_tab_active(repo));
+    ASSERT_EQ(navigation::location(repo).revision, "new-commit");
+    ASSERT_EQ(repo.fullFilePath, "old.cpp");
+    ASSERT_EQ(repo.fullFileRevision, "old-commit");
+    repo.activeContent = ecs::RepoComponent::ContentView::Source;
+    repo.fullFilePath.clear();
+    ASSERT_FALSE(ecs::source_tab_active(repo));
 }
 
 TEST(review_ranges_keep_old_and_new_line_numbers_distinct) {

@@ -133,16 +133,20 @@ and losing the coloured status letter — has not been the code for a while.
 
 ---
 
-### `with_font_weight` — BLOCKED on font files, not on API
+### `with_font_weight` — font registration required; bold UI font adopted locally
 
 `with_font_weight` is on `ComponentConfig`. It looks up a font registered as
 `"<font>@bold"` and falls back to the base font when there is none, which is
 why this read as "no font weight support"; since `90f8ae8` that fallback warns
 once instead of being silent.
 
-Adopting it needs `Roboto-Bold.ttf` and `JetBrainsMono-Bold.ttf` in
-`resources/fonts/` and two more `fontMgr.load_font(... "@bold")` calls in
-`preload.cpp`. That is a licensing/asset decision, so it is left alone here.
+The review-focus UI now includes `resources/fonts/Roboto-Bold.ttf` and its
+Apache license from googlefonts/roboto-2. `preload.cpp` registers it as
+`ui-bold`, and the commit heading selects that font explicitly. The normal
+build copies resources so the font is available in the output directory.
+No framework changes were needed. Automatic `with_font_weight` selection
+would still require the corresponding `@bold` registration; a bold monospace
+font has not been added.
 
 ---
 
@@ -593,3 +597,82 @@ The verified run is `/tmp/fh-runtime13-followup-native.log`.
 
 The backend should honor the requested frame rate or expose an event-aware
 wait that preserves edge input. The app workaround does not change the vendor.
+
+### Virtual-list metrics mix physical and logical pixels in Adaptive mode
+
+`ui/imm_components.h::virtual_list_impl` uses physical scroll offsets and viewport
+height to index supplied row metrics. It then places the same row and leading
+spacer metrics inside `pixels()`, which applies `ui_scale` again in Adaptive mode.
+The trailing `unbuilt_content_size` remains physical. At non-default zoom, callers
+cannot satisfy both contracts by changing the supplied row height alone.
+
+`src/ui/virtual_list.h` accepts logical row heights and passes physical metrics to
+the existing list implementation. It normalizes only the generated wrapper and
+leading-spacer desired heights before layout. The list's window selection,
+recycling, and physical trailing extent remain upstream-owned. The adapter uses
+`UICollectionHolder` to resolve generated UI children and does not change global
+zoom or vendor files.
+
+The app also sets `skip_grid_snap` on the list and generated children. This flag
+does not fully disable flow-position snapping: `autolayout.h` still snaps each
+child's position and the running row offset. A 42-physical-pixel row can therefore
+have a 44-pixel pitch on a four-pixel grid. Upstream needs consistent units for
+virtual-list metrics and a flow-position policy that honors `skip_grid_snap`.
+
+The native review-focus zoom test exercises 100%, 140%, and 160%, including list
+scrolling and footer geometry. The first adapter revision used `EntityHelper`
+instead of `UICollectionHolder`; that lookup choice is an app issue, not an
+additional upstream gap. This app currently enables the single-collection mode.
+
+### Font-size tiers do not follow Adaptive zoom
+
+`ComponentConfig::with_font_size(FontSize)` converts each tier through `h720`,
+which is screen-relative and does not apply `ui_scale`. In the first native
+review-focus capture at 140%, the sidebar's tier-sized text stays small while
+pixel-sized controls grow. See `output/review-focus/first-integration/zoomed_bottom.png` from
+the first integration run.
+
+The review UI now uses explicit logical pixel font sizes. Code fonts, row
+heights, selection measurements, and virtualization use the same zoom factor.
+Upstream could resolve semantic font tiers through the selected scaling mode.
+
+### Keyboard-only focus rings are not exposed
+
+The current `HighlightMode` options are `Split` and `FollowsMostRecentInput`.
+`ComputeVisualFocusId` retains a visible focused widget after mouse selection,
+so clicking a commit leaves a heavy outline unlike the approved mock.
+
+The app keeps keyboard focus accessible and uses a thinner accent-colored ring.
+It does not suppress focus rendering. A keyboard-only focus-visible policy
+would let pointer selection keep its normal selected-row styling.
+
+### Per-component grid opt-out does not preserve exact flow spacing
+
+The review-focus layout disables grid snapping through the existing application
+styling setting. This keeps logical row heights and flow offsets consistent
+through zoom. The `skip_grid_snap` limitation described above remains upstream;
+no copied layout engine or vendor patch is needed for this workaround.
+
+### E2E hidden assertions cannot check a removed widget
+
+Closing the source tab removes its immediate-mode widget. The test command
+`assert_ui content_source_tab hidden=true` then times out looking for that widget
+rather than succeeding on its absence. The failed run is preserved in
+`output/review-focus/first-integration/tabs.log`.
+
+The app test property `ui_present:<debug name>` checks whether an actual widget
+was rendered, so the close-tab regression can assert `false`. An upstream
+absence assertion would avoid each app adding this check.
+
+### Text-area line widths are scaled twice at increased zoom
+
+The 140% hex-view regression also exposes an independent text-area warning in
+the Files sidebar. `output/review-focus/regressions/item-43.log` records a
+`text_area_line` width of 500.6 inside a 357.6-wide field, a ratio of 1.4.
+In `src/plugins/ui/text_input/text_area.h`, `viewport_width` comes from the
+field's computed physical width, then becomes `pixels(viewport_width)` for
+each generated line. Adaptive layout applies zoom to that value again.
+
+The field clips overflow, but line sizing and wrapping should share one unit
+system. This upstream text-editor issue remains open; the review-focus changes
+do not copy or alter the text-input implementation.

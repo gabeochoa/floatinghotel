@@ -1,5 +1,7 @@
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_16_files_navigation
 expect_text "Push"
 click_ui review_workspace_toggle
 wait_frames 5
@@ -7,7 +9,7 @@ expect_text "Review workspace · enable Git controls"
 screenshot item_16_review_controls
 expect_no_text "Push"
 expect_no_text "Stash"
-expect_no_text "Commit"
+validate ui_present:commit_area=false
 click_text sample.txt
 expect_text "changed line"
 expect_no_text "Stage file"
@@ -15,7 +17,7 @@ screenshot item_16_review_workspace
 click_ui review_workspace_toggle
 wait_frames 5
 expect_text "Push"
-expect_text "Commit"
+validate ui_present:commit_area=true
 screenshot item_16_git_workspace
 right_click_text sample.txt
 screenshot item_16_file_menu

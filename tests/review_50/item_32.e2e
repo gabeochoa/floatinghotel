@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_32_files_navigation
 click_text shortcut
 expect_text "Symbolic link target"
 click_ui open_full_file

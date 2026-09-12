@@ -1,5 +1,7 @@
 resize 1440 900
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot item_27_files_navigation
 click_text a.cpp
 screenshot item_27_initial
 click_ui comment_hunk_btn
@@ -7,6 +9,8 @@ click_ui comment_input
 type Still needs attention
 click_ui comment_add_btn
 screenshot item_27_commented
+click_ui diff_options_toggle
+screenshot item_27_options
 click_ui filter_unresolved
 screenshot item_27_filtered
 expect_no_text b.cpp

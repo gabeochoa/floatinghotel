@@ -4,6 +4,10 @@ click_text latest
 wait_for_refresh
 expect_text "latest source"
 screenshot item_11_latest_commit
+click_ui diff_options_toggle
+screenshot item_11_options
+click_ui commit_files_toggle
+screenshot item_11_expanded_setup
 click_ui commit_files_toggle
 screenshot item_11_collapsed
 expect_text "Show files"
@@ -29,7 +33,7 @@ wait_for_refresh
 expect_text "latest source"
 resize 1440 1000
 screenshot item_11_short_width
-assert_ui commit_detail_scroll w=1088
+assert_ui commit_detail_scroll w=1104
 mouse_move 900 500
 scroll_wheel -10000 0
 wait_frames 30
@@ -44,10 +48,12 @@ wait_frames 30
 screenshot item_11_long_after_horizontal_wheel
 expect_text END_OF_LONG_LINE
 dump_ui long_width commit_detail_scroll
+click_ui sidebar_working_files
+screenshot item_11_files_navigation
 click_text app.cpp
 resize 1440 900
 screenshot item_11_working_width
-assert_ui diff_stats_header w=1088
+assert_ui review_primary_toolbar w=1104
 mouse_move 900 500
 scroll_wheel -10000 0
 wait_frames 30
@@ -57,7 +63,7 @@ click_text latest
 wait_for_refresh
 resize 1280 800
 screenshot item_11_normal_width
-assert_ui commit_detail_scroll w=928
+assert_ui commit_detail_scroll w=944
 mouse_move 900 500
 scroll_wheel -10000 0
 wait_frames 30

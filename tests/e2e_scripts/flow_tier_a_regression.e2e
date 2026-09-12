@@ -3,6 +3,8 @@
 make_test_repo
 resize 1280 720
 wait_for_refresh
+click_ui sidebar_working_files
+screenshot flow_tier_a_regression_files_navigation
 
 # --- View menu actions ---
 
