@@ -1,0 +1,39 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_ui sidebar_working_files
+screenshot default_font_files
+click_text main.cpp
+wait_for_refresh
+mouse_move 1100 25
+screenshot default_font_diff
+validate code_font_size=16
+validate code_row_height=24
+validate ui_scale=1.00
+validate ui_in_viewport:main_content=true
+validate footer_fixed=true
+click_ui open_full_file
+wait_for_refresh
+screenshot default_font_source
+validate code_font_size=16
+validate code_row_height=24
+validate ui_in_viewport:diff_scroll=true
+validate footer_fixed=true
+click_text View
+click_text "Smaller Code Text"
+screenshot default_font_smaller
+validate code_font_size=15
+click_text View
+click_text "Reset Code Text"
+screenshot default_font_reset
+validate code_font_size=16
+validate code_row_height=24
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 5
+screenshot default_font_zoom
+validate ui_scale=1.40
+validate ui_in_viewport:diff_scroll=true
+validate footer_fixed=true

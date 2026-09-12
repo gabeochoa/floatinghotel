@@ -185,7 +185,7 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("Smaller Code Text", "", [] {
             Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 1.f);
         }),
-        MenuItem::item("Reset Code Text", "", [] { Settings::get().set_code_font_size(14.f); }),
+        MenuItem::item("Reset Code Text", "", [] { Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize); }),
     }});
 
     // Git menu

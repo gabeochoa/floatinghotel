@@ -347,7 +347,7 @@ static void app_init() {
     {
         Settings::get().auto_save_enabled = false;
         Settings::get().load_save_file();
-        if (app_state::testModeEnabled) Settings::get().set_code_font_size(14.f);
+        if (app_state::testModeEnabled) Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize);
         if (app_state::testModeEnabled) {
             if (const char* path = std::getenv("FH_NAVIGATION_REPOS")) {
                 std::ifstream input(path);

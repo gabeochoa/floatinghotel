@@ -39,6 +39,7 @@ TEST(settings_default_values) {
     ASSERT_TRUE(s.get_open_repos().empty());
     ASSERT_STREQ(s.get_last_active_repo(), "");
     ASSERT_STREQ(s.get_unstaged_policy(), "ask");
+    ASSERT_EQ(s.get_code_font_size(), 16.f);
 }
 
 TEST(settings_window_geometry) {
@@ -146,7 +147,7 @@ TEST(settings_code_font_size) {
     s.set_code_font_size(-1.f);
     ASSERT_EQ(s.get_code_font_size(), 10.f);
     s.set_code_font_size(std::numeric_limits<float>::quiet_NaN());
-    ASSERT_EQ(s.get_code_font_size(), 14.f);
+    ASSERT_EQ(s.get_code_font_size(), 16.f);
     s.set_code_font_size(19.f);
     s.write_save_file();
     s.set_code_font_size(14.f);
@@ -158,6 +159,18 @@ TEST(settings_code_font_size) {
     }
     ASSERT_TRUE(s.load_save_file());
     ASSERT_EQ(s.get_code_font_size(), 24.f);
+    {
+        std::ofstream file(s.get_settings_path());
+        file << R"({})";
+    }
+    ASSERT_TRUE(s.load_save_file());
+    ASSERT_EQ(s.get_code_font_size(), 16.f);
+    {
+        std::ofstream file(s.get_settings_path());
+        file << R"({"code_font_size": 14})";
+    }
+    ASSERT_TRUE(s.load_save_file());
+    ASSERT_EQ(s.get_code_font_size(), 14.f);
     fs::remove(s.get_settings_path());
 }
 

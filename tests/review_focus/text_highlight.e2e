@@ -1,5 +1,10 @@
 resize 1280 800
 wait_for_refresh
+click_text View
+click_text "Smaller Code Text"
+click_text View
+click_text "Smaller Code Text"
+validate code_font_size=14
 click_ui sidebar_working_files
 screenshot files_navigation
 click_text sample.txt
@@ -9,6 +14,38 @@ click_ui open_full_file
 wait_for_refresh
 mouse_move 1100 25
 screenshot source_before
+click_text View
+click_text "Reset Code Text"
+screenshot source_default_font
+validate code_font_size=16
+mouse_down 366 244
+wait_frames 3
+mouse_move 436 244
+wait_frames 3
+mouse_up
+wait_frames 5
+screenshot source_default_selection
+validate diff_selected_text=0123456789
+assert_ui diff_sel_hl x=366
+assert_ui diff_sel_hl w=70
+key CMD+F
+wait_frames 5
+screenshot source_default_find_open
+click_ui diff_find_input
+type "3456"
+wait_frames 5
+screenshot source_default_find
+assert_ui diff_find_match x=387
+assert_ui diff_find_match w=28
+click_ui diff_find_close
+click_text View
+click_text "Smaller Code Text"
+click_text View
+click_text "Smaller Code Text"
+mouse_move 800 600
+scroll_wheel 0 20000
+wait_frames 5
+screenshot source_original_font
 dump_ui source_geometry diff_line
 mouse_down 359 243
 wait_frames 3

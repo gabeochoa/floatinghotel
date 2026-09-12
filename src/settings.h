@@ -11,6 +11,8 @@ SINGLETON_FWD(Settings)
 struct Settings {
     SINGLETON(Settings)
 
+    static constexpr float kDefaultCodeFontSize = 16.f;
+
     Settings();
     ~Settings();
 

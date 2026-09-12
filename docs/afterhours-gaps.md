@@ -772,6 +772,14 @@ Reproduce with `tests/e2e_scripts/flow_sidebar_scroll.e2e`. Current evidence is
 splitter fix. The next investigation needs to distinguish app height budgeting
 from framework flex shrinking before assigning an upstream bug.
 
+The default-font check also reproduces this at 1280 × 800 and 140% zoom:
+the mode-tab row has 16.9 physical pixels for 26.7-pixel children. It occurs
+with the old 14-pixel code font before any font changes. See
+`output/larger-font/native-before.log` and
+`output/larger-font/before/default_font_zoom.png`. Code text sizing does not
+change the sidebar's font or row budget. No workaround is included in the
+default-font change.
+
 ### Skipped redraws retain earlier UI draw commands
 
 At Afterhours revision `b385dc9`, `BeginUIContextManager` does not clear
