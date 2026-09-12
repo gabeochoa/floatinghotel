@@ -614,11 +614,12 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_debug_name("hunk_header_btns"));
 
     if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent) {
-        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button("Context +")
+        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button("Show surrounding lines")
             .with_size(ComponentSize{children(), h720(18)})
             .with_font_size(FontSize::Small)
             .with_custom_background(theme::BUTTON_SECONDARY)
             .with_debug_name("expand_diff_context"));
+        set_tooltip(context.ent(), "Show 20 more unchanged lines before and after each change.");
         if (context) {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
                 repo->diffContext = std::min(10000, repo->diffContext + 20);
