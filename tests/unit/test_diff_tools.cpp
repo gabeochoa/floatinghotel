@@ -11,6 +11,31 @@
 #include "../../src/util/visible_rows.h"
 #include "../../src/util/file_content.h"
 #include <unistd.h>
+#include "../../src/util/lfs_pointer.h"
+#include <fstream>
+
+TEST(lfs_availability_is_refreshed_with_repository_generation) {
+    char pattern[] = "/tmp/fh-lfs-cache.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    lfs_pointer::Pointer pointer{std::string(64, 'a'), 3};
+    auto object = std::filesystem::path(directory) / ".git/lfs/objects/aa/aa" / pointer.oid;
+    ASSERT_FALSE(lfs_pointer::cached_availability(directory, pointer, 1));
+    std::filesystem::create_directories(object.parent_path());
+    { std::ofstream output(object); output << "abc"; }
+    ASSERT_FALSE(lfs_pointer::cached_availability(directory, pointer, 1));
+    ASSERT_TRUE(lfs_pointer::cached_availability(directory, pointer, 2));
+}
+
+TEST(lfs_pointers_require_the_version_digest_and_unsigned_size) {
+    auto pointer = "version https://git-lfs.github.com/spec/v1\noid sha256:" + std::string(64, 'a') + "\nsize 1024\n";
+    ASSERT_EQ(lfs_pointer::parse(pointer)->size, 1024u);
+    ASSERT_EQ(lfs_pointer::parse(pointer)->oid, std::string(64, 'a'));
+    ASSERT_FALSE(lfs_pointer::parse("ordinary source\n").has_value());
+    ASSERT_FALSE(lfs_pointer::parse(pointer + "size 4\n").has_value());
+    ASSERT_FALSE(lfs_pointer::parse("version https://git-lfs.github.com/spec/v1\noid sha256:../bad\nsize 5\n").has_value());
+    ASSERT_FALSE(lfs_pointer::parse("version https://git-lfs.github.com/spec/v1\noid sha256:" + std::string(64, 'a') + "\nsize -1\n").has_value());
+}
 
 TEST(message_row_window_is_bounded_at_top_middle_and_end) {
     for (float offset : {0.f, 20000.f, 179500.f}) {

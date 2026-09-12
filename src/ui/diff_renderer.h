@@ -7,6 +7,7 @@
 #include "image_diff.h"
 #include "reading_position.h"
 #include "../util/review_selection.h"
+#include "../util/lfs_pointer.h"
 #include <afterhours/src/core/text_cache.h>
 #include <afterhours/src/plugins/clipboard.h>
 #include <afterhours/src/plugins/toast.h>
@@ -1575,6 +1576,31 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
 
+        if (fileDiff.hunks.size() == 1) {
+            const auto& hunk = fileDiff.hunks.front();
+            for (bool oldSide : {true, false}) {
+                if ((fileDiff.isFullContent && oldSide) || (oldSide ? hunk.oldStart : hunk.newStart) != 1) continue;
+                std::string pointerText;
+                for (const auto& line : hunk.lines) {
+                    if (!line.empty() && line.front() != (oldSide ? '+' : '-')) pointerText += line.substr(1) + "\n";
+                    if (pointerText.size() > 1024) break;
+                }
+                if (pointerText.size() > 1024) continue;
+                if (auto pointer = lfs_pointer::parse(pointerText)) {
+                    const auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                    std::string label = std::string("Git LFS asset · ") + (oldSide ? "Before: " : "After: ") +
+                        std::to_string(pointer->size) + " bytes · SHA-256 " + pointer->oid + "\n" +
+                        (lfs_pointer::cached_availability(repoPath, *pointer, activeRepo ? activeRepo->dataGeneration : 0) ? "Available in default local LFS cache" : "Not present in default local LFS cache") +
+                        " · pointer shown; no asset download";
+                    vp.flush(ctx, *contentParent, nextId);
+                    div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+                        .with_label(label).with_size(ComponentSize{w, h720(48)})
+                        .with_font_size(FontSize::Small).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
+                        .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("lfs_asset_metadata"));
+                    vp.built(48.f);
+                }
+            }
+        }
         if (fileDiff.oldMode == "120000" || fileDiff.newMode == "120000") {
             vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
