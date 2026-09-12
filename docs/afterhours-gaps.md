@@ -568,3 +568,18 @@ image handles before unloading those textures. No unrelated texture is removed.
 Upstream should clear absent texture configuration as it already clears absent
 shadow configuration, and provide a safe way to retire textures referenced by
 retained immediate UI entities.
+
+### Sokol frame pacing does not honor the requested frame rate
+
+The Sokol backend defines `graphics::set_target_fps` as a no-op and does not
+apply `RunConfig.target_fps`. Skipping the entire callback is unsafe because
+mouse and keyboard edges are callback-scoped.
+
+The app keeps input and state updates running each callback but skips idle
+draws. `tests/review_50/item_13.sh` checks two 20-callback idle samples, each
+with 4 rendered frames and 16 skipped frames, then exercises typing, Escape,
+scrolling, filesystem refresh, an asynchronous file read, and resizing.
+The verified run is `/tmp/fh-runtime13-followup-native.log`.
+
+The backend should honor the requested frame rate or expose an event-aware
+wait that preserves edge input. The app workaround does not change the vendor.

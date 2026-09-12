@@ -2,6 +2,7 @@
 #include "../../src/git/content_reader.h"
 #include "../../src/util/file_page.h"
 #include "../../src/git/blob_page_cache.h"
+#include "../../src/git/repository_lock.h"
 
 #include <filesystem>
 #include <fstream>
@@ -276,6 +277,60 @@ TEST(intentional_page_capture_is_logged_as_success_without_hiding_its_stop_resul
     ASSERT_TRUE(loggedSuccess);
     ASSERT_TRUE(loggedOutput.find("requested page boundary") != std::string::npos);
     std::filesystem::remove_all(path);
+}
+
+TEST(hidden_pending_file_read_is_cancelled_and_will_retry_when_reopened) {
+    ecs::RepoComponent repo;
+    std::promise<ecs::FullFileContent> promise;
+    std::stop_source source;
+    repo.fullFileFuture = {promise.get_future(), source};
+    repo.fullFileCacheKey = "pending request";
+    ecs::cancel_hidden_file_read(repo);
+    ASSERT_TRUE(source.stop_requested());
+    ASSERT_FALSE(repo.fullFileFuture.valid());
+    ASSERT_TRUE(repo.fullFileCacheKey.empty());
+}
+
+TEST(hidden_loaded_file_retains_its_cache_and_visible_pending_read_keeps_running) {
+    ecs::RepoComponent repo;
+    repo.fullFileCacheKey = "loaded request";
+    repo.fullFileBytes = "loaded source";
+    ecs::cancel_hidden_file_read(repo);
+    ASSERT_EQ(repo.fullFileCacheKey, "loaded request");
+    ASSERT_EQ(repo.fullFileBytes, "loaded source");
+    std::promise<ecs::FullFileContent> promise;
+    std::stop_source source;
+    repo.fullFileFuture = {promise.get_future(), source};
+    repo.fullFilePath = "visible.cpp";
+    ecs::cancel_hidden_file_read(repo);
+    ASSERT_FALSE(source.stop_requested());
+    ASSERT_TRUE(repo.fullFileFuture.valid());
+}
+
+TEST(leaving_file_view_releases_a_worker_waiting_for_the_repository_lock) {
+    char directory[] = "/tmp/fh-hidden-file-read.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    ASSERT_TRUE(git::git_run(path, {"init", "-q"}).success());
+    auto mutex = git::repository_mutex(path);
+    std::unique_lock held(*mutex);
+    async_work::Executor pool(1, 4);
+    std::promise<void> entered;
+    ecs::RepoComponent repo;
+    repo.fullFileCacheKey = "pending HEAD file";
+    repo.fullFileFuture = async_work::launch_on(pool, [&entered, path](std::stop_token stop) {
+        entered.set_value();
+        return git::read_file({path, "file.cpp", "HEAD"}, stop);
+    });
+    ASSERT_EQ(entered.get_future().wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    ecs::cancel_hidden_file_read(repo);
+    auto barrier = async_work::launch_on(pool, [](std::stop_token) { return true; });
+    auto ready = barrier.wait_for(std::chrono::seconds(2));
+    held.unlock();
+    barrier.get();
+    std::filesystem::remove_all(path);
+    ASSERT_EQ(ready, std::future_status::ready);
+    ASSERT_TRUE(repo.fullFileCacheKey.empty());
 }
 
 int main() { RUN_ALL_TESTS(); }

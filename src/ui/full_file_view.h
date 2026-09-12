@@ -68,7 +68,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     if (button(ctx, mk(header.ent(), 0), preset::Button("Back to diff")
             .with_size(ComponentSize{pixels(110), pixels(30)}).with_debug_name("full_file_back"))) {
         repo.fullFilePath.clear();
-        repo.fullFileFuture = {};
+        ecs::cancel_hidden_file_read(repo);
     }
     div(ctx, mk(header.ent(), 1), ComponentConfig{}
         .with_label(repo.fullFilePath + " @ " + (repo.fullFileRevision.empty() ? "working tree" : repo.fullFileRevision))

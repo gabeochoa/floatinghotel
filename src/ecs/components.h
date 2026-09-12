@@ -357,6 +357,13 @@ struct RepoComponent : public afterhours::BaseComponent {
     size_t bookmarkPage = 0;
 };
 
+inline void cancel_hidden_file_read(RepoComponent& repo) {
+    if (repo.fullFilePath.empty() && repo.fullFileFuture.valid()) {
+        repo.fullFileFuture = {};
+        repo.fullFileCacheKey.clear();
+    }
+}
+
 struct CommitDetailCache : public afterhours::BaseComponent {
     std::string cachedCommitHash;
     std::string cachedRepoPath;

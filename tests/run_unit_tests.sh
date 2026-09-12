@@ -179,6 +179,11 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_refresh_scope" ]; then
         "tests/unit/test_refresh_scope.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_frame_pacer" ]; then
+    run_test "test_frame_pacer" \
+        "tests/unit/test_frame_pacer.cpp"
+fi
+
 # --- test_review_store ---
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
     run_test "test_review_store" \

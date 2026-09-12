@@ -1,0 +1,48 @@
+resize 1280 800
+wait_for_refresh
+click_text "README.md"
+wait_frames 5
+validate selected_file=README.md
+click_ui commit_msg_input
+wait_frames 5
+enable_idle_pacing
+bench_idle_frames 20
+validate last_idle_bench_rendered=4
+validate last_idle_bench_skipped=16
+pace_type idle
+wait_frames 1
+validate commit_message=idle
+validate idle_rendered_frames=5
+click_ui diff_scroll
+wait_frames 5
+bench_idle_frames 20
+validate last_idle_bench_rendered=4
+validate last_idle_bench_skipped=16
+pace_scroll_wheel 0 -5
+wait_frames 1
+validate idle_rendered_frames=5
+validate ui_scroll_y_positive:diff_scroll=true
+escape
+wait_frames 5
+validate selected_file=
+enable_file_watcher
+clear_git_command_log
+wait_frames 90
+touch_file README.md
+wait_for_file_change
+validate last_refresh_scope=worktree
+validate git_command_category:status=1
+screenshot item_13_after_idle_interaction
+click_text README.md
+wait_frames 5
+mouse_move 900 450
+pace_scroll_wheel 0 20000
+wait_frames 5
+click_ui open_full_file
+wait_for_refresh
+wait_frames 5
+assert_ui full_file_header hidden=false
+resize 1024 720
+wait_frames 5
+assert_ui full_file_header hidden=false
+screenshot item_13_paced_file_load_and_resize

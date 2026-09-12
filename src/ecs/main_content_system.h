@@ -295,6 +295,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool shortcutsActive = ui::render_keyboard_shortcuts(ctx, layout);
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        if (repoPtr) cancel_hidden_file_read(*repoPtr);
         if (repoPtr && repoPtr->hasLoadedOnce) {
             auto& history = repoPtr->navigation;
             auto* navigationReview = find_singleton<ReviewComponent, ActiveTab>();
@@ -393,7 +394,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
         if (hasRepo) {
             if (repoPtr->fullFilePath.empty()) {
-                repoPtr->fullFileFuture = {};
                 repoPtr->blameFuture = {};
             }
             if (!repoPtr->repoSearchOpen) {

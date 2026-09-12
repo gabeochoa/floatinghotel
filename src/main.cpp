@@ -7,9 +7,11 @@
 #include <cstdio>
 #include <format>
 #include <cstdlib>
+#include <functional>
 #include <iterator>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <unistd.h>
 #include <vector>
 #include <optional>
@@ -33,6 +35,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ui_context.h"
 #include "ui/context_menu.h"
 #include "ui/zoom.h"
+#include "util/frame_pacer.h"
 #include <afterhours/src/plugins/ui/validation_systems.h>
 #include "util/process.h"
 
@@ -59,11 +62,29 @@ extern "C" void metal_wait_all_screenshots(void);
 #include <afterhours/src/plugins/e2e_testing/e2e_testing.h>
 #include <afterhours/src/plugins/e2e_testing/ui_commands.h>
 #include <afterhours/src/plugins/e2e_testing/perf_commands.h>
+#include <afterhours/src/plugins/ui/text_input/text_area_state.h>
 #include "ecs/e2e_command_handlers.h"
 
 // Main render system - begin_drawing/clear_background done in app_frame
 struct MainRenderSystem : afterhours::System<> {
     void once(float) override {}
+};
+
+struct UiActivitySnapshot {
+    int width = 0;
+    int height = 0;
+    float scrollX = 0.0f;
+    float scrollY = 0.0f;
+    float scrollTargetX = 0.0f;
+    float scrollTargetY = 0.0f;
+    size_t textHash = 0;
+
+    bool operator==(const UiActivitySnapshot&) const = default;
+};
+
+struct PacingWheelInput {
+    float x = 0.0f;
+    float y = 0.0f;
 };
 
 // Flag for wait_for_refresh gating (set by system, read by app_frame).
@@ -174,6 +195,13 @@ bool waitingForFileChange = false;
 std::chrono::steady_clock::time_point fileChangeWaitStart{};
 unsigned fileChangeFiredAtArm = 0;
 std::string pendingScreenshotName;
+frame_pacer::FramePacer pacer;
+bool idlePacingTestEnabled = false;
+int lastIdleBenchRendered = 0;
+int lastIdleBenchSkipped = 0;
+std::optional<UiActivitySnapshot> lastRenderedUiActivity;
+std::string pendingPacedText;
+std::optional<PacingWheelInput> pendingPacedWheel;
 
 // Validation
 std::string validationReportPath;
@@ -209,6 +237,46 @@ struct HandleClearGitCommandLog : afterhours::System<afterhours::testing::Pendin
         drain_git_log();
         if (g_cmdLogSink) g_cmdLogSink->entries.clear();
         cmd.consume();
+    }
+};
+
+namespace e2e_idle_bench {
+inline int requested = 0;
+}
+
+namespace e2e_paced_input {
+inline bool requested = false;
+}
+
+struct HandleIdlePacingCommands : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed()) return;
+        if (cmd.is("enable_idle_pacing")) {
+            app_state::idlePacingTestEnabled = true;
+            app_state::pacer.reset_stats();
+            cmd.consume();
+        } else if (cmd.is("bench_idle_frames")) {
+            e2e_idle_bench::requested = std::max(1, cmd.has_args(1) ? cmd.arg_as<int>(0) : 120);
+            app_state::pacer.reset_stats();
+            cmd.consume();
+        } else if (cmd.is("pace_type")) {
+            if (!cmd.has_args(1)) {
+                cmd.fail("pace_type requires text argument");
+                return;
+            }
+            app_state::pendingPacedText = cmd.arg(0);
+            e2e_paced_input::requested = true;
+            cmd.consume();
+        } else if (cmd.is("pace_scroll_wheel")) {
+            if (!cmd.has_args(2)) {
+                cmd.fail("pace_scroll_wheel requires dx dy arguments");
+                return;
+            }
+            app_state::pendingPacedWheel = PacingWheelInput{
+                cmd.arg_as<float>(0), cmd.arg_as<float>(1)};
+            e2e_paced_input::requested = true;
+            cmd.consume();
+        }
     }
 };
 
@@ -434,6 +502,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleWaitForFileChange>());
             sm.register_update_system(std::make_unique<HandleFileWatcherToggle>());
             sm.register_update_system(std::make_unique<HandleClearGitCommandLog>());
+            sm.register_update_system(std::make_unique<HandleIdlePacingCommands>());
             sm.register_update_system(std::make_unique<HandleBenchFrames>());
             {
                 namespace perf = afterhours::testing::perf_commands;
@@ -544,6 +613,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
         // Wait for deferred screenshot to be captured before advancing
         if (!s_readyScreenshotName.empty()) break;
         if (e2e_bench::requested > 0) break;
+        if (e2e_idle_bench::requested > 0) break;
+        if (e2e_paced_input::requested) break;
 
         afterhours::testing::test_input::reset_frame();
 
@@ -637,6 +708,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
         app_state::e2eRunner.tick(SIM_DT);
 
         if (!app_state::pendingScreenshotName.empty()) break;
+        if (e2e_paced_input::requested) break;
         if (app_state::e2eRunner.is_finished()) break;
 
         auto& entities = afterhours::EntityHelper::get_entities_for_mod();
@@ -686,6 +758,156 @@ static void run_bench_frames(float dt) {
         log_info("  {:6.2f} ms/frame  {}", ms, name);
 }
 
+static void mix_text_state(UiActivitySnapshot& snapshot, const std::string& text,
+                           size_t cursor, size_t selection) {
+    size_t h = std::hash<std::string>{}(text);
+    h ^= cursor + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+    h ^= selection + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2);
+    snapshot.textHash ^= h + 0x9e3779b97f4a7c15ULL + (snapshot.textHash << 6) + (snapshot.textHash >> 2);
+}
+
+static UiActivitySnapshot capture_ui_activity_snapshot() {
+    UiActivitySnapshot snapshot;
+    snapshot.width = afterhours::graphics::get_screen_width();
+    snapshot.height = afterhours::graphics::get_screen_height();
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<afterhours::ui::HasScrollView>()
+        .for_each_stream([&](afterhours::Entity& entity) {
+            const auto& scroll = entity.get<afterhours::ui::HasScrollView>();
+            snapshot.scrollX += scroll.scroll_offset.x;
+            snapshot.scrollY += scroll.scroll_offset.y;
+            snapshot.scrollTargetX += scroll.scroll_target.x;
+            snapshot.scrollTargetY += scroll.scroll_target.y;
+        });
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<afterhours::text_input::HasTextInputState>()
+        .for_each_stream([&](afterhours::Entity& entity) {
+            const auto& state = entity.get<afterhours::text_input::HasTextInputState>();
+            mix_text_state(snapshot, state.text(), state.cursor_position,
+                           state.selection_anchor.value_or(state.cursor_position));
+        });
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<afterhours::text_input::HasTextAreaState>()
+        .for_each_stream([&](afterhours::Entity& entity) {
+            const auto& state = entity.get<afterhours::text_input::HasTextAreaState>();
+            mix_text_state(snapshot, state.text(), state.cursor_position,
+                           state.selection_anchor.value_or(state.cursor_position));
+        });
+    return snapshot;
+}
+
+static bool app_has_pending_work() {
+    if (ui::image_diff::pending()) return true;
+    {
+        std::lock_guard<std::mutex> lock(g_gitLogMutex);
+        if (!g_pendingGitLog.empty()) return true;
+    }
+    bool pending = false;
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<ecs::RepoComponent>()
+        .whereHasComponent<ecs::ActiveTab>()
+        .for_each_stream([&](afterhours::Entity& entity) {
+            const auto& repo = entity.get<ecs::RepoComponent>();
+            pending = pending || repo.refreshRequested || repo.isRefreshing ||
+                frame_pacer::in_flight(repo.fullFileFuture) || frame_pacer::in_flight(repo.repoSearchFuture) ||
+                frame_pacer::in_flight(repo.repoSearchPreviewFuture) || frame_pacer::in_flight(repo.codeownersFuture) ||
+                frame_pacer::in_flight(repo.fileHistoryFuture) || frame_pacer::in_flight(repo.blameFuture) ||
+                frame_pacer::in_flight(repo.commitSearchFuture) || frame_pacer::in_flight(repo.comparisonFuture);
+        });
+    if (pending) return true;
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<ecs::ReviewComponent>()
+        .whereHasComponent<ecs::ActiveTab>()
+        .for_each_stream([&](afterhours::Entity& entity) {
+            const auto& review = entity.get<ecs::ReviewComponent>();
+            pending = pending || frame_pacer::in_flight(review.snapshotFuture);
+        });
+    if (pending) return true;
+    afterhours::EntityQuery({.force_merge = true})
+        .whereHasComponent<ecs::CommitDetailCache>()
+        .whereHasComponent<ecs::ActiveTab>()
+        .for_each_stream([&](afterhours::Entity& entity) {
+            const auto& detail = entity.get<ecs::CommitDetailCache>();
+            pending = pending || frame_pacer::in_flight(detail.patchFuture) || frame_pacer::in_flight(detail.infoFuture);
+        });
+    if (pending) return true;
+    if (auto* ops = ecs::find_singleton<ecs::NetworkOpsComponent>())
+        pending = pending || !ops->pending.empty();
+    return pending;
+}
+
+static bool app_has_input_activity() {
+    auto* ctx = ecs::find_singleton<afterhours::ui::UIContext<InputAction>>();
+    if (!ctx) return false;
+    return ctx->mouse.moved_this_frame || ctx->mouse.left_down || ctx->mouse.right_down ||
+        ctx->mouse.just_pressed || ctx->mouse.just_released ||
+        ctx->mouse.right_just_pressed || ctx->mouse.right_just_released ||
+        ctx->all_actions.any() || ctx->all_actions_repeat.any();
+}
+
+static bool app_inject_pending_paced_input() {
+    bool injected = false;
+    if (!app_state::pendingPacedText.empty()) {
+        afterhours::testing::test_input::clear_queue();
+        for (char c : app_state::pendingPacedText)
+            afterhours::testing::test_input::push_char(c);
+        app_state::pendingPacedText.clear();
+        injected = true;
+    }
+    if (app_state::pendingPacedWheel) {
+        afterhours::testing::input_injector::set_mouse_wheel(
+            app_state::pendingPacedWheel->x, app_state::pendingPacedWheel->y);
+        app_state::pendingPacedWheel.reset();
+        injected = true;
+    }
+    e2e_paced_input::requested = false;
+    return injected;
+}
+
+static void app_update(float dt) {
+    auto& entities = afterhours::EntityHelper::get_entities_for_mod();
+    app_state::systemManager->fixed_tick_all(entities, dt);
+    app_state::systemManager->tick_all(entities, dt);
+    afterhours::EntityHelper::cleanup();
+}
+
+static void app_draw(float dt) {
+    auto& entities = afterhours::EntityHelper::get_entities_for_mod();
+    afterhours::graphics::begin_drawing();
+    afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
+    app_state::systemManager->render(entities, dt);
+    afterhours::graphics::end_drawing();
+    app_state::lastRenderedUiActivity = capture_ui_activity_snapshot();
+}
+
+static void app_update_and_maybe_draw(float dt, bool forceRender) {
+    bool pendingBefore = app_has_pending_work();
+    bool injectedInput = app_inject_pending_paced_input();
+    app_update(dt);
+    bool activity = app_has_input_activity();
+    bool pendingAfter = app_has_pending_work();
+    auto currentActivity = capture_ui_activity_snapshot();
+    bool changedSinceRender = !app_state::lastRenderedUiActivity ||
+        currentActivity != *app_state::lastRenderedUiActivity;
+    auto decision = app_state::pacer.decide(forceRender, injectedInput || activity || changedSinceRender, pendingBefore || pendingAfter);
+    if (decision.render) {
+        app_draw(dt);
+    } else if (!app_state::testModeEnabled && decision.sleep) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+}
+
+static void run_idle_bench_frames(float dt) {
+    int n = e2e_idle_bench::requested;
+    e2e_idle_bench::requested = 0;
+    for (int i = 0; i < n; ++i)
+        app_update_and_maybe_draw(dt, false);
+    app_state::lastIdleBenchRendered = app_state::pacer.rendered;
+    app_state::lastIdleBenchSkipped = app_state::pacer.skipped;
+    log_info("bench_idle_frames: {} frames, {} rendered, {} skipped",
+             n, app_state::lastIdleBenchRendered, app_state::lastIdleBenchSkipped);
+}
+
 // Render one frame and manage deferred screenshots.
 // Screenshots are deferred by one frame so the window compositor
 // has time to present the rendered content before screencapture runs.
@@ -705,10 +927,9 @@ static void e2e_render_and_screenshot(float dt) {
     }
 
     afterhours::testing::test_input::reset_frame();
-    afterhours::graphics::begin_drawing();
-    afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
-    app_state::systemManager->run(dt);
-    afterhours::graphics::end_drawing();
+    bool forceRender = !app_state::idlePacingTestEnabled ||
+        !s_readyScreenshotName.empty() || !app_state::pendingScreenshotName.empty();
+    app_update_and_maybe_draw(dt, forceRender);
 
     // Queue for capture after SCREENSHOT_DELAY frames
     if (!app_state::pendingScreenshotName.empty()) {
@@ -720,8 +941,6 @@ static void e2e_render_and_screenshot(float dt) {
 
 // Frame callback: runs every frame
 static void app_frame() {
-    // Move any git-worker-staged log entries into the ECS on the main thread
-    // before any system reads them this frame.
     drain_git_log();
 
     float dt = afterhours::graphics::get_frame_time();
@@ -730,6 +949,7 @@ static void app_frame() {
         (app_state::e2eRunner.has_commands() || !s_readyScreenshotName.empty())) {
         e2e_tick_loop(dt);
         if (e2e_bench::requested > 0) run_bench_frames(dt);
+        if (e2e_idle_bench::requested > 0) run_idle_bench_frames(dt);
         e2e_render_and_screenshot(dt);
 
         if (app_state::e2eRunner.is_finished() && s_readyScreenshotName.empty()) {
@@ -750,11 +970,7 @@ static void app_frame() {
         return;
     }
 
-    afterhours::graphics::begin_drawing();
-    afterhours::graphics::clear_background(
-        afterhours::Color{30, 30, 30, 255});
-    app_state::systemManager->run(dt);
-    afterhours::graphics::end_drawing();
+    app_update_and_maybe_draw(dt, false);
 }
 
 // Cleanup callback: runs when window is closing
@@ -903,6 +1119,10 @@ int main(int argc, char* argv[]) {
             if (auto* r = repo()) return r->currentBranch;
         } else if (key == "selected_file") {
             if (auto* r = repo()) return r->selectedFilePath;
+        } else if (key == "commit_message") {
+            if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent,
+                                                   ecs::ActiveTab>())
+                return editor->subject;
         } else if (key == "source_line") {
             if (auto* r = repo()) return std::to_string(r->fullFileTargetLine);
         } else if (key.starts_with("visible_source_line:")) {
@@ -973,6 +1193,30 @@ int main(int argc, char* argv[]) {
             if (auto* r = repo()) return r->refreshRequested ? "true" : "false";
         } else if (key == "last_refresh_scope") {
             if (auto* r = repo()) return r->lastRefreshScope;
+        } else if (key == "idle_rendered_frames") {
+            return std::to_string(app_state::pacer.rendered);
+        } else if (key == "idle_skipped_frames") {
+            return std::to_string(app_state::pacer.skipped);
+        } else if (key == "last_idle_bench_rendered") {
+            return std::to_string(app_state::lastIdleBenchRendered);
+        } else if (key == "last_idle_bench_skipped") {
+            return std::to_string(app_state::lastIdleBenchSkipped);
+        } else if (key.starts_with("ui_scroll_y_positive:")) {
+            std::string name = key.substr(std::string("ui_scroll_y_positive:").size());
+            bool positive = false;
+            afterhours::EntityQuery({.force_merge = true})
+                .whereHasComponent<afterhours::ui::HasScrollView>()
+                .whereHasComponent<afterhours::ui::UIComponentDebug>()
+                .whereHasComponent<afterhours::ui::UIComponent>()
+                .for_each_stream([&](afterhours::Entity& entity) {
+                    const auto& debug = entity.get<afterhours::ui::UIComponentDebug>();
+                    const auto& cmp = entity.get<afterhours::ui::UIComponent>();
+                    const auto& scroll = entity.get<afterhours::ui::HasScrollView>();
+                    if (debug.name_value == name && cmp.was_rendered_to_screen)
+                        positive = scroll.scroll_offset.y > 0.5f ||
+                            scroll.scroll_target.y > 0.5f;
+                });
+            return positive ? "true" : "false";
         } else if (key.starts_with("git_command_count:") ||
                    key.starts_with("git_command_category:")) {
             drain_git_log();
