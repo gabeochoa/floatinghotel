@@ -1,15 +1,19 @@
 make_test_repo
 resize 1280 800
 wait_for_refresh
+click_ui sidebar_working_files
 click_text "View"
 click_text "Tree View"
+mouse_move 190 180
+scroll_wheel 0 -1000
+wait_frames 10
 screenshot improvement_23_tree
-expect_text "v src/"
+expect_text "src"
 expect_text "app.cpp"
 click_ui tree_directory:src/
 screenshot improvement_23_collapsed
 expect_no_text "app.cpp"
-expect_text "> src/"
+expect_text "src"
 click_ui tree_directory:src/
 screenshot improvement_23_expanded
 expect_text "app.cpp"

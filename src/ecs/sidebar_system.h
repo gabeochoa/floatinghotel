@@ -23,6 +23,7 @@
 #include "../ui/virtual_list.h"
 #include "../ui/text_area.h"
 #include "../ui/zoom.h"
+#include "../ui/file_tree_style.h"
 
 #include "../../vendor/afterhours/src/plugins/clipboard.h"
 #include "../../vendor/afterhours/src/plugins/modal.h"
@@ -330,8 +331,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             const bool windowedFiles =
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
                 repoPtr && active_file_count(*repoPtr) > 0;
-            const float fileRowPx = resolve_to_pixels(
-                h720(static_cast<float>(theme::layout::FILE_ROW_HEIGHT)), sh_for_tab) / zoom;
+            const float fileRowPx = 28.f;
             auto filesBg = windowedFiles
                 ? ui::virtual_list(
                       ctx, mk(controlsBody.ent(), 2100), active_file_count(*repoPtr),
@@ -397,14 +397,19 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (repoPtr) {
                 branch = repoPtr->currentBranch;
             }
-            std::string logHeaderText =
-                "Commit history" + (branch.empty() ? "" : "  " + branch);
-            div(ctx, mk(logBg.ent(), 2310),
-                preset::SectionHeader(logHeaderText)
+            auto heading = div(ctx, mk(logBg.ent(), 2310),
+                ComponentConfig{}
                     .with_size(ComponentSize{logW, pixels(32)})
-                    .with_font_size(pixels(11))
+                    .with_flex_direction(FlexDirection::Row).with_no_wrap()
                     .with_padding(Padding{.left = pixels(14), .right = pixels(12)})
                     .with_debug_name("log_header"));
+            div(ctx, mk(heading.ent(), 0), preset::BodyText("COMMIT HISTORY")
+                .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11))
+                .with_custom_text_color(theme::TEXT_TERTIARY));
+            div(ctx, mk(heading.ent(), 1), preset::BodyText(branch)
+                .with_size(ComponentSize{pixels(72), pixels(32)}).with_font_size(pixels(11))
+                .with_custom_text_color(theme::TEXT_SECONDARY).with_alignment(TextAlignment::Right)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("history_branch"));
         }
 
         // === Scrollable commit log entries ===
@@ -529,18 +534,40 @@ private:
             .with_size(ComponentSize{percent(1.f), pixels(height)})
             .with_flex_direction(FlexDirection::Column).with_overflow(Overflow::Hidden)
             .with_debug_name("review_changed_files"));
-        div(ctx, mk(section.ent(), 0), preset::SectionHeader("Changed files" +
-            (files ? "  " + std::to_string(files->size()) : ""))
-            .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(pixels(11))
+        auto heading = div(ctx, mk(section.ent(), 0), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(32)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap()
             .with_padding(Padding{.left = pixels(14), .right = pixels(12)}).with_debug_name("changed_files_header"));
+        div(ctx, mk(heading.ent(), 0), preset::BodyText("CHANGED FILES" +
+            (files ? "  " + std::to_string(files->size()) : ""))
+            .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11))
+            .with_custom_text_color(theme::TEXT_TERTIARY));
+        if (files && review) {
+            const auto progress = review_progress(*review, scope, *files);
+            div(ctx, mk(heading.ent(), 1), preset::BodyText(std::to_string(progress.reviewed) + " / " + std::to_string(progress.total))
+                .with_size(ComponentSize{pixels(64), pixels(32)}).with_font("mono", pixels(11))
+                .with_alignment(TextAlignment::Right).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_debug_name("tree_review_progress"));
+        }
         if (height <= 32.f) return;
         auto search = div(ctx, mk(section.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(38)})
-            .with_padding(Padding{.left = pixels(12), .right = pixels(12), .bottom = pixels(8)}));
+            .with_padding(Padding{.left = pixels(16), .right = pixels(16), .bottom = pixels(8)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(6)));
+        auto searchIcon = div(ctx, mk(search.ent(), 1), ComponentConfig{}
+            .with_size(ComponentSize{pixels(16), pixels(30)}).with_debug_name("tree_search_icon"));
+        div(ctx, mk(searchIcon.ent(), 0), ComponentConfig{}
+            .with_size(ComponentSize{pixels(9), pixels(9)}).with_absolute_position(1.f, 8.f)
+            .with_border(theme::TEXT_TERTIARY, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(4.5f));
+        div(ctx, mk(searchIcon.ent(), 1), ComponentConfig{}
+            .with_size(ComponentSize{pixels(4), pixels(1)}).with_absolute_position(10.f, 18.f)
+            .with_custom_background(theme::TEXT_TERTIARY));
         afterhours::text_input::text_input(ctx, mk(search.ent(), 0), commitFileQuery_,
-            ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(30)})
+            ComponentConfig{}.with_size(ComponentSize{expand(), pixels(30)})
                 .with_font_size(pixels(12))
-                .with_custom_background(theme::INPUT_BG).with_placeholder("Filter files...").with_debug_name("commit_file_filter"));
+                .with_custom_background(theme::SIDEBAR_BG).with_border_bottom(theme::BORDER)
+                .with_roundness(0.f).with_placeholder("Filter files...").with_debug_name("commit_file_filter"));
         if (!files || !repo || !layout) {
             div(ctx, mk(section.ent(), 2), preset::BodyText(empty)
                 .with_size(ComponentSize{percent(1.f), pixels(36)}).with_font_size(pixels(12))
@@ -577,33 +604,30 @@ private:
                 .with_debug_name("commit_files_empty"));
             return;
         }
-        ui::virtual_list(ctx, mk(section.ent(), 3), commitTreeRows_.size(), 30.f,
+        ui::virtual_list(ctx, mk(section.ent(), 3), commitTreeRows_.size(), 28.f,
             [&](size_t index, Entity& wrapper) {
                 const auto& node = commitTreeRows_[index];
                 if (node.directory) {
-                    if (button(ctx, mk(wrapper, 0), preset::Button((collapsed.contains(node.path) ? "> " : "v ") + sidebar_detail::basename_from_path(node.path))
-                            .with_size(ComponentSize{percent(1.f), pixels(30)})
-                            .with_transparent_bg().with_custom_text_color(theme::TEXT_SECONDARY)
-                            .with_padding(Padding{.left = pixels(14.f + static_cast<float>(node.depth) * 10.f), .right = pixels(6)})
-                            .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                            .with_font_size(pixels(12)).with_debug_name("commit_directory:" + node.path))) {
+                    if (ui::file_tree_style::directory(ctx, wrapper, node, sidebarPixelWidth_,
+                            collapsed.contains(node.path), "commit_directory:" + node.path)) {
                         if (collapsed.contains(node.path)) collapsed.erase(node.path);
                         else collapsed.insert(node.path);
                     }
                     return;
                 }
                 const auto& file = (*files)[commitFileIndices_[node.sourceIndex]];
-                auto row = div(ctx, mk(wrapper, 0), ComponentConfig{}
-                    .with_size(ComponentSize{percent(1.f), pixels(30)})
-                    .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
-                    .with_custom_background(repo->diffTargetFile == node.path ? theme::SELECTED_BG : theme::SIDEBAR_BG)
-                    .with_padding(Padding{.left = pixels(14.f + static_cast<float>(node.depth) * 10.f), .right = pixels(10)})
+                auto row = div(ctx, mk(wrapper, 0), ui::file_tree_style::row_config(sidebarPixelWidth_, node.depth,
+                    repo->diffTargetFile == node.path)
                     .with_debug_name("commit_changed_file"));
+                ui::set_tooltip(row.ent(), node.path);
+                div(ctx, mk(row.ent(), 3), ComponentConfig{}.with_label(ui::file_tree_style::type_marker(node.path))
+                    .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(11))
+                    .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("tree_file_type"));
                 if (button(ctx, mk(row.ent(), 0), preset::Button(sidebar_detail::basename_from_path(node.path))
-                        .with_size(ComponentSize{expand(), pixels(30)}).with_transparent_bg()
+                        .with_size(ComponentSize{expand(), pixels(28)}).with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY).with_alignment(TextAlignment::Left)
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                        .with_font_size(pixels(12)).with_debug_name("jump_to_diff:" + node.path))) {
+                        .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path))) {
                     repo->activeContent = RepoComponent::ContentView::Review;
                     repo->diffTargetFile = file.filePath;
                     repo->diffTargetFrames = 4;
@@ -615,11 +639,16 @@ private:
                             review->foldedHunks.erase(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
                     }
                 }
-                div(ctx, mk(row.ent(), 1), ComponentConfig{}
-                    .with_label(file.additions > 0 ? "+" + std::to_string(file.additions) : "-" + std::to_string(file.deletions))
-                    .with_size(ComponentSize{pixels(38), pixels(30)})
-                    .with_font_size(pixels(12)).with_custom_text_color(file.additions > 0 ? theme::STATUS_ADDED : theme::STATUS_DELETED)
-                    .with_alignment(TextAlignment::Right));
+                if (file.additions > 0) div(ctx, mk(row.ent(), 1), ComponentConfig{}
+                    .with_label("+" + std::to_string(file.additions))
+                    .with_size(ComponentSize{pixels(32), pixels(28)}).with_font("mono", pixels(11))
+                    .with_custom_text_color(theme::DIFF_ADD_TEXT).with_alignment(TextAlignment::Right)
+                    .with_debug_name("tree_additions"));
+                if (file.deletions > 0) div(ctx, mk(row.ent(), 2), ComponentConfig{}
+                    .with_label("-" + std::to_string(file.deletions))
+                    .with_size(ComponentSize{pixels(32), pixels(28)}).with_font("mono", pixels(11))
+                    .with_custom_text_color(theme::DIFF_DEL_TEXT).with_alignment(TextAlignment::Right)
+                    .with_debug_name("tree_deletions"));
             }, config);
     }
 
@@ -1609,11 +1638,8 @@ private:
         if (treeMode_) {
             const auto& node = treeRows_[i];
             if (node.directory) {
-                auto label = std::string(node.depth * 3, ' ') + (treeCollapsed_.contains(node.path) ? "> " : "v ") + sidebar_detail::basename_from_path(node.path);
-                if (button(ctx, mk(row, 0), preset::Button(label)
-                        .with_size(ComponentSize{percent(1.f), h720(static_cast<float>(theme::layout::FILE_ROW_HEIGHT))})
-                        .with_custom_background(theme::SIDEBAR_BG).with_alignment(TextAlignment::Left)
-                        .with_debug_name("tree_directory:" + node.path))) {
+                if (ui::file_tree_style::directory(ctx, row, node, sidebarPixelWidth_,
+                        treeCollapsed_.contains(node.path), "tree_directory:" + node.path)) {
                     auto& collapsed = find_singleton<LayoutComponent>()->collapsedDirectories[repo.repoPath];
                     if (collapsed.contains(node.path)) collapsed.erase(node.path); else collapsed.insert(node.path);
                 }
@@ -1778,24 +1804,20 @@ private:
                                RepoComponent& repo, bool isSubmodule,
                                bool staged, const std::string& oldPath = "") {
         bool selected = (path == repo.selectedFilePath);
-        constexpr float ROW_H = static_cast<float>(theme::layout::FILE_ROW_HEIGHT);
 
         std::string fname = sidebar_detail::basename_from_path(path);
         if (auto* review = find_singleton<ReviewComponent, ActiveTab>())
             fname += unresolved_file_badge(*review, staged ? "index" : "wt", path, oldPath);
         std::string dir = sidebar_detail::dir_from_path(path);
         if (treeMode_) {
-            fname = std::string(static_cast<size_t>(std::count(path.begin(), path.end(), '/')) * 3, ' ') + fname;
             dir.clear();
         }
         // Submodules show "S" (gitlink pointer change) rather than the raw M/A.
         std::string statusStr(1, isSubmodule ? 'S' : statusChar);
 
-        auto rowWidth = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-
         auto row = div(ctx, mk(parent, id),
-            preset::SelectableRow(selected)
-                .with_size(ComponentSize{rowWidth, h720(ROW_H)})
+            ui::file_tree_style::row_config(sidebarPixelWidth_,
+                treeMode_ ? static_cast<size_t>(std::count(path.begin(), path.end(), '/')) : 0, selected)
                 .with_debug_name("file_row"));
         ui::set_tooltip(row.ent(), path);
 
@@ -1840,14 +1862,16 @@ private:
                                      : theme::statusColor(statusChar);
         div(ctx, mk(row.ent(), 3),
             preset::MetaText(statusStr)
-                .with_size(ComponentSize{pixels(STATUS_W), children()})
+                .with_size(ComponentSize{pixels(STATUS_W), pixels(28)})
+                .with_font("mono", pixels(11))
                 .with_custom_text_color(statusCol)
                 .with_alignment(TextAlignment::Center)
                 .with_debug_name("file_status"));
 
         div(ctx, mk(row.ent(), 1),
             preset::BodyText(fname)
-                .with_size(ComponentSize{afterhours::ui::expand(), children()})
+                .with_size(ComponentSize{afterhours::ui::expand(), pixels(28)})
+                .with_font_size(pixels(13))
                 .with_custom_text_color(textCol)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("file_name"));

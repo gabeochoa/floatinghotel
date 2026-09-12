@@ -987,3 +987,27 @@ the commit view. Both now clear with `theme::WINDOW_BG`. This was an app palette
 mismatch, not a framework defect. The pixel check in
 `tests/check_panel_background.py` fails on the old screenshot and checks both
 side gutters in new captures.
+
+### Tree chevrons cannot rely on the current font atlas
+
+The initial styled tree used Unicode disclosure arrows, but the open arrow was
+invisible in the native screenshot. The current font atlas does not include all
+UI symbol glyphs. Folder disclosure now uses a small rotated two-sided border,
+so its shape does not depend on text glyph coverage. Folder and search markers
+also use native geometry. The first tree checker additionally used the wrong
+JSON field name, `label` instead of `text`. That test error was corrected before
+accepting the tree unit.
+
+### Wheel input ignores ancestor scrolling and clipping
+
+`HandleScrollInput` tests the mouse against `cmp.rect()` rather than the rendered
+rectangle. In the Files view, the outer controls viewport moves the inner file
+list up by about 48 pixels. Scrolling over a visible row near y420 did nothing
+because the framework tested the inner viewport near y442 instead.
+
+The local `HandleVisibleScrollInput` keeps the existing easing, axis, speed, and
+clamping behavior, but uses `apply_scroll_offset` and the intersected ancestor
+clip before accepting wheel input. Registration replaces only the framework's
+scroll-input system inside its post-update bridge. This depends on the public
+bridge system list, so upstream changes to that registration need review.
+`mock_tree_working.e2e` exercises the previously unresponsive visible area.

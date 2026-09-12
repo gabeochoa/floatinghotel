@@ -1,0 +1,32 @@
+resize 1440 1000
+wait_for_refresh
+click_text "Exempt a deliberate pill"
+wait_for_refresh
+mouse_move 1100 25
+wait_frames 10
+screenshot commit
+click_ui commit_directory:src/
+wait_frames 5
+screenshot tree_collapsed
+click_ui commit_directory:src/
+wait_frames 5
+click_ui jump_to_diff:src/plugins/ui/validation_systems.h
+wait_frames 5
+screenshot tree_selected
+click_ui open_full_file
+wait_for_refresh
+screenshot source
+click_ui content_review_tab
+wait_frames 5
+click_ui commit_meta_toggle
+wait_frames 5
+screenshot details
+click_ui commit_meta_toggle
+resize 1100 760
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 10
+screenshot narrow
+validate footer_fixed=true

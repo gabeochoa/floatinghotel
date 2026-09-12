@@ -1,0 +1,22 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_ui sidebar_working_files
+click_text View
+click_text "Tree View"
+mouse_move 190 180
+scroll_wheel 0 -1000
+wait_frames 10
+screenshot working_tree
+click_ui tree_directory:src/
+wait_frames 5
+screenshot working_tree_collapsed
+click_ui tree_directory:src/
+wait_frames 5
+mouse_move 190 420
+scroll_wheel 0 -1000
+wait_frames 10
+click_text app.cpp
+wait_for_refresh
+validate selected_file=src/app.cpp
+screenshot working_tree_selected
