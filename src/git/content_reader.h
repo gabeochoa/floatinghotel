@@ -8,6 +8,7 @@ struct FileRequest {
     std::string repo;
     std::string path;
     std::string revision;
+    std::string encoding = "auto";
 };
 
 ecs::FileDiff parse_complete_file(const std::string& path, const std::string& content);

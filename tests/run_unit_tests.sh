@@ -127,6 +127,11 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_settings" ]; then
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_text_decode" ]; then
+    run_test "test_text_decode" \
+        "tests/unit/test_text_decode.cpp"
+fi
+
 # --- test_review_store ---
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
     run_test "test_review_store" \

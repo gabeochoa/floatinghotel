@@ -125,6 +125,7 @@ struct FullFileContent {
     FileDiff diff;
     std::string raw;
     std::string error;
+    std::string encodingLabel;
 };
 
 inline std::string hunk_signature(const DiffHunk& hunk) {
@@ -217,6 +218,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fullFilePath;
     std::string fullFileRevision;
     std::string fullFileCacheKey;
+    std::string fullFileEncodingOverride = "auto";
+    std::string fullFileEncodingLabel;
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
     std::string fullFileBytes;

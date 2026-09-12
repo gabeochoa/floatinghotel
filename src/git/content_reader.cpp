@@ -1,5 +1,6 @@
 #include "content_reader.h"
 #include "../util/file_content.h"
+#include "../util/text_decode.h"
 
 #include <filesystem>
 #include <array>
@@ -53,7 +54,10 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
     }
     if (stop.stop_requested()) content.error = "File load cancelled";
     if (content.error.empty()) {
-        content.diff = parse_complete_file(request.path, content.raw);
+        auto decoded = text_decode::decode(content.raw, request.encoding);
+        content.encodingLabel = decoded.encoding;
+        content.diff = parse_complete_file(request.path, decoded.text);
+        content.diff.isBinary = decoded.binary;
         content.diff.oldMode = content.diff.newMode = mode;
     }
     return content;

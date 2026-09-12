@@ -1,0 +1,21 @@
+resize 1280 800
+wait_for_refresh
+click_text "utf16.txt"
+wait_frames 5
+click_ui open_full_file
+wait_for_refresh
+expect_text "Auto: UTF-16 LE"
+expect_text "hello utf16"
+screenshot item_42_auto_utf16
+click_ui encoding_cycle
+wait_for_refresh
+expect_text "UTF-8"
+click_ui encoding_cycle
+wait_for_refresh
+expect_text "UTF-16 LE"
+expect_text "hello utf16"
+screenshot item_42_override_utf16
+resize 960 720
+wait_frames 5
+screenshot item_42_narrow_toolbar
+assert_no_overflow
