@@ -132,6 +132,11 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_text_decode" ]; then
         "tests/unit/test_text_decode.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_hex_view" ]; then
+    run_test "test_hex_view" \
+        "tests/unit/test_hex_view.cpp"
+fi
+
 # --- test_review_store ---
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
     run_test "test_review_store" \

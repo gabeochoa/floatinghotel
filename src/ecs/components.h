@@ -16,6 +16,7 @@
 #include "../git/history_query.h"
 #include "../util/codeowners.h"
 #include "../util/code_bookmark.h"
+#include "../util/hex_view.h"
 
 namespace ecs {
 
@@ -244,6 +245,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fullFileRevision;
     std::string fullFileCacheKey;
     std::string fullFileSourceKey;
+    std::string fullFileHexPreviewKey;
+    hex_view::Preview fullFileHexPreview;
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
     std::string fullFileBytes;

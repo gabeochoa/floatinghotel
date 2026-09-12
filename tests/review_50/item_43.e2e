@@ -1,0 +1,35 @@
+resize 1280 800
+wait_for_refresh
+click_text "binary.dat"
+wait_frames 5
+click_ui open_full_file
+wait_frames 5
+wait_for_refresh
+expect_text "Hex preview: 32 of 32 loaded bytes"
+expect_text "00000000"
+expect_text "00 01 02 03"
+expect_text "|....ABCD....WXYZ|"
+screenshot item_43_hex_preview
+click_ui full_file_back
+screenshot item_43_back
+click_text large.bin
+screenshot item_43_large_diff
+click_ui open_full_file
+wait_frames 3
+wait_for_refresh
+screenshot item_43_large_preview
+expect_text Hex preview: 4096 of 8192 loaded bytes (truncated)
+expect_text 00000000
+expect_no_text 00000ff0
+mouse_move 900 500
+scroll_wheel 0 -300
+wait_frames 30
+screenshot item_43_bottom
+dump_ui item_43_bottom_tree hex_preview
+expect_text 00000ff0
+expect_no_text 00000000
+scroll_wheel 0 300
+wait_frames 30
+screenshot item_43_top_again
+expect_text 00000000
+assert_no_overflow
