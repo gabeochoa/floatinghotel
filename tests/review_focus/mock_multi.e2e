@@ -1,0 +1,14 @@
+resize 1440 1000
+wait_for_refresh
+click_text "Take the minimum instead of sorting"
+wait_for_refresh
+mouse_move 1100 25
+wait_frames 5
+screenshot multi_default
+click_ui fold_file:src/core/entity_query.h
+wait_frames 5
+screenshot multi_first_folded
+click_ui fold_file:tests/query_extreme_by_test.cpp
+wait_frames 5
+screenshot multi_both_folded
+validate footer_fixed=true
