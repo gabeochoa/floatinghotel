@@ -1,0 +1,34 @@
+--- Compiling test_commit_patch ---
+--- Running test_commit_patch ---
+  commit_patches_are_parsed_on_workers_with_resolved_revision_identity [INFO] git: 175 ms (waited 0 ms for lock): git init
+[INFO] git: 146 ms (waited 0 ms for lock): git add
+[INFO] git: 150 ms (waited 0 ms for lock): git -c
+[INFO] git: 110 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 108 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 113 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 110 ms (waited 0 ms for lock): git show
+[INFO] git: 160 ms (waited 0 ms for lock): git -c
+[INFO] git: 112 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 131 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 103 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 146 ms (waited 0 ms for lock): git diff
+[INFO] git: 132 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 123 ms (waited 0 ms for lock): git rev-parse
+OK
+  commit_patch_cancellation_stops_an_active_textconv           [INFO] git: 173 ms (waited 0 ms for lock): git init
+[INFO] git: 165 ms (waited 0 ms for lock): git add
+[INFO] git: 150 ms (waited 0 ms for lock): git -c
+[INFO] git: 107 ms (waited 0 ms for lock): git config
+[INFO] git: 109 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 89 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 122 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 516 ms (waited 0 ms for lock): git show
+OK
+  commit_patch_cache_bounds_all_owned_content_and_evicts_least_recently_used OK
+  commit_patch_cache_keys_include_repository_parent_and_all_diff_options OK
+
+4/4 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

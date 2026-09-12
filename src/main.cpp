@@ -318,8 +318,8 @@ static void trace_navigation_frame() {
     }
     auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
-    if (repo && !repo->selectedCommitHash.empty() && selected != repo->selectedCommitHash) {
-        selected = repo->selectedCommitHash;
+    if (repo && !repo->selectedCommitHash().empty() && selected != repo->selectedCommitHash()) {
+        selected = repo->selectedCommitHash();
         log_info("NAV commit_click_accepted {:.2f}", elapsed);
     }
     if (detail && !selected.empty() && detail->cachedCommitHash == selected && !detail->patchFuture.valid() &&
@@ -696,7 +696,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
                 refreshDone = refreshDone && !repo->refreshRequested && !repo->isRefreshing;
-                refreshDone = refreshDone && (repo->fullFilePath.empty() || !repo->fullFileFuture.valid() ||
+                refreshDone = refreshDone && (repo->fullFilePath().empty() || !repo->fullFileFuture.valid() ||
                     repo->fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->repoSearchFuture.valid() ||
                     repo->repoSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
@@ -1237,7 +1237,7 @@ int main(int argc, char* argv[]) {
         } else if (key == "active_content") {
             if (auto* r = repo()) return ecs::source_tab_active(*r) ? "Source" : "Review";
         } else if (key == "source_revision") {
-            if (auto* r = repo()) return r->fullFileRevision;
+            if (auto* r = repo()) return r->fullFileRevision();
         } else if (key == "sidebar_visible") {
             if (auto* l = layout()) return l->sidebarVisible ? "true" : "false";
         } else if (key == "command_log_visible") {
@@ -1271,13 +1271,13 @@ int main(int argc, char* argv[]) {
         } else if (key == "branch") {
             if (auto* r = repo()) return r->currentBranch;
         } else if (key == "selected_file") {
-            if (auto* r = repo()) return r->selectedFilePath;
+            if (auto* r = repo()) return r->selectedFilePath();
         } else if (key == "commit_message") {
             if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent,
                                                    ecs::ActiveTab>())
                 return editor->subject;
         } else if (key == "source_line") {
-            if (auto* r = repo()) return std::to_string(r->fullFileTargetLine);
+            if (auto* r = repo()) return std::to_string(r->fullFileTargetLine());
         } else if (key.starts_with("visible_source_line:")) {
             for (const auto& row : ui::diff_sel::state().lastLines) {
                 if (std::to_string(row.lineNo) != key.substr(20)) continue;
@@ -1373,7 +1373,7 @@ int main(int argc, char* argv[]) {
             // an exact-match assertion needs a rounded, stable spelling.
             return std::format("{:.2f}", ui::zoom::get());
         } else if (key == "selected_commit") {
-            if (auto* r = repo()) return r->selectedCommitHash;
+            if (auto* r = repo()) return r->selectedCommitHash();
         } else if (key == "is_amend") {
             if (auto* e = ecs::find_singleton<ecs::CommitEditorComponent,
                                               ecs::ActiveTab>())

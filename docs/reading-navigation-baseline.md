@@ -103,3 +103,7 @@ The checkpoint limitations and nine source-audited upstream candidates are in
 possible; native/UI proposals are not presented as reproduced runtime defects.
 This baseline does not cover the full acceptance fixture matrix, dock behavior,
 missing revisions, out-of-order reads, or the remaining implementation steps.
+
+## Timing correction discovered during step 02
+
+The baseline probe used `commit_subject`, which identifies the sidebar commit row. Step 02 exposed a renderer routing failure while that sidebar row still matched. The existing baseline screenshots remain evidence of the rendered journeys, but the commit timing predicate did not prove that the reader heading was visible on its first recorded frame. Treat those commit selection timings as state-plus-sidebar measurements. Source timing used the reader's `full_file_revision` heading. The step-02 probe now requires `commit_detail_subject`, and its layout checks assert that reader heading too. A direct commit timing comparison must account for this stricter predicate.

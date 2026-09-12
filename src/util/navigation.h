@@ -1,34 +1,148 @@
 #pragma once
 
 #include "../ecs/components.h"
-#include <optional>
 
-namespace navigation {
+struct navigation {
 
-inline ecs::NavigationLocation location(const ecs::RepoComponent& repo, bool reviewing = false) {
-    using Kind = ecs::NavigationLocation::Kind;
-    ecs::NavigationLocation next;
-    if (ecs::source_tab_active(repo)) next = {Kind::FullFile, repo.fullFilePath, repo.fullFileRevision};
-    else if (!repo.selectedCommitHash.empty()) next = {Kind::Commit, "", repo.selectedCommitHash};
-    else if (!repo.selectedFilePath.empty() && (!reviewing || repo.selectedFileStaged))
-        next = {Kind::File, repo.selectedFilePath, "", repo.selectedFileStaged};
-    next.reviewing = reviewing;
-    return next;
-}
+    static reading::RequestStamp stamp(const ecs::RepoComponent& repo, std::string key) {
+        return {repo.repoPath, repo.workspace_.location(), std::move(key), repo.workspace_.generation(), repo.dataGeneration};
+    }
 
-inline void record(ecs::NavigationHistory& history, const ecs::NavigationLocation& next) {
-    if (!history.entries.empty() && history.entries[history.index] == next) return;
-    if (!history.entries.empty()) history.entries.resize(history.index + 1);
-    history.entries.push_back(next);
-    history.index = history.entries.size() - 1;
-}
+    static bool accepts(const ecs::RepoComponent& repo, const reading::RequestStamp& request, const std::string& key) {
+        return request == stamp(repo, key);
+    }
 
-inline std::optional<ecs::NavigationLocation> step(ecs::NavigationHistory& history, int direction) {
-    if (history.entries.empty() || direction == 0 || (direction < 0 && history.index == 0) ||
-        (direction > 0 && history.index + 1 >= history.entries.size())) return std::nullopt;
-    if (direction < 0) --history.index;
-    else ++history.index;
-    return history.entries[history.index];
-}
+    static bool resolve_source(ecs::RepoComponent& repo, const reading::RequestStamp& request, const std::string& oid) {
+        return accepts(repo, request, request.key) && repo.workspace_.resolve_source(request.generation, oid);
+    }
 
-}
+    static bool resolve_review(ecs::RepoComponent& repo, const reading::RequestStamp& request,
+                               const std::string& commit, const std::string& parent) {
+        return accepts(repo, request, request.key) && repo.workspace_.resolve_review(request.generation, commit, parent);
+    }
+
+    static void finish(ecs::RepoComponent& repo, const reading::Location& before, bool changed) {
+        if (!repo.navigationEffect) repo.navigationEffect.emplace();
+        auto& effect = *repo.navigationEffect;
+        effect.changed |= changed;
+        effect.dismissedPanel |= repo.repoSearchOpen || repo.fileHistoryOpen || repo.commitSearchOpen;
+        repo.repoSearchOpen = repo.fileHistoryOpen = repo.commitSearchOpen = false;
+        if (!changed) return;
+        repo.comparisonEditorOpen = false;
+        effect.reviewing = repo.workspace_.history()[repo.workspace_.history_index()].reviewing;
+        const auto after = repo.workspace_.location();
+        const auto* source = std::get_if<reading::SourceLocation>(&after);
+        const auto* oldSource = std::get_if<reading::SourceLocation>(&before);
+        if (repo.fullFileFuture.valid()) {
+            repo.fullFileFuture = {};
+            repo.fullFileCacheKey.clear();
+        }
+        if (source) {
+            if (!oldSource || oldSource->destination != source->destination) {
+                repo.fullFileNavigateFrames = source->line > 0 ? 3 : 0;
+            } else if (oldSource->line != source->line) {
+                repo.fullFileNavigateFrames = source->line > 0 ? 3 : 0;
+            }
+        } else {
+            repo.diffTargetFrames = repo.diffTargetFile().empty() ? 0 : 4;
+            repo.cachedFilePath.clear();
+        }
+        repo.rangeDiff.enabled = false;
+        repo.rangeDiff.future = {};
+        if (repo.comparisonScope() != repo.comparisonLoadedScope) {
+            repo.comparisonFuture = {};
+            repo.comparisonDiff.clear();
+            repo.comparisonError.clear();
+            repo.comparisonNeedsLoad = !repo.comparisonScope().empty();
+            if (repo.comparisonNeedsLoad) {
+                auto [base, target] = diff_revisions(repo.comparisonScope());
+                repo.comparisonBase = std::move(base);
+                repo.comparisonTarget = std::move(target);
+            }
+        }
+    }
+
+    static void open(ecs::RepoComponent& repo, reading::Location location, std::optional<bool> reviewing = {}) {
+        auto before = repo.workspace_.location();
+        if (auto* source = std::get_if<reading::SourceLocation>(&location); source && !source->origin)
+            source->origin = repo.workspace_.review();
+        bool mode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
+        bool changed = repo.workspace_.open(std::move(location), mode);
+        finish(repo, before, changed);
+    }
+
+    static void activate(ecs::RepoComponent& repo, reading::Slot slot) {
+        if (slot == reading::Slot::Source) {
+            if (repo.workspace_.source()) open(repo, *repo.workspace_.source());
+        } else open(repo, repo.workspace_.review());
+    }
+
+    static void close_source(ecs::RepoComponent& repo) {
+        auto before = repo.workspace_.location();
+        bool changed = repo.workspace_.close_source(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
+        finish(repo, before, changed);
+        ecs::cancel_hidden_file_read(repo);
+    }
+
+    static void step(ecs::RepoComponent& repo, int direction) {
+        auto before = repo.workspace_.location();
+        if (repo.workspace_.step(direction)) finish(repo, before, true);
+    }
+
+    static void return_to_review(ecs::RepoComponent& repo) {
+        const auto& source = repo.workspace_.source();
+        open(repo, source && source->origin ? *source->origin : repo.workspace_.review());
+    }
+
+    static void comparison_editor(ecs::RepoComponent& repo) {
+        activate(repo, reading::Slot::Review);
+        repo.comparisonEditorOpen = true;
+    }
+
+    static void reset(ecs::RepoComponent& repo) {
+        auto before = repo.workspace_.location();
+        repo.workspace_.reset();
+        repo.reading = {};
+        repo.fullFileFuture = {};
+        repo.fullFileCacheKey.clear();
+        repo.fullFileSourceKey.clear();
+        finish(repo, before, true);
+    }
+
+    static std::string comparison_request_key(const ecs::RepoComponent& repo) {
+        auto identity = repo.comparisonRequest == ecs::RepoComponent::ComparisonRequest::SubmittedForm
+            ? repo.comparisonBase + "\n" + repo.comparisonTarget + "\n" + std::to_string(repo.comparisonMergeBase)
+            : repo.comparisonScope();
+        return identity + "\n" + std::to_string(repo.diffContext) + ":" + std::to_string(repo.ignoreWhitespace);
+    }
+
+    static bool accepts_comparison(ecs::RepoComponent& repo, const reading::RequestStamp& request) {
+        if (accepts(repo, request, comparison_request_key(repo))) return true;
+        if (repo.comparisonContext != repo.diffContext || repo.comparisonIgnoreWhitespace != repo.ignoreWhitespace)
+            repo.comparisonNeedsLoad = !repo.comparisonScope().empty();
+        return false;
+    }
+
+    static bool complete_comparison(ecs::RepoComponent& repo, const reading::RequestStamp& request,
+                                    const std::string& base, const std::string& target) {
+        if (!accepts_comparison(repo, request)) return false;
+        if (repo.comparisonEditorOpen || !repo.workspace_.resolve_comparison(request.generation, base, target))
+            open(repo, reading::review("compare:" + base + ":" + target));
+        repo.comparisonLoadedScope = repo.comparisonScope();
+        repo.comparisonNeedsLoad = false;
+        return true;
+    }
+
+    static void clear_source_reveal(ecs::RepoComponent& repo) {
+        repo.workspace_.clear_source_reveal();
+    }
+
+    static void restore_draft(ecs::RepoComponent& repo, const ecs::ReviewComponent& review) {
+        if (!review.composingKey.empty()) open(repo, reading::review(review.composingScope, review.composingFile));
+        else if (review.editingComment >= 0 && static_cast<size_t>(review.editingComment) < review.comments.size()) {
+            const auto& comment = review.comments[review.editingComment];
+            open(repo, reading::review(comment.scope, comment.file));
+        }
+    }
+
+};

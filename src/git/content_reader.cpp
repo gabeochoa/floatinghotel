@@ -33,8 +33,18 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
     return file;
 }
 
-ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop) {
+ecs::FullFileContent read_file(const FileRequest& input, std::stop_token stop) {
+    FileRequest request = input;
     ecs::FullFileContent content;
+    if (!request.revision.empty() && request.revision != "INDEX") {
+        if (!reading::is_object_id(request.revision)) {
+            auto resolved = git_run(request.repo, {"rev-parse", "--verify", "--end-of-options", request.revision + "^{commit}"}, stop);
+            if (!resolved.success()) { content.error = resolved.stderr_str(); return content; }
+            request.revision = resolved.stdout_str();
+            while (!request.revision.empty() && (request.revision.back() == '\n' || request.revision.back() == '\r')) request.revision.pop_back();
+        }
+        content.resolvedRevision = request.revision;
+    }
     auto& cache = blob_page_cache();
     std::string cacheKey;
     bool cacheHit = false;

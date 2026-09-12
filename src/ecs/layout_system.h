@@ -30,9 +30,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         {
             auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
-            bool nothingSelected = hasRepoForShelf &&
-                                   shelfRepo->selectedFilePath.empty() &&
-                                   shelfRepo->selectedCommitHash.empty() && !layout.filePickerOpen && !shelfRepo->repoSearchOpen && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen && !shelfRepo->comparisonOpen;
+            bool nothingSelected = hasRepoForShelf && !source_tab_active(*shelfRepo) &&
+                                   shelfRepo->selectedFilePath().empty() &&
+                                   shelfRepo->selectedCommitHash().empty() && !layout.filePickerOpen && !shelfRepo->repoSearchOpen && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen && !shelfRepo->comparisonOpen();
             // While reviewing (in the ballroom) the diff pane shows every
             // working-tree file, so keep the shelf open even with no selection.
             auto* shelfReview = find_singleton<ReviewComponent, ActiveTab>();
@@ -109,9 +109,9 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
         layout.contentTabs = {};
         auto* review = find_singleton<ReviewComponent, ActiveTab>();
-        const bool hasContent = repo && (!repo->selectedCommitHash.empty() ||
-            !repo->selectedFilePath.empty() || !repo->fullFilePath.empty() ||
-            repo->comparisonOpen || (review && review->reviewing));
+        const bool hasContent = repo && (!repo->selectedCommitHash().empty() ||
+            !repo->selectedFilePath().empty() || !repo->fullFilePath().empty() ||
+            repo->comparisonOpen() || (review && review->reviewing));
         if (hasContent && !sidebarOnly) {
             const float tabsH = std::min(40.f, layout.mainContent.height);
             layout.contentTabs = {layout.mainContent.x, layout.mainContent.y,

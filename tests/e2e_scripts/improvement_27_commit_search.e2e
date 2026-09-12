@@ -23,4 +23,5 @@ wait_frames 3
 wait_for_refresh
 screenshot improvement_27_open
 expect_text "Add unit tests for utils"
-expect_text "tests/test_utils.cpp"
+expect_text "test_utils.cpp"
+assert_ui file_header_label hidden=false

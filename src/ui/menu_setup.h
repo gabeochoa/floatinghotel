@@ -99,8 +99,7 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Compare Revisions...", "", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
-                repo->comparisonOpen = true;
-                repo->activeContent = ecs::RepoComponent::ContentView::Review;
+                navigation::comparison_editor(*repo);
             }
         }),
     }});
@@ -112,10 +111,10 @@ inline std::vector<Menu> createMenuBar() {
                 repo->reviewWorkspace = !repo->reviewWorkspace;
         }),
         MenuItem::item("Back", "Alt+Left", [] {
-            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->navigation.requestedStep = -1;
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) navigation::step(*repo, -1);
         }),
         MenuItem::item("Forward", "Alt+Right", [] {
-            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->navigation.requestedStep = 1;
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) navigation::step(*repo, 1);
         }),
         MenuItem::separator(),
         MenuItem::item("Toggle Sidebar", "Cmd+B", [] {
@@ -192,16 +191,16 @@ inline std::vector<Menu> createMenuBar() {
     menus.push_back({"Repository", {
         MenuItem::item("Stage File", "Cmd+Shift+S", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r && !r->selectedFilePath.empty()) {
-                auto res = git::stage_file(r->repoPath, r->selectedFilePath);
+            if (r && !r->selectedFilePath().empty()) {
+                auto res = git::stage_file(r->repoPath, r->selectedFilePath());
                 ecs::toast_on_git_failure(res, "Stage");
                 r->refreshRequested = true;
             }
         }),
         MenuItem::item("Unstage File", "Cmd+Shift+U", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r && !r->selectedFilePath.empty()) {
-                auto res = git::unstage_file(r->repoPath, r->selectedFilePath);
+            if (r && !r->selectedFilePath().empty()) {
+                auto res = git::unstage_file(r->repoPath, r->selectedFilePath());
                 ecs::toast_on_git_failure(res, "Unstage");
                 r->refreshRequested = true;
             }

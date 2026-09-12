@@ -7,6 +7,7 @@ namespace ecs {
 
 inline void load_file_history(RepoComponent& repo) {
     repo.fileHistoryError.clear();
+    repo.fileHistoryFutureStamp = navigation::stamp(repo, repo.fileHistoryPath + "\n" + repo.fileHistoryRevision + ":" + std::to_string(repo.fileHistoryLimit));
     repo.fileHistoryFuture = git::git_run_async(repo.repoPath,
         {"log", "--follow", "-n", std::to_string(repo.fileHistoryLimit),
          "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P",
@@ -28,6 +29,7 @@ inline void render_file_history(UIContext<InputAction>& ctx, Entity& parent,
     using namespace std::chrono_literals;
     if (repo.fileHistoryFuture.valid() && repo.fileHistoryFuture.wait_for(0s) == std::future_status::ready) {
         auto result = repo.fileHistoryFuture.get();
+        if (!navigation::accepts(repo, repo.fileHistoryFutureStamp, repo.fileHistoryPath + "\n" + repo.fileHistoryRevision + ":" + std::to_string(repo.fileHistoryLimit))) return;
         repo.fileHistoryFuture = {};
         if (result.success()) repo.fileHistoryEntries = git::parse_log(result.stdout_str());
         else repo.fileHistoryError = result.stderr_str();
@@ -51,10 +53,7 @@ inline void render_file_history(UIContext<InputAction>& ctx, Entity& parent,
                     .with_size(ComponentSize{percent(1.f), pixels(36)}).with_alignment(TextAlignment::Left)
                     .with_custom_background(theme::PANEL_BG).with_font_size(FontSize::Medium)
                     .with_debug_name("file_history_commit:" + std::to_string(i)))) {
-                repo.selectedCommitHash = commit.hash;
-                repo.selectedFilePath.clear();
-                repo.activeContent = RepoComponent::ContentView::Review;
-                repo.fileHistoryOpen = false;
+                navigation::open(repo, reading::review(commit.hash));
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 100.f))}));
     if (!repo.fileHistoryFuture.valid() && (static_cast<int>(repo.fileHistoryEntries.size()) == repo.fileHistoryLimit || !repo.fileHistoryError.empty())) {

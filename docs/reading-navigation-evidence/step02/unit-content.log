@@ -1,0 +1,80 @@
+--- Compiling test_content_reader ---
+--- Running test_content_reader ---
+  complete_file_parser_preserves_lines_and_endings             OK
+  binary_file_keeps_its_raw_content                            OK
+  file_reads_report_errors_without_throwing                    OK
+  async_file_read_returns_owned_content                        OK
+  markdown_preview_text_uses_worker_decoding_without_retaining_other_sources OK
+  replacing_a_task_requests_stop_without_waiting_for_completion OK
+  cancelled_tokens_do_not_cancel_accepted_git_writes           [INFO] git: 134 ms (waited 0 ms for lock): git init
+[INFO] git: 118 ms (waited 0 ms for lock): git config
+[INFO] git: 119 ms (waited 0 ms for lock): git config
+[INFO] git: 0 ms (waited 0 ms for lock): git status
+OK
+  file_pages_bound_lines_navigate_both_directions_and_load_distant_targets OK
+  file_pages_keep_utf16_units_and_long_line_fragments_intact   OK
+  file_pages_do_not_split_utf8_codepoints_at_the_byte_budget   OK
+  historical_reads_are_bounded_and_index_is_resolved_fresh     [INFO] git: 151 ms (waited 0 ms for lock): git init
+[INFO] git: 149 ms (waited 0 ms for lock): git add
+[INFO] git: 132 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 138 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 106 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 226 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 218 ms (waited 0 ms for lock): git add
+[INFO] git: 115 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 144 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 101 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 103 ms (waited 0 ms for lock): git cat-file
+OK
+  later_utf16_pages_preserve_binary_nuls                       OK
+  blob_page_cache_bounds_owned_bytes_and_returns_independent_copies OK
+  blob_page_keys_require_immutable_sources_and_distinguish_page_and_encoding_options OK
+  cached_blob_pages_do_not_leak_path_or_mode_and_never_cache_working_tree_bytes [INFO] git: 130 ms (waited 0 ms for lock): git init
+[INFO] git: 81 ms (waited 0 ms for lock): git add
+[INFO] git: 87 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 106 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 117 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 87 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 96 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 82 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 104 ms (waited 0 ms for lock): git ls-files
+[INFO] blob page cache hit for 9e4bcc53244ae1ffc26c9c78775b0126f6bb584a
+[INFO] git: 92 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 97 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 109 ms (waited 0 ms for lock): git ls-files
+[INFO] blob page cache hit for 9e4bcc53244ae1ffc26c9c78775b0126f6bb584a
+OK
+  intentional_page_capture_is_logged_as_success_without_hiding_its_stop_result [INFO] git: 93 ms (waited 0 ms for lock): git init
+[INFO] git: 139 ms (waited 0 ms for lock): git add
+[INFO] git: 83 ms (waited 0 ms for lock): git cat-file
+OK
+  hidden_pending_file_read_is_cancelled_and_will_retry_when_reopened OK
+  hidden_loaded_file_retains_its_cache_and_visible_pending_read_keeps_running OK
+  leaving_file_view_releases_a_worker_waiting_for_the_repository_lock [INFO] git: 120 ms (waited 0 ms for lock): git init
+OK
+  historical_navigation_pins_a_revision_even_after_the_branch_moves [INFO] git: 149 ms (waited 0 ms for lock): git init
+[INFO] git: 123 ms (waited 0 ms for lock): git config
+[INFO] git: 79 ms (waited 0 ms for lock): git config
+[INFO] git: 103 ms (waited 0 ms for lock): git config
+[INFO] git: 170 ms (waited 0 ms for lock): git add
+[INFO] git: 329 ms (waited 0 ms for lock): git commit
+[INFO] git: 136 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 127 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 157 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 323 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 493 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 419 ms (waited 0 ms for lock): git rm
+[INFO] git: 333 ms (waited 0 ms for lock): git commit
+[INFO] git: 151 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 185 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 207 ms (waited 0 ms for lock): git ls-tree
+[INFO] blob page cache hit for 4b48deed3a433909bfd6b6ab3d4b91348b6af464
+[INFO] git: 178 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 156 ms (waited 0 ms for lock): git rev-parse
+OK
+
+20/20 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

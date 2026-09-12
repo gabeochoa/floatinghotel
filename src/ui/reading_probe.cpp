@@ -52,12 +52,12 @@ void rendered() {
     auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     if (!repo) return;
     bool selected = probe.kind == "source"
-        ? ecs::source_tab_active(*repo) && repo->fullFilePath == probe.path && repo->fullFileRevision == probe.revision
-        : !ecs::source_tab_active(*repo) && repo->selectedCommitHash == probe.revision &&
-            (probe.path.empty() || repo->diffTargetFile == probe.path || repo->selectedFilePath == probe.path);
+        ? ecs::source_tab_active(*repo) && repo->fullFilePath() == probe.path && repo->fullFileRevision() == probe.revision
+        : !ecs::source_tab_active(*repo) && repo->selectedCommitHash() == probe.revision &&
+            (probe.path.empty() || repo->diffTargetFile() == probe.path || repo->selectedFilePath() == probe.path);
     if (!selected) return;
     auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
-    const std::string headingName = probe.kind == "source" ? "full_file_revision" : "commit_subject";
+    const std::string headingName = probe.kind == "source" ? "full_file_revision" : "commit_detail_subject";
     const std::string headingText = probe.kind == "source"
         ? probe.path + " @ " + (probe.revision.empty() ? "working tree" : probe.revision)
         : detail ? detail->entry.subject : "";
@@ -128,8 +128,8 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
             auto patch = git::commit_patch_cache().activity();
             nlohmann::json snapshot{{"schema_version", 1}, {"label", probe.label},
                 {"repository", repo->repoPath}, {"kind", probe.kind}, {"path", probe.path}, {"revision", probe.revision},
-                {"selected_commit", repo->selectedCommitHash}, {"source_path", repo->fullFilePath},
-                {"source_revision", repo->fullFileRevision}, {"diff_target", repo->diffTargetFile},
+                {"selected_commit", repo->selectedCommitHash()}, {"source_path", repo->fullFilePath()},
+                {"source_revision", repo->fullFileRevision()}, {"diff_target", repo->diffTargetFile()},
                 {"selection_ms", *probe.selectionMs}, {"ready_ms", *probe.readyMs},
                 {"owned_content_bytes", bytes},
                 {"blob_cache", {{"bytes", git::blob_page_cache().bytes()}, {"hits", blob.first}, {"misses", blob.second},

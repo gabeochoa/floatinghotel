@@ -9,6 +9,9 @@ inline void load_commit_search(RepoComponent& repo) {
     repo.commitSearchError.clear();
     auto args = git::history_search_args(repo.commitSearchQuery, repo.commitSearchLimit);
     if (!args) { repo.commitSearchError = "Use valid YYYY-MM-DD dates, with Since before Until."; return; }
+    std::string key;
+    for (const auto& arg : *args) key += arg + "\n";
+    repo.commitSearchFutureStamp = navigation::stamp(repo, std::move(key));
     repo.commitSearchFuture = git::git_run_async(repo.repoPath, *args);
 }
 
@@ -17,6 +20,7 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
     using namespace std::chrono_literals;
     if (repo.commitSearchFuture.valid() && repo.commitSearchFuture.wait_for(0s) == std::future_status::ready) {
         auto result = repo.commitSearchFuture.get();
+        if (!navigation::accepts(repo, repo.commitSearchFutureStamp, repo.commitSearchFutureStamp.key)) return;
         repo.commitSearchFuture = {};
         if (result.success()) repo.commitSearchEntries = git::parse_log(result.stdout_str());
         else repo.commitSearchError = result.stderr_str();
@@ -67,10 +71,7 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
                     .with_size(ComponentSize{percent(1.f), pixels(34)}).with_alignment(TextAlignment::Left)
                     .with_custom_background(theme::PANEL_BG).with_font_size(FontSize::Medium)
                     .with_debug_name("commit_search_result:" + std::to_string(i)))) {
-                repo.selectedCommitHash = commit.hash;
-                repo.selectedFilePath.clear();
-                repo.activeContent = RepoComponent::ContentView::Review;
-                repo.commitSearchOpen = false;
+                navigation::open(repo, reading::review(commit.hash));
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 270.f))}));
 }

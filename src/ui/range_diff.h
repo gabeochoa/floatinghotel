@@ -20,18 +20,20 @@ inline void start_range_diff(RepoComponent& repo) {
         state.error = "Enter two ranges with explicit endpoints, such as main..topic";
         return;
     }
+    state.requestStamp = navigation::stamp(repo, state.oldRange + "\n" + state.newRange);
     state.revisions = {oldRange->first, oldRange->second, newRange->first, newRange->second};
     state.future = git::git_run_async(repo.repoPath, {"rev-parse", "--verify", "--end-of-options", state.revisions[0] + "^{commit}"});
 }
 
 inline void poll_range_diff(RepoComponent& repo) {
     auto& state = repo.rangeDiff;
-    if (!repo.comparisonOpen || !state.enabled) {
+    if (!repo.comparisonOpen() || !state.enabled) {
         state.future = {};
         return;
     }
     if (!state.future.valid() || state.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
     auto result = state.future.get();
+    if (!navigation::accepts(repo, state.requestStamp, state.oldRange + "\n" + state.newRange)) return;
     state.future = {};
     if (!result.success() && (!result.raw.outputStopped || result.raw.cancelled)) {
         state.error = result.stderr_str().empty() ? "Unable to compare commit series" : result.stderr_str();
@@ -93,7 +95,7 @@ inline void render_range_diff(UIContext<InputAction>& ctx, Entity& parent, RepoC
             .with_size(ComponentSize{pixels(145), pixels(30)}).with_debug_name("range_diff_submit"))) start_range_diff(repo);
     if (button(ctx, mk(actions.ent(), 1), preset::Button("Close")
             .with_size(ComponentSize{pixels(70), pixels(30)}).with_debug_name("range_diff_close"))) {
-        repo.comparisonOpen = false;
+        navigation::open(repo, reading::review("wt"));
         state.future = {};
     }
     std::string status = "Compare rewritten, reordered, added, or dropped commits";

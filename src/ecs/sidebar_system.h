@@ -264,7 +264,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY));
             if (segment) {
                 layout.sidebarNavigation = index == 0 ? LayoutComponent::SidebarNavigation::Review : LayoutComponent::SidebarNavigation::Files;
-                if (index == 0 && repoPtr) repoPtr->activeContent = RepoComponent::ContentView::Review;
+                if (index == 0 && repoPtr) navigation::activate(*repoPtr, reading::Slot::Review);
             }
         }
         constexpr float repoHeaderH = 104.f;
@@ -532,17 +532,25 @@ private:
         const std::vector<FileDiff>* files = nullptr;
         std::string scope = "wt";
         std::string empty = "Select a commit to review";
-        if (repo && !repo->selectedCommitHash.empty()) {
+        if (repo && !repo->comparisonScope().empty()) {
+            scope = repo->comparisonScope();
+            if (repo->comparisonLoadedScope == scope && !repo->comparisonFuture.valid() && repo->comparisonError.empty())
+                files = &repo->comparisonDiff;
+            else empty = repo->comparisonError.empty() ? "Loading comparison files..." : "Unable to load comparison files";
+        } else if (repo && !repo->selectedCommitHash().empty()) {
             scope = commit_review_scope(*repo);
             const bool matching = cache && cache->cachedRepoPath == repo->repoPath &&
-                cache->cachedCommitHash == repo->selectedCommitHash &&
+                cache->cachedCommitHash == repo->selectedCommitHash() &&
                 cache->cachedParentHash == selected_commit_parent(*repo) &&
                 cache->cachedContext == repo->diffContext && cache->cachedIgnoreWhitespace == repo->ignoreWhitespace;
             if (matching && !cache->patchFuture.valid()) {
                 if (cache->commitDetailError.empty()) files = &cache->commitDetailDiff;
                 else empty = "Unable to load commit files";
             } else empty = "Loading commit files...";
-        } else if (repo && repo->hasLoadedOnce) files = &repo->currentDiff;
+        } else if (repo && repo->hasLoadedOnce) {
+            scope = repo->selectedFileStaged() ? "index" : "wt";
+            files = repo->selectedFileStaged() ? &repo->stagedDiff : &repo->currentDiff;
+        }
         if (files && files->empty()) empty = "No changed files";
         auto section = div(ctx, mk(parent, 2400), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(height)})
@@ -631,7 +639,7 @@ private:
                 }
                 const auto& file = (*files)[commitFileIndices_[node.sourceIndex]];
                 auto row = button(ctx, mk(wrapper, 0), ui::file_tree_style::row_config(sidebarPixelWidth_, node.depth,
-                    repo->diffTargetFile == node.path)
+                    repo->diffTargetFile() == node.path)
                     .with_debug_name("commit_changed_file"));
                 ui::set_tooltip(row.ent(), node.path);
                 div(ctx, mk(row.ent(), 3), ComponentConfig{}.with_label(ui::file_tree_style::type_marker(node.path))
@@ -643,11 +651,7 @@ private:
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path));
                 if (row) {
-                    repo->activeContent = RepoComponent::ContentView::Review;
-                    repo->diffTargetFile = file.filePath;
-                    repo->diffTargetFrames = 4;
-                    layout->diffFindOpen = false;
-                    if (scope == "wt") repo->selectedFilePath = file.filePath;
+                    navigation::open(*repo, reading::review(scope, file.filePath));
                     if (review) {
                         review->foldedFiles.erase(scope + "\n" + file.filePath);
                         for (const auto& hunk : file.hunks)
@@ -914,7 +918,7 @@ private:
         float frac = (reviewing && totalHunks > 0)
                          ? static_cast<float>(approvedHunks) / totalHunks : 0.f;
 
-        bool aside = reviewing && !repo.selectedCommitHash.empty();
+        bool aside = reviewing && !repo.selectedCommitHash().empty();
         const std::string txt = std::to_string(approvedHunks) + "/" + std::to_string(totalHunks) +
             " approved · " + std::to_string(queued) + " comments";
 
@@ -937,12 +941,9 @@ private:
             .with_debug_name("working_review_toggle"));
         if (review) {
             if (action) {
-                repo.activeContent = RepoComponent::ContentView::Review;
                 if (aside) {
                     // Return to the stacked ballroom view without disembarking.
-                    repo.selectedCommitHash.clear();
-                    repo.selectedFilePath.clear();
-                    repo.cachedFilePath.clear();
+                    navigation::open(repo, reading::review("wt"), review->reviewing);
                 } else {
                     review->reviewing = !review->reviewing;
                     review->dirty = true;
@@ -958,12 +959,11 @@ private:
                         }
                         // The ballroom shows every working-tree file stacked, so
                         // don't pin a single selection — just clear it.
-                        repo.selectedFilePath.clear();
-                        repo.selectedCommitHash.clear();
-                        repo.cachedFilePath.clear();
+                        navigation::open(repo, reading::review("wt"), review->reviewing);
                         afterhours::toast::send_info(
                             ctx, "Review opened", 2.0f);
                     } else {
+                        navigation::open(repo, reading::review("wt"), false);
                         afterhours::toast::send_info(ctx, "Working review closed",
                                                      1.5f);
                     }
@@ -1818,7 +1818,7 @@ private:
                                const std::string& path, char statusChar,
                                RepoComponent& repo, bool isSubmodule,
                                bool staged, const std::string& oldPath = "") {
-        bool selected = (path == repo.selectedFilePath);
+        bool selected = path == (source_tab_active(repo) ? repo.fullFilePath() : repo.selectedFilePath());
 
         std::string fname = sidebar_detail::basename_from_path(path);
         if (auto* review = find_singleton<ReviewComponent, ActiveTab>())
@@ -1908,19 +1908,8 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
-                r->selectedFilePath = path;
-                r->comparisonOpen = false;
-                r->activeContent = RepoComponent::ContentView::Review;
-                if (allFilesMode_) {
-                    r->activeContent = RepoComponent::ContentView::Source;
-                    r->fullFilePath = path;
-                    r->fullFileRevision.clear();
-                    r->fullFileCacheKey.clear();
-                    r->fullFileTargetLine = 0;
-                }
-                r->selectedFileStaged = staged;
-                r->cachedFilePath.clear();
-                r->selectedCommitHash.clear();
+                if (allFilesMode_) navigation::open(*r, reading::source(path));
+                else navigation::open(*r, reading::review(staged ? "index" : "wt", path));
             }
         }
 
@@ -2035,7 +2024,7 @@ private:
                            Entity& parent, int index,
                            const CommitEntry& commit,
                            RepoComponent& repo) {
-        bool selected = (commit.hash == repo.selectedCommitHash);
+        bool selected = (commit.hash == repo.selectedCommitHash());
         constexpr float ROW_H = theme::layout::COMMIT_ROW_HEIGHT;
 
         int baseId = index * 2 + 10;
@@ -2155,11 +2144,7 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
-                r->selectedCommitHash = commit.hash;
-                r->comparisonOpen = false;
-                r->activeContent = RepoComponent::ContentView::Review;
-                r->selectedFilePath.clear();
-                r->cachedFilePath.clear();
+                navigation::open(*r, reading::review(commit.hash));
             }
         }
     }

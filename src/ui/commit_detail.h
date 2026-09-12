@@ -78,12 +78,15 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     const auto selectedParent = selected_commit_parent(repo);
     const auto reviewScope = commit_review_scope(repo);
-    bool commitJustChanged = detailCache.cachedCommitHash != repo.selectedCommitHash || detailCache.cachedRepoPath != repo.repoPath ||
+    auto requestKey = [&] {
+        return commit_review_scope(repo) + "\n" + std::to_string(repo.diffContext) + ":" + std::to_string(repo.ignoreWhitespace);
+    };
+    bool staleRequest = (detailCache.patchFuture.valid() || detailCache.infoFuture.valid()) &&
+        !navigation::accepts(repo, detailCache.requestStamp, requestKey());
+    bool commitJustChanged = staleRequest || detailCache.cachedCommitHash != repo.selectedCommitHash() || detailCache.cachedRepoPath != repo.repoPath ||
         detailCache.cachedParentHash != selectedParent || detailCache.cachedContext != repo.diffContext ||
         detailCache.cachedIgnoreWhitespace != repo.ignoreWhitespace;
     if (commitJustChanged) {
-        repo.diffTargetFile.clear();
-        repo.diffTargetFrames = 0;
         detailCache.commitDetailError.clear();
         detailCache.commitDetailDiff.clear();
         detailCache.commitDetailBody.clear();
@@ -92,17 +95,20 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         detailCache.commitDetailAuthorEmail.clear();
         detailCache.commitDetailParents.clear();
         detailCache.entry = {};
-        detailCache.entry.hash = repo.selectedCommitHash;
-        detailCache.entry.shortHash = repo.selectedCommitHash.substr(0, 7);
+        detailCache.entry.hash = repo.selectedCommitHash();
+        detailCache.entry.shortHash = repo.selectedCommitHash().substr(0, 7);
         detailCache.entry.subject = detailCache.entry.shortHash;
         for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
             for (const auto& entry : *entries)
-                if (entry.hash == repo.selectedCommitHash) detailCache.entry = entry;
-        detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash,
+                if (entry.hash == repo.selectedCommitHash()) detailCache.entry = entry;
+        detailCache.requestStamp = navigation::stamp(repo, requestKey());
+        detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash(),
             selectedParent, repo.diffContext, repo.ignoreWhitespace});
-        detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", repo.selectedCommitHash, "--no-patch",
-            "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
-        detailCache.cachedCommitHash = repo.selectedCommitHash;
+        detailCache.infoFuture = {};
+        if (reading::is_object_id(repo.selectedCommitHash()))
+            detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", repo.selectedCommitHash(), "--no-patch",
+                "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
+        detailCache.cachedCommitHash = repo.selectedCommitHash();
         detailCache.cachedParentHash = selectedParent;
         detailCache.cachedRepoPath = repo.repoPath;
         detailCache.cachedContext = repo.diffContext;
@@ -111,17 +117,27 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     if (detailCache.patchFuture.valid() && detailCache.patchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         try {
             auto patch = detailCache.patchFuture.get();
+            if (!navigation::accepts(repo, detailCache.requestStamp, requestKey())) return;
+            bool unresolved = !reading::is_object_id(repo.selectedCommitHash());
+            navigation::resolve_review(repo, detailCache.requestStamp, patch.resolvedCommit, patch.resolvedParent);
+            if (unresolved && reading::is_object_id(patch.resolvedCommit))
+                detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", patch.resolvedCommit, "--no-patch",
+                    "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
+            detailCache.cachedCommitHash = repo.selectedCommitHash();
+            detailCache.cachedParentHash = selected_commit_parent(repo);
+            detailCache.requestStamp = navigation::stamp(repo, requestKey());
             detailCache.commitDetailDiff = std::move(patch.files);
             detailCache.commitDetailError = std::move(patch.error);
         } catch (const std::exception& error) { detailCache.commitDetailError = error.what(); }
     }
     if (detailCache.infoFuture.valid() && detailCache.infoFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto infoResult = detailCache.infoFuture.get();
+        if (!navigation::accepts(repo, detailCache.requestStamp, requestKey())) return;
         detailCache.infoFuture = {};
         if (infoResult.success()) {
             auto info = cdv::parse_commit_info(infoResult.stdout_str());
-            info.entry.hash = repo.selectedCommitHash;
-            info.entry.shortHash = repo.selectedCommitHash.substr(0, 7);
+            info.entry.hash = repo.selectedCommitHash();
+            info.entry.shortHash = repo.selectedCommitHash().substr(0, 7);
             detailCache.entry = std::move(info.entry);
             detailCache.commitDetailBody = info.body;
             detailCache.commitDetailAuthorEmail = info.authorEmail;
@@ -204,9 +220,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_debug_name("commit_back_btn"));
 
     if (backBtn) {
-        detailCache.patchFuture = {};
-        repo.selectedCommitHash.clear();
-        detailCache.cachedCommitHash.clear();
+        navigation::open(repo, reading::review("wt"));
         return;
     }
 
@@ -360,11 +374,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             std::vector<ui::ContextMenuItem> choices;
             for (size_t i = 0; i < parents.size(); ++i)
                 choices.push_back(ui::ContextMenuItem::item("Parent " + std::to_string(i + 1) + " · " + parents[i].substr(0, 12),
-                    [path = repo.repoPath, commit = repo.selectedCommitHash, hash = i == 0 ? "" : parents[i]] {
+                    [path = repo.repoPath, commit = repo.selectedCommitHash(), hash = i == 0 ? "" : parents[i]] {
                         auto* active = find_singleton<RepoComponent, ActiveTab>();
-                        if (active && active->repoPath == path && active->selectedCommitHash == commit) {
-                            if (hash.empty()) active->commitParents.erase(commit);
-                            else active->commitParents[commit] = hash;
+                        if (active && active->repoPath == path && active->selectedCommitHash() == commit) {
+                            navigation::open(*active, reading::review(hash.empty() ? commit : "parent:" + hash + ":" + commit));
                         }
                     }));
             ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
@@ -660,9 +673,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             ui::set_tooltip(fileRow.ent(), fd.isRenamed ? fd.oldPath + " -> " + fd.filePath : fd.filePath);
             fileRow.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
             if (fileRow.ent().get<HasClickListener>().down) {
-                repo.diffTargetFile = fd.filePath;
-                repo.diffTargetFrames = 3;
-                layout.diffFindOpen = false;
+                navigation::open(repo, reading::review(reviewScope, fd.filePath));
             }
 
             // Status letter in a filled colored circle (mock style).
@@ -700,9 +711,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_roundness(0.0f)
                     .with_debug_name("jump_to_diff:" + fd.filePath));
             if (fileName) {
-                repo.diffTargetFile = fd.filePath;
-                repo.diffTargetFrames = 3;
-                layout.diffFindOpen = false;
+                navigation::open(repo, reading::review(reviewScope, fd.filePath));
             }
 
             // Colored +N / -N counts in two fixed-width right-aligned columns so

@@ -120,53 +120,53 @@ TEST(tooltip_wrapping_preserves_all_text_and_utf8_glyphs) {
 }
 
 TEST(navigation_history_truncates_forward_after_a_new_destination) {
-    ecs::NavigationHistory history;
-    using Kind = ecs::NavigationLocation::Kind;
-    ecs::NavigationLocation first{Kind::File, "first.txt"};
-    ecs::NavigationLocation second{Kind::File, "second.txt"};
-    ecs::NavigationLocation commit{Kind::Commit, "", "sha"};
-    navigation::record(history, first);
-    navigation::record(history, first);
-    ASSERT_EQ(history.entries.size(), 1u);
-    ASSERT_FALSE(navigation::step(history, -1).has_value());
-    navigation::record(history, second);
-    ASSERT_EQ(*navigation::step(history, -1), first);
-    ASSERT_EQ(*navigation::step(history, 1), second);
-    ASSERT_EQ(*navigation::step(history, -1), first);
-    navigation::record(history, commit);
-    ASSERT_FALSE(navigation::step(history, 1).has_value());
-    ASSERT_EQ(history.entries.size(), 2u);
-    ASSERT_EQ(*navigation::step(history, -1), first);
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::review("wt", "first.txt"));
+    navigation::open(repo, reading::review("wt", "first.txt"));
+    ASSERT_EQ(repo.workspace().history().size(), 2u);
+    navigation::open(repo, reading::review("wt", "second.txt"));
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.selectedFilePath(), "first.txt");
+    navigation::step(repo, 1);
+    ASSERT_EQ(repo.selectedFilePath(), "second.txt");
+    navigation::step(repo, -1);
+    navigation::open(repo, reading::review("sha"));
+    navigation::step(repo, 1);
+    ASSERT_EQ(repo.selectedCommitHash(), "sha");
+    ASSERT_EQ(repo.workspace().history().size(), 3u);
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.selectedFilePath(), "first.txt");
 }
 
-TEST(navigation_records_the_visible_review_destination) {
+TEST(source_navigation_preserves_the_review_and_its_origin) {
     ecs::RepoComponent repo;
-    repo.selectedFilePath = "file.txt";
-    auto normal = navigation::location(repo);
-    auto reviewing = navigation::location(repo, true);
-    ASSERT_EQ(normal.kind, ecs::NavigationLocation::Kind::File);
-    ASSERT_EQ(reviewing.kind, ecs::NavigationLocation::Kind::WorkingTree);
-    ASSERT_TRUE(reviewing.reviewing);
-    repo.fullFilePath = "file.txt";
-    repo.activeContent = ecs::RepoComponent::ContentView::Source;
-    ASSERT_EQ(navigation::location(repo, true).kind, ecs::NavigationLocation::Kind::FullFile);
+    navigation::open(repo, reading::review("commit", "changed.cpp"), true);
+    navigation::open(repo, reading::source("first.cpp", "old-commit", 17));
+    navigation::open(repo, reading::source("second.cpp"));
+    ASSERT_EQ(repo.selectedCommitHash(), "commit");
+    navigation::step(repo, -1);
+    ASSERT_TRUE(ecs::source_tab_active(repo));
+    ASSERT_EQ(repo.fullFilePath(), "first.cpp");
+    ASSERT_EQ(repo.fullFileRevision(), "old-commit");
+    ASSERT_EQ(repo.fullFileTargetLine(), 17);
+    navigation::return_to_review(repo);
+    ASSERT_FALSE(ecs::source_tab_active(repo));
+    ASSERT_EQ(repo.selectedCommitHash(), "commit");
+    ASSERT_EQ(repo.selectedFilePath(), "changed.cpp");
 }
 
 TEST(source_tab_keeps_revision_when_review_is_active) {
     ecs::RepoComponent repo;
-    repo.selectedCommitHash = "new-commit";
-    repo.fullFilePath = "old.cpp";
-    repo.fullFileRevision = "old-commit";
-    repo.activeContent = ecs::RepoComponent::ContentView::Source;
+    navigation::open(repo, reading::review("new-commit"));
+    navigation::open(repo, reading::source("old.cpp", "old-commit"));
     ASSERT_TRUE(ecs::source_tab_active(repo));
-    ASSERT_EQ(navigation::location(repo).revision, "old-commit");
-    repo.activeContent = ecs::RepoComponent::ContentView::Review;
+    navigation::activate(repo, reading::Slot::Review);
     ASSERT_FALSE(ecs::source_tab_active(repo));
-    ASSERT_EQ(navigation::location(repo).revision, "new-commit");
-    ASSERT_EQ(repo.fullFilePath, "old.cpp");
-    ASSERT_EQ(repo.fullFileRevision, "old-commit");
-    repo.activeContent = ecs::RepoComponent::ContentView::Source;
-    repo.fullFilePath.clear();
+    ASSERT_EQ(repo.selectedCommitHash(), "new-commit");
+    ASSERT_EQ(repo.fullFilePath(), "old.cpp");
+    ASSERT_EQ(repo.fullFileRevision(), "old-commit");
+    navigation::activate(repo, reading::Slot::Source);
+    navigation::close_source(repo);
     ASSERT_FALSE(ecs::source_tab_active(repo));
 }
 
@@ -316,9 +316,9 @@ TEST(whitespace_display_distinguishes_line_endings_without_mutating_source) {
 
 TEST(merge_parent_selection_preserves_review_and_source_provenance) {
     ecs::RepoComponent repo;
-    ecs::select_review_target(repo, "parent:second:merge", "deleted.cpp");
-    ASSERT_EQ(repo.selectedCommitHash, "merge");
-    ASSERT_FALSE(repo.comparisonOpen);
+    navigation::open(repo, reading::review("parent:second:merge", "deleted.cpp"));
+    ASSERT_EQ(repo.selectedCommitHash(), "merge");
+    ASSERT_FALSE(repo.comparisonOpen());
     ASSERT_EQ(ecs::selected_commit_parent(repo), "second");
     ASSERT_EQ(ecs::commit_review_scope(repo), "parent:second:merge");
     ASSERT_EQ(diff_revisions(ecs::commit_review_scope(repo)), (std::pair<std::string, std::string>{"second", "merge"}));
@@ -332,11 +332,11 @@ TEST(merge_parent_selection_preserves_review_and_source_provenance) {
     comment.line = 1;
     ecs::DiffHunk hunk{1, 1, 0, 0, "@@ -1 +0,0 @@", {"-old content"}};
     ASSERT_TRUE(ecs::comment_with_context(comment, hunk, "merge").revision.starts_with("second; hunk "));
-    repo.selectedCommitHash = "other";
+    navigation::open(repo, reading::review("other"));
     ASSERT_TRUE(ecs::selected_commit_parent(repo).empty());
-    repo.selectedCommitHash = "merge";
+    navigation::step(repo, -1);
     ASSERT_EQ(ecs::selected_commit_parent(repo), "second");
-    ecs::select_review_target(repo, "merge", "");
+    navigation::open(repo, reading::review("merge", ""));
     ASSERT_TRUE(ecs::selected_commit_parent(repo).empty());
     ASSERT_EQ(ecs::commit_review_scope(repo), "merge");
     ASSERT_EQ(diff_revisions("merge").first, "merge^");

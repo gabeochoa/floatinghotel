@@ -28,7 +28,7 @@ Unchecked items remain outstanding. Evidence and commit IDs belong in the comple
 ### 01–10: document tabs
 
 - [x] 01. Add a repeatable commit → diff → source → second source → Back baseline with screenshots, layout dumps, input timing, cache activity, and owned content bytes. Reproduce identical destinations and retain before-change evidence.
-- [ ] 02. Route tree, tabs, search, bookmarks, comments, menus, and test handlers through typed destinations. Remove competing mutable selection authority and frame-sampled history. Verify existing navigation scenarios.
+- [x] 02. Route tree, tabs, search, bookmarks, comments, menus, and test handlers through typed destinations. Remove competing mutable selection authority and frame-sampled history. Verify existing navigation scenarios.
 - [ ] 03. Replace two content slots with document tabs. Keep two reviews and three files independently selectable; retain only active rendering payloads.
 - [ ] 04. Single-click replaces one preview; double-click or Enter keeps it. Reuse open destinations and keep the originating review when opening its source. Never replace a kept tab.
 - [ ] 05. Disambiguate filenames with the shortest parent path and compact revision badges. Review titles show subjects, with short hashes in tooltips. Check duplicate filenames and revisions.
@@ -113,4 +113,4 @@ Target p95 selection feedback ≤50 ms and cache-resident switches ≤100 ms on 
 
 ## Completion record
 
-Step 01 passed the optimized build, 23 content/patch unit tests, and nine native headless journeys with 90 navigation samples, PNG/layout checks, and the existing 20 ms p99 render gate. See `docs/reading-navigation-baseline.md` and `output/reading-navigation/baseline-rendered`. Steps 02–60 remain outstanding.
+Step 01 passed the optimized build, 23 content/patch unit tests, and nine native headless journeys with 90 navigation samples, PNG/layout checks, and the existing 20 ms p99 render gate. See `docs/reading-navigation-baseline.md` and `output/reading-navigation/baseline-rendered`. Step 02 passed 82 targeted unit checks, seven native navigation regressions, and nine zoom journeys with 90 samples. See `docs/reading-navigation-step02.md`. Steps 03–60 remain outstanding.

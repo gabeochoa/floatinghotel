@@ -21,6 +21,7 @@
 #include "../util/hex_view.h"
 #include "../util/markdown_preview.h"
 #include "../util/diff_revisions.h"
+#include "../util/reading_workspace.h"
 #include "../util/review_files.h"
 #include "../util/review_comment_kind.h"
 #include "../util/review_verdict.h"
@@ -183,6 +184,7 @@ struct FullFileContent {
     FilePage page;
     std::string encodingLabel;
     std::string decodedText;
+    std::string resolvedRevision;
 };
 
 inline char file_change(const FileDiff& file) {
@@ -242,23 +244,6 @@ struct ReadingPositions {
     int restoreFrames = 0;
 };
 
-struct NavigationLocation {
-    enum class Kind { WorkingTree, File, Commit, FullFile };
-    Kind kind = Kind::WorkingTree;
-    std::string path;
-    std::string revision;
-    bool staged = false;
-    bool reviewing = false;
-    bool operator==(const NavigationLocation&) const = default;
-};
-
-struct NavigationHistory {
-    std::string owner;
-    std::vector<NavigationLocation> entries;
-    size_t index = 0;
-    int requestedStep = 0;
-};
-
 struct RangeDiffState {
     bool enabled = false;
     std::string oldRange;
@@ -266,6 +251,7 @@ struct RangeDiffState {
     std::array<std::string, 4> revisions;
     std::array<std::string, 4> resolved;
     size_t next = 0;
+    reading::RequestStamp requestStamp;
     async_work::Task<git::GitResult> future;
     std::vector<FileDiff> display;
     std::string error;
@@ -276,7 +262,12 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool reviewWorkspace = false;
     review_files::Filter fileFilter;
     ReadingPositions reading;
-    NavigationHistory navigation;
+private:
+    reading::ReadingWorkspace workspace_;
+    friend struct ::navigation;
+public:
+    const reading::ReadingWorkspace& workspace() const { return workspace_; }
+    std::optional<reading::NavigationEffect> navigationEffect;
     std::string repoPath;
     std::string currentBranch;
     bool isDirty = false;
@@ -296,12 +287,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     // Branch data (T031)
     std::vector<BranchInfo> branches;
 
-    std::string selectedFilePath;
-    std::string selectedCommitHash;
-    std::map<std::string, std::string> commitParents;
     std::vector<FileDiff> currentDiff;
     std::vector<FileDiff> stagedDiff;
-    bool selectedFileStaged = false;
 
     std::string cachedFilePath;
     std::string untrackedDiffKey;
@@ -312,10 +299,6 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string lastRefreshScope;
     bool ignoreWhitespace = false;
     int diffContext = 3;
-    enum class ContentView { Review, Source };
-    ContentView activeContent = ContentView::Review;
-    std::string fullFilePath;
-    std::string fullFileRevision;
     std::string fullFileCacheKey;
     std::string fullFileSourceKey;
     std::string fullFileHexPreviewKey;
@@ -327,6 +310,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fullFileError;
     std::string fullFileBytes;
     async_work::Task<FullFileContent> fullFileFuture;
+    reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;
     FilePageRequest fullFilePageRequest;
     std::string fullFileEncodingOverride = "auto";
@@ -351,6 +335,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool repoSearchTruncated = false;
     size_t repoSearchCapturedBytes = 0;
     async_work::Task<SearchResult> repoSearchFuture;
+    reading::RequestStamp repoSearchFutureStamp;
     std::string repoSearchRevision;
     bool repoSearchChangedOnly = false;
     SearchMatching repoSearchMatching;
@@ -359,8 +344,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::vector<SearchMatch> repoSearchResults;
     bool repoSearchPreviewOpen = false;
     async_work::Task<SearchPreview> repoSearchPreviewFuture;
+    reading::RequestStamp repoSearchPreviewFutureStamp;
     SearchPreview repoSearchPreview;
-    int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;
     bool fileHistoryOpen = false;
     std::string fileHistoryPath;
@@ -368,8 +353,10 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fileHistoryError;
     int fileHistoryLimit = 200;
     async_work::Task<git::GitResult> fileHistoryFuture;
+    reading::RequestStamp fileHistoryFutureStamp;
     std::vector<CommitEntry> fileHistoryEntries;
     async_work::Task<git::GitResult> blameFuture;
+    reading::RequestStamp blameFutureStamp;
     BlameLine blameLine;
     std::string blameError;
     bool blameOpen = false;
@@ -377,49 +364,81 @@ struct RepoComponent : public afterhours::BaseComponent {
     git::HistoryQuery commitSearchQuery;
     int commitSearchLimit = 200;
     async_work::Task<git::GitResult> commitSearchFuture;
+    reading::RequestStamp commitSearchFutureStamp;
     std::vector<CommitEntry> commitSearchEntries;
     std::string commitSearchError;
-    bool comparisonOpen = false;
+    bool comparisonEditorOpen = false;
     bool comparisonNeedsLoad = false;
     std::string comparisonBase;
     std::string comparisonTarget;
     bool comparisonMergeBase = false;
     async_work::Task<git::RevisionComparison> comparisonFuture;
     std::vector<FileDiff> comparisonDiff;
-    std::string comparisonScope;
+    std::string comparisonLoadedScope;
+    reading::RequestStamp comparisonRequestStamp;
+    enum class ComparisonRequest { Document, SubmittedForm };
+    ComparisonRequest comparisonRequest = ComparisonRequest::Document;
     std::string comparisonError;
     std::string reviewQueueScope;
     async_work::Task<git::GitResult> reviewQueueFuture;
+    reading::RequestStamp reviewQueueFutureStamp;
     std::string reviewQueueError;
     int comparisonContext = 3;
     bool comparisonIgnoreWhitespace = false;
-    std::string diffTargetFile;
     int diffTargetFrames = 0;
     size_t bookmarkPage = 0;
+
+    const std::string& selectedFilePath() const { return workspace_.review().file; }
+    const std::string& diffTargetFile() const { return workspace_.review().file; }
+    const std::string& selectedCommitHash() const {
+        static const std::string empty;
+        const auto* commit = std::get_if<reading::CommitReview>(&workspace_.review().destination);
+        return commit ? reading::revision_text(commit->commit) : empty;
+    }
+    bool selectedFileStaged() const {
+        const auto* changes = std::get_if<reading::WorkingChanges>(&workspace_.review().destination);
+        return changes && changes->staged;
+    }
+    int fullFileTargetLine() const { return workspace_.source() ? workspace_.source()->line : 0; }
+    const std::string& fullFilePath() const {
+        static const std::string empty;
+        return workspace_.source() ? workspace_.source()->destination.path : empty;
+    }
+    const std::string& fullFileRevision() const {
+        static const std::string empty;
+        return workspace_.source() ? reading::revision_text(workspace_.source()->destination.revision) : empty;
+    }
+    const std::string comparisonScope() const {
+        return std::holds_alternative<reading::ComparisonReview>(workspace_.review().destination)
+            ? reading::scope(workspace_.review()) : "";
+    }
+    bool comparisonOpen() const {
+        return workspace_.active() == reading::Slot::Review && (comparisonEditorOpen || !comparisonScope().empty());
+    }
 };
 
 inline bool source_tab_active(const RepoComponent& repo) {
-    return repo.activeContent == RepoComponent::ContentView::Source && !repo.fullFilePath.empty();
+    return repo.workspace().active() == reading::Slot::Source && !repo.fullFilePath().empty();
 }
 
 inline void cancel_hidden_file_read(RepoComponent& repo) {
-    if (repo.fullFilePath.empty() && repo.fullFileFuture.valid()) {
+    if (repo.fullFilePath().empty() && repo.fullFileFuture.valid()) {
         repo.fullFileFuture = {};
         repo.fullFileCacheKey.clear();
     }
 }
 
 inline std::string selected_commit_parent(const RepoComponent& repo) {
-    auto parent = repo.commitParents.find(repo.selectedCommitHash);
-    return parent == repo.commitParents.end() ? "" : parent->second;
+    const auto* commit = std::get_if<reading::CommitReview>(&repo.workspace().review().destination);
+    return commit && commit->parent ? reading::revision_text(*commit->parent) : "";
 }
 
 inline std::string commit_review_scope(const RepoComponent& repo) {
-    auto parent = selected_commit_parent(repo);
-    return parent.empty() ? repo.selectedCommitHash : "parent:" + parent + ":" + repo.selectedCommitHash;
+    return reading::scope(repo.workspace().review());
 }
 
 struct CommitDetailCache : public afterhours::BaseComponent {
+    reading::RequestStamp requestStamp;
     std::string cachedCommitHash;
     std::string cachedParentHash;
     std::string cachedRepoPath;
@@ -566,8 +585,8 @@ inline std::string review_scope(const RepoComponent& repo) {
 
 inline std::string selected_review_storage_scope(const RepoComponent& repo, const ReviewComponent& review) {
     if (!repo.reviewQueueScope.empty()) return repo.reviewQueueScope;
-    if (repo.comparisonOpen) {
-        if (!repo.comparisonScope.empty()) return repo.comparisonScope;
+    if (!repo.comparisonScope().empty()) return repo.comparisonScope();
+    if (repo.comparisonEditorOpen) {
         if (review.storageRepoPath == repo.repoPath && !review.storageScope.empty()) return review.storageScope;
     }
     return review_scope(repo);
@@ -708,10 +727,10 @@ inline ReviewVerdict current_review_verdict(const ReviewComponent& review, const
 
 inline bool review_queue_completion_is_stale(const ReviewComponent& review, const RepoComponent& repo,
         const CommitDetailCache& cache) {
-    if (!review.queue.completed.contains(repo.selectedCommitHash) || !selected_commit_parent(repo).empty()) return false;
-    if (cache.cachedCommitHash != repo.selectedCommitHash || !cache.cachedParentHash.empty()) return false;
+    if (!review.queue.completed.contains(repo.selectedCommitHash()) || !selected_commit_parent(repo).empty()) return false;
+    if (cache.cachedCommitHash != repo.selectedCommitHash() || !cache.cachedParentHash.empty()) return false;
     if (cache.patchFuture.valid() || cache.infoFuture.valid() || !cache.commitDetailError.empty()) return false;
-    return current_review_verdict(review, repo.selectedCommitHash, cache.commitDetailDiff) == ReviewVerdict::InProgress;
+    return current_review_verdict(review, repo.selectedCommitHash(), cache.commitDetailDiff) == ReviewVerdict::InProgress;
 }
 
 inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
@@ -766,40 +785,6 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
     review.composingCodeContext = std::move(location.codeContext);
     review.composingKind = location.kind;
     review.dirty = true;
-}
-
-inline void select_review_target(RepoComponent& repo, const std::string& scope, const std::string& file) {
-    const auto target = diff_target(scope);
-    repo.rangeDiff.enabled = false;
-    repo.rangeDiff.future = {};
-    repo.selectedFilePath = target.kind == DiffTarget::Kind::WorkingTree || target.kind == DiffTarget::Kind::Index ? file : "";
-    repo.selectedFileStaged = target.kind == DiffTarget::Kind::Index;
-    repo.selectedCommitHash = target.kind == DiffTarget::Kind::Commit || target.kind == DiffTarget::Kind::ParentComparison ? target.after : "";
-    if (target.kind == DiffTarget::Kind::ParentComparison) repo.commitParents[target.after] = target.before;
-    else if (target.kind == DiffTarget::Kind::Commit) repo.commitParents.erase(target.after);
-    repo.comparisonOpen = target.kind == DiffTarget::Kind::Comparison;
-    if (repo.comparisonOpen) {
-        if (repo.comparisonScope != scope) {
-            repo.comparisonFuture = {};
-            repo.comparisonDiff.clear();
-            repo.comparisonError.clear();
-            repo.comparisonNeedsLoad = true;
-        }
-        repo.comparisonScope = scope;
-        repo.comparisonBase = target.before;
-        repo.comparisonTarget = target.after;
-    }
-}
-
-inline void restore_draft_selection(RepoComponent& repo, const ReviewComponent& review) {
-    std::string file, scope;
-    if (!review.composingKey.empty()) { file = review.composingFile; scope = review.composingScope; }
-    else if (review.editingComment >= 0 && static_cast<size_t>(review.editingComment) < review.comments.size()) {
-        file = review.comments[review.editingComment].file;
-        scope = review.comments[review.editingComment].scope;
-    } else return;
-    select_review_target(repo, scope, file);
-    repo.activeContent = RepoComponent::ContentView::Review;
 }
 
 // Commit the in-progress comment into the basket and auto-fold its hunk.

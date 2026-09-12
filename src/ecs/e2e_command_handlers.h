@@ -80,7 +80,7 @@ struct HandleReviewRoundtrip : afterhours::System<afterhours::testing::PendingE2
             review->storageScope = scope;
             review->storageRepoPath = owner;
             review_store::load_review(key, *review);
-            ecs::restore_draft_selection(*repo, *review);
+            navigation::restore_draft(*repo, *review);
             std::filesystem::remove(review_store::review_path(key, scope));
         }
         cmd.consume();
@@ -202,14 +202,9 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             auto& repo = *repoPtr;
             log_info("make_test_repo: switching from '{}' to '{}'", repo.repoPath, repoPath);
             repo.repoPath = repoPath;
-            repo.reading = {};
-            repo.navigation = {};
-            repo.selectedFilePath.clear();
-            repo.cachedFilePath.clear();
-            repo.selectedCommitHash.clear();
+            navigation::reset(repo);
             repo.ignoreWhitespace = false;
             repo.diffContext = 3;
-            repo.fullFilePath.clear();
             repo.fullFileCacheKey.clear();
             repo.repoSearchOpen = false;
             repo.fileHistoryOpen = false;
@@ -219,17 +214,14 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.commitSearchFuture = {};
             repo.commitSearchEntries.clear();
             repo.commitSearchQuery = {};
-            repo.comparisonOpen = false;
             repo.comparisonFuture = {};
-            repo.comparisonScope.clear();
+            repo.comparisonLoadedScope.clear();
             repo.blameOpen = false;
             repo.blameFuture = {};
-            repo.diffTargetFile.clear();
             repo.diffTargetFrames = 0;
             repo.repoSearchFuture = {};
             repo.repoSearchPreviewFuture = {};
             repo.repoSearchResults.clear();
-            repo.fullFileTargetLine = 0;
 
             auto* detailCache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
             if (detailCache) {

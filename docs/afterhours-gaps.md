@@ -1589,3 +1589,13 @@ visible first code line. Input timing also waits for a matching visible destinat
 heading. A framework visibility predicate that combines rendering, clipping, and
 viewport intersection would help inventory, list, and editor tests avoid the same
 false assertion. The app uses `ui::visible_rect` as its current workaround.
+
+### Native-menu test mode depends on environment presence
+
+The hidden native-menu probe is enabled when `FH_NATIVE_MENUS` exists, including the value `0`. Native tests must use `native_menu_action`; legacy tests that click the in-app View or Edit menus must remove this variable from their environment. The step-02 navigation replay initially used the wrong mode and could not find those menu targets. Evidence: `output/navigation-design/existing-navigation.log` and `existing-navigation-inapp.log`. This is an application test-runner configuration limitation, not a missing Afterhours menu widget.
+
+Step 02 also found stale fixed mouse coordinates in the comment-jump replay: y=340–360 hit the file footer after header layout changes. The layout dump placed source lines 4 and 5 at y=276–300 and y=300–324; the test now drags through those rows. Semantic code-position input would make these tests less sensitive to unrelated chrome changes, alongside the text-viewer candidates above.
+
+### Text assertions see styled runs separately
+
+The commit-search replay displayed `tests/test_utils.cpp` correctly, but `expect_text` could only see the styled runs `tests/` and `test_utils.cpp`. The layout dump retained the complete label on `file_header_label`. Workaround: assert the visible filename and header entity, then check the combined label and geometry in the layout JSON. Evidence: `output/navigation-design/regressions-final/improvement_27_commit_search`. An element-scoped text assertion that uses the complete label would help other apps verify styled breadcrumbs and filenames without depending on color-run boundaries.

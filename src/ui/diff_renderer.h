@@ -1388,12 +1388,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (review && button(ctx, mk(progress.ent(), 0), preset::Button("Next unreviewed file")
                 .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("next_unreviewed_file"))) {
-            auto current = filterRepo->diffTargetFile.empty() ? filterRepo->selectedFilePath : filterRepo->diffTargetFile;
+            auto current = filterRepo->diffTargetFile().empty() ? filterRepo->selectedFilePath() : filterRepo->diffTargetFile();
             auto next = ecs::next_unreviewed_file(*review, reviewScope, candidates, filterRepo->fileFilter, current);
             if (next) {
-                filterRepo->diffTargetFile = candidates[*next].filePath;
-                filterRepo->diffTargetFrames = 4;
-                if (reviewScope == "wt" || reviewScope == "index") filterRepo->selectedFilePath = candidates[*next].filePath;
+                navigation::open(*filterRepo, reading::review(reviewScope, candidates[*next].filePath));
             } else afterhours::toast::send_info(ctx, "All visible files reviewed", 2.f);
         }
         if (review) {
@@ -1476,11 +1474,11 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
     if (!diffs.empty() && diffs.front().isFullContent && !(layout && layout->diffFindOpen)) {
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            repo && diff_target(reviewScope).kind == DiffTarget::Kind::File && repo->fullFileTargetLine > 0 && !diffs.front().hunks.empty()) {
+            repo && diff_target(reviewScope).kind == DiffTarget::Kind::File && repo->fullFileTargetLine() > 0 && !diffs.front().hunks.empty()) {
             const auto& lines = diffs.front().hunks.front().lines;
-            int index = repo->fullFileTargetLine - diffs.front().hunks.front().newStart;
+            int index = repo->fullFileTargetLine() - diffs.front().hunks.front().newStart;
             if (index >= 0 && static_cast<size_t>(index) < lines.size()) {
-                sess.findMatch = ecs::DiffMatch{diffs.front().filePath, repo->fullFileTargetLine, ' ', 0};
+                sess.findMatch = ecs::DiffMatch{diffs.front().filePath, repo->fullFileTargetLine(), ' ', 0};
                 sess.findQuery = lines[static_cast<size_t>(index)].substr(1);
                 sess.findNavigate = repo->fullFileNavigateFrames > 0;
                 if (repo->fullFileNavigateFrames > 0) --repo->fullFileNavigateFrames;
@@ -1607,7 +1605,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         std::string fileLabel = diff_detail::file_header_label(fileDiff);
         if (review) fileLabel += ecs::unresolved_file_badge(*review, reviewScope, fileDiff.filePath, fileDiff.oldPath);
         std::string fileFoldKey = reviewScope + "\n" + fileDiff.filePath;
-        if (review && ((filterRepo && filterRepo->diffTargetFrames > 0 && filterRepo->diffTargetFile == fileDiff.filePath) ||
+        if (review && ((filterRepo && filterRepo->diffTargetFrames > 0 && filterRepo->diffTargetFile() == fileDiff.filePath) ||
             (sess.findMatch && sess.findMatch->file == fileDiff.filePath))) review->foldedFiles.erase(fileFoldKey);
         bool fileFolded = review && review->foldedFiles.contains(fileFoldKey);
         const bool narrowFile = contentWidth < 600.f;
@@ -1633,7 +1631,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         set_tooltip(fileHeaderRow.ent(), fileLabel);
         vp.built(fileHeaderHeight);
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            repo && repo->diffTargetFrames > 0 && repo->diffTargetFile == fileDiff.filePath &&
+            repo && repo->diffTargetFrames > 0 && repo->diffTargetFile() == fileDiff.filePath &&
             contentParent->has<afterhours::ui::HasScrollView>()) {
             auto& scroll = contentParent->get<afterhours::ui::HasScrollView>();
             float target = vp.curY - vp.px(fileHeaderHeight);
@@ -1783,13 +1781,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     auto [before, after] = diff_revisions(reviewScope);
                     auto path = fileDiff.isDeleted && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
                     auto revision = fileDiff.isDeleted ? before : after;
-                    if (repo->fullFilePath != path || repo->fullFileRevision != revision) {
-                        repo->fullFileCacheKey.clear();
-                        repo->fullFileTargetLine = 0;
-                    }
-                    repo->fullFilePath = std::move(path);
-                    repo->fullFileRevision = std::move(revision);
-                    repo->activeContent = ecs::RepoComponent::ContentView::Source;
+                    navigation::open(*repo, reading::source(std::move(path), std::move(revision), 0,
+                        reading::review(reviewScope, fileDiff.filePath)));
                 }
             }
         }

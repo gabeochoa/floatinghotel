@@ -3,6 +3,7 @@ resize 1280 800
 wait_for_refresh
 click_text "View"
 click_text "All Files View"
+click_ui sidebar_working_files
 screenshot improvement_24_all_files
 expect_text "CONTRIBUTING.md"
 click_text "CONTRIBUTING.md"

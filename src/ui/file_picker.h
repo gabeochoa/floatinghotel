@@ -21,16 +21,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         layout.filePickerIndex = 0;
     }
     auto open = [&](const std::string& path) {
-        repo.selectedFilePath = path;
-        repo.selectedFileStaged = false;
-        repo.selectedCommitHash.clear();
-        repo.fullFilePath = path;
-        repo.activeContent = RepoComponent::ContentView::Source;
-        repo.fullFileRevision.clear();
-        repo.fullFileCacheKey.clear();
-        repo.fullFileTargetLine = 0;
-        layout.filePickerOpen = false;
-        ctx.set_focus(ctx.ROOT);
+        navigation::open(repo, reading::source(path));
     };
     auto& results = layout.filePickerResults;
     if (!results.empty()) {

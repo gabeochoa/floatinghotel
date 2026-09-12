@@ -12,13 +12,15 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout) {
     using namespace std::chrono_literals;
     if (repo.repoSearchPreviewFuture.valid() && repo.repoSearchPreviewFuture.wait_for(0s) == std::future_status::ready) {
-        repo.repoSearchPreview = repo.repoSearchPreviewFuture.get();
+        auto result = repo.repoSearchPreviewFuture.get();
+        if (navigation::accepts(repo, repo.repoSearchPreviewFutureStamp, repo.repoSearchPreviewFutureStamp.key))
+            repo.repoSearchPreview = std::move(result);
         repo.repoSearchPreviewFuture = {};
     }
     if (repo.repoSearchFuture.valid() && repo.repoSearchFuture.wait_for(0s) == std::future_status::ready) {
         auto result = repo.repoSearchFuture.get();
         repo.repoSearchFuture = {};
-        if (repo.repoSearchPath == repo.repoPath) {
+        if (navigation::accepts(repo, repo.repoSearchFutureStamp, repo.repoSearchQuery)) {
             repo.repoSearchError = std::move(result.error);
             repo.repoSearchRevision = std::move(result.revision);
             repo.repoSearchResults = std::move(result.matches);
@@ -84,32 +86,33 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         repo.repoSearchTruncated = false;
         repo.repoSearchCapturedBytes = 0;
         repo.repoSearchPath = repo.repoPath;
-        repo.repoSearchRevision = source_tab_active(repo) ? repo.fullFileRevision :
-            repo.comparisonOpen ? diff_revisions(repo.comparisonScope).second :
-            !repo.selectedCommitHash.empty() ? repo.selectedCommitHash : repo.selectedFileStaged ? "INDEX" : "";
+        repo.repoSearchRevision = source_tab_active(repo) ? repo.fullFileRevision() :
+            repo.comparisonOpen() ? diff_revisions(repo.comparisonScope()).second :
+            !repo.selectedCommitHash().empty() ? repo.selectedCommitHash() : repo.selectedFileStaged() ? "INDEX" : "";
         SearchQuery query{repo.repoPath, repo.repoSearchRevision, repo.repoSearchQuery};
         query.matching = matching;
         query.includeGlob = repo.repoSearchIncludeGlob;
         query.excludeGlob = repo.repoSearchExcludeGlob;
         query.changedOnly = repo.repoSearchChangedOnly;
         if (query.changedOnly) {
-            const auto* changes = repo.selectedFileStaged ? &repo.stagedDiff : &repo.currentDiff;
+            const auto* changes = repo.selectedFileStaged() ? &repo.stagedDiff : &repo.currentDiff;
             query.beforeRevision = query.revision.empty() ? "INDEX" : query.revision == "INDEX" ? "HEAD" : query.revision + "^";
-            if (repo.comparisonOpen) {
+            if (repo.comparisonOpen()) {
                 changes = &repo.comparisonDiff;
-                query.beforeRevision = diff_revisions(repo.comparisonScope).first;
-            } else if (!repo.selectedCommitHash.empty()) {
+                query.beforeRevision = diff_revisions(repo.comparisonScope()).first;
+            } else if (!repo.selectedCommitHash().empty()) {
                 auto* detail = find_singleton<CommitDetailCache, ActiveTab>();
-                changes = detail && detail->cachedCommitHash == repo.selectedCommitHash ? &detail->commitDetailDiff : nullptr;
+                changes = detail && detail->cachedCommitHash == repo.selectedCommitHash() ? &detail->commitDetailDiff : nullptr;
             }
             if (changes) {
                 for (const auto& file : *changes)
                     (file.isDeleted ? query.removedPaths : query.paths).push_back(file.isDeleted && !file.oldPath.empty() ? file.oldPath : file.filePath);
-                if (query.revision.empty() && !repo.comparisonOpen && repo.selectedCommitHash.empty())
+                if (query.revision.empty() && !repo.comparisonOpen() && repo.selectedCommitHash().empty())
                     query.paths.insert(query.paths.end(), repo.untrackedFiles.begin(), repo.untrackedFiles.end());
             } else repo.repoSearchError = "Open the commit changes before searching changed files";
         }
         repo.repoSearchFuture = {};
+        repo.repoSearchFutureStamp = navigation::stamp(repo, repo.repoSearchQuery);
         if (repo.repoSearchError.empty()) repo.repoSearchFuture = git::search_repository_async(std::move(query));
     }
     std::string status = repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchResults.empty() ? "No matches" :
@@ -131,23 +134,14 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                     .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
                     .with_font_size(FontSize::Small).with_custom_background(theme::PANEL_BG)
                     .with_debug_name("repo_search_result"))) {
-                repo.fullFilePath = repo.selectedFilePath = match.file;
-                repo.activeContent = RepoComponent::ContentView::Source;
-                repo.selectedFileStaged = match.revision == "INDEX";
-                repo.selectedCommitHash = match.revision == "INDEX" ? "" : match.revision;
-                repo.fullFileRevision = match.revision;
-                repo.fullFileCacheKey.clear();
-                repo.fullFileTargetLine = match.line;
-                repo.fullFileNavigateFrames = 3;
-                repo.repoSearchOpen = false;
-                layout.diffFindOpen = false;
-                ctx.set_focus(ctx.ROOT);
+                navigation::open(repo, reading::source(match.file, match.revision, match.line));
             }
             if (button(ctx, mk(resultRow.ent(), 1), preset::Button("Preview")
                     .with_size(ComponentSize{pixels(80), pixels(30)}).with_font_size(FontSize::Small)
                     .with_debug_name("repo_search_preview"))) {
                 repo.repoSearchPreviewOpen = true;
                 repo.repoSearchPreview = SearchPreview{match};
+                repo.repoSearchPreviewFutureStamp = navigation::stamp(repo, match.file + "\n" + match.revision + ":" + std::to_string(match.line));
                 repo.repoSearchPreviewFuture = git::search_preview_async(repo.repoPath, match);
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 192.f - (showPreview ? 190.f : 0.f)))})

@@ -1,4 +1,5 @@
 #include "test_framework.h"
+#include "../../src/util/navigation.h"
 #include "../../src/git/content_reader.h"
 #include "../../src/util/file_page.h"
 #include "../../src/git/blob_page_cache.h"
@@ -300,8 +301,8 @@ TEST(hidden_loaded_file_retains_its_cache_and_visible_pending_read_keeps_running
     ASSERT_EQ(repo.fullFileBytes, "loaded source");
     std::promise<ecs::FullFileContent> promise;
     std::stop_source source;
+    navigation::open(repo, reading::source("visible.cpp"));
     repo.fullFileFuture = {promise.get_future(), source};
-    repo.fullFilePath = "visible.cpp";
     ecs::cancel_hidden_file_read(repo);
     ASSERT_FALSE(source.stop_requested());
     ASSERT_TRUE(repo.fullFileFuture.valid());
@@ -331,6 +332,39 @@ TEST(leaving_file_view_releases_a_worker_waiting_for_the_repository_lock) {
     std::filesystem::remove_all(path);
     ASSERT_EQ(ready, std::future_status::ready);
     ASSERT_TRUE(repo.fullFileCacheKey.empty());
+}
+
+TEST(historical_navigation_pins_a_revision_even_after_the_branch_moves) {
+    char directory[] = "/tmp/fh-pinned-navigation.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    ASSERT_TRUE(git::git_run(path, {"init", "-q"}).success());
+    ASSERT_TRUE(git::git_run(path, {"config", "user.name", "Navigation test"}).success());
+    ASSERT_TRUE(git::git_run(path, {"config", "user.email", "navigation@example.invalid"}).success());
+    ASSERT_TRUE(git::git_run(path, {"config", "commit.gpgsign", "false"}).success());
+    auto file = std::filesystem::path(path) / "deleted.cpp";
+    { std::ofstream out(file); out << "original\n"; }
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    ASSERT_TRUE(git::git_run(path, {"commit", "-qm", "original"}).success());
+    ecs::RepoComponent repo;
+    repo.repoPath = path;
+    navigation::open(repo, reading::source("deleted.cpp", "HEAD"));
+    auto request = navigation::stamp(repo, "first");
+    auto result = git::read_file({path, repo.fullFilePath(), repo.fullFileRevision()});
+    ASSERT_TRUE(result.error.empty());
+    ASSERT_TRUE(navigation::resolve_source(repo, request, result.resolvedRevision));
+    ASSERT_TRUE(reading::is_object_id(repo.fullFileRevision()));
+    ASSERT_TRUE(git::git_run(path, {"rm", "deleted.cpp"}).success());
+    ASSERT_TRUE(git::git_run(path, {"commit", "-qm", "deleted"}).success());
+    navigation::open(repo, reading::source("working.cpp"));
+    navigation::step(repo, -1);
+    auto pinned = git::read_file({path, repo.fullFilePath(), repo.fullFileRevision()});
+    ASSERT_TRUE(pinned.error.empty());
+    ASSERT_EQ(pinned.raw, "original\n");
+    auto missing = git::read_file({path, "deleted.cpp", "HEAD"});
+    ASSERT_FALSE(missing.error.empty());
+    ASSERT_TRUE(missing.raw.empty());
+    std::filesystem::remove_all(path);
 }
 
 int main() { RUN_ALL_TESTS(); }

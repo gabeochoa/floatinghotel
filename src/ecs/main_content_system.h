@@ -157,7 +157,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             if (repo) {
                 if (c.scope == "wt") anchorFiles = &repo->currentDiff;
                 else if (c.scope == "index") anchorFiles = &repo->stagedDiff;
-                else if (c.scope == repo->comparisonScope) anchorFiles = &repo->comparisonDiff;
+                else if (c.scope == repo->comparisonScope()) anchorFiles = &repo->comparisonDiff;
                 else if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>(); cache) {
                     const auto target = diff_target(c.scope);
                     if (cache->cachedCommitHash == target.after &&
@@ -204,22 +204,9 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_debug_name("basket_item_loc"));
             if (location && repo) {
                 auto [before, after] = diff_revisions(c.scope);
-                repo->fullFilePath = c.file;
-                repo->activeContent = RepoComponent::ContentView::Source;
-                repo->fullFileRevision = c.oldSide ? before : after;
-                repo->fullFileCacheKey.clear();
-                repo->fullFileTargetLine = anchor.status == review_anchor::Status::Relocated ? anchor.line : c.line;
-                repo->fullFileNavigateFrames = 3;
-                select_review_target(*repo, c.scope, c.file);
-                repo->fileHistoryOpen = false;
-                repo->commitSearchOpen = false;
-                repo->repoSearchOpen = false;
-                if (auto* layout = find_singleton<LayoutComponent>()) {
-                    layout->filePickerOpen = false;
-                    layout->diffFindOpen = false;
-                }
-                ui::diff_sel::reset();
-                ctx.set_focus(ctx.ROOT);
+                navigation::open(*repo, reading::source(c.file, c.oldSide ? before : after,
+                    anchor.status == review_anchor::Status::Relocated ? anchor.line : c.line,
+                    reading::review(c.scope, c.file)));
             }
             if (editing) {
                 auto previousEdit = review.editingCommentText;
@@ -320,44 +307,27 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
         if (repoPtr) cancel_hidden_file_read(*repoPtr);
         if (repoPtr && repoPtr->hasLoadedOnce) {
-            auto& history = repoPtr->navigation;
-            auto* navigationReview = find_singleton<ReviewComponent, ActiveTab>();
-            if (history.owner != repoPtr->repoPath) { history = {}; history.owner = repoPtr->repoPath; }
-            if (!repoPtr->repoSearchOpen && !repoPtr->fileHistoryOpen && !repoPtr->commitSearchOpen &&
-                !repoPtr->comparisonOpen && !layout.filePickerOpen)
-                navigation::record(history, navigation::location(*repoPtr, navigationReview && navigationReview->reviewing));
             bool alt = afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346);
-            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(263)) history.requestedStep = -1;
-            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(262)) history.requestedStep = 1;
-            auto destination = navigation::step(history, history.requestedStep);
-            history.requestedStep = 0;
-            if (destination) {
-                using Kind = NavigationLocation::Kind;
-                repoPtr->selectedFilePath = destination->kind == Kind::File ? destination->path : "";
-                repoPtr->selectedFileStaged = destination->staged;
-                repoPtr->selectedCommitHash = destination->kind == Kind::Commit ? destination->revision : "";
-                repoPtr->activeContent = destination->kind == Kind::FullFile ? RepoComponent::ContentView::Source : RepoComponent::ContentView::Review;
-                if (destination->kind == Kind::FullFile) repoPtr->fullFilePath = destination->path;
-                if (destination->kind == Kind::FullFile) {
-                    repoPtr->fullFileRevision = destination->revision;
-                    if (destination->revision.empty() || destination->revision == "INDEX") {
-                        repoPtr->selectedFilePath = destination->path;
-                        repoPtr->selectedFileStaged = destination->revision == "INDEX";
-                    } else repoPtr->selectedCommitHash = destination->revision;
-                }
-                repoPtr->fullFileTargetLine = 0;
-                repoPtr->fullFileNavigateFrames = 0;
-                repoPtr->repoSearchOpen = repoPtr->fileHistoryOpen = repoPtr->commitSearchOpen = repoPtr->comparisonOpen = false;
-                layout.diffFindOpen = layout.filePickerOpen = layout.shelfCollapsed = false;
-                layout.reviewTab = destination->staged ? LayoutComponent::ReviewTab::Staged : LayoutComponent::ReviewTab::ToReview;
-                if (navigationReview) {
-                    navigationReview->sinceReviewOpen = false;
-                    if (navigationReview->reviewing != destination->reviewing) {
-                        navigationReview->reviewing = destination->reviewing;
-                        navigationReview->dirty = true;
+            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(263)) navigation::step(*repoPtr, -1);
+            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(262)) navigation::step(*repoPtr, 1);
+            if (repoPtr->navigationEffect) {
+                auto effect = *repoPtr->navigationEffect;
+                repoPtr->navigationEffect.reset();
+                bool dismissPicker = layout.filePickerOpen;
+                if (effect.changed) {
+                    layout.diffFindOpen = layout.shelfCollapsed = false;
+                    layout.reviewTab = repoPtr->selectedFileStaged() ? LayoutComponent::ReviewTab::Staged : LayoutComponent::ReviewTab::ToReview;
+                    if (auto* review = find_singleton<ReviewComponent, ActiveTab>()) {
+                        review->sinceReviewOpen = false;
+                        if (effect.reviewing && review->reviewing != *effect.reviewing) {
+                            review->reviewing = *effect.reviewing;
+                            review->dirty = true;
+                        }
                     }
+                    ui::diff_sel::reset();
                 }
-                ctx.set_focus(ctx.ROOT);
+                layout.filePickerOpen = false;
+                if (effect.changed || effect.dismissedPanel || dismissPicker) ctx.set_focus(ctx.ROOT);
             }
         }
 
@@ -386,11 +356,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 return;
             }
             if (repoPtr && source_tab_active(*repoPtr)) {
-                repoPtr->activeContent = RepoComponent::ContentView::Review;
+                navigation::activate(*repoPtr, reading::Slot::Review);
                 return;
             }
-            if (repoPtr && repoPtr->comparisonOpen) {
-                repoPtr->comparisonOpen = false;
+            if (repoPtr && repoPtr->comparisonOpen()) {
+                navigation::open(*repoPtr, reading::review("wt"));
                 return;
             }
             auto* menu = find_singleton<MenuComponent>();
@@ -398,8 +368,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (!menuOpen && repoPtr) {
                 if (!repoPtr->reviewQueueScope.empty()) close_review_queue(*repoPtr);
                 else {
-                    repoPtr->selectedFilePath.clear();
-                    repoPtr->selectedCommitHash.clear();
+                    navigation::open(*repoPtr, reading::review("wt"));
                 }
             }
         }
@@ -428,7 +397,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_roundness(0.f).with_corner_radius(0.f)
                     .with_debug_name(source ? "content_source_tab" : "content_review_tab"));
                 if (source) div(ctx, mk(tab.ent(), 10), ComponentConfig{}
-                    .with_label(ui::file_tree_style::type_marker(repoPtr->fullFilePath))
+                    .with_label(ui::file_tree_style::type_marker(repoPtr->fullFilePath()))
                     .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(12))
                     .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("source_tab_type"));
                 else ui::chrome_icon(ctx, mk(tab.ent(), 10), ui::ChromeIcon::Commit, theme::TEXT_SECONDARY, "commit_tab_icon");
@@ -440,23 +409,22 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_size(ComponentSize{pixels(std::max(0.f, width - 28.f)), pixels(2)})
                     .with_absolute_position(14.f, layout.contentTabs.height - 2.f)
                     .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
-                if (source) ui::set_tooltip(tab.ent(), repoPtr->fullFilePath + " @ " +
-                    (repoPtr->fullFileRevision.empty() ? "working tree" : repoPtr->fullFileRevision));
+                if (source) ui::set_tooltip(tab.ent(), repoPtr->fullFilePath() + " @ " +
+                    (repoPtr->fullFileRevision().empty() ? "working tree" : repoPtr->fullFileRevision()));
                 return static_cast<bool>(tab);
             };
-            auto commitLabel = repoPtr->selectedCommitHash.empty() ? "Working changes" :
-                "Commit  " + repoPtr->selectedCommitHash.substr(0, 7);
+            auto commitLabel = !repoPtr->comparisonScope().empty() ? "Comparison" :
+                repoPtr->selectedFileStaged() ? "Staged changes" : repoPtr->selectedCommitHash().empty() ? "Working changes" :
+                "Commit  " + repoPtr->selectedCommitHash().substr(0, 7);
             if (contentTab(0, commitLabel, !selected, false))
-                repoPtr->activeContent = RepoComponent::ContentView::Review;
-            if (!repoPtr->fullFilePath.empty()) {
-                auto path = std::filesystem::path(repoPtr->fullFilePath).filename().string();
-                if (contentTab(1, path, selected, true)) repoPtr->activeContent = RepoComponent::ContentView::Source;
+                navigation::activate(*repoPtr, reading::Slot::Review);
+            if (!repoPtr->fullFilePath().empty()) {
+                auto path = std::filesystem::path(repoPtr->fullFilePath()).filename().string();
+                if (contentTab(1, path, selected, true)) navigation::activate(*repoPtr, reading::Slot::Source);
                 if (button(ctx, mk(tabs.ent(), 2), preset::Button("×")
                         .with_size(ComponentSize{pixels(32), percent(1.f)})
                         .with_debug_name("content_source_close"))) {
-                    repoPtr->activeContent = RepoComponent::ContentView::Review;
-                    repoPtr->fullFilePath.clear();
-                    cancel_hidden_file_read(*repoPtr);
+                    navigation::close_source(*repoPtr);
                 }
             }
         }
@@ -476,7 +444,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
         if (hasRepo) {
-            if (repoPtr->fullFilePath.empty()) {
+            if (repoPtr->fullFilePath().empty()) {
                 repoPtr->blameFuture = {};
                 repoPtr->blameOpen = false;
             }
@@ -486,8 +454,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
             if (!repoPtr->fileHistoryOpen) repoPtr->fileHistoryFuture = {};
             if (!repoPtr->commitSearchOpen) repoPtr->commitSearchFuture = {};
-            if (!repoPtr->comparisonOpen) repoPtr->comparisonFuture = {};
-            if (repoPtr->selectedCommitHash.empty()) {
+            if (!repoPtr->comparisonOpen()) repoPtr->comparisonFuture = {};
+            if (repoPtr->selectedCommitHash().empty()) {
                 if (auto* detail = find_singleton<CommitDetailCache, ActiveTab>();
                     detail && (detail->patchFuture.valid() || detail->infoFuture.valid())) {
                     detail->patchFuture = {};
@@ -510,7 +478,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_size(ComponentSize{percent(1.f), pixels(80)}).with_font_size(pixels(14)));
                     return;
                 }
-                restore_draft_selection(*repoPtr, *reviewPtr);
+                navigation::restore_draft(*repoPtr, *reviewPtr);
                 if (initialScope && !app_state::testModeEnabled && std::filesystem::exists(review_store::review_path(repoPtr->repoPath)))
                     afterhours::toast::send_info(ctx, "Older unscoped review kept in your local review folder", 4.f);
             }
@@ -521,7 +489,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             poll_review_snapshot(*reviewPtr);
             persist_pending_review(ctx, *reviewPtr, repoPtr);
         }
-        if (repoPtr && !repoPtr->reviewQueueScope.empty() && repoPtr->selectedCommitHash.empty()) {
+        if (repoPtr && !repoPtr->reviewQueueScope.empty() && repoPtr->selectedCommitHash().empty()) {
             div(ctx, mk(mainBg.ent(), 592000), ComponentConfig{}
                 .with_label(repoPtr->reviewQueueFuture.valid() ? "Loading review queue..." : repoPtr->reviewQueueError)
                 .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(pixels(12)));
@@ -622,17 +590,18 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             render_full_file(ctx, mainBg.ent(), repo, layout);
             return;
         }
-        if (repo.comparisonOpen) {
+        if (repo.comparisonOpen()) {
             render_revision_comparison(ctx, mainBg.ent(), repo, layout, reviewPtr);
             return;
         }
-        bool hasSelectedFile = !repo.selectedFilePath.empty();
-        bool hasSelectedCommit = !repo.selectedCommitHash.empty();
+        bool hasSelectedFile = std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination) &&
+            !repo.selectedFilePath().empty();
+        bool hasSelectedCommit = !repo.selectedCommitHash().empty();
 
         // In the ballroom: show EVERY working-tree file stacked in one scroll so
         // you can approve -> scroll -> approve without reopening files. A selected
         // commit still takes over (to review/comment that commit's diff).
-        if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit && !(hasSelectedFile && repo.selectedFileStaged)) {
+        if (reviewPtr && reviewPtr->reviewing && !hasSelectedCommit && !(hasSelectedFile && repo.selectedFileStaged())) {
             float diffW = layout.mainContent.width;
             auto baselineActions = div(ctx, mk(mainBg.ent(), 592010), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
@@ -710,18 +679,18 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         if (hasSelectedFile) {
-            bool fileJustChanged = (repo.cachedFilePath != repo.selectedFilePath);
+            bool fileJustChanged = (repo.cachedFilePath != repo.selectedFilePath());
             if (fileJustChanged) {
-                repo.cachedFilePath = repo.selectedFilePath;
+                repo.cachedFilePath = repo.selectedFilePath();
             }
 
             std::vector<FileDiff> selectedDiffs;
-            const auto& fileDiffs = repo.selectedFileStaged ? repo.stagedDiff : repo.currentDiff;
+            const auto& fileDiffs = repo.selectedFileStaged() ? repo.stagedDiff : repo.currentDiff;
             for (auto& d : fileDiffs) {
-                if (d.filePath == repo.selectedFilePath ||
-                    d.filePath.ends_with("/" + repo.selectedFilePath) ||
-                    repo.selectedFilePath.ends_with("/" + d.filePath) ||
-                    repo.selectedFilePath.ends_with(d.filePath)) {
+                if (d.filePath == repo.selectedFilePath() ||
+                    d.filePath.ends_with("/" + repo.selectedFilePath()) ||
+                    repo.selectedFilePath().ends_with("/" + d.filePath) ||
+                    repo.selectedFilePath().ends_with(d.filePath)) {
                     selectedDiffs.push_back(d);
                     break;
                 }
@@ -730,18 +699,18 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             bool reviewing = reviewPtr && reviewPtr->reviewing;
             bool selUntracked = false;
             for (auto& u : repo.untrackedFiles)
-                if (u == repo.selectedFilePath ||
-                    u.ends_with("/" + repo.selectedFilePath) ||
-                    repo.selectedFilePath.ends_with(u)) { selUntracked = true; break; }
+                if (u == repo.selectedFilePath() ||
+                    u.ends_with("/" + repo.selectedFilePath()) ||
+                    repo.selectedFilePath().ends_with(u)) { selUntracked = true; break; }
 
             // Synthesize a whole-file "new" diff only for genuinely new/untracked
             // files. During review, a tracked file with no working-tree diff was
             // just approved (staged) — don't fake a new-file diff for it.
-            if (selectedDiffs.empty() && selUntracked && !repo.selectedFileStaged) {
-                std::string key = repo.repoPath + "\n" + repo.selectedFilePath + "\n" + std::to_string(repo.dataGeneration);
+            if (selectedDiffs.empty() && selUntracked && !repo.selectedFileStaged()) {
+                std::string key = repo.repoPath + "\n" + repo.selectedFilePath() + "\n" + std::to_string(repo.dataGeneration);
                 if (repo.untrackedDiffKey != key) {
                     repo.untrackedDiffKey = std::move(key);
-                    repo.untrackedDiff = build_new_file_diff(repo.repoPath, repo.selectedFilePath);
+                    repo.untrackedDiff = build_new_file_diff(repo.repoPath, repo.selectedFilePath());
                 }
                 if (repo.untrackedDiff) selectedDiffs.push_back(*repo.untrackedDiff);
             } else {
@@ -755,7 +724,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // re-save every frame while a file is open.
                 if (reviewPtr) {
                     std::string sig = ui::diff_metrics().signature(selectedDiffs[0]);
-                    std::string& slot = reviewPtr->seenSig[repo.selectedFilePath];
+                    std::string& slot = reviewPtr->seenSig[repo.selectedFilePath()];
                     if (slot != sig) { slot = sig; reviewPtr->dirty = true; }
                 }
                 bool sideBySide = (layout.diffViewMode ==
@@ -766,8 +735,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 auto* review = find_singleton<ReviewComponent, ActiveTab>();
                 ui::render_diff(ctx, mainBg.ent(), selectedDiffs,
                                diffW, layout.mainContent.height, false, fileJustChanged, sideBySide,
-                               repo.repoPath, repo.selectedFileStaged ? nullptr : review,
-                               repo.selectedFileStaged ? "index" : "wt");
+                               repo.repoPath, repo.selectedFileStaged() ? nullptr : review,
+                               repo.selectedFileStaged() ? "index" : "wt");
             } else if (reviewing && !selUntracked) {
                 // Reviewed file fully approved (staged) — celebrate instead of
                 // faking a "new file" diff. (No auto-advance: the sidebar still
@@ -804,7 +773,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // Even with no textual diff, make it obvious which file is
                 // selected: show its name at the top, plus size and change
                 // status (vs HEAD) so it's clear why there's nothing to show.
-                const std::string& rel = repo.selectedFilePath;
+                const std::string& rel = repo.selectedFilePath();
 
                 auto human_size = [](uintmax_t b) -> std::string {
                     if (b < 1024) return std::to_string(b) + " B";

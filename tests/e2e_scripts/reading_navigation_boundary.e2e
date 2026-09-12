@@ -1,0 +1,54 @@
+make_test_repo
+resize 1600 1000
+wait_for_refresh
+click_text "Add contributing guidelines"
+wait_for_refresh
+screenshot boundary_commit
+click_ui open_full_file
+wait_for_refresh
+screenshot boundary_first_source
+key CMD+P
+screenshot boundary_picker
+click_ui file_picker_input
+type "README.md"
+screenshot boundary_picker_query
+key ENTER
+wait_for_refresh
+screenshot boundary_second_source
+expect_text "README.md @ working tree"
+click_ui content_review_tab
+wait_for_refresh
+screenshot boundary_retained_review
+expect_text "Add contributing guidelines"
+click_ui content_source_tab
+screenshot boundary_retained_source
+expect_text "README.md @ working tree"
+click_ui content_source_close
+screenshot boundary_closed_source
+expect_text "Add contributing guidelines"
+key ALT+LEFT
+wait_for_refresh
+screenshot boundary_revisited_source
+expect_text "README.md @ working tree"
+native_menu_action "Compare Revisions..."
+screenshot boundary_comparison_editor
+click_ui compare_base
+type "HEAD~1"
+click_ui compare_target
+type "HEAD"
+click_ui compare_submit
+wait_for_refresh
+screenshot boundary_comparison
+expect_text "Resolved revisions:"
+click_ui jump_to_diff:CONTRIBUTING.md
+screenshot boundary_comparison_file
+click_ui open_full_file
+wait_for_refresh
+screenshot boundary_comparison_source
+expect_text "CONTRIBUTING.md @"
+click_ui full_file_back
+wait_for_refresh
+screenshot boundary_comparison_return
+expect_text "Resolved revisions:"
+validate blob_cache_bounded=true
+validate patch_cache_bounded=true
