@@ -6,6 +6,7 @@
 #include "file_history.h"
 #include "../git/content_reader.h"
 #include "../util/hex_view.h"
+#include "../util/markdown_preview.h"
 #include "../util/text_decode.h"
 
 namespace ecs {
@@ -21,6 +22,7 @@ inline std::string bookmark_display(const CodeBookmark& bookmark) {
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
     const auto& bookmarks = Settings::get().get_code_bookmarks(repo.repoPath);
+    if (repo.fullFileNavigateFrames > 0) repo.fullFileMarkdownPreview = false;
     std::string sourceKey = repo.repoPath + "\n" + repo.fullFileRevision + "\n" + repo.fullFilePath;
     if (repo.fullFileRevision.empty() || repo.fullFileRevision == "INDEX") sourceKey += ":" + std::to_string(repo.dataGeneration);
     if (repo.fullFileSourceKey != sourceKey) {
@@ -44,6 +46,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFileDiff.clear();
         repo.fullFileError.clear();
         repo.fullFileBytes.clear();
+        repo.fullFileDecodedText.clear();
         repo.blameOpen = false;
         repo.blameFuture = {};
         repo.fullFileFuture = git::read_file_async({repo.repoPath, repo.fullFilePath, repo.fullFileRevision,
@@ -55,6 +58,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFileBytes = std::move(content.raw);
         repo.fullFilePage = std::move(content.page);
         repo.fullFileEncodingLabel = std::move(content.encodingLabel);
+        repo.fullFileDecodedText = std::move(content.decodedText);
         if (repo.fullFileError.empty()) repo.fullFileDiff.push_back(std::move(content.diff));
         changed = true;
     }
@@ -120,6 +124,11 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(FontSize::Small)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));
     }
+    bool markdown = markdown_preview::is_markdown_path(repo.fullFilePath) &&
+                    !repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary;
+    if (markdown && button(ctx, mk(actions.ent(), 6), preset::Button(repo.fullFileMarkdownPreview ? "Raw Markdown" : "Preview")
+            .with_size(ComponentSize{pixels(105), pixels(30)}).with_debug_name("markdown_preview_toggle")))
+        repo.fullFileMarkdownPreview = !repo.fullFileMarkdownPreview;
     const auto& selection = ui::diff_sel::state();
     int selectedLine = 0;
     for (const auto& line : selection.lastLines)
@@ -279,6 +288,45 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_debug_name("hex_preview_line"));
         }
         spacer(2, static_cast<float>(preview.lines.size() - last) * rowHeight + 16.f);
+    } else if (markdown && repo.fullFileMarkdownPreview) {
+        auto& cache = repo.fullFileMarkdownCache;
+        auto& fonts = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::FontManager>();
+        const auto bodyFont = fonts.get_font(afterhours::ui::UIComponent::DEFAULT_FONT);
+        const auto codeFont = fonts.get_font("mono");
+        float screenHeight = static_cast<float>(afterhours::graphics::get_screen_height());
+        afterhours::ui::AutoLayout grid({afterhours::graphics::get_screen_width(), static_cast<int>(screenHeight)});
+        markdown_preview::update(cache, repo.fullFileCacheKey, repo.fullFileDecodedText,
+            std::max(1.f, layout.mainContent.width - 48.f), screenHeight / 720.f,
+            resolve_to_pixels(h720(Settings::get().get_code_font_size()), screenHeight), grid.grid_unit(),
+            [&](const std::string& text, markdown_preview::Kind kind, float size) {
+                return afterhours::measure_text(kind == markdown_preview::Kind::Code ? codeFont : bodyFont, text.c_str(), size, 1.f).x;
+            });
+        float bodyHeight = layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight;
+        auto body = div(ctx, mk(parent, 585005), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(bodyHeight)})
+            .with_flex_direction(FlexDirection::Column)
+            .with_no_wrap().with_overflow(Overflow::Scroll, Axis::Y)
+            .with_custom_background(theme::PANEL_BG)
+            .with_padding(Padding{.top = pixels(8), .right = pixels(16), .bottom = pixels(8), .left = pixels(16)})
+            .with_debug_name("markdown_preview"));
+        ui::remember_reading_position(repo, body.ent(), "markdown:" + repo.fullFileCacheKey);
+        float offset = body.ent().get<afterhours::ui::HasScrollView>().scroll_offset.y;
+        auto [first, last] = markdown_preview::visible_rows(cache, offset, bodyHeight);
+        auto spacer = [&](int id, float height) {
+            if (height > 0.f) div(ctx, mk(body.ent(), id), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(height)}).with_skip_grid_snap());
+        };
+        spacer(0, cache.offsets[first]);
+        for (size_t row = first; row < last; ++row) {
+            const auto& line = cache.lines[row];
+            div(ctx, mk(body.ent(), 100 + static_cast<int>(row)), ComponentConfig{}
+                .with_label(line.text)
+                .with_size(ComponentSize{percent(1.f), pixels(line.height)}).with_skip_grid_snap()
+                .with_font(line.kind == markdown_preview::Kind::Code ? "mono" : afterhours::ui::UIComponent::DEFAULT_FONT, pixels(line.fontSize))
+                .with_custom_text_color(line.kind == markdown_preview::Kind::Image ? theme::TEXT_SECONDARY : theme::TEXT_PRIMARY)
+                .with_debug_name("markdown_preview_block"));
+        }
+        spacer(1, cache.offsets.back() - cache.offsets[last] + 16.f);
     } else {
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
                         layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight, false, changed, false,

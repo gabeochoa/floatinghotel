@@ -2,6 +2,7 @@
 #include "blob_page_cache.h"
 #include "../util/file_content.h"
 #include "../util/file_page.h"
+#include "../util/markdown_preview.h"
 #include "../../vendor/afterhours/src/logging.h"
 
 #include <filesystem>
@@ -108,6 +109,8 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
             if (content.diff.isPartialContent) hunk.header = "Loaded page";
         }
         content.diff.oldMode = content.diff.newMode = mode;
+        if (!decoded.binary && markdown_preview::is_markdown_path(request.path))
+            content.decodedText = std::move(decoded.text);
     }
     return content;
 }

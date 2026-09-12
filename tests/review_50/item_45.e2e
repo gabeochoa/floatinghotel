@@ -1,0 +1,46 @@
+resize 1280 800
+wait_for_refresh
+click_text "README.md"
+wait_frames 5
+click_ui open_full_file
+wait_frames 5
+wait_for_refresh
+screenshot item_45_source_loaded
+expect_text "Preview"
+click_ui bookmark_line
+screenshot item_45_bookmarked
+click_ui markdown_preview_toggle
+wait_frames 5
+assert_ui markdown_preview hidden=false
+expect_text "Review notes"
+expect_text "• inspect safely"
+expect_text "Image omitted: remote"
+expect_text "<script>alert(1)</script>"
+screenshot item_45_markdown_preview
+expect_no_text End of preview
+mouse_move 900 500
+scroll_wheel 0 -500
+wait_frames 30
+screenshot item_45_bottom
+expect_text End of preview
+expect_no_text Review notes
+scroll_wheel 0 500
+wait_frames 30
+screenshot item_45_top_again
+expect_text Review notes
+resize 1440 900
+wait_frames 10
+screenshot item_45_reflowed
+expect_text Review notes
+assert_no_overflow
+click_ui markdown_preview_toggle
+wait_frames 3
+expect_text "Preview"
+expect_text "# Review notes"
+screenshot item_45_markdown_raw
+click_ui markdown_preview_toggle
+screenshot item_45_preview_again
+click_ui code_bookmark
+screenshot item_45_bookmark_source
+expect_text Preview
+expect_text "# Review notes"

@@ -44,6 +44,22 @@ TEST(async_file_read_returns_owned_content) {
     std::filesystem::remove(path);
 }
 
+TEST(markdown_preview_text_uses_worker_decoding_without_retaining_other_sources) {
+    char directory[] = "/tmp/fh-markdown-decoding.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    for (const auto* name : {"notes.md", "source.txt"}) {
+        std::ofstream output(std::filesystem::path(path) / name, std::ios::binary);
+        output.write("\xff\xfe#\0 \0T\0\n\0", 10);
+    }
+    auto markdown = git::read_file({path, "notes.md", ""});
+    ASSERT_TRUE(markdown.error.empty());
+    ASSERT_EQ(markdown.decodedText, "# T\n");
+    ASSERT_EQ(markdown.diff.hunks.front().lines.front(), " # T");
+    ASSERT_TRUE(git::read_file({path, "source.txt", ""}).decodedText.empty());
+    std::filesystem::remove_all(path);
+}
+
 TEST(replacing_a_task_requests_stop_without_waiting_for_completion) {
     std::promise<void> stopped;
     auto observed = stopped.get_future();

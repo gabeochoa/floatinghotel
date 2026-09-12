@@ -142,6 +142,11 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_image_view_state" ]; then
         "tests/unit/test_image_view_state.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_markdown_preview" ]; then
+    run_test "test_markdown_preview" \
+        "tests/unit/test_markdown_preview.cpp"
+fi
+
 # --- test_review_store ---
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
     run_test "test_review_store" \

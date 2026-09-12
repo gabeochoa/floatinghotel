@@ -17,6 +17,7 @@
 #include "../util/codeowners.h"
 #include "../util/code_bookmark.h"
 #include "../util/hex_view.h"
+#include "../util/markdown_preview.h"
 
 namespace ecs {
 
@@ -152,6 +153,7 @@ struct FullFileContent {
     std::string error;
     FilePage page;
     std::string encodingLabel;
+    std::string decodedText;
 };
 
 inline std::string hunk_signature(const DiffHunk& hunk) {
@@ -248,6 +250,9 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fullFileSourceKey;
     std::string fullFileHexPreviewKey;
     hex_view::Preview fullFileHexPreview;
+    std::string fullFileDecodedText;
+    markdown_preview::Cache fullFileMarkdownCache;
+    bool fullFileMarkdownPreview = false;
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
     std::string fullFileBytes;
