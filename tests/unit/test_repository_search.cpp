@@ -1,0 +1,25 @@
+#include "test_framework.h"
+#include "../../src/git/repository_search.h"
+
+TEST(repository_search_arguments_keep_tree_index_and_working_tree_distinct) {
+    auto working = git::repository_search_args({"repo", "", "needle"});
+    ASSERT_TRUE(std::find(working.begin(), working.end(), "--untracked") != working.end());
+    auto index = git::repository_search_args({"repo", "INDEX", "needle"});
+    ASSERT_TRUE(std::find(index.begin(), index.end(), "--cached") != index.end());
+    ASSERT_TRUE(std::find(index.begin(), index.end(), "--untracked") == index.end());
+    auto historical = git::repository_search_args({"repo", "abc123", "needle"});
+    ASSERT_EQ(historical[historical.size() - 2], "abc123");
+    ASSERT_EQ(historical.back(), "--");
+}
+
+TEST(repository_search_removes_only_the_known_revision_prefix) {
+    constexpr char output[] = "abc123:odd:name.cpp\0" "12\0" "needle\n";
+    auto matches = git::parse_search_matches(std::string(output, sizeof(output) - 1), "abc123");
+    ASSERT_EQ(matches.size(), 1u);
+    ASSERT_EQ(matches[0].file, "odd:name.cpp");
+    ASSERT_EQ(matches[0].revision, "abc123");
+    auto working = git::parse_search_matches(std::string(output, sizeof(output) - 1), "");
+    ASSERT_EQ(working[0].file, "abc123:odd:name.cpp");
+}
+
+int main() { RUN_ALL_TESTS(); }

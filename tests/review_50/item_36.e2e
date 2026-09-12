@@ -1,0 +1,17 @@
+resize 1440 900
+wait_for_refresh
+click_text baseline
+wait_for_refresh
+key CMD+SHIFT+F
+click_ui repo_search_input
+type needle
+click_ui repo_search_submit
+wait_for_refresh
+expect_text "historical needle"
+expect_no_text "working needle"
+screenshot item_36_historical_search
+click_ui repo_search_result
+wait_for_refresh
+expect_text "historical needle"
+expect_no_text "working needle"
+screenshot item_36_historical_result

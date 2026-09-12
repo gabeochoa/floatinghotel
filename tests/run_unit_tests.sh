@@ -77,6 +77,13 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_content_reader" ]; then
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_repository_search" ]; then
+    run_test "test_repository_search" "tests/unit/test_repository_search.cpp" \
+        "src/git/repository_search.cpp" "src/git/git_parser.cpp" \
+        "src/git/git_runner.cpp" "src/util/process.cpp" \
+        "vendor/afterhours/src/plugins/files.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_snapshot" ]; then
     run_test "test_review_snapshot" "tests/unit/test_review_snapshot.cpp" \
         "src/review_snapshot.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \

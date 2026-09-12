@@ -2,6 +2,8 @@
 
 #include "../ecs/ui_imports.h"
 #include "../git/git_parser.h"
+#include "../git/repository_search.h"
+#include "../util/diff_revisions.h"
 
 namespace ecs {
 
@@ -12,12 +14,13 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         auto result = repo.repoSearchFuture.get();
         repo.repoSearchFuture = {};
         if (repo.repoSearchPath == repo.repoPath) {
-            repo.repoSearchError = result.success() || result.exit_code() == 1 ? "" : result.stderr_str();
-            repo.repoSearchResults = git::parse_grep_matches(result.stdout_str());
+            repo.repoSearchError = std::move(result.error);
+            repo.repoSearchRevision = std::move(result.revision);
+            repo.repoSearchResults = std::move(result.matches);
         }
     }
     div(ctx, mk(parent, 587000), ComponentConfig{}
-        .with_label("Search repository · literal, case-sensitive")
+        .with_label("Search repository · " + (repo.repoSearchRevision.empty() ? "working tree" : repo.repoSearchRevision == "INDEX" ? "index" : repo.repoSearchRevision))
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Medium));
     auto row = div(ctx, mk(parent, 587001), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
@@ -31,8 +34,10 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         repo.repoSearchResults.clear();
         repo.repoSearchError.clear();
         repo.repoSearchPath = repo.repoPath;
-        repo.repoSearchFuture = git::git_run_async(repo.repoPath,
-            {"grep", "-n", "-I", "-z", "--untracked", "--exclude-standard", "--full-name", "-F", "-e", repo.repoSearchQuery, "--"});
+        repo.repoSearchRevision = !repo.fullFilePath.empty() ? repo.fullFileRevision :
+            repo.comparisonOpen ? diff_revisions(repo.comparisonScope).second :
+            !repo.selectedCommitHash.empty() ? repo.selectedCommitHash : repo.selectedFileStaged ? "INDEX" : "";
+        repo.repoSearchFuture = git::search_repository_async({repo.repoPath, repo.repoSearchRevision, repo.repoSearchQuery});
     }
     std::string status = repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchResults.empty() ? "No matches" :
         std::to_string(repo.repoSearchResults.size()) + (repo.repoSearchResults.size() == 5000 ? " matches (first 5000 shown)" : " matches");
@@ -48,9 +53,9 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                     .with_font_size(FontSize::Small).with_custom_background(theme::PANEL_BG)
                     .with_debug_name("repo_search_result"))) {
                 repo.fullFilePath = repo.selectedFilePath = match.file;
-                repo.selectedFileStaged = false;
-                repo.selectedCommitHash.clear();
-                repo.fullFileRevision.clear();
+                repo.selectedFileStaged = match.revision == "INDEX";
+                repo.selectedCommitHash = match.revision == "INDEX" ? "" : match.revision;
+                repo.fullFileRevision = match.revision;
                 repo.fullFileCacheKey.clear();
                 repo.fullFileTargetLine = match.line;
                 repo.fullFileNavigateFrames = 3;

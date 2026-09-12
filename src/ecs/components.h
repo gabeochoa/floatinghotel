@@ -22,6 +22,19 @@ struct SearchMatch {
     std::string file;
     int line = 0;
     std::string text;
+    std::string revision;
+};
+
+struct SearchQuery {
+    std::string repoPath;
+    std::string revision;
+    std::string text;
+};
+
+struct SearchResult {
+    std::string revision;
+    std::vector<SearchMatch> matches;
+    std::string error;
 };
 
 struct BlameLine {
@@ -202,7 +215,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string repoSearchQuery;
     std::string repoSearchPath;
     std::string repoSearchError;
-    async_work::Task<git::GitResult> repoSearchFuture;
+    async_work::Task<SearchResult> repoSearchFuture;
+    std::string repoSearchRevision;
     std::vector<SearchMatch> repoSearchResults;
     int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;
