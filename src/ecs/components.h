@@ -19,6 +19,7 @@
 #include "../util/hex_view.h"
 #include "../util/markdown_preview.h"
 #include "../util/diff_revisions.h"
+#include "../util/review_files.h"
 
 namespace ecs {
 
@@ -211,6 +212,7 @@ struct NavigationHistory {
 
 struct RepoComponent : public afterhours::BaseComponent {
     bool reviewWorkspace = false;
+    review_files::Filter fileFilter;
     ReadingPositions reading;
     NavigationHistory navigation;
     std::string repoPath;

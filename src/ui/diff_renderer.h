@@ -1189,10 +1189,36 @@ inline void render_diff(UIContext<InputAction>& ctx,
     auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
     sess.visibleWhitespace = layout && layout->visibleWhitespace;
     float findHeight = 0.f;
+    auto* filterRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    bool filterable = diffs.empty() || !diffs.front().isFullContent;
+    if (filterRepo && filterable) {
+        auto filters = div(ctx, mk(findParent ? *findParent : parent, 597000), ComponentConfig{}
+            .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row)
+            .with_debug_name("review_file_filters"));
+        auto toggle = [&](int id, const std::string& label, const std::string& debugName, bool& hidden) {
+            if (button(ctx, mk(filters.ent(), id), preset::Button(label + (hidden ? ": hidden" : ": shown"))
+                    .with_size(ComponentSize{percent(0.25f), pixels(26)}).with_font_size(FontSize::Small)
+                    .with_custom_background(hidden ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
+                    .with_debug_name(debugName))) hidden = !hidden;
+        };
+        toggle(0, "Generated", "filter_Generated", filterRepo->fileFilter.hideGenerated);
+        toggle(1, "Vendor", "filter_Vendor", filterRepo->fileFilter.hideVendor);
+        toggle(2, "Lockfiles", "filter_Lockfiles", filterRepo->fileFilter.hideLockfiles);
+        auto hidden = std::count_if(diffs.begin(), diffs.end(), [&](const auto& file) {
+            return !review_files::matches(filterRepo->fileFilter, file.filePath);
+        });
+        div(ctx, mk(filters.ent(), 3), ComponentConfig{}.with_label(std::to_string(hidden) + " hidden by path")
+            .with_size(ComponentSize{percent(0.25f), pixels(26)}).with_font_size(FontSize::Small));
+        findHeight = 30.f;
+    }
+    auto fileVisible = [&](const ecs::FileDiff& file) {
+        return !filterable || !filterRepo || review_files::matches(filterRepo->fileFilter, file.filePath);
+    };
+    size_t visibleFiles = static_cast<size_t>(std::count_if(diffs.begin(), diffs.end(), fileVisible));
     if (layout && layout->diffFindOpen) {
-        findHeight = 34.f;
+        findHeight += 34.f;
         auto bar = div(ctx, mk(findParent ? *findParent : parent, 580001), ComponentConfig{}
-            .with_size(ComponentSize{pixels(contentWidth), pixels(findHeight)})
+            .with_size(ComponentSize{pixels(contentWidth), pixels(34.f)})
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
             .with_debug_name("diff_find_bar"));
@@ -1210,6 +1236,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
             layout->diffFindNavigate = 3;
         }
         auto matches = ecs::find_diff_matches(diffs, layout->diffFindQuery);
+        std::erase_if(matches, [&](const auto& match) {
+            return filterable && filterRepo && !review_files::matches(filterRepo->fileFilter, match.file);
+        });
         int count = static_cast<int>(matches.size());
         int step = 0;
         if (button(ctx, mk(bar.ent(), 1), preset::Button("Previous")
@@ -1261,7 +1290,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     bool selEnabled = true;
     if (selEnabled) {
         std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline");
-        for (const auto& diff : diffs) context += "\n" + diff.filePath + diff_metrics().signature(diff);
+        for (const auto& diff : diffs) if (fileVisible(diff)) context += "\n" + diff.filePath + diff_metrics().signature(diff);
         if (diff_sel::state().context != context) {
             diff_sel::reset();
             diff_sel::state().context = std::move(context);
@@ -1327,6 +1356,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
     float codeWidth = contentWidth;
     for (const auto& file : diffs) {
+        if (!fileVisible(file)) continue;
         float width = diff_metrics().width(file, sess.fontSize, sess.visibleWhitespace, sideBySide,
             [&](const std::string& line) {
                 float measured = diff_sel::mw(sess, code_highlight::display_text(line, sess.visibleWhitespace, true) +
@@ -1369,11 +1399,12 @@ inline void render_diff(UIContext<InputAction>& ctx,
     if (!embedInParentScroll && (diffs.empty() || !diffs.front().isFullContent)) {
         int totalAdditions = 0, totalDeletions = 0;
         for (auto& d : diffs) {
+            if (!fileVisible(d)) continue;
             totalAdditions += d.additions;
             totalDeletions += d.deletions;
         }
-        std::string stats = std::to_string(diffs.size()) + " file"
-            + (diffs.size() != 1 ? "s" : "") + " changed  +"
+        std::string stats = std::to_string(visibleFiles) + " file"
+            + (visibleFiles != 1 ? "s" : "") + " changed  +"
             + std::to_string(totalAdditions) + "  -"
             + std::to_string(totalDeletions);
 
@@ -1475,6 +1506,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     struct ContextLocation { float y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
     std::vector<ContextLocation> contextLocations;
     for (auto& fileDiff : diffs) {
+        if (!fileVisible(fileDiff)) continue;
         contextLocations.push_back({vp.curY, &fileDiff, nullptr});
         std::string fileLabel = diff_detail::file_header_label(fileDiff);
 

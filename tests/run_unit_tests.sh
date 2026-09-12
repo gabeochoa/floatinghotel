@@ -54,6 +54,10 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_target" ]; then
     run_test "test_review_target" "tests/unit/test_review_target.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_files" ]; then
+    run_test "test_review_files" "tests/unit/test_review_files.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_code_gutter" ]; then
     run_test "test_code_gutter" "tests/unit/test_code_gutter.cpp"
 fi

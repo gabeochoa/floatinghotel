@@ -1,0 +1,23 @@
+resize 1440 900
+wait_for_refresh
+click_text ChangeSet
+wait_for_refresh
+screenshot item_19_all_files
+expect_text "vendor/dependency.txt"
+click_ui filter_Vendor
+screenshot item_19_vendor_hidden
+expect_no_text "vendor/dependency.txt"
+expect_text "1 hidden by path"
+click_ui filter_Generated
+click_ui filter_Lockfiles
+screenshot item_19_filtered
+expect_text "3 hidden by path"
+expect_no_text "generated/output.txt"
+expect_no_text "locked-dependency"
+expect_text "application-code"
+click_ui filter_Generated
+click_ui filter_Vendor
+click_ui filter_Lockfiles
+screenshot item_19_restored
+expect_text "0 hidden by path"
+expect_text "generated/output.txt"

@@ -1374,18 +1374,26 @@ private:
     std::set<std::string> treeCollapsed_;
     bool treeMode_ = false;
     bool allFilesMode_ = false;
+    std::vector<size_t> fileIndices_;
 
     void update_file_tree(const RepoComponent& repo, const LayoutComponent& layout) {
         allFilesMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::All;
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
-        if (!treeMode_) return;
         std::vector<std::string> paths;
+        fileIndices_.clear();
+        auto append = [&](const std::string& path, size_t index) {
+            if (review_files::matches(repo.fileFilter, path)) {
+                paths.push_back(path);
+                fileIndices_.push_back(index);
+            }
+        };
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
-            for (const auto& file : repo.unstagedFiles) paths.push_back(file.path);
+            for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) append(repo.unstagedFiles[i].path, i);
         } else if (tab == LayoutComponent::ReviewTab::Staged) {
-            for (const auto& file : repo.stagedFiles) paths.push_back(file.path);
-        } else paths = repo.untrackedFiles;
+            for (size_t i = 0; i < repo.stagedFiles.size(); ++i) append(repo.stagedFiles[i].path, i);
+        } else for (size_t i = 0; i < repo.untrackedFiles.size(); ++i) append(repo.untrackedFiles[i], i);
+        if (!treeMode_) return;
         auto it = layout.collapsedDirectories.find(repo.repoPath);
         const std::set<std::string> collapsed = it == layout.collapsedDirectories.end() ? std::set<std::string>{} : it->second;
         if (paths != treePaths_ || collapsed != treeCollapsed_) {
@@ -1398,10 +1406,7 @@ private:
     size_t active_file_count(const RepoComponent& repo) const {
         if (allFilesMode_) return repo.allFilePaths.size();
         if (treeMode_) return treeRows_.size();
-        auto tab = active_review_tab();
-        if (tab == LayoutComponent::ReviewTab::ToReview) return repo.unstagedFiles.size();
-        if (tab == LayoutComponent::ReviewTab::Staged) return repo.stagedFiles.size();
-        return repo.untrackedFiles.size();
+        return fileIndices_.size();
     }
 
     void render_active_file_row(UIContext<InputAction>& ctx, Entity& row,
@@ -1430,6 +1435,7 @@ private:
             }
             i = node.sourceIndex;
         }
+        i = fileIndices_[i];
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
             render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false);
@@ -1443,6 +1449,12 @@ private:
     void render_file_list(UIContext<InputAction>& ctx,
                           Entity& scrollParent,
                           RepoComponent& repo) {
+        if (!allFilesMode_ && (!repo.stagedFiles.empty() || !repo.unstagedFiles.empty() || !repo.untrackedFiles.empty()) &&
+            (repo.fileFilter.hideGenerated || repo.fileFilter.hideVendor || repo.fileFilter.hideLockfiles) && fileIndices_.empty()) {
+            div(ctx, mk(scrollParent, 2598), preset::EmptyStateText("No files match the review filters")
+                .with_size(ComponentSize{percent(1.f), h720(28)}).with_debug_name("filtered_files_empty"));
+            return;
+        }
         bool empty = repo.stagedFiles.empty() &&
                      repo.unstagedFiles.empty() &&
                      repo.untrackedFiles.empty();
