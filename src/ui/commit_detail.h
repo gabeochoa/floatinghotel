@@ -130,7 +130,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     constexpr float PAD = 16.0f;
     constexpr float LABEL_W = 70.0f;
     float contentW = layout.mainContent.width;
-    float controlsHeight = 30.f + (layout.diffFindOpen ? 34.f : 0.f) + (detailCache.commitDetailDiff.empty() ? 0.f : 24.f);
+    float controlsHeight = 60.f + (layout.diffFindOpen ? 34.f : 0.f) + (detailCache.commitDetailDiff.empty() ? 0.f : 24.f);
 
     auto findHost = div(ctx, mk(parent, 593000), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(controlsHeight)})
@@ -544,7 +544,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
         for (size_t fi = 0; detailCache.fileOverviewExpanded && fi < detailCache.commitDetailDiff.size(); ++fi) {
             auto& fd = detailCache.commitDetailDiff[fi];
-            if (!review_files::matches(repo.fileFilter, fd.filePath)) continue;
+            if (!review_files::matches(repo.fileFilter, fd.filePath, file_change(fd))) continue;
 
             std::string badge = "M";
             afterhours::Color badgeColor = theme::STATUS_MODIFIED;

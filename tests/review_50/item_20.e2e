@@ -1,0 +1,24 @@
+resize 1440 900
+wait_for_refresh
+click_text FilterSet
+wait_for_refresh
+screenshot item_20_all
+click_ui filter_language
+screenshot item_20_language_choices
+click_text "C++"
+screenshot item_20_cpp
+expect_text "Language: C++"
+expect_no_text "python-body"
+click_ui filter_change
+screenshot item_20_change_choices
+click_text Added
+screenshot item_20_added_cpp
+expect_text "added-body"
+expect_no_text "existing-body"
+expect_no_text "deleted-body"
+expect_text "3 hidden by filters"
+click_ui filter_change
+screenshot item_20_reset_choices
+click_text "All changes"
+screenshot item_20_cpp_restored
+expect_text "existing-body"

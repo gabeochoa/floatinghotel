@@ -1205,14 +1205,43 @@ inline void render_diff(UIContext<InputAction>& ctx,
         toggle(1, "Vendor", "filter_Vendor", filterRepo->fileFilter.hideVendor);
         toggle(2, "Lockfiles", "filter_Lockfiles", filterRepo->fileFilter.hideLockfiles);
         auto hidden = std::count_if(diffs.begin(), diffs.end(), [&](const auto& file) {
-            return !review_files::matches(filterRepo->fileFilter, file.filePath);
+            return !review_files::matches(filterRepo->fileFilter, file.filePath, ecs::file_change(file));
         });
-        div(ctx, mk(filters.ent(), 3), ComponentConfig{}.with_label(std::to_string(hidden) + " hidden by path")
+        div(ctx, mk(filters.ent(), 3), ComponentConfig{}.with_label(std::to_string(hidden) + " hidden by filters")
             .with_size(ComponentSize{percent(0.25f), pixels(26)}).with_font_size(FontSize::Small));
-        findHeight = 30.f;
+        auto facets = div(ctx, mk(findParent ? *findParent : parent, 597001), ComponentConfig{}
+            .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
+        if (button(ctx, mk(facets.ent(), 0), preset::Button("Language: " + (filterRepo->fileFilter.language.empty() ? "All" : filterRepo->fileFilter.language))
+                .with_size(ComponentSize{percent(0.5f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_language"))) {
+            std::set<std::string> languages;
+            for (const auto& file : diffs) languages.insert(review_files::language(file.filePath));
+            std::vector<ContextMenuItem> choices;
+            auto add = [&](const std::string& label, const std::string& value) {
+                choices.push_back(ContextMenuItem::item(label, [path = filterRepo->repoPath, value] {
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>(); repo && repo->repoPath == path)
+                        repo->fileFilter.language = value;
+                }));
+            };
+            add("All languages", "");
+            for (const auto& value : languages) add(value, value);
+            show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+        }
+        if (button(ctx, mk(facets.ent(), 1), preset::Button("Change: " + review_files::change_label(filterRepo->fileFilter.change))
+                .with_size(ComponentSize{percent(0.5f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_change"))) {
+            std::vector<ContextMenuItem> choices;
+            for (char value : {' ', 'A', 'M', 'D', 'R'})
+                choices.push_back(ContextMenuItem::item(review_files::change_label(value), [path = filterRepo->repoPath, value] {
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>(); repo && repo->repoPath == path)
+                        repo->fileFilter.change = value;
+                }));
+            show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+        }
+        findHeight = 60.f;
     }
     auto fileVisible = [&](const ecs::FileDiff& file) {
-        return !filterable || !filterRepo || review_files::matches(filterRepo->fileFilter, file.filePath);
+        return !filterable || !filterRepo || review_files::matches(filterRepo->fileFilter, file.filePath, ecs::file_change(file));
     };
     size_t visibleFiles = static_cast<size_t>(std::count_if(diffs.begin(), diffs.end(), fileVisible));
     if (layout && layout->diffFindOpen) {
@@ -1236,8 +1265,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
             layout->diffFindNavigate = 3;
         }
         auto matches = ecs::find_diff_matches(diffs, layout->diffFindQuery);
+        std::set<std::string_view> visiblePaths;
+        for (const auto& file : diffs) if (fileVisible(file)) visiblePaths.insert(file.filePath);
         std::erase_if(matches, [&](const auto& match) {
-            return filterable && filterRepo && !review_files::matches(filterRepo->fileFilter, match.file);
+            return !visiblePaths.contains(match.file);
         });
         int count = static_cast<int>(matches.size());
         int step = 0;

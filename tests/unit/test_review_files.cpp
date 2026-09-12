@@ -19,4 +19,19 @@ TEST(path_filters_are_independent_and_default_to_visible) {
     ASSERT_TRUE(review_files::matches(filter, "src/lock_manager.cpp"));
 }
 
+TEST(language_and_change_filters_intersect) {
+    review_files::Filter filter;
+    filter.language = "C++";
+    filter.change = 'A';
+    ASSERT_TRUE(review_files::matches(filter, "src/new.cpp", 'A'));
+    ASSERT_TRUE(review_files::matches(filter, "src/new.hpp", '?'));
+    ASSERT_FALSE(review_files::matches(filter, "src/existing.cpp", 'M'));
+    ASSERT_FALSE(review_files::matches(filter, "script.py", 'A'));
+    filter.language.clear();
+    ASSERT_TRUE(review_files::matches(filter, "script.py", 'A'));
+    filter.change = 'D';
+    ASSERT_TRUE(review_files::matches(filter, "src/gone.cpp", 'D'));
+    ASSERT_FALSE(review_files::matches(filter, "src/moved.cpp", 'R'));
+}
+
 int main() { RUN_ALL_TESTS(); }

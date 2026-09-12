@@ -1381,18 +1381,18 @@ private:
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
         std::vector<std::string> paths;
         fileIndices_.clear();
-        auto append = [&](const std::string& path, size_t index) {
-            if (review_files::matches(repo.fileFilter, path)) {
+        auto append = [&](const std::string& path, size_t index, char change) {
+            if (review_files::matches(repo.fileFilter, path, change)) {
                 paths.push_back(path);
                 fileIndices_.push_back(index);
             }
         };
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
-            for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) append(repo.unstagedFiles[i].path, i);
+            for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) append(repo.unstagedFiles[i].path, i, repo.unstagedFiles[i].workTreeStatus);
         } else if (tab == LayoutComponent::ReviewTab::Staged) {
-            for (size_t i = 0; i < repo.stagedFiles.size(); ++i) append(repo.stagedFiles[i].path, i);
-        } else for (size_t i = 0; i < repo.untrackedFiles.size(); ++i) append(repo.untrackedFiles[i], i);
+            for (size_t i = 0; i < repo.stagedFiles.size(); ++i) append(repo.stagedFiles[i].path, i, repo.stagedFiles[i].indexStatus);
+        } else for (size_t i = 0; i < repo.untrackedFiles.size(); ++i) append(repo.untrackedFiles[i], i, 'A');
         if (!treeMode_) return;
         auto it = layout.collapsedDirectories.find(repo.repoPath);
         const std::set<std::string> collapsed = it == layout.collapsedDirectories.end() ? std::set<std::string>{} : it->second;
@@ -1450,7 +1450,8 @@ private:
                           Entity& scrollParent,
                           RepoComponent& repo) {
         if (!allFilesMode_ && (!repo.stagedFiles.empty() || !repo.unstagedFiles.empty() || !repo.untrackedFiles.empty()) &&
-            (repo.fileFilter.hideGenerated || repo.fileFilter.hideVendor || repo.fileFilter.hideLockfiles) && fileIndices_.empty()) {
+            (repo.fileFilter.hideGenerated || repo.fileFilter.hideVendor || repo.fileFilter.hideLockfiles ||
+             !repo.fileFilter.language.empty() || repo.fileFilter.change != ' ') && fileIndices_.empty()) {
             div(ctx, mk(scrollParent, 2598), preset::EmptyStateText("No files match the review filters")
                 .with_size(ComponentSize{percent(1.f), h720(28)}).with_debug_name("filtered_files_empty"));
             return;

@@ -158,6 +158,10 @@ struct FullFileContent {
     std::string decodedText;
 };
 
+inline char file_change(const FileDiff& file) {
+    return file.isRenamed ? 'R' : file.isDeleted ? 'D' : file.isNew ? 'A' : 'M';
+}
+
 inline std::string hunk_signature(const DiffHunk& hunk) {
     std::uint64_t hash = 14695981039346656037ull;
     for (const auto& line : hunk.lines) {
