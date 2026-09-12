@@ -122,6 +122,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_custom_text_color(textCol)
                     .with_font_size(afterhours::ui::FontSize::Medium)
                     .with_alignment(TextAlignment::Left)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_padding(Padding{.left = pixels(rpx(10.0f)), .right = pixels(rpx(24.0f))})
                     .with_justify_content(JustifyContent::Center)
                     .with_align_items(AlignItems::Center)

@@ -1,0 +1,16 @@
+resize 1440 900
+wait_for_refresh
+screenshot item_50_wide
+assert_ui tab_add hidden=false
+expect_text review/a-long-branch-name
+resize 900 600
+wait_frames 5
+screenshot item_50_narrow
+assert_ui tab_add hidden=false
+click_ui tab_add
+wait_frames 5
+screenshot item_50_new_tab
+validate tab_count=2
+click_ui tab_close
+wait_frames 5
+validate tab_count=1
