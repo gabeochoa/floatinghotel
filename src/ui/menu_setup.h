@@ -143,6 +143,16 @@ inline std::vector<Menu> createMenuBar() {
                 cache->cachedCommitHash.clear();
             set_pending_toast(repo->ignoreWhitespace ? "Whitespace differences ignored" : "All differences shown");
         }),
+        MenuItem::item("Zero-context Diff (toggle)", "", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+                repo->diffContext = repo->diffContext == 0 ? 3 : 0;
+                repo->refreshRequested = true;
+                repo->cachedFilePath.clear();
+                if (auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
+                    cache->cachedCommitHash.clear();
+                set_pending_toast(repo->diffContext == 0 ? "Only changed lines shown" : "Three surrounding lines shown");
+            }
+        }),
         MenuItem::item("Show Whitespace (toggle)", "", [] {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
                 l->visibleWhitespace = !l->visibleWhitespace;

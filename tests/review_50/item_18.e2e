@@ -1,0 +1,17 @@
+resize 1440 900
+wait_for_refresh
+click_text sample.txt
+screenshot item_18_context
+expect_text "neighbor after"
+click_text View
+click_text "Zero-context Diff (toggle)"
+wait_for_refresh
+screenshot item_18_changes_only
+expect_text "replacement line"
+expect_text "@@ -2 +2 @@"
+expect_no_text "neighbor after"
+click_text View
+click_text "Zero-context Diff (toggle)"
+wait_for_refresh
+screenshot item_18_restored_context
+expect_text "neighbor after"
