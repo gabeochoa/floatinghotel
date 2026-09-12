@@ -1212,7 +1212,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         auto facets = div(ctx, mk(findParent ? *findParent : parent, 597001), ComponentConfig{}
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
         if (button(ctx, mk(facets.ent(), 0), preset::Button("Language: " + (filterRepo->fileFilter.language.empty() ? "All" : filterRepo->fileFilter.language))
-                .with_size(ComponentSize{percent(0.5f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(FontSize::Small)
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_language"))) {
             std::set<std::string> languages;
             for (const auto& file : diffs) languages.insert(review_files::language(file.filePath));
@@ -1228,7 +1228,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
         if (button(ctx, mk(facets.ent(), 1), preset::Button("Change: " + review_files::change_label(filterRepo->fileFilter.change))
-                .with_size(ComponentSize{percent(0.5f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(FontSize::Small)
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_change"))) {
             std::vector<ContextMenuItem> choices;
             for (char value : {' ', 'A', 'M', 'D', 'R'})
@@ -1238,12 +1238,24 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 }));
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
+        if (button(ctx, mk(facets.ent(), 2), preset::Button("Sort: " + review_files::sort_label(filterRepo->fileFilter.sort))
+                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(FontSize::Small)
+                .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("review_file_sort"))) {
+            std::vector<ContextMenuItem> choices;
+            for (auto value : {review_files::Sort::Path, review_files::Sort::MostChanges, review_files::Sort::FewestChanges})
+                choices.push_back(ContextMenuItem::item(review_files::sort_label(value), [path = filterRepo->repoPath, value] {
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>(); repo && repo->repoPath == path)
+                        repo->fileFilter.sort = value;
+                }));
+            show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+        }
         findHeight = 60.f;
     }
     auto fileVisible = [&](const ecs::FileDiff& file) {
         return !filterable || !filterRepo || review_files::matches(filterRepo->fileFilter, file.filePath, ecs::file_change(file));
     };
-    size_t visibleFiles = static_cast<size_t>(std::count_if(diffs.begin(), diffs.end(), fileVisible));
+    auto fileOrder = ecs::visible_file_indices(diffs, filterRepo ? filterRepo->fileFilter : review_files::Filter{});
+    size_t visibleFiles = fileOrder.size();
     if (layout && layout->diffFindOpen) {
         findHeight += 34.f;
         auto bar = div(ctx, mk(findParent ? *findParent : parent, 580001), ComponentConfig{}
@@ -1536,8 +1548,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
     struct ContextLocation { float y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
     std::vector<ContextLocation> contextLocations;
-    for (auto& fileDiff : diffs) {
-        if (!fileVisible(fileDiff)) continue;
+    for (size_t fileIndex : fileOrder) {
+        auto& fileDiff = diffs[fileIndex];
         contextLocations.push_back({vp.curY, &fileDiff, nullptr});
         std::string fileLabel = diff_detail::file_header_label(fileDiff);
 
@@ -1838,7 +1850,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
 
         // Spacer between files
-        if (&fileDiff != &diffs.back()) {
+        if (fileIndex != fileOrder.back()) {
             vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++),
                 ComponentConfig{}

@@ -162,6 +162,17 @@ inline char file_change(const FileDiff& file) {
     return file.isRenamed ? 'R' : file.isDeleted ? 'D' : file.isNew ? 'A' : 'M';
 }
 
+inline std::vector<size_t> visible_file_indices(const std::vector<FileDiff>& files, const review_files::Filter& filter) {
+    std::vector<size_t> indices;
+    for (size_t i = 0; i < files.size(); ++i)
+        if (files[i].isFullContent || review_files::matches(filter, files[i].filePath, file_change(files[i]))) indices.push_back(i);
+    std::sort(indices.begin(), indices.end(), [&](size_t a, size_t b) {
+        return review_files::precedes(filter.sort, files[a].filePath, files[a].additions + files[a].deletions,
+            files[b].filePath, files[b].additions + files[b].deletions);
+    });
+    return indices;
+}
+
 inline std::string hunk_signature(const DiffHunk& hunk) {
     std::uint64_t hash = 14695981039346656037ull;
     for (const auto& line : hunk.lines) {
@@ -273,6 +284,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;
     unsigned dataGeneration = 0;
+    unsigned patchGeneration = 0;
     std::vector<std::string> allFilePaths;
     std::string filesError;
     std::string codeownersKey;

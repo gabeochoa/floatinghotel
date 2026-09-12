@@ -1,0 +1,16 @@
+resize 1440 900
+wait_for_refresh
+click_text SortSet
+wait_for_refresh
+screenshot item_21_path_order
+assert_ui file_name text=a-small.cpp
+click_ui review_file_sort
+screenshot item_21_sort_choices
+click_text "Most changes"
+screenshot item_21_largest_first
+assert_ui file_name text=z-large.cpp
+click_ui review_file_sort
+screenshot item_21_smallest_choices
+click_text "Fewest changes"
+screenshot item_21_smallest_first
+assert_ui file_name text=a-small.cpp

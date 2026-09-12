@@ -88,6 +88,24 @@ TEST(file_mode_lookup_uses_exact_nul_terminated_paths) {
     ASSERT_TRUE(file_content::mode_for_path(records, "odd").empty());
 }
 
+TEST(review_files_sort_by_churn_with_path_ties_and_preserve_filters) {
+    std::vector<ecs::FileDiff> files(3);
+    files[0].filePath = "a.cpp";
+    files[0].additions = 1;
+    files[1].filePath = "z.cpp";
+    files[1].additions = 8;
+    files[2].filePath = "m.cpp";
+    files[2].deletions = 8;
+    review_files::Filter filter;
+    ASSERT_EQ(ecs::visible_file_indices(files, filter), (std::vector<size_t>{0, 2, 1}));
+    filter.sort = review_files::Sort::MostChanges;
+    ASSERT_EQ(ecs::visible_file_indices(files, filter), (std::vector<size_t>{2, 1, 0}));
+    filter.sort = review_files::Sort::FewestChanges;
+    ASSERT_EQ(ecs::visible_file_indices(files, filter), (std::vector<size_t>{0, 2, 1}));
+    filter.language = "Python";
+    ASSERT_TRUE(ecs::visible_file_indices(files, filter).empty());
+}
+
 TEST(tooltip_wrapping_preserves_all_text_and_utf8_glyphs) {
     std::string source = "Long subject with spaces and 世界";
     auto measure = [](const std::string& text) {
@@ -190,11 +208,24 @@ TEST(file_tree_collapses_descendants_without_hiding_siblings) {
     ASSERT_EQ(rows.size(), 7u);
     auto collapsed = file_tree::flatten(paths, {"src/"});
     ASSERT_EQ(collapsed.size(), 4u);
-    ASSERT_EQ(collapsed[1].path, "src/");
-    ASSERT_TRUE(collapsed[1].directory);
-    ASSERT_EQ(collapsed.back().path, "src2/c.cpp");
-    ASSERT_EQ(collapsed.back().sourceIndex, 2u);
+    ASSERT_EQ(collapsed[0].path, "src/");
+    ASSERT_TRUE(collapsed[0].directory);
+    ASSERT_EQ(collapsed[2].path, "src2/c.cpp");
+    ASSERT_EQ(collapsed[2].sourceIndex, 2u);
     ASSERT_EQ(file_tree::flatten(paths, {"src/deep/"}).size(), 6u);
+}
+
+TEST(file_tree_preserves_input_rank_inside_directory_groups) {
+    std::vector<std::string> paths{"src/z-large.cpp", "src/a-small.cpp", "docs/readme.md"};
+    auto rows = file_tree::flatten(paths, {});
+    ASSERT_EQ(rows.size(), 5u);
+    ASSERT_EQ(rows[0].path, "src/");
+    ASSERT_TRUE(rows[0].directory);
+    ASSERT_EQ(rows[1].path, "src/z-large.cpp");
+    ASSERT_EQ(rows[1].sourceIndex, 0u);
+    ASSERT_EQ(rows[2].path, "src/a-small.cpp");
+    ASSERT_EQ(rows[2].sourceIndex, 1u);
+    ASSERT_EQ(rows[3].path, "docs/");
 }
 
 TEST(fuzzy_paths_match_subsequences_and_rank_boundaries) {

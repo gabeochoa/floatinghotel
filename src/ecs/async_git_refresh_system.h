@@ -126,13 +126,17 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             log_info("refresh: diff ready at {} ms", ms_since(id));
             if (result.success()) {
                 repo.currentDiff = git::parse_diff(result.stdout_str());
+                ++repo.patchGeneration;
             }
         }
 
         if (pf.stagedDiff && pf.stagedDiff->wait_for(0s) == std::future_status::ready) {
             auto result = pf.stagedDiff->get();
             pf.stagedDiff.reset();
-            if (result.success()) repo.stagedDiff = git::parse_diff(result.stdout_str());
+            if (result.success()) {
+                repo.stagedDiff = git::parse_diff(result.stdout_str());
+                ++repo.patchGeneration;
+            }
         }
 
         if (pf.branches &&

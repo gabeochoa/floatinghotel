@@ -542,9 +542,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         float fileNameW = contentW - PAD * 2 - BADGE_W - BAR_MARGIN - STATS_W - BAR_W - 8.0f * 4;
         if (fileNameW < 80.0f) fileNameW = 80.0f;
 
-        for (size_t fi = 0; detailCache.fileOverviewExpanded && fi < detailCache.commitDetailDiff.size(); ++fi) {
+        if (detailCache.fileOverviewExpanded) for (size_t fi : visible_file_indices(detailCache.commitDetailDiff, repo.fileFilter)) {
             auto& fd = detailCache.commitDetailDiff[fi];
-            if (!review_files::matches(repo.fileFilter, fd.filePath, file_change(fd))) continue;
 
             std::string badge = "M";
             afterhours::Color badgeColor = theme::STATUS_MODIFIED;

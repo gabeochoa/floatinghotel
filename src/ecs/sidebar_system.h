@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
+#include <numeric>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -1375,10 +1377,35 @@ private:
     bool treeMode_ = false;
     bool allFilesMode_ = false;
     std::vector<size_t> fileIndices_;
+    struct FileRowsKey {
+        std::string repo;
+        unsigned generation;
+        unsigned patches;
+        unsigned version;
+        LayoutComponent::ReviewTab tab;
+        LayoutComponent::FileViewMode mode;
+        review_files::Filter filter;
+        bool operator==(const FileRowsKey&) const = default;
+    };
+    std::optional<FileRowsKey> fileRowsKey_;
 
     void update_file_tree(const RepoComponent& repo, const LayoutComponent& layout) {
         allFilesMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::All;
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
+        if (allFilesMode_) return;
+        auto tab = active_review_tab();
+        FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, tab, layout.fileViewMode, repo.fileFilter};
+        auto it = layout.collapsedDirectories.find(repo.repoPath);
+        const std::set<std::string> noCollapsedDirectories;
+        const auto& collapsed = it == layout.collapsedDirectories.end() ? noCollapsedDirectories : it->second;
+        if (fileRowsKey_ && *fileRowsKey_ == key) {
+            if (treeMode_ && collapsed != treeCollapsed_) {
+                treeCollapsed_ = collapsed;
+                treeRows_ = file_tree::flatten(treePaths_, treeCollapsed_);
+            }
+            return;
+        }
+        fileRowsKey_ = std::move(key);
         std::vector<std::string> paths;
         fileIndices_.clear();
         auto append = [&](const std::string& path, size_t index, char change) {
@@ -1387,20 +1414,29 @@ private:
                 fileIndices_.push_back(index);
             }
         };
-        auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
             for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) append(repo.unstagedFiles[i].path, i, repo.unstagedFiles[i].workTreeStatus);
         } else if (tab == LayoutComponent::ReviewTab::Staged) {
             for (size_t i = 0; i < repo.stagedFiles.size(); ++i) append(repo.stagedFiles[i].path, i, repo.stagedFiles[i].indexStatus);
         } else for (size_t i = 0; i < repo.untrackedFiles.size(); ++i) append(repo.untrackedFiles[i], i, 'A');
-        if (!treeMode_) return;
-        auto it = layout.collapsedDirectories.find(repo.repoPath);
-        const std::set<std::string> collapsed = it == layout.collapsedDirectories.end() ? std::set<std::string>{} : it->second;
-        if (paths != treePaths_ || collapsed != treeCollapsed_) {
-            treePaths_ = std::move(paths);
-            treeCollapsed_ = collapsed;
-            treeRows_ = file_tree::flatten(treePaths_, treeCollapsed_);
+        std::map<std::string, int> changes;
+        for (const auto& file : tab == LayoutComponent::ReviewTab::Staged ? repo.stagedDiff : repo.currentDiff)
+            changes[file.filePath] = file.additions + file.deletions;
+        std::vector<size_t> order(paths.size());
+        std::iota(order.begin(), order.end(), size_t{0});
+        auto churn = [&](const std::string& path) { auto found = changes.find(path); return found == changes.end() ? 0 : found->second; };
+        std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
+            return review_files::precedes(repo.fileFilter.sort, paths[a], churn(paths[a]), paths[b], churn(paths[b]));
+        });
+        std::vector<size_t> indices;
+        treePaths_.clear();
+        for (size_t index : order) {
+            indices.push_back(fileIndices_[index]);
+            treePaths_.push_back(std::move(paths[index]));
         }
+        fileIndices_ = std::move(indices);
+        treeCollapsed_ = collapsed;
+        if (treeMode_) treeRows_ = file_tree::flatten(treePaths_, treeCollapsed_);
     }
 
     size_t active_file_count(const RepoComponent& repo) const {

@@ -17,24 +17,46 @@ struct Row {
 
 inline std::vector<Row> flatten(const std::vector<std::string>& paths,
                                 const std::set<std::string>& collapsed) {
-    std::map<std::string, Row> nodes;
+    struct Node {
+        Row row;
+        size_t rank = 0;
+        std::vector<std::string> children;
+    };
+    std::map<std::string, Node> nodes;
+    nodes[""] = Node{};
     for (size_t i = 0; i < paths.size(); ++i) {
         const auto& path = paths[i];
         size_t depth = 0;
+        std::string parent;
         for (size_t slash = path.find('/'); slash != std::string::npos; slash = path.find('/', slash + 1)) {
             auto directory = path.substr(0, slash + 1);
-            nodes.try_emplace(directory, Row{directory, i, depth++, true});
+            auto [it, inserted] = nodes.try_emplace(directory, Node{Row{directory, i, depth, true}, i, {}});
+            if (inserted) nodes[parent].children.push_back(directory);
+            else it->second.rank = std::min(it->second.rank, i);
+            parent = directory;
+            ++depth;
         }
-        if (!path.empty() && path.back() != '/') nodes[path] = Row{path, i, depth, false};
+        if (!path.empty() && path.back() != '/') {
+            bool inserted = nodes.insert_or_assign(path, Node{Row{path, i, depth, false}, i, {}}).second;
+            if (inserted) nodes[parent].children.push_back(path);
+        }
     }
     std::vector<Row> rows;
-    for (const auto& [path, row] : nodes) {
-        bool hidden = false;
-        for (size_t slash = path.find('/'); slash != std::string::npos && slash + 1 < path.size(); slash = path.find('/', slash + 1)) {
-            if (collapsed.contains(path.substr(0, slash + 1))) { hidden = true; break; }
+    auto append = [&](auto&& self, const std::string& parent) -> void {
+        auto children = nodes[parent].children;
+        std::stable_sort(children.begin(), children.end(), [&](const auto& left, const auto& right) {
+            const auto& a = nodes[left];
+            const auto& b = nodes[right];
+            if (a.rank != b.rank) return a.rank < b.rank;
+            return left < right;
+        });
+        for (const auto& child : children) {
+            const auto& node = nodes[child];
+            rows.push_back(node.row);
+            if (node.row.directory && !collapsed.contains(child)) self(self, child);
         }
-        if (!hidden) rows.push_back(row);
-    }
+    };
+    append(append, "");
     return rows;
 }
 

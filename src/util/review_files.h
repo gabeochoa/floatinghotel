@@ -7,13 +7,32 @@
 
 namespace review_files {
 
+enum class Sort { Path, MostChanges, FewestChanges };
+
 struct Filter {
     bool hideGenerated = false;
     bool hideVendor = false;
     bool hideLockfiles = false;
     std::string language;
     char change = ' ';
+    Sort sort = Sort::Path;
+    bool operator==(const Filter&) const = default;
 };
+
+inline std::string sort_label(Sort sort) {
+    switch (sort) {
+        case Sort::Path: return "Path";
+        case Sort::MostChanges: return "Most changes";
+        case Sort::FewestChanges: return "Fewest changes";
+    }
+    return {};
+}
+
+inline bool precedes(Sort sort, const std::string& left, int leftChanges, const std::string& right, int rightChanges) {
+    if (sort != Sort::Path && leftChanges != rightChanges)
+        return sort == Sort::MostChanges ? leftChanges > rightChanges : leftChanges < rightChanges;
+    return left < right;
+}
 
 inline std::string language(std::string path) {
     std::transform(path.begin(), path.end(), path.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
