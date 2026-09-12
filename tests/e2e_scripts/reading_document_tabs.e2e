@@ -1,0 +1,66 @@
+make_test_repo
+resize 1600 1000
+wait_for_refresh
+click_text "Add contributing guidelines"
+wait_for_refresh
+click_text "Add unit tests for utils"
+wait_for_refresh
+key CMD+P
+screenshot tabs_picker_a
+click_ui file_picker_input
+key CMD+A
+type "README.md"
+screenshot tabs_query_a
+key ENTER
+wait_for_refresh
+key CMD+P
+screenshot tabs_picker_b
+click_ui file_picker_input
+key CMD+A
+type "CONTRIBUTING.md"
+screenshot tabs_query_b
+key ENTER
+wait_for_refresh
+key CMD+P
+screenshot tabs_picker_c
+click_ui file_picker_input
+key CMD+A
+type "src/app.cpp"
+screenshot tabs_query_c
+key ENTER
+wait_for_refresh
+workspace_checkpoint 6 tabs_all
+screenshot tabs_all
+click_ui content_document_2
+wait_for_refresh
+expect_text "Add contributing guidelines"
+workspace_checkpoint 6 tabs_first_review
+screenshot tabs_first_review
+click_ui content_document_3
+wait_for_refresh
+expect_text "Add unit tests for utils"
+workspace_checkpoint 6 tabs_second_review
+screenshot tabs_second_review
+click_ui content_document_4
+wait_for_refresh
+expect_text "README.md @ working tree"
+workspace_checkpoint 6 tabs_first_source
+screenshot tabs_first_source
+click_ui content_document_5
+wait_for_refresh
+expect_text "CONTRIBUTING.md @ working tree"
+workspace_checkpoint 6 tabs_second_source
+screenshot tabs_second_source
+click_ui content_document_6
+wait_for_refresh
+expect_text "src/app.cpp @ working tree"
+workspace_checkpoint 6 tabs_third_source
+screenshot tabs_third_source
+click_ui jump_to_diff:tests/test_utils.cpp
+wait_for_refresh
+expect_text "Add unit tests for utils"
+screenshot tabs_origin_row
+validate blob_cache_bounded=true
+validate patch_cache_bounded=true
+bench_frames 120
+expect_p99_below 20

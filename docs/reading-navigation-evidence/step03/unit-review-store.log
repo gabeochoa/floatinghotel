@@ -1,0 +1,39 @@
+--- Compiling test_review_store ---
+--- Running test_review_store ---
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+=== review_store tests ===
+  review_store_roundtrip                                       [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/15676951953917415962.json
+OK
+  review_store_missing_is_noop                                 OK
+  comparison_comments_keep_both_revisions_and_restore_the_comparison OK
+  editing_a_comment_preserves_its_location                     OK
+  resolved_comments_stay_saved_but_leave_the_feedback_export   OK
+  unfinished_comments_and_edits_survive_a_roundtrip            [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/8716649749782617957.json
+OK
+  deletion_is_persisted_and_failed_writes_keep_the_dirty_flag  [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/10259078569193962089.json
+OK
+  review_state_is_isolated_by_branch_and_revision              [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/10610570388393709929-915378797147260213.json
+[INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/10610570388393709929-12089666841270355141.json
+OK
+  review_signatures_detect_same_size_edits                     OK
+  export_keeps_the_original_code_and_revision                  [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/5937303877605920051.json
+OK
+  next_unreviewed_requires_explicit_metadata_review_and_wraps  OK
+  unresolved_file_counts_are_target_scoped_and_include_old_rename_side OK
+  typed_comments_preserve_drafts_edits_and_export              [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/3565609038607003897.json
+[INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/3565609038607003897.json
+OK
+  metadata_and_text_both_require_review                        OK
+  review_verdicts_require_complete_scoped_progress_and_invalidate_on_binary_changes [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/4668022363663528023.json
+OK
+  comment_anchors_relocate_only_unique_matches_and_keep_original_evidence OK
+  unresolved_filter_intersects_path_facets_and_ignores_other_targets OK
+  commit_review_queue_resumes_position_and_keeps_scope_isolated [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/5699831695172270364-15861637848546874293.json
+OK
+  queue_completion_stale_uses_loaded_default_commit_verdict    OK
+
+19/19 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

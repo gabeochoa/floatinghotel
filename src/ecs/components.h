@@ -268,6 +268,7 @@ private:
 public:
     const reading::ReadingWorkspace& workspace() const { return workspace_; }
     std::optional<reading::NavigationEffect> navigationEffect;
+    std::vector<FileDiff> originFileSummaries;
     std::string repoPath;
     std::string currentBranch;
     bool isDirty = false;
@@ -437,7 +438,7 @@ inline std::string commit_review_scope(const RepoComponent& repo) {
     return reading::scope(repo.workspace().review());
 }
 
-struct CommitDetailCache : public afterhours::BaseComponent {
+struct CommitDetailRuntime {
     reading::RequestStamp requestStamp;
     std::string cachedCommitHash;
     std::string cachedParentHash;
@@ -459,6 +460,8 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     std::string commitDetailError;
     bool fileOverviewExpanded = false;
 };
+
+struct CommitDetailCache : public afterhours::BaseComponent, CommitDetailRuntime {};
 
 // Per-tab "Ballroom" review state (see docs/mocks/ballroom.html).
 struct ReviewComponent : public afterhours::BaseComponent {
@@ -705,6 +708,23 @@ inline ReviewProgress review_progress(const ReviewComponent& review, const std::
     progress.total = files.size();
     progress.reviewed = static_cast<size_t>(std::count_if(files.begin(), files.end(),
         [&](const auto& file) { return file_reviewed(review, scope, file); }));
+    progress.unresolved = static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(),
+        [&](const auto& comment) { return comment.scope == scope && !comment.resolved; }));
+    return progress;
+}
+
+inline ReviewProgress review_progress(const ReviewComponent& review, const std::string& scope,
+        const std::vector<reading::FileSummary>& files) {
+    ReviewProgress progress;
+    progress.total = files.size();
+    for (const auto& file : files) {
+        auto record = review.reviewedFiles.find(scope + "\n" + file.path);
+        bool recorded = record != review.reviewedFiles.end() && record->second == file.signature;
+        if (file.requiresFileRecord && !recorded) continue;
+        bool reviewed = file.hunkKeys.empty() ? recorded : std::all_of(file.hunkKeys.begin(), file.hunkKeys.end(),
+            [&](const auto& key) { return review.approvedHunks.contains(scope + "\n" + key); });
+        if (reviewed) ++progress.reviewed;
+    }
     progress.unresolved = static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(),
         [&](const auto& comment) { return comment.scope == scope && !comment.resolved; }));
     return progress;

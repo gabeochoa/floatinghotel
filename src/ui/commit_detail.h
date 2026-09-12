@@ -87,14 +87,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         detailCache.cachedParentHash != selectedParent || detailCache.cachedContext != repo.diffContext ||
         detailCache.cachedIgnoreWhitespace != repo.ignoreWhitespace;
     if (commitJustChanged) {
-        detailCache.commitDetailError.clear();
-        detailCache.commitDetailDiff.clear();
-        detailCache.commitDetailBody.clear();
-        detailCache.messageExpanded = false;
-        detailCache.messageLines.clear();
-        detailCache.commitDetailAuthorEmail.clear();
-        detailCache.commitDetailParents.clear();
-        detailCache.entry = {};
+        static_cast<CommitDetailRuntime&>(detailCache) = {};
         detailCache.entry.hash = repo.selectedCommitHash();
         detailCache.entry.shortHash = repo.selectedCommitHash().substr(0, 7);
         detailCache.entry.subject = detailCache.entry.shortHash;
@@ -127,6 +120,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             detailCache.cachedParentHash = selected_commit_parent(repo);
             detailCache.requestStamp = navigation::stamp(repo, requestKey());
             detailCache.commitDetailDiff = std::move(patch.files);
+            navigation::remember_review_files(repo, detailCache.commitDetailDiff);
             detailCache.commitDetailError = std::move(patch.error);
         } catch (const std::exception& error) { detailCache.commitDetailError = error.what(); }
     }

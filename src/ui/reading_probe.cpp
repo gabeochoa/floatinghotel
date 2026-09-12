@@ -92,7 +92,48 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
 
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed()) return;
-        if (cmd.is("reading_probe")) {
+        if (cmd.is("workspace_checkpoint")) {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
+            if (!repo || cmd.args.size() != 2 || cmd.arg(1).empty() ||
+                cmd.arg(1).find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos) {
+                cmd.fail("workspace_checkpoint requires document count and label");
+                return;
+            }
+            if (std::to_string(repo->workspace().documents().size()) != cmd.arg(0)) {
+                cmd.fail("Unexpected document count");
+                return;
+            }
+            const bool source = ecs::source_tab_active(*repo);
+            if ((source && detail && (!detail->commitDetailDiff.empty() || !detail->commitDetailBody.empty())) ||
+                (!source && (!repo->fullFileDiff.empty() || !repo->fullFileBytes.empty() || !repo->fullFileDecodedText.empty()))) {
+                cmd.fail("Inactive document retained a rendering payload");
+                return;
+            }
+            nlohmann::json tabs = nlohmann::json::array();
+            for (const auto& tab : repo->workspace().documents()) {
+                nlohmann::json value{{"id", tab.id.value}};
+                if (const auto* file = std::get_if<reading::SourceLocation>(&tab.location)) {
+                    value["kind"] = "source";
+                    value["path"] = file->destination.path;
+                    value["revision"] = reading::revision_text(file->destination.revision);
+                } else {
+                    const auto& review = std::get<reading::ReviewLocation>(tab.location);
+                    value["kind"] = "review";
+                    value["revision"] = reading::scope(review);
+                    value["path"] = review.file;
+                }
+                tabs.push_back(std::move(value));
+            }
+            try {
+                std::filesystem::create_directories(directory);
+                std::ofstream output(directory / (cmd.arg(1) + ".workspace.json"));
+                output.exceptions(std::ios::failbit | std::ios::badbit);
+                output << nlohmann::json{{"active", repo->workspace().active_id().value},
+                    {"tabs", tabs}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
+                cmd.consume();
+            } catch (const std::exception& error) { cmd.fail(error.what()); }
+        } else if (cmd.is("reading_probe")) {
             if (cmd.args.size() != 4 || cmd.arg(0).empty() ||
                 cmd.arg(0).find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos ||
                 (cmd.arg(1) != "source" && cmd.arg(1) != "review")) {

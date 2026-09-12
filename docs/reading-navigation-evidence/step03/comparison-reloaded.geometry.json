@@ -1,0 +1,225 @@
+{
+  "nodes": [
+    {
+      "absolute": true,
+      "align": "FlexStart",
+      "children": [
+        343,
+        342,
+        338,
+        331,
+        63,
+        64,
+        286,
+        81
+      ],
+      "direction": "Column",
+      "font_size": {
+        "unit": "Pixels",
+        "value": 14.0
+      },
+      "gap": 0.0,
+      "hidden": false,
+      "id": 56,
+      "justify": "FlexStart",
+      "margin": {
+        "bottom": 0.0,
+        "left": 0.0,
+        "right": 0.0,
+        "top": 0.0
+      },
+      "name": "main_content",
+      "padding": {
+        "bottom": 0.0,
+        "left": 0.0,
+        "right": 0.0,
+        "top": 0.0
+      },
+      "parent": 2,
+      "rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      },
+      "rendered": true,
+      "visible_rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      }
+    },
+    {
+      "absolute": true,
+      "align": "FlexStart",
+      "children": [
+        270,
+        276,
+        310,
+        328,
+        76
+      ],
+      "direction": "Row",
+      "font_size": {
+        "unit": "Pixels",
+        "value": 14.0
+      },
+      "gap": 0.0,
+      "hidden": false,
+      "id": 269,
+      "justify": "FlexStart",
+      "margin": {
+        "bottom": 0.0,
+        "left": 0.0,
+        "right": 0.0,
+        "top": 0.0
+      },
+      "name": "content_tabs",
+      "padding": {
+        "bottom": 0.0,
+        "left": 0.0,
+        "right": 0.0,
+        "top": 0.0
+      },
+      "parent": 2,
+      "rect": {
+        "height": 40.0,
+        "width": 1312.0,
+        "x": 288.0,
+        "y": 28.0
+      },
+      "rendered": true,
+      "visible_rect": {
+        "height": 40.0,
+        "width": 1312.0,
+        "x": 288.0,
+        "y": 28.0
+      }
+    },
+    {
+      "absolute": false,
+      "align": "FlexStart",
+      "children": [],
+      "direction": "Column",
+      "font": "__default",
+      "font_size": {
+        "unit": "ScreenPercent",
+        "value": 0.01666666753590107
+      },
+      "gap": 0.0,
+      "hidden": false,
+      "id": 63,
+      "justify": "FlexStart",
+      "margin": {
+        "bottom": 0.0,
+        "left": 0.0,
+        "right": 0.0,
+        "top": 0.0
+      },
+      "name": "Resolved revisions: 62ac8d9e6f21 \u2192 81699ee2c1c3",
+      "padding": {
+        "bottom": 0.0,
+        "left": 0.0,
+        "right": 0.0,
+        "top": 0.0
+      },
+      "parent": 56,
+      "rect": {
+        "height": 30.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 208.0
+      },
+      "rendered": true,
+      "text": "Resolved revisions: 62ac8d9e6f21 \u2192 81699ee2c1c3",
+      "text_alignment": "Left",
+      "text_overflow": "Wrap",
+      "text_spans": [],
+      "visible_rect": {
+        "height": 30.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 208.0
+      }
+    },
+    {
+      "absolute": false,
+      "align": "FlexStart",
+      "children": [],
+      "direction": "Column",
+      "font": "mono",
+      "font_size": {
+        "unit": "Pixels",
+        "value": 15.0
+      },
+      "gap": 0.0,
+      "hidden": false,
+      "id": 351,
+      "justify": "FlexStart",
+      "margin": {
+        "bottom": 0.0,
+        "left": 0.0,
+        "right": 0.0,
+        "top": 0.0
+      },
+      "name": "file_header_label",
+      "padding": {
+        "bottom": 0.0,
+        "left": 8.0,
+        "right": 4.0,
+        "top": 0.0
+      },
+      "parent": 345,
+      "rect": {
+        "height": 32.0,
+        "width": 944.0,
+        "x": 340.0,
+        "y": 304.0
+      },
+      "rendered": true,
+      "text": "CONTRIBUTING.md",
+      "text_alignment": "Left",
+      "text_color": [
+        228,
+        230,
+        235,
+        255
+      ],
+      "text_overflow": "Ellipsis",
+      "text_spans": [
+        {
+          "color": [
+            126,
+            133,
+            146,
+            255
+          ],
+          "text": ""
+        },
+        {
+          "color": [
+            228,
+            230,
+            235,
+            255
+          ],
+          "text": "CONTRIBUTING.md"
+        }
+      ],
+      "visible_rect": {
+        "height": 32.0,
+        "width": 944.0,
+        "x": 340.0,
+        "y": 304.0
+      }
+    }
+  ],
+  "schema_version": 1,
+  "ui_scale": 1.0,
+  "units": "physical_pixels",
+  "viewport": {
+    "height": 1000,
+    "width": 1600
+  }
+}

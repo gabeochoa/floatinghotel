@@ -132,36 +132,97 @@ struct Visit {
     bool operator==(const Visit&) const = default;
 };
 
+struct DocumentId {
+    std::uint64_t value = 0;
+    bool operator==(const DocumentId&) const = default;
+};
+
+inline bool same_document(const Location& a, const Location& b) {
+    if (a.index() != b.index()) return false;
+    if (const auto* review = std::get_if<ReviewLocation>(&a))
+        return review->destination == std::get<ReviewLocation>(b).destination;
+    return std::get<SourceLocation>(a).destination == std::get<SourceLocation>(b).destination;
+}
+
+struct FileSummary {
+    std::string path;
+    int additions = 0;
+    int deletions = 0;
+    std::string oldPath;
+    char change = 'M';
+    std::string signature;
+    std::vector<std::string> hunkKeys;
+    bool requiresFileRecord = false;
+};
+
+struct Document {
+    DocumentId id;
+    Location location = ReviewLocation{};
+    std::uint64_t lastActivated = 0;
+    std::optional<std::vector<FileSummary>> files;
+};
+
 class ReadingWorkspace {
     friend struct ::navigation;
-    ReviewLocation review_;
-    std::optional<SourceLocation> source_;
-    Slot active_ = Slot::Review;
+    std::vector<Document> documents_{{DocumentId{1}}};
+    DocumentId active_{1};
+    std::uint64_t nextId_ = 2;
     std::vector<Visit> history_{{}};
     size_t index_ = 0;
     std::uint64_t generation_ = 0;
 
+    Document& current() {
+        return *std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == active_; });
+    }
     void select(const Location& location) {
-        if (const auto* value = std::get_if<ReviewLocation>(&location)) {
-            review_ = *value;
-            active_ = Slot::Review;
-        } else {
-            source_ = std::get<SourceLocation>(location);
-            active_ = Slot::Source;
+        auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) {
+            return same_document(tab.location, location);
+        });
+        if (found == documents_.end()) {
+            documents_.push_back({DocumentId{nextId_++}, location});
+            found = std::prev(documents_.end());
         }
-        ++generation_;
+        found->location = location;
+        active_ = found->id;
+        found->lastActivated = ++generation_;
     }
 public:
-    const ReviewLocation& review() const { return review_; }
-    const std::optional<SourceLocation>& source() const { return source_; }
-    Slot active() const { return active_; }
+    const std::vector<Document>& documents() const { return documents_; }
+    DocumentId active_id() const { return active_; }
+    const Document* document(DocumentId id) const {
+        auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == id; });
+        return found == documents_.end() ? nullptr : &*found;
+    }
+    const Document* document(const Location& location) const {
+        auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) {
+            return same_document(tab.location, location);
+        });
+        return found == documents_.end() ? nullptr : &*found;
+    }
+    const Document* recent(Slot slot) const {
+        const Document* found = nullptr;
+        for (const auto& tab : documents_) {
+            if (std::holds_alternative<SourceLocation>(tab.location) != (slot == Slot::Source)) continue;
+            if (!found || tab.lastActivated > found->lastActivated) found = &tab;
+        }
+        return found;
+    }
+    const ReviewLocation& review() const {
+        if (const auto* value = std::get_if<ReviewLocation>(&location())) return *value;
+        if (const auto& origin = std::get<SourceLocation>(location()).origin) return *origin;
+        if (const auto* tab = recent(Slot::Review)) return std::get<ReviewLocation>(tab->location);
+        static const ReviewLocation working;
+        return working;
+    }
+    const SourceLocation* source() const {
+        const auto* tab = recent(Slot::Source);
+        return tab ? &std::get<SourceLocation>(tab->location) : nullptr;
+    }
+    Slot active() const { return std::holds_alternative<SourceLocation>(location()) ? Slot::Source : Slot::Review; }
     std::uint64_t generation() const { return generation_; }
     const std::vector<Visit>& history() const { return history_; }
     size_t history_index() const { return index_; }
-    Location location() const {
-        if (active_ == Slot::Source && source_) return *source_;
-        return review_;
-    }
+    const Location& location() const { return document(active_)->location; }
 private:
     void reset() {
         auto next = generation_ + 1;
@@ -178,14 +239,12 @@ private:
         select(visit.location);
         return true;
     }
-    bool activate(Slot slot, bool reviewing = false) {
-        if (slot == Slot::Source) return source_ && open(*source_, reviewing);
-        return open(review_, reviewing);
-    }
     bool close_source(bool reviewing = false) {
-        if (!source_) return false;
-        if (active_ == Slot::Source) activate(Slot::Review, reviewing);
-        source_.reset();
+        const auto* sourceTab = recent(Slot::Source);
+        if (!sourceTab) return false;
+        auto id = sourceTab->id;
+        if (id == active_) open(review(), reviewing);
+        std::erase_if(documents_, [&](const auto& tab) { return tab.id == id; });
         return true;
     }
     bool step(int direction) {
@@ -196,36 +255,64 @@ private:
         select(history_[index_].location);
         return true;
     }
-    bool return_to_review(bool reviewing = false) {
-        return open(source_ && source_->origin ? *source_->origin : review_, reviewing);
-    }
     void clear_source_reveal() {
-        if (active_ != Slot::Source || !source_) return;
-        source_->line = 0;
-        history_[index_].location = *source_;
+        auto* source = std::get_if<SourceLocation>(&current().location);
+        if (!source) return;
+        source->line = 0;
+        history_[index_].location = *source;
+    }
+    void coalesce_resolved_document() {
+        auto& resolved = current();
+        auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) {
+            return tab.id != active_ && same_document(tab.location, resolved.location);
+        });
+        if (found != documents_.end()) {
+            auto replaced = active_;
+            found->location = resolved.location;
+            found->lastActivated = resolved.lastActivated;
+            if (!found->files) found->files = std::move(resolved.files);
+            active_ = found->id;
+            std::erase_if(documents_, [&](const auto& tab) { return tab.id == replaced; });
+        }
+        history_[index_].location = current().location;
+    }
+    void resolve_origins(const ReviewDestination& before, const ReviewDestination& after) {
+        auto resolve = [&](Location& location) {
+            if (auto* source = std::get_if<SourceLocation>(&location); source && source->origin && source->origin->destination == before)
+                source->origin->destination = after;
+        };
+        for (auto& document : documents_) resolve(document.location);
+        for (auto& visit : history_) resolve(visit.location);
     }
     bool resolve_source(std::uint64_t generation, const std::string& oid) {
-        if (generation != generation_ || active_ != Slot::Source || !source_ || !is_object_id(oid)) return false;
-        if (!std::holds_alternative<RevisionQuery>(source_->destination.revision)) return false;
-        source_->destination.revision = ObjectId{oid};
-        history_[index_].location = *source_;
+        if (generation != generation_ || active() != Slot::Source || !is_object_id(oid)) return false;
+        auto& source = std::get<SourceLocation>(current().location);
+        if (!std::holds_alternative<RevisionQuery>(source.destination.revision)) return false;
+        source.destination.revision = ObjectId{oid};
+        coalesce_resolved_document();
         return true;
     }
     bool resolve_comparison(std::uint64_t generation, const std::string& before, const std::string& after) {
-        if (generation != generation_ || active_ != Slot::Review || !is_object_id(before) || !is_object_id(after)) return false;
-        auto* destination = std::get_if<ComparisonReview>(&review_.destination);
+        if (generation != generation_ || active() != Slot::Review || !is_object_id(before) || !is_object_id(after)) return false;
+        auto& review = std::get<ReviewLocation>(current().location);
+        auto* destination = std::get_if<ComparisonReview>(&review.destination);
         if (!destination) return false;
+        const auto previous = review.destination;
         *destination = {ObjectId{before}, ObjectId{after}};
-        history_[index_].location = review_;
+        resolve_origins(previous, review.destination);
+        coalesce_resolved_document();
         return true;
     }
     bool resolve_review(std::uint64_t generation, const std::string& commit, const std::string& parent) {
-        if (generation != generation_ || active_ != Slot::Review || !is_object_id(commit)) return false;
-        auto* destination = std::get_if<CommitReview>(&review_.destination);
+        if (generation != generation_ || active() != Slot::Review || !is_object_id(commit)) return false;
+        auto& review = std::get<ReviewLocation>(current().location);
+        auto* destination = std::get_if<CommitReview>(&review.destination);
         if (!destination) return false;
+        const auto previous = review.destination;
         destination->commit = ObjectId{commit};
         if (destination->parent && is_object_id(parent)) destination->parent = ObjectId{parent};
-        history_[index_].location = review_;
+        resolve_origins(previous, review.destination);
+        coalesce_resolved_document();
         return true;
     }
 };

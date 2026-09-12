@@ -29,7 +29,7 @@ Unchecked items remain outstanding. Evidence and commit IDs belong in the comple
 
 - [x] 01. Add a repeatable commit → diff → source → second source → Back baseline with screenshots, layout dumps, input timing, cache activity, and owned content bytes. Reproduce identical destinations and retain before-change evidence.
 - [x] 02. Route tree, tabs, search, bookmarks, comments, menus, and test handlers through typed destinations. Remove competing mutable selection authority and frame-sampled history. Verify existing navigation scenarios.
-- [ ] 03. Replace two content slots with document tabs. Keep two reviews and three files independently selectable; retain only active rendering payloads.
+- [x] 03. Replace two content slots with document tabs. Keep two reviews and three files independently selectable; retain only active rendering payloads.
 - [ ] 04. Single-click replaces one preview; double-click or Enter keeps it. Reuse open destinations and keep the originating review when opening its source. Never replace a kept tab.
 - [ ] 05. Disambiguate filenames with the shortest parent path and compact revision badges. Review titles show subjects, with short hashes in tooltips. Check duplicate filenames and revisions.
 - [ ] 06. Scroll the tab strip and provide an open-tabs menu. Reveal the active tab without scrolling the main window. Check narrow windows, long names, many tabs, and zoom.
@@ -113,4 +113,6 @@ Target p95 selection feedback ≤50 ms and cache-resident switches ≤100 ms on 
 
 ## Completion record
 
-Step 01 passed the optimized build, 23 content/patch unit tests, and nine native headless journeys with 90 navigation samples, PNG/layout checks, and the existing 20 ms p99 render gate. See `docs/reading-navigation-baseline.md` and `output/reading-navigation/baseline-rendered`. Step 02 passed 82 targeted unit checks, seven native navigation regressions, and nine zoom journeys with 90 samples. See `docs/reading-navigation-step02.md`. Steps 03–60 remain outstanding.
+Step 01 passed the optimized build, 23 content/patch unit tests, and nine native headless journeys with 90 navigation samples, PNG/layout checks, and the existing 20 ms p99 render gate. See `docs/reading-navigation-baseline.md` and `output/reading-navigation/baseline-rendered`. Step 02 passed 82 targeted unit checks, seven native navigation regressions, and nine zoom journeys with 90 samples. See `docs/reading-navigation-step02.md`. Step 03 passed 85 unit checks, three native document-tab journeys across all requested zooms, seven navigation regressions, and a cold/warm reading replay. See `docs/reading-navigation-step03.md`. Steps 04–60 remain outstanding.
+
+User priority added during implementation: provide a commit-style review of all unstaged changes with staged changes in a separate view, and remove the recurring startup toast. Implement these next, then resume the numbered sequence at 04.

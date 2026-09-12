@@ -50,5 +50,12 @@ click_ui full_file_back
 wait_for_refresh
 screenshot boundary_comparison_return
 expect_text "Resolved revisions:"
+click_ui content_document_2
+wait_for_refresh
+expect_text "Add contributing guidelines"
+click_ui content_document_6
+wait_for_refresh
+screenshot boundary_comparison_reloaded
+expect_text "Resolved revisions:"
 validate blob_cache_bounded=true
 validate patch_cache_bounded=true

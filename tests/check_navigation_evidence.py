@@ -16,6 +16,7 @@ expectations = {
     "boundary_comparison_file": (None, "Resolved revisions:"),
     "boundary_comparison_source": ("full_file_revision", "CONTRIBUTING.md @"),
     "boundary_comparison_return": (None, "Resolved revisions:"),
+    "boundary_comparison_reloaded": (None, "Resolved revisions:"),
 }
 for checkpoint, (name, text) in expectations.items():
     layout = json.loads((root / f"{checkpoint}.json").read_text())
@@ -27,6 +28,9 @@ for checkpoint, (name, text) in expectations.items():
     assert any(n["visible_rect"]["width"] > 100
                and n["visible_rect"]["height"] >= n["rect"]["height"] - .1
                and n["visible_rect"]["x"] >= main["visible_rect"]["x"] for n in matches), checkpoint
+    if checkpoint == "boundary_comparison_reloaded":
+        assert any(n.get("name") == "file_header_label" and n.get("text") == "CONTRIBUTING.md"
+                   and n["visible_rect"]["width"] > 100 and n["visible_rect"]["height"] > 0 for n in nodes), checkpoint
     tabs = next(n for n in nodes if n.get("name") == "content_tabs")
     assert tabs["visible_rect"]["width"] == tabs["rect"]["width"], checkpoint
     assert tabs["visible_rect"]["height"] == tabs["rect"]["height"], checkpoint

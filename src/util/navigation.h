@@ -21,6 +21,41 @@ struct navigation {
         return accepts(repo, request, request.key) && repo.workspace_.resolve_review(request.generation, commit, parent);
     }
 
+    static void remember_review_files(ecs::RepoComponent& repo, const std::vector<ecs::FileDiff>& files) {
+        auto& summaries = repo.workspace_.current().files.emplace();
+        summaries.reserve(files.size());
+        for (const auto& file : files) {
+            reading::FileSummary summary{file.filePath, file.additions, file.deletions, file.oldPath,
+                ecs::file_change(file), ecs::diff_signature(file)};
+            summary.requiresFileRecord = file.oldMode != file.newMode || !file.oldPath.empty();
+            for (const auto& hunk : file.hunks)
+                summary.hunkKeys.push_back(ecs::ReviewComponent::hunk_key(file.filePath, hunk));
+            summaries.push_back(std::move(summary));
+        }
+    }
+
+    static void release_inactive_review(const ecs::RepoComponent& repo, ecs::CommitDetailCache& cache) {
+        if (repo.workspace_.active() == reading::Slot::Source || repo.selectedCommitHash() != cache.cachedCommitHash ||
+            ecs::selected_commit_parent(repo) != cache.cachedParentHash || repo.repoPath != cache.cachedRepoPath)
+            static_cast<ecs::CommitDetailRuntime&>(cache) = {};
+    }
+
+    static void release_source(ecs::RepoComponent& repo) {
+        repo.fullFileFuture = {};
+        repo.fullFileCacheKey.clear();
+        repo.fullFileSourceKey.clear();
+        std::vector<ecs::FileDiff>{}.swap(repo.fullFileDiff);
+        std::string{}.swap(repo.fullFileBytes);
+        std::string{}.swap(repo.fullFileDecodedText);
+        repo.fullFileHexPreview = {};
+        repo.fullFileHexPreviewKey.clear();
+        repo.fullFileMarkdownCache = {};
+        repo.fullFileError.clear();
+        repo.blameFuture = {};
+        repo.blameLine = {};
+        repo.blameOpen = false;
+    }
+
     static void finish(ecs::RepoComponent& repo, const reading::Location& before, bool changed) {
         if (!repo.navigationEffect) repo.navigationEffect.emplace();
         auto& effect = *repo.navigationEffect;
@@ -33,6 +68,27 @@ struct navigation {
         const auto after = repo.workspace_.location();
         const auto* source = std::get_if<reading::SourceLocation>(&after);
         const auto* oldSource = std::get_if<reading::SourceLocation>(&before);
+        if (!reading::same_document(before, after)) release_source(repo);
+        repo.originFileSummaries.clear();
+        if (source) {
+            const auto* origin = repo.workspace_.document(repo.workspace_.review());
+            if (origin && origin->files) {
+                for (const auto& file : *origin->files) {
+                    ecs::FileDiff summary;
+                    summary.filePath = file.path;
+                    summary.additions = file.additions;
+                    summary.deletions = file.deletions;
+                    summary.oldPath = file.oldPath;
+                    summary.isNew = file.change == 'A';
+                    summary.isDeleted = file.change == 'D';
+                    summary.isRenamed = file.change == 'R';
+                    repo.originFileSummaries.push_back(std::move(summary));
+                }
+            }
+            repo.comparisonFuture = {};
+            std::vector<ecs::FileDiff>{}.swap(repo.comparisonDiff);
+            repo.comparisonLoadedScope.clear();
+        }
         if (repo.fullFileFuture.valid()) {
             repo.fullFileFuture = {};
             repo.fullFileCacheKey.clear();
@@ -49,9 +105,11 @@ struct navigation {
         }
         repo.rangeDiff.enabled = false;
         repo.rangeDiff.future = {};
+        std::vector<ecs::FileDiff>{}.swap(repo.rangeDiff.display);
         if (repo.comparisonScope() != repo.comparisonLoadedScope) {
             repo.comparisonFuture = {};
-            repo.comparisonDiff.clear();
+            std::vector<ecs::FileDiff>{}.swap(repo.comparisonDiff);
+            repo.comparisonLoadedScope.clear();
             repo.comparisonError.clear();
             repo.comparisonNeedsLoad = !repo.comparisonScope().empty();
             if (repo.comparisonNeedsLoad) {
@@ -75,6 +133,10 @@ struct navigation {
         if (slot == reading::Slot::Source) {
             if (repo.workspace_.source()) open(repo, *repo.workspace_.source());
         } else open(repo, repo.workspace_.review());
+    }
+
+    static void activate(ecs::RepoComponent& repo, reading::DocumentId id) {
+        if (const auto* document = repo.workspace_.document(id)) open(repo, document->location);
     }
 
     static void close_source(ecs::RepoComponent& repo) {

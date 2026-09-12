@@ -38,6 +38,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         if (result.patch.success()) {
             if (!navigation::complete_comparison(repo, repo.comparisonRequestStamp, result.base, result.target)) return;
             repo.comparisonDiff = git::parse_diff(result.patch.stdout_str());
+            navigation::remember_review_files(repo, repo.comparisonDiff);
             changed = true;
         } else repo.comparisonError = result.patch.stderr_str().empty() ? "Unable to compare revisions; they may have no common ancestor." : result.patch.stderr_str();
     }

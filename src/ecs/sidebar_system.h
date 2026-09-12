@@ -532,7 +532,13 @@ private:
         const std::vector<FileDiff>* files = nullptr;
         std::string scope = "wt";
         std::string empty = "Select a commit to review";
-        if (repo && !repo->comparisonScope().empty()) {
+        if (repo && source_tab_active(*repo) &&
+            !std::holds_alternative<reading::WorkingChanges>(repo->workspace().review().destination)) {
+            scope = commit_review_scope(*repo);
+            const auto* origin = repo->workspace().document(repo->workspace().review());
+            if (origin && origin->files) files = &repo->originFileSummaries;
+            else empty = "Review files have not loaded";
+        } else if (repo && !repo->comparisonScope().empty()) {
             scope = repo->comparisonScope();
             if (repo->comparisonLoadedScope == scope && !repo->comparisonFuture.valid() && repo->comparisonError.empty())
                 files = &repo->comparisonDiff;
@@ -565,7 +571,9 @@ private:
             .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11))
             .with_custom_text_color(theme::TEXT_TERTIARY));
         if (files && review) {
-            const auto progress = review_progress(*review, scope, *files);
+            const auto* origin = repo && source_tab_active(*repo) ? repo->workspace().document(repo->workspace().review()) : nullptr;
+            const auto progress = origin && origin->files ? review_progress(*review, scope, *origin->files) :
+                review_progress(*review, scope, *files);
             div(ctx, mk(heading.ent(), 1), preset::BodyText(std::to_string(progress.reviewed) + " / " + std::to_string(progress.total))
                 .with_size(ComponentSize{pixels(64), pixels(32)}).with_font("mono", pixels(11))
                 .with_alignment(TextAlignment::Right).with_custom_text_color(theme::TEXT_SECONDARY)
@@ -626,6 +634,7 @@ private:
                 .with_debug_name("commit_files_empty"));
             return;
         }
+        std::optional<std::string> selectedPath;
         ui::virtual_list(ctx, mk(section.ent(), 3), commitTreeRows_.size(), 28.f,
             [&](size_t index, Entity& wrapper) {
                 const auto& node = commitTreeRows_[index];
@@ -651,11 +660,18 @@ private:
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path));
                 if (row) {
-                    navigation::open(*repo, reading::review(scope, file.filePath));
+                    selectedPath = file.filePath;
                     if (review) {
                         review->foldedFiles.erase(scope + "\n" + file.filePath);
                         for (const auto& hunk : file.hunks)
                             review->foldedHunks.erase(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
+                        if (source_tab_active(*repo)) {
+                            const auto* origin = repo->workspace().document(repo->workspace().review());
+                            if (origin && origin->files)
+                                for (const auto& summary : *origin->files)
+                                    if (summary.path == file.filePath)
+                                        for (const auto& key : summary.hunkKeys) review->foldedHunks.erase(scope + "\n" + key);
+                        }
                     }
                 }
                 if (file.additions > 0) div(ctx, mk(row.ent(), 1), ComponentConfig{}
@@ -669,6 +685,7 @@ private:
                     .with_custom_text_color(theme::DIFF_DEL_TEXT).with_alignment(TextAlignment::Right)
                     .with_debug_name("tree_deletions"));
             }, config);
+        if (selectedPath) navigation::open(*repo, reading::review(scope, *selectedPath));
     }
 
     // ---- Sidebar mode toggle (T031) ----
