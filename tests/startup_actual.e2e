@@ -1,0 +1,5 @@
+click_ui commit_row
+wait_frames 3
+wait_for_refresh
+screenshot startup_actual_repository
+assert_ui commit_detail_scroll hidden=false
