@@ -151,8 +151,13 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 if (c.scope == "wt") anchorFiles = &repo->currentDiff;
                 else if (c.scope == "index") anchorFiles = &repo->stagedDiff;
                 else if (c.scope == repo->comparisonScope) anchorFiles = &repo->comparisonDiff;
-                else if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>(); cache && cache->cachedCommitHash == c.scope)
-                    anchorFiles = &cache->commitDetailDiff;
+                else if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>(); cache) {
+                    const auto target = diff_target(c.scope);
+                    if (cache->cachedCommitHash == target.after &&
+                        ((target.kind == DiffTarget::Kind::Commit && cache->cachedParentHash.empty()) ||
+                         (target.kind == DiffTarget::Kind::ParentComparison && cache->cachedParentHash == target.before)))
+                        anchorFiles = &cache->commitDetailDiff;
+                }
             }
             auto anchor = review_anchor::locate(c, anchorFiles);
             auto commentText = c.kind == ReviewCommentKind::Comment ? c.text : review_comment_kind_label(c.kind) + ": " + c.text;

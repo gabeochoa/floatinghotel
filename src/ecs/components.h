@@ -296,6 +296,7 @@ struct RepoComponent : public afterhours::BaseComponent {
 
     std::string selectedFilePath;
     std::string selectedCommitHash;
+    std::map<std::string, std::string> commitParents;
     std::vector<FileDiff> currentDiff;
     std::vector<FileDiff> stagedDiff;
     bool selectedFileStaged = false;
@@ -398,8 +399,19 @@ inline void cancel_hidden_file_read(RepoComponent& repo) {
     }
 }
 
+inline std::string selected_commit_parent(const RepoComponent& repo) {
+    auto parent = repo.commitParents.find(repo.selectedCommitHash);
+    return parent == repo.commitParents.end() ? "" : parent->second;
+}
+
+inline std::string commit_review_scope(const RepoComponent& repo) {
+    auto parent = selected_commit_parent(repo);
+    return parent.empty() ? repo.selectedCommitHash : "parent:" + parent + ":" + repo.selectedCommitHash;
+}
+
 struct CommitDetailCache : public afterhours::BaseComponent {
     std::string cachedCommitHash;
+    std::string cachedParentHash;
     std::string cachedRepoPath;
     CommitEntry entry;
     async_work::Task<CommitPatch> patchFuture;
@@ -742,7 +754,9 @@ inline void select_review_target(RepoComponent& repo, const std::string& scope, 
     repo.rangeDiff.future = {};
     repo.selectedFilePath = target.kind == DiffTarget::Kind::WorkingTree || target.kind == DiffTarget::Kind::Index ? file : "";
     repo.selectedFileStaged = target.kind == DiffTarget::Kind::Index;
-    repo.selectedCommitHash = target.kind == DiffTarget::Kind::Commit ? target.after : "";
+    repo.selectedCommitHash = target.kind == DiffTarget::Kind::Commit || target.kind == DiffTarget::Kind::ParentComparison ? target.after : "";
+    if (target.kind == DiffTarget::Kind::ParentComparison) repo.commitParents[target.after] = target.before;
+    else if (target.kind == DiffTarget::Kind::Commit) repo.commitParents.erase(target.after);
     repo.comparisonOpen = target.kind == DiffTarget::Kind::Comparison;
     if (repo.comparisonOpen) {
         if (repo.comparisonScope != scope) {

@@ -74,8 +74,11 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                                   ReviewComponent* review = nullptr) {
     namespace cdv = commit_detail_view;
 
+    const auto selectedParent = selected_commit_parent(repo);
+    const auto reviewScope = commit_review_scope(repo);
     bool commitJustChanged = detailCache.cachedCommitHash != repo.selectedCommitHash || detailCache.cachedRepoPath != repo.repoPath ||
-        detailCache.cachedContext != repo.diffContext || detailCache.cachedIgnoreWhitespace != repo.ignoreWhitespace;
+        detailCache.cachedParentHash != selectedParent || detailCache.cachedContext != repo.diffContext ||
+        detailCache.cachedIgnoreWhitespace != repo.ignoreWhitespace;
     if (commitJustChanged) {
         repo.diffTargetFile.clear();
         repo.diffTargetFrames = 0;
@@ -93,10 +96,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
             for (const auto& entry : *entries)
                 if (entry.hash == repo.selectedCommitHash) detailCache.entry = entry;
-        detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash, "", repo.diffContext, repo.ignoreWhitespace});
+        detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash,
+            selectedParent, repo.diffContext, repo.ignoreWhitespace});
         detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", repo.selectedCommitHash, "--no-patch",
             "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
         detailCache.cachedCommitHash = repo.selectedCommitHash;
+        detailCache.cachedParentHash = selectedParent;
         detailCache.cachedRepoPath = repo.repoPath;
         detailCache.cachedContext = repo.diffContext;
         detailCache.cachedIgnoreWhitespace = repo.ignoreWhitespace;
@@ -145,7 +150,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_skip_grid_snap()
             .with_debug_name("commit_detail_scroll"));
 
-    ui::remember_reading_position(repo, scrollContainer.ent(), "commit:" + repo.selectedCommitHash +
+    ui::remember_reading_position(repo, scrollContainer.ent(), "commit:" + reviewScope +
         (layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide ? "\nsplit" : "\ninline"),
         !detailCache.patchFuture.valid() && !detailCache.infoFuture.valid());
     if (review) render_review_queue(ctx, scrollContainer.ent(), nextId++, repo, *review, detailCache);
@@ -279,6 +284,28 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(layout.commitMetadataExpanded ? "Hide details" : "Show details")
         .with_size(ComponentSize{pixels(105), pixels(28)}).with_debug_name("commit_meta_toggle")))
         layout.commitMetadataExpanded = !layout.commitMetadataExpanded;
+
+    std::istringstream parentStream(detailCache.commitDetailParents);
+    std::vector<std::string> parents;
+    for (std::string hash; parentStream >> hash;) parents.push_back(std::move(hash));
+    if (parents.size() > 1) {
+        auto chosen = std::find(parents.begin(), parents.end(), selectedParent);
+        size_t index = chosen == parents.end() ? 0 : static_cast<size_t>(chosen - parents.begin());
+        if (button(ctx, mk(scrollContainer.ent(), nextId++), preset::Button("Compare against parent " + std::to_string(index + 1) + " · " + parents[index].substr(0, 12))
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(FontSize::Small).with_debug_name("merge_parent_select"))) {
+            std::vector<ui::ContextMenuItem> choices;
+            for (size_t i = 0; i < parents.size(); ++i)
+                choices.push_back(ui::ContextMenuItem::item("Parent " + std::to_string(i + 1) + " · " + parents[i].substr(0, 12),
+                    [path = repo.repoPath, commit = repo.selectedCommitHash, hash = i == 0 ? "" : parents[i]] {
+                        auto* active = find_singleton<RepoComponent, ActiveTab>();
+                        if (active && active->repoPath == path && active->selectedCommitHash == commit) {
+                            if (hash.empty()) active->commitParents.erase(commit);
+                            else active->commitParents[commit] = hash;
+                        }
+                    }));
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+        }
+    }
 
     if (layout.commitMetadataExpanded) {
         float cardW = std::min(contentW - PAD * 2.0f, 680.0f);
@@ -544,7 +571,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         float fileNameW = contentW - PAD * 2 - BADGE_W - BAR_MARGIN - STATS_W - BAR_W - 8.0f * 4;
         if (fileNameW < 80.0f) fileNameW = 80.0f;
 
-        if (detailCache.fileOverviewExpanded) for (size_t fi : visible_review_file_indices(detailCache.commitDetailDiff, repo.fileFilter, review, repo.selectedCommitHash)) {
+        if (detailCache.fileOverviewExpanded) for (size_t fi : visible_review_file_indices(detailCache.commitDetailDiff, repo.fileFilter, review, reviewScope)) {
             auto& fd = detailCache.commitDetailDiff[fi];
 
             std::string badge = "M";
@@ -593,7 +620,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             if (fd.isRenamed && !fd.oldPath.empty()) {
                 fname = fd.oldPath + " -> " + fd.filePath;
             }
-            if (review) fname += unresolved_file_badge(*review, repo.selectedCommitHash, fd.filePath, fd.oldPath);
+            if (review) fname += unresolved_file_badge(*review, reviewScope, fd.filePath, fd.oldPath);
             auto fileName = button(ctx, mk(fileRow.ent(), 2),
                 ComponentConfig{}
                     .with_label(fname)
@@ -701,7 +728,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                                layout.mainContent.height,
                                true, false,
                                layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
-                               repo.repoPath, review, repo.selectedCommitHash, &findHost.ent());
+                               repo.repoPath, review, reviewScope, &findHost.ent());
     }
 }
 

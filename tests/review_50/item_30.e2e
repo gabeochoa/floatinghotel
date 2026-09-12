@@ -1,0 +1,44 @@
+resize 1440 900
+wait_for_refresh
+click_text MergeSet
+screenshot item_30_loading
+wait_for_refresh
+screenshot item_30_first_parent
+assert_ui commit_detail_subject text=MergeSet
+expect_text Compare against parent 1
+expect_text side content
+expect_no_text old parent content
+click_ui merge_parent_select
+screenshot item_30_parent_choices
+click_text Parent 2
+screenshot item_30_second_loading
+wait_for_refresh
+screenshot item_30_second_parent
+expect_text Compare against parent 2
+expect_text old parent content
+expect_no_text side content
+click_ui comment_hunk_btn
+click_ui comment_input
+type Review second parent
+click_ui comment_add_btn
+screenshot item_30_comment
+expect_text against parent
+click_ui open_full_file
+screenshot item_30_source_loading
+wait_for_refresh
+screenshot item_30_previous_source
+assert_ui full_file_header hidden=false
+expect_text old parent content
+click_ui full_file_back
+screenshot item_30_parent_return
+expect_text Compare against parent 2
+click_ui merge_parent_select
+screenshot item_30_first_choice
+click_text Parent 1
+screenshot item_30_first_loading_again
+wait_for_refresh
+screenshot item_30_first_again
+expect_text Compare against parent 1
+expect_text side content
+expect_no_text old parent content
+assert_no_overflow

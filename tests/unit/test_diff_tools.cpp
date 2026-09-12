@@ -295,6 +295,34 @@ TEST(whitespace_display_distinguishes_line_endings_without_mutating_source) {
     ASSERT_EQ(raw, "\tvalue  \r");
 }
 
+TEST(merge_parent_selection_preserves_review_and_source_provenance) {
+    ecs::RepoComponent repo;
+    ecs::select_review_target(repo, "parent:second:merge", "deleted.cpp");
+    ASSERT_EQ(repo.selectedCommitHash, "merge");
+    ASSERT_FALSE(repo.comparisonOpen);
+    ASSERT_EQ(ecs::selected_commit_parent(repo), "second");
+    ASSERT_EQ(ecs::commit_review_scope(repo), "parent:second:merge");
+    ASSERT_EQ(diff_revisions(ecs::commit_review_scope(repo)), (std::pair<std::string, std::string>{"second", "merge"}));
+    ecs::ReviewComponent review;
+    review.verdicts["merge"] = {ReviewVerdict::Commented, ecs::review_target_signature({})};
+    ASSERT_EQ(ecs::current_review_verdict(review, ecs::commit_review_scope(repo), {}), ReviewVerdict::InProgress);
+    ASSERT_EQ(ecs::current_review_verdict(review, "merge", {}), ReviewVerdict::Commented);
+    ecs::ReviewComponent::Comment comment;
+    comment.scope = ecs::commit_review_scope(repo);
+    comment.oldSide = true;
+    comment.line = 1;
+    ecs::DiffHunk hunk{1, 1, 0, 0, "@@ -1 +0,0 @@", {"-old content"}};
+    ASSERT_TRUE(ecs::comment_with_context(comment, hunk, "merge").revision.starts_with("second; hunk "));
+    repo.selectedCommitHash = "other";
+    ASSERT_TRUE(ecs::selected_commit_parent(repo).empty());
+    repo.selectedCommitHash = "merge";
+    ASSERT_EQ(ecs::selected_commit_parent(repo), "second");
+    ecs::select_review_target(repo, "merge", "");
+    ASSERT_TRUE(ecs::selected_commit_parent(repo).empty());
+    ASSERT_EQ(ecs::commit_review_scope(repo), "merge");
+    ASSERT_EQ(diff_revisions("merge").first, "merge^");
+}
+
 TEST(revision_ranges_require_explicit_two_dot_endpoints) {
     auto range = parse_revision_range("base..topic");
     ASSERT_TRUE(range.has_value());
