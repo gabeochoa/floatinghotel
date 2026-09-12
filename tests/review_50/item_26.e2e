@@ -1,0 +1,17 @@
+resize 1440 900
+wait_for_refresh
+click_text sample.cpp
+screenshot item_26_initial
+click_ui comment_hunk_btn
+click_ui comment_input
+type Recheck this replacement
+click_ui comment_add_btn
+screenshot item_26_before
+enable_file_watcher
+expect_text Location: Current
+wait_for_file_change
+screenshot item_26_outdated
+expect_text Location: Outdated
+expect_text Saved: replacement
+expect_text Now: changed again
+validate review_unresolved=1

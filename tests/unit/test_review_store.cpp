@@ -8,6 +8,7 @@
 
 #include "../../src/review_store.h"
 #include "../../src/ecs/components.h"
+#include "../../src/util/review_anchor.h"
 
 #include <filesystem>
 
@@ -342,6 +343,33 @@ TEST(review_verdicts_require_complete_scoped_progress_and_invalidate_on_binary_c
     ASSERT_TRUE(!ecs::review_progress(restored, "wt", files).can_approve());
     ASSERT_EQ(ecs::current_review_verdict(restored, "wt", files), ReviewVerdict::InProgress);
     std::filesystem::remove(review_store::review_path(repo));
+}
+
+TEST(comment_anchors_relocate_only_unique_matches_and_keep_original_evidence) {
+    ecs::ReviewComponent::Comment comment{"wt", "file.cpp", 2, "question", 2};
+    comment.codeContext = "1: before\n2: saved target\n3: after\n";
+    ecs::FileDiff file;
+    file.filePath = "file.cpp";
+    file.hunks.push_back({1, 3, 1, 3, "", {" before", " saved target", " after"}});
+    std::vector<ecs::FileDiff> files{file};
+    ASSERT_EQ(review_anchor::locate(comment, &files).status, review_anchor::Status::Current);
+    files.front().hunks.front().lines = {" before", " changed target", " after"};
+    auto outdated = review_anchor::locate(comment, &files);
+    ASSERT_EQ(outdated.status, review_anchor::Status::Outdated);
+    ASSERT_EQ(outdated.saved, "saved target");
+    ASSERT_EQ(outdated.current, "changed target");
+    files.front().hunks.front().newStart = 8;
+    files.front().hunks.front().lines = {" before", " saved target", " after"};
+    auto moved = review_anchor::locate(comment, &files);
+    ASSERT_EQ(moved.status, review_anchor::Status::Relocated);
+    ASSERT_EQ(moved.line, 9);
+    files.front().hunks.front().lines.push_back(" saved target");
+    ASSERT_EQ(review_anchor::locate(comment, &files).status, review_anchor::Status::Unknown);
+    ASSERT_EQ(review_anchor::locate(comment, nullptr).status, review_anchor::Status::Unknown);
+    ASSERT_EQ(comment.line, 2);
+    ASSERT_EQ(comment.codeContext, "1: before\n2: saved target\n3: after\n");
+    comment.codeContext.clear();
+    ASSERT_EQ(review_anchor::locate(comment, &files).status, review_anchor::Status::Unknown);
 }
 
 int main() {

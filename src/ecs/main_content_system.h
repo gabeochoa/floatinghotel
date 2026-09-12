@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../util/review_anchor.h"
+
 #include <cstring>
 #include <filesystem>
 #include <algorithm>
@@ -144,7 +146,19 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
         for (int i = 0; i < static_cast<int>(review.comments.size()); ++i) {
             const auto& c = review.comments[i];
             if (c.scope != scope || (c.resolved && !review.showResolved)) continue;
+            const std::vector<FileDiff>* anchorFiles = nullptr;
+            if (repo) {
+                if (c.scope == "wt") anchorFiles = &repo->currentDiff;
+                else if (c.scope == "index") anchorFiles = &repo->stagedDiff;
+                else if (c.scope == repo->comparisonScope) anchorFiles = &repo->comparisonDiff;
+                else if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>(); cache && cache->cachedCommitHash == c.scope)
+                    anchorFiles = &cache->commitDetailDiff;
+            }
+            auto anchor = review_anchor::locate(c, anchorFiles);
             auto commentText = c.kind == ReviewCommentKind::Comment ? c.text : review_comment_kind_label(c.kind) + ": " + c.text;
+            commentText += "\nLocation: " + review_anchor::label(anchor);
+            if (anchor.status == review_anchor::Status::Outdated || anchor.status == review_anchor::Status::Relocated)
+                commentText += "\nSaved: " + review_anchor::preview(anchor.saved) + "\nNow: " + review_anchor::preview(anchor.current);
             float textH = afterhours::ui::measure_text_wrapped(
                 measure, commentText, "mono", fontSize, txtW - 8.f).height + 8.f;
             bool editing = review.editingComment == i;
@@ -175,7 +189,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 repo->fullFilePath = c.file;
                 repo->fullFileRevision = c.oldSide ? before : after;
                 repo->fullFileCacheKey.clear();
-                repo->fullFileTargetLine = c.line;
+                repo->fullFileTargetLine = anchor.status == review_anchor::Status::Relocated ? anchor.line : c.line;
                 repo->fullFileNavigateFrames = 3;
                 select_review_target(*repo, c.scope, c.file);
                 repo->fileHistoryOpen = false;
