@@ -24,6 +24,7 @@
 #include "../ui/text_area.h"
 #include "../ui/zoom.h"
 #include "../ui/file_tree_style.h"
+#include "../ui/chrome_icons.h"
 
 #include "../../vendor/afterhours/src/plugins/clipboard.h"
 #include "../../vendor/afterhours/src/plugins/modal.h"
@@ -240,15 +241,28 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(6), .left = pixels(12)})
             .with_gap(pixels(4)).with_flex_direction(FlexDirection::Row)
             .with_debug_name("sidebar_navigation"));
+        auto segments = div(ctx, mk(navigation.ent(), 10), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(32)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
+            .with_padding(Padding{.top = pixels(3), .right = pixels(3), .bottom = pixels(3), .left = pixels(3)})
+            .with_border(theme::BORDER, pixels(1)).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+            .with_corner_radius(7.f).with_debug_name("sidebar_navigation_segments"));
         for (int index = 0; index < 2; ++index) {
             const bool selected = filesNavigation == (index == 1);
-            if (button(ctx, mk(navigation.ent(), index), preset::Button(index == 0 ? "Review" : "Files")
-                    .with_size(ComponentSize{expand(), pixels(30)})
-                    .with_padding(Padding{.left = pixels(8), .right = pixels(8)})
-                    .with_font_size(pixels(13))
-                    .with_custom_background(selected ? theme::BUTTON_SECONDARY : theme::SIDEBAR_BG)
+            auto segment = button(ctx, mk(segments.ent(), index), preset::Button("")
+                    .with_size(ComponentSize{expand(), pixels(26)})
+                    .with_padding(Padding{.left = pixels(0), .right = pixels(0)})
+                    .with_flex_direction(FlexDirection::Row).with_justify_content(JustifyContent::Center)
+                    .with_align_items(AlignItems::Center).with_gap(pixels(6)).with_no_wrap()
+                    .with_custom_background(selected ? ui::segment_selected_color() : theme::SIDEBAR_BG)
                     .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
-                    .with_debug_name(index == 0 ? "sidebar_review" : "sidebar_working_files"))) {
+                    .with_debug_name(index == 0 ? "sidebar_review" : "sidebar_working_files"));
+            ui::chrome_icon(ctx, mk(segment.ent(), 0), index == 0 ? ui::ChromeIcon::Commit : ui::ChromeIcon::Files,
+                selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY, "navigation_icon");
+            div(ctx, mk(segment.ent(), 1), ComponentConfig{}.with_label(index == 0 ? "Review" : "Files")
+                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(14))
+                .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY));
+            if (segment) {
                 layout.sidebarNavigation = index == 0 ? LayoutComponent::SidebarNavigation::Review : LayoutComponent::SidebarNavigation::Files;
                 if (index == 0 && repoPtr) repoPtr->activeContent = RepoComponent::ContentView::Review;
             }
@@ -783,7 +797,7 @@ private:
                 .with_label(name)
                 .with_size(ComponentSize{percent(1.f), pixels(23)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(pixels(14))
+                .with_font("ui-bold", pixels(16))
                 .with_alignment(TextAlignment::Left)
                 .with_transparent_bg()
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)

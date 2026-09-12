@@ -4,6 +4,7 @@
 #include <optional>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "../git/git_parser.h"
@@ -137,11 +138,11 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     float contentW = layout.mainContent.width;
     float controlsHeight = ui::diff_controls_height(contentW, layout.diffOptionsOpen, layout.diffFindOpen,
         true, !detailCache.commitDetailDiff.empty());
-    auto boundedLines = [&](std::string text, float width, const std::string& font, float size, size_t limit) {
-        size_t end = std::min(text.size(), size_t{512});
-        while (end < text.size() && end > 0 && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
-        const bool truncated = end < text.size();
-        text.resize(end);
+    auto boundedLines = [&](std::string_view input, float width, const std::string& font, float size, size_t limit) {
+        size_t end = std::min(input.size(), size_t{512});
+        while (end < input.size() && end > 0 && (static_cast<unsigned char>(input[end]) & 0xc0) == 0x80) --end;
+        const bool truncated = end < input.size();
+        std::string text(input.substr(0, end));
         std::replace(text.begin(), text.end(), '\n', ' ');
         auto lines = afterhours::ui::wrap_text(text, std::max(40.f, width) * ui::zoom::get(), font, size * ui::zoom::get());
         if (lines.size() > limit || truncated) {
@@ -154,7 +155,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     std::string titleText;
     for (const auto& line : titleLines) { if (!titleText.empty()) titleText += '\n'; titleText += line; }
     const float titleHeight = std::max(1.f, static_cast<float>(titleLines.size())) * 36.f;
-    auto paragraph = detailCache.commitDetailBody.substr(0, detailCache.commitDetailBody.find("\n\n"));
+    auto paragraph = std::string_view(detailCache.commitDetailBody).substr(0, detailCache.commitDetailBody.find("\n\n"));
     auto previewLines = boundedLines(paragraph, contentW - 112.f, afterhours::ui::UIComponent::DEFAULT_FONT,
         16.f, contentW < 680.f ? 1 : 2);
     std::string previewText;

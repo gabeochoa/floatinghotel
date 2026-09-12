@@ -20,6 +20,8 @@
 #include "../ui/review_snapshot.h"
 #include "../ui/keyboard_shortcuts.h"
 #include "../ui/zoom.h"
+#include "../ui/file_tree_style.h"
+#include "../ui/chrome_icons.h"
 #include "../ui/text_area.h"
 #include "../util/navigation.h"
 #include "ui_imports.h"
@@ -412,28 +414,43 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_flex_direction(FlexDirection::Row).with_no_wrap()
                 .with_overflow(Overflow::Hidden).with_debug_name("content_tabs"));
             auto selected = source_tab_active(*repoPtr);
-            auto tabConfig = [&](const std::string& title, bool active) {
-                return preset::Button(title)
-                    .with_size(ComponentSize{pixels(std::min(220.f, layout.contentTabs.width * 0.45f)), percent(1.f)})
+            auto contentTab = [&](int id, const std::string& title, bool active, bool source) {
+                const float textWidth = afterhours::ui::measure_text_line(title, afterhours::ui::UIComponent::DEFAULT_FONT,
+                    14.f * ui::zoom::get()).x / ui::zoom::get();
+                const float width = std::min(textWidth + 60.f, layout.contentTabs.width * 0.45f);
+                auto tab = button(ctx, mk(tabs.ent(), id), preset::Button("")
+                    .with_size(ComponentSize{pixels(width), percent(1.f)})
+                    .with_padding(Padding{.top = pixels(0), .right = pixels(14), .bottom = pixels(0), .left = pixels(14)})
+                    .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+                    .with_gap(pixels(8)).with_no_wrap()
                     .with_custom_background(active ? theme::WINDOW_BG : theme::SIDEBAR_BG)
                     .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
-                    .with_border_bottom(active ? theme::SELECTED_ACCENT : theme::BORDER)
-                    .with_alignment(TextAlignment::Left)
-                    .with_font_size(pixels(12)).with_roundness(0.f)
-                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis);
+                    .with_roundness(0.f).with_corner_radius(0.f)
+                    .with_debug_name(source ? "content_source_tab" : "content_review_tab"));
+                if (source) div(ctx, mk(tab.ent(), 10), ComponentConfig{}
+                    .with_label(ui::file_tree_style::type_marker(repoPtr->fullFilePath))
+                    .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(12))
+                    .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("source_tab_type"));
+                else ui::chrome_icon(ctx, mk(tab.ent(), 10), ui::ChromeIcon::Commit, theme::TEXT_SECONDARY, "commit_tab_icon");
+                div(ctx, mk(tab.ent(), 11), ComponentConfig{}.with_label(title)
+                    .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
+                    .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
+                if (active) div(ctx, mk(tab.ent(), 12), ComponentConfig{}
+                    .with_size(ComponentSize{pixels(std::max(0.f, width - 28.f)), pixels(2)})
+                    .with_absolute_position(14.f, layout.contentTabs.height - 2.f)
+                    .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
+                if (source) ui::set_tooltip(tab.ent(), repoPtr->fullFilePath + " @ " +
+                    (repoPtr->fullFileRevision.empty() ? "working tree" : repoPtr->fullFileRevision));
+                return static_cast<bool>(tab);
             };
             auto commitLabel = repoPtr->selectedCommitHash.empty() ? "Working changes" :
                 "Commit  " + repoPtr->selectedCommitHash.substr(0, 7);
-            if (button(ctx, mk(tabs.ent(), 0), tabConfig(commitLabel, !selected)
-                    .with_debug_name("content_review_tab")))
+            if (contentTab(0, commitLabel, !selected, false))
                 repoPtr->activeContent = RepoComponent::ContentView::Review;
             if (!repoPtr->fullFilePath.empty()) {
                 auto path = std::filesystem::path(repoPtr->fullFilePath).filename().string();
-                auto revision = repoPtr->fullFileRevision.empty() ? "working tree" : repoPtr->fullFileRevision.substr(0, 7);
-                auto sourceTab = button(ctx, mk(tabs.ent(), 1), tabConfig(path + "  ·  " + revision, selected)
-                    .with_debug_name("content_source_tab"));
-                ui::set_tooltip(sourceTab.ent(), repoPtr->fullFilePath + " @ " + repoPtr->fullFileRevision);
-                if (sourceTab) repoPtr->activeContent = RepoComponent::ContentView::Source;
+                if (contentTab(1, path, selected, true)) repoPtr->activeContent = RepoComponent::ContentView::Source;
                 if (button(ctx, mk(tabs.ent(), 2), preset::Button("×")
                         .with_size(ComponentSize{pixels(32), percent(1.f)})
                         .with_debug_name("content_source_close"))) {

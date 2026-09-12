@@ -13,6 +13,7 @@
 #include "reading_position.h"
 #include "zoom.h"
 #include "text_area.h"
+#include "chrome_icons.h"
 #include "../util/review_selection.h"
 #include "../util/code_gutter.h"
 #include "../util/lfs_pointer.h"
@@ -1211,39 +1212,74 @@ inline void render_diff(UIContext<InputAction>& ctx,
             additions += file.additions;
             deletions += file.deletions;
         }
-        div(ctx, mk(toolbar.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
-            .with_label(std::to_string(diffs.size()) + " files changed   +" + std::to_string(additions) + "  -" + std::to_string(deletions))
+        auto stats = div(ctx, mk(toolbar.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{narrow ? percent(1.f) : expand(), pixels(30)})
-            .with_padding(Padding{.left = pixels(16)})
-            .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
+            .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+            .with_gap(pixels(8)).with_no_wrap());
+        div(ctx, mk(stats.ent(), 0), ComponentConfig{}
+            .with_label(std::to_string(diffs.size()) + (diffs.size() == 1 ? " file changed" : " files changed"))
+            .with_size(ComponentSize{children(), pixels(30)})
+            .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(14))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("diff_stats_label"));
+        div(ctx, mk(stats.ent(), 1), ComponentConfig{}.with_label("+" + std::to_string(additions))
+            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(13))
+            .with_custom_text_color(theme::DIFF_ADD_TEXT).with_debug_name("diff_additions"));
+        div(ctx, mk(stats.ent(), 2), ComponentConfig{}.with_label("-" + std::to_string(deletions))
+            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(13))
+            .with_custom_text_color(theme::DIFF_DEL_TEXT).with_debug_name("diff_deletions"));
+        const bool compact = contentWidth < 480.f;
         auto actions = div(ctx, mk(toolbar.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
-            .with_size(ComponentSize{narrow ? percent(1.f) : pixels(398), pixels(32)})
-            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
-            .with_padding(Padding{.right = pixels(8)}).with_debug_name("diff_mode_toggle"));
+            .with_size(ComponentSize{narrow ? percent(1.f) : pixels(464), pixels(32)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(compact ? 6 : 8))
+            .with_align_items(AlignItems::Center).with_debug_name("diff_mode_toggle"));
+        auto modes = div(ctx, mk(actions.ent(), 10), ComponentConfig{}
+            .with_size(ComponentSize{pixels(compact ? 108 : 124), pixels(32)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap()
+            .with_padding(Padding{.top = pixels(3), .right = pixels(3), .bottom = pixels(3), .left = pixels(3)})
+            .with_custom_background(theme::BUTTON_SECONDARY).with_border(theme::BORDER, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(5.f)
+            .with_debug_name("review_segments"));
         auto modeButton = [&](int id, const char* label, bool active) {
-            return button(ctx, mk(actions.ent(), id), preset::Button(label)
-                .with_size(ComponentSize{percent(0.16f), pixels(28)})
-                .with_custom_background(active ? theme::SELECTED_BG : theme::BUTTON_SECONDARY)
+            return button(ctx, mk(modes.ent(), id), preset::Button(label)
+                .with_size(ComponentSize{expand(), pixels(26)})
+                .with_custom_background(active ? segment_selected_color() : theme::BUTTON_SECONDARY)
                 .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
-                .with_font_size(pixels(12))
+                .with_font_size(pixels(13))
                 .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
                 .with_debug_name(active ? "diff_mode_active" : "diff_mode_inactive"));
         };
         if (modeButton(0, "Unified", !sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
         if (modeButton(1, "Split", sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::SideBySide;
-        if (review && button(ctx, mk(actions.ent(), 2), preset::Button("Feedback")
-                .with_size(ComponentSize{percent(0.22f), pixels(28)}).with_font_size(pixels(12))
-                .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
-                .with_debug_name("basket_toggle_btn"))) review->basketOpen = !review->basketOpen;
+        if (review) {
+            const auto comments = std::count_if(review->comments.begin(), review->comments.end(),
+                [&](const auto& comment) { return comment.scope == reviewScope; });
+            auto feedback = button(ctx, mk(actions.ent(), 2), preset::Button("")
+                .with_size(ComponentSize{expand(), pixels(30)}).with_transparent_bg()
+                .with_border(theme::BORDER, pixels(1)).with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center).with_gap(pixels(6)).with_no_wrap()
+                .with_debug_name("basket_toggle_btn"));
+            chrome_icon(ctx, mk(feedback.ent(), 0), ChromeIcon::Message, theme::TEXT_SECONDARY, "feedback_icon");
+            div(ctx, mk(feedback.ent(), 1), ComponentConfig{}.with_label("Feedback " + std::to_string(comments))
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(13))
+                .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
+            if (feedback) review->basketOpen = !review->basketOpen;
+        }
         if (review) {
             auto counts = ecs::review_progress(*review, reviewScope, candidates);
             auto verdict = ecs::current_review_verdict(*review, reviewScope, candidates);
-            if (button(ctx, mk(actions.ent(), 3), preset::Button(verdict == ReviewVerdict::InProgress ? "Finish review" : review_verdict_label(verdict))
-                    .with_size(ComponentSize{percent(0.27f), pixels(28)}).with_font_size(pixels(12))
-                    .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
+            auto finish = button(ctx, mk(actions.ent(), 3), preset::Button("")
+                    .with_size(ComponentSize{pixels(compact ? 104 : 124), pixels(30)})
+                    .with_padding(Padding{.left = pixels(6), .right = pixels(6)})
+                    .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+                    .with_gap(pixels(4)).with_no_wrap()
                     .with_custom_background(theme::TEXT_ACCENT).with_custom_text_color(theme::WINDOW_BG)
-                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("finish_review"))) {
+                    .with_debug_name("finish_review"));
+            chrome_icon(ctx, mk(finish.ent(), 0), ChromeIcon::Check, theme::WINDOW_BG, "finish_review_icon");
+            div(ctx, mk(finish.ent(), 1), ComponentConfig{}
+                .with_label(verdict == ReviewVerdict::InProgress ? "Finish review" : review_verdict_label(verdict))
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font("ui-bold", pixels(13))
+                .with_custom_text_color(theme::WINDOW_BG).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
+            if (finish) {
                 std::vector<ContextMenuItem> choices;
                 for (auto value : {ReviewVerdict::Approved, ReviewVerdict::ChangesRequested, ReviewVerdict::Commented, ReviewVerdict::InProgress})
                     choices.push_back(ContextMenuItem::item(value == ReviewVerdict::InProgress ? "Reopen review" : review_verdict_label(value),
@@ -1258,10 +1294,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
             }
         }
-        if (button(ctx, mk(actions.ent(), 4), preset::Button("Options")
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+        auto options = button(ctx, mk(actions.ent(), 4), preset::Button(compact ? "..." : "Options")
+                .with_size(ComponentSize{pixels(compact ? 32 : 64), pixels(30)}).with_font_size(pixels(13))
                 .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
-                .with_debug_name("diff_options_toggle"))) layout->diffOptionsOpen = !layout->diffOptionsOpen;
+                .with_transparent_bg().with_border(theme::BORDER, pixels(1))
+                .with_debug_name("diff_options_toggle"));
+        set_tooltip(options.ent(), "Diff options");
+        if (options) layout->diffOptionsOpen = !layout->diffOptionsOpen;
         findHeight = narrow ? 72.f : 36.f;
     }
     if (filterRepo && filterable && layout && layout->diffOptionsOpen) {
