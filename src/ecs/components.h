@@ -76,6 +76,12 @@ struct FileDiff {
     std::vector<DiffHunk> hunks;
 };
 
+struct FullFileContent {
+    FileDiff diff;
+    std::string raw;
+    std::string error;
+};
+
 inline std::string hunk_signature(const DiffHunk& hunk) {
     std::uint64_t hash = 14695981039346656037ull;
     for (const auto& line : hunk.lines) {
@@ -166,6 +172,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fullFileCacheKey;
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
+    std::string fullFileBytes;
+    std::future<FullFileContent> fullFileFuture;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;

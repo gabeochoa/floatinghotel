@@ -1,0 +1,43 @@
+resize 1280 800
+wait_for_refresh
+click_text source.cpp
+wait_frames 5
+click_ui open_full_file
+wait_frames 5
+wait_for_refresh
+screenshot item_01_working
+expect_text "working file content"
+expect_no_text "Loading file..."
+click_ui full_file_back
+click_text "Historical source"
+wait_for_refresh
+wait_frames 5
+click_ui open_full_file
+screenshot item_01_loading
+expect_text "Loading file..."
+click_ui full_file_back
+click_text source.cpp
+wait_frames 5
+click_ui open_full_file
+wait_frames 5
+wait_for_refresh
+screenshot item_01_replaced
+assert_ui full_file_header hidden=false
+expect_text "working file content"
+expect_no_text "historical file content"
+click_ui full_file_back
+click_text "Historical source"
+wait_for_refresh
+wait_frames 5
+screenshot item_01_commit_again
+click_ui open_full_file
+wait_frames 5
+assert_ui full_file_header hidden=false
+wait_for_refresh
+screenshot item_01_historical
+assert_ui full_file_header hidden=false
+expect_text "historical file content"
+expect_no_text "working file content"
+click_ui full_file_back
+wait_frames 5
+expect_text "Historical source"

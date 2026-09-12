@@ -50,6 +50,12 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_content_reader" ]; then
+    run_test "test_content_reader" "tests/unit/test_content_reader.cpp" \
+        "src/git/content_reader.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \
+        "vendor/afterhours/src/plugins/files.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_snapshot" ]; then
     run_test "test_review_snapshot" "tests/unit/test_review_snapshot.cpp" \
         "src/review_snapshot.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \

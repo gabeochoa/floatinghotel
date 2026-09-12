@@ -552,6 +552,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
                 refreshDone = !repo->refreshRequested && !repo->isRefreshing;
+                refreshDone = refreshDone && (repo->fullFilePath.empty() || !repo->fullFileFuture.valid() ||
+                    repo->fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->repoSearchFuture.valid() ||
                     repo->repoSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->fileHistoryFuture.valid() ||

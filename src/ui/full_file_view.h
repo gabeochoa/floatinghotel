@@ -1,32 +1,10 @@
 #pragma once
 
-#include <fstream>
-#include <filesystem>
-#include <iterator>
-#include <sstream>
 #include "diff_renderer.h"
 #include "file_history.h"
-#include "../git/git_runner.h"
+#include "../git/content_reader.h"
 
 namespace ecs {
-
-inline FileDiff full_file_diff(const std::string& path, const std::string& content) {
-    FileDiff file;
-    file.filePath = path;
-    file.isFullContent = true;
-    file.isBinary = content.find('\0') != std::string::npos;
-    if (file.isBinary) return file;
-    DiffHunk hunk;
-    hunk.oldStart = hunk.newStart = 1;
-    hunk.header = "Complete file";
-    std::istringstream stream(content);
-    std::string line;
-    while (std::getline(stream, line)) hunk.lines.push_back(" " + line);
-    hunk.oldCount = hunk.newCount = static_cast<int>(hunk.lines.size());
-    if (!content.empty() && !content.ends_with('\n')) hunk.noNewline.insert(hunk.lines.size() - 1);
-    file.hunks.push_back(std::move(hunk));
-    return file;
-}
 
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
@@ -37,21 +15,17 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFileCacheKey = key;
         repo.fullFileDiff.clear();
         repo.fullFileError.clear();
+        repo.fullFileBytes.clear();
         repo.blameOpen = false;
         repo.blameFuture = {};
-        std::string content;
-        if (repo.fullFileRevision.empty()) {
-            std::ifstream input(std::filesystem::path(repo.repoPath) / repo.fullFilePath, std::ios::binary);
-            if (!input) repo.fullFileError = "Unable to read working-tree file";
-            else content.assign(std::istreambuf_iterator<char>(input), {});
-        } else {
-            std::string spec = repo.fullFileRevision == "INDEX" ? ":" + repo.fullFilePath
-                              : repo.fullFileRevision + ":" + repo.fullFilePath;
-            auto result = git::git_run(repo.repoPath, {"show", spec});
-            if (result.success()) content = result.stdout_str();
-            else repo.fullFileError = result.stderr_str();
-        }
-        if (repo.fullFileError.empty()) repo.fullFileDiff.push_back(full_file_diff(repo.fullFilePath, content));
+        repo.fullFileFuture = git::read_file_async({repo.repoPath, repo.fullFilePath, repo.fullFileRevision});
+    }
+    if (repo.fullFileFuture.valid() && repo.fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto content = repo.fullFileFuture.get();
+        repo.fullFileError = std::move(content.error);
+        repo.fullFileBytes = std::move(content.raw);
+        if (repo.fullFileError.empty()) repo.fullFileDiff.push_back(std::move(content.diff));
+        changed = true;
     }
     auto header = div(ctx, mk(parent, 585000), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(34)})
@@ -109,7 +83,11 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         if (button(ctx, mk(panel.ent(), 1), preset::Button("Close")
                 .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.blameOpen = false;
     }
-    if (!repo.fullFileError.empty()) {
+    if (repo.fullFileFuture.valid()) {
+        div(ctx, mk(parent, 585003), ComponentConfig{}
+            .with_label("Loading file...").with_size(ComponentSize{percent(1.f), pixels(40)})
+            .with_font_size(FontSize::Medium).with_debug_name("full_file_loading"));
+    } else if (!repo.fullFileError.empty()) {
         div(ctx, mk(parent, 585001), ComponentConfig{}
             .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(100)})
             .with_font_size(FontSize::Medium).with_text_overflow(afterhours::ui::TextOverflow::Wrap)

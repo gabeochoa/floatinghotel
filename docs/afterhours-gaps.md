@@ -492,6 +492,14 @@ machine's daemons, not the app.
 
 ## Feature Requests (Lower Priority)
 
+### E2E target lookup needs a render checkpoint after cached view transitions
+
+- Status: host integration constraint, reproduced during review item 01 on b385dc9. Not a claim that ordinary pointer input is broken.
+- Reproduction: open a commit file, return to the diff, open working-tree content, return to the same cached commit, then use `click_ui open_full_file`. In floatinghotel's batched headless loop, the final click can leave the commit diff open. Five logic-only frames do not fix it. Capturing a screenshot before that click does.
+- Boundary: `src/plugins/e2e_testing/ui_commands.h` filters target lookup with `UIComponent::was_rendered_to_screen`. The host's `e2e_tick_loop` runs multiple `tick_all` calls before a render. A completed model refresh therefore does not establish that the target view has been drawn.
+- App workaround: `tests/review_50/item_01.e2e` takes `item_01_commit_again` before the repeated open, then asserts `full_file_header`. Text assertions alone can match code in the wrong view.
+- Maintainer request: expose a render-generation checkpoint for UI commands, or document the required render boundary when a host batches logic ticks. A target command should wait for the current view generation rather than use an earlier drawn view.
+
 ### Synchronized scroll views — RESOLVED upstream (dd579a4), and not needed here
 `HasScrollView::sync_group` — give two or more views the same non-zero id and
 scrolling any one moves the rest, on their enabled axes only.
