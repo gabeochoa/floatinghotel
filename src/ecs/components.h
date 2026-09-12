@@ -207,6 +207,7 @@ struct NavigationHistory {
 };
 
 struct RepoComponent : public afterhours::BaseComponent {
+    bool reviewWorkspace = false;
     ReadingPositions reading;
     NavigationHistory navigation;
     std::string repoPath;

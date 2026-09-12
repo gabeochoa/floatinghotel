@@ -107,6 +107,10 @@ inline std::vector<Menu> createMenuBar() {
 
     // View menu
     menus.push_back({"View", {
+        MenuItem::item("Review Workspace (toggle)", "", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
+                repo->reviewWorkspace = !repo->reviewWorkspace;
+        }),
         MenuItem::item("Back", "Alt+Left", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->navigation.requestedStep = -1;
         }),

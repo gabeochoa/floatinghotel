@@ -1,0 +1,28 @@
+resize 1280 800
+wait_for_refresh
+expect_text "Push"
+click_ui review_workspace_toggle
+wait_frames 5
+expect_text "Review workspace · enable Git controls"
+screenshot item_16_review_controls
+expect_no_text "Push"
+expect_no_text "Stash"
+expect_no_text "Commit"
+click_text sample.txt
+expect_text "changed line"
+expect_no_text "Stage file"
+screenshot item_16_review_workspace
+click_ui review_workspace_toggle
+wait_frames 5
+expect_text "Push"
+expect_text "Commit"
+screenshot item_16_git_workspace
+right_click_text sample.txt
+screenshot item_16_file_menu
+new_tab
+screenshot item_16_other_tab
+click_ui context_menu_item_Stage
+close_tab
+wait_for_refresh
+screenshot item_16_stale_menu
+validate staged_count=0

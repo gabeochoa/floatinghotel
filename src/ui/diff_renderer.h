@@ -694,7 +694,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 afterhours::toast::send_info(ctx, approved ? "Approval removed" : "Approved for review; index unchanged", 1.5f);
             }
         }
-        if (sel->reviewScope == "wt") {
+        auto* hunkRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        if (sel->reviewScope == "wt" && (!hunkRepo || !hunkRepo->reviewWorkspace)) {
             if (button(ctx, mk(hunkBtns.ent(), 5), preset::Button("Stage")
                     .with_size(ComponentSize{children(), h720(18)})
                     .with_font_size(FontSize::Small).with_custom_background(theme::BUTTON_SECONDARY)
@@ -1503,7 +1504,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_debug_name("toggle_approved"))) review->showApproved = !review->showApproved;
         }
 
-        if (reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
+        auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        if ((!activeRepo || !activeRepo->reviewWorkspace) && reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
             !fileDiff.isSubmodule && diff_sel::state().hasSel) {
             auto stage = button(ctx, mk(fileBtns.ent(), 3), preset::Button("Stage selection")
                 .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
@@ -1568,7 +1570,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 afterhours::toast::send_info(ctx, "File approved for review; index unchanged", 1.5f);
             }
         }
-        if (reviewScope == "wt" && !fileDiff.isFullContent) {
+        if (reviewScope == "wt" && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
             if (button(ctx, mk(fileBtns.ent(), 4), preset::Button("Stage file")
                     .with_size(ComponentSize{children(), h720(18)}).with_font_size(FontSize::Small)
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("stage_file_btn"))) {
@@ -1643,10 +1645,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 }
                 if (pointerText.size() > 1024) continue;
                 if (auto pointer = lfs_pointer::parse(pointerText)) {
-                    const auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                    const auto* lfsRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
                     std::string label = std::string("Git LFS asset · ") + (oldSide ? "Before: " : "After: ") +
                         std::to_string(pointer->size) + " bytes · SHA-256 " + pointer->oid + "\n" +
-                        (lfs_pointer::cached_availability(repoPath, *pointer, activeRepo ? activeRepo->dataGeneration : 0) ? "Available in default local LFS cache" : "Not present in default local LFS cache") +
+                        (lfs_pointer::cached_availability(repoPath, *pointer, lfsRepo ? lfsRepo->dataGeneration : 0) ? "Available in default local LFS cache" : "Not present in default local LFS cache") +
                         " · pointer shown; no asset download";
                     vp.flush(ctx, *contentParent, nextId);
                     div(ctx, mk(*contentParent, nextId++), ComponentConfig{}

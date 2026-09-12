@@ -226,10 +226,18 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         // === Repo header (name · branch) — mock's repo-panel header ===
         render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
         float repoHeaderH = resolve_to_pixels(h720(26.0f), sh_for_tab);
+        if (repoPtr) {
+            if (button(ctx, mk(sidebarRoot.ent(), 2099), preset::Button(repoPtr->reviewWorkspace ? "Review workspace · enable Git controls" : "Enter review workspace")
+                    .with_size(ComponentSize{percent(1.f), h720(28)})
+                    .with_font_size(FontSize::Small).with_debug_name("review_workspace_toggle"))) {
+                repoPtr->reviewWorkspace = !repoPtr->reviewWorkspace;
+            }
+            repoHeaderH += resolve_to_pixels(h720(28.f), sh_for_tab);
+        }
 
         // === Sync row (Push / Pull / Stash), grouped under the repo header ===
         float syncRowH = 0.0f;
-        if (repoPtr && !repoPtr->repoPath.empty()) {
+        if (repoPtr && !repoPtr->repoPath.empty() && !repoPtr->reviewWorkspace) {
             render_sync_row(ctx, sidebarRoot.ent(), repoPtr);
             syncRowH = resolve_to_pixels(h720(34.0f), sh_for_tab);
         }
@@ -241,7 +249,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float commitAreaH = 0.0f;
         // Hide the commit input + button when there is nothing to commit (#24).
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
-            !treeClean) {
+            !treeClean && !repoPtr->reviewWorkspace) {
             auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
             if (editor) {
                 render_commit_area(ctx, sidebarRoot.ent(), *repoPtr, *editor);
@@ -419,7 +427,18 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         // === Commit workflow + Unstaged Changes Dialog (T030) ===
-        if (repoPtr) {
+        if (repoPtr && repoPtr->reviewWorkspace) {
+            if (auto* editor = find_singleton<CommitEditorComponent, ActiveTab>()) {
+                editor->commitRequested = false;
+                editor->showUnstagedDialog = false;
+            }
+            if (auto* branchDialog = find_singleton<BranchDialogState, ActiveTab>()) {
+                branchDialog->showNewBranchDialog = false;
+                branchDialog->showDeleteBranchDialog = false;
+                branchDialog->showForceDeleteDialog = false;
+            }
+        }
+        if (repoPtr && !repoPtr->reviewWorkspace) {
             auto& repo = *repoPtr;
 
             auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
@@ -903,20 +922,22 @@ private:
                 .with_debug_name("branches_label"));
 
         // "+ New" button
-        auto newBranchBtn = button(ctx, mk(headerRow.ent(), 2),
-            preset::Button("+ New")
-                .with_size(ComponentSize{children(), h720(18)})
-                .with_padding(Padding{
-                    .top = h720(2), .right = pixels(8),
-                    .bottom = h720(2), .left = pixels(8)})
-                .with_font_size(FontSize::Medium)
-                .with_debug_name("new_branch_btn"));
+        if (!repo.reviewWorkspace) {
+            auto newBranchBtn = button(ctx, mk(headerRow.ent(), 2),
+                preset::Button("+ New")
+                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_padding(Padding{
+                        .top = h720(2), .right = pixels(8),
+                        .bottom = h720(2), .left = pixels(8)})
+                    .with_font_size(FontSize::Medium)
+                    .with_debug_name("new_branch_btn"));
 
-        if (newBranchBtn) {
-            auto* bd = find_singleton<BranchDialogState, ActiveTab>();
-            if (bd) {
-                bd->showNewBranchDialog = true;
-                bd->newBranchName.clear();
+            if (newBranchBtn) {
+                auto* bd = find_singleton<BranchDialogState, ActiveTab>();
+                if (bd) {
+                    bd->showNewBranchDialog = true;
+                    bd->newBranchName.clear();
+                }
             }
         }
 
@@ -971,7 +992,7 @@ private:
         rowResult.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 
         // Click -> checkout this branch
-        if (rowResult.ent().get<HasClickListener>().down && !isCurrent) {
+        if (rowResult.ent().get<HasClickListener>().down && !isCurrent && !repo.reviewWorkspace) {
             auto result = git::checkout_branch(repo.repoPath, branch.name);
             toast_on_git_failure(result, "Checkout");
             if (result.success()) {
@@ -1038,7 +1059,7 @@ private:
         }
 
         // Delete button (only for non-current branches)
-        if (!isCurrent) {
+        if (!isCurrent && !repo.reviewWorkspace) {
             auto deleteBtn = button(ctx, mk(rowResult.ent(), 5),
                 preset::Button("x")
                     .with_size(ComponentSize{pixels(20), h720(20)})
@@ -1654,17 +1675,25 @@ private:
                                 const std::string& path,
                                 RepoComponent& repo, bool staged) {
         const std::string repoPath = repo.repoPath;
+        auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
+        auto canMutate = [ownerId = owner ? std::optional(owner->id) : std::nullopt, repoPath] {
+            auto* active = find_singleton_entity<RepoComponent, ActiveTab>();
+            return ownerId && active && active->id == *ownerId && !active->cleanup &&
+                active->get<RepoComponent>().repoPath == repoPath && !active->get<RepoComponent>().reviewWorkspace;
+        };
 
         std::vector<ui::ContextMenuItem> items;
-        if (staged) {
+        if (staged && !repo.reviewWorkspace) {
             items.push_back(ui::ContextMenuItem::item(
-                "Unstage", [repoPath, path] {
+                "Unstage", [repoPath, path, canMutate] {
+                    if (!canMutate()) return;
                     run_file_git_op(git::unstage_file(repoPath, path),
                                     "Unstage");
                 }));
-        } else {
+        } else if (!repo.reviewWorkspace) {
             items.push_back(ui::ContextMenuItem::item(
-                "Stage", [repoPath, path] {
+                "Stage", [repoPath, path, canMutate] {
+                    if (!canMutate()) return;
                     run_file_git_op(git::stage_file(repoPath, path), "Stage");
                 }));
         }

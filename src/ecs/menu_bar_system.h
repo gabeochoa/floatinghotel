@@ -97,23 +97,28 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             return static_cast<float>(label.length()) * charW + hdrPad;
         };
         std::vector<menu_setup::Menu> renderMenus;
+        auto availableMenus = menus_;
+        if (auto* repo = find_singleton<RepoComponent, ActiveTab>(); repo && repo->reviewWorkspace)
+            for (auto& available : availableMenus)
+                if (available.label == "Repository")
+                    for (auto& item : available.items) item.enabled = false;
         {
             float startX = rpx(static_cast<float>(theme::layout::PADDING));
             float total = startX;
-            for (auto& m : menus_) total += headerWidth(m.label);
+            for (auto& m : availableMenus) total += headerWidth(m.label);
             if (total <= barW) {
-                renderMenus = menus_;
+                renderMenus = availableMenus;
             } else {
                 float moreW = headerWidth("More");
                 float x = startX;
                 std::vector<int> overflow;
-                for (int i = 0; i < static_cast<int>(menus_.size()); ++i) {
-                    float wi = headerWidth(menus_[i].label);
+                for (int i = 0; i < static_cast<int>(availableMenus.size()); ++i) {
+                    float wi = headerWidth(availableMenus[i].label);
                     if (x + wi + moreW <= barW) {
-                        renderMenus.push_back(menus_[i]);
+                        renderMenus.push_back(availableMenus[i]);
                         x += wi;
                     } else {
-                        for (int j = i; j < static_cast<int>(menus_.size()); ++j)
+                        for (int j = i; j < static_cast<int>(availableMenus.size()); ++j)
                             overflow.push_back(j);
                         break;
                     }
@@ -122,7 +127,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 more.label = "More";
                 bool multi = overflow.size() > 1;
                 for (size_t k = 0; k < overflow.size(); ++k) {
-                    const auto& m = menus_[overflow[k]];
+                    const auto& m = availableMenus[overflow[k]];
                     if (multi) {
                         if (k > 0) more.items.push_back(menu_setup::MenuItem::separator());
                         // Disabled section label (enabled=false => no action).
