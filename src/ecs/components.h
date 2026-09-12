@@ -50,6 +50,13 @@ struct SearchResult {
     std::string error;
 };
 
+struct SearchPreview {
+    SearchMatch match;
+    std::vector<std::pair<int, std::string>> lines;
+    std::string error;
+    bool changedSinceSearch = false;
+};
+
 struct BlameLine {
     std::string hash;
     std::string author;
@@ -235,6 +242,9 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string repoSearchIncludeGlob;
     std::string repoSearchExcludeGlob;
     std::vector<SearchMatch> repoSearchResults;
+    bool repoSearchPreviewOpen = false;
+    async_work::Task<SearchPreview> repoSearchPreviewFuture;
+    SearchPreview repoSearchPreview;
     int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;
     bool fileHistoryOpen = false;

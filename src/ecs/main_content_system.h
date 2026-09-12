@@ -396,7 +396,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 repoPtr->fullFileFuture = {};
                 repoPtr->blameFuture = {};
             }
-            if (!repoPtr->repoSearchOpen) repoPtr->repoSearchFuture = {};
+            if (!repoPtr->repoSearchOpen) {
+                repoPtr->repoSearchFuture = {};
+                repoPtr->repoSearchPreviewFuture = {};
+            }
             if (!repoPtr->fileHistoryOpen) repoPtr->fileHistoryFuture = {};
             if (!repoPtr->commitSearchOpen) repoPtr->commitSearchFuture = {};
             if (!repoPtr->comparisonOpen) repoPtr->comparisonFuture = {};

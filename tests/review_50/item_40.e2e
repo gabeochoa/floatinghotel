@@ -1,0 +1,25 @@
+resize 1440 900
+wait_for_refresh
+click_text baseline
+wait_for_refresh
+key CMD+SHIFT+F
+click_ui repo_search_input
+type needle
+click_ui repo_search_submit
+wait_for_refresh
+click_ui repo_search_preview
+wait_for_refresh
+expect_text "historical before"
+expect_text "historical after"
+expect_text "historical needle"
+expect_no_text "working before"
+screenshot item_40_historical_preview
+click_ui repo_search_preview_close
+wait_for_refresh
+screenshot item_40_closed_preview
+expect_no_text "historical before"
+click_ui repo_search_result
+wait_for_refresh
+expect_text "historical before"
+expect_no_text "working before"
+screenshot item_40_open_result

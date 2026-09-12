@@ -556,6 +556,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                     repo->fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->repoSearchFuture.valid() ||
                     repo->repoSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                refreshDone = refreshDone && (!repo->repoSearchPreviewFuture.valid() ||
+                    repo->repoSearchPreviewFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->codeownersFuture.valid() ||
                     repo->codeownersFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->fileHistoryFuture.valid() ||

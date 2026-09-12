@@ -194,6 +194,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.diffTargetFile.clear();
             repo.diffTargetFrames = 0;
             repo.repoSearchFuture = {};
+            repo.repoSearchPreviewFuture = {};
             repo.repoSearchResults.clear();
             repo.fullFileTargetLine = 0;
 

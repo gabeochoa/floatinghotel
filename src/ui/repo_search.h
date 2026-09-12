@@ -11,6 +11,10 @@ namespace ecs {
 inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout) {
     using namespace std::chrono_literals;
+    if (repo.repoSearchPreviewFuture.valid() && repo.repoSearchPreviewFuture.wait_for(0s) == std::future_status::ready) {
+        repo.repoSearchPreview = repo.repoSearchPreviewFuture.get();
+        repo.repoSearchPreviewFuture = {};
+    }
     if (repo.repoSearchFuture.valid() && repo.repoSearchFuture.wait_for(0s) == std::future_status::ready) {
         auto result = repo.repoSearchFuture.get();
         repo.repoSearchFuture = {};
@@ -72,6 +76,8 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         .with_size(ComponentSize{pixels(86), pixels(32)}).with_debug_name("repo_search_submit"));
     if ((search || scopeChanged || matchingChanged || afterhours::input::is_key_pressed(257)) && !repo.repoSearchQuery.empty()) {
         repo.repoSearchResults.clear();
+        repo.repoSearchPreviewOpen = false;
+        repo.repoSearchPreviewFuture = {};
         repo.repoSearchError.clear();
         repo.repoSearchPath = repo.repoPath;
         repo.repoSearchRevision = !repo.fullFilePath.empty() ? repo.fullFileRevision :
@@ -108,11 +114,14 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     div(ctx, mk(parent, 587002), ComponentConfig{}.with_label(status)
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Small)
         .with_debug_name("repo_search_status"));
+    const bool showPreview = repo.repoSearchPreviewOpen;
     afterhours::ui::imm::virtual_list(ctx, mk(parent, 587003), repo.repoSearchResults.size(), 32.f,
         [&](size_t i, Entity& item) {
             const auto& match = repo.repoSearchResults[i];
-            if (button(ctx, mk(item, 0), preset::Button(match.file + ":" + std::to_string(match.line) + "  " + match.text)
-                    .with_size(ComponentSize{percent(1.f), pixels(32)}).with_alignment(TextAlignment::Left)
+            auto resultRow = div(ctx, mk(item, 10), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
+            if (button(ctx, mk(resultRow.ent(), 0), preset::Button(match.file + ":" + std::to_string(match.line) + "  " + match.text)
+                    .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
                     .with_font_size(FontSize::Small).with_custom_background(theme::PANEL_BG)
                     .with_debug_name("repo_search_result"))) {
                 repo.fullFilePath = repo.selectedFilePath = match.file;
@@ -126,8 +135,45 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                 layout.diffFindOpen = false;
                 ctx.set_focus(ctx.ROOT);
             }
-        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 192.f))})
+            if (button(ctx, mk(resultRow.ent(), 1), preset::Button("Preview")
+                    .with_size(ComponentSize{pixels(80), pixels(30)}).with_font_size(FontSize::Small)
+                    .with_debug_name("repo_search_preview"))) {
+                repo.repoSearchPreviewOpen = true;
+                repo.repoSearchPreview = SearchPreview{match};
+                repo.repoSearchPreviewFuture = git::search_preview_async(repo.repoPath, match);
+            }
+        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 192.f - (showPreview ? 190.f : 0.f)))})
             .with_debug_name("repo_search_results"));
+    if (showPreview) {
+        const auto& preview = repo.repoSearchPreview;
+        auto panel = div(ctx, mk(parent, 587007), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(190)}).with_custom_background(theme::PANEL_BG));
+        auto heading = div(ctx, mk(panel.ent(), 0), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row));
+        div(ctx, mk(heading.ent(), 0), ComponentConfig{}
+            .with_label(preview.match.file + ":" + std::to_string(preview.match.line) + " · " +
+                (preview.match.revision.empty() ? "working tree" : preview.match.revision == "INDEX" ? "index" : preview.match.revision))
+            .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small));
+        if (button(ctx, mk(heading.ent(), 1), preset::Button("Close preview")
+                .with_size(ComponentSize{pixels(110), pixels(28)}).with_font_size(FontSize::Small)
+                .with_debug_name("repo_search_preview_close"))) {
+            repo.repoSearchPreviewOpen = false;
+            repo.repoSearchPreviewFuture = {};
+        }
+        auto note = repo.repoSearchPreviewFuture.valid() ? "Loading nearby source..." :
+            !preview.error.empty() ? preview.error : preview.changedSinceSearch ? "Source changed since this search; showing current source" : "Nearby source · two lines before and after";
+        div(ctx, mk(panel.ent(), 1), ComponentConfig{}.with_label(note)
+            .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(FontSize::Small));
+        for (size_t i = 0; i < preview.lines.size(); ++i) {
+            const auto& [line, source] = preview.lines[i];
+            div(ctx, mk(panel.ent(), static_cast<int>(i) + 2), ComponentConfig{}
+                .with_label(std::to_string(line) + "  " + source)
+                .with_size(ComponentSize{percent(1.f), pixels(25)}).with_alignment(TextAlignment::Left)
+                .with_font("mono", h720(14.f))
+                .with_custom_background(line == preview.match.line ? theme::BUTTON_SECONDARY : theme::PANEL_BG)
+                .with_debug_name("repo_search_preview_line"));
+        }
+    }
 }
 
 }

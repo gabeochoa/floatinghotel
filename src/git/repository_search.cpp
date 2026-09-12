@@ -1,6 +1,9 @@
 #include "repository_search.h"
 #include "git_parser.h"
 #include "../util/path_glob.h"
+#include "../util/file_content.h"
+#include <charconv>
+#include <filesystem>
 
 namespace git {
 
@@ -65,6 +68,66 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
             append(std::move(query), false);
         }
         return out;
+    }, async_work::Priority::Foreground, std::move(rejected));
+}
+
+ecs::SearchPreview search_preview_lines(const std::string& bytes, ecs::SearchMatch match) {
+    ecs::SearchPreview out{std::move(match)};
+    int line = 1;
+    size_t start = 0;
+    bool found = false;
+    while (start < bytes.size()) {
+        auto end = bytes.find('\n', start);
+        if (end == std::string::npos) end = bytes.size();
+        auto text = bytes.substr(start, end - start);
+        if (line == out.match.line) {
+            found = true;
+            out.changedSinceSearch = text != out.match.text;
+        }
+        if (line >= out.match.line - 2 && line <= out.match.line + 2)
+            out.lines.emplace_back(line, std::move(text));
+        if (line >= out.match.line + 2) break;
+        start = end + 1;
+        ++line;
+    }
+    if (!found) out.error = "The result line no longer exists; search again";
+    return out;
+}
+
+async_work::Task<ecs::SearchPreview> search_preview_async(std::string repoPath, ecs::SearchMatch match) {
+    ecs::SearchPreview rejected{match, {}, "Background queue is full; reopen the preview to retry"};
+    return async_work::launch([repoPath = std::move(repoPath), match = std::move(match)](std::stop_token stop) {
+        constexpr size_t limit = 1024 * 1024;
+        ecs::SearchPreview out{match};
+        std::string bytes;
+        if (match.revision.empty()) {
+            auto path = std::filesystem::path(repoPath) / match.file;
+            auto content = file_content::read_working_file(path, stop, limit);
+            if (!content.error.empty()) {
+                out.error = content.error == "File exceeds the read size limit"
+                    ? "Preview limited to files up to 1 MiB; open the file to read it"
+                    : std::move(content.error);
+                return out;
+            }
+            bytes = std::move(content.bytes);
+        } else {
+            auto source = (match.revision == "INDEX" ? "" : match.revision) + ":" + match.file;
+            auto resolved = git_run(repoPath, {"rev-parse", "--verify", "--end-of-options", source}, stop);
+            if (!resolved.success()) { out.error = "Preview source is no longer available"; return out; }
+            auto blob = resolved.stdout_str();
+            while (!blob.empty() && (blob.back() == '\n' || blob.back() == '\r')) blob.pop_back();
+            auto size = git_run(repoPath, {"cat-file", "-s", blob}, stop);
+            auto sizeText = size.stdout_str();
+            size_t count = 0;
+            auto parsed = std::from_chars(sizeText.data(), sizeText.data() + sizeText.size(), count);
+            if (!size.success() || parsed.ec != std::errc{}) { out.error = "Unable to measure preview source"; return out; }
+            if (count > limit) { out.error = "Preview limited to files up to 1 MiB; open the file to read it"; return out; }
+            auto content = git_run(repoPath, {"cat-file", "blob", blob}, stop);
+            if (!content.success()) { out.error = "Unable to read preview source"; return out; }
+            bytes = content.stdout_str();
+        }
+        if (bytes.size() > limit) { out.error = "Preview limited to files up to 1 MiB; open the file to read it"; return out; }
+        return search_preview_lines(bytes, match);
     }, async_work::Priority::Foreground, std::move(rejected));
 }
 
