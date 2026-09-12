@@ -6,6 +6,7 @@
 #include <cstring>
 #include <fcntl.h>
 #include <stop_token>
+#include <limits>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <string>
@@ -18,7 +19,8 @@ struct Read {
     std::string error;
 };
 
-inline Read read_working_file(const std::filesystem::path& path, std::stop_token stop = {}) {
+inline Read read_working_file(const std::filesystem::path& path, std::stop_token stop = {},
+                              size_t maxBytes = std::numeric_limits<size_t>::max()) {
     Read out;
     if (stop.stop_requested()) { out.error = "File load cancelled"; return out; }
     std::error_code error;
@@ -43,6 +45,11 @@ inline Read read_working_file(const std::filesystem::path& path, std::stop_token
         return out;
     }
     out.mode = (opened.st_mode & S_IXUSR) ? "100755" : "100644";
+    if (opened.st_size < 0 || static_cast<uintmax_t>(opened.st_size) > maxBytes) {
+        close(descriptor);
+        out.error = "File exceeds the read size limit";
+        return out;
+    }
     std::array<char, 65536> buffer;
     while (!stop.stop_requested()) {
         auto count = read(descriptor, buffer.data(), buffer.size());
@@ -50,6 +57,10 @@ inline Read read_working_file(const std::filesystem::path& path, std::stop_token
         if (count < 0) {
             if (errno == EINTR) continue;
             out.error = "Unable to finish reading working-tree file";
+            break;
+        }
+        if (static_cast<size_t>(count) > maxBytes - out.bytes.size()) {
+            out.error = "File exceeds the read size limit";
             break;
         }
         out.bytes.append(buffer.data(), static_cast<size_t>(count));

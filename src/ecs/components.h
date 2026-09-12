@@ -13,6 +13,7 @@
 #include "../../vendor/afterhours/src/core/entity_helper.h"
 #include "../git/git_runner.h"
 #include "../git/history_query.h"
+#include "../util/codeowners.h"
 
 namespace ecs {
 
@@ -182,6 +183,10 @@ struct RepoComponent : public afterhours::BaseComponent {
     unsigned dataGeneration = 0;
     std::vector<std::string> allFilePaths;
     std::string filesError;
+    std::string codeownersKey;
+    async_work::Task<codeowners::Document> codeownersFuture;
+    codeowners::Document codeownersDocument;
+    std::unordered_map<std::string, std::string> codeownersByPath;
     bool repoSearchOpen = false;
     bool repoSearchFocus = false;
     std::string repoSearchQuery;

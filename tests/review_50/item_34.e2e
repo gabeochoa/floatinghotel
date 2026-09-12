@@ -1,0 +1,13 @@
+resize 1440 900
+wait_for_refresh
+click_text code.cpp
+wait_for_refresh
+expect_text "Owners: @current-team"
+expect_no_text "Owners: @fallback"
+screenshot item_34_working_owners
+click_text baseline
+wait_for_refresh
+click_ui jump_to_diff:code.cpp
+expect_text "Owners: @original-team"
+expect_no_text "Owners: @current-team"
+screenshot item_34_historical_owners

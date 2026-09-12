@@ -48,6 +48,24 @@ TEST(message_row_window_is_bounded_at_top_middle_and_end) {
     ASSERT_EQ(visible_rows(0, 18.f, 100.f, 0.f, 800.f).second, 0u);
     ASSERT_EQ(visible_rows(10000, 0.f, 0.f, 0.f, 0.f).second, 100u);
 }
+TEST(codeowners_uses_last_match_and_repository_relative_patterns) {
+    auto owners = codeowners::parse("* @default\n*.cpp @cpp\n/src/** @source\n/src/private/\n");
+    ASSERT_EQ(codeowners::owners_for(owners, "README.md"), "@default");
+    ASSERT_EQ(codeowners::owners_for(owners, "tests/test.cpp"), "@cpp");
+    ASSERT_EQ(codeowners::owners_for(owners, "src/deep/file.cpp"), "@source");
+    ASSERT_TRUE(codeowners::owners_for(owners, "src/private/key.txt").empty());
+    auto nested = codeowners::parse("/docs/**/guide.md @docs\n");
+    ASSERT_EQ(codeowners::owners_for(nested, "docs/guide.md"), "@docs");
+    ASSERT_EQ(codeowners::owners_for(nested, "docs/deep/guide.md"), "@docs");
+    ASSERT_TRUE(codeowners::owners_for(nested, "other/docs/guide.md").empty());
+}
+
+TEST(codeowners_wildcards_are_bounded_and_lines_have_a_limit) {
+    auto owners = codeowners::parse("a*a*a*a*a*a*a*a*b @team\ncache/ @cache\n");
+    ASSERT_TRUE(codeowners::owners_for(owners, std::string(4000, 'a')).empty());
+    ASSERT_EQ(codeowners::owners_for(owners, "deep/cache/file.cpp"), "@cache");
+    ASSERT_FALSE(codeowners::parse("* " + std::string(4096, 'x')).error.empty());
+}
 
 TEST(symlink_reader_returns_target_text_without_following_it) {
     char pattern[] = "/tmp/fh-link-unit.XXXXXX";

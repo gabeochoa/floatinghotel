@@ -1065,6 +1065,23 @@ inline void render_diff(UIContext<InputAction>& ctx,
         imageContext += std::to_string(repo->repoVersion) + ":" + std::to_string(repo->dataGeneration);
     for (const auto& file : diffs) imageContext += "\n" + file.filePath;
     image_diff::begin(imageContext);
+    auto* ownerRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    if (ownerRepo && !repoPath.empty() && !diffs.empty() && reviewScope != "snapshot") {
+        auto revision = diff_revisions(reviewScope).second;
+        std::string key = repoPath + "\n" + revision;
+        if (revision.empty() || revision == "INDEX") key += "\n" + std::to_string(ownerRepo->dataGeneration);
+        if (ownerRepo->codeownersKey != key) {
+            ownerRepo->codeownersKey = key;
+            ownerRepo->codeownersDocument = {};
+            ownerRepo->codeownersByPath.clear();
+            ownerRepo->codeownersFuture = codeowners::load_async(repoPath, revision);
+        }
+        if (ownerRepo->codeownersFuture.valid() && ownerRepo->codeownersFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            ownerRepo->codeownersDocument = ownerRepo->codeownersFuture.get();
+            ownerRepo->codeownersByPath.clear();
+            ownerRepo->codeownersFuture = {};
+        }
+    }
 
     diff_sel::Session sess;
     sess.reviewActions =
@@ -1576,6 +1593,25 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
 
+        if (ownerRepo && reviewScope != "snapshot" && !ownerRepo->codeownersDocument.path.empty()) {
+            if (!vp.visible(28.f)) {
+                vp.skipped(28.f);
+            } else {
+            const auto& document = ownerRepo->codeownersDocument;
+            auto& cache = ownerRepo->codeownersByPath;
+            if (cache.size() >= 512) cache.clear();
+            auto [owner, inserted] = cache.try_emplace(fileDiff.filePath);
+            if (inserted) owner->second = codeowners::owners_for(document, fileDiff.filePath);
+            const auto& owners = owner->second;
+            auto label = document.error.empty() ? "Owners: " + (owners.empty() ? "no matching owners" : owners) + " · " + document.path : document.error;
+            vp.flush(ctx, *contentParent, nextId);
+            div(ctx, mk(*contentParent, nextId++), ComponentConfig{}
+                .with_label(label).with_size(ComponentSize{w, h720(28)})
+                .with_font_size(FontSize::Small).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_debug_name("codeowners_label"));
+            vp.built(28.f);
+            }
+        }
         if (fileDiff.hunks.size() == 1) {
             const auto& hunk = fileDiff.hunks.front();
             for (bool oldSide : {true, false}) {
