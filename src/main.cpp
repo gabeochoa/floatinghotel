@@ -39,6 +39,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ui_context.h"
 #include "ui/context_menu.h"
 #include "ui/zoom.h"
+#include "ui/layout_dump.h"
 #include "util/frame_pacer.h"
 #include "util/file_page_stats.h"
 #include "util/grep_capture.h"
@@ -588,6 +589,7 @@ static void app_init() {
                 perf::set_provider(std::move(p));
                 perf::register_perf_commands(sm);
             }
+            sm.register_update_system(std::make_unique<::ui::HandleDumpLayout>(app_state::screenshotDir));
             afterhours::testing::register_builtin_handlers(sm);
             sm.register_update_system(
                 std::make_unique<afterhours::testing::HandleScreenshotCommand>(
@@ -597,6 +599,7 @@ static void app_init() {
                         std::filesystem::create_directories(dir);
                         std::filesystem::path path = dir / (name + ".png");
                         write_screenshot(path.string());
+                        ::ui::write_layout_snapshot(dir / (name + ".json"));
                         log_info("Screenshot: {}", path.string());
                     }));
             afterhours::testing::ui_commands::register_ui_commands<InputAction>(sm);
@@ -994,6 +997,7 @@ static void e2e_render_and_screenshot(float dt) {
             std::filesystem::create_directories(dir);
             std::filesystem::path path = dir / (s_readyScreenshotName + ".png");
             write_screenshot(path.string());
+            ::ui::write_layout_snapshot(dir / (s_readyScreenshotName + ".json"));
             s_readyScreenshotName.clear();
         } else {
             s_screenshotDelayFrames--;

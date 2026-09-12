@@ -824,3 +824,13 @@ identify the caller. The app registers toast singleton enforcement before its
 UI systems, so identifying the earlier lookup needs a separate trace. This
 warning remains unresolved and is not evidence of the flicker cause. See
 `output/text-flicker/after/run.ENEZrH/native.log`.
+
+### UI dumps omit computed spacing
+
+The framework's `dump_ui` writes an XML tree with rounded rectangles and
+truncated labels. It does not expose computed padding, margins, or gaps, so a
+spacing audit cannot distinguish nested insets from layout errors. The app adds
+`dump_ui_json` and a JSON sidecar for each test screenshot. Both use the
+framework's screen-rectangle calculation, including scroll offsets. The app
+records unrounded geometry, spacing, parent links, and full text without vendor
+changes. See `docs/ui-layout-dumps.md` for the schema and capture command.

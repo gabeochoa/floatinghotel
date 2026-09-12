@@ -1,0 +1,40 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+screenshot spacing_review
+dump_ui_json spacing_dump
+click_text "Add contributing guidelines"
+wait_for_refresh
+screenshot spacing_commit
+click_ui sidebar_working_files
+screenshot spacing_files
+click_text main.cpp
+wait_for_refresh
+screenshot spacing_diff
+click_ui open_full_file
+wait_for_refresh
+screenshot spacing_source
+click_ui content_review_tab
+wait_for_refresh
+screenshot spacing_return
+click_ui comment_hunk_btn
+wait_frames 5
+screenshot spacing_compose
+click_ui comment_input
+type "Check how this handles an empty repository before merging."
+click_ui comment_add_btn
+wait_frames 5
+screenshot spacing_feedback
+click_text Help
+screenshot spacing_menu
+click 1100 74
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 5
+screenshot spacing_zoom
+resize 900 640
+wait_frames 5
+screenshot spacing_small
+validate footer_fixed=true
