@@ -432,7 +432,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         const size_t logRows = repoPtr ? repoPtr->commitLog.size() : 0;
         const bool windowedLog = repoPtr && logRows > 0;
         const bool logHasMore = windowedLog && repoPtr->commitLogHasMore;
-        constexpr float commitRowPx = 56.f;
+        constexpr float commitRowPx = theme::layout::COMMIT_ROW_HEIGHT;
         constexpr float lazyRowPx = 24.f;
         if (repoPtr) {
             auto key = repoPtr->repoPath + ":" + std::to_string(repoPtr->dataGeneration) + ":" + std::to_string(repoPtr->commitLog.size());
@@ -2026,7 +2026,7 @@ private:
                            const CommitEntry& commit,
                            RepoComponent& repo) {
         bool selected = (commit.hash == repo.selectedCommitHash);
-        constexpr float ROW_H = 56.f;
+        constexpr float ROW_H = theme::layout::COMMIT_ROW_HEIGHT;
 
         int baseId = index * 2 + 10;
         float sidebarW = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;
@@ -2109,15 +2109,16 @@ private:
 
         auto text = div(ctx, mk(row.ent(), 2), ComponentConfig{}
             .with_size(ComponentSize{expand(), pixels(ROW_H)})
-            .with_flex_direction(FlexDirection::Column)
-            .with_padding(Padding{.top = pixels(7), .bottom = pixels(7), .right = pixels(8)}));
+            .with_flex_direction(FlexDirection::Row).with_no_wrap()
+            .with_align_items(AlignItems::Center).with_gap(pixels(6))
+            .with_padding(Padding{.right = pixels(8)}));
         div(ctx, mk(text.ent(), 0), preset::BodyText(commit.subject)
-            .with_size(ComponentSize{percent(1.f), pixels(22)})
+            .with_size(ComponentSize{expand(), pixels(22)})
             .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
             .with_font_size(pixels(13)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("commit_subject"));
         auto metadata = div(ctx, mk(text.ent(), 1), ComponentConfig{}
-            .with_size(ComponentSize{percent(1.f), pixels(20)})
+            .with_size(ComponentSize{children(), pixels(20)})
             .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
             .with_gap(pixels(6)));
         div(ctx, mk(metadata.ent(), 1), preset::MetaText(relative_time(commit.authorDate))

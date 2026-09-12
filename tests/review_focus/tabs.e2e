@@ -9,6 +9,7 @@ validate active_content=Review
 validate ui_present:commit_author=false
 validate ui_present:commit_subject=true
 validate ui_present:commit_age=true
+validate ui_height:commit_row=24.0
 expect_text "One ordered result needs the minimum"
 click_ui fold_file:src/core/entity_query.h
 wait_frames 5

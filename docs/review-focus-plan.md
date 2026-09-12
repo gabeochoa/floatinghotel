@@ -2,8 +2,8 @@
 
 Approved target: `docs/mocks/review-focus.html`.
 
-User amendments: changed files above commit history, no sidebar commit authors,
-and no sidebar width change during the panel slide-out animation.
+User amendments: changed files above commit history, single-line sidebar commit
+rows without authors, and no sidebar width change during the panel slide-out animation.
 
 - [x] Ground: capture the current native app and trace layout, review state, zoom, and footer ownership.
 - [x] Sketch: compare two native integration shapes against the approved visual target.
@@ -32,6 +32,8 @@ All 29 unit suites and 74 legacy UI flows pass. The 50 feature scenarios pass th
 including Markdown and hex navigation at 140% zoom. Item 15 still misses one
 p99 timing limit: 26.89 ms against a 20 ms budget. Its cache bounds and functional
 checks pass; the performance suite is not green.
+The feedback basket also emits a `basket_title` height-overflow warning. This
+is an app layout issue, separate from the framework text-area zoom issue.
 
 Startup readiness passes for restored, empty, and invalid repositories. Two
 launches against the real saved workspace accepted the first commit click in
