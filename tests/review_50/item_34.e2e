@@ -8,6 +8,8 @@ screenshot item_34_working_owners
 click_text baseline
 wait_for_refresh
 click_ui jump_to_diff:code.cpp
+wait_frames 3
+wait_for_refresh
+screenshot item_34_historical_owners
 expect_text "Owners: @original-team"
 expect_no_text "Owners: @current-team"
-screenshot item_34_historical_owners

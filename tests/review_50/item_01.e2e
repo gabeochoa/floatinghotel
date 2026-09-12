@@ -18,6 +18,7 @@ expect_text "Loading file..."
 click_ui full_file_back
 click_text source.cpp
 wait_frames 5
+screenshot item_01_replacement_diff
 click_ui open_full_file
 wait_frames 5
 wait_for_refresh
