@@ -7,6 +7,7 @@ click_ui commit_msg_input
 type "Draft commit message"
 wait_frames 5
 screenshot text_area_100
+validate ui_height:text_area_line=18.0
 validate commit_message=Draft commit message
 key CMD+EQUAL
 wait_frames 2
@@ -17,6 +18,7 @@ wait_frames 2
 key CMD+EQUAL
 wait_frames 5
 screenshot text_area_140
+validate ui_height:text_area_line=25.2
 validate ui_present:commit_msg_input=true
 validate ui_in_viewport:commit_msg_input=true
 validate commit_message=Draft commit message

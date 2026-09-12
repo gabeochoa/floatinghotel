@@ -28,10 +28,21 @@ The virtual-list adapter needs live middle/end-of-list checks before acceptance 
 ## Verification
 
 The native capture, file-folding, retained-source-tab, and zoom scenarios pass.
-All 29 unit suites and 74 legacy UI flows pass. The 50 feature scenarios pass their functional checks,
-including Markdown and hex navigation at 140% zoom. Item 15 still misses one
-p99 timing limit: 26.89 ms against a 20 ms budget. Its cache bounds and functional
-checks pass; the performance suite is not green.
+The initial verification passed all 29 unit suites, 74 legacy UI flows, and the
+50 feature scenarios' functional checks, including Markdown and hex at 140%.
+It missed one Item 15 p99 limit, at 26.89 ms against a 20 ms budget.
+
+The continuation's final build passes all 74 legacy flows again and all 40
+focused highlight/viewport assertions. Three performance runs each pass all
+eight unchanged p99 limits, with values from 2.01 to 10.24 ms. Search-cap checks
+also pass. The last two runs use the final line-height build. These reruns do
+not identify the cause of the earlier timing spike.
+Evidence is in `output/layout-followup/final-flows.log`, `final-highlight`, and
+`perf-1.log` through `perf-3.log`.
+
+The broad legacy run has no skipped-entity query diagnostics, but still logs
+165 layout-overflow lines outside the focused checks, including sidebar mode
+tabs. Passing functional tests does not mean all layout validation is clean.
 The feedback basket uses logical pixel heights throughout. Its former
 `basket_title` overflow came from mixing screen-relative controls with a
 logical-height scroll area. `output/layout-followup/basket-final/native.log`
@@ -63,3 +74,8 @@ Selected-file diffs also use the current panel height during resize instead
 of falling back to the previous frame's computed height.
 `output/layout-followup/resize-after/native.log` passes the basket/adjacent-diff
 overflow check through zoom, window resize, and comment editing.
+
+The performance rerun also exposes a separate transient warning when opening
+Options in commit view. The `commit_find_host` keeps its 60-pixel height for
+the frame that renders 150 pixels of controls. See
+`output/layout-followup/perf-1.log`. This app layout issue remains open.

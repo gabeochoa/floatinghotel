@@ -725,3 +725,18 @@ they can merge pending entities before querying. They now request `force_merge`
 instead of silently excluding those entities. The diagnostic is not suppressed.
 Including the query origin or filters upstream would still make this warning
 easier to trace without a debugger.
+
+### Text-area line height reads the raw Size value
+
+`text_area` reads `config.text_area_line_height.value` without resolving its
+unit. Passing `h720(18)` supplies `18 / 720`, so the generated rows measure
+0.025 logical pixels instead of 18. The native inspector rounds that to zero.
+The commit-message text consequently sat against the field's top edge.
+
+The app now passes `pixels(18)` for this setting. The framework API accepts a
+`Size`, so it should either resolve that size or accept an explicitly named
+pixel value. This caller workaround does not change the framework.
+The failing native checks are in
+`output/layout-followup/line-height-before/native.log`.
+The passing check in `output/layout-followup/line-height-after/native.log`
+measures 18 pixels at 100% zoom and 25.2 pixels at 140%.

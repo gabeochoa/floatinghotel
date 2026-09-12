@@ -1042,7 +1042,7 @@ private:
                 .with_custom_background(theme::INPUT_BG)
                 .with_border(theme::BORDER, h720(1.0f))
                 .with_corner_radius(4.0f)
-                .with_line_height(h720(18.0f))
+                .with_line_height(pixels(18.0f))
                 .with_submit_on_enter()
                 .with_debug_name("commit_msg_input"));
 
