@@ -977,3 +977,13 @@ The focused captured layouts pass their geometry checks. The remaining warnings
 have not been traced to a root cause and should not be dismissed as harmless or
 reported as fixed. Some legacy Git controls also retain window-relative font
 sizes, which makes their text small at enlarged zoom.
+
+### Panel padding exposed a stale frame-clear color
+
+The inset main panel does not paint its outer spacing. Afterhours leaves those
+pixels at the frame-clear color. Both app draw paths still cleared to the old
+RGB 30/30/30 instead of the active window theme, creating a gray strip beside
+the commit view. Both now clear with `theme::WINDOW_BG`. This was an app palette
+mismatch, not a framework defect. The pixel check in
+`tests/check_panel_background.py` fails on the old screenshot and checks both
+side gutters in new captures.

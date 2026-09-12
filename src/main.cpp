@@ -798,7 +798,7 @@ static void run_bench_frames(float dt) {
         auto t0 = std::chrono::steady_clock::now();
         afterhours::testing::test_input::reset_frame();
         afterhours::graphics::begin_drawing();
-        afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
+        afterhours::graphics::clear_background(theme::WINDOW_BG);
         app_state::systemManager->run(dt);
         afterhours::graphics::end_drawing();
         e2e_bench::samples_ms.push_back(
@@ -943,7 +943,7 @@ static void app_draw(float dt) {
                  ctx ? ctx->render_cmds.size() : 0);
     }
     afterhours::graphics::begin_drawing();
-    afterhours::graphics::clear_background(afterhours::Color{30, 30, 30, 255});
+    afterhours::graphics::clear_background(theme::WINDOW_BG);
     app_state::systemManager->render(entities, dt);
     afterhours::graphics::end_drawing();
     if (e2e_idle_bench::capture) {
