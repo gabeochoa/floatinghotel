@@ -1,0 +1,28 @@
+resize 1440 900
+wait_for_refresh
+click_text large.txt
+wait_frames 3
+click_ui open_full_file
+wait_frames 3
+wait_for_refresh
+expect_text "working source"
+expect_no_text "historical source"
+screenshot item_04_uncached_working_tree
+click_ui full_file_back
+click_text latest
+wait_for_refresh
+wait_frames 3
+click_ui open_full_file
+wait_frames 3
+wait_for_refresh
+expect_text "historical source"
+click_ui file_page_next
+wait_frames 3
+wait_for_refresh
+expect_text "second page marker"
+click_ui file_page_start
+wait_frames 3
+wait_for_refresh
+expect_text "historical source"
+expect_no_text "working source"
+screenshot item_04_cached_blob

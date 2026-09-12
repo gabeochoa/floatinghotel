@@ -1,6 +1,7 @@
 #include "test_framework.h"
 #include "../../src/git/content_reader.h"
 #include "../../src/util/file_page.h"
+#include "../../src/git/blob_page_cache.h"
 
 #include <filesystem>
 #include <fstream>
@@ -168,6 +169,97 @@ TEST(historical_reads_are_bounded_and_index_is_resolved_fresh) {
 TEST(later_utf16_pages_preserve_binary_nuls) {
     ASSERT_TRUE(file_page::decode(std::string(4, '\0'), "utf16le", 256).binary);
     ASSERT_TRUE(file_page::decode(std::string(4, '\0'), "utf16be", 256).binary);
+}
+
+TEST(blob_page_cache_bounds_owned_bytes_and_returns_independent_copies) {
+    git::BlobPage sample{std::string(1024, 'x'), {}};
+    git::BlobPageCache probe;
+    ASSERT_TRUE(probe.put("a", sample));
+    auto budget = probe.bytes() * 2;
+    git::BlobPageCache cache(budget);
+    ASSERT_TRUE(cache.put("a", sample));
+    ASSERT_TRUE(cache.put("b", sample));
+    auto owned = cache.get("a");
+    ASSERT_TRUE(owned.has_value());
+    owned->raw[0] = 'z';
+    ASSERT_EQ(cache.get("a")->raw[0], 'x');
+    ASSERT_TRUE(cache.put("c", sample));
+    ASSERT_FALSE(cache.get("b").has_value());
+    ASSERT_TRUE(cache.get("a").has_value());
+    ASSERT_TRUE(cache.bytes() <= budget);
+    sample.raw.assign(budget * 3, 'x');
+    ASSERT_FALSE(cache.put("large", sample));
+    ASSERT_TRUE(cache.bytes() <= budget);
+    ASSERT_FALSE(cache.put("", {}));
+}
+
+TEST(blob_page_keys_require_immutable_sources_and_distinguish_page_and_encoding_options) {
+    git::FileRequest request{"repo", "path", ""};
+    ASSERT_TRUE(git::blob_page_key(request, "object").empty());
+    request.revision = "INDEX";
+    auto key = git::blob_page_key(request, "object");
+    ASSERT_FALSE(key.empty());
+    for (int i = 0; i < 8; ++i) {
+        auto changed = request;
+        std::string object = "object";
+        if (i == 0) object = "different-object";
+        if (i == 1) changed.page.action = ecs::FilePageRequest::Action::Next;
+        if (i == 2) changed.page.cursor.offset = 100;
+        if (i == 3) changed.page.cursor.line = 50;
+        if (i == 4) changed.page.cursor.continuation = true;
+        if (i == 5) changed.page.targetLine = 9000;
+        if (i == 6) changed.encoding = "utf16le";
+        if (i == 7) changed.detectedEncoding = "utf16be";
+        ASSERT_TRUE(git::blob_page_key(changed, object) != key);
+    }
+}
+
+TEST(cached_blob_pages_do_not_leak_path_or_mode_and_never_cache_working_tree_bytes) {
+    char directory[] = "/tmp/fh-blob-page-cache.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    ASSERT_TRUE(git::git_run(path, {"init", "-q"}).success());
+    for (const auto* name : {"one.txt", "two.sh"}) {
+        std::ofstream file(std::filesystem::path(path) / name); file << "shared content\n";
+    }
+    std::filesystem::permissions(std::filesystem::path(path) / "two.sh", std::filesystem::perms::owner_exec, std::filesystem::perm_options::add);
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    auto one = git::read_file({path, "one.txt", "INDEX"});
+    auto two = git::read_file({path, "two.sh", "INDEX"});
+    ASSERT_TRUE(one.error.empty());
+    ASSERT_TRUE(two.error.empty());
+    ASSERT_EQ(one.page.blob, two.page.blob);
+    ASSERT_EQ(two.diff.filePath, "two.sh");
+    ASSERT_EQ(two.diff.newMode, "100755");
+    ASSERT_EQ(one.diff.newMode, "100644");
+    ASSERT_EQ(git::read_file({path, "one.txt", ""}).raw, "shared content\n");
+    { std::ofstream file(std::filesystem::path(path) / "one.txt"); file << "working changed\n"; }
+    ASSERT_EQ(git::read_file({path, "one.txt", ""}).raw, "working changed\n");
+    ASSERT_EQ(git::read_file({path, "one.txt", "INDEX"}).raw, "shared content\n");
+    std::filesystem::remove_all(path);
+}
+
+TEST(intentional_page_capture_is_logged_as_success_without_hiding_its_stop_result) {
+    char directory[] = "/tmp/fh-capture-log.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    ASSERT_TRUE(git::git_run(path, {"init", "-q"}).success());
+    { std::ofstream file(std::filesystem::path(path) / "large.txt"); file << std::string(100000, 'x'); }
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    bool loggedSuccess = false;
+    std::string loggedOutput;
+    git::set_log_callback([&](const auto&, const auto& output, const auto&, bool success) {
+        loggedSuccess = success;
+        loggedOutput = output;
+    });
+    auto result = git::git_run(path, {"cat-file", "blob", ":large.txt"}, {},
+                               [](std::string_view) { return false; });
+    git::set_log_callback({});
+    ASSERT_TRUE(result.raw.outputStopped);
+    ASSERT_FALSE(result.success());
+    ASSERT_TRUE(loggedSuccess);
+    ASSERT_TRUE(loggedOutput.find("requested page boundary") != std::string::npos);
+    std::filesystem::remove_all(path);
 }
 
 int main() { RUN_ALL_TESTS(); }

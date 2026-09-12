@@ -150,9 +150,15 @@ GitResult git_run(const std::string& repo_path,
 
     {
         std::lock_guard lock(g_log_mutex);
-        if (g_log_callback)
-        g_log_callback(build_command_string(cmd), result.stdout_str(),
-                       result.stderr_str(), result.success());
+        if (g_log_callback) {
+            if (result.raw.outputStopped && !result.raw.cancelled)
+                g_log_callback(build_command_string(cmd),
+                               "Output capture stopped at the requested page boundary",
+                               result.stderr_str(), true);
+            else
+                g_log_callback(build_command_string(cmd), result.stdout_str(),
+                               result.stderr_str(), result.success());
+        }
     }
 
     return result;

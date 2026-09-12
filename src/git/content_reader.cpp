@@ -1,6 +1,8 @@
 #include "content_reader.h"
+#include "blob_page_cache.h"
 #include "../util/file_content.h"
 #include "../util/file_page.h"
+#include "../../vendor/afterhours/src/logging.h"
 
 #include <filesystem>
 #include <array>
@@ -32,6 +34,9 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
 
 ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop) {
     ecs::FullFileContent content;
+    static BlobPageCache cache;
+    std::string cacheKey;
+    bool cacheHit = false;
     std::string mode;
     if (stop.stop_requested()) { content.error = "File load cancelled"; return content; }
     auto offset = request.page.action == ecs::FilePageRequest::Action::Next ? request.page.cursor.offset : 0;
@@ -66,8 +71,16 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
             else content.error = modes.stderr_str();
         }
         if (content.error.empty()) {
-            auto result = git_run(request.repo, {"cat-file", "blob", content.page.blob}, stop, consume);
-            if (!result.success() && !result.raw.outputStopped) content.error = result.stderr_str();
+            cacheKey = blob_page_key(request, content.page.blob);
+            if (auto cached = cache.get(cacheKey)) {
+                content.raw = std::move(cached->raw);
+                content.page = std::move(cached->page);
+                cacheHit = true;
+                log_info("blob page cache hit for {}", content.page.blob);
+            } else {
+                auto result = git_run(request.repo, {"cat-file", "blob", content.page.blob}, stop, consume);
+                if (!result.success() && !result.raw.outputStopped) content.error = result.stderr_str();
+            }
         }
     }
     if (!request.revision.empty()) content.page.sourceIdentity = content.page.blob;
@@ -75,12 +88,15 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
         content.error = "File source changed; reload from the beginning";
     if (stop.stop_requested()) content.error = "File load cancelled";
     if (content.error.empty()) {
-        collector.finish();
-        content.error = std::move(collector.error);
-        content.raw = std::move(collector.raw);
-        content.page.begin = collector.begin;
-        content.page.next = collector.next;
-        content.page.encoding = std::move(collector.encoding);
+        if (!cacheHit) {
+            collector.finish();
+            content.error = std::move(collector.error);
+            content.raw = std::move(collector.raw);
+            content.page.begin = collector.begin;
+            content.page.next = collector.next;
+            content.page.encoding = std::move(collector.encoding);
+            if (content.error.empty() && !cacheKey.empty()) cache.put(cacheKey, {content.raw, content.page});
+        }
         auto decoded = file_page::decode(content.raw, content.page.encoding, content.page.begin.offset);
         content.encodingLabel = decoded.encoding;
         content.diff = parse_complete_file(request.path, decoded.text);
