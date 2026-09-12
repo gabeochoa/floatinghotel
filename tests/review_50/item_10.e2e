@@ -1,0 +1,15 @@
+resize 1280 800
+wait_for_refresh
+clear_git_command_log
+enable_file_watcher
+wait_frames 90
+touch_file README.md
+wait_for_file_change
+validate last_refresh_scope=worktree
+validate git_command_category:status=1
+validate git_command_category:diff=1
+validate git_command_category:files=1
+validate git_command_category:log=0
+validate git_command_category:branch=0
+expect_text "README.md"
+screenshot item_10_worktree_selective_refresh

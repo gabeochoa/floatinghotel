@@ -18,8 +18,20 @@ namespace ecs {
 
 struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
+    void once(float) override {
+        for (auto it = pending_.begin(); it != pending_.end();) {
+            auto tab = afterhours::EntityHelper::getEntityForID(it->first);
+            if (!tab.valid() || tab->cleanup || !tab->has<RepoComponent>()) {
+                refreshStart_.erase(it->first);
+                it = pending_.erase(it);
+            } else ++it;
+        }
+    }
+
     void for_each_with(afterhours::Entity& entity,
                        RepoComponent& repo, float) override {
+
+        if (entity.cleanup) return;
 
         auto id = entity.id;
 
@@ -33,33 +45,44 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             repo.refreshRequested = false;
             repo.isRefreshing = true;
             refreshStart_[id] = std::chrono::steady_clock::now();
+            auto scope = repo.refreshScope;
+            if (scope == refresh_scope::Scope::None) scope = refresh_scope::Scope::Full;
+            repo.refreshScope = refresh_scope::Scope::None;
+            auto plan = refresh_scope::plan(scope);
+            repo.lastRefreshScope = refresh_scope::name(scope);
 
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
-            pf.files = git::git_run_async(path, {"ls-files", "--cached", "--others", "--exclude-standard", "-z"}, async_work::Priority::Background);
             std::vector<std::string> diffArgs{"diff"};
             diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
             if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
             auto stagedArgs = diffArgs;
             stagedArgs.push_back("--cached");
-            pf.stagedDiff = git::git_run_async(path, stagedArgs, async_work::Priority::Background);
-            // The first refresh usually finds its commands already running:
-            // main() starts them before the window exists (git::prefetch_repo).
-            git::PrefetchedReads pre;
-            if (git::take_prefetched(path, pre)) {
-                pf.status   = std::move(pre.status);
-                pf.log      = std::move(pre.log);
-                pf.diff     = repo.ignoreWhitespace || repo.diffContext != 3
-                                  ? git::git_run_async(path, diffArgs, async_work::Priority::Background) : std::move(pre.diff);
-                pf.branches = std::move(pre.branches);
-                log_info("refresh: adopted prefetched reads");
+            if (plan.files)
+                pf.files = git::git_run_async(path, {"ls-files", "--cached", "--others", "--exclude-standard", "-z"}, async_work::Priority::Background);
+            if (scope == refresh_scope::Scope::Full) {
+                git::PrefetchedReads pre;
+                if (git::take_prefetched(path, pre)) {
+                    pf.status   = std::move(pre.status);
+                    pf.log      = std::move(pre.log);
+                    pf.diff     = repo.ignoreWhitespace || repo.diffContext != 3
+                                      ? git::git_run_async(path, diffArgs, async_work::Priority::Background) : std::move(pre.diff);
+                    pf.branches = std::move(pre.branches);
+                    log_info("refresh: adopted prefetched reads");
+                } else {
+                    if (plan.status) pf.status = git::git_status_async(path);
+                    if (plan.log) pf.log = git::git_log_async(path, 100, 0);
+                    if (plan.diff) pf.diff = git::git_run_async(path, diffArgs, async_work::Priority::Background);
+                    if (plan.branches) pf.branches = git::git_branch_list_async(path);
+                }
             } else {
-                pf.status   = git::git_status_async(path);
-                pf.log      = git::git_log_async(path, 100, 0);
-                pf.diff     = git::git_run_async(path, diffArgs, async_work::Priority::Background);
-                pf.branches = git::git_branch_list_async(path);
+                if (plan.status) pf.status = git::git_status_async(path);
+                if (plan.log) pf.log = git::git_log_async(path, 100, 0);
+                if (plan.diff) pf.diff = git::git_run_async(path, diffArgs, async_work::Priority::Background);
+                if (plan.branches) pf.branches = git::git_branch_list_async(path);
             }
-            repo.commitLogLoading = true;
+            if (plan.stagedDiff) pf.stagedDiff = git::git_run_async(path, stagedArgs, async_work::Priority::Background);
+            repo.commitLogLoading = plan.log;
             // No rev-parse HEAD: the first log entry is HEAD, and every
             // subprocess is one more spawn on the startup path.
         }
@@ -161,6 +184,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             repo.hasLoadedOnce = true;
             pending_.erase(it);
             log_info("refresh: done in {} ms", ms_since(id));
+            refreshStart_.erase(id);
         }
     }
 

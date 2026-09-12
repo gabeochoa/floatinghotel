@@ -24,6 +24,7 @@
 #include "../util/review_comment_kind.h"
 #include "../util/review_verdict.h"
 #include "../util/async_task.h"
+#include "../util/refresh_scope.h"
 
 namespace ecs {
 
@@ -273,6 +274,8 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::optional<FileDiff> untrackedDiff;
 
     bool refreshRequested = false;
+    refresh_scope::Scope refreshScope = refresh_scope::Scope::Full;
+    std::string lastRefreshScope;
     bool ignoreWhitespace = false;
     int diffContext = 3;
     std::string fullFilePath;

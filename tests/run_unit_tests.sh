@@ -62,6 +62,12 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_code_gutter" ]; then
     run_test "test_code_gutter" "tests/unit/test_code_gutter.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_refresh_lifetime" ]; then
+    run_test "test_refresh_lifetime" "tests/unit/test_refresh_lifetime.cpp" \
+        "src/git/git_runner.cpp" "src/git/git_parser.cpp" "src/util/process.cpp" \
+        "vendor/afterhours/src/plugins/files.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_diff_metrics" ]; then
     run_test "test_diff_metrics" "tests/unit/test_diff_metrics.cpp"
 fi
@@ -166,6 +172,11 @@ fi
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_markdown_preview" ]; then
     run_test "test_markdown_preview" \
         "tests/unit/test_markdown_preview.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_refresh_scope" ]; then
+    run_test "test_refresh_scope" \
+        "tests/unit/test_refresh_scope.cpp"
 fi
 
 # --- test_review_store ---

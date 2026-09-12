@@ -203,6 +203,15 @@ struct HandleFileWatcherToggle : afterhours::System<afterhours::testing::Pending
     }
 };
 
+struct HandleClearGitCommandLog : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("clear_git_command_log")) return;
+        drain_git_log();
+        if (g_cmdLogSink) g_cmdLogSink->entries.clear();
+        cmd.consume();
+    }
+};
+
 // Init callback: runs after Sokol/Metal window is created
 static void app_init() {
     using namespace afterhours;
@@ -424,6 +433,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleWaitForRefresh>());
             sm.register_update_system(std::make_unique<HandleWaitForFileChange>());
             sm.register_update_system(std::make_unique<HandleFileWatcherToggle>());
+            sm.register_update_system(std::make_unique<HandleClearGitCommandLog>());
             sm.register_update_system(std::make_unique<HandleBenchFrames>());
             {
                 namespace perf = afterhours::testing::perf_commands;
@@ -961,6 +971,27 @@ int main(int argc, char* argv[]) {
                 return e->isAmend ? "true" : "false";
         } else if (key == "refresh_requested") {
             if (auto* r = repo()) return r->refreshRequested ? "true" : "false";
+        } else if (key == "last_refresh_scope") {
+            if (auto* r = repo()) return r->lastRefreshScope;
+        } else if (key.starts_with("git_command_count:") ||
+                   key.starts_with("git_command_category:")) {
+            drain_git_log();
+            if (!g_cmdLogSink) return "0";
+            std::string category = key.substr(key.find(':') + 1);
+            int count = 0;
+            for (const auto& entry : g_cmdLogSink->entries) {
+                const auto& command = entry.command;
+                bool match = false;
+                if (category == "status") match = command.find(" status ") != std::string::npos;
+                else if (category == "log") match = command.find(" log ") != std::string::npos;
+                else if (category == "branch") match = command.find(" branch ") != std::string::npos;
+                else if (category == "files") match = command.find(" ls-files ") != std::string::npos;
+                else if (category == "diff") match = command.find(" diff ") != std::string::npos && command.find(" --cached") == std::string::npos;
+                else if (category == "staged_diff") match = command.find(" diff ") != std::string::npos && command.find(" --cached") != std::string::npos;
+                else match = command.find(category) != std::string::npos;
+                if (match) ++count;
+            }
+            return std::to_string(count);
         } else if (key == "tab_count") {
             auto* ts = ecs::find_singleton<ecs::TabStripComponent>();
             return ts ? std::to_string(ts->tabOrder.size()) : "0";
