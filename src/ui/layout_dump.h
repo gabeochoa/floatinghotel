@@ -56,7 +56,13 @@ inline nlohmann::json layout_snapshot() {
         if (entity.has<HasLabel>()) {
             const auto& label = entity.get<HasLabel>();
             node["text"] = label.label;
+            node["font"] = label.font_name;
             node["text_alignment"] = std::string(magic_enum::enum_name(label.alignment));
+            node["text_overflow"] = std::string(magic_enum::enum_name(label.text_overflow));
+            if (label.explicit_text_color) {
+                const auto color = *label.explicit_text_color;
+                node["text_color"] = {color.r, color.g, color.b, color.a};
+            }
             if (label.text_inset) node["text_inset"] = {{"x", label.text_inset->x}, {"y", label.text_inset->y}};
         }
         if (entity.has<HasScrollView>()) {

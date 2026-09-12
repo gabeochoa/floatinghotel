@@ -1011,3 +1011,12 @@ clip before accepting wheel input. Registration replaces only the framework's
 scroll-input system inside its post-update bridge. This depends on the public
 bridge system list, so upstream changes to that registration need review.
 `mock_tree_working.e2e` exercises the previously unresponsive visible area.
+
+### Nominal font pixels do not give browser-equivalent type size
+
+The same commit title in a 1440-by-1000 mock capture has roughly 21 pixels of
+foreground height, versus 16 in the native capture at a nominal 22-pixel font.
+The native Roboto/fontstash path and the mock's browser system-font path use
+different metrics. The commit headline is calibrated visually at 28 native
+pixels. Code retains the user's 16-pixel setting. Matching CSS font-size values
+alone is not sufficient evidence of visual parity.

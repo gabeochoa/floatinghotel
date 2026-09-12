@@ -15,6 +15,7 @@
 #include "../ecs/ui_imports.h"
 #include "diff_renderer.h"
 #include "review_queue.h"
+#include <afterhours/src/plugins/ui/text_measure.h>
 
 namespace ecs {
 
@@ -136,9 +137,33 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     float contentW = layout.mainContent.width;
     float controlsHeight = ui::diff_controls_height(contentW, layout.diffOptionsOpen, layout.diffFindOpen,
         true, !detailCache.commitDetailDiff.empty());
-    float headerHeight = detailCache.commitDetailBody.empty() ? 94.f : 126.f;
+    auto boundedLines = [&](std::string text, float width, const std::string& font, float size, size_t limit) {
+        size_t end = std::min(text.size(), size_t{512});
+        while (end < text.size() && end > 0 && (static_cast<unsigned char>(text[end]) & 0xc0) == 0x80) --end;
+        const bool truncated = end < text.size();
+        text.resize(end);
+        std::replace(text.begin(), text.end(), '\n', ' ');
+        auto lines = afterhours::ui::wrap_text(text, std::max(40.f, width) * ui::zoom::get(), font, size * ui::zoom::get());
+        if (lines.size() > limit || truncated) {
+            lines.resize(std::min(lines.size(), limit));
+            if (!lines.empty()) lines.back() += "...";
+        }
+        return lines;
+    };
+    auto titleLines = boundedLines(selectedCommit->subject, contentW - 16.f, "ui-bold", 28.f, 2);
+    std::string titleText;
+    for (const auto& line : titleLines) { if (!titleText.empty()) titleText += '\n'; titleText += line; }
+    const float titleHeight = std::max(1.f, static_cast<float>(titleLines.size())) * 36.f;
+    auto paragraph = detailCache.commitDetailBody.substr(0, detailCache.commitDetailBody.find("\n\n"));
+    auto previewLines = boundedLines(paragraph, contentW - 112.f, afterhours::ui::UIComponent::DEFAULT_FONT,
+        16.f, contentW < 680.f ? 1 : 2);
+    std::string previewText;
+    for (const auto& line : previewLines) { if (!previewText.empty()) previewText += '\n'; previewText += line; }
+    const float previewHeight = paragraph.empty() ? 0.f : std::max(28.f, static_cast<float>(previewLines.size()) * 22.f);
+    float headerHeight = 12.f + 20.f + titleHeight + 32.f + previewHeight + 12.f;
     auto heading = div(ctx, mk(parent, 593010), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{percent(1.f), pixels(headerHeight)})
+        .with_padding(Padding{.top = pixels(12), .right = pixels(0), .bottom = pixels(12), .left = pixels(0)})
         .with_flex_direction(FlexDirection::Column).with_no_wrap()
         .with_debug_name("commit_heading"));
 
@@ -160,13 +185,21 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         !detailCache.patchFuture.valid() && !detailCache.infoFuture.valid());
     if (review) render_review_queue(ctx, scrollContainer.ent(), nextId++, repo, *review, detailCache);
 
-    auto backBtn = button(ctx, mk(heading.ent(), nextId++),
-        preset::Button("‹ Commit history")
-            .with_size(ComponentSize{children(), pixels(24)})
-            .with_padding(Padding{.left = pixels(PAD), .right = pixels(PAD)})
+    auto eyebrow = div(ctx, mk(heading.ent(), 593013), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), pixels(20)})
+        .with_flex_direction(FlexDirection::Row).with_no_wrap());
+    div(ctx, mk(eyebrow.ent(), 0), ComponentConfig{}
+        .with_label("Commit review  /  " + repo.currentBranch)
+        .with_size(ComponentSize{expand(), pixels(20)}).with_font_size(pixels(13))
+        .with_custom_text_color(theme::TEXT_SECONDARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+        .with_debug_name("commit_review_context"));
+    auto backBtn = button(ctx, mk(eyebrow.ent(), nextId++),
+        preset::Button("‹ History")
+            .with_size(ComponentSize{pixels(80), pixels(20)})
+            .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
             .with_transparent_bg()
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(pixels(14))
+            .with_font_size(pixels(13))
             .with_debug_name("commit_back_btn"));
 
     if (backBtn) {
@@ -178,15 +211,13 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     auto subjectLabel = div(ctx, mk(heading.ent(), nextId++),
         ComponentConfig{}.with_skip_grid_snap()
-            .with_label(selectedCommit->subject)
-            .with_size(ComponentSize{percent(1.0f), pixels(40)})
-            .with_padding(Padding{
-                .top = pixels(8), .right = pixels(PAD),
-                .bottom = pixels(4), .left = pixels(PAD)})
+            .with_label(titleText)
+            .with_size(ComponentSize{percent(1.0f), pixels(titleHeight)})
+            .with_padding(Padding{.top = pixels(0), .right = pixels(0), .bottom = pixels(0), .left = pixels(0)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font("ui-bold", pixels(22))
+            .with_font("ui-bold", pixels(28))
             .with_alignment(TextAlignment::Left)
-            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_roundness(0.0f)
             .with_debug_name("commit_detail_subject"));
     ui::set_tooltip(subjectLabel.ent(), selectedCommit->subject);
@@ -265,28 +296,55 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     }
 
     auto metadataHeader = div(ctx, mk(heading.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap()
-        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
-        .with_padding(Padding{}));
-    div(ctx, mk(metadataHeader.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
-        .with_label(selectedCommit->hash.substr(0, 7) + "  " + selectedCommit->author + "  " + selectedCommit->authorDate.substr(0, 10))
-        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(12))
-        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_meta_compact"));
-    if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(layout.commitMetadataExpanded ? "Hide details" : "Show details")
-        .with_size(ComponentSize{pixels(105), pixels(28)}).with_debug_name("commit_meta_toggle")))
+        .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row)
+        .with_align_items(AlignItems::Center).with_no_wrap().with_gap(pixels(6))
+        .with_debug_name("commit_meta_compact"));
+    auto metadataWidth = [&](const std::string& text, float size) {
+        return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
+            size * ui::zoom::get()).x / ui::zoom::get() + 12.f;
+    };
+    div(ctx, mk(metadataHeader.ent(), 0), ComponentConfig{}
+        .with_label(selectedCommit->author).with_size(ComponentSize{contentW < 680.f ? expand() :
+            pixels(std::min(160.f, metadataWidth(selectedCommit->author, 14.f))), pixels(28)})
+        .with_font_size(pixels(14)).with_custom_text_color(theme::TEXT_SECONDARY)
+        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_author"));
+    const auto relativeDate = "· " + git_helpers::relative_time(selectedCommit->authorDate, true);
+    auto date = div(ctx, mk(metadataHeader.ent(), 2), ComponentConfig{}
+        .with_label(relativeDate)
+        .with_size(ComponentSize{pixels(metadataWidth(relativeDate, 14.f)), pixels(28)}).with_font_size(pixels(14))
+        .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_relative_date"));
+    ui::set_tooltip(date.ent(), selectedCommit->authorDate);
+    auto hash = div(ctx, mk(metadataHeader.ent(), 3), ComponentConfig{}
+        .with_label("· " + selectedCommit->hash.substr(0, 7))
+        .with_size(ComponentSize{pixels(84), pixels(28)}).with_font("mono", pixels(13))
+        .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("commit_short_hash"));
+    ui::set_tooltip(hash.ent(), selectedCommit->hash);
+    const auto decorations = cdv::parse_decorations(selectedCommit->decorations);
+    if (!decorations.empty() && contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 4),
+        preset::Button(decorations.front().label).with_size(ComponentSize{
+            pixels(std::min(100.f, metadataWidth(decorations.front().label, 12.f) + 8.f)), pixels(22)})
+            .with_transparent_bg().with_border(theme::BORDER, pixels(1)).with_font_size(pixels(12))
+            .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_compact_badge"));
+    if (contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 5), ComponentConfig{}
+        .with_size(ComponentSize{expand(), pixels(28)}));
+    if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(layout.commitMetadataExpanded ? "Less detail" : "Details")
+        .with_size(ComponentSize{pixels(80), pixels(28)}).with_transparent_bg()
+        .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(13)).with_debug_name("commit_meta_toggle")))
         layout.commitMetadataExpanded = !layout.commitMetadataExpanded;
 
     if (!detailCache.commitDetailBody.empty()) {
         auto preview = div(ctx, mk(heading.ent(), 593011), ComponentConfig{}.with_skip_grid_snap()
-            .with_size(ComponentSize{percent(1.f), pixels(32)})
+            .with_size(ComponentSize{percent(1.f), pixels(previewHeight)})
             .with_flex_direction(FlexDirection::Row).with_no_wrap()
             .with_padding(Padding{}));
         div(ctx, mk(preview.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
-            .with_label(detailCache.commitDetailBody.substr(0, detailCache.commitDetailBody.find('\n')))
-            .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
+            .with_label(previewText)
+            .with_size(ComponentSize{expand(), pixels(previewHeight)}).with_font_size(pixels(16))
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_message_preview"));
+            .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_debug_name("commit_message_preview"));
         if (button(ctx, mk(preview.ent(), 1), preset::Button(detailCache.messageExpanded ? "Less" : "Full message")
-                .with_size(ComponentSize{pixels(96), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{pixels(96), pixels(26)}).with_font_size(pixels(13))
+                .with_transparent_bg().with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_debug_name("commit_message_toggle"))) detailCache.messageExpanded = !detailCache.messageExpanded;
     }
 
