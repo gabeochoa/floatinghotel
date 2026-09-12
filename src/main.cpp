@@ -909,6 +909,9 @@ int main(int argc, char* argv[]) {
             return ui::diff_sel::state().hasSel ? "true" : "false";
         } else if (key == "diff_rows_bounded") {
             return ui::diff_sel::state().lastLines.size() < 300 ? "true" : "false";
+        } else if (key == "message_rows_bounded") {
+            if (auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
+                return detail->messageVisibleRows < 300 ? "true" : "false";
         } else if (key == "tooltip_showing") {
             auto* tooltip = ecs::find_singleton<afterhours::ui::TooltipState>();
             return tooltip && tooltip->is_showing() ? "true" : "false";

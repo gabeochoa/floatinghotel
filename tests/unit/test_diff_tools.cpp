@@ -8,6 +8,19 @@
 #include "../../src/util/review_selection.h"
 #include "../../src/util/navigation.h"
 #include "../../src/util/wrap_text.h"
+#include "../../src/util/visible_rows.h"
+
+TEST(message_row_window_is_bounded_at_top_middle_and_end) {
+    for (float offset : {0.f, 20000.f, 179500.f}) {
+        auto [first, last] = visible_rows(10000, 18.f, 100.f, offset, 800.f);
+        ASSERT_TRUE(first <= last);
+        ASSERT_TRUE(last <= 10000u);
+        ASSERT_TRUE(last - first < 140u);
+    }
+    ASSERT_EQ(visible_rows(10000, 18.f, 100.f, 180000.f, 800.f).second, 10000u);
+    ASSERT_EQ(visible_rows(0, 18.f, 100.f, 0.f, 800.f).second, 0u);
+    ASSERT_EQ(visible_rows(10000, 0.f, 0.f, 0.f, 0.f).second, 100u);
+}
 
 TEST(tooltip_wrapping_preserves_all_text_and_utf8_glyphs) {
     std::string source = "Long subject with spaces and 世界";

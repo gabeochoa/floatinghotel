@@ -232,6 +232,7 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     float messageWrapWidth = 0.f;
     float messageFontSize = 0.f;
     std::vector<std::string> messageLines;
+    size_t messageVisibleRows = 0;
     std::string commitDetailAuthorEmail;
     std::string commitDetailParents;
     std::string commitDetailError;

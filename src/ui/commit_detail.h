@@ -9,6 +9,7 @@
 #include "../git/git_parser.h"
 #include "../git/git_runner.h"
 #include "../util/git_helpers.h"
+#include "../util/visible_rows.h"
 #include "../ecs/ui_imports.h"
 #include "diff_renderer.h"
 
@@ -205,6 +206,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_debug_name("commit_fixup_banner"));
     }
 
+    detailCache.messageVisibleRows = 0;
     if (!detailCache.commitDetailBody.empty()) {
         float bodyWidth = std::max(80.f, contentW - PAD * 2.f - 16.f);
         float fontSize = resolve_to_pixels(h720(14.f), static_cast<float>(afterhours::graphics::get_screen_height()));
@@ -226,9 +228,25 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 detailCache.messageExpanded = !detailCache.messageExpanded;
         }
         size_t count = detailCache.messageExpanded ? bodyLines.size() : std::min(previewLines, bodyLines.size());
-        for (size_t i = 0; i < count; ++i) {
+        auto origin = div(ctx, mk(scrollContainer.ent(), 596000), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), children()})
+            .with_flex_direction(FlexDirection::Column).with_no_wrap());
+        float rowHeight = resolve_to_pixels(h720(18.f), static_cast<float>(afterhours::graphics::get_screen_height()));
+        float scrollY = 0.f, viewport = layout.mainContent.height;
+        if (scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
+            const auto& scroll = scrollContainer.ent().get<afterhours::ui::HasScrollView>();
+            scrollY = scroll.scroll_offset.y;
+            if (scroll.viewport_or_zero().y > 0.f) viewport = scroll.viewport_or_zero().y;
+        }
+        auto rect = afterhours::ui::detail::apply_scroll_offset(origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
+        float bodyY = std::max(0.f, rect.y + scrollY - scrollContainer.ent().get<afterhours::ui::UIComponent>().rect().y);
+        auto [first, last] = visible_rows(count, rowHeight, bodyY, scrollY, viewport);
+        div(ctx, mk(origin.ent(), 0), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(static_cast<float>(first) * rowHeight)}));
+        for (size_t i = first; i < last; ++i) {
+            ++detailCache.messageVisibleRows;
             const auto& bl = bodyLines[i];
-            div(ctx, mk(scrollContainer.ent(), 594000 + static_cast<int>(i)),
+            div(ctx, mk(origin.ent(), 1 + static_cast<int>(i)),
                 ComponentConfig{}
                     .with_label(bl.empty() ? " " : bl)
                     .with_size(ComponentSize{percent(1.0f), h720(18.0f)})
@@ -243,6 +261,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_roundness(0.0f)
                     .with_debug_name("commit_body_line"));
         }
+        div(ctx, mk(origin.ent(), 1 + static_cast<int>(count)), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(static_cast<float>(count - last) * rowHeight)}));
     }
 
     auto metadataHeader = div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}
