@@ -1,0 +1,17 @@
+resize 1280 800
+wait_for_refresh
+click_text "Overview fixture"
+wait_for_refresh
+expect_text "FILES CHANGED"
+expect_text "Hide files"
+assert_ui file_summary_row hidden=false
+screenshot item_47_expanded
+click_ui commit_files_toggle
+wait_frames 2
+expect_text "Show files"
+screenshot item_47_collapsed
+click_ui commit_files_toggle
+wait_frames 2
+expect_text "Hide files"
+assert_ui file_summary_row hidden=false
+screenshot item_47_reexpanded

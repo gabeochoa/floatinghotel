@@ -83,6 +83,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         detailCache.messageLines.clear();
         detailCache.commitDetailAuthorEmail.clear();
         detailCache.commitDetailParents.clear();
+        detailCache.fileOverviewExpanded = true;
         detailCache.entry = {};
         detailCache.entry.hash = repo.selectedCommitHash;
         detailCache.entry.shortHash = repo.selectedCommitHash.substr(0, 7);
@@ -523,6 +524,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         summarySpan(2, "+" + std::to_string(totalAdd), theme::STATUS_ADDED);
         summarySpan(3, "-" + std::to_string(totalDel), theme::STATUS_DELETED);
         summarySpan(4, ")", theme::TEXT_SECONDARY);
+        if (button(ctx, mk(summaryRow.ent(), 5),
+                preset::Button(detailCache.fileOverviewExpanded ? "Hide files" : "Show files")
+                    .with_size(ComponentSize{children(), pixels(24)})
+                    .with_font_size(FontSize::Small)
+                    .with_debug_name("commit_files_toggle")))
+            detailCache.fileOverviewExpanded = !detailCache.fileOverviewExpanded;
 
         constexpr float STATS_W = 55.0f;
         constexpr float BAR_W = 50.0f;
@@ -535,7 +542,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         float fileNameW = contentW - PAD * 2 - BADGE_W - BAR_MARGIN - STATS_W - BAR_W - 8.0f * 4;
         if (fileNameW < 80.0f) fileNameW = 80.0f;
 
-        for (size_t fi = 0; fi < detailCache.commitDetailDiff.size(); ++fi) {
+        for (size_t fi = 0; detailCache.fileOverviewExpanded && fi < detailCache.commitDetailDiff.size(); ++fi) {
             auto& fd = detailCache.commitDetailDiff[fi];
 
             std::string badge = "M";
