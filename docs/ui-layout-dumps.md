@@ -27,3 +27,15 @@ is visible: ancestor clipping can hide part of a rendered node.
 
 Dumps can contain code, paths, commit messages, and draft comments. Treat them
 like screenshots of the repository and inspect them before sharing.
+
+## Label inset overrides
+
+Labels with an explicit inset include `text_inset` in logical pixels. This is
+the requested configuration, not a measured glyph bound. The current framework
+plain-text path can ignore that override when placing a line; see
+`docs/afterhours-gaps.md`. Use the paired screenshot to check actual text edges.
+
+`rect` includes all ancestor scroll offsets. `visible_rect` intersects that
+rectangle with ancestor clipping bounds and the window. A rendered node can
+have an empty visible rectangle. These bounds use the same helpers as native
+rendering and hit-testing, including nested scroll areas.

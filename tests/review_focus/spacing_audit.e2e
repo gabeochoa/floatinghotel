@@ -8,9 +8,13 @@ wait_for_refresh
 screenshot spacing_commit
 click_ui sidebar_working_files
 screenshot spacing_files
+mouse_move 190 180
+scroll_wheel 0 -1000
+wait_frames 10
 click_text main.cpp
 wait_for_refresh
 screenshot spacing_diff
+validate selected_file=main.cpp
 click_ui open_full_file
 wait_for_refresh
 screenshot spacing_source

@@ -600,6 +600,7 @@ static void app_init() {
                         ::ui::write_layout_snapshot(dir / (name + ".json"));
                         log_info("Screenshot: {}", path.string());
                     }));
+            sm.register_update_system(std::make_unique<::ui::HandleLayoutClick>());
             afterhours::testing::ui_commands::register_ui_commands<InputAction>(sm);
             afterhours::testing::register_unknown_handler(sm);
             afterhours::testing::register_cleanup(sm);
@@ -1274,7 +1275,7 @@ int main(int argc, char* argv[]) {
                 while (node.valid() && node.asE().has<afterhours::ui::UIComponent>()) {
                     auto& entity = node.asE();
                     if (entity.has<afterhours::ui::HasScrollView>()) {
-                        auto viewport = afterhours::testing::ui_commands::get_screen_rect(entity);
+                        auto viewport = ::ui::screen_rect(entity);
                         return row.rect.y >= viewport.y && row.rect.y + row.rect.height <= viewport.y + viewport.height
                             ? "true" : "false";
                     }

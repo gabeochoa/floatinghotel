@@ -23,9 +23,10 @@ for screenshot in screenshots:
     assert len(rendered) > 10
     assert any(node.get("name") == "sidebar_bg" for node in rendered)
     for node in nodes:
-        for field in ("rect", "padding", "margin"):
+        for field in ("rect", "visible_rect", "padding", "margin"):
             assert all(math.isfinite(value) for value in node[field].values()), node
         assert node["rect"]["width"] >= 0 and node["rect"]["height"] >= 0
+        assert node["visible_rect"]["width"] >= 0 and node["visible_rect"]["height"] >= 0
         assert math.isfinite(node["gap"])
     print(f"PASS {screenshot.name}: {len(rendered)} rendered nodes with measured spacing")
 
