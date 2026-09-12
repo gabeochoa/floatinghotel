@@ -46,24 +46,11 @@ inline void set_pending_toast(const std::string& msg) {
     if (menu) menu->pendingToast = msg;
 }
 
-// Placeholder toast for menu items that aren't wired up yet.
-inline void notImpl(const std::string& what) {
-    set_pending_toast(what + " is not yet implemented");
-}
-
 inline std::vector<Menu> createMenuBar() {
     std::vector<Menu> menus;
 
     // File menu
     menus.push_back({"File", {
-        MenuItem::item("Open Repository...", "Cmd+O", [] {
-            notImpl("Open Repository");
-        }),
-        MenuItem::separator(),
-        MenuItem::item("Close Tab", "Cmd+W", [] {
-            notImpl("Close Tab");
-        }),
-        MenuItem::separator(),
         MenuItem::item("Quit", "Cmd+Q", [] {
             afterhours::graphics::request_quit();
         }),
@@ -86,9 +73,6 @@ inline std::vector<Menu> createMenuBar() {
             Settings::get().set_copy_with_location(v);
             set_pending_toast(v ? "Copy now includes file:line"
                                 : "Copy now excludes location");
-        }),
-        MenuItem::item("Select All", "Cmd+A", [] {
-            notImpl("Select All");
         }),
         MenuItem::separator(),
         MenuItem::item("Find...", "Cmd+F", [] {
@@ -255,9 +239,6 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("Command Log", "", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->commandLogVisible = !l->commandLogVisible;
-        }),
-        MenuItem::item("About floatinghotel", "", [] {
-            notImpl("About floatinghotel");
         }),
     }});
 

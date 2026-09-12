@@ -1,0 +1,19 @@
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+click_text File
+screenshot item_49_file
+expect_text Quit
+expect_no_text "Open Repository..."
+expect_no_text "Close Tab"
+key ESCAPE
+click_text Edit
+screenshot item_49_edit
+expect_text "Find..."
+expect_no_text "Select All"
+key ESCAPE
+click_text Help
+screenshot item_49_help
+expect_text "Keyboard Shortcuts"
+expect_no_text "About floatinghotel"
+expect_no_text "not yet implemented"

@@ -1,23 +1,10 @@
-# Tier B stubs: Help menu items show "not yet implemented" toast
-# Verifies Keyboard Shortcuts and About show toast feedback.
 make_test_repo
-resize 1280 720
-wait_frames 5
-
-# H1: Keyboard Shortcuts shows toast
-click_text "More"
-wait_frames 5
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+click_text Help
+expect_no_text "About floatinghotel"
 click_text "Keyboard Shortcuts"
-wait_frames 5
-expect_text "not yet implemented"
-screenshot stub_toast_help_01_shortcuts
-
-wait_frames 5
-
-# H3: About floatinghotel shows toast
-click_text "More"
-wait_frames 5
-click_text "About floatinghotel"
-wait_frames 5
-expect_text "not yet implemented"
-screenshot stub_toast_help_02_about
+screenshot help_menu_shortcuts
+assert_ui shortcut_reference hidden=false
+expect_no_text "not yet implemented"
