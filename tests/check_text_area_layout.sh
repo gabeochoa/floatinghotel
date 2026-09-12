@@ -10,3 +10,7 @@ if grep -E "Layout (overflow|wrap): 'text_area_line'" "$capture_dir/native.log";
     printf 'Text-area lines exceeded the input bounds\n' >&2
     exit 1
 fi
+if grep -F 'query will miss' "$capture_dir/native.log"; then
+    printf 'UI test queries skipped pending entities\n' >&2
+    exit 1
+fi

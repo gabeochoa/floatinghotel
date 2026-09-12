@@ -717,7 +717,11 @@ See `output/text-highlight/review-pinned/tabs.log` and `zoom.log`.
 `force_merge` nor `ignore_temp_warning` is selected. The message does not identify
 the calling query or its component filters.
 
-No functional assertion fails in these checks. The responsible app query and
-whether it needs those pending entities have not been identified. No warning
-is suppressed and no framework workaround is applied. Including the query
-origin or filters in the diagnostic would make the caller actionable.
+The caller is now identified. A debugger breakpoint at `entity_query.h:654`
+stopped in the app's E2E UI-property getter at `main.cpp:1179`.
+`output/layout-followup/query-lldb-matched.log` preserves the stack.
+The app queries UI properties and pending commands between system ticks, so
+they can merge pending entities before querying. They now request `force_merge`
+instead of silently excluding those entities. The diagnostic is not suppressed.
+Including the query origin or filters upstream would still make this warning
+easier to trace without a debugger.

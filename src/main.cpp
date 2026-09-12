@@ -775,7 +775,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
 
         // A surviving pending command (e.g. expect_text retrying) needs a
         // render pass to update VisibleTextRegistry before it can succeed.
-        if (afterhours::EntityQuery()
+        if (afterhours::EntityQuery({.force_merge = true})
                 .whereHasComponent<afterhours::testing::PendingE2ECommand>()
                 .has_values()) break;
     }
@@ -1176,7 +1176,7 @@ int main(int argc, char* argv[]) {
             auto name = key.substr(key.find(':') + 1);
             bool found = false;
             float height = 0.f;
-            afterhours::EntityQuery().whereHasComponent<afterhours::ui::UIComponentDebug>()
+            afterhours::EntityQuery({.force_merge = true}).whereHasComponent<afterhours::ui::UIComponentDebug>()
                 .whereHasComponent<afterhours::ui::UIComponent>()
                 .for_each_stream([&](afterhours::Entity& entity) {
                     const auto& debug = entity.get<afterhours::ui::UIComponentDebug>();
@@ -1190,7 +1190,7 @@ int main(int argc, char* argv[]) {
             auto name = key == "footer_fixed" ? "status_bar_bg" : key.substr(15);
             bool found = false;
             bool inside = true;
-            afterhours::EntityQuery().whereHasComponent<afterhours::ui::UIComponentDebug>()
+            afterhours::EntityQuery({.force_merge = true}).whereHasComponent<afterhours::ui::UIComponentDebug>()
                 .whereHasComponent<afterhours::ui::UIComponent>()
                 .for_each_stream([&](afterhours::Entity& entity) {
                     const auto& debug = entity.get<afterhours::ui::UIComponentDebug>();

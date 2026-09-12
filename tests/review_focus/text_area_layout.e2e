@@ -17,6 +17,8 @@ wait_frames 2
 key CMD+EQUAL
 wait_frames 5
 screenshot text_area_140
+validate ui_present:commit_msg_input=true
+validate ui_in_viewport:commit_msg_input=true
 validate commit_message=Draft commit message
 dump_ui text_area_geometry text_area_field
 key CMD+0
