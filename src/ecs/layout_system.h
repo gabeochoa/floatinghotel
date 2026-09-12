@@ -117,7 +117,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         float menuBarW = sidebarOnly ? scaledSidebarW : sw;
         layout.menuBar = {0, actualTabStripH, menuBarW, menuH};
 
-        float dividerW = rpxW(4.0f);
+        float dividerW = 12.f;
 
         float topY = actualTabStripH + menuH;
 

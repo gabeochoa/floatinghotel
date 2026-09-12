@@ -1,0 +1,11 @@
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+screenshot followup_06_divider
+assert_ui sidebar_divider w=12
+assert_ui main_content x=352
+resize 1000 720
+screenshot followup_06_resized
+assert_ui sidebar_divider w=12
+assert_ui main_content x=352

@@ -911,8 +911,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (layout.commandLogVisible) {
             dividerH += layout.commandLog.height;
         }
-        float dividerY = layout.toolbar.y;
-        float fullDividerH = dividerH + (layout.mainContent.y - layout.toolbar.y);
+        float dividerY = layout.mainContent.y;
+        float fullDividerH = dividerH;
         // imm::divider handles the drag: it reports this frame's travel in
         // rect() space, which is already letterbox-corrected. The old form
         // read the raw backend mouse position and undid letterboxing by hand,
@@ -920,10 +920,12 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         auto vDivider = afterhours::ui::imm::divider(
             ctx, mk(uiRoot, 3100), afterhours::ui::Axis::X,
             ComponentConfig{}
-                .with_size(ComponentSize{pixels(2), pixels(fullDividerH)})
+                .with_size(ComponentSize{pixels(12), pixels(fullDividerH)})
                 .with_absolute_position()
                 .with_translate(layout.sidebar.width, dividerY)
-                .with_custom_background(theme::BORDER)
+                .with_custom_background(theme::WINDOW_BG)
+                .with_border_left(theme::BORDER)
+                .with_border_right(theme::BORDER)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_divider"));
 
