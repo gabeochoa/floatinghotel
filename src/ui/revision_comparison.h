@@ -13,7 +13,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         (repo.comparisonContext != repo.diffContext || repo.comparisonIgnoreWhitespace != repo.ignoreWhitespace)) {
         auto [base, target] = diff_revisions(repo.comparisonScope);
         repo.comparisonFuture = git::git_compare_async(repo.repoPath, base, target, false,
-            repo.diffContext, repo.ignoreWhitespace).share();
+            repo.diffContext, repo.ignoreWhitespace);
         repo.comparisonContext = repo.diffContext;
         repo.comparisonIgnoreWhitespace = repo.ignoreWhitespace;
     }
@@ -50,7 +50,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         repo.comparisonIgnoreWhitespace = repo.ignoreWhitespace;
         if (repo.comparisonBase.empty() || repo.comparisonTarget.empty()) repo.comparisonError = "Enter both revisions (branch, tag, or commit).";
         else repo.comparisonFuture = git::git_compare_async(repo.repoPath, repo.comparisonBase, repo.comparisonTarget,
-            repo.comparisonMergeBase, repo.diffContext, repo.ignoreWhitespace).share();
+            repo.comparisonMergeBase, repo.diffContext, repo.ignoreWhitespace);
     }
     if (button(ctx, mk(actions.ent(), 2), preset::Button("Close")
             .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.comparisonOpen = false;

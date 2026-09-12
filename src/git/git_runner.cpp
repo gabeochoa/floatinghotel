@@ -20,7 +20,7 @@ static std::mutex g_log_mutex;
 // Reads take the lock shared so the five startup commands overlap: on a
 // loaded machine each spawn costs seconds, and running them back to back put
 // the commit log 7 s behind the window and the last command 17 s behind.
-static std::shared_mutex g_git_mutex;
+static std::shared_timed_mutex g_git_mutex;
 
 // Commands that never touch the index or refs, so they may overlap each other
 // and only need to be kept apart from writes.
@@ -78,22 +78,19 @@ std::string build_command_string(
 // Run a sync git_* function on a detached background thread. Keeps the async
 // wrappers as one-liners so argument lists live in one place (the sync fns).
 template <class Fn, class... Args>
-std::future<GitResult> spawn(Fn fn, Args... args) {
-    std::packaged_task<GitResult()> task([=] { return fn(args...); });
-    auto fut = task.get_future();
-    std::thread(std::move(task)).detach();
-    return fut;
+async_work::Task<GitResult> spawn(Fn fn, Args... args) {
+    return async_work::launch([=](std::stop_token stop) { return fn(args..., stop); });
 }
 
 }  // namespace
 
-std::future<RevisionComparison> git_compare_async(const std::string& repo,
+async_work::Task<RevisionComparison> git_compare_async(const std::string& repo,
     const std::string& base, const std::string& target, bool mergeBase,
     int context, bool ignoreWhitespace) {
-    std::packaged_task<RevisionComparison()> task([=] {
+    return async_work::launch([=](std::stop_token stop) {
         RevisionComparison out;
         auto resolve = [&](const std::string& revision, std::string& hash) {
-            out.patch = git_run(repo, {"rev-parse", "--verify", "--end-of-options", revision + "^{commit}"});
+            out.patch = git_run(repo, {"rev-parse", "--verify", "--end-of-options", revision + "^{commit}"}, stop);
             if (!out.patch.success()) return false;
             hash = out.patch.stdout_str();
             while (!hash.empty() && (hash.back() == '\n' || hash.back() == '\r')) hash.pop_back();
@@ -101,7 +98,7 @@ std::future<RevisionComparison> git_compare_async(const std::string& repo,
         };
         if (!resolve(base, out.base) || !resolve(target, out.target)) return out;
         if (mergeBase) {
-            out.patch = git_run(repo, {"merge-base", out.base, out.target});
+            out.patch = git_run(repo, {"merge-base", out.base, out.target}, stop);
             if (!out.patch.success()) return out;
             out.base = out.patch.stdout_str();
             while (!out.base.empty() && (out.base.back() == '\n' || out.base.back() == '\r')) out.base.pop_back();
@@ -109,16 +106,13 @@ std::future<RevisionComparison> git_compare_async(const std::string& repo,
         std::vector<std::string> args{"diff", "--no-ext-diff", "--find-renames", "--unified=" + std::to_string(context)};
         if (ignoreWhitespace) args.push_back("--ignore-all-space");
         args.insert(args.end(), {out.base, out.target, "--"});
-        out.patch = git_run(repo, args);
+        out.patch = git_run(repo, args, stop);
         return out;
     });
-    auto future = task.get_future();
-    std::thread(std::move(task)).detach();
-    return future;
 }
 
 GitResult git_run(const std::string& repo_path,
-                  const std::vector<std::string>& args) {
+                  const std::vector<std::string>& args, std::stop_token stop) {
     std::vector<std::string> cmd = {"git"};
     if (!repo_path.empty()) {
         cmd.push_back("-C");
@@ -133,11 +127,18 @@ GitResult git_run(const std::string& repo_path,
     const auto t0 = clock::now();
     clock::time_point t1;
     if (is_read_only(args)) {
-        std::shared_lock<std::shared_mutex> lock(g_git_mutex);
+        std::shared_lock<std::shared_timed_mutex> lock(g_git_mutex, std::defer_lock);
+        while (!lock.try_lock_for(std::chrono::milliseconds(20))) {
+            if (stop.stop_requested()) {
+                result.raw.cancelled = true;
+                result.raw.stderr_str = "Read cancelled";
+                return result;
+            }
+        }
         t1 = clock::now();
-        result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
+        result.raw = run_process("", cmd, GIT_TIMEOUT_MS, stop);
     } else {
-        std::unique_lock<std::shared_mutex> lock(g_git_mutex);
+        std::unique_lock<std::shared_timed_mutex> lock(g_git_mutex);
         t1 = clock::now();
         result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
     }
@@ -157,14 +158,12 @@ GitResult git_run(const std::string& repo_path,
     return result;
 }
 
-std::future<GitResult> git_run_async(
+async_work::Task<GitResult> git_run_async(
     const std::string& repo_path,
     const std::vector<std::string>& args) {
-    std::packaged_task<GitResult()> task(
-        [repo_path, args]() { return git_run(repo_path, args); });
-    auto future = task.get_future();
-    std::thread(std::move(task)).detach();
-    return future;
+    return async_work::launch([repo_path, args](std::stop_token stop) {
+        return git_run(repo_path, args, stop);
+    });
 }
 
 // --- Startup prefetch ---
@@ -196,12 +195,12 @@ bool take_prefetched(const std::string& repo_path, PrefetchedReads& out) {
 
 // --- Convenience wrappers ---
 
-GitResult git_status(const std::string& repo_path) {
+GitResult git_status(const std::string& repo_path, std::stop_token stop) {
     return git_run(repo_path,
-                   {"status", "--porcelain=v2", "--branch"});
+                   {"status", "--porcelain=v2", "--branch"}, stop);
 }
 
-GitResult git_log(const std::string& repo_path, int max_count, int skip) {
+GitResult git_log(const std::string& repo_path, int max_count, int skip, std::stop_token stop) {
     // Machine-readable format with NUL separators:
     // hash\0shortHash\0subject\0author\0date\0decorations\0parentHashes
     std::vector<std::string> args = {
@@ -215,11 +214,11 @@ GitResult git_log(const std::string& repo_path, int max_count, int skip) {
     if (skip > 0) {
         args.push_back("--skip=" + std::to_string(skip));
     }
-    return git_run(repo_path, args);
+    return git_run(repo_path, args, stop);
 }
 
-GitResult git_diff(const std::string& repo_path) {
-    return git_run(repo_path, {"diff"});
+GitResult git_diff(const std::string& repo_path, std::stop_token stop) {
+    return git_run(repo_path, {"diff"}, stop);
 }
 
 GitResult git_commit(const std::string& repo_path,
@@ -227,18 +226,18 @@ GitResult git_commit(const std::string& repo_path,
     return git_run(repo_path, {"commit", "-m", message});
 }
 
-GitResult git_branch_list(const std::string& repo_path) {
+GitResult git_branch_list(const std::string& repo_path, std::stop_token stop) {
     // Machine-readable branch listing:
     // refname|objectname|HEAD|upstream|upstream_track
     return git_run(
         repo_path,
         {"branch", "--list",
          "--format=%(refname:short)|%(objectname:short)"
-                   "|%(HEAD)|%(upstream:short)|%(upstream:track)"});
+                   "|%(HEAD)|%(upstream:short)|%(upstream:track)"}, stop);
 }
 
-GitResult git_rev_parse_head(const std::string& repo_path) {
-    return git_run(repo_path, {"rev-parse", "HEAD"});
+GitResult git_rev_parse_head(const std::string& repo_path, std::stop_token stop) {
+    return git_run(repo_path, {"rev-parse", "HEAD"}, stop);
 }
 
 GitResult git_show(const std::string& repo_path,
@@ -258,25 +257,25 @@ GitResult git_show_commit_info(const std::string& repo_path,
 // --- Async convenience wrappers ---
 // Each runs its sync counterpart on a background thread (see spawn()).
 
-std::future<GitResult> git_status_async(const std::string& repo_path) {
+async_work::Task<GitResult> git_status_async(const std::string& repo_path) {
     return spawn(git_status, repo_path);
 }
 
-std::future<GitResult> git_log_async(const std::string& repo_path,
+async_work::Task<GitResult> git_log_async(const std::string& repo_path,
                                       int max_count, int skip) {
     return spawn(git_log, repo_path, max_count, skip);
 }
 
-std::future<GitResult> git_diff_async(const std::string& repo_path) {
+async_work::Task<GitResult> git_diff_async(const std::string& repo_path) {
     return spawn(git_diff, repo_path);
 }
 
-std::future<GitResult> git_branch_list_async(
+async_work::Task<GitResult> git_branch_list_async(
     const std::string& repo_path) {
     return spawn(git_branch_list, repo_path);
 }
 
-std::future<GitResult> git_rev_parse_head_async(
+async_work::Task<GitResult> git_rev_parse_head_async(
     const std::string& repo_path) {
     return spawn(git_rev_parse_head, repo_path);
 }

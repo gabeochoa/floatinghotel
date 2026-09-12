@@ -31,8 +31,10 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         .with_size(ComponentSize{percent(1.f), pixels(34)})
         .with_flex_direction(FlexDirection::Row).with_debug_name("full_file_header"));
     if (button(ctx, mk(header.ent(), 0), preset::Button("Back to diff")
-            .with_size(ComponentSize{pixels(110), pixels(30)}).with_debug_name("full_file_back")))
+            .with_size(ComponentSize{pixels(110), pixels(30)}).with_debug_name("full_file_back"))) {
         repo.fullFilePath.clear();
+        repo.fullFileFuture = {};
+    }
     div(ctx, mk(header.ent(), 1), ComponentConfig{}
         .with_label(repo.fullFilePath + " @ " + (repo.fullFileRevision.empty() ? "working tree" : repo.fullFileRevision))
         .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Small)
@@ -50,7 +52,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             std::vector<std::string> args{"blame", "--line-porcelain", "-L", std::to_string(selectedLine) + "," + std::to_string(selectedLine)};
             if (!repo.fullFileRevision.empty()) args.push_back(repo.fullFileRevision);
             args.insert(args.end(), {"--", repo.fullFilePath});
-            repo.blameFuture = git::git_run_async(repo.repoPath, args).share();
+            repo.blameFuture = git::git_run_async(repo.repoPath, args);
             repo.blameLine = {};
             repo.blameError.clear();
             repo.blameOpen = true;

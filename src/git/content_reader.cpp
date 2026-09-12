@@ -1,6 +1,7 @@
 #include "content_reader.h"
 
 #include <filesystem>
+#include <array>
 #include <fstream>
 #include <iterator>
 #include <sstream>
@@ -26,33 +27,36 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
     return file;
 }
 
-ecs::FullFileContent read_file(const FileRequest& request) {
+ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop) {
     ecs::FullFileContent content;
+    if (stop.stop_requested()) { content.error = "File load cancelled"; return content; }
     if (request.revision.empty()) {
         std::ifstream input(std::filesystem::path(request.repo) / request.path, std::ios::binary);
         if (!input) content.error = "Unable to read working-tree file";
         else {
-            content.raw.assign(std::istreambuf_iterator<char>(input), {});
+            std::array<char, 65536> buffer;
+            while (input && !stop.stop_requested()) {
+                input.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+                content.raw.append(buffer.data(), static_cast<size_t>(input.gcount()));
+            }
             if (input.bad()) content.error = "Unable to finish reading working-tree file";
         }
     } else {
         std::string spec = request.revision == "INDEX" ? ":" + request.path
                           : request.revision + ":" + request.path;
-        auto result = git_run(request.repo, {"show", spec});
+        auto result = git_run(request.repo, {"show", spec}, stop);
         if (result.success()) content.raw = std::move(result.raw.stdout_str);
         else content.error = result.stderr_str();
     }
+    if (stop.stop_requested()) content.error = "File load cancelled";
     if (content.error.empty()) content.diff = parse_complete_file(request.path, content.raw);
     return content;
 }
 
-std::future<ecs::FullFileContent> read_file_async(FileRequest request) {
-    std::packaged_task<ecs::FullFileContent()> task([request = std::move(request)] {
-        return read_file(request);
+async_work::Task<ecs::FullFileContent> read_file_async(FileRequest request) {
+    return async_work::launch([request = std::move(request)](std::stop_token stop) {
+        return read_file(request, stop);
     });
-    auto result = task.get_future();
-    std::thread(std::move(task)).detach();
-    return result;
 }
 
 }

@@ -91,9 +91,9 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         std::vector<std::string> diffArgs{"show", repo.selectedCommitHash, "--format="};
         diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
         if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
-        detailCache.patchFuture = git::git_run_async(repo.repoPath, diffArgs).share();
+        detailCache.patchFuture = git::git_run_async(repo.repoPath, diffArgs);
         detailCache.infoFuture = git::git_run_async(repo.repoPath, {"show", repo.selectedCommitHash, "--no-patch",
-            "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"}).share();
+            "--format=%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00%D"});
         detailCache.cachedCommitHash = repo.selectedCommitHash;
         detailCache.cachedRepoPath = repo.repoPath;
     }

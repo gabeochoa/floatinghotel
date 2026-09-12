@@ -173,7 +173,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
     std::string fullFileBytes;
-    std::future<FullFileContent> fullFileFuture;
+    async_work::Task<FullFileContent> fullFileFuture;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;
@@ -185,7 +185,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string repoSearchQuery;
     std::string repoSearchPath;
     std::string repoSearchError;
-    std::shared_future<git::GitResult> repoSearchFuture;
+    async_work::Task<git::GitResult> repoSearchFuture;
     std::vector<SearchMatch> repoSearchResults;
     int fullFileTargetLine = 0;
     int fullFileNavigateFrames = 0;
@@ -194,23 +194,23 @@ struct RepoComponent : public afterhours::BaseComponent {
     std::string fileHistoryRevision;
     std::string fileHistoryError;
     int fileHistoryLimit = 200;
-    std::shared_future<git::GitResult> fileHistoryFuture;
+    async_work::Task<git::GitResult> fileHistoryFuture;
     std::vector<CommitEntry> fileHistoryEntries;
-    std::shared_future<git::GitResult> blameFuture;
+    async_work::Task<git::GitResult> blameFuture;
     BlameLine blameLine;
     std::string blameError;
     bool blameOpen = false;
     bool commitSearchOpen = false;
     git::HistoryQuery commitSearchQuery;
     int commitSearchLimit = 200;
-    std::shared_future<git::GitResult> commitSearchFuture;
+    async_work::Task<git::GitResult> commitSearchFuture;
     std::vector<CommitEntry> commitSearchEntries;
     std::string commitSearchError;
     bool comparisonOpen = false;
     std::string comparisonBase;
     std::string comparisonTarget;
     bool comparisonMergeBase = false;
-    std::shared_future<git::RevisionComparison> comparisonFuture;
+    async_work::Task<git::RevisionComparison> comparisonFuture;
     std::vector<FileDiff> comparisonDiff;
     std::string comparisonScope;
     std::string comparisonError;
@@ -224,8 +224,8 @@ struct CommitDetailCache : public afterhours::BaseComponent {
     std::string cachedCommitHash;
     std::string cachedRepoPath;
     CommitEntry entry;
-    std::shared_future<git::GitResult> patchFuture;
-    std::shared_future<git::GitResult> infoFuture;
+    async_work::Task<git::GitResult> patchFuture;
+    async_work::Task<git::GitResult> infoFuture;
     std::vector<FileDiff> commitDetailDiff;
     std::string commitDetailBody;
     bool messageExpanded = false;
@@ -671,7 +671,7 @@ struct TabStripComponent : public afterhours::BaseComponent {
 // completion, toast notifications, and refresh triggers.
 struct PendingNetworkOp {
     std::string label;
-    std::future<git::GitResult> future;
+    async_work::Task<git::GitResult> future;
     afterhours::EntityID tabId{0};
 };
 

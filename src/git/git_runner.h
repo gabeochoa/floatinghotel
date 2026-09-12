@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "../util/process.h"
+#include "../util/async_task.h"
 
 namespace git {
 
@@ -25,7 +26,7 @@ struct RevisionComparison {
     std::string target;
 };
 
-std::future<RevisionComparison> git_compare_async(const std::string& repo,
+async_work::Task<RevisionComparison> git_compare_async(const std::string& repo,
     const std::string& base, const std::string& target, bool mergeBase,
     int context, bool ignoreWhitespace);
 
@@ -41,7 +42,7 @@ void set_log_callback(LogCallback cb);
 // Synchronous git execution
 // Runs: git -C <repo_path> <args...>
 GitResult git_run(const std::string& repo_path,
-                  const std::vector<std::string>& args);
+                  const std::vector<std::string>& args, std::stop_token stop = {});
 
 // Asynchronous git execution (for push/pull/fetch)
 // Reads started before the window exists, adopted by the first refresh.
@@ -51,10 +52,10 @@ GitResult git_run(const std::string& repo_path,
 // seconds on a busy machine. Kicking these off from main() hides their whole
 // cost behind that wait.
 struct PrefetchedReads {
-    std::optional<std::future<GitResult>> status;
-    std::optional<std::future<GitResult>> log;
-    std::optional<std::future<GitResult>> diff;
-    std::optional<std::future<GitResult>> branches;
+    std::optional<async_work::Task<GitResult>> status;
+    std::optional<async_work::Task<GitResult>> log;
+    std::optional<async_work::Task<GitResult>> diff;
+    std::optional<async_work::Task<GitResult>> branches;
 };
 
 // Start the startup reads for repo_path. Cheap to call for a path already
@@ -65,33 +66,33 @@ void prefetch_repo(const std::string& repo_path);
 // later refresh spawns fresh commands rather than replaying stale ones.
 bool take_prefetched(const std::string& repo_path, PrefetchedReads& out);
 
-std::future<GitResult> git_run_async(
+async_work::Task<GitResult> git_run_async(
     const std::string& repo_path,
     const std::vector<std::string>& args);
 
 // --- Convenience wrappers ---
 
 // git status --porcelain=v2
-GitResult git_status(const std::string& repo_path);
+GitResult git_status(const std::string& repo_path, std::stop_token stop = {});
 
 // git log with machine-readable NUL-separated format
 // max_count: number of commits to fetch (0 = unlimited)
 // skip: number of commits to skip (for pagination)
 GitResult git_log(const std::string& repo_path, int max_count = 100,
-                  int skip = 0);
+                  int skip = 0, std::stop_token stop = {});
 
 // git diff (unstaged changes)
-GitResult git_diff(const std::string& repo_path);
+GitResult git_diff(const std::string& repo_path, std::stop_token stop = {});
 
 // git commit -m <message>
 GitResult git_commit(const std::string& repo_path,
                      const std::string& message);
 
 // git branch --list --format (machine-readable)
-GitResult git_branch_list(const std::string& repo_path);
+GitResult git_branch_list(const std::string& repo_path, std::stop_token stop = {});
 
 // git rev-parse HEAD (get current commit hash)
-GitResult git_rev_parse_head(const std::string& repo_path);
+GitResult git_rev_parse_head(const std::string& repo_path, std::stop_token stop = {});
 
 // git show <hash> --format="" (diff for a specific commit)
 GitResult git_show(const std::string& repo_path,
@@ -108,16 +109,16 @@ GitResult git_show_commit_info(const std::string& repo_path,
 // completes.  Poll with wait_for(0s) from the main/UI thread to avoid
 // blocking.
 
-std::future<GitResult> git_status_async(const std::string& repo_path);
+async_work::Task<GitResult> git_status_async(const std::string& repo_path);
 
-std::future<GitResult> git_log_async(const std::string& repo_path,
+async_work::Task<GitResult> git_log_async(const std::string& repo_path,
                                       int max_count = 100, int skip = 0);
 
-std::future<GitResult> git_diff_async(const std::string& repo_path);
+async_work::Task<GitResult> git_diff_async(const std::string& repo_path);
 
-std::future<GitResult> git_branch_list_async(const std::string& repo_path);
+async_work::Task<GitResult> git_branch_list_async(const std::string& repo_path);
 
-std::future<GitResult> git_rev_parse_head_async(
+async_work::Task<GitResult> git_rev_parse_head_async(
     const std::string& repo_path);
 
 }  // namespace git

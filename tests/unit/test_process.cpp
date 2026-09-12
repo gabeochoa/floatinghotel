@@ -8,6 +8,10 @@
 #include "../../src/util/process.h"
 
 #include <filesystem>
+#include <fstream>
+#include <signal.h>
+#include <thread>
+#include <unistd.h>
 
 TEST(process_empty_args) {
     auto r = run_process("", {});
@@ -82,6 +86,58 @@ TEST(process_async_basic) {
     auto r = future.get();
     ASSERT_TRUE(r.success());
     ASSERT_STREQ(r.stdout_str, "async_test\n");
+}
+
+TEST(process_timeout_still_applies_after_output_closes) {
+    auto result = run_process("", {"sh", "-c", "exec 1>&- 2>&-; sleep 2"}, 50);
+    ASSERT_FALSE(result.success());
+    ASSERT_TRUE(result.stderr_str.find("timed out") != std::string::npos);
+}
+
+TEST(process_cancelled_before_spawn) {
+    std::stop_source stop;
+    stop.request_stop();
+    auto result = run_process("", {"printf", "must not run"}, 1000, stop.get_token());
+    ASSERT_TRUE(result.cancelled);
+    ASSERT_FALSE(result.success());
+    ASSERT_TRUE(result.stdout_str.empty());
+}
+
+TEST(process_cancellation_kills_descendants_and_reaps_the_child) {
+    char directory[] = "/tmp/fh-cancel-test.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    auto marker = std::filesystem::path(path) / "child";
+    std::stop_source stop;
+    auto pending = std::async(std::launch::async, [&, token = stop.get_token()] {
+        return run_process(path, {"sh", "-c", "sleep 10 & printf '%s' $! > child; wait"}, 10000, token);
+    });
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!std::filesystem::exists(marker) && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    pid_t child = 0;
+    { std::ifstream input(marker); input >> child; }
+    stop.request_stop();
+    ASSERT_EQ(pending.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    ASSERT_TRUE(pending.get().cancelled);
+    ASSERT_TRUE(child > 0);
+    deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+    while (kill(child, 0) == 0 && std::chrono::steady_clock::now() < deadline)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    ASSERT_EQ(kill(child, 0), -1);
+    std::filesystem::remove(marker);
+    std::filesystem::remove(path);
+}
+
+TEST(process_cancel_after_output_closes) {
+    std::stop_source stop;
+    auto pending = std::async(std::launch::async, [token = stop.get_token()] {
+        return run_process("", {"sh", "-c", "exec 1>&- 2>&-; sleep 5"}, 10000, token);
+    });
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    stop.request_stop();
+    ASSERT_EQ(pending.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    ASSERT_TRUE(pending.get().cancelled);
 }
 
 int main() {

@@ -391,6 +391,24 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("main_content"));
 
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
+        if (hasRepo) {
+            if (repoPtr->fullFilePath.empty()) {
+                repoPtr->fullFileFuture = {};
+                repoPtr->blameFuture = {};
+            }
+            if (!repoPtr->repoSearchOpen) repoPtr->repoSearchFuture = {};
+            if (!repoPtr->fileHistoryOpen) repoPtr->fileHistoryFuture = {};
+            if (!repoPtr->commitSearchOpen) repoPtr->commitSearchFuture = {};
+            if (!repoPtr->comparisonOpen) repoPtr->comparisonFuture = {};
+            if (repoPtr->selectedCommitHash.empty()) {
+                if (auto* detail = find_singleton<CommitDetailCache, ActiveTab>();
+                    detail && (detail->patchFuture.valid() || detail->infoFuture.valid())) {
+                    detail->patchFuture = {};
+                    detail->infoFuture = {};
+                    detail->cachedCommitHash.clear();
+                }
+            }
+        }
 
         // Vim-style chunk cursor: j/k/n move, a approve, c comment. Gated on
         // no text input being focused so it never eats typed characters.

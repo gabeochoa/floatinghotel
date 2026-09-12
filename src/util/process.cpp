@@ -8,6 +8,7 @@
 #include <unistd.h>
 
 #include <array>
+#include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cstring>
@@ -25,8 +26,14 @@ void set_nonblocking(int fd) {
 
 ProcessResult run_process(const std::string& working_dir,
                           const std::vector<std::string>& args,
-                          int timeout_ms) {
+                          int timeout_ms, std::stop_token stop) {
     ProcessResult result;
+
+    if (stop.stop_requested()) {
+        result.cancelled = true;
+        result.stderr_str = "Read cancelled";
+        return result;
+    }
 
     if (args.empty()) {
         result.stderr_str = "No command specified";
@@ -35,7 +42,13 @@ ProcessResult run_process(const std::string& working_dir,
 
     int stdout_pipe[2];
     int stderr_pipe[2];
-    if (pipe(stdout_pipe) != 0 || pipe(stderr_pipe) != 0) {
+    if (pipe(stdout_pipe) != 0) {
+        result.stderr_str = "Failed to create pipes";
+        return result;
+    }
+    if (pipe(stderr_pipe) != 0) {
+        close(stdout_pipe[0]);
+        close(stdout_pipe[1]);
         result.stderr_str = "Failed to create pipes";
         return result;
     }
@@ -60,9 +73,12 @@ ProcessResult run_process(const std::string& working_dir,
 
     posix_spawnattr_t attr;
     posix_spawnattr_init(&attr);
+    short flags = POSIX_SPAWN_SETPGROUP;
 #ifdef __APPLE__
-    posix_spawnattr_setflags(&attr, POSIX_SPAWN_CLOEXEC_DEFAULT);
+    flags |= POSIX_SPAWN_CLOEXEC_DEFAULT;
 #endif
+    posix_spawnattr_setflags(&attr, flags);
+    posix_spawnattr_setpgroup(&attr, 0);
 
     if (!working_dir.empty()) {
         posix_spawn_file_actions_addchdir(&actions, working_dir.c_str());
@@ -101,27 +117,41 @@ ProcessResult run_process(const std::string& working_dir,
     using clock = std::chrono::steady_clock;
     const auto deadline = clock::now() + std::chrono::milliseconds(timeout_ms);
     bool timed_out = false;
+    bool poll_failed = false;
     bool open_out = true, open_err = true;
+    bool exited = false;
+    int status = 0;
     std::array<char, 4096> buf;
 
     auto drain = [&](int fd, std::string& out, bool& open) {
-        ssize_t n;
-        while ((n = read(fd, buf.data(), buf.size())) > 0)
+        ssize_t n = -1;
+        while (!stop.stop_requested() && (n = read(fd, buf.data(), buf.size())) > 0)
+        {
             out.append(buf.data(), static_cast<size_t>(n));
+            if (timeout_ms > 0 && clock::now() >= deadline) { timed_out = true; return; }
+        }
+        if (stop.stop_requested()) return;
         if (n == 0)
             open = false;  // EOF: write end closed
         else if (n < 0 && errno != EAGAIN && errno != EWOULDBLOCK)
             open = false;
     };
 
-    while (open_out || open_err) {
-        int wait_ms = -1;  // timeout_ms == 0 -> block indefinitely
+    while (open_out || open_err || !exited) {
+        if (timed_out) break;
+        if (stop.stop_requested()) { result.cancelled = true; break; }
+        if (!exited) {
+            auto waited = waitpid(pid, &status, WNOHANG);
+            exited = waited == pid || (waited < 0 && errno == ECHILD);
+        }
+        if (!open_out && !open_err && exited) break;
+        int wait_ms = 20;
         if (timeout_ms > 0) {
             auto rem = std::chrono::duration_cast<std::chrono::milliseconds>(
                            deadline - clock::now())
                            .count();
             if (rem <= 0) { timed_out = true; break; }
-            wait_ms = static_cast<int>(rem);
+            wait_ms = std::min(wait_ms, static_cast<int>(rem));
         }
 
         struct pollfd pfds[2];
@@ -129,9 +159,11 @@ ProcessResult run_process(const std::string& working_dir,
         pfds[1] = {open_err ? stderr_pipe[0] : -1, POLLIN, 0};
 
         int pr = poll(pfds, 2, wait_ms);
-        if (pr == 0) { timed_out = true; break; }
+        if (pr == 0) continue;
         if (pr < 0) {
             if (errno == EINTR) continue;
+            poll_failed = true;
+            result.stderr_str = std::string("poll failed: ") + strerror(errno);
             break;
         }
         if (open_out && (pfds[0].revents & (POLLIN | POLLHUP)))
@@ -140,19 +172,18 @@ ProcessResult run_process(const std::string& working_dir,
             drain(stderr_pipe[0], result.stderr_str, open_err);
     }
 
-    if (timed_out) {
-        kill(pid, SIGKILL);
-        result.stderr_str =
-            "timed out after " + std::to_string(timeout_ms / 1000) + "s";
+    if (timed_out || result.cancelled || poll_failed) {
+        kill(-pid, SIGKILL);
+        if (!poll_failed) result.stderr_str = result.cancelled ? "Read cancelled" :
+            "timed out after " + std::to_string(timeout_ms) + "ms";
     }
 
     close(stdout_pipe[0]);
     close(stderr_pipe[0]);
 
-    int status;
-    waitpid(pid, &status, 0);  // reap; returns promptly after SIGKILL
+    if (!exited) while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
     result.exit_code =
-        timed_out ? -1 : (WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+        (timed_out || result.cancelled || poll_failed) ? -1 : (WIFEXITED(status) ? WEXITSTATUS(status) : -1);
 
     posix_spawn_file_actions_destroy(&actions);
     return result;

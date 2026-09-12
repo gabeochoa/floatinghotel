@@ -184,12 +184,12 @@ private:
     std::unordered_map<afterhours::EntityID, std::chrono::steady_clock::time_point> refreshStart_;
 
     struct PendingFutures {
-        std::optional<std::future<git::GitResult>> files;
-        std::optional<std::future<git::GitResult>> status;
-        std::optional<std::future<git::GitResult>> log;
-        std::optional<std::future<git::GitResult>> diff;
-        std::optional<std::future<git::GitResult>> stagedDiff;
-        std::optional<std::future<git::GitResult>> branches;
+        std::optional<async_work::Task<git::GitResult>> files;
+        std::optional<async_work::Task<git::GitResult>> status;
+        std::optional<async_work::Task<git::GitResult>> log;
+        std::optional<async_work::Task<git::GitResult>> diff;
+        std::optional<async_work::Task<git::GitResult>> stagedDiff;
+        std::optional<async_work::Task<git::GitResult>> branches;
     };
 
     std::unordered_map<afterhours::EntityID, PendingFutures> pending_;

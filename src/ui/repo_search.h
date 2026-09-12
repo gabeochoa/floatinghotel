@@ -32,7 +32,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         repo.repoSearchError.clear();
         repo.repoSearchPath = repo.repoPath;
         repo.repoSearchFuture = git::git_run_async(repo.repoPath,
-            {"grep", "-n", "-I", "-z", "--untracked", "--exclude-standard", "--full-name", "-F", "-e", repo.repoSearchQuery, "--"}).share();
+            {"grep", "-n", "-I", "-z", "--untracked", "--exclude-standard", "--full-name", "-F", "-e", repo.repoSearchQuery, "--"});
     }
     std::string status = repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchResults.empty() ? "No matches" :
         std::to_string(repo.repoSearchResults.size()) + (repo.repoSearchResults.size() == 5000 ? " matches (first 5000 shown)" : " matches");

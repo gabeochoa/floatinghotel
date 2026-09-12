@@ -11,7 +11,7 @@ struct FileRequest {
 };
 
 ecs::FileDiff parse_complete_file(const std::string& path, const std::string& content);
-ecs::FullFileContent read_file(const FileRequest& request);
-std::future<ecs::FullFileContent> read_file_async(FileRequest request);
+ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop = {});
+async_work::Task<ecs::FullFileContent> read_file_async(FileRequest request);
 
 }

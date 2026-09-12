@@ -9,7 +9,7 @@ inline void load_commit_search(RepoComponent& repo) {
     repo.commitSearchError.clear();
     auto args = git::history_search_args(repo.commitSearchQuery, repo.commitSearchLimit);
     if (!args) { repo.commitSearchError = "Use valid YYYY-MM-DD dates, with Since before Until."; return; }
-    repo.commitSearchFuture = git::git_run_async(repo.repoPath, *args).share();
+    repo.commitSearchFuture = git::git_run_async(repo.repoPath, *args);
 }
 
 inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,

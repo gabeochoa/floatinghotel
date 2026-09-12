@@ -31,7 +31,7 @@ inline bool toast_on_git_failure(const git::GitResult& result,
 // The NetworkOpsPollingSystem will poll the future, show a toast on
 // completion/failure, and trigger a repo refresh.
 inline void enqueue_network_op(const std::string& label,
-                               std::future<git::GitResult> fut) {
+                               async_work::Task<git::GitResult> fut) {
     auto* ops = find_singleton<NetworkOpsComponent>();
     if (!ops) return;
 

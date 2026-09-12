@@ -42,4 +42,33 @@ TEST(async_file_read_returns_owned_content) {
     std::filesystem::remove(path);
 }
 
+TEST(replacing_a_task_requests_stop_without_waiting_for_completion) {
+    std::promise<void> stopped;
+    auto observed = stopped.get_future();
+    std::promise<void> release;
+    auto gate = release.get_future().share();
+    auto pending = async_work::launch([&stopped, gate](std::stop_token stop) {
+        while (!stop.stop_requested()) std::this_thread::yield();
+        stopped.set_value();
+        gate.wait();
+        return 1;
+    });
+    pending = {};
+    auto ready = observed.wait_for(std::chrono::seconds(2));
+    release.set_value();
+    ASSERT_EQ(ready, std::future_status::ready);
+}
+
+TEST(cancelled_tokens_do_not_cancel_accepted_git_writes) {
+    char directory[] = "/tmp/fh-write-test.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    ASSERT_TRUE(git::git_run(path, {"init", "-q"}).success());
+    std::stop_source stop;
+    stop.request_stop();
+    ASSERT_TRUE(git::git_run(path, {"config", "test.completed", "yes"}, stop.get_token()).success());
+    ASSERT_EQ(git::git_run(path, {"config", "--get", "test.completed"}).stdout_str(), "yes\n");
+    ASSERT_TRUE(git::git_run(path, {"status"}, stop.get_token()).raw.cancelled);
+}
+
 int main() { RUN_ALL_TESTS(); }

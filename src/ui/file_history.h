@@ -10,7 +10,7 @@ inline void load_file_history(RepoComponent& repo) {
     repo.fileHistoryFuture = git::git_run_async(repo.repoPath,
         {"log", "--follow", "-n", std::to_string(repo.fileHistoryLimit),
          "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P",
-         repo.fileHistoryRevision, "--", repo.fileHistoryPath}).share();
+         repo.fileHistoryRevision, "--", repo.fileHistoryPath});
 }
 
 inline void open_file_history(RepoComponent& repo, const std::string& path,
