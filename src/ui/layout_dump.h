@@ -74,7 +74,7 @@ inline nlohmann::json layout_snapshot() {
 inline void write_layout_snapshot(const std::filesystem::path& path) {
     std::ofstream output(path);
     output.exceptions(std::ios::failbit | std::ios::badbit);
-    output << layout_snapshot().dump(2) << '\n';
+    output << layout_snapshot().dump(2, ' ', false, nlohmann::json::error_handler_t::replace) << '\n';
 }
 
 struct HandleDumpLayout : afterhours::System<afterhours::testing::PendingE2ECommand> {

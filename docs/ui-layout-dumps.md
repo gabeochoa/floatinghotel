@@ -27,6 +27,8 @@ is visible: ancestor clipping can hide part of a rendered node.
 
 Dumps can contain code, paths, commit messages, and draft comments. Treat them
 like screenshots of the repository and inspect them before sharing.
+Malformed UTF-8 in labels is replaced with U+FFFD during JSON serialization.
+Numeric geometry is unchanged; the dump is not a lossless repository-content export.
 
 ## Label inset overrides
 

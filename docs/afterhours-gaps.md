@@ -937,8 +937,8 @@ space. The affected controls now specify an explicit zero edge to disable that
 fallback; ordinary preset buttons use eight-pixel horizontal padding.
 `tests/check_control_padding.py` rejects padding larger than its control.
 
-A feedback card without an explicit radius rendered as a large capsule. The
-app now requests the same six-pixel radius and corner flags used by toast cards.
+A feedback card or editor without an explicit radius rendered as a large capsule.
+Both now request the same six-pixel radius and corner flags used by toast cards.
 The first feedback screenshots remain in the audit output for comparison.
 
 ### E2E and JSON coordinates stop at the nearest scroll ancestor
@@ -958,3 +958,13 @@ not alter production input. Older XML dump/assert helpers still use the framewor
 coordinate path, so JSON is the authoritative nested-scroll geometry here.
 The failing captures are `output/spacing-audit/final-verified`; they are not
 successful final verification despite that directory's name.
+
+### UI labels may contain non-UTF-8 repository bytes
+
+The binary-file fixture exposed an app diagnostic bug: UI labels can retain raw
+file bytes, and strict JSON serialization threw from the deferred screenshot
+callback. The app now uses the serializer's replacement policy for malformed
+UTF-8. Geometry remains exact, while invalid text bytes become U+FFFD. The crash
+is recorded in `flows-verified.log` and the macOS report
+`floatinghotel.exe-2026-09-12-045621.ips`. A JSON diagnostic should not assume
+that every label string is valid Unicode.

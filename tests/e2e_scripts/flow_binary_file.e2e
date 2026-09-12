@@ -4,6 +4,9 @@ make_test_repo
 resize 1280 720
 wait_frames 5
 click_ui sidebar_working_files
+mouse_move 190 180
+scroll_wheel 0 -1000
+wait_frames 10
 screenshot flow_binary_file_files_navigation
 
 # Click the binary file (icon.png) - untracked files live under the "Untracked" tab
@@ -12,5 +15,7 @@ wait_frames 5
 click_text "icon.png"
 wait_frames 5
 screenshot flow_binary_01_selected
+validate selected_file=icon.png
+dump_ui_json binary_layout
 
 # The diff view should show "Binary file" or similar instead of diff lines
