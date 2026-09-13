@@ -967,7 +967,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // (Approve/Comment) reserve room instead of overflowing off-screen.
                 float diffW = layout.mainContent.width;
                 auto* review = find_singleton<ReviewComponent, ActiveTab>();
-                ui::render_diff(ctx, mainBg.ent(), selectedDiffs,
+                ui::render_diff(ctx, mainBg.ent(), fileDiffs.empty() ? selectedDiffs : fileDiffs,
                                diffW, layout.mainContent.height, false, fileJustChanged, sideBySide,
                                repo.repoPath, repo.selectedFileStaged() ? nullptr : review,
                                repo.selectedFileStaged() ? "index" : "wt");

@@ -7,6 +7,8 @@
 
 namespace review_files {
 
+enum class DisplayMode { SelectedFile, AllFiles };
+
 enum class Sort { Path, MostChanges, FewestChanges };
 
 struct Filter {

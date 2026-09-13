@@ -40,7 +40,7 @@ for zoom in args.zooms:
     script += 'click_ui fold_file:a.cpp\n' + comment('b') + capture('b_folded')
     script += select('a') + 'click_ui fold_file:a.cpp\n' + select('b') + select('a') + capture('a_reselected')
     script += 'click_text "Open file"\nwait_for_refresh\n' + capture('source', 2)
-    script += 'click_text "Back to diff"\nwait_for_refresh\n' + capture('returned', 2)
+    script += 'click_ui full_file_back\nwait_for_refresh\n' + capture('returned', 2)
     script += 'key ALT+LEFT\nwait_for_refresh\nkey ALT+RIGHT\nwait_for_refresh\n' + capture('history_return', 2)
     script += select('a') + 'hover_ui diff_scroll\nscroll_wheel 0 200\nwait_frames 8\nclick_ui fold_file:a.cpp\n' + capture('file_folded', 2)
     script += select('b') + select('a') + capture('file_reselected', 2)

@@ -7,6 +7,7 @@
 
 #include "util/code_bookmark.h"
 #include "util/reading_session.h"
+#include "util/review_files.h"
 
 SINGLETON_FWD(Settings)
 struct Settings {
@@ -73,6 +74,9 @@ struct Settings {
 
     const reading::ReadingSession* get_reading_session(const std::string& repoPath) const;
     void set_reading_session(const std::string& repoPath, reading::ReadingSession session);
+
+    review_files::DisplayMode get_review_display_mode(const std::string& repoPath) const;
+    void set_review_display_mode(const std::string& repoPath, review_files::DisplayMode mode);
 
     std::string get_settings_path() const;
 

@@ -1572,10 +1572,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         findHeight += 90.f;
     }
+    const bool selectedFileOnly = filterable && filterRepo && !filterRepo->selectedFilePath().empty() &&
+        Settings::get().get_review_display_mode(filterRepo->repoPath) == review_files::DisplayMode::SelectedFile;
     auto fileVisible = [&](const ecs::FileDiff& file) {
-        return !filterable || !filterRepo || ecs::review_file_visible(file, filterRepo->fileFilter, review, reviewScope);
+        return (!selectedFileOnly || file.filePath == filterRepo->selectedFilePath()) &&
+            (!filterable || !filterRepo || ecs::review_file_visible(file, filterRepo->fileFilter, review, reviewScope));
     };
     auto fileOrder = ecs::visible_review_file_indices(diffs, filterRepo ? filterRepo->fileFilter : review_files::Filter{}, review, reviewScope);
+    std::erase_if(fileOrder, [&](size_t index) { return !fileVisible(diffs[index]); });
     if (layout && filterRepo && navigation::find(*filterRepo).open) {
         auto& find = navigation::find(*filterRepo);
         const float width = std::min(420.f, std::max(180.f, layout->mainContent.width - 16.f));
@@ -1777,7 +1781,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
     Entity* contentParent = &parent;
     float stickyHeight = diffs.empty() || diffs.front().isFullContent ? 0.f : 24.f;
     auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}.with_skip_grid_snap()
-        .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::WINDOW_BG));
+        .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::WINDOW_BG)
+        .with_flex_direction(FlexDirection::Row).with_no_wrap().with_align_items(AlignItems::Center));
     if (!embedInParentScroll) {
         auto h = contentHeight > 0
                      ? pixels(std::max(0.f, contentHeight - findHeight - stickyHeight))
@@ -2287,13 +2292,39 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         std::string label = diff_detail::file_header_label(*current.file);
         if (current.hunk) label += "   " + current.hunk->header;
-        if (scrollY <= contextLocations.front().y) label.clear();
+        if (scrollY <= contextLocations.front().y && !selectedFileOnly) label.clear();
         auto stickyLabel = div(ctx, mk(stickyHost.ent(), 0), ComponentConfig{}.with_skip_grid_snap().with_label(label)
-            .with_size(ComponentSize{w, pixels(stickyHeight)}).with_font_size(pixels(12))
+            .with_size(ComponentSize{expand(), pixels(stickyHeight)}).with_font_size(pixels(12))
             .with_padding(Padding{.left = pixels(8), .right = pixels(8)})
             .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("sticky_diff_context"));
         set_tooltip(stickyLabel.ent(), label);
+    }
+    if (stickyHeight > 0.f && filterRepo) {
+        auto display = button(ctx, mk(stickyHost.ent(), 1), preset::Button(selectedFileOnly ? "Selected file" : "All files")
+            .with_size(ComponentSize{pixels(96), pixels(24)}).with_font_size(pixels(12))
+            .with_transparent_bg().with_debug_name("review_display_mode"));
+        set_tooltip(display.ent(), "Choose selected file or all files");
+        if (display) {
+            remember_focus_origin(ctx, display.ent());
+            const auto request = navigation::stamp(*filterRepo, "review-display-mode");
+            std::vector<ContextMenuItem> choices;
+            for (auto mode : {review_files::DisplayMode::SelectedFile, review_files::DisplayMode::AllFiles}) {
+                choices.push_back(ContextMenuItem::item(mode == review_files::DisplayMode::SelectedFile ? "Selected file" : "All files",
+                    [path = filterRepo->repoPath, request, mode, first = diffs.front().filePath] {
+                        auto* active = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                        if (!active || active->repoPath != path || !navigation::accepts(*active, request, "review-display-mode")) return;
+                        navigation::set_review_display_mode(*active, mode);
+                        if (mode == review_files::DisplayMode::SelectedFile && active->selectedFilePath().empty()) {
+                            auto destination = active->workspace().review();
+                            destination.file = first;
+                            navigation::open(*active, destination);
+                        }
+                    }));
+            }
+            const auto rect = screen_rect(display.ent());
+            show_context_menu(rect.x, rect.y + rect.height, std::move(choices));
+        }
     }
 
     if (anchorRequest && navigation::accepts(*filterRepo, *anchorRequest, "reading-anchor") &&

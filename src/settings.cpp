@@ -29,6 +29,7 @@ struct Settings::Data {
     std::vector<std::string> recentRepos;
     std::map<std::string, std::vector<CodeBookmark>> codeBookmarks;
     std::map<std::string, reading::ReadingSession> readingSessions;
+    std::map<std::string, review_files::DisplayMode> reviewDisplayModes;
 };
 
 Settings::Settings() { data_ = new Data(); }
@@ -78,6 +79,11 @@ bool Settings::load_save_file() {
         data_->copyWithLocation = j.value("copy_with_location", true);
         data_->recentRepos =
             j.value("recent_repos", std::vector<std::string>{});
+        data_->reviewDisplayModes.clear();
+        if (j.contains("review_display_modes") && j["review_display_modes"].is_object())
+            for (const auto& [repo, value] : j["review_display_modes"].items())
+                if (value == "all" || value == "selected") data_->reviewDisplayModes[repo] =
+                    value == "all" ? review_files::DisplayMode::AllFiles : review_files::DisplayMode::SelectedFile;
         data_->readingSessions.clear();
         if (j.contains("reading_sessions") && j["reading_sessions"].is_object()) {
             for (const auto& [repo, value] : j["reading_sessions"].items())
@@ -143,6 +149,9 @@ void Settings::write_save_file() {
         bookmarks[repo] = std::move(list);
     }
     j["code_bookmarks"] = std::move(bookmarks);
+    j["review_display_modes"] = nlohmann::json::object();
+    for (const auto& [repo, mode] : data_->reviewDisplayModes)
+        j["review_display_modes"][repo] = mode == review_files::DisplayMode::AllFiles ? "all" : "selected";
     j["reading_sessions"] = nlohmann::json::object();
     for (const auto& [repo, session] : data_->readingSessions)
         j["reading_sessions"][repo] = reading::encode_session(session);
@@ -312,5 +321,15 @@ const reading::ReadingSession* Settings::get_reading_session(const std::string& 
 
 void Settings::set_reading_session(const std::string& repoPath, reading::ReadingSession session) {
     data_->readingSessions[repoPath] = std::move(session);
+    save_if_auto();
+}
+
+review_files::DisplayMode Settings::get_review_display_mode(const std::string& repoPath) const {
+    auto found = data_->reviewDisplayModes.find(repoPath);
+    return found == data_->reviewDisplayModes.end() ? review_files::DisplayMode::SelectedFile : found->second;
+}
+
+void Settings::set_review_display_mode(const std::string& repoPath, review_files::DisplayMode mode) {
+    data_->reviewDisplayModes[repoPath] = mode;
     save_if_auto();
 }

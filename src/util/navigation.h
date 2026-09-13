@@ -1,12 +1,19 @@
 #pragma once
 
 #include "../ecs/components.h"
+#include "../settings.h"
 
 #include "reading_session.h"
 #include "document_cycle.h"
 #include "source_destination.h"
 
 struct navigation {
+
+    static void set_review_display_mode(ecs::RepoComponent& repo, review_files::DisplayMode mode) {
+        if (Settings::get().get_review_display_mode(repo.repoPath) == mode) return;
+        Settings::get().set_review_display_mode(repo.repoPath, mode);
+        restore_anchor(repo);
+    }
 
     static void toggle_commit_details(ecs::RepoComponent& repo) {
         auto& document = repo.workspace_.current();
