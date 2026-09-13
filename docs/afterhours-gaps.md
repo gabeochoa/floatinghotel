@@ -1789,12 +1789,30 @@ closed candidates, and commits only on modifier release.
 ### Restoring virtualized reading anchors after layout readiness
 
 The app records path, revision, side, source line, decoded character column, and
-viewport fraction while walking virtual rows. It restores those values only
-after matching content and initial refresh are ready and earlier line-jump
-actions have finished. An explicit layout-ready restoration hook would help
+viewport fraction from measured rows after layout. It restores those values only
+after matching content and initial refresh are ready. An explicit layout-ready restoration hook would help
 readers, editors, inventories, and inspectors retain a logical item through
 recreated entities and changed row heights. It should support caller-owned
 identity, cancellation, and one-shot application without a fixed frame retry
 count. The session replay in `tests/restore_tabs.py` covers source and review
-restoration; ordinary navigation still uses the existing pixel restoration
-until step 13.
+restoration. Step 13 uses an ordinary ECS system immediately after
+`registerUIPostLayoutSystems` to resolve anchors against current row bounds.
+`tests/anchor_layout.py` covers zoom, resize, folding, Markdown reflow, and
+manual scrolling; `tests/anchor_pages.py` covers a released source page.
+
+### Scroll anchoring needs an application-owned identity option
+
+`HasScrollView` automatically pins a child entity ID. Virtualized readers can
+reuse that entity for a different row or spacer after the visible range changes.
+This conflicts with application-owned logical anchors. The reader clears
+`anchor_child` before each layout and owns restoration with source positions.
+The step 13 source-origin replay also caught a separate six-line drift.
+The app had clamped virtualized restoration against the previous view's empty
+content size, then accepted a nearby rendered line before building the target.
+It now chooses the virtual range without that stale bound and clamps only after
+layout measures the current content. A nearest-line fallback must match the
+nearest line in the document, not merely the last rendered row. An explicit opt-out or
+a caller-supplied stable item key would help code readers, game inventories,
+chat logs, and recycled lists. Preserve automatic child anchoring as the default
+for ordinary lists. Evidence: `output/step13-source_origin/100/journey` and
+`tests/source_origin.py`.

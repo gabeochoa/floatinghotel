@@ -1,0 +1,66 @@
+{
+  "active": 2,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 149,
+        "fraction": 0.05096134915947914,
+        "line": 10,
+        "path": "a.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "file": "",
+            "kind": "working",
+            "staged": false
+          },
+          "path": "a.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    }
+  ],
+  "history_index": 1,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "source",
+      "path": "a.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "a.cpp",
+      "tooltip": "a.cpp @ working tree"
+    }
+  ]
+}

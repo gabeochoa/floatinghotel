@@ -1,0 +1,130 @@
+{
+  "active": 2,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.06770841032266617,
+        "line": 4116,
+        "path": "large.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "file": "",
+            "kind": "working",
+            "staged": false
+          },
+          "path": "large.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.07884616404771805,
+        "line": 1,
+        "path": "other.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "file": "",
+            "kind": "working",
+            "staged": false
+          },
+          "path": "other.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.06770841032266617,
+        "line": 4116,
+        "path": "large.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "file": "",
+            "kind": "working",
+            "staged": false
+          },
+          "path": "large.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    }
+  ],
+  "history_index": 3,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "source",
+      "path": "large.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "large.cpp",
+      "tooltip": "large.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 3,
+      "kind": "source",
+      "path": "other.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "other.cpp",
+      "tooltip": "other.cpp @ working tree"
+    }
+  ]
+}

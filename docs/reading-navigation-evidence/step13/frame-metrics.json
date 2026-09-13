@@ -1,0 +1,56 @@
+{
+  "output/step13-accept-source_origin/140/journey/run.log": [
+    5.87
+  ],
+  "output/step13-accept-source_origin/200/journey/run.log": [
+    3.07
+  ],
+  "output/step13-accept-source_origin/100/journey/run.log": [
+    3.27
+  ],
+  "output/step13-accept-anchor_pages/100/run.log": [
+    5.62
+  ],
+  "output/step13-accept-anchor_pages/200/run.log": [
+    6.25
+  ],
+  "output/step13-accept-anchor_pages/140/run.log": [
+    6.86
+  ],
+  "output/step13-accept-anchor_layout/run.log": [
+    2.62
+  ],
+  "output/step13-accept-restore_tabs/140/restore/run.log": [
+    16.78
+  ],
+  "output/step13-accept-restore_tabs/200/restore/run.log": [
+    10.04
+  ],
+  "output/step13-accept-restore_tabs/100/restore/run.log": [
+    12.43
+  ],
+  "output/step13-checked-close_tabs/100/run.log": [
+    3.0
+  ],
+  "output/step13-checked-close_tabs/200/run.log": [
+    3.53
+  ],
+  "output/step13-checked-close_tabs/140/run.log": [
+    2.87
+  ],
+  "output/step13-checked-large_source_wrap/run.log": [
+    7.54
+  ],
+  "output/step13-checked-history_visits/100/run.log": [
+    4.92
+  ],
+  "output/step13-checked-history_visits/200/run.log": [
+    3.17
+  ],
+  "output/step13-checked-history_visits/140/run.log": [
+    4.02
+  ],
+  "output/step13-verified-anchor_layout/run.log": [
+    3.18
+  ]
+}

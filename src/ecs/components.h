@@ -242,13 +242,30 @@ struct BranchInfo {
 
 // ---- ECS Components ----
 
-struct ReadingPositions {
-    std::map<std::string, std::pair<float, float>> offsets;
-    std::string key;
+struct ReadingLayoutRow {
+    int entity;
+    std::string path;
+    int oldStart = 0, oldEnd = 0, newStart = 0, newEnd = 0;
+    int column = 1, endColumn = std::numeric_limits<int>::max();
+    bool folded = false;
+};
+
+struct ReadingLayout {
     int entity = -1;
-    std::pair<float, float> lastOffset{};
-    std::pair<float, float> restoringOffset{};
-    int restoreFrames = 0;
+    std::string key;
+    std::string previousKey;
+    reading::DocumentId previousDocument;
+    std::optional<reading::RequestStamp> request;
+    float width = 0.f;
+    float height = 0.f;
+    float contentHeight = 0.f;
+    float offset = 0.f;
+    bool ready = false;
+    bool bound = false;
+    bool wasRevealing = false;
+    bool codeRows = true;
+    std::optional<int> projectedLine;
+    std::vector<ReadingLayoutRow> rows;
 };
 
 struct RangeDiffState {
@@ -268,7 +285,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     RangeDiffState rangeDiff;
     bool reviewWorkspace = false;
     review_files::Filter fileFilter;
-    ReadingPositions reading;
+    ReadingLayout reading;
     std::string readingSessionPath;
 private:
     reading::ReadingWorkspace workspace_;

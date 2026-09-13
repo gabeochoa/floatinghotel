@@ -53,12 +53,14 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
             f"--test-script={directory / 'journey.e2e'}", f"--screenshot-dir={directory}", "--e2e-timeout=90"],
             cwd=ROOT, env=dict(os.environ, FH_NATIVE_MENUS="1"), stdout=log, stderr=subprocess.STDOUT, timeout=120)
     assert result.returncode == 0, directory / "run.log"
-    offsets = {}
+    anchors = {}
+    snapshots = {}
     for name, (count, active) in checkpoints.items():
         workspace = json.loads((directory / f"{name}.workspace.json").read_text())
         assert workspace["active"] == active and len(workspace["tabs"]) == count and workspace["inactive_payloads_empty"], (zoom, name, workspace)
         assert all(not tab["preview"] for tab in workspace["tabs"])
         snapshot = json.loads((directory / f"{name}.json").read_text())
+        snapshots[name] = snapshot
         nodes = [n for n in snapshot["nodes"] if n["rendered"] and not n["hidden"]]
         tab = next(n for n in nodes if n.get("name") == f"content_document_{active}")
         assert tab["visible_rect"]["width"] >= tab["rect"]["width"] - .2, (zoom, name, "Active tab clipped")
@@ -67,11 +69,16 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
             assert workspace["tabs"][0]["kind"] == "review" and workspace["tabs"][0]["revision"] == "wt"
             assert any(n.get("name") == "file_header_label" and n.get("text") == "a.cpp" for n in nodes)
         else:
-            offsets[name] = next(n for n in nodes if n.get("name") == "diff_scroll")["scroll"]["y"]
-            assert offsets[name] > 100, (zoom, name, "Reading position reset")
+            anchors[name] = workspace["history"][workspace["history_index"]]["anchor"]
+            assert anchors[name]["line"] > 1, (zoom, name, "Reading position reset")
         assert (directory / f"{name}.png").read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     for before, after in (("c", "inactive_closed"), ("b", "reopened_b"), ("c", "closed_b"), ("a", "only_a"), ("a", "reopened_a")):
-        assert abs(offsets[before] - offsets[after]) < 1, (zoom, before, after, offsets)
-    print(f"PASS {zoom}%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact scroll restoration, working-changes fallback", flush=True)
+        anchor = anchors[before]
+        snapshot = snapshots[after]
+        viewport = next(n["rect"] for n in snapshot["nodes"] if n.get("name") == "diff_scroll" and n["rendered"])
+        rows = [r for r in snapshot["reading_rows"] if r["path"] == anchor["path"] and r["line"] == anchor["line"]]
+        expected = viewport["y"] + viewport["height"] * anchor["fraction"]
+        assert rows and min(abs(r["rect"]["y"] - expected) for r in rows) < 2, (zoom, before, after, anchor, rows, viewport)
+    print(f"PASS {zoom}%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact logical restoration, working-changes fallback", flush=True)
 assert hashlib.sha256(binary.read_bytes()).hexdigest() == digest
 (out / "result.json").write_text(json.dumps(dict(passed=True, binary_sha256=digest, zooms=[100, 140, 200]), indent=2) + "\n")

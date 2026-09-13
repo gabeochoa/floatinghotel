@@ -1,0 +1,21 @@
+RUN close_tabs
+PASS 100%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact logical restoration, working-changes fallback
+PASS 140%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact logical restoration, working-changes fallback
+PASS 200%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact logical restoration, working-changes fallback
+RUN large_source_wrap
+PASS: 4,000 source lines keep bounded rendered rows, reused metrics and p99 below20ms
+RUN window_restore
+PASS: resized dimensions survive restart; dock preserves its size and expanded width
+RUN history_visits
+PASS 100%: same-review file visits, wrapped Unicode anchors, closed-source revisit, origin, Forward truncation, and scrolling without new visits
+PASS 140%: same-review file visits, wrapped Unicode anchors, closed-source revisit, origin, Forward truncation, and scrolling without new visits
+PASS 200%: same-review file visits, wrapped Unicode anchors, closed-source revisit, origin, Forward truncation, and scrolling without new visits
+RUN navigation_regressions
+PASS improvement_21_file_picker
+PASS improvement_22_repo_search
+PASS improvement_24_all_files
+PASS improvement_27_commit_search
+PASS improvement_35_comment_jump
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary

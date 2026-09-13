@@ -79,7 +79,15 @@ inline nlohmann::json layout_snapshot() {
             {"line", row.lineNo}, {"side", row.side}, {"sign", std::string(1, row.sign)},
             {"offset", row.sourceOffset}, {"rect", rect_json(row.rect)}, {"content_x", row.contentX0}});
     }
-    return {{"reading_rows", std::move(reading)}, {"selection_text", diff_sel::build_copy_text(diff_sel::state(), false)},
+    auto projections = nlohmann::json::array();
+    if (const auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+        for (const auto& row : repo->reading.rows) {
+            auto entity = UICollectionHolder::getEntityForID(row.entity);
+            if (entity.valid()) projections.push_back({{"path", row.path}, {"line", row.newStart}, {"end_line", row.newEnd},
+                {"column", row.column}, {"end_column", row.endColumn}, {"folded", row.folded}, {"rect", rect_json(screen_rect(**entity))}});
+        }
+    }
+    return {{"reading_projections", std::move(projections)}, {"reading_rows", std::move(reading)}, {"selection_text", diff_sel::build_copy_text(diff_sel::state(), false)},
             {"selection_location", diff_sel::build_copy_text(diff_sel::state(), true)}, {"schema_version", 1}, {"units", "physical_pixels"}, {"ui_scale", zoom::get()},
             {"viewport", {{"width", graphics::get_screen_width()}, {"height", graphics::get_screen_height()}}},
             {"pointer", {{"x", context ? context->mouse.pos.x : 0.f}, {"y", context ? context->mouse.pos.y : 0.f}}},

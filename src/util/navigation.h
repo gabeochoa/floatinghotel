@@ -12,7 +12,9 @@ struct navigation {
     }
 
     static bool accepts(const ecs::RepoComponent& repo, const reading::RequestStamp& request, const std::string& key) {
-        return request == stamp(repo, key);
+        const auto current = stamp(repo, key);
+        return request.repository == current.repository && reading::same_document(request.document, current.document) &&
+            request.key == current.key && request.generation == current.generation && request.dataGeneration == current.dataGeneration;
     }
 
     static bool resolve_source(ecs::RepoComponent& repo, const reading::RequestStamp& request, const std::string& oid) {
@@ -206,8 +208,30 @@ struct navigation {
         }
     }
 
+    static void restore_anchor(ecs::RepoComponent& repo) {
+        auto& document = repo.workspace_.current();
+        if (!document.anchor) return;
+        document.restoreAnchor = true;
+        repo.workspace_.history_[repo.workspace_.index_].anchor = document.anchor;
+        if (auto* source = std::get_if<reading::SourceLocation>(&document.location); source &&
+            (repo.fullFileDiff.empty() || document.anchor->line < repo.fullFilePage.begin.line || document.anchor->line >= repo.fullFilePage.next.line)) {
+            source->line = document.anchor->line;
+            source->column = document.anchor->column;
+        }
+    }
+
+    static void cancel_anchor(ecs::RepoComponent& repo) {
+        auto& document = repo.workspace_.current();
+        document.restoreAnchor = false;
+        document.anchor.reset();
+        repo.workspace_.history_[repo.workspace_.index_].anchor.reset();
+        repo.fullFileNavigateFrames = repo.diffTargetFrames = 0;
+        repo.workspace_.clear_source_reveal();
+    }
+
     static void restored_anchor(ecs::RepoComponent& repo) {
         repo.workspace_.current().restoreAnchor = false;
+        repo.fullFileNavigateFrames = repo.diffTargetFrames = 0;
         if (repo.workspace_.active() == reading::Slot::Source) repo.workspace_.clear_source_reveal();
     }
 
@@ -221,20 +245,27 @@ struct navigation {
         const bool repeated = workspace.lastClick_ && region == workspace.lastClickRegion_ &&
             (region == reading::ClickRegion::Tabs ? reading::same_document(*workspace.lastClick_, location) : *workspace.lastClick_ == location) &&
             now >= workspace.lastClickTime_ && now - workspace.lastClickTime_ <= std::chrono::milliseconds(500);
-        open(repo, location, {}, enter || repeated ? reading::OpenMode::Keep : reading::OpenMode::Preview);
+        const auto* existing = region == reading::ClickRegion::Tabs ? workspace.document(location) : nullptr;
+        if (existing) {
+            const auto id = existing->id;
+            activate(repo, id);
+            if (enter || repeated) keep(repo, id);
+        } else open(repo, location, {}, enter || repeated ? reading::OpenMode::Keep : reading::OpenMode::Preview);
         workspace.lastClick_ = std::move(location);
         workspace.lastClickRegion_ = region;
         workspace.lastClickTime_ = now;
     }
 
     static void activate(ecs::RepoComponent& repo, reading::Slot slot) {
-        if (slot == reading::Slot::Source) {
-            if (repo.workspace_.source()) open(repo, *repo.workspace_.source());
-        } else open(repo, repo.workspace_.review());
+        if (const auto* document = repo.workspace_.recent(slot)) activate(repo, document->id);
     }
 
     static void activate(ecs::RepoComponent& repo, reading::DocumentId id) {
-        if (const auto* document = repo.workspace_.document(id)) open(repo, document->location);
+        if (const auto* document = repo.workspace_.document(id)) {
+            const bool changed = id != repo.workspace_.active_id();
+            open(repo, document->location);
+            if (changed) restore_anchor(repo);
+        }
     }
 
     static bool reorder(ecs::RepoComponent& repo, reading::DocumentId id, size_t insertion) {
@@ -249,6 +280,7 @@ struct navigation {
         auto before = repo.workspace_.location();
         bool changed = repo.workspace_.close(id, repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         finish(repo, before, changed);
+        if (changed) restore_anchor(repo);
     }
 
     static void close_others(ecs::RepoComponent& repo, reading::DocumentId id, bool onlyRight = false) {
@@ -266,6 +298,7 @@ struct navigation {
         auto before = repo.workspace_.location();
         bool changed = repo.workspace_.reopen(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         finish(repo, before, changed);
+        if (changed) restore_anchor(repo);
     }
 
     static void step(ecs::RepoComponent& repo, int direction) {

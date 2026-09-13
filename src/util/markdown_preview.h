@@ -10,6 +10,7 @@
 #include <vector>
 #include <utility>
 #include "wrap_text.h"
+#include "reading_anchor.h"
 
 namespace markdown_preview {
 
@@ -26,6 +27,8 @@ struct Block {
     Kind kind = Kind::Paragraph;
     std::string text;
     int level = 0;
+    int sourceLine = 1;
+    int sourceColumn = 1;
 };
 
 inline std::string trim(std::string_view input) {
@@ -55,11 +58,13 @@ inline std::vector<Block> parse(std::string_view text) {
     std::vector<Block> blocks;
     bool inCode = false;
     size_t start = 0;
+    int sourceLine = 1;
     while (start <= text.size()) {
         size_t end = text.find('\n', start);
         if (end == std::string_view::npos) end = text.size();
         std::string_view line = text.substr(start, end - start);
         std::string stripped = trim(line);
+        const size_t count = blocks.size();
         if (stripped.starts_with("```")) {
             inCode = !inCode;
         } else if (inCode) {
@@ -80,6 +85,13 @@ inline std::vector<Block> parse(std::string_view text) {
         } else {
             blocks.push_back({Kind::Paragraph, stripped, 0});
         }
+        if (blocks.size() != count) {
+            auto& block = blocks.back();
+            block.sourceLine = sourceLine;
+            const auto begin = line.find(block.kind == Kind::ListItem ? stripped : block.text);
+            block.sourceColumn = begin == std::string_view::npos ? 1 : reading::column_at_byte(std::string(line), begin);
+        }
+        ++sourceLine;
         if (end == text.size()) break;
         start = end + 1;
     }
@@ -91,6 +103,8 @@ struct Line {
     Kind kind;
     float fontSize;
     float height;
+    int sourceLine;
+    int sourceColumn;
 };
 
 struct Cache {
@@ -149,8 +163,18 @@ bool update(Cache& cache, const std::string& key, const std::string& text,
         auto measureLine = [&](const std::string& line) { return measure(line, block.kind, fontSize); };
         auto lines = block.kind == Kind::Code ? wrap_measured_text(block.text, width, measureLine) :
             wrap_paragraph(block.text, width, measureLine);
+        size_t cursor = 0;
         for (auto& line : lines) {
-            cache.lines.push_back({std::move(line), block.kind, fontSize, height});
+            if (block.kind != Kind::Code)
+                while (cursor < block.text.size() && std::isspace(static_cast<unsigned char>(block.text[cursor]))) ++cursor;
+            const int column = block.sourceColumn + reading::column_at_byte(block.text, cursor) - 1;
+            for (const unsigned char byte : line) {
+                if (block.kind != Kind::Code && std::isspace(byte)) continue;
+                if (block.kind != Kind::Code)
+                    while (cursor < block.text.size() && std::isspace(static_cast<unsigned char>(block.text[cursor]))) ++cursor;
+                if (cursor < block.text.size()) ++cursor;
+            }
+            cache.lines.push_back({std::move(line), block.kind, fontSize, height, block.sourceLine, column});
             cache.offsets.push_back(cache.offsets.back() + height);
         }
     }

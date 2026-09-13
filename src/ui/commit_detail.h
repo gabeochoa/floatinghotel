@@ -172,7 +172,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_roundness(0.0f)
             .with_debug_name("commit_detail_scroll"));
 
-    ui::remember_reading_position(repo, scrollContainer.ent(), "commit:" + reviewScope +
+    ui::bind_reading_view(repo, scrollContainer.ent(), "commit:" + reviewScope +
         (layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide ? "\nsplit" : "\ninline"),
         !detailCache.patchFuture.valid());
     if (review) render_review_queue(ctx, scrollContainer.ent(), nextId++, repo, *review, detailCache);

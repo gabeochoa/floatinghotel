@@ -1,0 +1,14 @@
+--- Compiling test_markdown_preview ---
+--- Running test_markdown_preview ---
+=== markdown preview tests ===
+  markdown_preview_recognizes_markdown_paths                   OK
+  markdown_preview_parses_safe_blocks                          OK
+  markdown_preview_caches_parsing_and_reflows_measured_lines   OK
+  markdown_preview_wraps_words_and_splits_only_oversized_tokens OK
+  markdown_preview_retains_source_positions_through_fences_and_wrapping OK
+
+5/5 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

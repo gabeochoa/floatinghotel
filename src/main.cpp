@@ -57,6 +57,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ecs/async_git_refresh_system.h"
 #include "ecs/file_watcher_system.h"
 #include "ecs/layout_system.h"
+#include "ecs/reading_layout_system.h"
 #include "ecs/main_content_system.h"
 #include "ecs/menu_bar_system.h"
 #include "ecs/sidebar_system.h"
@@ -539,6 +540,7 @@ static void app_init() {
 
         // Post-layout (entity mapping, autolayout, interactions)
         ui_imm::registerUIPostLayoutSystems(sm);
+        sm.register_update_system(std::make_unique<ecs::ReadingLayoutSystem>());
 
         // Update systems
         auto fileWatcherPtr = std::make_unique<ecs::FileWatcherSystem>();

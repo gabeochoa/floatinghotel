@@ -930,4 +930,37 @@ TEST(source_column_navigation_survives_history_and_is_consumed_with_the_line) {
     ASSERT_EQ(repo.workspace().source()->column, 20);
 }
 
+TEST(activation_restores_the_saved_source_page_and_scroll_cancels_the_pending_anchor) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("large.cpp"));
+    const auto source = repo.workspace().active_id();
+    const reading::ReadingAnchor anchor{"large.cpp", "", reading::DiffSide::After, 7000, 12, .2f, ' '};
+    navigation::remember_anchor(repo, anchor);
+    open_kept(repo, reading::source("other.cpp"));
+    navigation::activate(repo, source);
+    ASSERT_TRUE(repo.workspace().document(source)->restoreAnchor);
+    ASSERT_EQ(repo.fullFileTargetLine(), 7000);
+    ASSERT_EQ(repo.workspace().source()->column, 12);
+    const auto request = navigation::stamp(repo, "page");
+    navigation::cancel_anchor(repo);
+    ASSERT_FALSE(repo.workspace().document(source)->restoreAnchor);
+    ASSERT_FALSE(repo.workspace().document(source)->anchor.has_value());
+    ASSERT_EQ(repo.fullFileTargetLine(), 0);
+    ASSERT_TRUE(navigation::accepts(repo, request, "page"));
+    ASSERT_FALSE(navigation::accepts(repo, request, "different-page"));
+}
+
+TEST(tab_clicks_restore_anchors_but_repeated_activation_does_not_restart_restoration) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("a.cpp"));
+    const auto source = repo.workspace().active_id();
+    navigation::remember_anchor(repo, {"a.cpp", "", reading::DiffSide::After, 70, 2, .1f, ' '});
+    open_kept(repo, reading::source("b.cpp"));
+    navigation::click(repo, repo.workspace().document(source)->location, false, reading::ClickRegion::Tabs);
+    ASSERT_TRUE(repo.workspace().document(source)->restoreAnchor);
+    navigation::restored_anchor(repo);
+    navigation::activate(repo, source);
+    ASSERT_FALSE(repo.workspace().document(source)->restoreAnchor);
+}
+
 int main() { RUN_ALL_TESTS(); }

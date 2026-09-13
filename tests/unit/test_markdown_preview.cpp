@@ -53,6 +53,25 @@ TEST(markdown_preview_wraps_words_and_splits_only_oversized_tokens) {
     ASSERT_EQ(markdown_preview::wrap_paragraph("abcdefghijk word", 5.f, measure), (std::vector<std::string>{"abcde", "fghij", "k", "word"}));
 }
 
+TEST(markdown_preview_retains_source_positions_through_fences_and_wrapping) {
+    markdown_preview::Cache cache;
+    auto measure = [](const std::string& text, markdown_preview::Kind, float) {
+        return static_cast<float>(reading::column_at_byte(text, text.size()) - 1);
+    };
+    markdown_preview::update(cache, "positions", "  # Title\n```cpp\n  café  code\n```\n  one   two three", 5.f, 1.f, 14.f, 1.f, measure);
+    ASSERT_EQ(cache.lines[0].sourceLine, 1);
+    ASSERT_EQ(cache.lines[0].sourceColumn, 5);
+    ASSERT_EQ(cache.lines[1].text, "  caf");
+    ASSERT_EQ(cache.lines[1].sourceLine, 3);
+    ASSERT_EQ(cache.lines[2].text, "é  co");
+    ASSERT_EQ(cache.lines[2].sourceColumn, 6);
+    ASSERT_EQ(cache.lines[4].text, "one");
+    ASSERT_EQ(cache.lines[4].sourceLine, 5);
+    ASSERT_EQ(cache.lines[4].sourceColumn, 3);
+    ASSERT_EQ(cache.lines[5].sourceColumn, 9);
+    ASSERT_EQ(cache.lines[6].sourceColumn, 13);
+}
+
 int main() {
     printf("=== markdown preview tests ===\n");
     RUN_ALL_TESTS();

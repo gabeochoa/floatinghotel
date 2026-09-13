@@ -113,11 +113,15 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         auto controls = div(ctx, mk(parent, 585020), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
         auto requestPage = [&](FilePageRequest request) {
+            navigation::cancel_anchor(repo);
+            repo.reading = {};
             repo.fullFilePageRequest = std::move(request);
             navigation::clear_source_reveal(repo);
             repo.fullFileRequestedTargetLine = 0;
             repo.fullFileNavigateFrames = 0;
             repo.fullFileCacheKey.clear();
+            repo.fullFileDiff.clear();
+            repo.fullFileDecodedText.clear();
         };
         if (button(ctx, mk(controls.ent(), 0), preset::Button("Previous page")
                 .with_size(ComponentSize{expand(), pixels(30)}).with_disabled(page.begin.offset == 0 || repo.fullFileFuture.valid())
@@ -321,8 +325,31 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_custom_background(theme::PANEL_BG)
             .with_padding(Padding{.top = pixels(8), .right = pixels(16), .bottom = pixels(8), .left = pixels(16)})
             .with_debug_name("markdown_preview"));
-        ui::remember_reading_position(repo, body.ent(), "markdown:" + repo.fullFileCacheKey);
-        float offset = body.ent().get<afterhours::ui::HasScrollView>().scroll_offset.y / zoom;
+        ui::bind_reading_view(repo, body.ent(), "markdown:" + repo.fullFileCacheKey);
+        auto& state = repo.reading;
+        state.codeRows = false;
+        state.key += ":" + std::to_string(cache.width) + ":" + std::to_string(cache.codeFontSize) + ":" + std::to_string(zoom);
+        auto& scroll = body.ent().get<afterhours::ui::HasScrollView>();
+        const auto wheel = afterhours::input::get_mouse_wheel_move_v();
+        const bool scrolling = scroll.dragging_scrollbar || ((wheel.x != 0.f || wheel.y != 0.f) &&
+            afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(body.ent())));
+        if (scrolling) navigation::cancel_anchor(repo);
+        else if (state.previousDocument == repo.workspace().active_id() && state.key != state.previousKey)
+            navigation::restore_anchor(repo);
+        const auto* document = repo.workspace().document(repo.workspace().active_id());
+        if (document->restoreAnchor && document->anchor) {
+            const auto& anchor = *document->anchor;
+            size_t target = 0;
+            for (size_t row = 0; row < cache.lines.size(); ++row) {
+                const auto& line = cache.lines[row];
+                if (line.sourceLine + repo.fullFilePage.begin.line - 1 > anchor.line) break;
+                if (line.sourceLine + repo.fullFilePage.begin.line - 1 < anchor.line || line.sourceColumn <= anchor.column) target = row;
+            }
+            const float y = std::max(0.f, (cache.offsets[target] + 8.f - anchor.viewportFraction * bodyHeight) * zoom);
+            scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = y;
+            scroll.anchor_child = -1;
+        }
+        float offset = scroll.scroll_offset.y / zoom;
         auto [first, last] = markdown_preview::visible_rows(cache, offset, bodyHeight);
         auto spacer = [&](int id, float height) {
             if (height > 0.f) div(ctx, mk(body.ent(), id), ComponentConfig{}
@@ -331,12 +358,16 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         spacer(0, cache.offsets[first]);
         for (size_t row = first; row < last; ++row) {
             const auto& line = cache.lines[row];
-            div(ctx, mk(body.ent(), 100 + static_cast<int>(row)), ComponentConfig{}
+            auto renderedLine = div(ctx, mk(body.ent(), 100 + static_cast<int>(row)), ComponentConfig{}
                 .with_label(line.text)
                 .with_size(ComponentSize{percent(1.f), pixels(line.height)}).with_skip_grid_snap()
                 .with_font(line.kind == markdown_preview::Kind::Code ? "mono" : afterhours::ui::UIComponent::DEFAULT_FONT, pixels(line.fontSize))
                 .with_custom_text_color(line.kind == markdown_preview::Kind::Image ? theme::TEXT_SECONDARY : theme::TEXT_PRIMARY)
                 .with_debug_name("markdown_preview_block"));
+            const int endColumn = row + 1 < cache.lines.size() && cache.lines[row + 1].sourceLine == line.sourceLine
+                ? cache.lines[row + 1].sourceColumn - 1 : std::numeric_limits<int>::max();
+            const int sourceLine = line.sourceLine + repo.fullFilePage.begin.line - 1;
+            state.rows.push_back({renderedLine.ent().id, repo.fullFilePath(), 0, 0, sourceLine, sourceLine, line.sourceColumn, endColumn});
         }
         spacer(1, cache.offsets.back() - cache.offsets[last] + 16.f);
     } else {
