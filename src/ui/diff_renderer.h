@@ -2678,7 +2678,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
                             review->approvedHunks.insert(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
                     }
                     review->dirty = true;
-                    afterhours::toast::send_info(ctx, viewed ? "File marked unreviewed; index unchanged" : "File approved for review; index unchanged", 1.5f);
                 }
             }
             if (reviewScope == "wt" && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {

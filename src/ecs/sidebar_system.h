@@ -720,12 +720,35 @@ private:
             const auto* origin = repo && source_tab_active(*repo) ? repo->workspace().retained_review() : nullptr;
             const auto progress = origin && origin->files ? review_progress(*review, scope, *origin->files) :
                 review_progress(*review, scope, *files);
-            div(ctx, mk(heading.ent(), 1), preset::BodyText(std::to_string(progress.reviewed) + " / " + std::to_string(progress.total))
-                .with_size(ComponentSize{pixels(64), pixels(32)}).with_font("mono", pixels(11))
-                .with_alignment(TextAlignment::Right).with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_debug_name("tree_review_progress"));
+            if (layout && layout->shelfCollapsed && progress.reviewed < progress.total) {
+                const auto remaining = progress.total - progress.reviewed;
+                if (button(ctx, mk(heading.ent(), 1), preset::Button(std::to_string(remaining) + " left")
+                        .with_size(ComponentSize{pixels(72), pixels(28)}).with_font_size(pixels(12))
+                        .with_debug_name("dock_review_remaining"))) {
+                    auto destination = repo->workspace().review();
+                    if (origin && origin->files) {
+                        for (const auto& file : *origin->files) {
+                            if (file_reviewed(*review, scope, file)) continue;
+                            destination.file = file.path;
+                            break;
+                        }
+                    } else {
+                        for (const auto& file : *files) {
+                            if (file_reviewed(*review, scope, file)) continue;
+                            destination.file = file.filePath;
+                            break;
+                        }
+                    }
+                    navigation::open(*repo, destination, true);
+                }
+            } else {
+                div(ctx, mk(heading.ent(), 1), preset::BodyText(std::to_string(progress.reviewed) + " / " + std::to_string(progress.total))
+                    .with_size(ComponentSize{pixels(64), pixels(32)}).with_font("mono", pixels(11))
+                    .with_alignment(TextAlignment::Right).with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_debug_name("tree_review_progress"));
+            }
         }
-        if (height <= 32.f) return;
+        if (height <= 32.f || (layout && layout->shelfCollapsed && files && files->empty())) return;
         auto search = div(ctx, mk(section.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(38)})
             .with_padding(Padding{.left = pixels(16), .right = pixels(16), .bottom = pixels(8)})
