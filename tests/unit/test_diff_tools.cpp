@@ -380,4 +380,21 @@ TEST(revision_ranges_require_explicit_two_dot_endpoints) {
         ASSERT_FALSE(parse_revision_range(invalid).has_value());
 }
 
+TEST(quick_open_ranks_filename_matches_before_directory_matches) {
+    auto paths = fuzzy::rank({"app/z.cpp", "very/long/path/app.cpp", "src/application.cpp", "app/a.cpp"}, "app");
+    ASSERT_EQ(paths, (std::vector<std::string>{"very/long/path/app.cpp", "src/application.cpp", "app/a.cpp", "app/z.cpp"}));
+    auto ties = fuzzy::rank({"z/app.cpp", "a/app.cpp"}, "APP");
+    ASSERT_EQ(ties, (std::vector<std::string>{"a/app.cpp", "z/app.cpp"}));
+    ASSERT_EQ(fuzzy::rank({"b.cpp", "a.cpp", "recent.cpp"}, "", {"missing.cpp", "recent.cpp"}),
+        (std::vector<std::string>{"recent.cpp", "a.cpp", "b.cpp"}));
+}
+
+TEST(quick_open_highlights_the_ranked_match_without_splitting_utf8) {
+    ASSERT_EQ(fuzzy::matched_ranges("app", "app/app.cpp"), (std::vector<fuzzy::Range>{{4, 5}, {5, 6}, {6, 7}}));
+    ASSERT_EQ(fuzzy::matched_ranges("sacp", "src/app.cpp"), (std::vector<fuzzy::Range>{{0, 1}, {4, 5}, {8, 9}, {9, 10}}));
+    ASSERT_EQ(fuzzy::matched_ranges("日本", "src/日本.cpp"), (std::vector<fuzzy::Range>{{4, 7}, {7, 10}}));
+    ASSERT_TRUE(fuzzy::matched_ranges("日本", "src/日語.cpp").empty());
+    ASSERT_FALSE(fuzzy::score("日本", "src/日語.cpp").has_value());
+}
+
 int main() { RUN_ALL_TESTS(); }

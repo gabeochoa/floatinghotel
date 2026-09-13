@@ -1,0 +1,42 @@
+reading_probe cold source b.cpp -
+key F12
+wait_for_refresh
+wait_frames 12
+reading_checkpoint
+workspace_checkpoint 5 cold
+screenshot cold
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+key BACKSPACE
+wait_frames 8
+screenshot restored_recent
+key ESCAPE
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_ui open_tabs_menu
+wait_frames 3
+click_ui "context_menu_item_a.cpp · 97ce592"
+wait_for_refresh
+wait_frames 12
+screenshot restored_a
+workspace_checkpoint 5 restored_a
+click_ui open_tabs_menu
+wait_frames 3
+click_ui "context_menu_item_Original sources"
+wait_for_refresh
+wait_frames 12
+screenshot restored_review
+workspace_checkpoint 5 restored_review
+bench_frames 120
+expect_p99_below 20

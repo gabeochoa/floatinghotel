@@ -1,0 +1,58 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Later source"
+wait_for_refresh
+key ENTER
+click_text "Original sources"
+wait_for_refresh
+key ENTER
+click_ui open_full_file
+wait_for_refresh
+key ENTER
+hover_ui diff_scroll
+scroll_wheel 0 -30
+wait_frames 20
+screenshot historical_a
+click_ui full_file_back
+wait_for_refresh
+hover_ui commit_detail_scroll
+scroll_wheel 0 -40
+wait_frames 20
+screenshot review
+key CMD+P
+wait_for_refresh
+click_ui file_picker_working_scope
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "b.cpp"
+wait_frames 3
+key ENTER
+wait_for_refresh
+hover_ui diff_scroll
+scroll_wheel 0 -25
+wait_frames 20
+screenshot working_b
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "c.cpp"
+wait_frames 3
+click_ui file_picker_result
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 6 preview
+screenshot preview
+save_window_state

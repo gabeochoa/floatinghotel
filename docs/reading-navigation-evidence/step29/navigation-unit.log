@@ -1,0 +1,66 @@
+--- Compiling test_review_target ---
+--- Running test_review_target ---
+  comparison_target_jump_discards_the_previous_pending_result  OK
+  staged_review_draft_restores_its_file_and_index_side         OK
+  comparison_loading_does_not_restore_an_unrelated_branch_review OK
+  saved_review_target_exits_series_mode_and_discards_its_pending_result OK
+  navigation_result_stamp_rejects_each_superseded_identity     OK
+  historical_resolution_pins_history_without_creating_a_visit  OK
+  reselecting_the_same_destination_keeps_pending_work          OK
+  typed_destinations_separate_working_index_historical_and_review OK
+  comparison_resolution_updates_the_same_visit_and_ignores_late_results OK
+  opening_source_keeps_the_retained_comparisons_review_storage OK
+  consuming_a_source_reveal_does_not_restore_a_stale_line_on_activation OK
+  comparison_results_from_old_diff_options_are_not_applied     OK
+  submitted_comparison_rejects_edited_fields_and_merge_mode    OK
+  document_comparison_reload_ignores_unsubmitted_form_edits    OK
+  document_collection_retains_two_reviews_and_three_sources    OK
+  document_identity_excludes_reading_location_and_origin       OK
+  inactive_documents_release_rendering_payloads_and_keep_file_summaries OK
+  comparison_tab_reloads_after_another_review_releases_its_payload OK
+  resolved_aliases_reuse_existing_source_review_and_comparison_documents OK
+  inactive_review_summaries_preserve_filters_rename_comments_and_progress OK
+  resolving_reviews_updates_retained_source_origins_and_history OK
+  document_close_reopens_reading_location_and_keeps_origin_summaries OK
+  document_close_history_is_bounded_and_final_fallback_does_not_fill_it OK
+  closed_source_origins_resolve_with_their_review              OK
+  previews_replace_in_place_without_closing_kept_documents     OK
+  source_previews_keep_their_origin_and_replace_only_other_previews OK
+  keeping_a_preview_does_not_restart_its_pending_read          OK
+  double_click_and_enter_keep_only_the_requested_destination   OK
+  resolving_a_preview_alias_preserves_the_existing_kept_tab    OK
+  reopen_keeps_a_closed_preview_without_replacing_the_current_preview OK
+  back_recreates_a_replaced_preview_and_invalidates_its_old_request OK
+  clicks_in_different_regions_do_not_count_as_a_double_click   OK
+  history_navigation_breaks_a_double_click_sequence            OK
+  different_rows_in_one_review_do_not_count_as_a_double_click  OK
+  commit_subject_is_seeded_and_survives_switching_closing_and_alias_resolution OK
+  closing_into_working_changes_keeps_the_review_visible        OK
+  closing_inactive_documents_preserves_the_active_read_and_selects_nearest_neighbors OK
+  reopening_a_recreated_review_restores_its_retained_subject   OK
+  reordering_changes_only_order_and_preserves_requests_and_history OK
+  recent_documents_follow_activation_and_ignore_tab_order_and_closed_tabs OK
+  saved_sessions_exclude_previews_and_restore_kept_tabs_without_payloads OK
+  unresolved_saved_revisions_require_explicit_resolution       OK
+  restored_active_source_wins_over_saved_recency               OK
+  restoring_tabs_preserves_the_window_review_mode              OK
+  history_keeps_distinct_file_anchors_in_one_commit_without_scroll_visits OK
+  history_reopens_closed_sources_with_the_visit_origin_and_requested_line OK
+  history_truncates_forward_visits_and_retains_only_256_precise_locations OK
+  opening_a_deleted_diff_line_uses_the_before_revision_and_old_path OK
+  source_destinations_use_the_first_change_without_a_visible_or_selected_line OK
+  source_origin_position_survives_other_files_and_later_review_visits OK
+  source_column_navigation_survives_history_and_is_consumed_with_the_line OK
+  activation_restores_the_saved_source_page_and_scroll_cancels_the_pending_anchor OK
+  tab_clicks_restore_anchors_but_repeated_activation_does_not_restart_restoration OK
+  keyboard_previews_preserve_caller_focus_and_do_not_become_double_clicks OK
+  historical_source_reveals_renamed_review_row_without_using_working_tree OK
+  working_and_index_trees_exclude_historical_destinations      OK
+  recent_source_paths_are_scoped_bounded_and_survive_closed_previews OK
+  restored_sources_seed_recents_without_loading_documents      OK
+
+58/58 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

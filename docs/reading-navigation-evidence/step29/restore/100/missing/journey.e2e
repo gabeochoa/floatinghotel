@@ -1,0 +1,5 @@
+wait_for_refresh
+wait_frames 12
+assert_ui full_file_error hidden=false
+workspace_checkpoint 6 unavailable
+screenshot unavailable

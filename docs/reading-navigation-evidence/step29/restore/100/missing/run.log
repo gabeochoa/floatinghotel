@@ -1,0 +1,37 @@
+[INFO] Process start to main: 46 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/p/floatinghotel/output/step29-fixed-restore_tabs/100/settings/settings.json
+[INFO] Pre-graphics init: 73 ms
+[INFO]   Window+GPU init: 197 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 1 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 198 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 321 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 353 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 376 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 377 ms
+[INFO] git: 471 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 2 commits, 471 ms after refresh requested, 811 ms since process start
+[INFO] git: 217 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 594 ms
+[INFO] git: 300 ms (waited 1 ms for lock): git diff
+[INFO] refresh: diff ready at 626 ms
+[INFO] git: 286 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 758 ms
+[INFO] E2E finished in 0.10 seconds

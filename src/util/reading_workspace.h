@@ -208,6 +208,7 @@ class ReadingWorkspace {
     friend struct ::navigation;
     std::vector<Document> documents_{{DocumentId{1}}};
     std::vector<Document> closed_;
+    std::vector<SourceDestination> recentSources_;
     DocumentId active_{1};
     std::uint64_t nextId_ = 2;
     std::vector<Visit> history_{{}};
@@ -222,6 +223,13 @@ class ReadingWorkspace {
     }
     void keep(DocumentId id) {
         for (auto& document : documents_) if (document.id == id) document.preview = false;
+    }
+    void remember_source(const Location& location) {
+        const auto* source = std::get_if<SourceLocation>(&location);
+        if (!source || std::holds_alternative<RevisionQuery>(source->destination.revision)) return;
+        std::erase(recentSources_, source->destination);
+        recentSources_.insert(recentSources_.begin(), source->destination);
+        if (recentSources_.size() > 40) recentSources_.pop_back();
     }
     void select(const Location& location, OpenMode mode = OpenMode::Preview) {
         if (const auto* source = std::get_if<SourceLocation>(&location); source && source->origin)
@@ -242,10 +250,17 @@ class ReadingWorkspace {
         found->location = location;
         active_ = found->id;
         found->lastActivated = ++generation_;
+        remember_source(found->location);
     }
 public:
     const std::vector<Document>& documents() const { return documents_; }
     const std::vector<Document>& closed() const { return closed_; }
+    std::vector<std::string> recent_source_paths(const SourceRevision& revision) const {
+        std::vector<std::string> paths;
+        for (const auto& source : recentSources_)
+            if (source.revision == revision) paths.push_back(source.path);
+        return paths;
+    }
     DocumentId active_id() const { return active_; }
     const Document* document(DocumentId id) const {
         auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == id; });
@@ -416,6 +431,7 @@ private:
         auto& source = std::get<SourceLocation>(current().location);
         if (!std::holds_alternative<RevisionQuery>(source.destination.revision)) return false;
         source.destination.revision = ObjectId{oid};
+        remember_source(current().location);
         coalesce_resolved_document();
         return true;
     }

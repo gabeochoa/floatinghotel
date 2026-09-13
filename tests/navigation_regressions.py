@@ -44,6 +44,13 @@ def main():
         if name == "reading_navigation_boundary" and result.returncode == 0 and not errors:
             geometry = subprocess.run([sys.executable, str(ROOT / "tests/check_navigation_evidence.py"),
                                        str(directory)], cwd=ROOT).returncode
+        if name == "improvement_21_file_picker" and result.returncode == 0 and not errors:
+            layout = json.loads((directory / "improvement_21_results.json").read_text())
+            geometry = int(not any(n.get("name") == "file_picker_result"
+                                   and n.get("focus_target", {}).get("item") == "src/app.cpp"
+                                   and n.get("text", "").startswith("app.cpp")
+                                   and n["visible_rect"]["width"] > 100 and n["visible_rect"]["height"] > 0
+                                   for n in layout["nodes"]))
         if name == "improvement_27_commit_search" and result.returncode == 0 and not errors:
             layout = json.loads((directory / "improvement_27_open.json").read_text())
             geometry = int(not any(n.get("name") == "file_header_label" and n.get("text") == "tests/test_utils.cpp"

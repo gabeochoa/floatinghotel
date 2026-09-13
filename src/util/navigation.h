@@ -3,6 +3,7 @@
 #include "../ecs/components.h"
 
 #include "reading_session.h"
+#include "document_cycle.h"
 #include "source_destination.h"
 
 struct navigation {
@@ -185,6 +186,8 @@ struct navigation {
         workspace.active_ = workspace.documents_[std::min(session.active, workspace.documents_.size() - 1)].id;
         workspace.generation_ = std::max(previousGeneration, mostRecent) + 1;
         workspace.current().lastActivated = workspace.generation_;
+        const auto recent = reading::recent_documents(workspace);
+        for (auto id = recent.rbegin(); id != recent.rend(); ++id) workspace.remember_source(workspace.document(*id)->location);
         workspace.history_ = {{workspace.location(), reviewing}};
         workspace.index_ = 0;
         repo.reading = {};

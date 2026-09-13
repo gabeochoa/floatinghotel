@@ -1,0 +1,10 @@
+wait_for_refresh
+wait_frames 12
+assert_ui saved_revision_unavailable hidden=false
+workspace_checkpoint 6 pending
+screenshot pending
+click_ui resolve_saved_revision
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 resolved
+screenshot resolved

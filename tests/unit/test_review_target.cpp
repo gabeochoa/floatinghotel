@@ -1010,4 +1010,45 @@ TEST(working_and_index_trees_exclude_historical_destinations) {
     ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Working), std::string{});
 }
 
+TEST(recent_source_paths_are_scoped_bounded_and_survive_closed_previews) {
+    ecs::RepoComponent repo;
+    const std::string oid(40, 'b');
+    navigation::open(repo, reading::source("old.cpp", oid));
+    navigation::open(repo, reading::source("working.cpp"));
+    navigation::open(repo, reading::source("index.cpp", "INDEX"));
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::ObjectId{oid}), (std::vector<std::string>{"old.cpp"}));
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}), (std::vector<std::string>{"working.cpp"}));
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::Index{}), (std::vector<std::string>{"index.cpp"}));
+    navigation::open(repo, reading::source("next.cpp"));
+    navigation::step(repo, -1);
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}), (std::vector<std::string>{"working.cpp", "next.cpp"}));
+    navigation::close(repo, repo.workspace().active_id());
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}).front(), std::string("working.cpp"));
+    navigation::open(repo, reading::source("query.cpp", "HEAD"));
+    ASSERT_TRUE(repo.workspace().recent_source_paths(reading::RevisionQuery{"HEAD"}).empty());
+    ASSERT_TRUE(navigation::resolve_source(repo, navigation::stamp(repo, "source"), oid));
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::ObjectId{oid}).front(), std::string("query.cpp"));
+    for (int i = 0; i < 45; ++i) navigation::open(repo, reading::source(std::to_string(i) + ".cpp"));
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}).size(), size_t{40});
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}).front(), std::string("44.cpp"));
+    ecs::RepoComponent other;
+    ASSERT_TRUE(other.workspace().recent_source_paths(reading::WorkingTree{}).empty());
+    navigation::reset(repo);
+    ASSERT_TRUE(repo.workspace().recent_source_paths(reading::WorkingTree{}).empty());
+}
+
+TEST(restored_sources_seed_recents_without_loading_documents) {
+    ecs::RepoComponent repo;
+    reading::ReadingSession session;
+    session.documents = {{reading::source("first.cpp"), "", 2}, {reading::source("active.cpp"), "", 1},
+        {reading::source("old.cpp", std::string(40, 'a')), "", 3}};
+    session.active = 1;
+    navigation::restore_session(repo, session, false);
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}), (std::vector<std::string>{"active.cpp", "first.cpp"}));
+    ASSERT_EQ(repo.workspace().recent_source_paths(reading::ObjectId{std::string(40, 'a')}), (std::vector<std::string>{"old.cpp"}));
+    ASSERT_TRUE(repo.fullFileBytes.empty());
+    ASSERT_FALSE(repo.fullFileFuture.valid());
+}
+
 int main() { RUN_ALL_TESTS(); }

@@ -38,6 +38,35 @@ inline void update_file_picker_paths(RepoComponent& repo, LayoutComponent& layou
     }
 }
 
+inline std::vector<afterhours::ui::TextSpan> file_picker_label(const std::string& path, const std::string& query, bool selected) {
+    const auto ranges = fuzzy::matched_ranges(query, path);
+    const auto filename = fuzzy::filename_start(path);
+    std::vector<afterhours::ui::TextSpan> spans;
+    const auto directoryColor = selected ? afterhours::Color{196, 202, 212, 255} : theme::TEXT_SECONDARY;
+    auto append = [&](size_t begin, size_t finish) {
+        size_t match = 0;
+        int previousStyle = -1;
+        for (size_t at = begin; at < finish;) {
+            const auto end = code_wrap::next_codepoint(path, at);
+            while (match < ranges.size() && ranges[match].second <= at) ++match;
+            const bool highlighted = match < ranges.size() && ranges[match].first <= at;
+            const auto color = highlighted ? afterhours::Color{190, 215, 255, 255} :
+                at < filename ? directoryColor : theme::TEXT_PRIMARY;
+            const int style = highlighted ? 2 : at < filename ? 0 : 1;
+            if (previousStyle == style) spans.back().text += path.substr(at, end - at);
+            else spans.push_back({path.substr(at, end - at), color});
+            previousStyle = style;
+            at = end;
+        }
+    };
+    append(filename, path.size());
+    if (filename > 0) {
+        spans.push_back({"  ", directoryColor});
+        append(0, filename - 1);
+    }
+    return spans;
+}
+
 inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout, float height) {
     bool revealSelection = layout.filePickerFocus;
@@ -84,7 +113,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     std::string key = repo.repoPath + ":" + std::to_string(repo.dataGeneration) + ":" +
                       std::to_string(repo.repoVersion) + "\n" + scope.request.key + "\n" + layout.filePickerQuery;
     if (key != layout.filePickerCacheKey) {
-        layout.filePickerResults = fuzzy::rank(paths, layout.filePickerQuery);
+        layout.filePickerResults = fuzzy::rank(paths, layout.filePickerQuery, repo.workspace().recent_source_paths(scope.listing.revision));
         layout.filePickerCacheKey = key;
         layout.filePickerIndex = 0;
         const auto selected = std::find(layout.filePickerResults.begin(), layout.filePickerResults.end(), layout.filePickerSelectedPath);
@@ -104,7 +133,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     if (!results.empty()) layout.filePickerSelectedPath = results[layout.filePickerIndex];
     const auto& error = working ? repo.filesError : scope.listing.error;
     const std::string status = scope.future.valid() ? "Loading files..." : !error.empty() ? error :
-        std::to_string(results.size()) + (scope.listing.truncated ? " matches · file list limit reached" : " matches · arrows to choose · Enter open · Esc close");
+        std::to_string(results.size()) + (scope.listing.truncated ? " matches · file list limit reached" : (layout.filePickerQuery.empty() ? " files · recent first · Enter open · Esc close" : " matches · arrows to choose · Enter open · Esc close"));
     div(ctx, mk(parent, 586002), ComponentConfig{}
         .with_label(status).with_debug_name("file_picker_status")
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
@@ -128,11 +157,15 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     }
     ui::virtual_list(ctx, listParent, results.size(), 28.f,
         [&](size_t i, Entity& row) {
-            if (button(ctx, mk(row, 0), preset::Button(results[i])
+            auto result = button(ctx, mk(row, 0), preset::Button(results[i])
+                    .with_styled_label(file_picker_label(results[i], layout.filePickerQuery, static_cast<int>(i) == layout.filePickerIndex))
+                    .with_tooltip(results[i])
                     .with_size(ComponentSize{percent(1.f), pixels(28)})
                     .with_alignment(TextAlignment::Left)
                     .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
-                    .with_font_size(pixels(14)).with_debug_name("file_picker_result"))) open(results[i], false);
+                    .with_font_size(pixels(14)).with_debug_name("file_picker_result"));
+            ui::bind_focus(result.ent(), repo, reading::focus::Region::Picker, results[i]);
+            if (result) open(results[i], false);
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(28.f, height - 90.f))})
             .with_debug_name("file_picker_list"));
 }

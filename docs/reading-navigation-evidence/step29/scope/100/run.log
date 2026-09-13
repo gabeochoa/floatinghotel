@@ -1,0 +1,96 @@
+[INFO] Process start to main: 50 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 77 ms
+[INFO]   Window+GPU init: 169 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 2 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 173 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 1103 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 1304 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 2 commits, 1305 ms after refresh requested, 1624 ms since process start
+[INFO] git: 1419 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 1420 ms
+[INFO] git: 585 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 1689 ms
+[INFO] git: 598 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 1905 ms
+[INFO] git: 618 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 2040 ms
+[WARN] Layout wrap: 'commit_heading' in parent 'main_content' - NoWrap set but would overflow (child_size=60.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_heading' extends outside parent 'main_content' bounds (child_rel=[0.0,0.0], child_size=[0.0,60.0], child_end=[0.0,60.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_sticky_revision' in parent 'commit_heading' - NoWrap set but would overflow (child_size=88.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_sticky_revision' extends outside parent 'commit_heading' bounds (child_rel=[0.0,0.0], child_size=[88.0,52.0], child_end=[88.0,52.0], parent_size=[0.0,52.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_find_host' in parent 'main_content' - NoWrap set but would overflow (child_size=72.0, offset=60.0, container=0.0)
+[WARN] Layout overflow: 'commit_find_host' extends outside parent 'main_content' bounds (child_rel=[0.0,60.0], child_size=[0.0,72.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_detail_scroll' in parent 'main_content' - NoWrap set but would overflow (child_size=0.0, offset=132.0, container=0.0)
+[WARN] Layout overflow: 'commit_detail_scroll' extends outside parent 'main_content' bounds (child_rel=[0.0,132.0], child_size=[0.0,0.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_relative_date' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=54.0, offset=6.0, container=0.0)
+[WARN] Layout overflow: 'commit_relative_date' extends outside parent 'commit_meta_compact' bounds (child_rel=[6.0,2.0], child_size=[54.0,28.0], child_end=[60.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_short_hash' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=84.0, offset=66.0, container=0.0)
+[WARN] Layout overflow: 'commit_short_hash' extends outside parent 'commit_meta_compact' bounds (child_rel=[66.0,2.0], child_size=[84.0,28.0], child_end=[150.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_meta_toggle' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=80.0, offset=156.0, container=0.0)
+[WARN] Layout overflow: 'commit_meta_toggle' extends outside parent 'commit_meta_compact' bounds (child_rel=[156.0,2.0], child_size=[80.0,28.0], child_end=[236.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[INFO] git: 372 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 519 ms (waited 0 ms for lock): git show
+[INFO] git: 501 ms (waited 0 ms for lock): git show
+[INFO] git: 350 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 312 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 1066 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 430 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 131 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 942 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 399 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 342 ms (waited 4 ms for lock): git cat-file
+[INFO] git: 301 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 271 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 353 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 98ded271ab1d9e97c0c693862b1daeaddcb2430f
+[INFO] git: 30 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 292 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 260 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 246 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 284 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 306 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 223 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 328 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 277 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 71 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 320 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 98ded271ab1d9e97c0c693862b1daeaddcb2430f
+[INFO] git: 278 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 366 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 1031 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 416 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 259 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 247 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 201 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 233 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 24 ms (waited 0 ms for lock): git ls-tree
+[INFO] bench_frames: 120 frames, 181 entities: avg 1.89 ms  p50 1.79  p99 3.78  max 4.20
+[INFO]     0.39 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.24 ms/frame  ecs::MainContentSystem
+[INFO]     0.22 ms/frame  ecs::SidebarSystem
+[INFO]     0.19 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.09 ms/frame  ecs::TabSyncSystem
+[INFO]     0.03 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.03 ms/frame  ecs::MenuBarSystem
+[INFO]     0.02 ms/frame  ecs::TabBarSystem
+[INFO] expect_p99_below: 3.78ms <= 20.00ms (PASS)
+[INFO] E2E finished in 2.05 seconds

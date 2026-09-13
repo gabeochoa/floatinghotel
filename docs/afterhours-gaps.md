@@ -1099,6 +1099,10 @@ caption or path can therefore paint underneath neighboring controls despite
 container, and file-title groups clip before the action cluster. This keeps
 the controls clear but truncates styled text without an ellipsis. Upstream
 should truncate the styled runs while retaining their colors and weights.
+Quick Open also uses filename-first labels inside its clipped list so a long
+parent directory cannot hide the filename. Its full-path tooltip supplies the
+clipped portion. Native verification checks colored match spans and uses the
+row's semantic path because text assertions see individual runs.
 
 ### Expanding immediate-mode controls can warn before the next layout pass
 

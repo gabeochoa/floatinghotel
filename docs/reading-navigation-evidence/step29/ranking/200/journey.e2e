@@ -1,0 +1,121 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "right/common.cpp"
+wait_frames 8
+key ENTER
+wait_for_refresh
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "left/common.cpp"
+wait_frames 8
+key ENTER
+wait_for_refresh
+key CMD+W
+wait_for_refresh
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+key BACKSPACE
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 recent_working
+screenshot recent_working
+click_ui file_picker_input
+key CMD+A
+type "APP"
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 filename_rank
+screenshot filename_rank
+click_ui file_picker_input
+key CMD+A
+type "common"
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 duplicate_names
+screenshot duplicate_names
+click_ui file_picker_input
+key CMD+A
+type "app"
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 deterministic_rank
+screenshot deterministic_rank
+key ESCAPE
+click_text "Ranking fixture"
+wait_for_refresh
+key ENTER
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+key BACKSPACE
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 historical_fresh
+screenshot historical_fresh
+click_ui file_picker_input
+key CMD+A
+type "left/common.cpp"
+wait_frames 8
+key ENTER
+wait_for_refresh
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+key BACKSPACE
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 historical_recent
+screenshot historical_recent
+click_ui file_picker_working_scope
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 working_scoped
+screenshot working_scoped
+click_ui file_picker_input
+key CMD+A
+type "common"
+wait_frames 8
+resize 1100 800
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 narrow
+screenshot narrow
+click_ui file_picker_input
+key CMD+A
+type "long_file"
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 long_path
+screenshot long_path
+key ESCAPE
+resize 1800 1100
+bench_frames 120
+expect_p99_below 20

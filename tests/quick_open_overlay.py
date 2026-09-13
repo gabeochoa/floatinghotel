@@ -44,7 +44,7 @@ for zoom in [100, 140, 200]:
 
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'click_text "Picker review"\nwait_for_refresh\nkey ENTER\nclick_ui commit_file_filter\ntype "f045"\nwait_frames 8\nclick_ui jump_to_diff:files/f045.cpp\nwait_frames 8\nhover_ui commit_detail_scroll\nscroll_wheel 0 -20\nwait_frames 12\nclick_ui content_document_2\n' + capture('review_before')
+    script += 'click_text "Picker review"\nwait_for_refresh\nkey ENTER\nclick_ui commit_file_filter\ntype "f045"\nwait_frames 8\nexpect_text "f045.cpp"\nscreenshot filtered_target\nclick_ui jump_to_diff:files/f045.cpp\nwait_frames 8\nhover_ui commit_detail_scroll\nscroll_wheel 0 -20\nwait_frames 12\nclick_ui content_document_2\n' + capture('review_before')
     script += 'key CMD+P\n' + capture('review_open')
     script += 'type "files/f"\nwait_for_refresh\n' + 'key DOWN\n' * 45 + capture('chosen')
     script += 'hover_ui commit_detail_scroll\nscroll_wheel 0 -40\n' + capture('review_blocked')
@@ -106,7 +106,7 @@ for zoom in [100, 140, 200]:
             assert selected_row['visible_rect']['height'] >= selected_row['rect']['height'] - 1, (zoom, opened, selected_row)
 
         geometry[str(zoom)][before] = {'viewport': original['rect'], 'overlay': overlay['rect'], 'scroll': original['scroll']}
-    selected = next(n for n in layout('chosen')['nodes'] if n['rendered'] and n.get('name') == 'file_picker_result' and n.get('text') == 'files/f045.cpp')
+    selected = next(n for n in layout('chosen')['nodes'] if n['rendered'] and n.get('name') == 'file_picker_result' and n.get('focus_target', {}).get('item') == 'files/f045.cpp')
     assert selected['visible_rect']['height'] >= selected['rect']['height'] - 1, (zoom, selected)
     assert len([n for n in layout('chosen')['nodes'] if n['rendered'] and n.get('name') == 'file_picker_result']) < 40, zoom
     assert state('outside_return')['active'] == 2 and same_visits(state('outside_return')['history'], state('review_before')['history']), zoom
