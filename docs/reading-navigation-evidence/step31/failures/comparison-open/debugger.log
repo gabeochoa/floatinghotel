@@ -1,0 +1,79 @@
+(lldb) target create "output/floatinghotel.exe"
+Current executable set to '/Users/gabeochoa/p/floatinghotel/output/floatinghotel.exe' (arm64).
+(lldb) settings set -- target.run-args  "output/step31-origin-search_comparison_origin/fixture" "--test-mode" "--headless" "--test-script=output/step31-origin-search_comparison_origin/100/journey.e2e" "--screenshot-dir=output/step31-origin-stack" "--e2e-timeout=180"
+(lldb) run
+[INFO] Process start to main: 2341 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 1 ms
+[INFO]   Window+GPU init: 508 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+2026-09-13 06:37:30.145943-0400 floatinghotel.exe[28435:56298914] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-13 06:37:30.146305-0400 floatinghotel.exe[28435:56298914] [Application] Error registering app with intents framework: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-13 06:37:30.146454-0400 floatinghotel.exe[28435:56298940] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-13 06:37:30.146514-0400 floatinghotel.exe[28435:56298940] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-13 06:37:30.146909-0400 floatinghotel.exe[28435:56298915] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-13 06:37:30.146934-0400 floatinghotel.exe[28435:56298915] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+[INFO]   Preload+fonts: 1 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+2026-09-13 06:37:30.147386-0400 floatinghotel.exe[28435:56298915] [Connection] Will NOT re-try to establish the connection
+2026-09-13 06:37:30.147435-0400 floatinghotel.exe[28435:56298914] [Connection] Unable to get synchronousRemoteObjectProxy, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+2026-09-13 06:37:30.147470-0400 floatinghotel.exe[28435:56298914] [Connection] Unable to re-register with Process Instance Registry, error: Error Domain=NSCocoaErrorDomain Code=4097 "connection to service named com.apple.linkd.autoShortcut" UserInfo={NSDebugDescription=connection to service named com.apple.linkd.autoShortcut}
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 511 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 107 ms (waited 0 ms for lock): git log
+[INFO] git: 107 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 109 ms
+[INFO] commits loaded: 3 commits, 109 ms after refresh requested, 2982 ms since process start
+[INFO] git: 124 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 144 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 252 ms
+[INFO] git: 154 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 264 ms
+[INFO] git: 142 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 267 ms
+[INFO] git: 90 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 99 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 112 ms (waited 0 ms for lock): git diff
+warning: floatinghotel.exe was compiled with optimization - stepping may behave oddly; variables may not be available
+Process 28435 launched: '/Users/gabeochoa/p/floatinghotel/output/floatinghotel.exe' (arm64)
+Process 28435 stopped
+* thread #1, queue = 'com.apple.main-thread', stop reason = EXC_BAD_ACCESS (code=1, address=0x104)
+       frame #0: 0x00000001001ab37c floatinghotel.exe`ui::diff_detail::file_header_label(fileDiff=0x00000000000000c8) at diff_renderer.h:401:18 [opt]
+   398 	}
+   399 	
+   400 	inline std::string file_header_label(const ecs::FileDiff& fileDiff) {
+-> 401 	    if (fileDiff.isFullContent) return "Source";
+    	                 ^
+   402 	    std::string label = fileDiff.filePath;
+   403 	    if (fileDiff.isRenamed && !fileDiff.oldPath.empty())
+   404 	        label = fileDiff.oldPath + " -> " + fileDiff.filePath;
+(lldb) bt
+* thread #1, queue = 'com.apple.main-thread', stop reason = EXC_BAD_ACCESS (code=1, address=0x104)
+   * frame #0: 0x00000001001ab37c floatinghotel.exe`ui::diff_detail::file_header_label(fileDiff=0x00000000000000c8) at diff_renderer.h:401:18 [opt]
+     frame #1: 0x0000000100169bc0 floatinghotel.exe`ui::render_diff(ctx=<unavailable>, parent=<unavailable>, diffs=<unavailable>, contentWidth=<unavailable>, contentHeight=<unavailable>, embedInParentScroll=<unavailable>, resetScroll=<unavailable>, sideBySide=false, repoPath=<unavailable>, review=<unavailable>, reviewScope="compare:665b79e84be8b32e6c945aa581e68e6bd77292da:82e6bc12e5c45a0ddc9dd3252876c5b9773933ad", findParent=0x0000000000000000) at diff_renderer.h:1739:33 [opt]
+     frame #2: 0x000000010015cd8c floatinghotel.exe`ecs::render_revision_comparison(ctx=<unavailable>, parent=<unavailable>, repo=0x0000000100d8af20, layout=0x0000000b4d0fca00, review=0x0000000b4d15a400) at revision_comparison.h:97:9 [opt]
+     frame #3: 0x0000000100132b40 floatinghotel.exe`ecs::MainContentSystem::for_each_with(this=0x0000000b4d10c700, (null)=<unavailable>, ctx=0x0000000b4cee8000, dt=<unavailable>) at main_content_system.h:818:13 [opt]
+     frame #4: 0x00000001002942b8 floatinghotel.exe`auto void afterhours::run_system_over<afterhours::SystemBase>(afterhours::SystemBase&, std::__1::vector<std::__1::shared_ptr<afterhours::Entity>, std::__1::allocator<std::__1::shared_ptr<afterhours::Entity>>>&, float, afterhours::EntityCollection const&, bool)::'lambda'(afterhours::SystemBase&)::operator()<afterhours::Entity>(this=<unavailable>, entity=<unavailable>) const at system.h:0 [opt] [inlined]
+     frame #5: 0x0000000100294294 floatinghotel.exe`void afterhours::run_system_over<afterhours::SystemBase>(system=0x0000000b4d10c700, entities=size=275, dt=0.0166666675, coll=0x0000000100d629f0, skip_cleanup=false) at system.h:544:44 [opt]
+     frame #6: 0x0000000100294250 floatinghotel.exe`afterhours::SystemManager::tick(this=<unavailable>, entities=size=275, dt=0.0166666675) at system.h:633:13 [opt]
+     frame #7: 0x0000000100070830 floatinghotel.exe`afterhours::SystemManager::tick_all(this=<unavailable>, entities=<unavailable>, dt=0.0166666675) at system.h:669:57 [opt] [inlined]
+     frame #8: 0x000000010007082c floatinghotel.exe`e2e_tick_loop(real_dt=0.0166666675) at main.cpp:813:35 [opt]
+     frame #9: 0x00000001000703e0 floatinghotel.exe`app_frame() at main.cpp:1091:9 [opt]
+     frame #10: 0x0000000100302578 floatinghotel.exe`metal_headless_frame(fn=(floatinghotel.exe`app_frame() at main.cpp:1060)) at sokol_impl.mm:344:9 [opt]
+     frame #11: 0x000000010006aff4 floatinghotel.exe`main(argc=<unavailable>, argv=<unavailable>) at main.cpp:1563:17 [opt]
+     frame #12: 0x00000001891044e4 dyld`start + 6992

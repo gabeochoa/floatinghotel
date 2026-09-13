@@ -13,7 +13,8 @@ struct FocusIdentity : afterhours::BaseComponent {
 
 inline void bind_focus(Entity& entity, const ecs::RepoComponent& repo, reading::focus::Region region,
                        std::string item = {}, std::optional<reading::DocumentId> document = {}) {
-    const auto owner = document.value_or(region == reading::focus::Region::History || region == reading::focus::Region::Menu
+    const auto owner = document.value_or(region == reading::focus::Region::History || region == reading::focus::Region::Menu ||
+        region == reading::focus::Region::Search || region == reading::focus::Region::SearchPreview
         ? reading::DocumentId{} : repo.workspace().active_id());
     entity.addComponentIfMissing<FocusIdentity>().target = {repo.repoPath, owner, region, std::move(item), {}};
 }
@@ -74,7 +75,7 @@ inline bool shortcuts_blocked(const ecs::LayoutComponent& layout) {
 }
 
 inline bool reader_visible(const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
-    return !layout.shelfCollapsed && !layout.filePickerOpen && !repo.repoSearchOpen &&
+    return !layout.shelfCollapsed && !layout.filePickerOpen &&
         !repo.commitSearchOpen && !repo.fileHistoryOpen;
 }
 

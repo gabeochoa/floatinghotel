@@ -163,7 +163,12 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         };
                         return nlohmann::json{{"review", value(repo->reviewTreeNavigation)}, {"files", value(repo->filesTreeNavigation)},
                             {"generation", repo->workspace().generation()}};
-                    }()}, {"commit_log", {{"count", repo->commitLog.size()}, {"has_more", repo->commitLogHasMore},
+                    }()}, {"search", {{"open", repo->repoSearchOpen}, {"query", repo->repoSearchQuery},
+                        {"revision", repo->repoSearchScope.revision}, {"submissions", repo->repoSearchGeneration},
+                        {"matches", repo->repoSearchResults.size()}, {"scroll", repo->repoSearchScroll},
+                        {"selected", repo->repoSearchSelected ? nlohmann::json(*repo->repoSearchSelected) : nlohmann::json{}},
+                        {"include", repo->repoSearchIncludeGlob}, {"exclude", repo->repoSearchExcludeGlob},
+                        {"changed_only", repo->repoSearchChangedOnly}}}, {"commit_log", {{"count", repo->commitLog.size()}, {"has_more", repo->commitLogHasMore},
                         {"loading", repo->commitLogPage.requested || repo->commitLogPage.future.valid()},
                         {"error", repo->commitLogPage.error}, {"hashes", [&] {
                             auto hashes = nlohmann::json::array();

@@ -650,7 +650,8 @@ the existing list implementation. It normalizes only the generated wrapper and
 leading-spacer desired heights before layout. The list's window selection,
 recycling, and physical trailing extent remain upstream-owned. The adapter uses
 `UICollectionHolder` to resolve generated UI children and does not change global
-zoom or vendor files.
+zoom or vendor files. Step 31 moves repository search onto this same adapter;
+its retained sidebar pane must preserve row position at 100%, 140%, and 200%.
 
 The app also sets `skip_grid_snap` on the list and generated children. This flag
 does not fully disable flow-position snapping: `autolayout.h` still snaps each
@@ -2083,3 +2084,17 @@ Quick Open also switched theme font tiers to explicit logical pixel sizes.
 inside a zoomed modal. The app's existing button presets use `pixels` for this
 reason. A documented, consistently zoomed typography scale would avoid mixing
 viewport-relative font tiers with logical-pixel controls.
+
+### A post-build phase for actions that replace rendered models
+
+The step 31 comparison-source replay found an app lifetime bug: Open file
+released the comparison vector while `render_diff` was still iterating it.
+The app now returns immediately after navigation. The debugger backtrace is
+in `docs/reading-navigation-evidence/step31/failures/comparison-open`.
+
+A supported post-build UI action phase would help scene switches in games and
+document switches in apps avoid this pattern. Actions should own their input
+values and identify their repository, document, or scene owner so stale actions
+can be discarded. Current button handling returns activation during the
+caller's render pass; the app keeps navigation explicit and ends that pass
+after a model-replacing action. No additional content retention is needed.

@@ -1,0 +1,118 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_text "Original search files"
+wait_for_refresh
+key ENTER
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 2 review
+screenshot review
+key CMD+SHIFT+F
+wait_frames 3
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 2 opened
+screenshot opened
+click_ui repo_search_input
+type "NEEDLE"
+click_ui repo_search_submit
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 2 results
+screenshot results
+hover_ui repo_search_results
+scroll_wheel 0 -14
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 2 scrolled
+screenshot scrolled
+click_ui repo_search_result
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 source
+screenshot source
+hover_ui repo_search_results
+scroll_wheel 0 -8
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 moved
+screenshot moved
+click_ui repo_search_result
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 second_source
+screenshot second_source
+click_ui repo_search_close
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 closed
+screenshot closed
+key CMD+SHIFT+F
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 reopened
+screenshot reopened
+click_ui content_document_1
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 working_tab
+screenshot working_tab
+click_ui repo_search_input
+key CMD+A
+type "NEEDLE_05"
+key ENTER
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 scoped_results
+screenshot scoped_results
+click_text "gone.cpp:5"
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 historical_source
+screenshot historical_source
+click_ui full_file_back
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 origin
+screenshot origin
+key ESCAPE
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 escaped
+screenshot escaped
+key CMD+SHIFT+F
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 again
+screenshot again
+click_ui content_document_1
+click_ui repo_search_options
+wait_frames 3
+hover_ui repo_search_options_scroll
+scroll_wheel 0 -12
+wait_frames 20
+click_ui repo_search_current_scope
+wait_for_refresh
+click_ui repo_search_options
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 working_scope
+screenshot working_scope
+click_ui repo_search_result
+resize 1100 800
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 narrow
+screenshot narrow
+new_tab
+wait_frames 10
+workspace_checkpoint 1 other_repository
+screenshot other_repository
+close_tab
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 returned_repository
+screenshot returned_repository
+bench_frames 120
+expect_p99_below 20

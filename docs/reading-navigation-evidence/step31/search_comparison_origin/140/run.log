@@ -1,0 +1,73 @@
+[INFO] Process start to main: 44 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 44 ms
+[INFO]   Window+GPU init: 158 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 0 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 159 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 186 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 3 commits, 187 ms after refresh requested, 445 ms since process start
+[INFO] git: 200 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 207 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 208 ms
+[INFO] git: 172 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 374 ms
+[INFO] git: 200 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 389 ms
+[INFO] git: 199 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 409 ms
+[INFO] git: 117 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 117 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 149 ms (waited 0 ms for lock): git diff
+[INFO] git: 142 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 156 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 158 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 143 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 252 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 168 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 187 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 146 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 128 ms (waited 0 ms for lock): git grep
+[INFO] git: 140 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 166 ms (waited 0 ms for lock): git grep
+[INFO] git: 126 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 189 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 127 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 104 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 144 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 104 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 152 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 112 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 121 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 136 ms (waited 0 ms for lock): git diff
+[INFO] git: 112 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 123 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 122 ms (waited 0 ms for lock): git rev-parse
+[INFO] bench_frames: 120 frames, 259 entities: avg 2.84 ms  p50 2.45  p99 8.77  max 13.00
+[INFO]     0.73 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.51 ms/frame  ecs::MainContentSystem
+[INFO]     0.39 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.19 ms/frame  ecs::SidebarSystem
+[INFO]     0.07 ms/frame  ecs::TabSyncSystem
+[INFO]     0.05 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.02 ms/frame  ecs::MenuBarSystem
+[INFO]     0.02 ms/frame  ecs::TabBarSystem
+[INFO] expect_p99_below: 8.77ms <= 20.00ms (PASS)
+[INFO] E2E finished in 0.78 seconds

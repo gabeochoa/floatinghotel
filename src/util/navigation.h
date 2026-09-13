@@ -75,8 +75,8 @@ struct navigation {
         auto& effect = *repo.navigationEffect;
         effect.focus = reading::FocusPolicy::Document;
         effect.changed |= changed;
-        effect.dismissedPanel |= repo.repoSearchOpen || repo.fileHistoryOpen || repo.commitSearchOpen;
-        repo.repoSearchOpen = repo.fileHistoryOpen = repo.commitSearchOpen = false;
+        effect.dismissedPanel |= repo.fileHistoryOpen || repo.commitSearchOpen;
+        repo.fileHistoryOpen = repo.commitSearchOpen = false;
         if (!changed) return;
         repo.comparisonEditorOpen = false;
         effect.reviewing = repo.workspace_.history()[repo.workspace_.history_index()].reviewing;

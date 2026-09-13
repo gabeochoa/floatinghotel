@@ -85,12 +85,13 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const float tabStripH = std::min(28.f, availableH);
         const float menuH = native_menu::is_installed() ? 0.f : std::min(26.f, availableH - tabStripH);
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
-        const float toolbarH = !layout.sidebarVisible && repo && !repo->reviewWorkspace
+        const bool sidebarShown = layout.sidebarVisible || (repo && repo->repoSearchOpen);
+        const float toolbarH = !sidebarShown && repo && !repo->reviewWorkspace
             ? std::min(42.f, availableH - tabStripH - menuH) : 0.f;
         const float topY = tabStripH + menuH + toolbarH;
         const float bodyH = availableH - topY;
-        const bool sidebarOnly = layout.sidebarVisible && layout.shelfCollapsed;
-        const auto sidebarState = !layout.sidebarVisible ? review_layout::Sidebar::Hidden
+        const bool sidebarOnly = sidebarShown && layout.shelfCollapsed && !(repo && repo->repoSearchOpen);
+        const auto sidebarState = !sidebarShown ? review_layout::Sidebar::Hidden
             : sidebarOnly ? review_layout::Sidebar::Collapsed
             : review_layout::Sidebar::Expanded;
         const float sidebarW = review_layout::sidebar_width(

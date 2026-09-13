@@ -18,6 +18,7 @@
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
 #include "../ui/focus.h"
+#include "../ui/repo_search.h"
 #include "../ui/file_history.h"
 #include "../ui/review_snapshot.h"
 #include "../ui/diff_metrics.h"
@@ -200,9 +201,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         if (!layoutPtr) return;
         auto& layout = *layoutPtr;
 
-        if (!layout.sidebarVisible || layout.sidebar.width <= 0.f) return;
-
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        if ((!layout.sidebarVisible && !(repoPtr && repoPtr->repoSearchOpen)) || layout.sidebar.width <= 0.f) return;
 
         // Working tree clean = nothing staged/unstaged/untracked. Used to hide
         // the commit area and shrink the empty files pane (#8, #24).
@@ -238,6 +238,15 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
 
         render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
+        if (repoPtr && repoPtr->repoSearchOpen) {
+            auto pane = div(ctx, mk(sidebarRoot.ent(), 2090), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), expand()})
+                .with_padding(Padding{.top = pixels(8), .right = pixels(8), .bottom = pixels(8), .left = pixels(8)})
+                .with_overflow(Overflow::Hidden).with_debug_name("repo_search_pane"));
+            render_repo_search(ctx, pane.ent(), *repoPtr, layout,
+                std::max(0.f, layout.sidebar.width - 16.f), std::max(0.f, layout.sidebar.height - 78.f));
+            return;
+        }
         auto navigation = div(ctx, mk(sidebarRoot.ent(), 2080), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(42)})
             .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(6), .left = pixels(12)})

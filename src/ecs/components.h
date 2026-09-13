@@ -384,8 +384,17 @@ public:
     bool repoSearchTruncated = false;
     size_t repoSearchCapturedBytes = 0;
     async_work::Task<SearchResult> repoSearchFuture;
-    reading::RequestStamp repoSearchFutureStamp;
-    std::string repoSearchRevision;
+    SearchQuery repoSearchScope;
+    std::optional<reading::ReviewLocation> repoSearchOrigin;
+    std::optional<reading::ReadingAnchor> repoSearchOriginAnchor;
+    bool repoSearchChangesAvailable = false;
+    std::uint64_t repoSearchGeneration = 0;
+    std::uint64_t repoSearchRequestGeneration = 0;
+    std::string repoSearchSubmittedQuery;
+    std::optional<size_t> repoSearchSelected;
+    float repoSearchScroll = 0.f;
+    bool repoSearchRestoreScroll = true;
+    bool repoSearchOptionsOpen = false;
     bool repoSearchChangedOnly = false;
     SearchMatching repoSearchMatching;
     std::string repoSearchIncludeGlob;
@@ -393,7 +402,6 @@ public:
     std::vector<SearchMatch> repoSearchResults;
     bool repoSearchPreviewOpen = false;
     async_work::Task<SearchPreview> repoSearchPreviewFuture;
-    reading::RequestStamp repoSearchPreviewFutureStamp;
     SearchPreview repoSearchPreview;
     int fullFileNavigateFrames = 0;
     bool fileHistoryOpen = false;

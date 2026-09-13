@@ -1915,6 +1915,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
                         navigation::open_source(*repo, fileDiff,
                             diff_sel::source_point(fileDiff, visible_rect(*contentParent), reviewScope));
+                        return;
                     }
                 }
             }

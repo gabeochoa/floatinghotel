@@ -1,0 +1,23 @@
+RUN search_comparison_origin
+PASS 100%: search from comparison source keeps actual base, deleted revision, origin and retained results
+PASS 140%: search from comparison source keeps actual base, deleted revision, origin and retained results
+PASS 200%: search from comparison source keeps actual base, deleted revision, origin and retained results
+RUN retained_search
+PASS 100%: reader retained, scoped results/selection/scroll retained, no resubmission on reopen, deleted historical file, explicit working scope, narrow geometry and repository isolation
+PASS 140%: reader retained, scoped results/selection/scroll retained, no resubmission on reopen, deleted historical file, explicit working scope, narrow geometry and repository isolation
+PASS 200%: reader retained, scoped results/selection/scroll retained, no resubmission on reopen, deleted historical file, explicit working scope, narrow geometry and repository isolation
+RUN navigation_regressions
+PASS improvement_21_file_picker
+PASS improvement_22_repo_search
+PASS improvement_24_all_files
+PASS improvement_27_commit_search
+PASS improvement_35_comment_jump
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary
+RUN item_37
+PASS item_37
+RUN item_38
+PASS item_38
+RUN item_39
+PASS item_39

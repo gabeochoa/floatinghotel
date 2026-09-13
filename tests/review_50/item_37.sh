@@ -13,4 +13,4 @@ git -C "$search_repo" add .
 git -C "$search_repo" commit -qm baseline
 printf 'changed needle\n' > "$search_repo/changed.txt"
 rm "$search_repo/removed.txt"
-output/floatinghotel.exe "$search_repo" --test-mode --headless --test-script=tests/review_50/item_37.e2e --screenshot-dir=output/screenshots/review_50 --e2e-timeout=40
+output/floatinghotel.exe "$search_repo" --test-mode --headless --test-script=tests/review_50/item_37.e2e --screenshot-dir="${FH_SCREENSHOT_DIR:-output/screenshots/review_50}" --e2e-timeout=40

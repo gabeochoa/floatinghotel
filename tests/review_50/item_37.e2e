@@ -1,6 +1,8 @@
 resize 1440 900
 wait_for_refresh
 key CMD+SHIFT+F
+wait_frames 3
+click_ui repo_search_options
 click_ui repo_search_changed_only
 click_ui repo_search_input
 type needle

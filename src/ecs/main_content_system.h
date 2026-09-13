@@ -399,7 +399,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         case Popup::Picker: layout.filePickerOpen = false; break;
                         case Popup::Find: layout.diffFindOpen = false; break;
                         case Popup::SearchPreview: repoPtr->repoSearchPreviewOpen = false; break;
-                        case Popup::Search: repoPtr->repoSearchOpen = false; break;
+                        case Popup::Search: close_repo_search(*repoPtr, layout); break;
                         case Popup::CommitSearch: repoPtr->commitSearchOpen = false; break;
                         case Popup::FileHistory: repoPtr->fileHistoryOpen = false; break;
                         case Popup::Feedback: if (review) review->basketOpen = false; break;
@@ -717,8 +717,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                          afterhours::input::is_key_down(341);
         if (!shortcutsActive && !ui::shortcuts_blocked(layout) && superDown && afterhours::input::is_key_pressed(70)) {
             if (repoPtr && afterhours::input::is_key_down(340)) {
-                repoPtr->repoSearchOpen = true;
-                repoPtr->repoSearchFocus = true;
+                open_repo_search(*repoPtr);
                 layout.filePickerOpen = false;
             } else {
                 layout.diffFindOpen = true;
@@ -795,10 +794,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
         if (repo.fileHistoryOpen) {
             render_file_history(ctx, mainBg.ent(), repo, layout);
-            return;
-        }
-        if (repo.repoSearchOpen) {
-            render_repo_search(ctx, mainBg.ent(), repo, layout);
             return;
         }
         if (const auto* document = repo.workspace().document(repo.workspace().active_id()); document->unresolvedSavedRevision) {

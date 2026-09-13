@@ -17,6 +17,7 @@
 #include "../settings.h"
 #include "diff_renderer.h"
 #include "file_picker.h"
+#include "repo_search.h"
 
 namespace menu_setup {
 
@@ -96,8 +97,7 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Search Repository...", "Cmd+Shift+F", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
-                repo->repoSearchOpen = true;
-                repo->repoSearchFocus = true;
+                ecs::open_repo_search(*repo);
             }
         }),
         MenuItem::item("Search Commits...", "", [] {
