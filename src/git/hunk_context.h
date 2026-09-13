@@ -1,6 +1,7 @@
 #pragma once
 
 #include "content_reader.h"
+#include "../util/hunk_syntax.h"
 
 namespace git {
 
@@ -74,6 +75,9 @@ inline ecs::HunkContextResult read_hunk_context(FileRequest before, FileRequest 
         !next.diff.hunks.empty() && next.diff.hunks.back().noNewline.contains(next.diff.hunks.back().lines.size() - 1) &&
         range.newLine + result.lines.newCount == next.page.next.line + (next.page.next.continuation ? 1 : 0))
         result.lines.noNewline.insert(result.lines.lines.size() - 1);
+    if (!result.lines.lines.empty()) hunk_syntax::annotate(result.lines, after.path, false,
+        hunk_syntax::at(old.diff.hunks.front(), range.oldLine - old.page.begin.line, false),
+        hunk_syntax::at(next.diff.hunks.front(), range.newLine - next.page.begin.line, false), before.path);
     return result;
 }
 

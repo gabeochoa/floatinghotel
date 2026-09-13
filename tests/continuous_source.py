@@ -12,6 +12,7 @@ parser.add_argument("--output", type=Path, required=True)
 parser.add_argument("--zooms", nargs="+", type=int, default=[100, 140, 200])
 parser.add_argument("--scopes", nargs="+", default=["working", "index", "commit"])
 parser.add_argument("--snapshots", action="store_true")
+parser.add_argument("--syntax", action="store_true")
 args = parser.parse_args()
 out = args.output.resolve()
 out.mkdir(parents=True, exist_ok=False)
@@ -24,15 +25,18 @@ for command in [("init", "-q", "-b", "main"), ("config", "user.name", "Continuou
     git(*command)
 versions = {name: "".join(f"{name if i % 1024 == 1 else 'source'}_{i:05} éλ\tvalue\r\n" for i in range(1, 26000)) + f"{name}_26000 final"
             for name in ["original", "staged", "working"]}
-(repo / "rows.txt").write_bytes(versions["original"].encode())
+filename = "rows.cpp" if args.syntax else "rows.txt"
+if args.syntax:
+    versions = {name: "/*\n" + text.split("\n", 1)[1].rsplit("\n", 1)[0] + "\n*/" for name, text in versions.items()}
+(repo / filename).write_bytes(versions["original"].encode())
 (repo / "other.txt").write_text("Other document\n")
 (repo / "empty.txt").write_text("")
 git("add", ".")
 git("commit", "-qm", "Continuous source base")
 commit = git("rev-parse", "HEAD")
-(repo / "rows.txt").write_bytes(versions["staged"].encode())
-git("add", "rows.txt")
-(repo / "rows.txt").write_bytes(versions["working"].encode())
+(repo / filename).write_bytes(versions["staged"].encode())
+git("add", filename)
+(repo / filename).write_bytes(versions["working"].encode())
 before = git("diff"), git("diff", "--cached")
 wrapper = out / "bin"
 wrapper.mkdir()
@@ -67,7 +71,7 @@ for zoom in args.zooms:
         script += "screenshot zoom_ready\nclick_ui review_unstaged_changes\n" + capture("review", 1)
         if scope == "index": script += "click_ui review_staged_changes\n" + capture("scope", 2)
         if scope == "commit": script += 'click_text "Continuous source base"\n' + capture("scope", 2)
-        script += open_file("rows.txt") + capture("initial", count)
+        script += open_file(filename) + capture("initial", count)
         for index in range(1, 6):
             script += "hover_ui diff_scroll\nscroll_wheel 0 -100000\n"
             script += capture(f"pending_{index}", count, False) + capture(f"forward_{index}", count)
@@ -77,7 +81,7 @@ for zoom in args.zooms:
             script += "hover_ui diff_scroll\nscroll_wheel 0 100000\n" + capture(f"backward_{index}", count)
         script += open_file("other.txt") + capture("other", count + 1)
         badge = "" if scope == "working" else " · " + ("Index" if scope == "index" else commit[:7])
-        script += f"click_ui open_tabs_menu\nscreenshot tabs_ready\nclick_ui context_menu_item_rows.txt{badge}\n" + capture("returned", count + 1)
+        script += f"click_ui open_tabs_menu\nscreenshot tabs_ready\nclick_ui context_menu_item_{filename}{badge}\n" + capture("returned", count + 1)
         script += "hover_ui diff_scroll\nscroll_wheel 0 -100000\nwait_frames 3\nkey CMD+W\n" + capture("closed_loading", count)
         script += "bench_frames 120\nexpect_p99_below 20\n"
         path = directory / "journey.e2e"
@@ -111,6 +115,10 @@ for zoom in args.zooms:
             for row in rows:
                 text = expected[row["line"] - 1].removesuffix("\n")
                 assert text[row["column"] - 1:].startswith(row["text"]), (label, row, text)
+                if args.syntax:
+                    node = next(n for n in snapshot["nodes"] if n["id"] == row["id"] and n["rendered"])
+                    spans = [span for span in node["text_spans"][1:] if span["text"].strip()]
+                    assert spans and all(span["color"] == [117, 129, 142, 255] for span in spans), (label, row, spans)
             positions = [(r["line"], r["column"]) for r in rows]
             assert len(set(positions)) == len(positions), (label, positions)
         assert len(states["initial"]["pages"]) == 1

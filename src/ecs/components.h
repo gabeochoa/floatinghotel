@@ -29,6 +29,7 @@
 #include "../util/diff_revisions.h"
 #include "../util/reading_workspace.h"
 #include "../util/code_motion.h"
+#include "../util/code_lexer.h"
 #include "../util/reading_anchor.h"
 #include "../util/review_files.h"
 #include "../util/review_comment_kind.h"
@@ -77,6 +78,7 @@ struct DiffHunk {
     std::vector<std::string> lines; // Lines with +/-/space prefix
     std::set<size_t> noNewline;
     std::set<size_t> movedLines;
+    std::vector<code_lexer::State> syntaxBefore, syntaxAfter;
 };
 
 struct CommitReviewQueue {
@@ -119,6 +121,7 @@ struct FileDiff {
     std::string newObject;
     std::uint64_t renderIdentity = next_render_identity();
     bool isPartialContent = false;
+    bool syntaxResolved = false;
 };
 
 struct FilePageCursor {
@@ -126,6 +129,7 @@ struct FilePageCursor {
     int line = 1;
     bool continuation = false;
     int column = 1;
+    code_lexer::State lexical;
 };
 
 struct FilePageRequest {
@@ -322,6 +326,17 @@ struct HunkContextRuntime {
     std::string version;
 };
 
+struct DiffSyntaxResult {
+    std::vector<std::pair<code_lexer::State, code_lexer::State>> seeds;
+    std::string error;
+};
+
+struct DiffSyntaxRuntime {
+    async_work::Task<DiffSyntaxResult> future;
+    reading::RequestStamp request;
+    std::uint64_t identity = 0;
+};
+
 struct RepoComponent : public afterhours::BaseComponent {
     RangeDiffState rangeDiff;
     bool reviewWorkspace = false;
@@ -388,6 +403,7 @@ public:
     SourceFindRuntime sourceFind;
     SelectionCopyRuntime selectionCopy;
     HunkContextRuntime hunkContext;
+    DiffSyntaxRuntime diffSyntax;
     async_work::Task<FullFileContent> fullFileFuture;
     reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;

@@ -42,6 +42,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
             changed = true;
         } else repo.comparisonError = result.patch.stderr_str().empty() ? "Unable to compare revisions; they may have no common ancestor." : result.patch.stderr_str();
     }
+    ui::diff_syntax::update(repo, repo.comparisonDiff, repo.comparisonScope());
     auto field = [&](int id, const std::string& label, std::string& text, const std::string& name) {
         auto row = div(ctx, mk(parent, id), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));

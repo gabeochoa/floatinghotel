@@ -2401,3 +2401,20 @@ height 25.60000038 inside a viewport ending at y=874. The rendered clipped heigh
 is 25.59375. That test now asserts the actual final-row text and geometry with a
 0.5-pixel tolerance. Shared geometry assertions should distinguish subpixel
 rounding from clipped content. Evidence is in `output/step49-legacy-failures`.
+
+## State carried between chunks of styled text
+
+Step 50 found that caching tokens by line text and language alone gives the wrong
+colors when identical text follows different multiline comment or string prefixes.
+The app now stores lexical state in bounded page cursors and includes incoming
+state in token-cache keys. Diff sides carry independent states, including renamed
+paths. The original color failure is recorded at all three zooms in
+`output/step50-baseline`.
+
+An upstream text-cache API could accept a small caller-owned incoming state and
+return the outgoing state alongside spans. The framework need not own language
+parsers. This would also support streaming console markup, dialogue formatting,
+and shader/source previews in games without reprocessing entire documents after
+each page load. Delimiter lookahead and source positions must survive chunk cuts;
+keys must encode state fields rather than struct padding. The app's current
+workaround keeps the existing cache budgets and native styled-text renderer.

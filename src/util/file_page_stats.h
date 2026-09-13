@@ -9,11 +9,12 @@ struct Stats {
     size_t decodedBytes = 0;
     size_t lineBytes = 0;
     size_t lines = 0;
+    size_t syntaxEntries = 0;
 
     bool bounded(size_t pages = 1) const {
         return rawBytes <= pages * byteLimit && decodedBytes <= pages * 3 * byteLimit &&
             lineBytes <= pages * (3 * byteLimit + static_cast<size_t>(lineLimit)) &&
-            lines <= pages * static_cast<size_t>(lineLimit);
+            lines <= pages * static_cast<size_t>(lineLimit) && syntaxEntries <= pages * 2 * static_cast<size_t>(lineLimit);
     }
 };
 
@@ -23,6 +24,7 @@ inline Stats stats(std::string_view raw, const std::vector<ecs::FileDiff>& files
     for (const auto& file : files)
         for (const auto& hunk : file.hunks) {
             result.lines += hunk.lines.size();
+            result.syntaxEntries += hunk.syntaxBefore.size() + hunk.syntaxAfter.size();
             for (const auto& line : hunk.lines) result.lineBytes += line.size();
         }
     return result;

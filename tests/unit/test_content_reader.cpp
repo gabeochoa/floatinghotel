@@ -1,3 +1,5 @@
+#include "src/git/diff_syntax.h"
+#include "src/ui/diff_syntax.h"
 #include "test_framework.h"
 #include "../../src/util/navigation.h"
 #include "../../src/git/content_reader.h"
@@ -324,10 +326,10 @@ TEST(hidden_pending_file_read_is_cancelled_and_will_retry_when_reopened) {
 TEST(hidden_loaded_file_retains_its_cache_and_visible_pending_read_keeps_running) {
     ecs::RepoComponent repo;
     repo.fullFileCacheKey = "loaded request";
-    repo.fullFileBytes = "loaded source";
+    repo.sourceWindow.raw = "loaded source";
     ecs::cancel_hidden_file_read(repo);
     ASSERT_EQ(repo.fullFileCacheKey, "loaded request");
-    ASSERT_EQ(repo.fullFileBytes, "loaded source");
+    ASSERT_EQ(repo.sourceWindow.raw, "loaded source");
     std::promise<ecs::FullFileContent> promise;
     std::stop_source source;
     navigation::open(repo, reading::source("visible.cpp"));
@@ -464,6 +466,154 @@ TEST(empty_file_has_a_valid_first_caret_position) {
     file_page::Collector column(request, "auto", "");
     column.finish();
     ASSERT_FALSE(column.error.empty());
+}
+
+TEST(source_page_cursors_preserve_lexical_state_for_utf8_utf16_and_direct_jumps) {
+    char directory[] = "/tmp/fh-lexical-pages.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    std::string text;
+    for (int i = 1; i <= 4300; ++i) text += i == 4090 ? "/* opening\r\n" : i == 4120 ? "closing */\r\n" : "body\r\n";
+    for (bool utf16 : {false, true}) {
+        const std::string name = utf16 ? "wide.cpp" : "utf8.cpp";
+        std::ofstream output(std::filesystem::path(path) / name, std::ios::binary);
+        if (utf16) {
+            output.write("\xff\xfe", 2);
+            for (char ch : text) { output.put(ch); output.put('\0'); }
+        } else output << text;
+        output.close();
+        auto first = git::read_file({path, name});
+        ASSERT_TRUE(first.error.empty());
+        ASSERT_EQ(first.page.next.line, 4097);
+        ASSERT_EQ(first.page.next.lexical.mode, code_lexer::Mode::BlockComment);
+        auto next = git::read_file({path, name, "", {ecs::FilePageRequest::Action::Next, first.page.next, 0, first.page.sourceIdentity}});
+        ASSERT_TRUE(next.error.empty());
+        ASSERT_EQ(next.page.begin.lexical, first.page.next.lexical);
+        ASSERT_EQ(next.diff.hunks.front().syntaxAfter.front().mode, code_lexer::Mode::BlockComment);
+        ASSERT_EQ(next.diff.hunks.front().syntaxAfter[24].mode, code_lexer::Mode::Code);
+        auto target = git::read_file({path, name, "", {ecs::FilePageRequest::Action::TargetLine, {}, 4100}});
+        ASSERT_TRUE(target.error.empty());
+        ASSERT_EQ(target.page.begin.lexical.mode, code_lexer::Mode::BlockComment);
+        auto previous = git::read_file({path, name, "", {ecs::FilePageRequest::Action::Previous, next.page.begin, 0, next.page.sourceIdentity}});
+        ASSERT_TRUE(previous.error.empty());
+        ASSERT_EQ(previous.page.begin.lexical, code_lexer::State{});
+        ASSERT_EQ(previous.page.next.lexical, next.page.begin.lexical);
+    }
+    std::filesystem::remove_all(path);
+}
+
+TEST(a_comment_opener_split_at_the_byte_limit_keeps_its_pending_delimiter) {
+    char directory[] = "/tmp/fh-lexical-fragment.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    { std::ofstream output(std::filesystem::path(path) / "fragment.cpp");
+      output << std::string(file_page::byteLimit - 1, ' ') << "/* body\nend */\n"; }
+    auto first = git::read_file({path, "fragment.cpp"});
+    ASSERT_TRUE(first.error.empty());
+    ASSERT_EQ(first.raw.size(), file_page::byteLimit);
+    ASSERT_EQ(first.page.next.lexical.mode, code_lexer::Mode::BlockComment);
+    ASSERT_EQ(first.page.next.lexical.skip, 1);
+    auto next = git::read_file({path, "fragment.cpp", "", {ecs::FilePageRequest::Action::Next, first.page.next, 0, first.page.sourceIdentity}});
+    ASSERT_TRUE(next.error.empty());
+    ASSERT_EQ(next.raw, "* body\nend */\n");
+    ASSERT_EQ(next.diff.hunks.front().syntaxAfter.front(), first.page.next.lexical);
+    ASSERT_EQ(next.page.next.lexical, code_lexer::State{});
+    std::filesystem::remove_all(path);
+}
+
+TEST(blob_page_keys_distinguish_languages_and_incoming_lexical_states) {
+    git::FileRequest cpp{"repo", "file.cpp", "HEAD"};
+    auto json = cpp;
+    json.path = "file.json";
+    ASSERT_NE(git::blob_page_key(cpp, "blob"), git::blob_page_key(json, "blob"));
+    auto continuation = cpp;
+    continuation.page.cursor.lexical = code_lexer::scan("/*", code_lexer::Language::Cpp);
+    ASSERT_NE(git::blob_page_key(cpp, "blob"), git::blob_page_key(continuation, "blob"));
+}
+
+
+TEST(diff_prefix_seeds_follow_each_revision_and_renamed_language) {
+    char directory[] = "/tmp/fh-diff-syntax.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    for (const auto& args : std::vector<std::vector<std::string>>{{"init", "-q"},
+            {"config", "user.name", "Syntax"}, {"config", "user.email", "syntax@example.invalid"},
+            {"config", "commit.gpgsign", "false"}}) ASSERT_TRUE(git::git_run(path, args).success());
+    auto write = [&](const std::string& name, bool comment) {
+        std::ofstream file(std::filesystem::path(path) / name);
+        for (int line = 1; line <= 9000; ++line)
+            file << (line == 2 ? (comment ? "/*" : "//") : line == 8990 ? (comment ? "*/" : "//") : "body") << '\n';
+    };
+    write("before.cpp", true);
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    ASSERT_TRUE(git::git_run(path, {"commit", "-qm", "before"}).success());
+    write("after.ts", false);
+    const std::vector<std::pair<int, int>> starts{{4090, 4090}, {8200, 8200}};
+    auto seeds = git::read_diff_syntax({path, "before.cpp", "HEAD"}, {path, "after.ts"}, starts);
+    ASSERT_TRUE(seeds.error.empty());
+    ASSERT_EQ(seeds.seeds.size(), 2u);
+    for (const auto& [before, after] : seeds.seeds) {
+        ASSERT_EQ(before.mode, code_lexer::Mode::BlockComment);
+        ASSERT_EQ(after.mode, code_lexer::Mode::Code);
+    }
+    ecs::DiffHunk hunk;
+    hunk.lines = {"-body", "+body", " body"};
+    hunk_syntax::annotate(hunk, "after.ts", false, seeds.seeds[0].first, seeds.seeds[0].second, "before.cpp");
+    ASSERT_EQ(hunk_syntax::at(hunk, 2, true).mode, code_lexer::Mode::BlockComment);
+    ASSERT_EQ(hunk_syntax::at(hunk, 2, false).mode, code_lexer::Mode::Code);
+    ecs::DiffHunk rename;
+    rename.lines = {" \"\"\"", " body"};
+    hunk_syntax::annotate(rename, "after.cpp", false, {}, {}, "before.py");
+    ASSERT_EQ(hunk_syntax::at(rename, 1, true).mode, code_lexer::Mode::TripleDouble);
+    ASSERT_EQ(hunk_syntax::at(rename, 1, false).mode, code_lexer::Mode::Code);
+    auto missing = git::read_diff_syntax({path, "missing.cpp", "HEAD"}, {path, "after.ts"}, starts);
+    ASSERT_FALSE(missing.error.empty());
+    ASSERT_TRUE(missing.seeds.empty());
+    std::stop_source stopped;
+    stopped.request_stop();
+    auto cancelled = git::read_diff_syntax({path, "before.cpp", "HEAD"}, {path, "after.ts"}, starts, stopped.get_token());
+    ASSERT_FALSE(cancelled.error.empty());
+    ASSERT_TRUE(cancelled.seeds.empty());
+    std::filesystem::remove_all(path);
+}
+
+TEST(diff_syntax_publication_rejects_stale_document_generation_and_file_identity) {
+    for (int stale = 0; stale < 5; ++stale) {
+        ecs::RepoComponent repo;
+        repo.repoPath = "/unused/syntax";
+        navigation::open(repo, reading::review("wt"));
+        ecs::FileDiff file;
+        file.filePath = "file.cpp";
+        file.syntaxResolved = true;
+        file.hunks.emplace_back();
+        file.hunks.back().lines = {" body"};
+        std::vector<ecs::FileDiff> files{file};
+        auto& runtime = repo.diffSyntax;
+        runtime.identity = file.renderIdentity;
+        runtime.request = navigation::stamp(repo, "syntax:" + std::to_string(file.renderIdentity));
+        std::promise<ecs::DiffSyntaxResult> promise;
+        runtime.future = {promise.get_future(), std::stop_source{}};
+        ecs::DiffSyntaxResult result;
+        result.seeds.emplace_back(code_lexer::scan("/*", code_lexer::Language::Cpp), code_lexer::State{});
+        promise.set_value(std::move(result));
+        if (stale == 0) repo.repoPath += "-changed";
+        if (stale == 1) ++repo.dataGeneration;
+        if (stale == 2) files[0].renderIdentity = ecs::next_render_identity();
+        if (stale == 3) navigation::open(repo, reading::review("index"));
+        ui::diff_syntax::update(repo, files, "wt");
+        ASSERT_FALSE(runtime.future.valid());
+        if (stale < 4) ASSERT_TRUE(files[0].hunks[0].syntaxBefore.empty());
+        else ASSERT_EQ(hunk_syntax::at(files[0].hunks[0], 0, true).mode, code_lexer::Mode::BlockComment);
+    }
+}
+
+TEST(diff_parser_keeps_side_states_independent_across_context_lines) {
+    auto files = git::parse_diff("diff --git a/test.cpp b/test.cpp\n--- a/test.cpp\n+++ b/test.cpp\n@@ -1,3 +1,3 @@\n-/*\n+//\n body\n-*/\n+//\n");
+    ASSERT_EQ(files.size(), 1u);
+    ASSERT_TRUE(files[0].syntaxResolved);
+    const auto& hunk = files[0].hunks[0];
+    ASSERT_EQ(hunk_syntax::at(hunk, 2, true).mode, code_lexer::Mode::BlockComment);
+    ASSERT_EQ(hunk_syntax::at(hunk, 2, false).mode, code_lexer::Mode::Code);
 }
 
 int main() { RUN_ALL_TESTS(); }

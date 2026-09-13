@@ -13,7 +13,7 @@ struct FileRequest {
     std::string detectedEncoding;
 };
 
-ecs::FileDiff parse_complete_file(const std::string& path, const std::string& content);
+ecs::FileDiff parse_complete_file(const std::string& path, const std::string& content, code_lexer::State incoming = {});
 ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop = {});
 async_work::Task<ecs::FullFileContent> read_file_async(FileRequest request);
 ecs::UntrackedReviewFiles read_untracked_review_files(const std::string& repo, const std::vector<std::string>& paths,

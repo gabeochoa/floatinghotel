@@ -91,7 +91,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 if (source_pages::extend(repo.sourceWindow, std::move(content.page), std::move(content.raw))) {
                     repo.fullFilePage = source_pages::range(repo.sourceWindow);
                     auto decoded = file_page::decode(repo.sourceWindow.raw, repo.fullFilePage.encoding, repo.fullFilePage.begin.offset);
-                    auto file = git::parse_complete_file(repo.fullFilePath(), decoded.text);
+                    auto file = git::parse_complete_file(repo.fullFilePath(), decoded.text, repo.fullFilePage.begin.lexical);
                     file.oldMode = file.newMode = content.diff.newMode;
                     file.isPartialContent = repo.fullFilePage.begin.offset != 0 || repo.fullFilePage.next.offset < repo.fullFilePage.totalBytes;
                     if (!file.hunks.empty()) file.hunks.front().oldStart = file.hunks.front().newStart = repo.fullFilePage.begin.line;

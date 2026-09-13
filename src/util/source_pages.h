@@ -15,6 +15,7 @@ inline bool bounded(const ecs::SourcePageWindow& window) {
             page.next.line < page.begin.line || page.next.line - page.begin.line > file_page::lineLimit) return false;
         if (i && (window.pages[i - 1].next.offset != page.begin.offset ||
             window.pages[i - 1].next.line != page.begin.line || window.pages[i - 1].next.column != page.begin.column ||
+            window.pages[i - 1].next.lexical != page.begin.lexical ||
             window.pages.front().sourceIdentity != page.sourceIdentity || window.pages.front().encoding != page.encoding)) return false;
         bytes += static_cast<size_t>(page.next.offset - page.begin.offset);
     }
@@ -42,8 +43,8 @@ inline bool extend(ecs::SourcePageWindow& window, ecs::FilePage page, std::strin
     const auto& last = window.pages.back();
     if (page.sourceIdentity != first.sourceIdentity || page.encoding != first.encoding ||
         page.totalBytes != first.totalBytes || page.blob != first.blob) return false;
-    const bool after = last.next.offset == page.begin.offset && last.next.line == page.begin.line && last.next.column == page.begin.column;
-    const bool before = page.next.offset == first.begin.offset && page.next.line == first.begin.line && page.next.column == first.begin.column;
+    const bool after = last.next.offset == page.begin.offset && last.next.line == page.begin.line && last.next.column == page.begin.column && last.next.lexical == page.begin.lexical;
+    const bool before = page.next.offset == first.begin.offset && page.next.line == first.begin.line && page.next.column == first.begin.column && page.next.lexical == first.begin.lexical;
     if (!after && !before) return false;
     if (after) {
         if (window.pages.size() == pageLimit) {

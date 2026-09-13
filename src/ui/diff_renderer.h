@@ -7,6 +7,8 @@
 #include "../util/code_position.h"
 #include "../util/code_words.h"
 #include "../util/code_motion.h"
+#include "../util/hunk_syntax.h"
+#include "diff_syntax.h"
 #include "geometry.h"
 
 #include "review_comment_kind.h"
@@ -1119,7 +1121,7 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
             if (!vp || vp->visible(diff_detail::code_line_height())) {
                 if (vp) vp->flush(ctx, parent, nextId);
                 int oldNumber = oldLine, newNumber = newLine;
-                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get_source(content, fileDiff.filePath, sel->visibleWhitespace, identity);
+                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get_source(content, sign == '-' && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath, sel->visibleWhitespace, identity, hunk_syntax::at(hunk, index, sign == '-'));
                 render_diff_line(ctx, parent, lineId, std::string(1, sign) + content.substr(begin, end - begin),
                     oldNumber, newNumber, width, fileDiff.filePath, sel,
                     code_wrap::intersect(changedRanges[index], begin, end), !hunk.noNewline.contains(index),
@@ -1532,7 +1534,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                             SbsKind kind, bool leftBorder,
                             const std::string& filePath, diff_sel::Session* sel,
                             code_highlight::Range changed = {},
-                            bool hasNewline = true, bool moved = false, size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr, float available = 0.f) {
+                            bool hasNewline = true, bool moved = false, size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr, float available = 0.f, const PreparedCode* prepared = nullptr) {
     afterhours::Color bg, fg;
     char sign = ' ';
     // Only the background carries add/del color; text stays one color.
@@ -1565,7 +1567,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         .with_custom_background(bg)
         .with_custom_text_color(fg)
         .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
-                                            sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline, original, sourceOffset, finalFragment, ending, nullptr, activeLine))
+                                            sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline, original, sourceOffset, finalFragment, ending, prepared, activeLine))
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
         .with_font("mono", pixels(Settings::get().get_code_font_size()))
         .with_alignment(TextAlignment::Left)
@@ -1704,12 +1706,12 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         if (sign != '+') ++oldNumber;
         if (sign != '-') ++newNumber;
     }
-    std::vector<std::pair<std::string, std::string>> dels; // (num, content)
-    std::vector<std::pair<std::string, std::string>> adds;
+    struct SyntaxRow { std::string number, content; code_lexer::State state; };
+    std::vector<SyntaxRow> dels, adds;
 
     auto emitRow = [&](const std::string& lNum, const std::string& lContent,
                        SbsKind lKind, const std::string& rNum,
-                       const std::string& rContent, SbsKind rKind) {
+                       const std::string& rContent, SbsKind rKind, code_lexer::State lState, code_lexer::State rState) {
         float gutter = diff_sel::content_x_offset(*sel, code_gutter::pad(lNum.size() > rNum.size() ? lNum : rNum) + "  + ");
         float available = std::max(1.f, contentWidth * zoom::get() * .5f - gutter - 12.f);
         auto left = diff_sel::wrapped_rows(*sel, lContent, available, lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)),
@@ -1719,6 +1721,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         auto changes = lKind == SbsKind::Del && rKind == SbsKind::Add
             ? code_highlight::changed_ranges(lContent, rContent)
             : std::pair<code_highlight::Range, code_highlight::Range>{};
+        PreparedCode leftCode, rightCode;
         for (size_t part = 0; part + 1 < std::max(left.size(), right.size()); ++part) {
             int rowId = nextId++;
             bool hasLeft = part + 1 < left.size(), hasRight = part + 1 < right.size();
@@ -1746,12 +1749,17 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             auto cell = [&](bool exists, const std::vector<size_t>& breaks, const std::string& num,
                             const std::string& text, SbsKind kind, bool isLeft, code_highlight::Range change) {
                 size_t begin = exists ? breaks[part] : 0, end = exists ? breaks[part + 1] : 0;
+                auto& prepared = isLeft ? leftCode : rightCode;
+                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get_source(text,
+                    isLeft && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath, sel->visibleWhitespace,
+                    std::to_string(fileDiff.renderIdentity) + (isLeft ? ":b:" : ":a:") + num, isLeft ? lState : rState);
+                prepared.offset = code_highlight::display_size(std::string_view(text).substr(0, begin), sel->visibleWhitespace);
                 diff_detail::render_sbs_cell(ctx, rowDiv.ent(), isLeft ? 0 : 1, exists ? num : "",
                     text.substr(begin, end - begin), exists ? kind : SbsKind::Empty, isLeft, fileDiff.filePath, sel,
                     code_wrap::intersect(change, begin, end), num.empty() ||
                         !(isLeft ? oldNoNewline : newNoNewline).contains(std::stoi(num)),
                     !num.empty() && (isLeft ? oldMoved : newMoved).contains(std::stoi(num)), begin,
-                    exists && part + 2 == breaks.size(), exists ? &text : nullptr, available);
+                    exists && part + 2 == breaks.size(), exists ? &text : nullptr, available, &prepared);
             };
             cell(hasLeft, left, lNum, lContent, lKind, true, changes.first);
             cell(hasRight, right, rNum, rContent, rKind, false, changes.second);
@@ -1763,28 +1771,31 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         for (size_t i = 0; i < n; ++i) {
             bool hasDel = i < dels.size();
             bool hasAdd = i < adds.size();
-            emitRow(hasDel ? dels[i].first : "",
-                    hasDel ? dels[i].second : "",
+            emitRow(hasDel ? dels[i].number : "",
+                    hasDel ? dels[i].content : "",
                     hasDel ? SbsKind::Del : SbsKind::Empty,
-                    hasAdd ? adds[i].first : "",
-                    hasAdd ? adds[i].second : "",
-                    hasAdd ? SbsKind::Add : SbsKind::Empty);
+                    hasAdd ? adds[i].number : "",
+                    hasAdd ? adds[i].content : "",
+                    hasAdd ? SbsKind::Add : SbsKind::Empty,
+                    hasDel ? dels[i].state : code_lexer::State{}, hasAdd ? adds[i].state : code_lexer::State{});
         }
         dels.clear();
         adds.clear();
     };
 
-    for (auto& line : hunk.lines) {
+    for (size_t index = 0; index < hunk.lines.size(); ++index) {
+        const auto& line = hunk.lines[index];
         char prefix = line.empty() ? ' ' : line[0];
         std::string content = line.size() > 1 ? line.substr(1) : "";
         if (prefix == '-') {
-            dels.emplace_back(std::to_string(oldLine++), content);
+            dels.push_back({std::to_string(oldLine++), content, hunk_syntax::at(hunk, index, true)});
         } else if (prefix == '+') {
-            adds.emplace_back(std::to_string(newLine++), content);
+            adds.push_back({std::to_string(newLine++), content, hunk_syntax::at(hunk, index, false)});
         } else {
             flush();
             emitRow(std::to_string(oldLine), content, SbsKind::Context,
-                    std::to_string(newLine), content, SbsKind::Context);
+                    std::to_string(newLine), content, SbsKind::Context,
+                    hunk_syntax::at(hunk, index, true), hunk_syntax::at(hunk, index, false));
             ++oldLine;
             ++newLine;
         }

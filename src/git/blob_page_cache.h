@@ -16,7 +16,7 @@ struct BlobPage {
 
 inline std::string blob_page_key(const FileRequest& request, const std::string& blob) {
     if (request.revision.empty() || blob.empty()) return {};
-    return blob + "\n" + std::to_string(static_cast<int>(request.page.action)) + ":" +
+    return blob + "\n" + std::to_string(static_cast<int>(code_lexer::language(request.path))) + "\n" + request.page.cursor.lexical.key() + "\n" + std::to_string(static_cast<int>(request.page.action)) + ":" +
         std::to_string(request.page.cursor.offset) + ":" + std::to_string(request.page.cursor.line) + ":" +
         std::to_string(request.page.cursor.continuation) + ":" + std::to_string(request.page.targetLine) + ":" + std::to_string(request.page.leadingLines) +
         "\n" + std::to_string(request.page.cursor.column) + ":" + std::to_string(request.page.targetColumn) +

@@ -139,6 +139,7 @@ struct navigation {
     }
 
     static void release_source(ecs::RepoComponent& repo) {
+        repo.diffSyntax = {};
         repo.sourceFind = {};
         repo.selectionCopy = {};
         repo.pendingCaret.reset();

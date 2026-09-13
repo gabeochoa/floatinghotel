@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../util/code_lexer.h"
 #include <algorithm>
 #include <cctype>
 #include <string>
@@ -66,13 +67,9 @@ struct Token {
     Kind kind = Kind::Plain;
 };
 
-inline std::vector<Token> tokenize(const std::string& text, const std::string& path) {
-    auto dot = path.find_last_of('.');
-    std::string ext = dot == std::string::npos ? "" : path.substr(dot);
-    static const std::unordered_set<std::string> supported = {
-        ".c", ".h", ".cc", ".cpp", ".hpp", ".m", ".mm", ".js", ".jsx", ".ts", ".tsx",
-        ".py", ".rs", ".go", ".java", ".kt", ".swift", ".sh", ".rb", ".json", ".yaml", ".yml", ".sql"};
-    if (!supported.contains(ext)) return {{text, Kind::Plain}};
+inline std::vector<Token> tokenize(const std::string& text, const std::string& path, code_lexer::State incoming = {}) {
+    const auto language = code_lexer::language(path);
+    if (language == code_lexer::Language::Plain) return {{text, Kind::Plain}};
     static const std::unordered_set<std::string> keywords = {
         "alignas", "auto", "bool", "break", "case", "catch", "char", "class", "const", "constexpr",
         "continue", "default", "delete", "do", "double", "else", "enum", "explicit", "false", "float",
@@ -84,43 +81,41 @@ inline std::vector<Token> tokenize(const std::string& text, const std::string& p
         "yield", "False", "True", "export", "function", "let", "var", "null", "undefined", "interface",
         "type", "fn", "impl", "match", "mut", "pub", "trait", "use", "package", "func", "defer", "go",
         "range", "select", "chan", "map", "val", "fun", "override", "SELECT", "FROM", "WHERE", "JOIN"};
-    bool hashComment = ext == ".py" || ext == ".sh" || ext == ".rb" || ext == ".yaml" || ext == ".yml";
     std::vector<Token> out;
-    size_t i = 0;
-    while (i < text.size()) {
-        size_t start = i;
-        Kind kind = Kind::Plain;
-        unsigned char ch = static_cast<unsigned char>(text[i]);
-        if ((hashComment && ch == '#') || text.compare(i, 2, "//") == 0 ||
-            (ext == ".sql" && text.compare(i, 2, "--") == 0)) {
-            out.push_back({text.substr(i), Kind::Comment});
-            break;
+    auto emit = [&](std::string_view value, Kind kind) {
+        if (!out.empty() && out.back().kind == kind) out.back().text.append(value);
+        else out.push_back({std::string(value), kind});
+    };
+    auto flush = [&](std::string_view value, code_lexer::Region region) {
+        if (region != code_lexer::Region::Code) {
+            emit(value, region == code_lexer::Region::Comment ? Kind::Comment : Kind::String);
+            return;
         }
-        if (text.compare(i, 2, "/*") == 0) {
-            auto end = text.find("*/", i + 2);
-            i = end == std::string::npos ? text.size() : end + 2;
-            kind = Kind::Comment;
-        } else if (ch == '"' || ch == '\'' || ch == '`') {
-            ++i;
-            while (i < text.size()) {
-                if (text[i] == '\\' && i + 1 < text.size()) { i += 2; continue; }
-                if (text[i++] == ch) break;
-            }
-            kind = Kind::String;
-        } else if (std::isdigit(ch)) {
-            ++i;
-            while (i < text.size() && (std::isalnum(static_cast<unsigned char>(text[i])) || text[i] == '.')) ++i;
-            kind = Kind::Number;
-        } else if (std::isalpha(ch) || ch == '_') {
-            ++i;
-            while (i < text.size() && (std::isalnum(static_cast<unsigned char>(text[i])) || text[i] == '_')) ++i;
-            if (keywords.contains(text.substr(start, i - start))) kind = Kind::Keyword;
-        } else {
-            ++i;
+        size_t i = 0;
+        while (i < value.size()) {
+            const auto start = i;
+            const auto ch = static_cast<unsigned char>(value[i]);
+            auto kind = Kind::Plain;
+            if (std::isdigit(ch)) {
+                ++i;
+                while (i < value.size() && (std::isalnum(static_cast<unsigned char>(value[i])) || value[i] == '.')) ++i;
+                kind = Kind::Number;
+            } else if (std::isalpha(ch) || ch == '_') {
+                ++i;
+                while (i < value.size() && (std::isalnum(static_cast<unsigned char>(value[i])) || value[i] == '_')) ++i;
+                if (keywords.contains(std::string(value.substr(start, i - start)))) kind = Kind::Keyword;
+            } else ++i;
+            emit(value.substr(start, i - start), kind);
         }
-        if (!out.empty() && out.back().kind == kind) out.back().text += text.substr(start, i - start);
-        else out.push_back({text.substr(start, i - start), kind});
+    };
+    size_t start = 0;
+    auto previous = code_lexer::region(incoming.mode);
+    for (size_t i = 0; i < text.size(); ++i) {
+        const auto region = code_lexer::advance_with_lookahead(incoming, language, std::string_view(text).substr(i, code_lexer::lookaheadSize));
+        if (i && region != previous) { flush(std::string_view(text).substr(start, i - start), previous); start = i; }
+        previous = region;
     }
+    if (!text.empty()) flush(std::string_view(text).substr(start), previous);
     return out;
 }
 

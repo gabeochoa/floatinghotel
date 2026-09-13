@@ -2,6 +2,7 @@
 #include "blob_page_cache.h"
 #include "../util/file_content.h"
 #include "../util/file_page.h"
+#include "../util/hunk_syntax.h"
 #include "../util/markdown_preview.h"
 #include "../../vendor/afterhours/src/logging.h"
 
@@ -15,7 +16,7 @@
 
 namespace git {
 
-ecs::FileDiff parse_complete_file(const std::string& path, const std::string& content) {
+ecs::FileDiff parse_complete_file(const std::string& path, const std::string& content, code_lexer::State incoming) {
     ecs::FileDiff file;
     file.filePath = path;
     file.isFullContent = true;
@@ -29,6 +30,7 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
     while (std::getline(stream, line)) hunk.lines.push_back(" " + line);
     hunk.oldCount = hunk.newCount = static_cast<int>(hunk.lines.size());
     if (!content.empty() && !content.ends_with('\n')) hunk.noNewline.insert(hunk.lines.size() - 1);
+    hunk_syntax::annotate(hunk, path, true, incoming, incoming);
     file.hunks.push_back(std::move(hunk));
     return file;
 }
@@ -51,7 +53,7 @@ ecs::FullFileContent read_file(const FileRequest& input, std::stop_token stop) {
     std::string mode;
     if (stop.stop_requested()) { content.error = "File load cancelled"; return content; }
     auto offset = request.page.action == ecs::FilePageRequest::Action::Next ? request.page.cursor.offset : 0;
-    file_page::Collector collector(request.page, request.encoding, request.detectedEncoding, request.revision.empty() ? offset : 0);
+    file_page::Collector collector(request.page, request.encoding, request.detectedEncoding, request.revision.empty() ? offset : 0, code_lexer::language(request.path));
     auto consume = [&](std::string_view bytes) { return !stop.stop_requested() && collector.consume(bytes); };
     if (request.revision.empty()) {
         auto result = file_content::read_working_file(std::filesystem::path(request.repo) / request.path, stop,
@@ -110,7 +112,7 @@ ecs::FullFileContent read_file(const FileRequest& input, std::stop_token stop) {
         }
         auto decoded = file_page::decode(content.raw, content.page.encoding, content.page.begin.offset);
         content.encodingLabel = decoded.encoding;
-        content.diff = parse_complete_file(request.path, decoded.text);
+        content.diff = parse_complete_file(request.path, decoded.text, content.page.begin.lexical);
         content.diff.isBinary = decoded.binary;
         content.diff.isPartialContent = content.page.begin.offset != 0 || content.page.next.offset < content.page.totalBytes;
         if (!content.diff.hunks.empty()) {

@@ -32,6 +32,25 @@ class Collector {
     bool continuation_ = false;
     bool finished_ = false;
     bool reachedTarget_ = false;
+    code_lexer::Language language_ = code_lexer::Language::Plain;
+    code_lexer::State lexical_;
+
+    void advance_lexical(size_t at) {
+        if (language_ == code_lexer::Language::Plain) return;
+        if (encoding != "utf16le" && encoding != "utf16be") {
+            code_lexer::advance_with_lookahead(lexical_, language_, std::string_view(pending_).substr(at, code_lexer::lookaheadSize));
+            return;
+        }
+        std::array<char, code_lexer::lookaheadSize> next{};
+        size_t count = 0;
+        for (size_t offset = at; offset + 1 < pending_.size() && count < next.size(); offset += 2) {
+            const auto a = static_cast<unsigned char>(pending_[offset]);
+            const auto b = static_cast<unsigned char>(pending_[offset + 1]);
+            const auto unit = encoding == "utf16le" ? a | (b << 8) : (a << 8) | b;
+            next[count++] = unit <= 127 ? static_cast<char>(unit) : static_cast<char>(128);
+        }
+        code_lexer::advance_with_lookahead(lexical_, language_, {next.data(), count});
+    }
 
     size_t unit_size(size_t at, bool eof) const {
         auto left = pending_.size() - at;
@@ -66,6 +85,7 @@ class Collector {
                 finished_ = true;
                 break;
             }
+            if (!eof && language_ != code_lexer::Language::Plain && pending_.size() - at < code_lexer::lookaheadSize * 2) break;
             auto size = unit_size(at, eof);
             if (size == 0) break;
             bool newline = encoding == "utf16le" ? size == 2 && pending_[at] == '\n' && pending_[at + 1] == '\0' :
@@ -88,13 +108,14 @@ class Collector {
             }
             if (collecting) {
                 reachedTarget_ |= line_ >= request_.targetLine;
-                if (raw.empty()) begin = {position_, line_, continuation_, column_};
+                if (raw.empty()) begin = {position_, line_, continuation_, column_, lexical_};
                 raw.append(pending_, at, size);
                 if (newline) ++pageLines_;
             }
             const bool bom = position_ == 0 && ((encoding == "utf8" && pending_.substr(at, size) == "\xef\xbb\xbf") ||
                 (encoding == "utf16le" && pending_.substr(at, size) == "\xff\xfe") ||
                 (encoding == "utf16be" && pending_.substr(at, size) == "\xfe\xff"));
+            if (!bom) advance_lexical(at);
             position_ += size;
             at += size;
             if (newline) {
@@ -106,7 +127,7 @@ class Collector {
                 ++column_;
             }
             continuation_ = !newline;
-            next = {position_, line_, continuation_, column_};
+            next = {position_, line_, continuation_, column_, lexical_};
         }
         pending_.erase(0, at);
         return !finished_;
@@ -118,11 +139,12 @@ public:
     ecs::FilePageCursor begin;
     ecs::FilePageCursor next;
 
-    Collector(ecs::FilePageRequest request, std::string overrideEncoding, const std::string& detected, uint64_t sourceOffset = 0)
+    Collector(ecs::FilePageRequest request, std::string overrideEncoding, const std::string& detected, uint64_t sourceOffset = 0, code_lexer::Language language = code_lexer::Language::Plain)
         : request_(request), position_(sourceOffset),
           line_(request.action == ecs::FilePageRequest::Action::Next ? request.cursor.line : 1),
           column_(request.action == ecs::FilePageRequest::Action::Next ? request.cursor.column : 1),
           continuation_(request.action == ecs::FilePageRequest::Action::Next && request.cursor.continuation),
+          language_(language), lexical_(request.action == ecs::FilePageRequest::Action::Next ? request.cursor.lexical : code_lexer::State{}),
           encoding(overrideEncoding == "auto" ? detected : std::move(overrideEncoding)) {
         raw.reserve(byteLimit);
         if (request.action == ecs::FilePageRequest::Action::Next) begin = next = request.cursor;

@@ -39,6 +39,7 @@ void input_dispatched() {
 
 static size_t owned_hunk_bytes(const ecs::DiffHunk& hunk) {
     size_t bytes = hunk.header.capacity() + 1 + hunk.lines.capacity() * sizeof(std::string);
+    bytes += (hunk.syntaxBefore.capacity() + hunk.syntaxAfter.capacity()) * sizeof(code_lexer::State);
     for (const auto& line : hunk.lines) bytes += line.capacity() + 1;
     return bytes;
 }

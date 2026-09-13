@@ -44,4 +44,16 @@ TEST(published_lines_reuse_tokens_with_separate_language_whitespace_and_revision
     ASSERT_TRUE(cache.bytes() <= 4 * 1024 * 1024u);
 }
 
+TEST(incoming_lexical_state_is_part_of_both_token_cache_keys) {
+    code_highlight::TokenCache cache;
+    const auto comment = code_lexer::scan("/*", code_lexer::Language::Cpp);
+    const auto before = cache.get_source("int answer;", "file.cpp", false, "one", comment);
+    const auto after = cache.get_source("int answer;", "file.cpp", false, "one");
+    ASSERT_NE(before, after);
+    ASSERT_EQ(before->front().kind, code_highlight::Kind::Comment);
+    ASSERT_EQ(after->front().kind, code_highlight::Kind::Keyword);
+    ASSERT_EQ(before, cache.get_source("int answer;", "file.cpp", false, "one", comment));
+    ASSERT_NE(cache.get("int answer;", "file.cpp", comment), cache.get("int answer;", "file.cpp"));
+}
+
 int main() { RUN_ALL_TESTS(); }

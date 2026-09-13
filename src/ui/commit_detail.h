@@ -127,6 +127,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             }
         } catch (const std::exception& error) { detailCache.commitDetailError = error.what(); }
     }
+    ui::diff_syntax::update(repo, detailCache.commitDetailDiff, commit_review_scope(repo));
     const auto* selectedCommit = &detailCache.entry;
 
     int nextId = 3050;

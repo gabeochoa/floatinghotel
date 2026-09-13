@@ -118,6 +118,10 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_byte_cache" ]; then
     run_test "test_byte_cache" "tests/unit/test_byte_cache.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_code_lexer" ]; then
+    run_test "test_code_lexer" "tests/unit/test_code_lexer.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_token_cache" ]; then
     run_test "test_token_cache" "tests/unit/test_token_cache.cpp"
 fi

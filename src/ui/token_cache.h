@@ -22,16 +22,16 @@ class TokenCache {
     }
 public:
     explicit TokenCache(size_t bytes = 4 * 1024 * 1024) : cache_(bytes) {}
-    Tokens get(const std::string& text, const std::string& path) {
+    Tokens get(const std::string& text, const std::string& path, code_lexer::State incoming = {}) {
         auto dot = path.find_last_of('.');
-        std::string key = "text:" + (dot == std::string::npos ? "" : path.substr(dot)) + "\n" + text;
-        return cached(std::move(key), [&] { return tokenize(text, path); });
+        std::string key = "text:" + (dot == std::string::npos ? "" : path.substr(dot)) + "\n" + incoming.key() + "\n" + text;
+        return cached(std::move(key), [&] { return tokenize(text, path, incoming); });
     }
-    Tokens get_source(const std::string& text, const std::string& path, bool whitespace, const std::string& identity) {
+    Tokens get_source(const std::string& text, const std::string& path, bool whitespace, const std::string& identity, code_lexer::State incoming = {}) {
         auto dot = path.find_last_of('.');
         std::string key = "source:" + (dot == std::string::npos ? "" : path.substr(dot)) +
-            (whitespace ? "\nspaces:" : "\nplain:") + identity;
-        return cached(std::move(key), [&] { return tokenize(display_text(text, whitespace), path); });
+            (whitespace ? "\nspaces:" : "\nplain:") + identity + "\n" + incoming.key();
+        return cached(std::move(key), [&] { return tokenize(display_text(text, whitespace), path, incoming); });
     }
     size_t hits() const { return hits_; }
     size_t misses() const { return misses_; }

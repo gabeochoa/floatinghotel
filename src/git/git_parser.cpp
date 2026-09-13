@@ -1,3 +1,4 @@
+#include "../util/hunk_syntax.h"
 #include "git_parser.h"
 #include "../util/moved_code.h"
 
@@ -395,6 +396,20 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
         }
     }
 
+    for (auto& file : diffs) {
+        code_lexer::State before, after;
+        int oldEnd = 1, newEnd = 1;
+        bool complete = true;
+        for (auto& hunk : file.hunks) {
+            if (hunk.oldCount && hunk.oldStart != oldEnd) { before = {}; complete = false; }
+            if (hunk.newCount && hunk.newStart != newEnd) { after = {}; complete = false; }
+            std::tie(before, after) = hunk_syntax::annotate(hunk, file.filePath, false, before, after, file.oldPath);
+            oldEnd = hunk.oldStart + hunk.oldCount;
+            newEnd = hunk.newStart + hunk.newCount;
+        }
+        file.syntaxResolved = complete || (code_lexer::language(file.filePath) == code_lexer::Language::Plain &&
+            code_lexer::language(file.oldPath) == code_lexer::Language::Plain);
+    }
     moved_code::mark_blocks(diffs);
     return diffs;
 }

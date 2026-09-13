@@ -283,11 +283,11 @@ TEST(inactive_documents_release_rendering_payloads_and_keep_file_summaries) {
     ASSERT_EQ(repo.originFileSummaries.size(), 1u);
     ASSERT_EQ(repo.originFileSummaries[0].additions, 7);
     ASSERT_TRUE(repo.originFileSummaries[0].hunks.empty());
-    repo.fullFileBytes = std::string(10000, 'z');
+    repo.sourceWindow.raw = std::string(10000, 'z');
     repo.fullFileDiff.push_back(file);
     navigation::return_to_review(repo);
-    ASSERT_TRUE(repo.fullFileBytes.empty());
-    ASSERT_TRUE(repo.fullFileBytes.capacity() < 10000);
+    ASSERT_TRUE(repo.sourceWindow.raw.empty());
+    ASSERT_TRUE(repo.sourceWindow.raw.capacity() < 10000);
     ASSERT_EQ(repo.fullFileDiff.capacity(), 0u);
     ASSERT_TRUE(repo.workspace().document(repo.workspace().review())->files.has_value());
 }
@@ -1047,7 +1047,7 @@ TEST(restored_sources_seed_recents_without_loading_documents) {
     navigation::restore_session(repo, session, false);
     ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}), (std::vector<std::string>{"active.cpp", "first.cpp"}));
     ASSERT_EQ(repo.workspace().recent_source_paths(reading::ObjectId{std::string(40, 'a')}), (std::vector<std::string>{"old.cpp"}));
-    ASSERT_TRUE(repo.fullFileBytes.empty());
+    ASSERT_TRUE(repo.sourceWindow.raw.empty());
     ASSERT_FALSE(repo.fullFileFuture.valid());
 }
 

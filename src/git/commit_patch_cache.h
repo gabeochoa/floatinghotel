@@ -33,6 +33,7 @@ inline size_t commit_patch_owned_bytes(const CommitPatchKey& key, const ecs::Com
         for (const auto& hunk : file.hunks) {
             text(hunk.header);
             bytes += hunk.lines.capacity() * sizeof(std::string);
+            bytes += (hunk.syntaxBefore.capacity() + hunk.syntaxAfter.capacity()) * sizeof(code_lexer::State);
             for (const auto& line : hunk.lines) text(line);
             bytes += (hunk.noNewline.size() + hunk.movedLines.size()) * (sizeof(size_t) + 4 * sizeof(void*));
         }

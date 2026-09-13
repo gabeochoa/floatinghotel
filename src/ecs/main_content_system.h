@@ -828,6 +828,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             render_revision_comparison(ctx, mainBg.ent(), repo, layout, reviewPtr);
             return;
         }
+        if (std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination))
+            ui::diff_syntax::update(repo, repo.selectedFileStaged() ? repo.stagedDiff : repo.currentDiff,
+                repo.selectedFileStaged() ? "index" : "wt");
         bool hasSelectedFile = std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination) &&
             !repo.selectedFilePath().empty();
         bool hasSelectedCommit = !repo.selectedCommitHash().empty();
