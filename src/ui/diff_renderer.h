@@ -1891,7 +1891,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         imageContext += std::to_string(repo->repoVersion) + ":" + std::to_string(repo->dataGeneration);
     for (const auto& file : diffs) imageContext += "\n" + file.filePath;
     image_diff::begin(imageContext);
-    auto* ownerRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    auto* ownerRepo = reviewScope == "snapshot" ? nullptr : ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     if (ownerRepo) {
         const auto focusOwner = shortcut_owner(ctx, *ownerRepo);
         hunk_context::poll(*ownerRepo, focusOwner.region == reading::focus::Region::Code && !focusOwner.text);
@@ -2293,7 +2293,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
     }
-    bool selEnabled = true;
+    sess.tmc = &EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
+    sess.fontSize = Settings::get().get_code_font_size() * zoom::get();
+    bool selEnabled = reviewScope != "snapshot";
+    if (!selEnabled) diff_sel::reset();
     if (selEnabled) {
         std::string context = repoPath + "\n" + (filterRepo ? std::to_string(filterRepo->workspace().active_id().value) : "") + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline") +
             std::to_string(contentWidth) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(Settings::get().get_code_font_size()) +
@@ -2328,9 +2331,6 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
             diff_sel::recompute_highlight(selectionState);
         }
-        sess.tmc = &EntityHelper::get_singleton_cmp_enforce<
-            afterhours::ui::TextMeasureCache>();
-        sess.fontSize = Settings::get().get_code_font_size() * zoom::get();
         diff_sel::handle_mouse(ctx, sess);
         if (layout) diff_sel::handle_keyboard(ctx, sess, diffs, *layout);
         if (filterRepo) {
@@ -2382,7 +2382,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_custom_background(theme::PANEL_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("diff_scroll"));
-        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+        if (auto* repo = ownerRepo) {
             std::string view = reviewScope + (sideBySide ? "\nsplit" : "\ninline");
             for (const auto& file : diffs) view += "\n" + file.filePath;
             bind_reading_view(*repo, scrollContainer.ent(), view);
@@ -2488,7 +2488,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         set_tooltip(fileHeaderRow.ent(), fileLabel);
         vp.built(fileHeaderHeight);
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            repo && repo->diffTargetFrames > 0 && repo->diffTargetFile() == fileDiff.filePath &&
+            repo && reviewScope != "snapshot" && repo->diffTargetFrames > 0 && repo->diffTargetFile() == fileDiff.filePath &&
             contentParent->has<afterhours::ui::HasScrollView>()) {
             auto& scroll = contentParent->get<afterhours::ui::HasScrollView>();
             float target = vp.curY - vp.px(fileHeaderHeight);
@@ -2599,7 +2599,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
             auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if ((!activeRepo || !activeRepo->reviewWorkspace) && reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
-                !fileDiff.isSubmodule && diff_sel::state().hasSel) {
+                !fileDiff.isSubmodule && selEnabled && diff_sel::state().hasSel) {
                 auto stage = button(ctx, mk(fileBtns.ent(), 3), preset::Button("Stage selection")
                     .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_transparent_bg()
                     .with_debug_name("stage_selected_lines"));

@@ -638,6 +638,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::string baselineHead;     // HEAD sha captured on Embark
     std::string baselineDiffSig;  // signature of the working diff on Embark
     std::string baselineSnapshot;
+    int64_t baselineCapturedAt = 0;
     async_work::Task<git::GitResult> snapshotFuture;
     bool snapshotCapturing = false;
     int snapshotContext = 3;
@@ -691,6 +692,7 @@ inline void reset_review(ReviewComponent& review) {
     review.baselineHead.clear();
     review.baselineDiffSig.clear();
     review.baselineSnapshot.clear();
+    review.baselineCapturedAt = 0;
     review.snapshotFuture = {};
     review.snapshotCapturing = false;
     review.sinceReviewOpen = false;

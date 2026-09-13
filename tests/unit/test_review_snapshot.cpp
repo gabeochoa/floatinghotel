@@ -1,6 +1,7 @@
 #include "test_framework.h"
 #include "../../src/review_snapshot.h"
 #include <cstdlib>
+#include <chrono>
 #include <unistd.h>
 #include <map>
 #include <filesystem>
@@ -42,7 +43,17 @@ TEST(snapshot_compares_saved_bytes_and_falls_back_to_head) {
     fixture.write("new.txt", "new before review\n");
     fixture.write("binary.dat", std::string("\0\xff", 2));
     std::filesystem::remove(fixture.path + "/deleted.txt");
-    ASSERT_TRUE(fixture.run(true).success());
+    const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+    auto capture = fixture.run(true);
+    ASSERT_TRUE(capture.success());
+    auto metadata = nlohmann::json::parse(capture.stdout_str());
+    ASSERT_EQ(metadata.at("head").get<std::string>(), fixture.head);
+    ASSERT_TRUE(metadata.at("captured_at").get<int64_t>() >= now);
+    std::ifstream savedInput(fixture.path + "/.git/review.cbor", std::ios::binary);
+    std::string savedBytes((std::istreambuf_iterator<char>(savedInput)), {});
+    auto saved = nlohmann::json::from_cbor(savedBytes);
+    ASSERT_EQ(saved.at("head"), metadata.at("head"));
+    ASSERT_EQ(saved.at("captured_at"), metadata.at("captured_at"));
     auto unchanged = fixture.run(false);
     ASSERT_TRUE(unchanged.success());
     ASSERT_EQ(nlohmann::json::parse(unchanged.stdout_str()).size(), 0u);
@@ -64,6 +75,8 @@ TEST(snapshot_compares_saved_bytes_and_falls_back_to_head) {
     ASSERT_TRUE(byFile["deleted.txt"].find("+restored") != std::string::npos);
     ASSERT_TRUE(byFile["binary.dat"].find("Binary files") != std::string::npos);
     ASSERT_TRUE(git::git_run(fixture.path, {"diff", "--cached", "--name-only"}).stdout_str().empty());
+    std::ifstream afterInput(fixture.path + "/.git/review.cbor", std::ios::binary);
+    ASSERT_EQ(std::string((std::istreambuf_iterator<char>(afterInput)), {}), savedBytes);
 }
 
 TEST(snapshot_failure_preserves_the_previous_baseline) {

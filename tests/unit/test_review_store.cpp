@@ -30,6 +30,7 @@ TEST(review_store_roundtrip) {
     r.baselineHead = "deadbeef";
     r.baselineDiffSig = "sig;";
     r.baselineSnapshot = "/local/review.baseline.cbor";
+    r.baselineCapturedAt = 1789300800;
 
     const std::string repo = "/tmp/test_review_store_repo";
     review_store::save_review(repo, r);
@@ -53,6 +54,7 @@ TEST(review_store_roundtrip) {
     ASSERT_STREQ(r2.seenSig["src/foo.cpp"], "1,2,3");
     ASSERT_STREQ(r2.baselineHead, "deadbeef");
     ASSERT_EQ(r2.baselineSnapshot, r.baselineSnapshot);
+    ASSERT_EQ(r2.baselineCapturedAt, r.baselineCapturedAt);
 
     std::filesystem::remove(review_store::review_path(repo));
 }

@@ -19,6 +19,7 @@
 #include "change_navigation.h"
 #include "file_picker.h"
 #include "repo_search.h"
+#include "review_snapshot.h"
 
 namespace menu_setup {
 
@@ -112,6 +113,11 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Forward", "Alt+Right", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) navigation::step(*repo, 1);
+        }),
+        MenuItem::item("Since last review", "", [] {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+            if (repo && review) ecs::open_saved_review(*repo, *review);
         }),
         MenuItem::item("Next Change", "", [] {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();

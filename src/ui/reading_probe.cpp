@@ -270,7 +270,10 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         const auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
                         return review ? nlohmann::json{{"cursor", review->cursor}, {"hunks", review->hunkCount},
                             {"approve_pending", review->cursorApprove}, {"comment_pending", review->cursorComment},
-                            {"approved", review->approvedHunks.size()}, {"composing", review->composingKey},
+                            {"approved", review->approvedHunks.size()}, {"baseline", review->baselineSnapshot},
+                            {"baseline_head", review->baselineHead}, {"baseline_captured_at", review->baselineCapturedAt},
+                            {"snapshot_open", review->sinceReviewOpen}, {"snapshot_pending", review->snapshotFuture.valid()},
+                            {"composing", review->composingKey},
                             {"draft", review->composingText}, {"comments", review->comments.size()}} : nlohmann::json{};
                     }()}, {"trees", [&] {
                         auto value = [](const file_tree::NavigationState& state) {

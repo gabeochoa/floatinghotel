@@ -44,6 +44,11 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             for (auto& menu : menus)
                 for (auto& item : menu.items)
                     if (item.label == "Collapse reading panel" && layout->shelfCollapsed) item.label = "Expand reading panel";
+        const auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        for (auto& menu : menus)
+            for (auto& item : menu.items)
+                if (item.label == "Since last review")
+                    item.enabled = review && !review->baselineSnapshot.empty() && !review->snapshotFuture.valid();
         return menus;
     }
 

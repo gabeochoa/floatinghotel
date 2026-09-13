@@ -1,6 +1,7 @@
 #include "review_snapshot.h"
 
 #include <filesystem>
+#include <chrono>
 #include <cstdlib>
 #include <unistd.h>
 #include <fstream>
@@ -69,12 +70,14 @@ git::GitResult snapshot(const std::string& repo, const std::string& path, const 
     try {
         size_t total = 0;
         if (capture) {
-            nlohmann::json saved = {{"head", head}, {"files", nlohmann::json::object()}};
+            const auto captured = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            nlohmann::json saved = {{"head", head}, {"captured_at", captured}, {"files", nlohmann::json::object()}};
             for (const auto& file : changed_paths(repo, head)) saved["files"][file] = read_working_file(repo, file, total);
             auto encoded = nlohmann::json::to_cbor(saved);
             if (!afterhours::files::write_string_atomic(path, std::string(encoded.begin(), encoded.end())))
                 throw std::runtime_error("Cannot save review snapshot");
-            return {{path, "", 0}};
+            return {{nlohmann::json{{"path", path}, {"head", head}, {"captured_at", captured}}.dump(), "", 0}};
         }
         auto encoded = afterhours::files::read_string(path);
         if (!encoded || encoded->size() > snapshotLimit + 1024 * 1024)

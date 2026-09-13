@@ -1163,14 +1163,8 @@ private:
                     review->reviewing = !review->reviewing;
                     review->dirty = true;
                     if (review->reviewing) {
-                        if (review->baselineSnapshot.empty() && !review->snapshotFuture.valid())
-                            start_review_snapshot(repo, *review, true);
-                        review->baselineHead =
-                            repo.commitLog.empty() ? "" : repo.commitLog[0].hash;
-                        review->baselineDiffSig.clear();
                         for (auto& fd : repo.currentDiff) {
                             review->seenSig[fd.filePath] = diff_signature(fd);
-                            review->baselineDiffSig += diff_signature(fd) + ";";
                         }
                         // The ballroom shows every working-tree file stacked, so
                         // don't pin a single selection — just clear it.

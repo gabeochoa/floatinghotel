@@ -106,6 +106,7 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["baseline_head"] = review.baselineHead;
     j["baseline_diff_sig"] = review.baselineDiffSig;
     j["baseline_snapshot"] = review.baselineSnapshot;
+    j["baseline_captured_at"] = review.baselineCapturedAt;
 
     std::string path = review_path(repoPath, review.storageScope);
     if (!afterhours::files::write_string_atomic(path, j.dump(2))) {
@@ -188,6 +189,7 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
         review.baselineHead = j.value("baseline_head", std::string{});
         review.baselineDiffSig = j.value("baseline_diff_sig", std::string{});
         review.baselineSnapshot = j.value("baseline_snapshot", std::string{});
+        review.baselineCapturedAt = j.value("baseline_captured_at", int64_t{0});
 
         log_info("Review loaded from {}", path);
     } catch (const std::exception& e) {

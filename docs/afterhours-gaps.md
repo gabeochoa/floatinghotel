@@ -2488,3 +2488,13 @@ reusable native-window driver with an await-layout/presentation barrier would
 help resizable inspectors, editors, game tools, and dockable panels. Pending
 window changes must not overwrite remembered expanded geometry. The app keeps
 that guard beside its dock state and leaves Afterhours unchanged.
+
+### Isolated review persistence in native journeys (step 57)
+
+Test mode deliberately disables review persistence. Restart tests for saved
+baselines need the production persistence path, so an explicit test flag now
+requires isolated settings before enabling it. An upstream E2E facility for
+isolated persistent storage would let editors and games test saves and resume
+without bypassing persistence or touching a user's normal data. The snapshot
+view also now avoids binding the retained document's reading state; that was
+app-owned state wiring, not an Afterhours renderer defect.

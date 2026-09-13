@@ -42,9 +42,14 @@ struct DocumentStripState : afterhours::BaseComponent {
     float scale = 1;
 };
 
+inline bool review_persistence_enabled() {
+    return !app_state::testModeEnabled ||
+        (std::getenv("FH_TEST_PERSIST_REVIEW") && std::getenv("FH_TEST_SETTINGS_DIR"));
+}
+
 inline void persist_pending_review(UIContext<InputAction>& ctx, ReviewComponent& review,
                                     RepoComponent* repo, bool immediate = false) {
-    if (app_state::testModeEnabled || !review.dirty || !repo || repo->repoPath.empty()) return;
+    if (!review_persistence_enabled() || !review.dirty || !repo || repo->repoPath.empty()) return;
     auto now = std::chrono::steady_clock::now();
     if (!immediate && now < review.nextSaveAttempt) return;
     if (!review_store::persist_review(review.storageRepoPath.empty() ? repo->repoPath : review.storageRepoPath, review)) {
@@ -417,7 +422,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         case Popup::Feedback: if (review) review->basketOpen = false; break;
                         case Popup::Composer: if (review) dismiss_pending_comment(*review); break;
                         case Popup::Options: layout.diffOptionsOpen = false; break;
-                        case Popup::Snapshot: if (review) review->sinceReviewOpen = false; break;
+                        case Popup::Snapshot:
+                            if (review) review->sinceReviewOpen = false;
+                            navigation::restore_anchor(*repoPtr);
+                            break;
                         case Popup::ComparisonEditor:
                             repoPtr->comparisonEditorOpen = false;
                             repoPtr->comparisonFuture = {};
@@ -699,7 +707,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (reviewPtr && hasRepo && repoPtr->hasLoadedOnce && !repoPtr->isRefreshing && !repoPtr->refreshRequested) {
             auto scope = selected_review_storage_scope(*repoPtr, *reviewPtr);
             if (reviewPtr->storageScope != scope || reviewPtr->storageRepoPath != repoPtr->repoPath) {
-                if (!review_store::switch_review_scope(repoPtr->repoPath, scope, *reviewPtr, !app_state::testModeEnabled)) {
+                if (!review_store::switch_review_scope(repoPtr->repoPath, scope, *reviewPtr, review_persistence_enabled())) {
                     div(ctx, mk(mainBg.ent(), 591000), ComponentConfig{}
                         .with_label("Cannot save the previous review. Keep this tab open and retry after checking storage.")
                         .with_size(ComponentSize{percent(1.f), pixels(80)}).with_font_size(pixels(14)));
@@ -848,20 +856,37 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
                 .with_gap(pixels(4)));
             if (!staged && !reviewPtr->snapshotFuture.valid()) {
-                if (button(ctx, mk(baselineActions.ent(), 0), preset::Button("Save review baseline")
-                    .with_size(ComponentSize{pixels(165), pixels(28)}).with_debug_name("save_review_baseline")))
-                    start_review_snapshot(repo, *reviewPtr, true);
-                if (!reviewPtr->baselineSnapshot.empty() && button(ctx, mk(baselineActions.ent(), 1), preset::Button("Since last review")
-                    .with_size(ComponentSize{pixels(145), pixels(28)}).with_debug_name("since_last_review"))) {
-                    reviewPtr->sinceReviewOpen = true;
-                    start_review_snapshot(repo, *reviewPtr, false);
+                if (reviewPtr->baselineSnapshot.empty()) {
+                    if (button(ctx, mk(baselineActions.ent(), 0), preset::Button("Save review baseline")
+                        .with_size(ComponentSize{pixels(165), pixels(28)}).with_debug_name("save_review_baseline")))
+                        start_review_snapshot(repo, *reviewPtr, true);
+                } else {
+                    if (button(ctx, mk(baselineActions.ent(), 1), preset::Button("Since last review")
+                        .with_size(ComponentSize{pixels(145), pixels(28)}).with_debug_name("since_last_review")))
+                        open_saved_review(repo, *reviewPtr);
+                    auto identity = div(ctx, mk(baselineActions.ent(), 3), ComponentConfig{}
+                        .with_label(baseline_label(*reviewPtr)).with_size(ComponentSize{expand(), pixels(28)})
+                        .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                        .with_debug_name("review_baseline_identity"));
+                    ui::set_tooltip(identity.ent(), baseline_label(*reviewPtr));
+                    if (button(ctx, mk(baselineActions.ent(), 4), preset::Button("...")
+                        .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("review_baseline_actions"))) {
+                        const auto owner = repo.repoPath;
+                        ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+                            ui::ContextMenuItem::item("Replace saved baseline", [owner] {
+                                auto* active = find_singleton<RepoComponent, ActiveTab>();
+                                auto* review = find_singleton<ReviewComponent, ActiveTab>();
+                                if (active && review && active->repoPath == owner) start_review_snapshot(*active, *review, true);
+                            })});
+                    }
                 }
             }
-            div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}
-                .with_label(reviewPtr->snapshotFuture.valid() ? "Saving contents..." :
-                    !reviewPtr->snapshotError.empty() ? reviewPtr->snapshotError :
-                    staged ? "" : repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading new files..." : "") : repo.untrackedReviewNotice)
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12)));
+            const std::string snapshotNotice = reviewPtr->snapshotFuture.valid() ? "Saving contents..." :
+                !reviewPtr->snapshotError.empty() ? reviewPtr->snapshotError :
+                staged ? "" : repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading new files..." : "") : repo.untrackedReviewNotice;
+            if (!snapshotNotice.empty())
+                div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}.with_label(snapshotNotice)
+                    .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12)));
             if (files.empty()) {
                 auto done = div(ctx, mk(mainBg.ent(), 3080),
                     ComponentConfig{}
