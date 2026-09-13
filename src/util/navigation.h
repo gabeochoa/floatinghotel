@@ -258,7 +258,7 @@ struct navigation {
             activate(repo, id);
             if (enter || repeated) keep(repo, id);
         } else open(repo, location, {}, enter || repeated ? reading::OpenMode::Keep : reading::OpenMode::Preview);
-        if (region == reading::ClickRegion::Tree && repo.navigationEffect) {
+        if ((region == reading::ClickRegion::Tree || region == reading::ClickRegion::History) && repo.navigationEffect) {
             repo.navigationEffect->focus = reading::FocusPolicy::Caller;
             repo.readingFocusDocument.reset();
         }

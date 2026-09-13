@@ -16,6 +16,9 @@ struct BeginFocusFrame : afterhours::System<UIContext<InputAction>> {
             }
             auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
             layout->focus.origin = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
+            const auto* repo = find_singleton<RepoComponent, ActiveTab>();
+            if (focused.valid() && repo && ui::shortcut_owner(ctx, *repo).text)
+                focused->addComponentIfMissing<afterhours::ui::ConsumesDirectionalInput>();
         }
     }
 };

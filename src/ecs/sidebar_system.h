@@ -493,14 +493,16 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (!repoPtr->commitLog.empty()) key += repoPtr->commitLog.front().hash;
             if (key != graphKey_) { graphKey_ = key; graph_ = commit_graph::build(repoPtr->commitLog); }
         }
+        const auto logList = mk(logBg.ent(), 2320);
+        const auto historyMove = repoPtr ? history_keys(ctx, *repoPtr, layout, logList) : std::nullopt;
         auto logScroll = windowedLog
             ? ui::virtual_list(
-                  ctx, mk(logBg.ent(), 2320), logRows + (logHasMore ? 1 : 0),
+                  ctx, logList, logRows + (logHasMore ? 1 : 0),
                   [&](size_t i) { return i < logRows ? commitRowPx : lazyRowPx; },
                   [&](size_t i, Entity& row) {
                       if (i < logRows) {
                           render_commit_row(ctx, row, 0, repoPtr->commitLog[i],
-                                            *repoPtr);
+                                            *repoPtr, historyMove == i, !historyMove);
                       } else {
                           render_lazy_load_row(ctx, row);
                       }
@@ -511,6 +513,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         if (repoPtr) {
             ui::bind_focus(logScroll.ent(), *repoPtr, reading::focus::Region::History);
             if (!windowedLog) render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
+            if (historyMove) {
+                navigation::preview(*repoPtr, reading::review(repoPtr->commitLog[*historyMove].hash));
+                if (afterhours::input::is_key_pressed(257)) navigation::keep(*repoPtr, repoPtr->workspace().active_id());
+            }
         } else {
             render_no_repo(ctx, logScroll.ent(), 0, "no_repo_log");
         }
@@ -2163,10 +2169,49 @@ private:
     commit_graph::Graph graph_;
     std::string graphKey_;
 
+    std::optional<size_t> history_keys(UIContext<InputAction>& ctx, RepoComponent& repo,
+            const LayoutComponent& layout, afterhours::ui::imm::EntityParent parent) {
+        const auto owner = ui::shortcut_owner(ctx, repo);
+        if (owner.region != reading::focus::Region::History || owner.text || repo.commitLog.empty() ||
+            ui::shortcuts_blocked(layout) || layout.filePickerOpen) return {};
+        for (const int key : {340, 344, 341, 345, 342, 346, 343, 347})
+            if (afterhours::input::is_key_down(key)) return {};
+        const bool up = afterhours::input::is_key_pressed(265);
+        const bool down = afterhours::input::is_key_pressed(264);
+        const bool enter = afterhours::input::is_key_pressed(257);
+        if (!up && !down && !enter) return {};
+        if (up) (void)ctx.pressed(InputAction::WidgetUp);
+        if (down) (void)ctx.pressed(InputAction::WidgetDown);
+        if (enter) (void)ctx.pressed(InputAction::WidgetPress);
+        auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
+        const auto target = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
+        const auto hash = target && !target->item.empty() ? target->item : repo.selectedCommitHash();
+        const auto row = std::find_if(repo.commitLog.begin(), repo.commitLog.end(), [&](const auto& commit) { return commit.hash == hash; });
+        size_t index = row == repo.commitLog.end() ? 0 : static_cast<size_t>(row - repo.commitLog.begin());
+        if (row != repo.commitLog.end()) {
+            if (up && index > 0) --index;
+            if (down && index + 1 < repo.commitLog.size()) ++index;
+        }
+        auto [entity, listOwner] = afterhours::ui::imm::deref(parent);
+        if (entity.has<afterhours::ui::HasScrollView>()) {
+            auto& scroll = entity.get<afterhours::ui::HasScrollView>();
+            const float height = theme::layout::COMMIT_ROW_HEIGHT * ui::zoom::get();
+            const float top = static_cast<float>(index) * height;
+            const float viewport = scroll.viewport_or_zero().y;
+            float offset = scroll.scroll_offset.y;
+            if (top < offset) offset = top;
+            else if (top + height > offset + viewport) offset = top + height - viewport;
+            offset = std::max(0.f, offset);
+            scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = offset;
+            scroll.anchor_child = -1;
+        }
+        return index;
+    }
+
     void render_commit_row(UIContext<InputAction>& ctx,
                            Entity& parent, int index,
                            const CommitEntry& commit,
-                           RepoComponent& repo) {
+                           RepoComponent& repo, bool focus = false, bool acceptClick = true) {
         bool selected = (commit.hash == repo.selectedCommitHash());
         constexpr float ROW_H = theme::layout::COMMIT_ROW_HEIGHT;
 
@@ -2189,6 +2234,7 @@ private:
 
         auto row = div(ctx, mk(parent, baseId),
             preset::SelectableRow(selected)
+                .with_consumes_directional_input()
                 .with_size(ComponentSize{pixels(std::max(0.f, sidebarW - 8.f)), pixels(ROW_H)})
                 .with_margin(Margin{.left = pixels(4), .right = pixels(4)})
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
@@ -2202,6 +2248,7 @@ private:
         ui::set_tooltip(row.ent(), commit.subject + "\n" + commit.hash + "\n" + commit.decorations);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
+        if (focus) ctx.set_focus(row.ent().id);
 
         constexpr float rowPx = ROW_H;
 
@@ -2285,7 +2332,7 @@ private:
             .with_alignment(TextAlignment::Right).with_text_inset(0.f).with_debug_name("commit_age"));
 
         // Click -> select this commit
-        if (row.ent().get<HasClickListener>().down) {
+        if (acceptClick && row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
                 navigation::click(*r, reading::review(commit.hash), afterhours::input::is_key_pressed(257), reading::ClickRegion::History);

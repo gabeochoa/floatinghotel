@@ -1970,3 +1970,17 @@ focused control in the broader Tree region. Restoring the latter moved focus
 from the Review button into a file row. The app now requires the focus target
 to belong to the previous row sequence. Reproduction:
 `output/step24-final-tree_reveal/100/back_review.json`.
+
+### Text fields should own directional focus routing
+
+A single-line text field's focused child lacks `ConsumesDirectionalInput`.
+`ComponentConfig::inherit_from` does not propagate that flag, and the focus
+router checks only the focused entity. Down Arrow in the review file filter
+therefore left editing and selected a file row. The native history-keyboard
+replay reproduced this at `output/step25-keyboard/100/editing.json`.
+
+`BeginFocusFrame` now marks the focused entity when its semantic owner is a
+text control. This keeps arrows with the editor while preserving Tab traversal.
+Afterhours text-input and text-area widgets should declare this ownership on
+their focusable child. Search boxes, chat inputs, game-console commands, and
+forms would benefit without each app adapting the composite's internal focus.
