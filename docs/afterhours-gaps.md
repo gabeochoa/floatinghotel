@@ -1950,3 +1950,23 @@ Reusing the virtual list's entity for a plain empty panel also preserves
 empty-panel identity. A framework virtual-list empty state should reset this
 size while preserving the logical list's position for returning results.
 The reproduction is `output/step20-reveal-handle/100/empty_filter.json`.
+
+### Keyed virtual lists should preserve viewport and focus through updates
+
+The app's virtual-list wrapper receives row indices. Its file lists therefore
+map the visible path, fractional row offset, and keyboard-focus path into each
+new row sequence before windowing. A removed row uses the nearest surviving
+row in the old sequence; an empty filter retains the anchor for later results.
+Manual scrolling cancels a retained position that was clamped by a short list.
+
+A framework list API with stable item keys could own this bookkeeping for
+inventory lists, quest logs, leaderboards, and file browsers. The app workaround
+is `ui::replace_tree_rows` in `src/ui/tree_keyboard.h`; the native replay is
+`tests/tree_refresh_position.py`. This is an integration capability request,
+not a proposed change to the current cache limits.
+
+The step 24 reveal regression also distinguished a focused list item from a
+focused control in the broader Tree region. Restoring the latter moved focus
+from the Review button into a file row. The app now requires the focus target
+to belong to the previous row sequence. Reproduction:
+`output/step24-final-tree_reveal/100/back_review.json`.

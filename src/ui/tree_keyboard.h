@@ -4,6 +4,7 @@
 #include "zoom.h"
 #include "../util/text_decode.h"
 #include "../util/tree_destination.h"
+#include <cmath>
 
 namespace ui {
 
@@ -11,6 +12,7 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
         const ecs::LayoutComponent& layout, file_tree::NavigationState& state, const std::string& context,
         const std::vector<file_tree::Row>& rows, const std::set<std::string>& collapsed) {
     if (state.context != context) state = {context};
+    if (ctx.mouse.just_pressed) state.pendingFocus = false;
     if (shortcuts_blocked(layout) || layout.filePickerOpen || rows.empty()) return {};
     auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
     const auto target = focused.valid() ? focus_target(**focused) : std::nullopt;
@@ -30,7 +32,7 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
         }
         return {};
     }
-    if (target && !target->item.empty()) {
+    if (target && !target->item.empty() && !state.pendingFocus) {
         if (target->item != state.path) state.typing = {};
         state.path = target->item;
     }
@@ -61,15 +63,54 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
     return move;
 }
 
-inline void reveal_tree_row(afterhours::ui::imm::EntityParent parent, file_tree::NavigationState& state,
+inline void replace_tree_rows(UIContext<InputAction>& ctx, afterhours::ui::imm::EntityParent parent,
+        const ecs::RepoComponent& repo, file_tree::NavigationState& state, const std::string& context,
+        std::vector<file_tree::Row>& previous, std::vector<file_tree::Row> current) {
+    if (state.context != context) { previous = std::move(current); return; }
+    auto [entity, owner] = afterhours::ui::imm::deref(parent);
+    auto* scroll = entity.has<afterhours::ui::HasScrollView>() ? &entity.get<afterhours::ui::HasScrollView>() : nullptr;
+    const float rowHeight = 28.f * zoom::get();
+    if (scroll && !previous.empty() && (!state.viewport || !state.viewportOffset ||
+        std::abs(scroll->scroll_offset.y - *state.viewportOffset) > .5f)) {
+        const auto index = std::min(static_cast<size_t>(std::max(0.f, scroll->scroll_offset.y) / rowHeight), previous.size() - 1);
+        state.viewport = file_tree::ViewportAnchor{previous[index].path,
+            std::clamp(scroll->scroll_offset.y / rowHeight - static_cast<float>(index), 0.f, 1.f)};
+    }
+    state.path = file_tree::surviving_path(previous, current, state.path);
+    const auto focused = shortcut_owner(ctx, repo);
+    auto focusedEntity = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
+    const auto target = focusedEntity.valid() ? focus_target(**focusedEntity) : std::nullopt;
+    if (focused.region == reading::focus::Region::Tree && !focused.text && target &&
+        std::any_of(previous.begin(), previous.end(), [&](const auto& row) { return row.path == target->item; })) {
+        state.pendingFocus = !state.path.empty();
+        ctx.set_focus(ctx.ROOT);
+    }
+    if (state.viewport && !current.empty()) {
+        state.viewport->path = file_tree::surviving_path(previous, current, state.viewport->path);
+        auto row = std::find_if(current.begin(), current.end(), [&](const auto& item) { return item.path == state.viewport->path; });
+        if (scroll && row != current.end() && !state.pendingReveal) {
+            const float offset = (static_cast<float>(row - current.begin()) + state.viewport->fraction) * rowHeight;
+            const float target = std::clamp(offset, 0.f, std::max(0.f, static_cast<float>(current.size()) * rowHeight - scroll->viewport_or_zero().y));
+            scroll->scroll_offset.y = scroll->scroll_target.y = scroll->last_eased_offset.y = target;
+            scroll->anchor_child = -1;
+            state.viewportOffset = target;
+        }
+    }
+    previous = std::move(current);
+}
+
+inline void reveal_tree_row(UIContext<InputAction>& ctx, afterhours::ui::imm::EntityParent parent, file_tree::NavigationState& state,
                              const std::vector<file_tree::Row>& rows) {
     state.revealEntity = -1;
-    if (!state.pendingFocus && !state.pendingReveal) return;
     auto [entity, owner] = afterhours::ui::imm::deref(parent);
     if (!entity.has<afterhours::ui::HasScrollView>()) return;
+    auto& scroll = entity.get<afterhours::ui::HasScrollView>();
+    const auto wheel = afterhours::input::get_mouse_wheel_move_v();
+    if (scroll.dragging_scrollbar || ((wheel.x != 0.f || wheel.y != 0.f) &&
+        afterhours::ui::is_mouse_inside(ctx.mouse.pos, visible_rect(entity)))) state.viewportOffset.reset();
+    if (!state.pendingReveal) return;
     auto row = std::find_if(rows.begin(), rows.end(), [&](const auto& item) { return item.path == state.revealPath; });
     if (row == rows.end()) return;
-    auto& scroll = entity.get<afterhours::ui::HasScrollView>();
     const float height = scroll.viewport_or_zero().y;
     const float top = static_cast<float>(row - rows.begin()) * 28.f * zoom::get();
     float target = scroll.scroll_offset.y;

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <optional>
 #include <string_view>
+#include <unordered_set>
 
 namespace file_tree {
 
@@ -22,12 +23,46 @@ struct TypeSelectState {
     std::chrono::steady_clock::time_point lastInput{};
 };
 
+struct ViewportAnchor {
+    std::string path;
+    float fraction = 0.f;
+};
+
+inline std::string surviving_path(const std::vector<Row>& previous, const std::vector<Row>& current,
+                                   const std::string& path) {
+    if (path.empty() || current.empty()) return path;
+    std::unordered_set<std::string_view> present;
+    for (const auto& row : current) present.insert(row.path);
+    if (present.contains(path)) return path;
+    auto old = std::find_if(previous.begin(), previous.end(), [&](const auto& row) { return row.path == path; });
+    if (old != previous.end()) {
+        if (old->directory) {
+            for (const auto& row : current)
+                if (row.directory && row.path.starts_with(path)) return row.path;
+        }
+        const auto index = static_cast<size_t>(old - previous.begin());
+        for (size_t distance = 1; distance < previous.size(); ++distance) {
+            if (index + distance < previous.size() && present.contains(previous[index + distance].path))
+                return previous[index + distance].path;
+            if (distance <= index && present.contains(previous[index - distance].path))
+                return previous[index - distance].path;
+        }
+        return current[std::min(index, current.size() - 1)].path;
+    }
+    std::string parent;
+    for (const auto& row : current)
+        if (row.directory && path.starts_with(row.path) && row.path.size() > parent.size()) parent = row.path;
+    return parent.empty() ? current.front().path : parent;
+}
+
 struct NavigationState {
     std::string context;
     std::string path;
     bool pendingFocus = false;
     bool pendingReveal = false;
     TypeSelectState typing;
+    std::optional<ViewportAnchor> viewport;
+    std::optional<float> viewportOffset;
     std::optional<std::uint64_t> navigationGeneration;
     std::string revealPath;
     int revealEntity = -1;

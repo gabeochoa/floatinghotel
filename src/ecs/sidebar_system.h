@@ -362,20 +362,21 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
                 .with_debug_name("sidebar_files");
             const auto fileList = mk(controlsBody.ent(), 2100);
-            if (repoPtr) update_file_tree(*repoPtr, layout);
             if (repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
                 auto& state = repoPtr->filesTreeNavigation;
                 auto& collapsed = layout.collapsedDirectories[repoPtr->repoPath];
                 const std::string scope = active_review_tab() == LayoutComponent::ReviewTab::Staged ? "index" : "wt";
-                const auto context = repoPtr->repoPath + "\nfiles:" + scope + ":" + std::to_string(static_cast<int>(layout.fileViewMode));
+                const auto context = repoPtr->repoPath + "\nfiles:" + scope + ":" + std::to_string(static_cast<int>(layout.fileViewMode)) +
+                    ":" + std::to_string(static_cast<int>(active_review_tab()));
+                update_file_tree(ctx, fileList, *repoPtr, layout, context);
                 if (!repoPtr->isRefreshing && !repoPtr->refreshRequested && file_tree::reveal_navigation(state, context,
                         repoPtr->workspace().generation(), file_tree::destination_path(repoPtr->workspace(),
                             allFilesMode_ || scope == "wt" ? file_tree::Scope::Working : file_tree::Scope::Index),
-                        allFilesMode_ ? repoPtr->allFilePaths : treePaths_, collapsed)) update_file_tree(*repoPtr, layout);
+                        allFilesMode_ ? repoPtr->allFilePaths : treePaths_, collapsed)) update_file_tree(ctx, fileList, *repoPtr, layout, context);
                 if (auto move = ui::tree_keys(ctx, *repoPtr, layout, state, context, treeRows_, collapsed)) {
                     if (move->toggle) {
                         file_tree::toggle_directory(treeRows_, *move->toggle, collapsed);
-                        update_file_tree(*repoPtr, layout);
+                        update_file_tree(ctx, fileList, *repoPtr, layout, context);
                     }
                     if (move->open) {
                         reading::Location destination = allFilesMode_ ? reading::Location{reading::source(move->path)} :
@@ -384,7 +385,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                         else navigation::preview(*repoPtr, std::move(destination));
                     }
                 }
-                ui::reveal_tree_row(fileList, state, treeRows_);
+                ui::reveal_tree_row(ctx, fileList, state, treeRows_);
             }
             const bool windowedFiles =
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
@@ -688,6 +689,7 @@ private:
                 .with_padding(Padding{.left = pixels(14), .right = pixels(10)}));
             return;
         }
+        const auto fileList = mk(section.ent(), 3);
         const auto collapseKey = repo->repoPath + "\n" + scope;
         auto& collapsed = layout->collapsedDirectories[collapseKey];
         std::string key = collapseKey + "\n" + commitFileQuery_;
@@ -706,25 +708,27 @@ private:
                 commitTreePaths_.push_back((*files)[index].filePath);
                 commitFileIndices_.push_back(index);
             }
-            commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
+            ui::replace_tree_rows(ctx, fileList, *repo, repo->reviewTreeNavigation, collapseKey,
+                commitTreeRows_, file_tree::flatten(commitTreePaths_, collapsed));
         }
         auto& treeState = repo->reviewTreeNavigation;
         const auto activeTreePath = file_tree::destination_path(repo->workspace(), file_tree::Scope::Review);
         if (file_tree::reveal_navigation(treeState, collapseKey, repo->workspace().generation(), activeTreePath, commitTreePaths_, collapsed)) {
-            commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
+            ui::replace_tree_rows(ctx, fileList, *repo, repo->reviewTreeNavigation, collapseKey,
+                commitTreeRows_, file_tree::flatten(commitTreePaths_, collapsed));
             commitTreeKey_.clear();
         }
         const auto move = ui::tree_keys(ctx, *repo, *layout, treeState, collapseKey, commitTreeRows_, collapsed);
         if (move) {
             if (move->toggle) {
                 file_tree::toggle_directory(commitTreeRows_, *move->toggle, collapsed);
-                commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
+                ui::replace_tree_rows(ctx, fileList, *repo, repo->reviewTreeNavigation, collapseKey,
+                    commitTreeRows_, file_tree::flatten(commitTreePaths_, collapsed));
                 commitTreeKey_.clear();
             }
         }
         auto config = preset::ScrollPanel().with_size(ComponentSize{percent(1.f), pixels(std::max(0.f, height - 70.f))})
             .with_debug_name("commit_files_scroll");
-        const auto fileList = mk(section.ent(), 3);
         if (commitTreeRows_.empty()) {
             auto emptyPanel = div(ctx, mk(section.ent(), 3), config);
             div(ctx, mk(emptyPanel.ent(), 0), preset::BodyText(files->empty() ? empty : "No matching files")
@@ -734,7 +738,7 @@ private:
             return;
         }
         std::optional<std::string> selectedPath;
-        ui::reveal_tree_row(fileList, treeState, commitTreeRows_);
+        ui::reveal_tree_row(ctx, fileList, treeState, commitTreeRows_);
         ui::virtual_list(ctx, fileList, commitTreeRows_.size(), 28.f,
             [&](size_t index, Entity& wrapper) {
                 const auto& node = commitTreeRows_[index];
@@ -1705,15 +1709,21 @@ private:
     };
     std::optional<FileRowsKey> fileRowsKey_;
 
-    void update_file_tree(const RepoComponent& repo, const LayoutComponent& layout) {
+    void update_file_tree(UIContext<InputAction>& ctx, afterhours::ui::imm::EntityParent list,
+                          RepoComponent& repo, const LayoutComponent& layout, const std::string& context) {
+        auto publish = [&](std::vector<file_tree::Row> rows) {
+            ui::replace_tree_rows(ctx, list, repo, repo.filesTreeNavigation, context, treeRows_, std::move(rows));
+        };
         allFilesMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::All;
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
         auto tab = active_review_tab();
         FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, repo.allFilePathsGeneration, tab, layout.fileViewMode, repo.fileFilter};
         if (allFilesMode_) {
             if (!fileRowsKey_ || *fileRowsKey_ != key) {
-                treeRows_.clear();
-                for (size_t i = 0; i < repo.allFilePaths.size(); ++i) treeRows_.push_back({repo.allFilePaths[i], i, 0, false});
+                std::vector<file_tree::Row> rows;
+                rows.reserve(repo.allFilePaths.size());
+                for (size_t i = 0; i < repo.allFilePaths.size(); ++i) rows.push_back({repo.allFilePaths[i], i, 0, false});
+                publish(std::move(rows));
                 fileRowsKey_ = std::move(key);
             }
             return;
@@ -1729,7 +1739,7 @@ private:
         if (fileRowsKey_ && *fileRowsKey_ == key) {
             if (treeMode_ && collapsed != treeCollapsed_) {
                 treeCollapsed_ = collapsed;
-                treeRows_ = file_tree::flatten(treePaths_, treeCollapsed_);
+                publish(file_tree::flatten(treePaths_, treeCollapsed_));
             }
             return;
         }
@@ -1765,9 +1775,10 @@ private:
         }
         fileIndices_ = std::move(indices);
         treeCollapsed_ = collapsed;
-        treeRows_.clear();
-        if (treeMode_) treeRows_ = file_tree::flatten(treePaths_, treeCollapsed_);
-        else for (size_t i = 0; i < treePaths_.size(); ++i) treeRows_.push_back({treePaths_[i], i, 0, false});
+        std::vector<file_tree::Row> rows;
+        if (treeMode_) rows = file_tree::flatten(treePaths_, treeCollapsed_);
+        else for (size_t i = 0; i < treePaths_.size(); ++i) rows.push_back({treePaths_[i], i, 0, false});
+        publish(std::move(rows));
     }
 
     size_t active_file_count(const RepoComponent& repo) const {

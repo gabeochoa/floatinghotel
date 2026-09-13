@@ -1,0 +1,22 @@
+[
+  {
+    "test": "tree_reveal",
+    "exit": 0
+  },
+  {
+    "test": "tree_refresh_position",
+    "exit": 0
+  },
+  {
+    "test": "compact_tree",
+    "exit": 0
+  },
+  {
+    "test": "focus_return",
+    "exit": 0
+  },
+  {
+    "test": "tree_keyboard",
+    "exit": 0
+  }
+]

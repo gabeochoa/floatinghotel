@@ -190,4 +190,33 @@ TEST(type_selection_matches_the_displayed_compact_path) {
     ASSERT_FALSE(selected->open);
 }
 
+TEST(tree_positions_follow_paths_when_rows_are_inserted_or_reordered) {
+    const auto before = flatten({"b.cpp", "c.cpp", "d.cpp"}, {});
+    const auto after = flatten({"a.cpp", "d.cpp", "b.cpp", "c.cpp"}, {});
+    ASSERT_EQ(surviving_path(before, after, "c.cpp"), std::string("c.cpp"));
+    ASSERT_EQ(surviving_path(before, after, "b.cpp"), std::string("b.cpp"));
+}
+
+TEST(disappearing_rows_choose_the_nearest_old_survivor) {
+    const auto before = flatten({"a.cpp", "b.cpp", "c.cpp", "d.cpp"}, {});
+    const auto after = flatten({"new0.cpp", "new1.cpp", "a.cpp", "c.cpp", "d.cpp"}, {});
+    ASSERT_EQ(surviving_path(before, after, "b.cpp"), std::string("c.cpp"));
+    ASSERT_EQ(surviving_path(before, flatten({"a.cpp", "b.cpp"}, {}), "d.cpp"), std::string("b.cpp"));
+}
+
+TEST(empty_filter_results_retain_positions_for_restoration) {
+    const auto before = flatten({"a.cpp", "b.cpp"}, {});
+    ASSERT_EQ(surviving_path(before, {}, "b.cpp"), std::string("b.cpp"));
+    ASSERT_EQ(surviving_path({}, before, "b.cpp"), std::string("b.cpp"));
+    ASSERT_EQ(surviving_path(before, flatten({"x.cpp"}, {}), "b.cpp"), std::string("x.cpp"));
+    ASSERT_TRUE(surviving_path(before, before, "").empty());
+}
+
+TEST(filter_compaction_preserves_the_corresponding_directory) {
+    const auto before = flatten({"src/ui/a.cpp", "src/tools/b.cpp"}, {});
+    const auto after = flatten({"src/ui/a.cpp"}, {});
+    ASSERT_EQ(surviving_path(before, after, "src/"), std::string("src/ui/"));
+    ASSERT_EQ(surviving_path(before, flatten({"src/ui/a.cpp"}, {"src/ui/"}), "src/ui/a.cpp"), std::string("src/ui/"));
+}
+
 int main() { RUN_ALL_TESTS(); }
