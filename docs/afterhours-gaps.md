@@ -2249,3 +2249,20 @@ native UI tests for virtualized readers, inventories, and transient overlays
 avoid interpreting retained layout data as a visible element. This was a test
 assumption, not a caret left on screen. Evidence is in
 `docs/reading-navigation-evidence/step44/first-native.tar.gz`.
+
+### Read-only text views need shared selection gestures and word policy
+
+Step 45 uses the existing zoom-aware pointer coordinates but implements click
+counting in the reader. Afterhours text inputs have their own 0.4-second
+multi-click detection inside the editable widgets. A reusable gesture result
+(single, double, triple, Shift extension), with a distance threshold in screen
+coordinates, would help code viewers, log panes, terminals, and game chat logs.
+It should preserve pointer capture and input gating without requiring an editable
+text field.
+
+The framework's `select_word_at` treats underscore as punctuation. Code selection
+needs identifier words such as `alpha_éλ`; the app adds a small word-boundary helper
+using decoded composed-character boundaries. An upstream configurable word policy
+would let code viewers and ordinary prose fields share geometry and gesture
+handling without forcing the same definition of a word. Step 45's native replay
+checks exact UTF-8/tab bytes and both split-diff sides.

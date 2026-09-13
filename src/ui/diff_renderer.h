@@ -4,6 +4,7 @@
 
 #include "../util/reading_anchor.h"
 #include "../util/code_position.h"
+#include "../util/code_words.h"
 #include "geometry.h"
 
 #include "review_comment_kind.h"
@@ -109,6 +110,9 @@ struct Rec {
 struct State {
     bool dragging = false;
     bool hasSel = false;
+    int clickCount = 0;
+    double clickTime = -1.;
+    float clickX = 0.f, clickY = 0.f;
     std::string context;
     Pos anchor, head;
     std::vector<Rec> lastLines; // prior frame (used for hit-test + copy)
@@ -127,6 +131,8 @@ inline void reset() {
     State& s = state();
     s.dragging = false;
     s.hasSel = false;
+    s.clickCount = 0;
+    s.clickTime = -1.;
     s.anchor = {};
     s.head = {};
     s.lastLines.clear();
@@ -326,19 +332,63 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     };
 
     if (mouse.just_pressed) {
-        int li = lineUnder();
+        const int li = lineUnder();
         if (li >= 0) {
-            // Press on a line: start a new selection. (A press+release with no
-            // drag collapses anchor==head on release, which clears it.)
-            st.anchor = st.head = {st.lastLines[li].ent, colAt(st.lastLines[li])};
             const auto& row = st.lastLines[li];
-            if (sess.owner && row.lineNo > 0) navigation::set_caret(*sess.owner,
-                {row.filePath, row.side == 1 || row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
-                 row.lineNo, row.logicalColumn + reading::column_at_byte(row.content, st.head.col) - 1}, true);
-            st.dragging = true; st.hasSel = false;
+            const Pos hit{row.ent, colAt(row)};
+            const bool shift = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
+            const double now = afterhours::graphics::get_time();
+            const float tolerance = 4.f * zoom::get();
+            const bool repeated = !shift && st.clickTime >= 0. && now - st.clickTime < .4 &&
+                std::abs(mx - st.clickX) <= tolerance && std::abs(my - st.clickY) <= tolerance;
+            st.clickCount = repeated ? st.clickCount + 1 : 1;
+            st.clickTime = now;
+            st.clickX = mx;
+            st.clickY = my;
+            if (st.clickCount >= 2) {
+                auto sameLine = [&](const Rec& candidate) {
+                    return candidate.filePath == row.filePath && candidate.side == row.side &&
+                        candidate.sign == row.sign && candidate.lineNo == row.lineNo;
+                };
+                std::vector<int> fragments;
+                std::string text;
+                size_t hitOffset = 0;
+                for (int i = 0; i < static_cast<int>(st.lastLines.size()); ++i) {
+                    if (!sameLine(st.lastLines[i])) continue;
+                    if (i == li) hitOffset = text.size() + static_cast<size_t>(hit.col);
+                    fragments.push_back(i);
+                    text += st.lastLines[i].content;
+                }
+                auto resolve = [&](size_t byte) {
+                    for (int i : fragments) {
+                        const auto& fragment = st.lastLines[i];
+                        if (byte <= fragment.content.size()) return Pos{fragment.ent, static_cast<int>(byte)};
+                        byte -= fragment.content.size();
+                    }
+                    const auto& last = st.lastLines[fragments.back()];
+                    return Pos{last.ent, static_cast<int>(last.content.size())};
+                };
+                const auto range = st.clickCount == 2 ? reading::word_at(text, hitOffset)
+                    : std::pair<size_t, size_t>{0, text.size()};
+                st.anchor = resolve(range.first);
+                st.head = resolve(range.second);
+                st.dragging = false;
+                if (st.clickCount >= 3) st.clickCount = 0;
+            } else {
+                int first, firstColumn, last, lastColumn;
+                if (!shift || !ordered_span(st.lastLines, st.anchor, hit, first, firstColumn, last, lastColumn)) st.anchor = hit;
+                st.head = hit;
+                st.dragging = true;
+            }
+            st.hasSel = !(st.anchor == st.head);
+            auto head = std::find_if(st.lastLines.begin(), st.lastLines.end(), [&](const Rec& candidate) { return candidate.ent == st.head.ent; });
+            if (sess.owner && head != st.lastLines.end() && head->lineNo > 0) navigation::set_caret(*sess.owner,
+                {head->filePath, head->side == 1 || head->sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
+                 head->lineNo, head->logicalColumn + reading::column_at_byte(head->content, st.head.col) - 1}, true);
+        } else {
+            st.clickCount = 0;
+            st.clickTime = -1.;
         }
-        // Press off a line (header, Copy button, sidebar): leave any existing
-        // selection intact so the Copy button stays clickable.
     }
     if (st.dragging && !ctx.is_input_allowed(st.anchor.ent)) st.dragging = false;
     if (mouse.left_down && st.dragging) {

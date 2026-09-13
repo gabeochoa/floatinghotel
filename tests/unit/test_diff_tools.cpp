@@ -10,6 +10,7 @@
 #include "../../src/util/navigation.h"
 #include "../../src/util/change_navigation.h"
 #include "../../src/util/code_position.h"
+#include "../../src/util/code_words.h"
 #include "../../src/util/wrap_text.h"
 #include "../../src/util/code_wrap.h"
 #include "../../src/util/visible_rows.h"
@@ -565,6 +566,28 @@ TEST(caret_belongs_to_each_document_and_tracks_explicit_line_destinations) {
     navigation::activate(repo, id);
     ASSERT_EQ(repo.workspace().document(id)->caret->line, 13);
     ASSERT_EQ(repo.workspace().document(id)->caret->column, 5);
+}
+
+TEST(code_words_preserve_identifiers_unicode_and_composed_characters) {
+    const std::string text = "a_éλ é 👨‍👩‍👧‍👦 ;";
+    auto selected = [&](size_t byte) {
+        auto [first, last] = reading::word_at(text, byte);
+        return text.substr(first, last - first);
+    };
+    ASSERT_EQ(selected(2), "a_éλ");
+    ASSERT_EQ(selected(4), "a_éλ");
+    ASSERT_EQ(selected(text.find("é") + 2), "é");
+    ASSERT_EQ(selected(text.find("👨") + 5), "👨‍👩‍👧‍👦");
+    ASSERT_EQ(selected(text.size()), ";");
+    ASSERT_EQ(reading::word_at("", 99), (std::pair<size_t, size_t>{0, 0}));
+}
+
+TEST(code_words_group_whitespace_without_swallowing_punctuation) {
+    const std::string text = "one\t  two->three";
+    auto [first, last] = reading::word_at(text, 4);
+    ASSERT_EQ(text.substr(first, last - first), "\t  ");
+    auto [a, b] = reading::word_at(text, 9);
+    ASSERT_EQ(text.substr(a, b - a), "-");
 }
 
 int main() { RUN_ALL_TESTS(); }
