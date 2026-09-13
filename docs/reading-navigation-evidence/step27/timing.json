@@ -1,0 +1,44 @@
+{
+  "quick_open_overlay": {
+    "100": [
+      "120 frames, 202 entities: avg 2.59 ms  p50 2.53  p99 5.26  max 6.53"
+    ],
+    "200": [
+      "120 frames, 161 entities: avg 1.78 ms  p50 1.71  p99 4.32  max 5.17"
+    ],
+    "140": [
+      "120 frames, 179 entities: avg 1.79 ms  p50 1.60  p99 4.11  max 6.54"
+    ]
+  },
+  "container_hover": {
+    "140-populated": [
+      "120 frames, 162 entities: avg 1.66 ms  p50 1.52  p99 3.96  max 5.34"
+    ],
+    "200-empty": [
+      "120 frames, 108 entities: avg 1.29 ms  p50 1.04  p99 3.47  max 6.17"
+    ],
+    "200-populated": [
+      "120 frames, 162 entities: avg 1.96 ms  p50 1.60  p99 5.06  max 9.00"
+    ],
+    "140-empty": [
+      "120 frames, 108 entities: avg 1.32 ms  p50 1.11  p99 4.07  max 4.65"
+    ],
+    "100-populated": [
+      "120 frames, 162 entities: avg 1.55 ms  p50 1.49  p99 3.45  max 4.72"
+    ],
+    "100-empty": [
+      "120 frames, 108 entities: avg 1.39 ms  p50 1.12  p99 5.14  max 7.28"
+    ]
+  },
+  "focus_return": {
+    "100": [
+      "120 frames, 227 entities: avg 2.45 ms  p50 2.23  p99 5.54  max 8.67"
+    ],
+    "200": [
+      "120 frames, 178 entities: avg 2.24 ms  p50 2.04  p99 5.06  max 6.64"
+    ],
+    "140": [
+      "120 frames, 204 entities: avg 1.93 ms  p50 1.78  p99 5.07  max 5.27"
+    ]
+  }
+}

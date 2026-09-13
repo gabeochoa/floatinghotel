@@ -56,6 +56,10 @@ struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction>
         using namespace afterhours::ui;
         if (!cmp.was_rendered_to_screen || cmp.should_hide || entity.has<ShouldHide>()) return;
         scroll.viewport_size = {cmp.computed[Axis::X], cmp.computed[Axis::Y]};
+        if (!context->is_input_allowed(entity.id)) {
+            scroll.scroll_target = scroll.last_eased_offset = scroll.scroll_offset;
+            return;
+        }
         scroll.ease_scroll(dt);
         if (scroll.auto_overflow && !(scroll.vertical_enabled && scroll.needs_scroll_y()) &&
             !(scroll.horizontal_enabled && scroll.needs_scroll_x())) {
@@ -75,6 +79,17 @@ struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction>
     }
 };
 
+struct HandleAllowedScrollbarDrag : afterhours::ui::HandleScrollbarDrag<InputAction> {
+    void for_each_with(afterhours::Entity& entity, afterhours::ui::UIComponent& component,
+            afterhours::ui::HasScrollView& scroll, float dt) override {
+        if (context && !context->is_input_allowed(entity.id)) {
+            scroll.dragging_scrollbar = false;
+            return;
+        }
+        afterhours::ui::HandleScrollbarDrag<InputAction>::for_each_with(entity, component, scroll, dt);
+    }
+};
+
 inline void registerUIPostLayoutSystems(
     afterhours::SystemManager& manager) {
     afterhours::ui::register_after_ui_updates<InputAction>(manager);
@@ -84,6 +99,8 @@ inline void registerUIPostLayoutSystems(
         for (auto& child : bridge->systems)
             if (dynamic_cast<afterhours::ui::HandleScrollInput<InputAction>*>(child.get()))
                 child = std::make_unique<HandleVisibleScrollInput>();
+            else if (dynamic_cast<afterhours::ui::HandleScrollbarDrag<InputAction>*>(child.get()))
+                child = std::make_unique<HandleAllowedScrollbarDrag>();
     }
 }
 

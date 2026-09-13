@@ -97,6 +97,25 @@ extern "C" void metal_set_window_size(int width, int height) {
 
 #import <objc/runtime.h>
 
+static void (*window_did_resize)(id, SEL, NSNotification*);
+static bool drawing_for_resize = false;
+
+static void resize_and_draw(id delegate, SEL selector, NSNotification* notification) {
+    window_did_resize(delegate, selector, notification);
+    NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
+    MTKView* view = (MTKView*)window.contentView;
+    window.backgroundColor = [NSColor colorWithSRGBRed:0.0824 green:0.0902 blue:0.1059 alpha:1.0];
+    view.layer.backgroundColor = window.backgroundColor.CGColor;
+    if (!_sapp.valid || _sapp.first_frame || pending_window_size || drawing_for_resize) return;
+    drawing_for_resize = true;
+    const double start = CACurrentMediaTime();
+    [view draw];
+    drawing_for_resize = false;
+    if (std::getenv("FH_RESIZE_TIMING"))
+        fprintf(stdout, "[INFO] RESIZE frame=%dx%d elapsed_ms=%.3f\n", sapp_width(), sapp_height(),
+            (CACurrentMediaTime() - start) * 1000.0);
+}
+
 static bool startup_presented = false;
 static bool startup_submitted = false;
 static NSTimer* startup_draw_timer = nil;
@@ -137,6 +156,9 @@ extern "C" void metal_defer_window_presentation(void) {
     [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
     if (std::getenv("FH_NAVIGATION_TIMING"))
         fprintf(stdout, "[INFO] NAV application_class=%s\n", class_getName([NSApp class]));
+    Method resize = class_getInstanceMethod([_sapp_macos_window_delegate class], @selector(windowDidResize:));
+    window_did_resize = reinterpret_cast<decltype(window_did_resize)>(method_getImplementation(resize));
+    method_setImplementation(resize, reinterpret_cast<IMP>(resize_and_draw));
     Class windowClass = [_sapp_macos_window class];
     Method order = class_getInstanceMethod(windowClass, @selector(orderWindow:relativeTo:));
     startup_order_window = reinterpret_cast<decltype(startup_order_window)>(method_getImplementation(order));
@@ -345,6 +367,8 @@ extern "C" void metal_draw_first_frame_early(void) {
             NSWindow* w = (__bridge NSWindow*)sapp_macos_get_window();
             MTKView* v = (MTKView*)[w contentView];
             if (v) {
+                w.backgroundColor = [NSColor colorWithSRGBRed:0.0824 green:0.0902 blue:0.1059 alpha:1.0];
+                v.layer.backgroundColor = w.backgroundColor.CGColor;
                 startup_draw_timer = [NSTimer scheduledTimerWithTimeInterval:1.0 / 60.0
                     repeats:YES block:^(NSTimer*) { [v draw]; }];
                 [v draw];

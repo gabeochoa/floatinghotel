@@ -1,0 +1,18 @@
+2026-09-13 04:02:06.416 native-test[10673:55250605] Metal API Validation Enabled
+[INFO] RESIZE frame=700x600 elapsed_ms=3.499
+RESIZE 700 600 7.325 ms frames=1
+[INFO] RESIZE frame=900x620 elapsed_ms=2.481
+RESIZE 900 620 8.327 ms frames=1
+[INFO] RESIZE frame=1200x650 elapsed_ms=1.810
+RESIZE 1200 650 5.178 ms frames=1
+[INFO] RESIZE frame=600x650 elapsed_ms=2.551
+RESIZE 600 650 7.488 ms frames=1
+[INFO] RESIZE frame=480x700 elapsed_ms=7.127
+RESIZE 480 700 11.960 ms frames=1
+[INFO] RESIZE frame=1400x800 elapsed_ms=1.959
+RESIZE 1400 800 4.408 ms frames=1
+[INFO] RESIZE frame=800x700 elapsed_ms=3.833
+RESIZE 800 700 6.742 ms frames=1
+[INFO] RESIZE frame=352x600 elapsed_ms=1.618
+RESIZE 352 600 3.528 ms frames=1
+PASS: eight synchronous live resize frames, DPI 1.0, hidden window

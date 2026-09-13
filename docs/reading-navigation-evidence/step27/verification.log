@@ -1,0 +1,18 @@
+RUN quick_open_overlay
+PASS 100%: picker overlay, unchanged reader, blocked background scroll/click, focus return, narrow window
+PASS 140%: picker overlay, unchanged reader, blocked background scroll/click, focus return, narrow window
+PASS 200%: picker overlay, unchanged reader, blocked background scroll/click, focus return, narrow window
+RUN container_hover
+PASS 100-empty: sidebar, history, and reader containers keep their backgrounds in both scopes
+PASS 140-empty: sidebar, history, and reader containers keep their backgrounds in both scopes
+PASS 200-empty: sidebar, history, and reader containers keep their backgrounds in both scopes
+PASS 100-populated: sidebar, history, and reader containers keep their backgrounds in both scopes
+PASS 140-populated: sidebar, history, and reader containers keep their backgrounds in both scopes
+PASS 200-populated: sidebar, history, and reader containers keep their backgrounds in both scopes
+RUN focus_return
+PASS 100%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 140%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 200%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary

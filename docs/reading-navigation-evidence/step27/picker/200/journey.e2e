@@ -1,0 +1,138 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Picker review"
+wait_for_refresh
+key ENTER
+click_ui commit_file_filter
+type "f045"
+wait_frames 8
+click_ui jump_to_diff:files/f045.cpp
+wait_frames 8
+hover_ui commit_detail_scroll
+scroll_wheel 0 -20
+wait_frames 12
+click_ui content_document_2
+wait_frames 12
+workspace_checkpoint 2 review_before
+screenshot review_before
+key CMD+P
+wait_frames 12
+workspace_checkpoint 2 review_open
+screenshot review_open
+type "files/f"
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+wait_frames 12
+workspace_checkpoint 2 chosen
+screenshot chosen
+hover_ui commit_detail_scroll
+scroll_wheel 0 -40
+wait_frames 12
+workspace_checkpoint 2 review_blocked
+screenshot review_blocked
+key ESCAPE
+wait_frames 12
+workspace_checkpoint 2 review_return
+screenshot review_return
+key CMD+P
+wait_frames 8
+click 700 60
+wait_frames 12
+workspace_checkpoint 2 outside_return
+screenshot outside_return
+key CMD+P
+wait_frames 8
+key ENTER
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 source_opened
+screenshot source_opened
+hover_ui diff_scroll
+scroll_wheel 0 -20
+wait_frames 12
+click_ui content_document_3
+wait_frames 12
+workspace_checkpoint 3 source_before
+screenshot source_before
+key CMD+P
+wait_frames 12
+workspace_checkpoint 3 source_picker
+screenshot source_picker
+hover_ui diff_scroll
+scroll_wheel 0 -40
+wait_frames 12
+workspace_checkpoint 3 source_blocked
+screenshot source_blocked
+key ESCAPE
+wait_frames 12
+workspace_checkpoint 3 source_return
+screenshot source_return
+resize 1100 800
+wait_frames 24
+wait_frames 12
+workspace_checkpoint 3 narrow_before
+screenshot narrow_before
+key CMD+P
+wait_frames 12
+workspace_checkpoint 3 narrow_picker
+screenshot narrow_picker
+key ESCAPE
+wait_frames 12
+workspace_checkpoint 3 narrow_return
+screenshot narrow_return
+bench_frames 120
+expect_p99_below 20

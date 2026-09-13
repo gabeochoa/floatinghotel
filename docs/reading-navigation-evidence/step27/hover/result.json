@@ -1,0 +1,450 @@
+{
+  "passed": true,
+  "binary_sha256": "2a9845609223d52aed22ded5498f3322e3eb837d55918da8fe9c6528a8e11cfb",
+  "measurements": {
+    "100-empty": {
+      "unstaged_main_content": {
+        "hot": "diff_scroll",
+        "sample": [
+          317,
+          1040
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "unstaged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "unstaged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_main_content": {
+        "hot": "main_content",
+        "sample": [
+          317,
+          1064
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "staged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      }
+    },
+    "140-empty": {
+      "unstaged_main_content": {
+        "hot": "diff_scroll",
+        "sample": [
+          441,
+          1020
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "unstaged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "unstaged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_main_content": {
+        "hot": "main_content",
+        "sample": [
+          441,
+          1053
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "staged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      }
+    },
+    "200-empty": {
+      "unstaged_main_content": {
+        "hot": "diff_scroll",
+        "sample": [
+          629,
+          990
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "unstaged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "unstaged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_main_content": {
+        "hot": "main_content",
+        "sample": [
+          629,
+          1038
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "staged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      }
+    },
+    "100-populated": {
+      "unstaged_main_content": {
+        "hot": "diff_scroll",
+        "sample": [
+          317,
+          1040
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "unstaged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "unstaged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_main_content": {
+        "hot": "main_content",
+        "sample": [
+          317,
+          1064
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "staged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1064
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      }
+    },
+    "140-populated": {
+      "unstaged_main_content": {
+        "hot": "diff_scroll",
+        "sample": [
+          441,
+          1020
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "unstaged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "unstaged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_main_content": {
+        "hot": "main_content",
+        "sample": [
+          441,
+          1053
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "staged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1053
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      }
+    },
+    "200-populated": {
+      "unstaged_main_content": {
+        "hot": "diff_scroll",
+        "sample": [
+          629,
+          990
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "unstaged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "unstaged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_main_content": {
+        "hot": "main_content",
+        "sample": [
+          629,
+          1038
+        ],
+        "rgb": [
+          21,
+          23,
+          27
+        ]
+      },
+      "staged_sidebar_bg": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      },
+      "staged_history_branch": {
+        "hot": "sidebar_bg",
+        "sample": [
+          5,
+          1038
+        ],
+        "rgb": [
+          27,
+          29,
+          34
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "100": [
+    "120 frames, 257 entities: avg 3.88 ms  p50 3.10  p99 10.68  max 17.39"
+  ],
+  "200": [
+    "120 frames, 217 entities: avg 4.26 ms  p50 3.25  p99 12.50  max 15.22"
+  ],
+  "140": [
+    "120 frames, 241 entities: avg 2.70 ms  p50 2.33  p99 6.86  max 11.39"
+  ]
+}

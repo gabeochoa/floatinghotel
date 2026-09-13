@@ -1,0 +1,1 @@
+ld: warning: object file (/Users/gabeochoa/p/floatinghotel/output/objs/_O2/main/sokol_impl.o) was built for newer 'macOS' version (26.6.2) than being linked (26.0)

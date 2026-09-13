@@ -7,7 +7,7 @@ namespace ui {
 
 inline void bind_reading_view(ecs::RepoComponent& repo, Entity& entity,
                              const std::string& view, bool ready = true) {
-    bind_focus(entity, repo, reading::focus::Region::Code);
+    bind_focus_region(entity, repo, reading::focus::Region::Code);
     auto& state = repo.reading;
     state.entity = entity.id;
     state.key = repo.repoPath + "\n" + view;

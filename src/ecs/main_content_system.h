@@ -662,7 +662,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_roundness(0.0f)
                 .with_debug_name("main_content"));
 
-        if (repoPtr) ui::bind_focus(mainBg.ent(), *repoPtr, reading::focus::Region::Code);
+        if (repoPtr) ui::bind_focus_region(mainBg.ent(), *repoPtr, reading::focus::Region::Code);
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
         if (hasRepo) {
             if (repoPtr->fullFilePath().empty()) {
@@ -800,10 +800,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
         if (repo.repoSearchOpen) {
             render_repo_search(ctx, mainBg.ent(), repo, layout);
-            return;
-        }
-        if (layout.filePickerOpen) {
-            render_file_picker(ctx, mainBg.ent(), repo, layout);
             return;
         }
         if (const auto* document = repo.workspace().document(repo.workspace().active_id()); document->unresolvedSavedRevision) {

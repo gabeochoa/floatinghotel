@@ -2004,3 +2004,68 @@ focus fall back to a repository tab (`output/step26-verified-history_pagination/
 The sidebar restores the selected commit's focus before rebuilding the list.
 An explicit focus fallback for removed list items would avoid this application
 coordination in any progressively loaded list.
+
+### Scroll input and scrollbar dragging should respect modal input gates
+
+`HandleScrollInput` and `HandleScrollbarDrag` check viewport geometry but do
+not call `UIContext::is_input_allowed`. A modal's pointer gate therefore does
+not protect the scroll views behind it. The app's existing clipped-scroll
+adapter now checks gates before scrolling, and a scrollbar adapter does the
+same for dragging. Blocked views stop at their current offset.
+
+The modal gate is normally registered after the app's UI post-layout systems.
+Quick Open installs its own descendant gate before those systems run. A single
+framework input boundary, applied before hit testing, scroll, and drag handling,
+would help dialogs, command palettes, inventory popovers, and game pause menus.
+`tests/quick_open_overlay.py` exercises background wheel input and outside clicks.
+
+The picker also reuses the existing zoom-corrected modal positioning workaround.
+Native modal focus restoration stores entity IDs; the app disables that return
+path and uses its semantic focus stack so closed documents and other repositories
+cannot regain stale focus.
+
+### Click-to-focus containers need independent hover styling
+
+Adding `HasClickListener` makes an entity eligible for the renderer's default
+hover tint. The app uses this component to focus large Code, Tree, and History
+regions when their empty space is clicked. Those regions consequently turned
+whole sidebar and reader backgrounds gray on hover, including an empty staged
+review. This reproduced the user's September 13 screenshots.
+
+`bind_focus_region` now sets `HasColor::skip_hover_override` on these region containers.
+Ordinary control binding only assigns its semantic focus identity, so buttons
+such as history Retry retain their hover treatment.
+Rows and buttons keep their own hover treatments. A framework focusable-region
+primitive should separate pointer focus from button feedback, so editors,
+canvases, inventories, and game panels can accept focus without looking pressed.
+`tests/container_hover.py` compares pixels in empty and populated staged and
+unstaged views at 100%, 140%, and 200% zoom; the existing zoom-hover replay checks
+that file rows and compact close buttons still respond at the correct location.
+
+### Native resize invalidation needs a drawable before returning to AppKit
+
+Sokol's macOS `windowDidResize:` updates the drawable dimensions but does not
+request a draw. A hidden native probe pauses periodic drawing and changes
+`NSWindow` sizes inside `NSEventTrackingRunLoopMode`. Before the app workaround,
+the setter returned without another frame (`output/live-resize-baseline2.log`).
+The app's delegate adapter forwards dimension updates, then draws directly,
+except during a queued programmatic resize or recursive resize draw. Window
+and layer backgrounds are dark before presentation and after resize.
+
+Afterhours/Sokol should expose resize invalidation and presentation as one
+backend operation. Desktop tools, editors, and windowed games need this even
+when normal frame pacing is idle or the run loop is tracking a window edge.
+The native probe checks matching drawable dimensions and reads rendered pixels
+back from the GPU. It exercises native window callbacks in the tracking loop;
+it does not simulate a physical mouse drag or measure the compositor's display.
+The probe passed at native and Retina scale with Metal validation enabled.
+All 16 sizes rendered matching pixels before the setter returned. Draw callbacks
+took 1.5–7.6 ms; the first two Retina window operations took 21.6 and 33.6 ms,
+so native-window overhead still exceeds 16 ms in those cold cases. Evidence is
+in `docs/reading-navigation-evidence/step27/native-resize`.
+
+Quick Open also switched theme font tiers to explicit logical pixel sizes.
+`with_font_size(FontSize)` resolves through `h720`, which produced tiny labels
+inside a zoomed modal. The app's existing button presets use `pixels` for this
+reason. A documented, consistently zoomed typography scale would avoid mixing
+viewport-relative font tiers with logical-pixel controls.

@@ -1,0 +1,43 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_ui review_unstaged_changes
+wait_for_refresh
+mouse_move 1750 15
+wait_frames 10
+screenshot unstaged_neutral
+mouse_move 1700 950
+wait_frames 8
+screenshot unstaged_main_content
+mouse_move 10 600
+wait_frames 8
+screenshot unstaged_sidebar_bg
+hover_ui history_branch
+wait_frames 8
+screenshot unstaged_history_branch
+click_ui review_staged_changes
+wait_for_refresh
+mouse_move 1750 15
+wait_frames 10
+screenshot staged_neutral
+mouse_move 1700 950
+wait_frames 8
+screenshot staged_main_content
+mouse_move 10 600
+wait_frames 8
+screenshot staged_sidebar_bg
+hover_ui history_branch
+wait_frames 8
+screenshot staged_history_branch
+bench_frames 120
+expect_p99_below 20

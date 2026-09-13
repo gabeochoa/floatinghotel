@@ -535,6 +535,7 @@ static void app_init() {
         sm.register_update_system(std::make_unique<ecs::SidebarSystem>());
         sm.register_update_system(std::make_unique<ecs::MainContentSystem>());
         sm.register_update_system(std::make_unique<ecs::StatusBarSystem>());
+        sm.register_update_system(std::make_unique<ecs::FilePickerSystem>());
         // MenuBarSystem runs last so dropdown elements draw on top of
         // toolbar/sidebar when a menu is open
         sm.register_update_system(std::make_unique<ecs::MenuBarSystem>());

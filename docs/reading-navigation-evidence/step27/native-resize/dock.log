@@ -1,0 +1,4 @@
+2026-09-13 04:18:17.700 native-test[24604:55298146] Metal API Validation Enabled
+PASS: six coalesced resizes outside draw callbacks; 28 matching Metal frames; window stayed hidden; DPI 1.0
+2026-09-13 04:18:19.368 native-test[24611:55298285] Metal API Validation Enabled
+PASS: six coalesced resizes outside draw callbacks; 28 matching Metal frames; window stayed hidden; DPI 2.0

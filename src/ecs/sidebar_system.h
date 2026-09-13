@@ -225,7 +225,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_overflow(Overflow::Hidden, Axis::Y)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_bg"));
-        if (repoPtr) ui::bind_focus(sidebarRoot.ent(), *repoPtr, reading::focus::Region::Tree);
+        if (repoPtr) ui::bind_focus_region(sidebarRoot.ent(), *repoPtr, reading::focus::Region::Tree);
 
         float sidebarW = layout.sidebar.width;
         sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
@@ -521,7 +521,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             : div(ctx, mk(logBg.ent(), 2320), logPanel);
 
         if (repoPtr) {
-            ui::bind_focus(logScroll.ent(), *repoPtr, reading::focus::Region::History);
+            ui::bind_focus_region(logScroll.ent(), *repoPtr, reading::focus::Region::History);
             if (!windowedLog) render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
             if (historyMove) {
                 navigation::preview(*repoPtr, reading::review(repoPtr->commitLog[*historyMove].hash));

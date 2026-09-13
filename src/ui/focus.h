@@ -15,9 +15,13 @@ inline void bind_focus(Entity& entity, const ecs::RepoComponent& repo, reading::
                        std::string item = {}, std::optional<reading::DocumentId> document = {}) {
     const auto owner = document.value_or(region == reading::focus::Region::History || region == reading::focus::Region::Menu
         ? reading::DocumentId{} : repo.workspace().active_id());
-    if (item.empty() && (region == reading::focus::Region::Code || region == reading::focus::Region::Tree || region == reading::focus::Region::History))
-        entity.addComponentIfMissing<HasClickListener>([](Entity&) {});
     entity.addComponentIfMissing<FocusIdentity>().target = {repo.repoPath, owner, region, std::move(item), {}};
+}
+
+inline void bind_focus_region(Entity& entity, const ecs::RepoComponent& repo, reading::focus::Region region) {
+    entity.addComponentIfMissing<HasClickListener>([](Entity&) {});
+    if (entity.has<afterhours::HasColor>()) entity.get<afterhours::HasColor>().skip_hover_override = true;
+    bind_focus(entity, repo, region);
 }
 
 inline bool text_control(const Entity& entity) {
