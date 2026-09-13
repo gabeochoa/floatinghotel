@@ -134,7 +134,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         if (hasContent && !sidebarOnly) {
             const float inset = std::min(24.f, layout.mainContent.width * 0.04f);
             layout.mainContent.x += inset;
-            layout.mainContent.width = std::max(0.f, layout.mainContent.width - inset * 2.f);
+            layout.mainContent.width = std::max(0.f, layout.mainContent.width - inset);
             const float topInset = std::min(8.f, layout.mainContent.height);
             layout.mainContent.y += topInset;
             layout.mainContent.height -= topInset;

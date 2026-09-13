@@ -96,7 +96,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         panel = next(n["rect"] for n in nodes if n.get("name") == "context_menu")
         readers = [n for n in nodes if n.get("name") == "diff_scroll"]
         if readers:
-            assert readers[0]["scroll"]["y"] == 0, (zoom, name, "Menu scrolling moved the reader")
+            assert abs(readers[0]["scroll"]["y"]) < .1, (zoom, name, "Menu scrolling moved the reader")
         assert panel["y"] >= 0 and panel["y"] + panel["height"] <= 850 + .2
         rows = [n for n in nodes if n.get("name", "").startswith("context_menu_item_")]
         assert rows

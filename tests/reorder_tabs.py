@@ -99,7 +99,17 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
         assert [t['id'] for t in workspace['tabs']] == expected, (zoom, name, workspace)
         assert workspace['active'] == 9 and workspace['inactive_payloads_empty'], (zoom, name, workspace)
         assert sorted(workspace['tabs'], key=lambda t: t['id']) == baseline['tabs']
-        assert abs(node(name, 'diff_scroll')['scroll']['y'] - baseline_offset) < 1, (zoom, name, 'Reader scrolled')
+        if name == 'resized':
+            before_view = node('before', 'diff_scroll')['rect']
+            after_view = node(name, 'diff_scroll')['rect']
+            anchor = next(r for r in snapshot('before')['reading_rows']
+                          if r['rect']['y'] >= before_view['y'] + 36 * scale)
+            restored = next(r for r in snapshot(name)['reading_rows']
+                            if (r['path'], r['line'], r['offset']) == (anchor['path'], anchor['line'], anchor['offset']))
+            fraction = (anchor['rect']['y'] - before_view['y']) / before_view['height']
+            assert abs(restored['rect']['y'] - after_view['y'] - fraction * after_view['height']) < 1, (zoom, name, 'Reading anchor moved')
+        else:
+            assert abs(node(name, 'diff_scroll')['scroll']['y'] - baseline_offset) < 1, (zoom, name, 'Reader scrolled')
         data = snapshot(name)
         assert data['viewport'] == ({'width': 1200, 'height': 800} if name == 'resized' else snapshot('before')['viewport'])
         marker = [n for n in data['nodes'] if n.get('name') == 'document_tab_insertion' and n['rendered']]

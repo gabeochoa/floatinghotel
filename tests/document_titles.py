@@ -38,8 +38,9 @@ binary = ROOT / "output/floatinghotel.exe"
 digest = hashlib.sha256(binary.read_bytes()).hexdigest()
 
 
-def picker(path):
-    return f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
+def picker(path, working_scope=False):
+    scope = 'click_ui file_picker_working_scope\nwait_for_refresh\n' if working_scope else ''
+    return f'key CMD+P\n{scope}click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
 
 
 for zoom, steps in ((100, 0), (140, 4), (200, 10)):
@@ -48,8 +49,8 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
     script = f'resize {int(1800 * zoom / 100)} {int(800 * zoom / 100)}\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
     script += 'click_text "Recognizable subject"\nwait_for_refresh\nkey ENTER\nworkspace_checkpoint 2 commit\nscreenshot commit\n'
-    script += 'click_ui open_full_file\nwait_for_refresh\nkey ENTER\n'
-    script += picker("left/a.cpp") + picker("right/a.cpp")
+    script += 'click_text "int left = 2;"\nwait_frames 3\nclick_ui open_full_file\nwait_for_refresh\nkey ENTER\n'
+    script += picker("left/a.cpp", working_scope=True) + picker("right/a.cpp")
     script += 'workspace_checkpoint 5 files\nscreenshot files\n'
     script += 'click_ui content_document_3\nwait_for_refresh\nworkspace_checkpoint 5 historical\nscreenshot historical\n'
     script += 'click_ui content_document_4\nwait_for_refresh\nworkspace_checkpoint 5 working\nscreenshot working\n'

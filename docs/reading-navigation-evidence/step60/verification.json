@@ -1,0 +1,175 @@
+{
+  "artifacts": [
+    {
+      "name": "acceptance-before-width.tar.gz",
+      "bytes": 10650525,
+      "sha256": "78b56cdee85fdd0baf34cbf1e9c0aad28e57704e76740c54abbaa853066ef506",
+      "members": 1428
+    },
+    {
+      "name": "acceptance-final.tar.gz",
+      "bytes": 29888851,
+      "sha256": "d5a775ee1fd75b51b83c7d33a6bdc5c481704a68f8d652d906710cbbb0bcf56b",
+      "members": 4019
+    },
+    {
+      "name": "acceptance-rechecks.tar.gz",
+      "bytes": 5833527,
+      "sha256": "af17f6ae96e6d5af1f12e8153ee0087056e2af800d172adecd12037557e41c32",
+      "members": 690
+    },
+    {
+      "name": "acceptance-summary.json",
+      "bytes": 284978,
+      "sha256": "d6976de566aee2d9b26a9a2dd0f0215de05e05c2af170184499a6841ef7c8a87"
+    },
+    {
+      "name": "acceptance-tail.tar.gz",
+      "bytes": 22987249,
+      "sha256": "f381c51a1069b7a2c53a1334584c67f1954e23859b604f52026e22b3d262a51f",
+      "members": 3456
+    },
+    {
+      "name": "journey-probe.tar.gz",
+      "bytes": 266761,
+      "sha256": "1d8ffac3b06df7196f225f7606a784ad06e6845c4c15db13b1c8da3f8796a1e4",
+      "members": 33
+    },
+    {
+      "name": "reading-back.png",
+      "bytes": 144809,
+      "sha256": "2ce099e9e40a243c9550a30b1afa29ae8d7d34ee3d0ce79d515b4ab6d3b7fe5f"
+    },
+    {
+      "name": "reading-commit.png",
+      "bytes": 125284,
+      "sha256": "1ba3b97a157866656f6237a19f0c534df55a51685b1e88c75f345685ea1c1759"
+    },
+    {
+      "name": "reading-source.png",
+      "bytes": 142500,
+      "sha256": "4ba6669458b755ebae8130357a665f83c1e2e42c804735eb583b64f0518c2fdc"
+    },
+    {
+      "name": "selection-repeat.tar.gz",
+      "bytes": 4402297,
+      "sha256": "322042104de7a3b26148d68b2926127b903dc82375cfd39bf205d16f36deb776",
+      "members": 472
+    },
+    {
+      "name": "source-narrow-200.png",
+      "bytes": 123554,
+      "sha256": "3aa3310177c90a923b0c671bc6afc483f97922804de5af0ebdf3fce501a7975b"
+    },
+    {
+      "name": "split-narrow-200.png",
+      "bytes": 105639,
+      "sha256": "93348ba5842b5a79e59c6c7f26a8567136e5c210b177b0def6e7cf1e61bccccd"
+    },
+    {
+      "name": "startup-timing.tar.gz",
+      "bytes": 14803,
+      "sha256": "4d502c198d7f0a767911ed11283c6bcb1d088b079e31ae2511abad17f7d9158e",
+      "members": 2
+    },
+    {
+      "name": "step60-acceptance.log.gz",
+      "bytes": 252,
+      "sha256": "8f898028cac26993c65ac7b06bd1b481d4a34d96614c7c5407d70fadce45816d"
+    },
+    {
+      "name": "step60-final.log.gz",
+      "bytes": 618,
+      "sha256": "aad576fd0e00e542b678922eb0bc7849bd7af57fbaa48582a14f4d663f886b2b"
+    },
+    {
+      "name": "step60-git-spawn-diagnostic.log.gz",
+      "bytes": 299,
+      "sha256": "c7800fff90f58da346641256e1566c55aa85d8672e9f53397416213e7486bd77"
+    },
+    {
+      "name": "step60-journey-probe.log.gz",
+      "bytes": 134,
+      "sha256": "b714f872550a40c15afc30cfdd7fd60a65a43324146103729c4a4b3544d9e3e5"
+    },
+    {
+      "name": "step60-package.log.gz",
+      "bytes": 231,
+      "sha256": "4cf1db267ac7e90836b1a97bc5d627f8d80bf32df2b1d39215564e0ddd84587b"
+    },
+    {
+      "name": "step60-rechecks.log.gz",
+      "bytes": 187,
+      "sha256": "3e8ddd9d54c07bf995ad0db33990f067303fbdeef0c0234aa959c3da4b731ca9"
+    },
+    {
+      "name": "step60-selection-repeat.log.gz",
+      "bytes": 75,
+      "sha256": "57106f9272380bd45d73dd222678ae699c7dec83cac7d1ba108caa3d3639eab4"
+    },
+    {
+      "name": "step60-tail.log.gz",
+      "bytes": 434,
+      "sha256": "7373c60dbb60535aca7c46c3e4e3564684c6063ba70221671a49a1b2895361db"
+    },
+    {
+      "name": "step60-units.log.gz",
+      "bytes": 15504,
+      "sha256": "e1e2e54145d6c26556bad8d61598ad249f85de9f4c52d17af508135b127c86b9"
+    },
+    {
+      "name": "step60-width-build.log.gz",
+      "bytes": 2707,
+      "sha256": "685bb201040fc959568c99bca53a43d0b436cee8a5ab710a33ec9ca75e3eff2d"
+    },
+    {
+      "name": "step60-width-native.log.gz",
+      "bytes": 133,
+      "sha256": "dcabd15acfe1f50951ba49b34aac465bad0c0c33ac9fd07baf749ddd0e46b1f1"
+    },
+    {
+      "name": "step60-width.log.gz",
+      "bytes": 126,
+      "sha256": "5a4fead8814a7d64d54a24085df1c4dc758ccd2f590ca7d915b54d9c241e676b"
+    },
+    {
+      "name": "width-140.png",
+      "bytes": 164302,
+      "sha256": "820f415b71f1cb695a7ce539c2aca7e4647f951f7494fb17d8c36f204f787fc4"
+    },
+    {
+      "name": "width-after.png",
+      "bytes": 128279,
+      "sha256": "6701da9d54e7314a2e6100716abc46719fbbd769bdd713c9799e68d6e23ba351"
+    },
+    {
+      "name": "width-before.png",
+      "bytes": 125389,
+      "sha256": "6a16ce9bf18afbb8f99aa01870e92d7e9d8a9e040b7a0927549267104b3d5ef2"
+    },
+    {
+      "name": "width-before.tar.gz",
+      "bytes": 13507,
+      "sha256": "8147d90d583eb399917b939b4f5c097421933255b1ce20d3ba25d33695693a25",
+      "members": 2
+    },
+    {
+      "name": "width-native.tar.gz",
+      "bytes": 328024,
+      "sha256": "c94a1b21865a05355f88bebf6346c77e21afc73d15289350f57ac967a16efa0d",
+      "members": 25
+    },
+    {
+      "name": "width.tar.gz",
+      "bytes": 274172,
+      "sha256": "69c24e848ef62a750c4c51dc7f9e727b0a39b218db6af4083ae8ad6b38831168",
+      "members": 25
+    }
+  ],
+  "artifact_count": 31,
+  "artifact_bytes": 76025150,
+  "archive_members": 10152,
+  "unit_suites": 47,
+  "unit_tests": 475,
+  "final_stages": 75
+}

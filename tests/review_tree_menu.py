@@ -54,11 +54,11 @@ for zoom in [100, 140, 200]:
     script += menu('gone.cpp', 'Open source') + capture('root_source', 4)
     script += 'click_ui review_unstaged_changes\nwait_for_refresh\nclick_ui jump_to_diff:a.cpp\nright_click_ui jump_to_diff:untracked/fresh.cpp\n' + capture('working_menu', 4)
     script += 'click_ui "context_menu_item_Open source"\nwait_for_refresh\n' + capture('working_source', 4)
-    script += 'click_text "Back to diff"\nwait_for_refresh\nnative_menu_action "Review Workspace (toggle)"\n'
+    script += 'click_ui full_file_back\nwait_for_refresh\nnative_menu_action "Review Workspace (toggle)"\n'
     script += menu('untracked/fresh.cpp', 'Reveal in tree') + capture('working_revealed', 4)
     script += 'click_ui sidebar_review\nclick_ui review_staged_changes\nwait_for_refresh\n' + capture('staged', 4)
     script += menu('index.cpp', 'Open source') + capture('index_source', 5)
-    script += 'click_text "Back to diff"\nwait_for_refresh\n' + menu('index.cpp', 'Reveal in tree') + capture('index_revealed', 5)
+    script += 'click_ui full_file_back\nwait_for_refresh\n' + menu('index.cpp', 'Reveal in tree') + capture('index_revealed', 5)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)

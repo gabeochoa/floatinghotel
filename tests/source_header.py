@@ -33,7 +33,7 @@ def capture(name, count=3):
 
 
 def picker(path):
-    return f'key CMD+P\nwait_for_refresh\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\nwait_frames 10\n'
+    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\nwait_frames 10\n'
 
 
 def menu(label):
@@ -54,7 +54,7 @@ for zoom in [100, 140, 200]:
         script += 'key ESCAPE\n' + capture('dismissed')
         script += menu('Bookmark line 1') + capture('bookmark')
         script += menu('Remove bookmark') + capture('removed')
-        script += 'click_text "int header_line_001 = 1;"\n' + menu('Blame line 1') + capture('blame')
+        script += 'click_text "int header_line_001 = 1;"\nkey SHIFT+HOME\n' + menu('Blame line 1') + capture('blame')
         script += 'expect_text "Header fixture"\nexpect_text "Source header fixture"\nclick_text Close\n'
         script += menu('File history') + capture('history')
         script += 'expect_text "History · ' + source + ' · follows renames"\nclick_text Back\n'

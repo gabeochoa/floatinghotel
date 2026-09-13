@@ -37,7 +37,9 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     directory = out / str(zoom)
     directory.mkdir()
     def capture(name, count): return f'wait_frames 12\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
-    def picker(path): return f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nkey ENTER\nwait_for_refresh\n'
+    def picker(path, working_scope=False):
+        scope = 'click_ui file_picker_working_scope\nwait_for_refresh\n' if working_scope else ''
+        return f'key CMD+P\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nkey ENTER\nwait_for_refresh\n'
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
     script += 'click_text "Historical tree"\nwait_for_refresh\nkey ENTER\nclick_ui commit_file_filter\nkey TAB\nworkspace_checkpoint 2 tree_entry\nscreenshot tree_entry\ntype "z"\nwait_frames 6\nworkspace_checkpoint 2 tree_z\nscreenshot tree_z\nkey RIGHT\nwait_frames 6\nworkspace_checkpoint 2 tree_deep\nscreenshot tree_deep\nkey RIGHT\nwait_frames 8\nworkspace_checkpoint 2 tree_target\nscreenshot tree_target\nclick_text "Open file"\nwait_for_refresh\nkey ENTER\n'
@@ -46,7 +48,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += picker('a/f000.cpp') + 'click_ui content_document_3\nwait_for_refresh\n' + capture('historical_reveal', 4)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\n' + capture('historical_reading', 4)
     script += 'native_menu_action "Review Workspace (toggle)"\nnative_menu_action "Tree View"\nclick_ui sidebar_working_files\nwait_frames 8\nclick_ui tree_directory:a/\nwait_frames 4\nclick_ui tree_directory:current/deep/\nclick_ui tree_directory:a/\n' + capture('files_historical', 4)
-    script += picker('current/deep/target.cpp') + capture('working_reveal', 5)
+    script += picker('current/deep/target.cpp', working_scope=True) + capture('working_reveal', 5)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\n' + capture('working_reading', 5)
     script += 'hover_ui sidebar_files\nscroll_wheel 0 200\n' + capture('away', 5)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\n' + capture('away_reading', 5)

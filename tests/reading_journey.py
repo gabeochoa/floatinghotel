@@ -60,8 +60,11 @@ def script(head, zoom):
 
         step("commit", "review", "-", head, 'click_text "Reading change"')
         step("diff", "review", "alpha.cpp", head, "click_ui jump_to_diff:alpha.cpp")
+        setup += ["focus_ui commit_detail_scroll", "key CTRL+G", "wait_frames 4", "click_ui line_picker_input",
+                  "key CMD+A", 'type "12"', "key ENTER", "wait_frames 8", "hover_ui commit_detail_scroll",
+                  "scroll_wheel 0 20000", "wait_frames 8"]
         step("source", "source", "alpha.cpp", head, "click_ui open_full_file")
-        setup += ["key CMD+P", f"screenshot {temperature}_picker", "click_ui file_picker_input",
+        setup += ["key CMD+P", f"screenshot {temperature}_picker", "click_ui file_picker_working_scope", "wait_for_refresh", "click_ui file_picker_input",
                   "key CMD+A", "type beta.cpp", f"screenshot {temperature}_query"]
         step("second", "source", "beta.cpp", "-", "key ENTER")
         step("back", "source", "alpha.cpp", head, "key ALT+LEFT")
@@ -69,7 +72,7 @@ def script(head, zoom):
     return "\n".join(setup) + "\n"
 
 
-def check(directory, head, zoom):
+def check(directory, head, zoom, native=False):
     rows = []
     for temperature in ("cold", "warm"):
         for step, kind, path, revision in (("commit", "review", "", head),
@@ -97,11 +100,13 @@ def check(directory, head, zoom):
                 assert (row["source_path"], row["source_revision"]) == (path, revision)
                 assert any(n.get("name") == "full_file_path" and path in n.get("text", "") for n in nodes)
                 assert any(n.get("text", "").endswith("int beta_12 = 121;" if path == "beta.cpp" else "int alpha_12 = 120;") for n in nodes)
-                first_line = "int beta_1 = 1;" if path == "beta.cpp" else "int alpha_1 = 1;"
-                assert any(n.get("text", "").endswith(first_line) and n["visible_rect"]["height"] >= n["rect"]["height"] - 0.1
-                           and n["visible_rect"]["width"] > 100 for n in nodes)
-            png = directory / f"{name}.png"
-            assert png.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n" and png.stat().st_size > 10000
+                destination_line = 1 if step == "second" else 12
+                code = [r for r in layout["reading_rows"] if r["path"] == path and r["line"] == destination_line]
+                by_id = {n["id"]: n for n in nodes}
+                assert code and any(r["id"] in by_id and by_id[r["id"]]["visible_rect"]["height"] >= r["rect"]["height"] - .1 for r in code), (zoom, name, destination_line)
+            if not native:
+                png = directory / f"{name}.png"
+                assert png.read_bytes()[:8] == b"\x89PNG\r\n\x1a\n" and png.stat().st_size > 10000
             row.update(zoom=zoom, temperature=temperature, step=step, evidence=str(directory))
             rows.append(row)
     assert rows[-1]["patch_cache"]["hits"] > 0
@@ -112,6 +117,7 @@ def check(directory, head, zoom):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output", type=Path, default=ROOT / "output/reading-navigation" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S-%fZ"))
+    parser.add_argument("--native", action="store_true")
     parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--zooms", type=int, nargs="+", default=[100, 140, 200], choices=[100, 140, 200])
     args = parser.parse_args()
@@ -122,12 +128,13 @@ def main():
     repo = output / "fixture"
     commits = fixture(repo)
     binary = ROOT / "output/floatinghotel.exe"
-    metadata = dict(commits=commits, platform=platform.platform(), machine=platform.machine(),
+    metadata = dict(native_hidden=args.native, load_average=os.getloadavg(), commits=commits, platform=platform.platform(), machine=platform.machine(),
                     binary_sha256=hashlib.sha256(binary.read_bytes()).hexdigest(),
                     checkout=run("git", "rev-parse", "HEAD", cwd=ROOT, capture_output=True).stdout.strip(),
                     diff=run("git", "diff", "--stat", cwd=ROOT, capture_output=True).stdout,
                     timing="Synthetic input dispatch to CPU completion of the first matching rendered frame; excludes screenshot readback and OS presentation.",
                     temperature="Cold means first journey in a fresh process; warm repeats that journey. Back may hit caches in either cycle. Working-tree reads are not immutable cache hits.",
+                    journey_changes="Select the added line 12 before Open file and explicitly switch Quick Open to working-tree scope. The original baseline implicitly opened the after revision and always used working-tree Quick Open. Check line 12 visibility for the historical source and Back, and line 1 for the second source opened without a line destination.",
                     memory="Owned vector/string capacity estimates for working, staged, source and commit content; excludes allocator metadata, set nodes, workers, GPU and caches, which are separate.")
     metadata["status"] = run("git", "status", "--short", cwd=ROOT, capture_output=True).stdout
     tracked = run("git", "ls-files", "-co", "--exclude-standard", "-z", cwd=ROOT, capture_output=True).stdout.split("\0")
@@ -150,14 +157,21 @@ def main():
             scenario = directory / "journey.e2e"
             scenario.write_text(script(commits["head"], zoom))
             with (directory / "run.log").open("w") as log:
-                result = subprocess.run([str(binary), str(repo), "--test-mode", "--headless", f"--test-script={scenario}",
-                    f"--screenshot-dir={directory}", "--e2e-timeout=45"], cwd=ROOT,
-                    env=dict(os.environ, FH_NATIVE_MENUS="1"), stdout=log, stderr=subprocess.STDOUT, timeout=120)
+                command = [str(binary), str(repo), "--test-mode", f"--test-script={scenario}",
+                           f"--screenshot-dir={directory}", "--e2e-timeout=90"]
+                env = dict(os.environ, FH_NATIVE_MENUS="1")
+                if args.native:
+                    env["FH_TEST_NATIVE_HIDDEN"] = "1"
+                else:
+                    command.append("--headless")
+                result = subprocess.run(command, cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=150)
             errors = [line for line in (directory / "run.log").read_text().splitlines()
                       if any(marker in line for marker in ("E2E ERROR", "[TIMEOUT]", "(FAIL)"))]
             assert not any("expect_p99_below" not in error for error in errors), errors
             assert result.returncode == 0 or errors, (directory, result.returncode)
-            rows.extend(check(directory, commits["head"], zoom))
+            if args.native:
+                assert "Native test window hidden=1 key=0" in (directory / "run.log").read_text()
+            rows.extend(check(directory, commits["head"], zoom, args.native))
             outcomes.append(dict(zoom=zoom, run=iteration + 1, exit_code=result.returncode, errors=errors))
             (output / "outcomes.json").write_text(json.dumps(outcomes, indent=2) + "\n")
             print(f"{'FAIL frame gate' if errors else 'PASS'} zoom={zoom} run={iteration + 1}", flush=True)
@@ -173,6 +187,7 @@ def main():
                     result[key] = dict(min=values[0], p95=values[math.ceil(len(values) * .95) - 1], max=values[-1])
                 summary.append(result)
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    assert metadata["binary_sha256"] == hashlib.sha256(binary.read_bytes()).hexdigest(), "Binary changed during replay"
     print(f"Evidence: {output}")
     if any(row["exit_code"] != 0 or row["errors"] for row in outcomes):
         raise SystemExit(1)

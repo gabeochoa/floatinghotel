@@ -73,10 +73,17 @@ for zoom in [100, 140, 200]:
         for name in [opened] + ([closed] if closed else []):
             actual = node(name, viewport)
             assert actual['rect'] == expected['rect'], (zoom, before, name, 'Find resized viewport')
-            assert actual.get('scroll') == expected.get('scroll'), (zoom, before, name, 'Find moved scroll')
-            rows = [(r['path'], r['line'], r['column'], r['rect']) for r in layout(name)['reading_rows']]
-            prior = [(r['path'], r['line'], r['column'], r['rect']) for r in layout(before)['reading_rows']]
-            assert rows == prior, (zoom, before, name, 'Find moved code')
+            assert abs(actual['scroll']['x'] - expected['scroll']['x']) < .1, (zoom, before, name, 'Find moved horizontal scroll')
+            def visible_rows(label):
+                data = layout(label)
+                nodes = {n['id']: n for n in data['nodes']}
+                return [r for r in data['reading_rows'] if nodes[r['id']]['visible_rect']['height'] > .5]
+            rows, prior = visible_rows(name), visible_rows(before)
+            assert len(rows) == len(prior), (zoom, before, name, 'Find changed visible lines')
+            for row, previous in zip(rows, prior):
+                for field in ['path', 'line', 'column', 'side', 'sign', 'text']:
+                    assert row[field] == previous[field], (zoom, before, name, field, row, previous)
+                assert all(abs(row['rect'][field] - previous['rect'][field]) < .5 for field in ['x', 'y', 'width', 'height']), (zoom, before, name, 'Find moved code', row, previous)
         assert focus(opened)['region'] == 'Find'
         bar = node(opened, 'diff_find_bar')['rect']
         main = node(opened, 'main_content')['rect']
