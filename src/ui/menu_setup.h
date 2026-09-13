@@ -16,6 +16,7 @@
 #include "../git/git_runner.h"
 #include "../settings.h"
 #include "diff_renderer.h"
+#include "change_navigation.h"
 #include "file_picker.h"
 #include "repo_search.h"
 
@@ -119,6 +120,22 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Forward", "Alt+Right", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) navigation::step(*repo, 1);
+        }),
+        MenuItem::item("Next Change", "", [] {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+            if (repo && review) {
+                const auto notice = ui::navigate_change(*repo, *review, 1);
+                if (!notice.empty()) set_pending_toast(notice);
+            }
+        }),
+        MenuItem::item("Previous Change", "", [] {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+            if (repo && review) {
+                const auto notice = ui::navigate_change(*repo, *review, -1);
+                if (!notice.empty()) set_pending_toast(notice);
+            }
         }),
         MenuItem::separator(),
         MenuItem::item("Collapse reading panel", "", [] {

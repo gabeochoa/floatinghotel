@@ -8,6 +8,7 @@
 #include "../../src/util/commit_graph.h"
 #include "../../src/util/review_selection.h"
 #include "../../src/util/navigation.h"
+#include "../../src/util/change_navigation.h"
 #include "../../src/util/wrap_text.h"
 #include "../../src/util/code_wrap.h"
 #include "../../src/util/visible_rows.h"
@@ -462,6 +463,50 @@ TEST(prepared_display_offsets_match_rendered_utf8_bytes) {
             offset += code_highlight::display_size(part, visible);
         ASSERT_EQ(offset, code_highlight::display_text(text, visible).size());
     }
+}
+
+TEST(change_navigation_crosses_files_and_preserves_deleted_side) {
+    ecs::FileDiff first, renamed, binary;
+    first.filePath = "a.cpp";
+    first.hunks = {{7, 7, 7, 7, "first", {" context", "-old", "+new"}},
+                   {77, 7, 77, 7, "second", {" context", "-old", "+new"}}};
+    renamed.filePath = "new.cpp";
+    renamed.oldPath = "old.cpp";
+    renamed.isRenamed = true;
+    renamed.hunks = {{20, 2, 20, 0, "deleted", {"-first", "-second"}}};
+    binary.filePath = "image.png";
+    binary.isBinary = true;
+    const std::vector<ecs::FileDiff> files{first, renamed, binary};
+    const auto changes = reading::change_locations(files, {0, 1, 2}, "revision");
+    ASSERT_EQ(changes.size(), size_t{4});
+    ASSERT_EQ(changes[0].anchor.line, 8);
+    ASSERT_EQ(changes[2].anchor.path, std::string("new.cpp"));
+    ASSERT_EQ(changes[2].anchor.line, 20);
+    ASSERT_EQ(changes[2].anchor.side, reading::DiffSide::Before);
+    ASSERT_FALSE(changes[3].hunk.has_value());
+    ASSERT_EQ(reading::adjacent_change(changes, files, changes[0].anchor, "a.cpp", 1), std::optional<size_t>{1});
+    ASSERT_EQ(reading::adjacent_change(changes, files, changes[1].anchor, "a.cpp", 1), std::optional<size_t>{2});
+    ASSERT_EQ(reading::adjacent_change(changes, files, changes[2].anchor, "new.cpp", -1), std::optional<size_t>{1});
+    ASSERT_FALSE(reading::adjacent_change(changes, files, changes[0].anchor, "a.cpp", -1));
+    ASSERT_FALSE(reading::adjacent_change(changes, files, changes[3].anchor, "image.png", 1));
+    auto between = changes[0].anchor;
+    between.line = 40;
+    ASSERT_EQ(reading::adjacent_change(changes, files, between, "a.cpp", 1), std::optional<size_t>{1});
+    ASSERT_EQ(reading::adjacent_change(changes, files, between, "a.cpp", -1), std::optional<size_t>{0});
+    ASSERT_FALSE(reading::adjacent_change({}, {}, {}, "", 1));
+}
+
+TEST(review_file_navigation_drops_the_previous_files_anchor) {
+    ecs::RepoComponent repo;
+    reading::ReadingAnchor point{"a.cpp", "wt", reading::DiffSide::After, 80, 1, .1f, '+'};
+    navigation::open(repo, reading::review("wt", "a.cpp"), {}, reading::OpenMode::Keep, point);
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->anchor.has_value());
+    navigation::open(repo, reading::review("wt", "z.bin"));
+    ASSERT_FALSE(repo.workspace().document(repo.workspace().active_id())->anchor.has_value());
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->anchor, std::optional{point});
+    navigation::open(repo, reading::review("wt"));
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->anchor, std::optional{point});
 }
 
 int main() { RUN_ALL_TESTS(); }

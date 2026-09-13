@@ -223,6 +223,17 @@ struct navigation {
         open(repo, location, {}, reading::OpenMode::Keep, anchor);
     }
 
+    static void go_to_review_change(ecs::RepoComponent& repo, ecs::ReviewComponent& review,
+                                    const ecs::FileDiff& file, std::optional<reading::ReadingAnchor> anchor, int cursor) {
+        if (anchor) go_to_review_line(repo, review, file, *anchor);
+        else open(repo, reading::review(reading::scope(repo.workspace_.review()), file.filePath));
+        review.cursor = cursor;
+        review.cursorMoved = false;
+        review.cursorApprove = review.cursorComment = false;
+        repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+        focus_document(repo, reading::focus::Region::Code);
+    }
+
     static void restore_session(ecs::RepoComponent& repo, const reading::ReadingSession& session, bool reviewing) {
         if (session.documents.empty()) return;
         auto before = repo.workspace_.location();

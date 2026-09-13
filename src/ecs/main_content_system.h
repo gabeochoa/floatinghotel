@@ -12,6 +12,7 @@
 #include "../ui/command_log.h"
 #include "../ui/commit_detail.h"
 #include "../ui/diff_renderer.h"
+#include "../ui/change_navigation.h"
 #include "../ui/full_file_view.h"
 #include "../ui/file_picker.h"
 #include "../ui/repo_search.h"
@@ -371,6 +372,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             untracked ? LayoutComponent::ReviewTab::Untracked : LayoutComponent::ReviewTab::ToReview;
                     }
                     if (auto* review = find_singleton<ReviewComponent, ActiveTab>()) {
+                        review->hunkCount = 0;
+                        review->cursorApprove = review->cursorComment = false;
                         review->sinceReviewOpen = false;
                         if (effect.reviewing && review->reviewing != *effect.reviewing) {
                             review->reviewing = *effect.reviewing;
@@ -740,22 +743,21 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             activeDocumentFocused && afterhours::input::is_key_pressed(257))
             navigation::keep(*repoPtr, repoPtr->workspace().active_id());
         if (readingKeys && reviewPtr && !source_tab_active(*repoPtr) &&
-            reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
+            reviewPtr->composingKey.empty()) {
             if (!superDown) {
-                int previousCursor = reviewPtr->cursor;
-                if (afterhours::input::is_key_pressed(74) ||
-                    afterhours::input::is_key_pressed(78))
-                    reviewPtr->cursor =
-                        std::min(reviewPtr->cursor + 1, reviewPtr->hunkCount - 1);
-                if (afterhours::input::is_key_pressed(75))
-                    reviewPtr->cursor = std::max(reviewPtr->cursor - 1, 0);
-                if (previousCursor != reviewPtr->cursor) reviewPtr->cursorMoved = true;
+                int direction = 0;
+                if (afterhours::input::is_key_pressed(74) || afterhours::input::is_key_pressed(78)) direction = 1;
+                if (afterhours::input::is_key_pressed(75)) direction = -1;
+                if (direction != 0) {
+                    const auto notice = ui::navigate_change(*repoPtr, *reviewPtr, direction);
+                    if (!notice.empty()) afterhours::toast::send_info(ctx, notice, 1.5f);
+                }
                 const auto scope = reading::scope(repoPtr->workspace().review());
                 const auto target = diff_target(scope);
                 const bool reviewActions = scope == "wt" || reviewPtr->reviewing ||
                     target.kind == DiffTarget::Kind::Comparison || target.kind == DiffTarget::Kind::ParentComparison;
-                if (reviewActions && afterhours::input::is_key_pressed(65)) reviewPtr->cursorApprove = true;
-                if (reviewActions && afterhours::input::is_key_pressed(67)) reviewPtr->cursorComment = true;
+                if (reviewActions && reviewPtr->hunkCount > 0 && afterhours::input::is_key_pressed(65)) reviewPtr->cursorApprove = true;
+                if (reviewActions && reviewPtr->hunkCount > 0 && afterhours::input::is_key_pressed(67)) reviewPtr->cursorComment = true;
             }
         }
 

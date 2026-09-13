@@ -330,12 +330,20 @@ private:
             if (mode == OpenMode::Keep) keep(active_);
             return false;
         }
+        const auto* previousReview = std::get_if<ReviewLocation>(&location());
+        const auto* nextReview = std::get_if<ReviewLocation>(&visit.location);
+        const bool changedFile = previousReview && nextReview && !nextReview->file.empty() && same_document(location(), visit.location) &&
+            previousReview->file != nextReview->file;
         history_.resize(index_ + 1);
         history_.push_back(visit);
         if (history_.size() > 256) history_.erase(history_.begin());
         index_ = history_.size() - 1;
         select(visit.location, mode);
         if (anchor) { current().anchor = std::move(anchor); current().restoreAnchor = true; }
+        else if (changedFile && current().anchor && current().anchor->path != nextReview->file) {
+            current().anchor.reset();
+            current().restoreAnchor = false;
+        }
         return true;
     }
     bool reorder(DocumentId id, size_t insertion) {
