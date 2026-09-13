@@ -21,6 +21,7 @@
 extern "C" void metal_activate_app(void);
 extern "C" void metal_draw_first_frame_early(void);
 extern "C" void metal_defer_window_presentation(void);
+extern "C" void metal_enable_hidden_test(void);
 extern "C" void metal_present_ready_frame(void);
 extern "C" bool metal_startup_presented(void);
 extern "C" void metal_wait_for_gpu(void);
@@ -1585,6 +1586,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    if (app_state::testModeEnabled && std::getenv("FH_TEST_NATIVE_HIDDEN")) metal_enable_hidden_test();
     metal_defer_window_presentation();
     metal_draw_first_frame_early();
     afterhours::graphics::run(cfg);

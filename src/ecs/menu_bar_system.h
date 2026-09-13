@@ -57,7 +57,6 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 const auto& item = menus[m].items[i];
                 if (item.label == "Quit") continue;
                 bool checked = false;
-                if (item.label == "Copy With Location (toggle)") checked = Settings::get().get_copy_with_location();
                 if (item.label == "Review Workspace (toggle)") checked = repo && repo->reviewWorkspace;
                 if (layout) {
                     if (item.label == "Toggle Sidebar") checked = layout->sidebarVisible;

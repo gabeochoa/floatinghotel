@@ -302,6 +302,13 @@ inline std::string build_copy_text(State& st, bool withLocation) {
     return out;
 }
 
+inline bool copy_selection(bool withLocation) {
+    auto text = build_copy_text(state(), withLocation);
+    if (text.empty()) return false;
+    afterhours::clipboard::set_text(text);
+    return true;
+}
+
 // Update the selection from this frame's mouse against the prior frame's lines.
 inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     State& st = state();
@@ -2169,12 +2176,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
                          afterhours::input::is_key_down(341);
         if (filterRepo && layout && reader_shortcuts(ctx, *filterRepo, *layout) && superDown && afterhours::input::is_key_pressed(67) &&
             diff_sel::state().hasSel) {
-            std::string txt = diff_sel::build_copy_text(
-                diff_sel::state(), Settings::get().get_copy_with_location());
-            if (!txt.empty()) {
-                afterhours::clipboard::set_text(txt);
-                afterhours::toast::send_info(ctx, "Copied selection", 1.5f);
-            }
+            const bool withLocation = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
+            if (diff_sel::copy_selection(withLocation))
+                afterhours::toast::send_info(ctx, withLocation ? "Copied selection with location" : "Copied selection", 1.5f);
         }
         diff_sel::state().curLines.clear();
     }

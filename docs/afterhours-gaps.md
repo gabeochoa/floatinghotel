@@ -1932,6 +1932,16 @@ review isolation; it does not claim to verify system clipboard contents.
 A scoped clipboard backend for tests would let apps and games exercise these
 paths without changing the user's pasteboard or presenting a native window.
 
+Step 47 uses a hidden native-window replay (`FH_TEST_NATIVE_HIDDEN` with
+`--test-mode`) to initialize the actual Sokol clipboard. The test keeps window
+presentation and activation disabled while its native draw timer runs.
+`tests/clipboard_guard.swift` saves pasteboard items in memory, reads only text
+containing the fixture marker, and restores the prior items if the marker is
+still present. It does not log unrelated clipboard contents. This workaround
+uses the general pasteboard during the test; concurrent user copying is not
+isolated. A named pasteboard or injectable scoped clipboard remains the useful
+upstream interface for apps, game consoles, and automated UI tests.
+
 ### Modal centering mixes physical resolution and scaled pixels
 
 `modal::detail::modal_impl` centers its container using the physical

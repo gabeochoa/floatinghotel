@@ -117,6 +117,9 @@ static void resize_and_draw(id delegate, SEL selector, NSNotification* notificat
 }
 
 static bool startup_presented = false;
+static bool hidden_native_test = false;
+
+extern "C" void metal_enable_hidden_test(void) { hidden_native_test = true; }
 static bool startup_submitted = false;
 static NSTimer* startup_draw_timer = nil;
 static void (*startup_order_window)(id, SEL, NSWindowOrderingMode, NSInteger);
@@ -128,27 +131,27 @@ static BOOL (*startup_can_become_key)(id, SEL);
 
 @implementation FloatingHotelApplication
 - (BOOL)setActivationPolicy:(NSApplicationActivationPolicy)policy {
-    return [super setActivationPolicy:startup_presented ? policy : NSApplicationActivationPolicyProhibited];
+    return [super setActivationPolicy:startup_presented && !hidden_native_test ? policy : NSApplicationActivationPolicyProhibited];
 }
 - (void)activateIgnoringOtherApps:(BOOL)flag {
-    if (startup_presented) [super activateIgnoringOtherApps:flag];
+    if (startup_presented && !hidden_native_test) [super activateIgnoringOtherApps:flag];
 }
 - (void)activate {
-    if (startup_presented) [super activate];
+    if (startup_presented && !hidden_native_test) [super activate];
 }
 @end
 
 static void startup_order(id window, SEL selector, NSWindowOrderingMode mode, NSInteger relative) {
-    if (startup_presented || mode == NSWindowOut)
+    if ((startup_presented && !hidden_native_test) || mode == NSWindowOut)
         startup_order_window(window, selector, mode, relative);
 }
 
 static void startup_make_key_and_order(id window, SEL selector, id sender) {
-    if (startup_presented) startup_make_key(window, selector, sender);
+    if (startup_presented && !hidden_native_test) startup_make_key(window, selector, sender);
 }
 
 static BOOL startup_can_key(id window, SEL selector) {
-    return startup_presented && startup_can_become_key(window, selector);
+    return startup_presented && !hidden_native_test && startup_can_become_key(window, selector);
 }
 
 extern "C" void metal_defer_window_presentation(void) {
@@ -204,6 +207,10 @@ extern "C" void metal_present_ready_frame(void) {
                 NSWorkspace.sharedWorkspace.frontmostApplication.processIdentifier == getpid(),
                 static_cast<long>(NSApp.activationPolicy));
             startup_presented = true;
+            if (hidden_native_test) {
+                fprintf(stdout, "[INFO] Native test window hidden=%d key=%d\n", !window.isVisible, window.isKeyWindow);
+                return;
+            }
             [startup_draw_timer invalidate];
             startup_draw_timer = nil;
             [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];

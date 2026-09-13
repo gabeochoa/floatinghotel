@@ -16,11 +16,11 @@ validate code_font_size=19
 native_menu_action "Reset Code Text"
 wait_frames 5
 validate code_font_size=18
-native_menu_action "Copy With Location (toggle)"
+native_menu_action "Copy with location"
 wait_frames 5
 screenshot native_menu_notice
 validate ui_present:toast_card=true
-native_menu_action "Copy With Location (toggle)"
+native_menu_action "Copy with location"
 key CMD+EQUAL
 wait_frames 5
 screenshot native_menu_zoom
