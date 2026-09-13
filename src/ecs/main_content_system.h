@@ -860,7 +860,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}
                 .with_label(reviewPtr->snapshotFuture.valid() ? "Saving contents..." :
                     !reviewPtr->snapshotError.empty() ? reviewPtr->snapshotError :
-                    staged ? "" : repo.untrackedReviewFuture.valid() ? "Loading new files..." : repo.untrackedReviewNotice)
+                    staged ? "" : repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading new files..." : "") : repo.untrackedReviewNotice)
                 .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12)));
             if (files.empty()) {
                 auto done = div(ctx, mk(mainBg.ent(), 3080),
@@ -874,7 +874,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("ballroom_done"));
                 div(ctx, mk(done.ent(), 1),
                     ComponentConfig{}
-                        .with_label(staged ? "No staged changes" : repo.untrackedReviewFuture.valid() ? "Loading unstaged changes..." : "No unstaged changes")
+                        .with_label(staged ? "No staged changes" : repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading unstaged changes..." : "") : "No unstaged changes")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::STATUS_ADDED)
                         .with_font_size(pixels(16))

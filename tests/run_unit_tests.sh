@@ -60,6 +60,10 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_loading_feedback" ]; then
+    run_test "test_loading_feedback" "tests/unit/test_loading_feedback.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_context_menu" ]; then
     run_test "test_context_menu" "tests/unit/test_context_menu.cpp" "src/ui/context_menu.cpp"
 fi
@@ -106,7 +110,7 @@ fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_refresh_lifetime" ]; then
     run_test "test_refresh_lifetime" "tests/unit/test_refresh_lifetime.cpp" \
-        "src/git/git_runner.cpp" "src/git/git_parser.cpp" "src/util/process.cpp" \
+        "src/git/content_reader.cpp" "src/git/git_runner.cpp" "src/git/git_parser.cpp" "src/util/process.cpp" \
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 

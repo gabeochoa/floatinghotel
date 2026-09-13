@@ -48,6 +48,8 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
              (pageRequest.action == FilePageRequest::Action::Previous && pageRequest.cursor.offset == repo.fullFilePage.begin.offset));
         if (!repo.fullFileExtendRequest) {
             repo.fullFileDiff.clear();
+            repo.sourceFoldRanges.clear();
+            repo.sourceFoldIdentity = 0;
             repo.sourceWindow = {};
             repo.fullFileDecodedText.clear();
         }
@@ -55,6 +57,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.blameOpen = false;
         repo.blameFuture = {};
         repo.fullFileRequestStamp = navigation::stamp(repo, key);
+        repo.fullFileLoading.restart();
         repo.fullFileFuture = git::read_file_async({repo.repoPath, repo.fullFilePath(), repo.fullFileRevision(),
             pageRequest, repo.fullFileEncodingOverride, repo.fullFilePage.encoding});
         if (repo.fullFileExtendRequest) changed = false;
@@ -222,7 +225,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.blameOpen = false;
     }
     if (repo.fullFileFuture.valid() && repo.fullFileDiff.empty()) {
-        div(ctx, mk(parent, 585003), ComponentConfig{}
+        if (repo.fullFileLoading.visible(true)) div(ctx, mk(parent, 585003), ComponentConfig{}
             .with_label("Loading file...").with_size(ComponentSize{percent(1.f), pixels(40)})
             .with_font_size(pixels(14)).with_debug_name("full_file_loading"));
     } else if (!repo.fullFileError.empty() && repo.fullFileDiff.empty()) {

@@ -95,6 +95,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             for (const auto& entry : *entries)
                 if (entry.hash == repo.selectedCommitHash()) detailCache.entry = entry;
         detailCache.requestStamp = navigation::stamp(repo, requestKey());
+        detailCache.loading.restart();
         detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash(),
             selectedParent, repo.diffContext, repo.ignoreWhitespace});
         detailCache.cachedCommitHash = repo.selectedCommitHash();
@@ -372,7 +373,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_debug_name("commit_sep"));
 
     if (detailCache.patchFuture.valid()) {
-        div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("Loading commit details...")
+        if (detailCache.loading.visible(true)) div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("Loading commit details...")
             .with_size(ComponentSize{percent(1.f), pixels(50)}).with_font_size(pixels(14))
             .with_debug_name("commit_detail_loading"));
     } else if (!detailCache.commitDetailError.empty()) {

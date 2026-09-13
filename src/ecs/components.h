@@ -29,6 +29,7 @@
 #include "../util/diff_revisions.h"
 #include "../util/reading_workspace.h"
 #include "../util/code_motion.h"
+#include "../util/loading_feedback.h"
 #include "../util/code_lexer.h"
 #include "../util/reading_anchor.h"
 #include "../util/review_files.h"
@@ -375,6 +376,7 @@ public:
 
     std::vector<FileDiff> currentDiff;
     std::vector<FileDiff> stagedDiff;
+    loading_feedback::Delay untrackedReviewLoading;
     async_work::Task<UntrackedReviewFiles> untrackedReviewFuture;
     std::optional<unsigned> untrackedReviewGeneration;
     std::string untrackedReviewRepository;
@@ -407,6 +409,7 @@ public:
     HunkContextRuntime hunkContext;
     DiffSyntaxRuntime diffSyntax;
     async_work::Task<FullFileContent> fullFileFuture;
+    loading_feedback::Delay fullFileLoading;
     reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;
     FilePageRequest fullFilePageRequest;
@@ -487,6 +490,7 @@ public:
     std::string comparisonTarget;
     bool comparisonMergeBase = false;
     async_work::Task<git::RevisionComparison> comparisonFuture;
+    loading_feedback::Delay comparisonLoading;
     std::vector<FileDiff> comparisonDiff;
     std::string comparisonLoadedScope;
     reading::RequestStamp comparisonRequestStamp;
@@ -557,6 +561,7 @@ struct CommitDetailRuntime {
     std::string cachedRepoPath;
     CommitEntry entry;
     async_work::Task<CommitPatch> patchFuture;
+    loading_feedback::Delay loading;
     int cachedContext = -1;
     bool cachedIgnoreWhitespace = false;
     std::vector<FileDiff> commitDetailDiff;

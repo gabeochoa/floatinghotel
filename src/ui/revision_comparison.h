@@ -25,6 +25,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         auto [base, target] = diff_revisions(repo.comparisonScope());
         repo.comparisonRequest = RepoComponent::ComparisonRequest::Document;
         repo.comparisonRequestStamp = navigation::stamp(repo, navigation::comparison_request_key(repo));
+        repo.comparisonLoading.restart();
         repo.comparisonFuture = git::git_compare_async(repo.repoPath, base, target, false,
             repo.diffContext, repo.ignoreWhitespace);
         repo.comparisonContext = repo.diffContext;
@@ -72,6 +73,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         else {
             repo.comparisonRequest = RepoComponent::ComparisonRequest::SubmittedForm;
             repo.comparisonRequestStamp = navigation::stamp(repo, navigation::comparison_request_key(repo));
+            repo.comparisonLoading.restart();
             repo.comparisonFuture = git::git_compare_async(repo.repoPath, repo.comparisonBase, repo.comparisonTarget,
                 repo.comparisonMergeBase, repo.diffContext, repo.ignoreWhitespace);
         }
@@ -88,13 +90,13 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         navigation::open(repo, reading::review("wt"));
         repo.reviewQueueFutureStamp = navigation::stamp(repo, repo.reviewQueueScope);
     }
-    auto status = repo.comparisonFuture.valid() ? "Comparing revisions..." : repo.comparisonScope().empty() ? "Choose revisions to compare" :
+    auto status = repo.comparisonFuture.valid() ? (repo.comparisonLoading.visible(true) ? "Comparing revisions..." : "") : repo.comparisonScope().empty() ? "Choose revisions to compare" :
         "Resolved revisions: " + diff_revisions(repo.comparisonScope()).first.substr(0, 12) + " → " + diff_revisions(repo.comparisonScope()).second.substr(0, 12);
     if (!repo.comparisonError.empty()) status = repo.comparisonError;
     div(ctx, mk(parent, 590003), ComponentConfig{}.with_label(status)
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Small)
-        .with_text_overflow(afterhours::ui::TextOverflow::Wrap));
-    if (!repo.comparisonScope().empty())
+        .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_debug_name("comparison_loading_status"));
+    if (!repo.comparisonScope().empty() && !repo.comparisonFuture.valid())
         ui::render_diff(ctx, parent, repo.comparisonDiff, layout.mainContent.width,
             layout.mainContent.height - 162.f, false, changed,
             layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide, repo.repoPath, review, repo.comparisonScope());

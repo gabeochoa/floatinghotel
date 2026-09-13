@@ -112,8 +112,10 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 repo.untrackedReviewGeneration = repo.dataGeneration;
                 repo.untrackedReviewRepository = repo.repoPath;
                 repo.untrackedReviewNotice.clear();
-                if (!repo.untrackedFiles.empty())
+                if (!repo.untrackedFiles.empty()) {
+                    repo.untrackedReviewLoading.restart();
                     repo.untrackedReviewFuture = git::read_untracked_review_files_async(repo.repoPath, repo.untrackedFiles);
+                }
             }
             return;
         }

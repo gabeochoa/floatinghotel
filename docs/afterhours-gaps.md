@@ -2447,3 +2447,12 @@ contract that composes with child buttons, including press/drag/release ownershi
 This applies to tree inspectors, game editors, timelines, and selectable logs.
 Fold generations also participate in the app's layout acknowledgement stamp so
 geometry built before a visibility change cannot consume its new reading anchor.
+
+### Delayed busy feedback without delaying destination identity
+
+Step 53 keeps the destination heading immediate and delays busy text by 150 ms
+from dispatch. The app owns the request identity and publication checks. A small
+Afterhours delayed-visibility primitive, accepting a monotonic clock for tests,
+would be useful for editor panels, asset browsers, save operations, and game
+matchmaking menus. It must reset on replacement and disappear on completion;
+it must not debounce the user's selection or defer the heading update.

@@ -652,7 +652,8 @@ private:
             scope = repo->comparisonScope();
             if (repo->comparisonLoadedScope == scope && !repo->comparisonFuture.valid() && repo->comparisonError.empty())
                 files = &repo->comparisonDiff;
-            else empty = repo->comparisonError.empty() ? "Loading comparison files..." : "Unable to load comparison files";
+            else empty = !repo->comparisonError.empty() ? "Unable to load comparison files" :
+                repo->comparisonLoading.visible(repo->comparisonFuture.valid()) ? "Loading comparison files..." : "";
         } else if (repo && !repo->selectedCommitHash().empty()) {
             scope = commit_review_scope(*repo);
             const bool matching = cache && cache->cachedRepoPath == repo->repoPath &&
@@ -662,7 +663,7 @@ private:
             if (matching && !cache->patchFuture.valid()) {
                 if (cache->commitDetailError.empty()) files = &cache->commitDetailDiff;
                 else empty = "Unable to load commit files";
-            } else empty = "Loading commit files...";
+            } else empty = matching && cache->loading.visible(cache->patchFuture.valid()) ? "Loading commit files..." : "";
         } else if (repo && repo->hasLoadedOnce) {
             scope = repo->selectedFileStaged() ? "index" : "wt";
             files = repo->selectedFileStaged() ? &repo->stagedDiff : &repo->currentDiff;
