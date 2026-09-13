@@ -2,6 +2,8 @@
 
 #include "../ecs/ui_imports.h"
 #include "../util/file_tree.h"
+#include "chrome_icons.h"
+#include "tooltip.h"
 
 namespace ui::file_tree_style {
 
@@ -28,6 +30,32 @@ inline auto row_config(float width, size_t depth, bool selected) {
             .left = pixels(8.f + static_cast<float>(depth) * 12.f)})
         .with_gap(pixels(4)).with_overflow(Overflow::Hidden)
         .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(5.f);
+}
+
+inline void review_indicator(UIContext<InputAction>& ctx, Entity& row, bool reviewed, size_t unresolved, bool changed) {
+    const std::string state = unresolved ? "unresolved" : changed ? "changed" : reviewed ? "reviewed" : "unreviewed";
+    const std::string tooltip = unresolved ? std::to_string(unresolved) + " unresolved comments" :
+        changed ? "Changed since last viewed" : reviewed ? "Reviewed" : "Not reviewed";
+    auto status = div(ctx, mk(row, 96), ComponentConfig{}
+        .with_size(ComponentSize{pixels(20), pixels(28)})
+        .with_align_items(AlignItems::Center).with_justify_content(JustifyContent::Center)
+        .with_debug_name("tree_review_status:" + state));
+    set_tooltip(status.ent(), tooltip);
+    if (unresolved) {
+        div(ctx, mk(status.ent(), 0), ComponentConfig{}
+            .with_label(unresolved > 99 ? "99+" : std::to_string(unresolved))
+            .with_size(ComponentSize{pixels(20), pixels(20)}).with_font("mono", pixels(10))
+            .with_custom_text_color(theme::STATUS_MODIFIED).with_debug_name("tree_unresolved_count"));
+    } else if (reviewed && !changed) {
+        chrome_icon(ctx, mk(status.ent(), 0), ChromeIcon::Check, theme::DIFF_ADD_TEXT, "tree_reviewed_check");
+    } else {
+        div(ctx, mk(status.ent(), 0), ComponentConfig{}
+            .with_size(ComponentSize{pixels(7), pixels(7)})
+            .with_border(changed ? theme::TEXT_ACCENT : theme::TEXT_TERTIARY, pixels(1))
+            .with_custom_background(changed ? theme::TEXT_ACCENT : afterhours::Color{0, 0, 0, 0})
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(3.5f)
+            .with_debug_name(changed ? "tree_changed_dot" : "tree_unreviewed_ring"));
+    }
 }
 
 inline bool directory(afterhours::ui::UIContext<InputAction>& ctx, afterhours::Entity& parent,

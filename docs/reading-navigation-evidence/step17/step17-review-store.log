@@ -1,0 +1,127 @@
+--- Compiling test_review_store ---
+In file included from vendor/afterhours/src/plugins/files.cpp:7:
+In file included from vendor/afterhours/src/plugins/files.h:14:
+vendor/afterhours/src/plugins/../core/system.h:429:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  429 |     void for_each(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:506:25: note: in instantiation of template class 'afterhours::System<>' requested here
+  506 | struct CallbackSystem : System<> {
+      |                         ^
+vendor/afterhours/src/plugins/../core/system.h:147:18: note: overridden virtual function is here
+  147 |     virtual void for_each(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:437:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  437 |     void for_each_derived(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:153:18: note: overridden virtual function is here
+  153 |     virtual void for_each_derived(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:444:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  444 |     void for_each_derived(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:154:18: note: overridden virtual function is here
+  154 |     virtual void for_each_derived(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:451:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  451 |     virtual void for_each_with_derived(Entity &, Components &..., const float) {
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:179:18: note: overridden virtual function is here
+  179 |     virtual void for_each_with_derived(Entity &, const float) {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:453:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  453 |     virtual void for_each_with_derived(const Entity &, const Components &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:180:18: note: overridden virtual function is here
+  180 |     virtual void for_each_with_derived(const Entity &, const float) const {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:456:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  456 |     void for_each(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:148:18: note: overridden virtual function is here
+  148 |     virtual void for_each(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:429:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  429 |     void for_each(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../developer.h:208:57: note: in instantiation of template class 'afterhours::System<afterhours::files::ProvidesResourcePaths>' requested here
+  208 | template <typename Component> struct EnforceSingleton : System<Component> {
+      |                                                         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/unique_ptr.h:759:30: note: in instantiation of template class 'afterhours::developer::EnforceSingleton<afterhours::files::ProvidesResourcePaths>' requested here
+  759 |   return unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
+      |                              ^
+vendor/afterhours/src/plugins/files.cpp:199:12: note: in instantiation of function template specialization 'std::make_unique<afterhours::developer::EnforceSingleton<afterhours::files::ProvidesResourcePaths>, 0>' requested here
+  199 |       std::make_unique<developer::EnforceSingleton<ProvidesResourcePaths>>());
+      |            ^
+vendor/afterhours/src/plugins/../core/system.h:147:18: note: overridden virtual function is here
+  147 |     virtual void for_each(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:437:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  437 |     void for_each_derived(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:153:18: note: overridden virtual function is here
+  153 |     virtual void for_each_derived(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:444:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  444 |     void for_each_derived(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:154:18: note: overridden virtual function is here
+  154 |     virtual void for_each_derived(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:451:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  451 |     virtual void for_each_with_derived(Entity &, Components &..., const float) {
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:170:18: note: overridden virtual function is here
+  170 |     virtual void for_each_with_derived(Entity &, Cs &..., const float) {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:453:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  453 |     virtual void for_each_with_derived(const Entity &, const Components &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:171:18: note: overridden virtual function is here
+  171 |     virtual void for_each_with_derived(const Entity &, const Cs &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:456:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  456 |     void for_each(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:148:18: note: overridden virtual function is here
+  148 |     virtual void for_each(const Entity &, const float) const = 0;
+      |                  ^
+12 warnings generated.
+--- Running test_review_store ---
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+=== review_store tests ===
+  review_store_roundtrip                                       [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/15676951953917415962.json
+OK
+  review_store_missing_is_noop                                 OK
+  comparison_comments_keep_both_revisions_and_restore_the_comparison OK
+  editing_a_comment_preserves_its_location                     OK
+  resolved_comments_stay_saved_but_leave_the_feedback_export   OK
+  unfinished_comments_and_edits_survive_a_roundtrip            [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/8716649749782617957.json
+OK
+  deletion_is_persisted_and_failed_writes_keep_the_dirty_flag  [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/10259078569193962089.json
+OK
+  changing_feedback_scope_keeps_the_current_reading_panel_open OK
+  review_state_is_isolated_by_branch_and_revision              [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/10610570388393709929-915378797147260213.json
+[INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/10610570388393709929-12089666841270355141.json
+OK
+  review_signatures_detect_same_size_edits                     OK
+  export_keeps_the_original_code_and_revision                  [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/5937303877605920051.json
+OK
+  next_unreviewed_requires_explicit_metadata_review_and_wraps  OK
+  unresolved_file_counts_are_target_scoped_and_include_old_rename_side OK
+  typed_comments_preserve_drafts_edits_and_export              [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/3565609038607003897.json
+[INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/3565609038607003897.json
+OK
+  metadata_and_text_both_require_review                        OK
+  review_verdicts_require_complete_scoped_progress_and_invalidate_on_binary_changes [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/4668022363663528023.json
+OK
+  comment_anchors_relocate_only_unique_matches_and_keep_original_evidence OK
+  unresolved_filter_intersects_path_facets_and_ignores_other_targets OK
+  commit_review_queue_resumes_position_and_keeps_scope_isolated [INFO] Review loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/reviews/5699831695172270364-15861637848546874293.json
+OK
+  queue_completion_stale_uses_loaded_default_commit_verdict    OK
+
+20/20 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

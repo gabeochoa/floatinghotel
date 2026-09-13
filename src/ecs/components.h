@@ -646,6 +646,15 @@ inline bool file_reviewed(const ReviewComponent& review, const std::string& scop
     return record != review.reviewedFiles.end() && record->second == diff_signature(file);
 }
 
+inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const reading::FileSummary& file) {
+    if (file.partial) return false;
+    auto record = review.reviewedFiles.find(scope + "\n" + file.path);
+    bool recorded = record != review.reviewedFiles.end() && record->second == file.signature;
+    if (file.requiresFileRecord && !recorded) return false;
+    return file.hunkKeys.empty() ? recorded : std::all_of(file.hunkKeys.begin(), file.hunkKeys.end(),
+        [&](const auto& key) { return review.approvedHunks.contains(scope + "\n" + key); });
+}
+
 inline std::vector<size_t> visible_review_file_indices(const std::vector<FileDiff>& files,
     const review_files::Filter& filter, const ReviewComponent* review, const std::string& scope);
 
@@ -748,15 +757,8 @@ inline ReviewProgress review_progress(const ReviewComponent& review, const std::
         const std::vector<reading::FileSummary>& files) {
     ReviewProgress progress;
     progress.total = files.size();
-    for (const auto& file : files) {
-        if (file.partial) continue;
-        auto record = review.reviewedFiles.find(scope + "\n" + file.path);
-        bool recorded = record != review.reviewedFiles.end() && record->second == file.signature;
-        if (file.requiresFileRecord && !recorded) continue;
-        bool reviewed = file.hunkKeys.empty() ? recorded : std::all_of(file.hunkKeys.begin(), file.hunkKeys.end(),
-            [&](const auto& key) { return review.approvedHunks.contains(scope + "\n" + key); });
-        if (reviewed) ++progress.reviewed;
-    }
+    progress.reviewed = static_cast<size_t>(std::count_if(files.begin(), files.end(),
+        [&](const auto& file) { return file_reviewed(review, scope, file); }));
     progress.unresolved = static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(),
         [&](const auto& comment) { return comment.scope == scope && !comment.resolved; }));
     return progress;

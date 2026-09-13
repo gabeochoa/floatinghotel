@@ -686,6 +686,22 @@ private:
                         }
                     }
                 }
+                if (review) {
+                    bool reviewed = file_reviewed(*review, scope, file);
+                    if (source_tab_active(*repo)) {
+                        const auto* origin = repo->workspace().retained_review();
+                        if (origin && origin->files)
+                            for (const auto& summary : *origin->files)
+                                if (summary.path == file.filePath) { reviewed = file_reviewed(*review, scope, summary); break; }
+                    }
+                    bool changed = false;
+                    if (scope == "wt") {
+                        const auto seen = review->seenSig.find(file.filePath);
+                        changed = seen != review->seenSig.end() && ui::diff_metrics().signature(file) != seen->second;
+                    }
+                    ui::file_tree_style::review_indicator(ctx, row.ent(), reviewed,
+                        unresolved_file_count(*review, scope, file.filePath, file.oldPath), changed);
+                }
                 if (file.additions > 0) div(ctx, mk(row.ent(), 1), ComponentConfig{}
                     .with_label("+" + std::to_string(file.additions))
                     .with_size(ComponentSize{pixels(32), pixels(28)}).with_font("mono", pixels(11))
@@ -1850,8 +1866,6 @@ private:
         bool selected = path == (source_tab_active(repo) ? repo.fullFilePath() : repo.selectedFilePath());
 
         std::string fname = sidebar_detail::basename_from_path(path);
-        if (auto* review = find_singleton<ReviewComponent, ActiveTab>())
-            fname += unresolved_file_badge(*review, staged ? "index" : "wt", path, oldPath);
         std::string dir = sidebar_detail::dir_from_path(path);
         if (treeMode_) {
             dir.clear();
@@ -1868,27 +1882,7 @@ private:
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 
-        auto textCol = selected ? afterhours::Color{255, 255, 255, 255}
-                                : theme::TEXT_PRIMARY;
-
-        // "New since you last looked": if this file's diff changed since it was
-        // last viewed, tint the name blue so reworked files stand out.
-        {
-            auto* review = find_singleton<ReviewComponent, ActiveTab>();
-            if (review) {
-                auto it = review->seenSig.find(path);
-                if (it != review->seenSig.end()) {
-                    for (auto& fd : repo.currentDiff) {
-                        if (fd.filePath == path) {
-                            if (ui::diff_metrics().signature(fd) != it->second)
-                                textCol = afterhours::Color{78, 161, 255, 255};
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-
+        const auto textCol = theme::TEXT_PRIMARY;
         constexpr float STATUS_W = 20.0f;
         constexpr float PAD_L = 8.0f;
         constexpr float PAD_R = 4.0f;
@@ -1923,8 +1917,7 @@ private:
 
         // Directory hint sits right after the filename (not floated far-right).
         if (!dir.empty()) {
-            auto dirCol = selected ? afterhours::Color{205, 205, 210, 255}
-                                   : theme::TEXT_SECONDARY;
+            auto dirCol = theme::TEXT_SECONDARY;
             div(ctx, mk(row.ent(), 2),
                 preset::MetaText(dir)
                     .with_size(ComponentSize{pixels(dirW), children()})
@@ -1933,6 +1926,19 @@ private:
                     .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("file_dir"));
+        }
+
+        if (auto* rowReview = find_singleton<ReviewComponent, ActiveTab>(); rowReview && !allFilesMode_) {
+            const auto& rowDiffs = staged ? repo.stagedDiff : repo.currentDiff;
+            const auto rowDiff = std::find_if(rowDiffs.begin(), rowDiffs.end(), [&](const auto& file) { return file.filePath == path; });
+            bool changed = false;
+            if (!staged && rowDiff != rowDiffs.end()) {
+                auto seen = rowReview->seenSig.find(path);
+                changed = seen != rowReview->seenSig.end() && ui::diff_metrics().signature(*rowDiff) != seen->second;
+            }
+            ui::file_tree_style::review_indicator(ctx, row.ent(), rowDiff != rowDiffs.end() &&
+                file_reviewed(*rowReview, staged ? "index" : "wt", *rowDiff),
+                unresolved_file_count(*rowReview, staged ? "index" : "wt", path, oldPath), changed);
         }
 
         if (row.ent().get<HasClickListener>().down) {

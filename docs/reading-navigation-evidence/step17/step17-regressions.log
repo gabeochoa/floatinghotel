@@ -1,0 +1,14 @@
+PASS improvement_21_file_picker
+PASS improvement_22_repo_search
+PASS improvement_24_all_files
+PASS improvement_27_commit_search
+PASS improvement_35_comment_jump
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary
+PASS 100%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 140%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 200%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 100%: selected deleted line and column, renamed old path, before object, first visible deleted line, and exact review return
+PASS 140%: selected deleted line and column, renamed old path, before object, first visible deleted line, and exact review return
+PASS 200%: selected deleted line and column, renamed old path, before object, first visible deleted line, and exact review return

@@ -1898,3 +1898,17 @@ underneath on the same key press. The app uses its semantic focus return stack
 to choose one dismissal, with menus above other panels. With no temporary UI,
 Escape leaves the document unchanged. A framework dismissal stack shared by
 menus, pickers, overlays, and dialogs would remove this coordination from apps.
+
+### Virtual list tab order follows creation order instead of visual order
+
+In the tree-state replay, Tab from the file filter moved to the sidebar
+splitter, reader, zoom controls, and history before reaching the first file
+row on the seventh press. `output/step17-tab-probe` captures every focus target.
+The rows are focusable and their existing focus outlines render correctly;
+the traversal order reflects when pooled UI entities entered the collection.
+
+The visual-state replay uses the observed Tab sequence and checks the semantic
+focus target. Direct tree arrow navigation is the next app step. A framework
+focus group with explicit visual order and one Tab entry point would help
+virtualized inventories, menus, file browsers, and game editors. It should
+retain focus by item identity when pooled entities are reused.

@@ -30,7 +30,7 @@ inline nlohmann::json layout_snapshot() {
         const auto& cmp = entity.get<UIComponent>();
         const auto rect = screen_rect(entity);
         nlohmann::json node{
-            {"id", entity.id}, {"focused", context && context->has_focus(entity.id)}, {"hot", context && context->is_hot(entity.id)}, {"parent", cmp.parent}, {"children", cmp.children},
+            {"id", entity.id}, {"visual_focus", context && context->visual_focus_id == entity.id}, {"focused", context && context->has_focus(entity.id)}, {"hot", context && context->is_hot(entity.id)}, {"parent", cmp.parent}, {"children", cmp.children},
             {"rendered", cmp.was_rendered_to_screen}, {"hidden", cmp.should_hide},
             {"rect", rect_json(rect)}, {"visible_rect", rect_json(visible_rect(entity))},
             {"padding", edges_json(cmp.computed_padd)},
@@ -44,6 +44,12 @@ inline nlohmann::json layout_snapshot() {
         if (const auto target = focus_target(entity)) node["focus_target"] = {
             {"repository", target->repository}, {"document", target->document.value},
             {"region", std::string(magic_enum::enum_name(target->region))}, {"item", target->item}, {"control", target->control}};
+        if (entity.has<HasColor>()) {
+            const auto& colors = entity.get<HasColor>();
+            const auto base = colors.color(), hover = colors.hover_bg();
+            node["background"] = {base.r, base.g, base.b, base.a};
+            node["hover_background"] = {hover.r, hover.g, hover.b, hover.a};
+        }
         if (entity.has<UIComponentDebug>()) node["name"] = entity.get<UIComponentDebug>().name();
         if (entity.has<HasLabel>()) {
             const auto& label = entity.get<HasLabel>();
