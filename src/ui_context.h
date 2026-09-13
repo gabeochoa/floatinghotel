@@ -43,9 +43,15 @@ struct ClearPendingUIDraws : afterhours::System<UIContextType> {
     }
 };
 
-struct ReserveContextMenuKeys : afterhours::System<UIContextType> {
+struct ReserveContextMenuInput : afterhours::System<UIContextType> {
     void for_each_with(afterhours::Entity&, UIContextType& context, float) override {
+        context.remove_input_gate("context-menu");
         if (!::ui::is_context_menu_open()) return;
+        context.add_input_gate("context-menu", [](afterhours::EntityID id) {
+            auto entity = afterhours::ui::UICollectionHolder::getEntityForID(id);
+            return entity.valid() && entity->has<afterhours::ui::UIComponentDebug>() &&
+                entity->get<afterhours::ui::UIComponentDebug>().name().starts_with("context_menu");
+        });
         for (const auto action : {InputAction::WidgetUp, InputAction::WidgetDown,
                 InputAction::WidgetLeft, InputAction::WidgetRight,
                 InputAction::WidgetNext, InputAction::WidgetPress}) {
@@ -60,7 +66,7 @@ inline void registerUIPreLayoutSystems(
     afterhours::SystemManager& manager) {
     manager.register_update_system(std::make_unique<ClearPendingUIDraws>());
     afterhours::ui::register_before_ui_updates<InputAction>(manager);
-    manager.register_update_system(std::make_unique<ReserveContextMenuKeys>());
+    manager.register_update_system(std::make_unique<ReserveContextMenuInput>());
 }
 
 struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction> {

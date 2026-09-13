@@ -17,10 +17,18 @@ click_ui full_file_options
 wait_frames 3
 expect_text "Remove bookmark"
 key ESCAPE
-assert_ui bookmarks_row hidden=false
-assert_ui code_bookmark hidden=false
+click_ui full_file_options
+wait_frames 3
+click_ui context_menu_item_Bookmarks
+wait_frames 3
+expect_text "bookmarks.txt:L1 @ Working tree"
+key ESCAPE
 screenshot item_41_bookmark_added
-click_ui code_bookmark
+click_ui full_file_options
+wait_frames 3
+click_ui context_menu_item_Bookmarks
+wait_frames 3
+click_ui "context_menu_item_bookmarks.txt:L1 @ Working tree"
 wait_for_refresh
 validate source_line=1
 screenshot item_41_bookmark_jump
@@ -42,10 +50,12 @@ click_ui full_file_options
 wait_frames 3
 expect_text "Bookmark line 4"
 click_ui "context_menu_item_Bookmark line 4"
-click_ui bookmarks_next
+click_ui full_file_options
+wait_frames 3
+click_ui context_menu_item_Bookmarks
 wait_frames 3
 expect_text "bookmarks.txt:L4"
-click_ui code_bookmark
+click_ui "context_menu_item_bookmarks.txt:L4 @ Working tree"
 wait_for_refresh
 validate source_line=4
 resize 960 720

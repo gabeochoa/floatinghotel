@@ -297,8 +297,11 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     };
     auto lineUnder = [&]() -> int {
         for (int i = 0; i < (int)st.lastLines.size(); ++i) {
-            const Rectangle& rc = st.lastLines[i].rect;
-            if (mx >= rc.x && mx <= rc.x + rc.width &&
+            if (!ctx.is_input_allowed(st.lastLines[i].ent)) continue;
+            auto entity = afterhours::ui::UICollectionHolder::getEntityForID(st.lastLines[i].ent);
+            if (!entity.valid() || !entity->has<afterhours::ui::UIComponent>()) continue;
+            const auto rc = ui::visible_rect(**entity);
+            if (rc.width > 0.f && rc.height > 0.f && mx >= rc.x && mx <= rc.x + rc.width &&
                 my >= rc.y && my <= rc.y + rc.height) return i;
         }
         return -1;
@@ -328,6 +331,7 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
         // Press off a line (header, Copy button, sidebar): leave any existing
         // selection intact so the Copy button stays clickable.
     }
+    if (st.dragging && !ctx.is_input_allowed(st.anchor.ent)) st.dragging = false;
     if (mouse.left_down && st.dragging) {
         int li = nearestLine();
         if (li >= 0) {

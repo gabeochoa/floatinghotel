@@ -11,17 +11,8 @@
 
 namespace ecs {
 
-inline std::string bookmark_display(const CodeBookmark& bookmark) {
-    std::string label = bookmark.label.empty()
-        ? bookmark.path + ":L" + std::to_string(bookmark.line)
-        : bookmark.label;
-    if (!bookmark.revision.empty()) label += " @ " + bookmark.revision.substr(0, std::min<size_t>(7, bookmark.revision.size()));
-    return label;
-}
-
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
-    const auto& bookmarks = Settings::get().get_code_bookmarks(repo.repoPath);
     if (repo.fullFileNavigateFrames > 0) repo.fullFileMarkdownPreview = false;
     std::string sourceKey = repo.repoPath + "\n" + repo.fullFileRevision() + "\n" + repo.fullFilePath();
     if (repo.fullFileRevision().empty() || repo.fullFileRevision() == "INDEX") sourceKey += ":" + std::to_string(repo.dataGeneration);
@@ -118,45 +109,6 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));
     }
-    float bookmarkHeight = bookmarks.empty() ? 0.f : 30.f;
-    if (!bookmarks.empty()) {
-        constexpr size_t pageSize = 3;
-        size_t pageCount = (bookmarks.size() + pageSize - 1) / pageSize;
-        repo.bookmarkPage = std::min(repo.bookmarkPage, pageCount - 1);
-        auto row = div(ctx, mk(parent, 585009), ComponentConfig{}
-            .with_size(ComponentSize{percent(1.f), pixels(bookmarkHeight)})
-            .with_flex_direction(FlexDirection::Row)
-            .with_align_items(AlignItems::Center)
-            .with_gap(pixels(6))
-            .with_padding(Padding{.left = pixels(8), .right = pixels(8)})
-            .with_custom_background(theme::SECTION_HEADER_BG)
-            .with_debug_name("bookmarks_row"));
-        div(ctx, mk(row.ent(), 0), ComponentConfig{}
-            .with_label("Bookmarks")
-            .with_size(ComponentSize{pixels(78), pixels(24)})
-            .with_font_size(pixels(12))
-            .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_debug_name("bookmarks_label"));
-        if (button(ctx, mk(row.ent(), 1), preset::Button("<")
-                .with_size(ComponentSize{pixels(28), pixels(24)})
-                .with_disabled(repo.bookmarkPage == 0).with_debug_name("bookmarks_previous"))) --repo.bookmarkPage;
-        if (button(ctx, mk(row.ent(), 2), preset::Button(">")
-                .with_size(ComponentSize{pixels(28), pixels(24)})
-                .with_disabled(repo.bookmarkPage + 1 >= pageCount).with_debug_name("bookmarks_next"))) ++repo.bookmarkPage;
-        for (size_t i = repo.bookmarkPage * pageSize; i < std::min(bookmarks.size(), (repo.bookmarkPage + 1) * pageSize); ++i) {
-            const auto& bookmark = bookmarks[i];
-            auto label = bookmark_display(bookmark);
-            auto item = button(ctx, mk(row.ent(), static_cast<int>(i % pageSize) + 3), preset::Button(label)
-                    .with_size(ComponentSize{expand(), pixels(24)})
-                    .with_font_size(pixels(12))
-                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                    .with_debug_name("code_bookmark"));
-            ui::set_tooltip(item.ent(), label);
-            if (item) {
-                navigation::open(repo, reading::source(bookmark.path, bookmark.revision, bookmark.line));
-            }
-        }
-    }
     if (repo.blameFuture.valid() && repo.blameFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto result = repo.blameFuture.get();
         if (!navigation::accepts(repo, repo.blameFutureStamp, repo.blameFutureStamp.key)) return;
@@ -200,7 +152,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             repo.fullFileHexPreview = hex_view::make(repo.fullFileBytes, 0, 4096, repo.fullFilePage.begin.offset);
         }
         const auto& preview = repo.fullFileHexPreview;
-        float bodyHeight = layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight;
+        float bodyHeight = layout.mainContent.height - headerHeight - blameHeight - pageHeight;
         constexpr float summaryHeight = 24.f;
         auto body = div(ctx, mk(parent, 585004), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(bodyHeight)})
@@ -246,7 +198,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             [&](const std::string& text, markdown_preview::Kind kind, float size) {
                 return afterhours::measure_text(kind == markdown_preview::Kind::Code ? codeFont : bodyFont, text.c_str(), size * zoom, zoom).x / zoom;
             });
-        float bodyHeight = layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight;
+        float bodyHeight = layout.mainContent.height - headerHeight - blameHeight - pageHeight;
         auto body = div(ctx, mk(parent, 585005), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(bodyHeight)})
             .with_flex_direction(FlexDirection::Column)
@@ -301,7 +253,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         spacer(1, cache.offsets.back() - cache.offsets[last] + 16.f);
     } else {
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
-                        layout.mainContent.height - headerHeight - bookmarkHeight - blameHeight - pageHeight, false, changed, false,
+                        layout.mainContent.height - headerHeight - blameHeight - pageHeight, false, changed, false,
                         repo.repoPath, nullptr, "file:" + repo.fullFileRevision());
     }
 }

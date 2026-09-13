@@ -66,6 +66,10 @@ click_ui full_file_options
 wait_frames 3
 click_ui "context_menu_item_Preview Markdown"
 screenshot item_45_preview_again
-click_ui code_bookmark
+click_ui full_file_options
+wait_frames 3
+click_ui context_menu_item_Bookmarks
+wait_frames 3
+click_ui "context_menu_item_README.md:L1 @ Working tree"
 screenshot item_45_bookmark_source
 expect_text "# Review notes"

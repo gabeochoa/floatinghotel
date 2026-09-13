@@ -439,7 +439,6 @@ public:
     int comparisonContext = 3;
     bool comparisonIgnoreWhitespace = false;
     int diffTargetFrames = 0;
-    size_t bookmarkPage = 0;
 
     const std::string& selectedFilePath() const { return workspace_.review().file; }
     const std::string& diffTargetFile() const { return workspace_.review().file; }

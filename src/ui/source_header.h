@@ -59,7 +59,9 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
     int selectedLine = 0;
     for (const auto& line : selection.lastLines)
         if (line.ent == selection.anchor.ent && line.filePath == repo.fullFilePath()) selectedLine = line.lineNo;
-    const int bookmarkLine = selectedLine > 0 ? selectedLine : std::max(1, repo.fullFileTargetLine());
+    const auto* document = repo.workspace().document(repo.workspace().active_id());
+    const int bookmarkLine = selectedLine > 0 ? selectedLine :
+        document->anchor ? document->anchor->line : std::max(1, repo.fullFileTargetLine());
     const auto sameBookmark = [path = repo.fullFilePath(), revision, bookmarkLine](const CodeBookmark& bookmark) {
         return bookmark.path == path && bookmark.revision == revision && bookmark.line == bookmarkLine;
     };
@@ -75,6 +77,19 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
                 Settings::get().set_code_bookmarks(active->repoPath, updated);
             }
         }));
+    items.push_back(ui::ContextMenuItem::item("Bookmarks", [current, x, y] {
+        auto* active = current();
+        if (!active) return;
+        std::vector<ui::ContextMenuItem> entries;
+        for (const auto& bookmark : Settings::get().get_code_bookmarks(active->repoPath)) {
+            entries.push_back(ui::ContextMenuItem::item(bookmark_display(bookmark), [current, bookmark] {
+                if (auto* source = current())
+                    navigation::open(*source, reading::source(bookmark.path, bookmark.revision, bookmark.line));
+            }));
+        }
+        if (entries.empty()) entries.push_back(ui::ContextMenuItem::item("No bookmarks", [] {}, false));
+        ui::show_context_menu(x, y, std::move(entries));
+    }, true, std::to_string(bookmarks.size())));
     items.push_back(ui::ContextMenuItem::item(selectedLine > 0 ? "Blame line " + std::to_string(selectedLine) : "Blame selected line",
         [current, selectedLine] {
             if (auto* active = current()) {

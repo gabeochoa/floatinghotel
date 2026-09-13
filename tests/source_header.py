@@ -121,6 +121,7 @@ for zoom in [100, 140, 200]:
         assert focus['control'] == 'full_file_options', (zoom, focus)
         assert state('returned')['active'] == state('review')['active']
         assert state('returned')['history'][-1]['anchor'] == state('review')['history'][-1]['anchor']
+        assert node('bookmark', 'diff_scroll')['rect'] == node('narrow', 'diff_scroll')['rect']
         assert node('removed', 'diff_scroll')['rect'] == node('narrow', 'diff_scroll')['rect']
         assert state('utf8')['tabs'][-1]['revision'] == state('utf16')['tabs'][-1]['revision']
     (directory / 'geometry.json').write_text(json.dumps(metrics, indent=2) + '\n')

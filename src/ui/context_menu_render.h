@@ -178,6 +178,7 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
                 .with_custom_hover_bg(highlighted ? ITEM_HOVER_BG : PANEL_BG)
                 .with_custom_text_color(textColor)
                 .with_font_size(pixels(14))
+                .with_skip_tabbing(true)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_alignment(TextAlignment::Left)
                 .with_justify_content(JustifyContent::Center)

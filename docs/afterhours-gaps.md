@@ -1448,6 +1448,21 @@ input ownership that covers both raw input and framework widget actions. An
 inventory or pause menu should not have to win an execution-order race against
 the controls underneath. Evidence is in the step-37 source-header replay.
 
+Step 38 reproduced the pointer equivalent: clicking Bookmarks selected the
+source line underneath the menu, changing the line offered by Add bookmark.
+The app now installs a context-menu input gate for the entire frame, and its
+custom text-selection hit testing checks that gate. The gate also covers the
+frame in which a menu closes, preventing the closing click from reaching code.
+Custom widgets must honor the same input ownership as framework buttons.
+The 200% replay also found the app testing unclipped code-row rectangles;
+scrolled-out text could receive clicks over the header. Selection now uses the
+existing intersected-clip helper. This was application adoption debt, not a
+missing framework clip API.
+The same menu owned its arrow selection but left rows in the framework's tab
+order, producing a focus outline on a different row from the highlighted choice.
+Menu rows now use the existing `with_skip_tabbing(true)` option. Composite
+widgets should have one navigation owner; this is another adoption fix.
+
 ### U6. Focus return that survives rebuilt controls and closed scopes
 
 The original app focused picker inputs by entity ID and used root focus or
