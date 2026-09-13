@@ -1,4 +1,5 @@
 #include "reading_probe.h"
+#include "../util/document_titles.h"
 
 #include "../ecs/ui_imports.h"
 #include "layout_dump.h"
@@ -111,8 +112,12 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 return;
             }
             nlohmann::json tabs = nlohmann::json::array();
+            const auto titles = reading::document_titles(repo->workspace().documents());
+            size_t titleIndex = 0;
             for (const auto& tab : repo->workspace().documents()) {
-                nlohmann::json value{{"id", tab.id.value}, {"preview", tab.preview}};
+                const auto& title = titles[titleIndex++];
+                nlohmann::json value{{"id", tab.id.value}, {"preview", tab.preview},
+                    {"title", title.label}, {"badge", title.badge}, {"tooltip", title.tooltip}};
                 if (const auto* file = std::get_if<reading::SourceLocation>(&tab.location)) {
                     value["kind"] = "source";
                     value["path"] = file->destination.path;

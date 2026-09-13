@@ -165,6 +165,7 @@ struct Document {
     std::uint64_t lastActivated = 0;
     std::optional<std::vector<FileSummary>> files;
     bool preview = false;
+    std::string subject;
 };
 
 class ReadingWorkspace {
@@ -325,6 +326,7 @@ private:
             found->lastActivated = resolved.lastActivated;
             found->preview = found->preview && resolved.preview;
             if (!found->files) found->files = std::move(resolved.files);
+            if (found->subject.empty()) found->subject = std::move(resolved.subject);
             active_ = found->id;
             std::erase_if(documents_, [&](const auto& tab) { return tab.id == replaced; });
         }

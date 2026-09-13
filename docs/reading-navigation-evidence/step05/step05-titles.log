@@ -1,0 +1,18 @@
+--- Compiling test_document_titles ---
+--- Running test_document_titles ---
+  unique_file_keeps_its_simple_name                            OK
+  duplicate_files_use_shortest_distinguishing_parent_suffix    OK
+  root_and_unicode_paths_remain_distinguishable                OK
+  same_file_at_multiple_revisions_uses_badges_without_redundant_parents OK
+  short_hashes_extend_only_to_remove_collisions                OK
+  parent_disambiguation_ignores_duplicate_copies_of_the_same_path OK
+  commit_subject_and_full_identity_are_retained                OK
+  duplicate_commit_subjects_show_distinct_hashes               OK
+  merge_parent_reviews_remain_distinguishable                  OK
+  unresolved_commits_and_comparisons_show_exact_destination    OK
+
+10/10 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

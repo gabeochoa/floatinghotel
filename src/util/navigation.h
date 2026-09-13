@@ -21,6 +21,13 @@ struct navigation {
         return accepts(repo, request, request.key) && repo.workspace_.resolve_review(request.generation, commit, parent);
     }
 
+    static void remember_commit_subject(ecs::RepoComponent& repo, std::string subject) {
+        auto& document = repo.workspace_.current();
+        const auto* review = std::get_if<reading::ReviewLocation>(&document.location);
+        if (review && std::holds_alternative<reading::CommitReview>(review->destination))
+            document.subject = std::move(subject);
+    }
+
     static void remember_review_files(ecs::RepoComponent& repo, const std::vector<ecs::FileDiff>& files) {
         auto& summaries = repo.workspace_.current().files.emplace();
         summaries.reserve(files.size());
@@ -130,6 +137,10 @@ struct navigation {
             source->origin = repo.workspace_.review();
         bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode);
+        if (repo.workspace_.current().subject.empty())
+            for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
+                for (const auto& entry : *entries)
+                    if (entry.hash == repo.selectedCommitHash()) remember_commit_subject(repo, entry.subject);
         finish(repo, before, changed);
     }
 

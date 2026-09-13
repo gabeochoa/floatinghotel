@@ -1719,3 +1719,14 @@ file rows include their file/line target, while tabs ignore reading-position
 changes. A reusable click-count gesture with target identity, pointer-distance
 limits, and cancellation on drag or navigation would help document tabs, asset
 browsers, inventories, and map interactions.
+
+### Label fit in layout probes
+
+A tab can fit inside its parent while its text is still ellipsized. The first
+step 05 replay passed rectangle visibility checks but screenshots showed clipped
+parent-path labels. The app now records measured text width at the resolved font
+size in layout dumps and compares it with the label rectangle and text inset.
+A framework probe exposing resolved label bounds, text width, and whether
+ellipsis was applied would help automated checks for tabs, menus, inventory
+labels, and localized game interfaces. The app also explicitly reserves the
+icon, gaps, close target, and badge before allocating its title width.

@@ -24,6 +24,7 @@
 #include "../ui/chrome_icons.h"
 #include "../ui/text_area.h"
 #include "../util/navigation.h"
+#include "../util/document_titles.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
@@ -398,24 +399,21 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             const auto* recentSource = workspace.recent(reading::Slot::Source);
             std::optional<reading::DocumentId> activate;
             std::optional<reading::DocumentId> closeDocument;
+            const auto titles = reading::document_titles(workspace.documents());
+            size_t titleIndex = 0;
             for (const auto& document : workspace.documents()) {
                 const auto* source = std::get_if<reading::SourceLocation>(&document.location);
                 const bool active = document.id == workspace.active_id();
-                std::string title;
-                if (source) title = std::filesystem::path(source->destination.path).filename().string();
-                else {
-                    const auto& review = std::get<reading::ReviewLocation>(document.location);
-                    if (const auto* commit = std::get_if<reading::CommitReview>(&review.destination))
-                        title = "Commit " + reading::revision_text(commit->commit).substr(0, 7);
-                    else if (const auto* changes = std::get_if<reading::WorkingChanges>(&review.destination))
-                        title = changes->staged ? "Staged changes" : "Unstaged changes";
-                    else title = "Comparison";
-                }
-                if (document.preview) title = "Preview · " + title;
-                const float textWidth = afterhours::ui::measure_text_line(title, afterhours::ui::UIComponent::DEFAULT_FONT,
-                    14.f * ui::zoom::get()).x / ui::zoom::get();
+                const auto& label = titles[titleIndex++];
+                std::string title = (document.preview ? "Preview · " : "") + label.label;
+                auto measure = [&](const std::string& text, float size) {
+                    return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
+                        size * ui::zoom::get()).x / ui::zoom::get();
+                };
+                const float textWidth = measure(title, 14.f);
+                const float badgeWidth = label.badge.empty() ? 0.f : measure(label.badge, 11.f) + 10.f;
                 const float available = layout.contentTabs.width / static_cast<float>(workspace.documents().size());
-                const float width = std::min(textWidth + 60.f, std::max(80.f, available));
+                const float width = std::min(textWidth + badgeWidth + 96.f, std::max(80.f, available));
                 auto tab = button(ctx, mk(tabs.ent(), static_cast<int>(document.id.value)), preset::Button("")
                     .with_size(ComponentSize{pixels(width), percent(1.f)})
                     .with_padding(Padding{.top = pixels(0), .right = pixels(10), .bottom = pixels(0), .left = pixels(10)})
@@ -434,15 +432,20 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 if (recentReview && document.id == recentReview->id) alias = "content_review_tab";
                 if (recentSource && document.id == recentSource->id) alias = "content_source_tab";
                 div(ctx, mk(tab.ent(), 11), ComponentConfig{}.with_label(title)
-                    .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
+                    .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14)).with_text_inset(0.f)
                     .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name(alias));
+                if (!label.badge.empty()) div(ctx, mk(tab.ent(), 13), ComponentConfig{}.with_label(label.badge)
+                    .with_size(ComponentSize{pixels(std::min(badgeWidth, width * .4f)), pixels(20)})
+                    .with_font_size(pixels(11)).with_text_inset(4.f)
+                    .with_custom_text_color(theme::TEXT_SECONDARY).with_custom_background(theme::BUTTON_SECONDARY)
+                    .with_corner_radius(4.f).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("document_revision_badge"));
                 if (active) div(ctx, mk(tab.ent(), 12), ComponentConfig{}
                     .with_size(ComponentSize{pixels(std::max(0.f, width - 20.f)), pixels(2)})
                     .with_absolute_position(10.f, layout.contentTabs.height - 2.f)
                     .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
-                ui::set_tooltip(tab.ent(), source ? source->destination.path + " @ " +
-                    (reading::revision_text(source->destination.revision).empty() ? "working tree" : reading::revision_text(source->destination.revision)) : title);
+                ui::set_tooltip(tab.ent(), label.tooltip);
                 if (active && repoPtr->readingFocusDocument == document.id) {
                     ctx.set_focus(tab.ent().id);
                     repoPtr->readingFocusDocument.reset();

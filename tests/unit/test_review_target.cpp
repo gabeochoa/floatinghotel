@@ -584,4 +584,28 @@ TEST(different_rows_in_one_review_do_not_count_as_a_double_click) {
     ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->preview);
 }
 
+TEST(commit_subject_is_seeded_and_survives_switching_closing_and_alias_resolution) {
+    ecs::RepoComponent repo;
+    const std::string oid(40, 'a');
+    ecs::CommitEntry entry;
+    entry.hash = oid;
+    entry.subject = "Recognizable subject";
+    repo.commitLog.push_back(entry);
+    open_kept(repo, reading::review(oid));
+    const auto id = repo.workspace().active_id();
+    ASSERT_STREQ(repo.workspace().document(id)->subject, entry.subject);
+    navigation::open(repo, reading::review("HEAD"));
+    navigation::remember_commit_subject(repo, entry.subject);
+    auto stamp = navigation::stamp(repo, "patch");
+    ASSERT_TRUE(navigation::resolve_review(repo, stamp, oid, ""));
+    ASSERT_EQ(repo.workspace().active_id(), id);
+    ASSERT_STREQ(repo.workspace().document(id)->subject, entry.subject);
+    navigation::close(repo, id);
+    navigation::reopen_closed(repo);
+    ASSERT_STREQ(repo.workspace().document(id)->subject, entry.subject);
+    navigation::open(repo, reading::source("a.cpp"));
+    navigation::remember_commit_subject(repo, "Wrong document");
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->subject.empty());
+}
+
 int main() { RUN_ALL_TESTS(); }

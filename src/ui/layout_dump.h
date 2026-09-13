@@ -64,6 +64,10 @@ inline nlohmann::json layout_snapshot() {
                 node["measured_text_width"] = EntityHelper::get_singleton_cmp_enforce<TextMeasureCache>().measure_width(
                     label.label, cmp.font_name, Settings::get().get_code_font_size() * zoom::get());
             }
+            if (!node.contains("measured_text_width") && cmp.font_size_explicitly_set && context)
+                node["measured_text_width"] = EntityHelper::get_singleton_cmp_enforce<TextMeasureCache>().measure_width(
+                    label.label, cmp.font_name, resolve_to_pixels(cmp.font_size, context->screen_height,
+                        cmp.resolved_scaling_mode, zoom::get()));
             node["font"] = cmp.font_name;
             node["text_spans"] = nlohmann::json::array();
             for (const auto& span : label.spans)

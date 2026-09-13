@@ -120,6 +120,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 info.entry.shortHash = repo.selectedCommitHash().substr(0, 7);
                 info.entry.decorations = detailCache.entry.decorations;
                 detailCache.entry = std::move(info.entry);
+                navigation::remember_commit_subject(repo, detailCache.entry.subject);
                 detailCache.commitDetailBody = std::move(info.body);
                 detailCache.commitDetailAuthorEmail = std::move(info.authorEmail);
                 detailCache.commitDetailParents = std::move(info.parents);

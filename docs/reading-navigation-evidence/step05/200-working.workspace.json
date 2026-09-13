@@ -1,0 +1,56 @@
+{
+  "active": 4,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "fe0797c5db67384801ad6e30c603794a262751a8",
+      "title": "Recognizable subject",
+      "tooltip": "Recognizable subject\nCommit fe0797c5db67384801ad6e30c603794a262751a8\nFirst parent"
+    },
+    {
+      "badge": "fe0797c",
+      "id": 3,
+      "kind": "source",
+      "path": "left/a.cpp",
+      "preview": false,
+      "revision": "fe0797c5db67384801ad6e30c603794a262751a8",
+      "title": "a.cpp · left",
+      "tooltip": "left/a.cpp @ fe0797c5db67384801ad6e30c603794a262751a8"
+    },
+    {
+      "badge": "Working tree",
+      "id": 4,
+      "kind": "source",
+      "path": "left/a.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "a.cpp · left",
+      "tooltip": "left/a.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 5,
+      "kind": "source",
+      "path": "right/a.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "a.cpp · right",
+      "tooltip": "right/a.cpp @ working tree"
+    }
+  ]
+}
