@@ -58,7 +58,7 @@ for zoom in [100, 140, 200]:
     directory.mkdir()
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'click_ui review_unstaged_changes\nwait_for_refresh\nclick_ui jump_to_diff:b.cpp\nright_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Comment on hunk"\nwait_frames 3\nclick_ui comment_input\ntype "Keep this folded"\nclick_ui comment_add_btn\nclick_ui jump_to_diff:a.cpp\n' + capture('initial', 1)
+    script += 'click_ui review_unstaged_changes\nwait_for_refresh\nclick_ui jump_to_diff:b.cpp\nright_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Comment on hunk"\nwait_frames 3\nclick_ui comment_input\ntype "Keep this folded"\nclick_ui comment_add_btn\nwait_frames 8\nright_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Fold hunk"\nclick_ui jump_to_diff:a.cpp\n' + capture('initial', 1)
     script += expand('below') + capture('below', 1)
     script += expand('above') + capture('above', 1)
     script += 'key J\n' + capture('after_jump', 1)
@@ -68,7 +68,7 @@ for zoom in [100, 140, 200]:
     script += 'click_text "Unified"\n' + settle()
     script += 'right_click_ui jump_to_diff:a.cpp\nwait_frames 3\nclick_ui "context_menu_item_Open source"\n' + capture('source', 2)
     script += 'click_ui full_file_back\n' + capture('returned', 2)
-    script += 'click_ui jump_to_diff:b.cpp\nexpect_text "commented · click to expand"\nclick_ui jump_to_diff:a.cpp\n' + settle()
+    script += 'click_ui jump_to_diff:b.cpp\nexpect_text "Folded hunk · click to expand"\nclick_ui jump_to_diff:a.cpp\n' + settle()
     script += 'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Show 20 lines below"\nwait_frames 1\n'
     script += 'click_text "Local context fixture"\nwait_for_refresh\nkey ENTER\nclick_ui jump_to_diff:a.cpp\n' + capture('commit', 2)
     script += expand('below') + capture('commit_below', 2)

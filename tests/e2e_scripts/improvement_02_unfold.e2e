@@ -8,6 +8,10 @@ wait_frames 5
 click_ui comment_input
 type "Handle empty input"
 click_ui comment_add_btn
+wait_frames 8
+right_click_ui hunk_header_row
+wait_frames 3
+click_ui "context_menu_item_Fold hunk"
 wait_frames 10
 screenshot improvement_02_folded
 expect_no_text "std::cout"

@@ -2508,3 +2508,16 @@ and the native regression asserts every loaded review path is inside its
 fixture. An upstream isolated-storage test scope should redirect configuration,
 saves, and temporary artifacts together and restore them on scope exit. Eight
 verified step-57 fixture records were removed; normal reviews were untouched.
+### Composer focus and reading-anchor ownership (step 59)
+
+An inline text editor changes its parent reader's content height. Restoring the
+code anchor during that change scrolled the editor's Add button out of view at
+200% zoom. The app now suspends automatic code-anchor restoration and sampling
+while its comment composer is active, then explicitly returns to the code range
+on save or dismissal. Short-window checks also require revealing the editor
+after matching layout, including after a resize. Manual scrolling cancels that
+frame’s automatic reveal. This is application focus/anchor policy. A reusable
+scroll-anchor API should let a temporary child editor claim viewport ownership;
+inspectors, annotation tools, and game dialogue editors need the same handoff.
+The failing native layout and the repaired button geometry are retained with
+step 59 evidence.

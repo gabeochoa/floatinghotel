@@ -273,8 +273,9 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                             {"approved", review->approvedHunks.size()}, {"baseline", review->baselineSnapshot},
                             {"baseline_head", review->baselineHead}, {"baseline_captured_at", review->baselineCapturedAt},
                             {"snapshot_open", review->sinceReviewOpen}, {"snapshot_pending", review->snapshotFuture.valid()},
-                            {"composing", review->composingKey},
-                            {"draft", review->composingText}, {"comments", review->comments.size()}} : nlohmann::json{};
+                            {"composing", review->composingKey}, {"composing_line", review->composingLine},
+                            {"composing_end_line", review->composingEndLine}, {"composing_old_side", review->composingOldSide},
+                            {"folded_hunks", review->foldedHunks.size()}, {"draft", review->composingText}, {"comments", review->comments.size()}} : nlohmann::json{};
                     }()}, {"trees", [&] {
                         auto value = [](const file_tree::NavigationState& state) {
                             return nlohmann::json{{"path", state.path}, {"reveal_path", state.revealPath},

@@ -32,7 +32,7 @@ for zoom in args.zooms:
     directory.mkdir()
     def capture(name, count=1): return f'wait_frames 12\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
     def select(stem): return f'click_ui jump_to_diff:{stem}.cpp\nwait_frames 8\n'
-    def comment(stem): return select(stem) + f'click_ui comment_hunk_btn\nwait_frames 4\nclick_ui comment_input\ntype "Feedback on {stem}"\nclick_ui comment_add_btn\nwait_frames 8\nkey ESCAPE\n'
+    def comment(stem): return select(stem) + f'click_ui comment_hunk_btn\nwait_frames 4\nclick_ui comment_input\ntype "Feedback on {stem}"\nclick_ui comment_add_btn\nwait_frames 8\nkey ESCAPE\nright_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Fold hunk"\n'
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     script += 'click_ui review_unstaged_changes\nwait_for_refresh\n'

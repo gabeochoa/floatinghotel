@@ -89,7 +89,6 @@ type Review the large patch hot path
 click_ui comment_add_btn
 wait_frames 5
 validate review_unresolved=1
-click_ui hunk_folded_marker
 wait_frames 5
 expect_text "value_00001"
 screenshot item_15_large_patch_unresolved_comment

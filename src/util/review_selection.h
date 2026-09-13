@@ -5,6 +5,8 @@
 #include <optional>
 #include <utility>
 #include <vector>
+#include "reading_workspace.h"
+#include <tuple>
 
 namespace review_selection {
 
@@ -30,6 +32,15 @@ inline std::optional<Range> range(const std::vector<std::pair<int, int>>& lines)
         out.last = std::max(out.last, number);
     }
     return out;
+}
+
+inline std::optional<Range> range(const reading::CodeSelection& selection) {
+    auto first = selection.anchor, last = selection.head;
+    if (first.path != last.path || first.side != last.side || first == last ||
+        first.line <= 0 || last.line <= 0 || first.column <= 0 || last.column <= 0) return {};
+    if (std::tie(first.line, first.column) > std::tie(last.line, last.column)) std::swap(first, last);
+    return Range{first.line, last.line - (last.column == 1 && last.line > first.line ? 1 : 0),
+        first.side == reading::DiffSide::Before};
 }
 
 }

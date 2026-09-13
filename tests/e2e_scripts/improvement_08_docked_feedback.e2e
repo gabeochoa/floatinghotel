@@ -10,7 +10,6 @@ wait_frames 10
 screenshot improvement_08_docked
 assert_ui main_content x=352 w=608
 assert_ui feedback_basket x=960 w=320
-click_ui hunk_folded_marker
 wait_frames 5
 screenshot improvement_08_code
 expect_text "std::cout"

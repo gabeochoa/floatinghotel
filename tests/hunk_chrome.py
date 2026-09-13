@@ -52,8 +52,8 @@ for zoom in [100, 140, 200]:
     script += 'resize 1150 850\nwait_frames 10\nclick_ui jump_to_diff:sample.cpp\nhover_ui diff_scroll\nscroll_wheel 0 20000\nwait_frames 15\nmouse_move 1 1\n' + capture('narrow_idle')
     script += 'hover_ui hunk_header_row\n' + capture('narrow_hover')
     if not args.baseline:
-        script += 'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Comment on hunk"\nwait_frames 3\nclick_ui comment_input\ntype "Hunk feedback"\nclick_ui comment_add_btn\n' + capture('commented')
-        script += 'expect_text "commented · click to expand"\nbench_frames 120\nexpect_p99_below 20\n'
+        script += 'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Comment on hunk"\nwait_frames 3\nscreenshot composer\nclick_ui comment_input\ntype "Hunk feedback"\nclick_ui comment_add_btn\n' + capture('commented')
+        script += 'expect_no_text "Folded hunk · click to expand"\nbench_frames 120\nexpect_p99_below 20\n'
         script += 'resize 1600 1100\nclick_text "Two commit hunks"\nwait_for_refresh\nwait_frames 12\nmouse_move 1 1\n' + capture('commit_idle')
         script += 'hover_ui hunk_header_row\n' + capture('commit_hover')
         script += 'click_ui hunk_header_label\nmouse_move 1 1\n' + capture('commit_focus')
@@ -91,6 +91,10 @@ for zoom in [100, 140, 200]:
                     button = nodes(name, button_name)[0]['rect']
                     assert abs(icon['x'] + icon['width'] / 2 - button['x'] - button['width'] / 2) < .1
                     assert icon['y'] >= button['y'] and icon['y'] + icon['height'] <= button['y'] + button['height'] + .1
+        assert nodes('composer', 'compose_comment_kind')[0]['font_size'] == dict(unit='Pixels', value=12.0)
+        for debug in ['comment_input', 'comment_add_btn']:
+            control = nodes('composer', debug)[0]
+            assert control['visible_rect']['height'] >= control['rect']['height'] - .1, (zoom, debug, control)
         for name in ['focused', 'keyboard', 'commit_focus']:
             assert nodes(name, 'hunk_header_btns')[0]['opacity'] == 1
         for name in ['hover', 'commit_hover', 'commit_focus']:

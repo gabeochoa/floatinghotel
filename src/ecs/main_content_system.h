@@ -242,6 +242,12 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                         .with_size(ComponentSize{pixels(52), pixels(28)}).with_font_size(pixels(12))
                         .with_debug_name("basket_edit_save"))) {
                     if (!save_comment_edit(review)) afterhours::toast::send_info(ctx, "A comment cannot be empty", 2.f);
+                    else if (repo && (anchor.status == review_anchor::Status::Current || anchor.status == review_anchor::Status::Relocated)) {
+                        auto target = c;
+                        target.endLine = anchor.line + std::max(0, c.endLine - c.line);
+                        target.line = anchor.line;
+                        navigation::return_to_feedback(*repo, target);
+                    }
                 }
                 if (button(ctx, mk(actions.ent(), 1), preset::Button("Cancel")
                         .with_size(ComponentSize{pixels(60), pixels(28)}).with_font_size(pixels(12))
@@ -279,6 +285,12 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_resolve"))) {
                 review.comments[i].resolved = !c.resolved;
                 review.dirty = true;
+                if (repo && (anchor.status == review_anchor::Status::Current || anchor.status == review_anchor::Status::Relocated)) {
+                    auto target = c;
+                    target.endLine = anchor.line + std::max(0, c.endLine - c.line);
+                    target.line = anchor.line;
+                    navigation::return_to_feedback(*repo, target);
+                }
             }
             auto rmBtn = button(ctx, mk(actions.ent(), 1),
                 preset::Button("Delete")
@@ -420,7 +432,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         case Popup::CommitSearch: repoPtr->commitSearchOpen = false; break;
                         case Popup::FileHistory: repoPtr->fileHistoryOpen = false; break;
                         case Popup::Feedback: if (review) review->basketOpen = false; break;
-                        case Popup::Composer: if (review) dismiss_pending_comment(*review); break;
+                        case Popup::Composer:
+                            if (review) {
+                                const auto comment = pending_comment(*review);
+                                dismiss_pending_comment(*review);
+                                navigation::return_to_feedback(*repoPtr, comment);
+                            }
+                            break;
                         case Popup::Options: layout.diffOptionsOpen = false; break;
                         case Popup::Snapshot:
                             if (review) review->sinceReviewOpen = false;

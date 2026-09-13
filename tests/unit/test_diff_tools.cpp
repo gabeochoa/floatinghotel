@@ -214,7 +214,7 @@ TEST(review_ranges_keep_old_and_new_line_numbers_distinct) {
     ASSERT_EQ(removed->last, 8);
     ASSERT_TRUE(removed->oldSide);
     ASSERT_FALSE(review_selection::range({{1, 0}, {0, 2}}).has_value());
-    ASSERT_FALSE(review_selection::range({}).has_value());
+    ASSERT_FALSE(review_selection::range(std::vector<std::pair<int, int>>{}).has_value());
 }
 
 TEST(commit_graph_tracks_forks_merges_and_roots) {
@@ -675,6 +675,47 @@ TEST(selection_survives_closing_and_cancels_superseded_copy_work) {
     ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->selection, std::optional{selection});
     navigation::set_selection(repo, {});
     ASSERT_FALSE(repo.workspace().document(repo.workspace().active_id())->selection.has_value());
+}
+
+TEST(comment_ranges_follow_logical_selection_boundaries) {
+    reading::CodeSelection selection{{"a.cpp", reading::DiffSide::Before, 8, 1},
+        {"a.cpp", reading::DiffSide::Before, 5, 3}, {"a.cpp", reading::WorkingTree{}}, "version"};
+    auto range = review_selection::range(selection);
+    ASSERT_TRUE(range.has_value());
+    ASSERT_EQ(range->first, 5);
+    ASSERT_EQ(range->last, 7);
+    ASSERT_TRUE(range->oldSide);
+    selection.anchor.column = 2;
+    ASSERT_EQ(review_selection::range(selection)->last, 8);
+    selection.head.side = reading::DiffSide::After;
+    ASSERT_FALSE(review_selection::range(selection).has_value());
+    selection.head = selection.anchor;
+    ASSERT_FALSE(review_selection::range(selection).has_value());
+    selection.head.path = "b.cpp";
+    selection.head.line = 3;
+    ASSERT_FALSE(review_selection::range(selection).has_value());
+}
+
+TEST(feedback_return_preserves_selection_and_rejects_another_review) {
+    ecs::RepoComponent repo;
+    repo.repoPath = "fixture";
+    navigation::open(repo, reading::review("wt", "a.cpp"));
+    reading::CodeSelection selection{{"a.cpp", reading::DiffSide::After, 5, 3},
+        {"a.cpp", reading::DiffSide::After, 6, 3}, {"a.cpp", reading::WorkingTree{}}, "version"};
+    navigation::set_selection(repo, selection);
+    navigation::reveal_caret(repo, selection.head, .15f);
+    const auto visits = repo.workspace().history().size();
+    navigation::return_to_feedback(repo, {"wt", "a.cpp", 5, "feedback", 6});
+    const auto* doc = repo.workspace().document(repo.workspace().active_id());
+    ASSERT_EQ(doc->selection, std::optional{selection});
+    ASSERT_EQ(doc->caret, std::optional{selection.head});
+    ASSERT_EQ(repo.workspace().history().size(), visits);
+    navigation::return_to_feedback(repo, {"other", "a.cpp", 40, "unrelated"});
+    ASSERT_EQ(doc->caret, std::optional{selection.head});
+    navigation::open(repo, reading::source("b.cpp"), {}, reading::OpenMode::Keep);
+    navigation::open(repo, reading::review("wt", "a.cpp"));
+    navigation::return_to_feedback(repo, {"wt", "a.cpp", 8, "later range", 9});
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->caret->line, 8);
 }
 
 int main() { RUN_ALL_TESTS(); }

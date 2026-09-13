@@ -11,6 +11,8 @@ inline void bind_reading_view(ecs::RepoComponent& repo, Entity& entity,
     entity.get<FocusIdentity>().target.item = "viewport";
     auto& state = repo.reading;
     state.entity = entity.id;
+    state.editorEntity = -1;
+    state.revealEditor = false;
     state.key = repo.repoPath + "\n" + view;
     state.request = navigation::stamp(repo, navigation::reading_layout_key(repo));
     state.ready = ready;

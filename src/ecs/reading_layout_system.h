@@ -28,8 +28,11 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
         const bool changedLayout = state.previousDocument == document->id &&
             (state.previousKey != state.key || std::fabs(state.width - viewport.width) > .5f || std::fabs(state.height - viewport.height) > .5f ||
              (!(source_tab_active(*repo) && state.codeRows) && std::fabs(state.contentHeight - scroll.content_size.y) > .5f));
+        const auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        const bool composing = review && !review->composingKey.empty() && !source_tab_active(*repo) &&
+            review->composingScope == reading::scope(repo->workspace().review());
         const bool revealing = repo->fullFileNavigateFrames > 0 || repo->diffTargetFrames > 0;
-        if (changedLayout && !userScroll && !revealing) navigation::restore_anchor(*repo);
+        if (changedLayout && !userScroll && !revealing && !composing) navigation::restore_anchor(*repo);
         std::optional<reading::ReadingAnchor> sample;
         std::optional<float> targetY;
         int nearestDistance = std::numeric_limits<int>::max();
@@ -82,7 +85,7 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
             log_info("Reading layout offset {} previous {} content {} previousContent {} userScroll {} changedLayout {} sample {} anchor {} restoring {}",
                 scroll.scroll_offset.y, state.offset, scroll.content_size.y, state.contentHeight, userScroll, changedLayout,
                 sample ? sample->line : 0, document->anchor ? document->anchor->line : 0, document->restoreAnchor);
-        const bool applyingAnchor = document->restoreAnchor && document->anchor && targetY;
+        const bool applyingAnchor = !composing && document->restoreAnchor && document->anchor && targetY;
         if (applyingAnchor) {
             const float target = std::clamp(*targetY - document->anchor->viewportFraction * viewport.height,
                 0.f, std::max(0.f, scroll.content_size.y - viewport.height));
@@ -90,8 +93,22 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
             scroll.anchor_child = -1;
             if (std::getenv("FH_TRACE_READING")) log_info("Reading restore {} line {} column {} fraction {} target {} viewport {} content {}", document->anchor->path, document->anchor->line, document->anchor->column, document->anchor->viewportFraction, target, viewport.height, scroll.content_size.y);
             navigation::restored_anchor(*repo);
-        } else if (!revealing && sample && (!document->anchor || state.wasRevealing || state.offset != scroll.scroll_offset.y)) {
+        } else if (!composing && !revealing && sample && (!document->anchor || state.wasRevealing || state.offset != scroll.scroll_offset.y)) {
             navigation::remember_anchor(*repo, std::move(*sample));
+        }
+        if (composing && !userScroll && (changedLayout || state.revealEditor)) {
+            auto editor = afterhours::ui::UICollectionHolder::getEntityForID(state.editorEntity);
+            if (editor.valid() && editor->has<afterhours::ui::UIComponent>()) {
+                const auto rect = ui::screen_rect(**editor);
+                float delta = 0.f;
+                if (rect.y < viewport.y || rect.height > viewport.height) delta = rect.y - viewport.y;
+                else if (rect.y + rect.height > viewport.y + viewport.height)
+                    delta = rect.y + rect.height - viewport.y - viewport.height;
+                const auto offset = std::clamp(scroll.scroll_offset.y + delta, 0.f,
+                    std::max(0.f, scroll.content_size.y - viewport.height));
+                scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = offset;
+                scroll.anchor_child = -1;
+            }
         }
         state.wasRevealing = revealing && !applyingAnchor;
         state.previousDocument = document->id;

@@ -10,7 +10,7 @@ inline void render_comment_kind(UIContext<InputAction>& ctx, Entity& parent, int
         ecs::ReviewComponent& review, bool editing) {
     auto kind = editing ? review.editingCommentKind : review.composingKind;
     if (button(ctx, mk(parent, id), preset::Button(review_comment_kind_label(kind))
-            .with_size(ComponentSize{pixels(110), pixels(26)}).with_font_size(FontSize::Small)
+            .with_size(ComponentSize{pixels(110), pixels(26)}).with_font_size(pixels(12))
             .with_custom_background(theme::BUTTON_SECONDARY)
             .with_debug_name(editing ? "edit_comment_kind" : "compose_comment_kind"))) {
         std::vector<ContextMenuItem> choices;

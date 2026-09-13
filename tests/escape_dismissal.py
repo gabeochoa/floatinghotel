@@ -77,18 +77,21 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     def visible(name, control):
         return [n for n in json.loads((directory / f'{name}.json').read_text())['nodes'] if n.get('name') == control and n['rendered'] and not n['hidden'] and n['visible_rect']['width'] > 0 and n['visible_rect']['height'] > 0]
 
-    def identities(value):
-        return [{k: v for k, v in tab.items() if k != 'find'} for tab in value['tabs']]
+    def identities(value, keep_caret):
+        return [{k: v for k, v in tab.items() if k != 'find' and (keep_caret or k != 'caret')} for tab in value['tabs']]
 
     for before_name, after_name in [('before', 'after'), ('source', 'source_retained'), ('nested', 'picker_closed'), ('nested', 'find_closed'), ('nested', 'menu_closed'), ('nested', 'search_closed'), ('draft', 'composer_closed'), ('feedback', 'feedback_closed'), ('expanded_before', 'collapsed'), ('expanded_before', 'collapsed_escape'), ('expanded_before', 'expanded_after'), ('row_expands', 'shortcuts_closed'), ('document_closed', 'closed_stays_closed'), ('comparison_editor', 'comparison_cancelled'), ('comparison', 'comparison_retained')]:
         before, after = checkpoint(before_name), checkpoint(after_name)
-        assert before['active'] == after['active'] and before['history_index'] == after['history_index'] and identities(before) == identities(after), (zoom, after_name, 'Dismissal changed document')
+        assert before['active'] == after['active'] and before['history_index'] == after['history_index'] and identities(before, after_name != 'composer_closed') == identities(after, after_name != 'composer_closed'), (zoom, after_name, 'Dismissal changed document')
     assert visible('picker_closed', 'diff_find_input') and not visible('picker_closed', 'file_picker_input'), zoom
     assert not visible('find_closed', 'diff_find_input') and visible('find_closed', 'full_file_header'), zoom
     assert visible('preview_closed', 'repo_search_input') and not visible('preview_closed', 'repo_search_preview_close'), zoom
     assert not visible('search_closed', 'repo_search_input') and visible('search_closed', 'full_file_header'), zoom
     assert not checkpoint('composer_closed')['review']['composing'] and not visible('composer_closed', 'comment_input'), zoom
     assert checkpoint('draft_restored')['review']['draft'] == 'Escape keeps this draft', zoom
+    dismissed = checkpoint('composer_closed')
+    active = next(t for t in dismissed['tabs'] if t['id'] == dismissed['active'])
+    assert active['caret']['line'] == checkpoint('draft')['review']['composing_line'], (zoom, active)
     assert checkpoint('feedback_closed')['review']['comments'] == 1 and not visible('feedback_closed', 'basket_close'), zoom
     assert not visible('collapsed', 'content_tabs') and not visible('collapsed_escape', 'content_tabs'), zoom
     before = checkpoint('expanded_before')

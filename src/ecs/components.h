@@ -237,6 +237,8 @@ struct ReadingLayoutRow {
 
 struct ReadingLayout {
     int entity = -1;
+    int editorEntity = -1;
+    bool revealEditor = false;
     std::string key;
     std::string previousKey;
     reading::DocumentId previousDocument;
@@ -610,6 +612,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::set<std::string> foldedHunks;
     std::set<std::string> foldedFiles;
     // Inline compose state: the hunk currently being commented on + its buffer.
+    bool composingFocus = false;
     std::string composingKey;    // hunk key being commented, empty if none
     std::string composingText;   // in-progress comment text
     std::string composingFile;   // file the comment targets
@@ -673,6 +676,7 @@ inline void reset_review(ReviewComponent& review) {
     review.queue = {};
     review.foldedHunks.clear();
     review.foldedFiles.clear();
+    review.composingFocus = false;
     review.composingKey.clear();
     review.composingText.clear();
     review.composingFile.clear();
@@ -914,6 +918,7 @@ inline void dismiss_pending_comment(ReviewComponent& review) {
     if (review.composingKey.empty()) return;
     if (review.composingText.empty()) review.drafts.erase(review.composingKey);
     else review.drafts[review.composingKey] = pending_comment(review);
+    review.composingFocus = false;
     review.composingKey.clear();
     review.composingText.clear();
     review.dirty = true;
@@ -926,6 +931,7 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
         else review.drafts[review.composingKey] = pending_comment(review);
     }
     if (auto draft = review.drafts.find(key); draft != review.drafts.end()) location = draft->second;
+    review.composingFocus = true;
     review.composingKey = key;
     review.composingScope = location.scope;
     review.composingFile = location.file;
@@ -939,16 +945,15 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
     review.dirty = true;
 }
 
-// Commit the in-progress comment into the basket and auto-fold its hunk.
 inline void commit_pending_comment(ReviewComponent& r) {
     if (r.composingKey.empty()) return;
     if (!r.composingText.empty()) {
         r.comments.push_back(pending_comment(r));
-        r.foldedHunks.insert(r.composingKey);
         r.dirty = true;
     }
     r.drafts.erase(r.composingKey);
     r.dirty = true;
+    r.composingFocus = false;
     r.composingKey.clear();
     r.composingText.clear();
     r.composingFile.clear();

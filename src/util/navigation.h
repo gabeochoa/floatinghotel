@@ -34,6 +34,18 @@ struct navigation {
         }
     }
 
+    static void return_to_feedback(ecs::RepoComponent& repo, const ecs::ReviewComponent::Comment& comment) {
+        if (reading::scope(repo.workspace_.review()) != comment.scope) return;
+        focus_document(repo, reading::focus::Region::Code);
+        if (repo.workspace_.active() == reading::Slot::Source || comment.line <= 0 ||
+            (!repo.workspace_.review().file.empty() && repo.workspace_.review().file != comment.file)) return;
+        const auto side = comment.oldSide ? reading::DiffSide::Before : reading::DiffSide::After;
+        auto point = repo.workspace_.current().caret.value_or(reading::CodePosition{});
+        if (point.path != comment.file || point.side != side || point.line < comment.line ||
+            point.line > std::max(comment.line, comment.endLine)) point = {comment.file, side, comment.line, 1};
+        reveal_caret(repo, point, .15f);
+    }
+
     static void request_caret_page(ecs::RepoComponent& repo, ecs::FilePageRequest request,
                                    reading::CodePosition position, std::optional<reading::CodeMotion> motion = {}) {
         cancel_anchor(repo);

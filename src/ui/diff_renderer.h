@@ -43,6 +43,15 @@ namespace ui {
 inline void begin_diff_comment(ecs::ReviewComponent& review, const std::string& key,
     ecs::ReviewComponent::Comment location, const ecs::DiffHunk& hunk) {
     auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    if (repo) {
+        const auto& selection = repo->workspace().document(repo->workspace().active_id())->selection;
+        if (selection && selection->anchor.path == location.file)
+            if (const auto range = review_selection::range(*selection)) {
+                location.line = range->first;
+                location.endLine = range->last;
+                location.oldSide = range->oldSide;
+            }
+    }
     ecs::begin_comment(review, key, ecs::comment_with_context(std::move(location), hunk,
         repo ? repo->headCommitHash : ""));
 }
@@ -1215,7 +1224,6 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             sel->review->cursorApprove = false;
             sel->review->approvedHunks.insert(hkey);
             sel->review->dirty = true;
-            afterhours::toast::send_info(ctx, "Approved for review; index unchanged", 1.5f);
             if (!sel->review->showApproved) return;
         }
         if (isCursor && sel->review->cursorComment) {
@@ -1281,6 +1289,14 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 return review.storageScope == session ? &review : nullptr;
             };
             auto key = hkey;
+            const bool folded = sel->review->foldedHunks.contains(key);
+            items.push_back(ContextMenuItem::item(folded ? "Unfold hunk" : "Fold hunk", [currentReview, key, folded] {
+                if (auto* review = currentReview()) {
+                    if (folded) review->foldedHunks.erase(key);
+                    else review->foldedHunks.insert(key);
+                    review->dirty = true;
+                }
+            }));
             bool approved = sel->review->approvedHunks.contains(key);
             items.push_back(ContextMenuItem::item(approved ? "Unapprove hunk" : "Approve hunk", [currentReview, key, approved] {
                 auto* reviewPtr = currentReview();
@@ -1482,7 +1498,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         float addWidth = static_cast<float>(afterhours::graphics::measure_text(addLabel.c_str(),
             static_cast<int>(12.f * zoom::get()))) / zoom::get() + 24.f;
         auto previousDraft = sel->review->composingText;
-        ui::text_area(
+        auto input = ui::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composingText,
             ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 134.f)), pixels(editorH)})
@@ -1493,6 +1509,14 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_overflow(afterhours::ui::Overflow::Hidden)
                 .with_corner_radius(4.0f)
                 .with_debug_name("comment_input"));
+        if (sel->owner) {
+            sel->owner->reading.editorEntity = composeRow.ent().id;
+            sel->owner->reading.revealEditor = sel->review->composingFocus;
+        }
+        if (sel->review->composingFocus) {
+            focus_control(ctx, input.ent());
+            sel->review->composingFocus = false;
+        }
         if (previousDraft != sel->review->composingText) sel->review->dirty = true;
         render_comment_kind(ctx, composeRow.ent(), 2, *sel->review, false);
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
@@ -1500,16 +1524,18 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(addWidth), pixels(18)})
                 .with_font_size(pixels(12))
                 .with_debug_name("comment_add_btn"));
-        if (addBtn)
+        if (addBtn) {
+            const auto comment = ecs::pending_comment(*sel->review);
             ecs::commit_pending_comment(*sel->review);
+            if (sel->owner && !comment.text.empty()) navigation::return_to_feedback(*sel->owner, comment);
+        }
     }
 
-    // Folded (commented) hunks collapse — show a marker instead of the lines.
     if (reviewOn && sel->review->foldedHunks.count(hkey)) {
         if (vp) { vp->flush(ctx, parent, nextId); vp->built(20.0f); }
         auto expand = button(ctx, mk(parent, nextId++),
             ComponentConfig{}.with_skip_grid_snap()
-                .with_label("\xe2\x9c\x8e commented \xc2\xb7 click to expand")
+                .with_label("Folded hunk · click to expand")
                 .with_size(ComponentSize{w, pixels(20)})
                 .with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_font_size(pixels(12))

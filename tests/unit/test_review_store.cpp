@@ -486,6 +486,25 @@ TEST(queue_completion_stale_uses_loaded_default_commit_verdict) {
     ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
 }
 
+TEST(dismissed_range_draft_reopens_and_saves_without_folding_code) {
+    ecs::ReviewComponent review;
+    ecs::begin_comment(review, "hunk", {"wt", "a.cpp", 5, "", 6, true});
+    review.composingText = "Keep this range visible";
+    ecs::dismiss_pending_comment(review);
+    ASSERT_TRUE(review.composingKey.empty());
+    ASSERT_EQ(review.drafts.at("hunk").text, "Keep this range visible");
+    ecs::begin_comment(review, "hunk", {});
+    ASSERT_EQ(review.composingLine, 5);
+    ASSERT_EQ(review.composingEndLine, 6);
+    ASSERT_TRUE(review.composingOldSide);
+    ecs::commit_pending_comment(review);
+    ASSERT_EQ(review.comments.size(), size_t{1});
+    ASSERT_EQ(review.comments.front().text, "Keep this range visible");
+    ASSERT_TRUE(review.foldedHunks.empty());
+    ASSERT_TRUE(review.approvedHunks.empty());
+    ASSERT_TRUE(review.drafts.empty());
+}
+
 int main() {
     afterhours::files::init("floatinghotel_test", "resources");
     printf("=== review_store tests ===\n");
