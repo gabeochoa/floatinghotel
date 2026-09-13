@@ -1,0 +1,39 @@
+[INFO] Process start to main: 32 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 2 ms
+[INFO]   Window+GPU init: 99 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 1 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 101 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 131 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 264 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 264 ms
+[INFO] git: 358 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 1 commits, 362 ms after refresh requested, 499 ms since process start
+[INFO] git: 294 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 428 ms
+[INFO] git: 228 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 494 ms
+[INFO] git: 175 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 534 ms
+[INFO] git: 166 ms (waited 0 ms for lock): git grep
+[INFO] git: 166 ms (waited 0 ms for lock): git grep
+[INFO] git: 126 ms (waited 0 ms for lock): git grep
+[INFO] E2E finished in 0.52 seconds

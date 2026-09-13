@@ -391,6 +391,8 @@ public:
     std::uint64_t repoSearchGeneration = 0;
     std::uint64_t repoSearchRequestGeneration = 0;
     std::string repoSearchSubmittedQuery;
+    std::array<std::string, 3> repoSearchObservedText;
+    std::optional<std::chrono::steady_clock::time_point> repoSearchDue;
     std::optional<size_t> repoSearchSelected;
     float repoSearchScroll = 0.f;
     bool repoSearchRestoreScroll = true;

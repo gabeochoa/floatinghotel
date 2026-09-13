@@ -55,12 +55,13 @@ inline void close_repo_search(RepoComponent& repo, LayoutComponent& layout) {
         if (point.popup == reading::focus::Popup::Search && point.generation != repo.workspace().generation())
             repo.readingFocusDocument = repo.workspace().active_id();
     repo.repoSearchOpen = repo.repoSearchPreviewOpen = false;
+    if (repo.repoSearchFuture.valid()) repo.repoSearchDue = std::chrono::steady_clock::now();
     repo.repoSearchFuture = {};
     repo.repoSearchPreviewFuture = {};
     repo.repoSearchRestoreScroll = true;
 }
 
-inline void start_repo_search(RepoComponent& repo) {
+inline void clear_repo_search(RepoComponent& repo) {
     repo.repoSearchFuture = {};
     repo.repoSearchPreviewFuture = {};
     repo.repoSearchPreviewOpen = false;
@@ -71,6 +72,11 @@ inline void start_repo_search(RepoComponent& repo) {
     repo.repoSearchError.clear();
     repo.repoSearchTruncated = false;
     repo.repoSearchCapturedBytes = 0;
+}
+
+inline void start_repo_search(RepoComponent& repo) {
+    clear_repo_search(repo);
+    repo.repoSearchDue.reset();
     repo.repoSearchPath = repo.repoPath;
     repo.repoSearchSubmittedQuery = repo.repoSearchQuery;
     repo.repoSearchRequestGeneration = ++repo.repoSearchGeneration;
@@ -93,26 +99,6 @@ struct RepoSearchScrollOwner : afterhours::BaseComponent { int repository = -1; 
 inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout, float width, float height) {
     ui::bind_focus_region(parent, repo, reading::focus::Region::Search);
-    using namespace std::chrono_literals;
-    if (repo.repoSearchPreviewFuture.valid() && repo.repoSearchPreviewFuture.wait_for(0s) == std::future_status::ready) {
-        auto result = repo.repoSearchPreviewFuture.get();
-        if (repo.repoSearchPath == repo.repoPath && repo.repoSearchPreview.match.file == result.match.file &&
-            repo.repoSearchPreview.match.revision == result.match.revision && repo.repoSearchPreview.match.line == result.match.line)
-            repo.repoSearchPreview = std::move(result);
-        repo.repoSearchPreviewFuture = {};
-    }
-    if (repo.repoSearchFuture.valid() && repo.repoSearchFuture.wait_for(0s) == std::future_status::ready) {
-        auto result = repo.repoSearchFuture.get();
-        repo.repoSearchFuture = {};
-        if (repo.repoSearchPath == repo.repoPath && repo.repoSearchRequestGeneration == repo.repoSearchGeneration &&
-            repo.repoSearchSubmittedQuery == repo.repoSearchQuery) {
-            repo.repoSearchError = std::move(result.error);
-            repo.repoSearchScope.revision = std::move(result.revision);
-            repo.repoSearchResults = std::move(result.matches);
-            repo.repoSearchTruncated = result.truncated;
-            repo.repoSearchCapturedBytes = result.capturedBytes;
-        }
-    }
     auto heading = div(ctx, mk(parent, 587000), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_flex_direction(FlexDirection::Row));
     div(ctx, mk(heading.ent(), 0), ComponentConfig{}.with_label("Search")
@@ -182,8 +168,43 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         }
     }
     if (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(257)) submit = true;
-    if (submit && !repo.repoSearchQuery.empty()) start_repo_search(repo);
-    std::string status = repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchResults.empty() ? "No matches" :
+    const auto now = std::chrono::steady_clock::now();
+    const std::array text{repo.repoSearchQuery, repo.repoSearchIncludeGlob, repo.repoSearchExcludeGlob};
+    if (text != repo.repoSearchObservedText) {
+        repo.repoSearchObservedText = text;
+        clear_repo_search(repo);
+        repo.repoSearchDue = repo.repoSearchQuery.empty() ? std::nullopt
+            : std::optional{now + std::chrono::milliseconds(150)};
+    }
+    if (!repo.repoSearchQuery.empty() && (submit || (repo.repoSearchDue && now >= *repo.repoSearchDue))) {
+        if (std::getenv("FH_TRACE_READING")) {
+            const auto delay = repo.repoSearchDue ? std::chrono::duration<double, std::milli>(
+                now - *repo.repoSearchDue + std::chrono::milliseconds(150)).count() : 0.;
+            log_info("search_submit: reason={} delay_ms={:.2f} query={}", submit ? "explicit" : "pause", delay, repo.repoSearchQuery);
+        }
+        start_repo_search(repo);
+    }
+    using namespace std::chrono_literals;
+    if (repo.repoSearchPreviewFuture.valid() && repo.repoSearchPreviewFuture.wait_for(0s) == std::future_status::ready) {
+        auto result = repo.repoSearchPreviewFuture.get();
+        if (repo.repoSearchPath == repo.repoPath && repo.repoSearchPreview.match.file == result.match.file &&
+            repo.repoSearchPreview.match.revision == result.match.revision && repo.repoSearchPreview.match.line == result.match.line)
+            repo.repoSearchPreview = std::move(result);
+        repo.repoSearchPreviewFuture = {};
+    }
+    if (repo.repoSearchFuture.valid() && repo.repoSearchFuture.wait_for(0s) == std::future_status::ready) {
+        auto result = repo.repoSearchFuture.get();
+        repo.repoSearchFuture = {};
+        if (repo.repoSearchPath == repo.repoPath && repo.repoSearchRequestGeneration == repo.repoSearchGeneration &&
+            repo.repoSearchSubmittedQuery == repo.repoSearchQuery) {
+            repo.repoSearchError = std::move(result.error);
+            repo.repoSearchScope.revision = std::move(result.revision);
+            repo.repoSearchResults = std::move(result.matches);
+            repo.repoSearchTruncated = result.truncated;
+            repo.repoSearchCapturedBytes = result.capturedBytes;
+        }
+    }
+    std::string status = repo.repoSearchDue ? "Waiting for typing..." : repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchQuery.empty() ? "Search repository contents" : repo.repoSearchResults.empty() ? "No matches" :
         std::to_string(repo.repoSearchResults.size()) + " matches";
     if (!repo.repoSearchFuture.valid() && repo.repoSearchTruncated) status += " · limit reached";
     if (!repo.repoSearchError.empty()) status = repo.repoSearchError;

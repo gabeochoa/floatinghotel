@@ -1,0 +1,7 @@
+PASS 100%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+PASS 140%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/tests/search_debounce.py", line 85, in <module>
+    assert starts == ['NEEDLE', 'OLD', 'NEW', 'NEW', 'LIMIT', 'NEEDLE'], starts
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ['NEEDLE', 'NEW', 'NEW', 'LIMIT', 'NEEDLE']

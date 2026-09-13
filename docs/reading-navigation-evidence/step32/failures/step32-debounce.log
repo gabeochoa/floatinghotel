@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/tests/search_debounce.py", line 88, in <module>
+    assert any(e['query'] == 'OLD' and e['event'] == 'cancel' for e in events), events
+           ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: [{'event': 'start', 'query': 'NEEDLE', 'time': 840108.777735458}, {'event': 'start', 'query': 'OLD', 'time': 840109.039315958}, {'event': 'start', 'query': 'NEW', 'time': 840109.268712541}, {'event': 'start', 'query': 'NEW', 'time': 840109.881901375}, {'event': 'start', 'query': 'LIMIT', 'time': 840110.16399}, {'event': 'start', 'query': 'NEEDLE', 'time': 840110.643801083}]
