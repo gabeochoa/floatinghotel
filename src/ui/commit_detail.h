@@ -131,7 +131,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     int nextId = 3050;
     constexpr float PAD = 16.0f;
-    constexpr float LABEL_W = 70.0f;
     float contentW = layout.mainContent.width;
     float controlsHeight = ui::diff_controls_height(contentW, layout.diffOptionsOpen,
         true, !detailCache.commitDetailDiff.empty());
@@ -199,6 +198,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     auto metadataHeader = div(ctx, mk(scrollContainer.ent(), 593012), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row)
         .with_align_items(AlignItems::Center).with_no_wrap().with_gap(pixels(6))
+        .with_padding(Padding{.right = pixels(8)})
         .with_debug_name("commit_meta_compact"));
     auto metadataWidth = [&](const std::string& text, float size) {
         return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
@@ -215,29 +215,23 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         .with_size(ComponentSize{pixels(metadataWidth(relativeDate, 14.f)), pixels(28)}).with_font_size(pixels(14))
         .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_relative_date"));
     ui::set_tooltip(date.ent(), selectedCommit->authorDate);
-    auto hash = div(ctx, mk(metadataHeader.ent(), 3), ComponentConfig{}
-        .with_label("· " + selectedCommit->hash.substr(0, 7))
-        .with_size(ComponentSize{pixels(84), pixels(28)}).with_font("mono", pixels(13))
-        .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("commit_short_hash"));
-    ui::set_tooltip(hash.ent(), selectedCommit->hash);
     const auto decorations = cdv::parse_decorations(selectedCommit->decorations);
     if (!decorations.empty() && contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 4),
         preset::Button(decorations.front().label).with_size(ComponentSize{
             pixels(std::min(100.f, metadataWidth(decorations.front().label, 12.f) + 8.f)), pixels(22)})
             .with_transparent_bg().with_border(theme::BORDER, pixels(1)).with_font_size(pixels(12))
+            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_compact_badge"));
     if (contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 5), ComponentConfig{}
         .with_size(ComponentSize{expand(), pixels(28)}));
-    if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(layout.commitMetadataExpanded ? "Less detail" : "Details")
+    bool detailsExpanded = repo.workspace().document(repo.workspace().active_id())->detailsExpanded;
+    if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(detailsExpanded ? "Less detail" : "Details")
         .with_size(ComponentSize{pixels(80), pixels(28)}).with_transparent_bg()
         .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(13)).with_debug_name("commit_meta_toggle")))
-        layout.commitMetadataExpanded = !layout.commitMetadataExpanded;
-
-    if (!detailCache.commitDetailBody.empty() && button(ctx, mk(metadataHeader.ent(), 593011),
-            preset::Button(detailCache.messageExpanded ? "Less" : "Full message")
-                .with_size(ComponentSize{pixels(96), pixels(26)}).with_font_size(pixels(13))
-                .with_transparent_bg().with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_debug_name("commit_message_toggle"))) detailCache.messageExpanded = !detailCache.messageExpanded;
+    {
+        navigation::toggle_commit_details(repo);
+        detailsExpanded = !detailsExpanded;
+    }
 
     // While reviewing, comments on a commit's hunks are scoped to its SHA and
     // meant to be applied as fixups — make that explicit (mock's fixup banner).
@@ -261,14 +255,69 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_debug_name("commit_fixup_banner"));
     }
 
+    std::istringstream parentStream(detailCache.commitDetailParents);
+    std::vector<std::string> parents;
+    for (std::string hash; parentStream >> hash;) parents.push_back(std::move(hash));
+    if (parents.size() > 1) {
+        auto chosen = std::find(parents.begin(), parents.end(), selectedParent);
+        size_t index = chosen == parents.end() ? 0 : static_cast<size_t>(chosen - parents.begin());
+        if (button(ctx, mk(scrollContainer.ent(), nextId++), preset::Button("Compare against parent " + std::to_string(index + 1) + " · " + parents[index].substr(0, 12))
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_debug_name("merge_parent_select"))) {
+            std::vector<ui::ContextMenuItem> choices;
+            for (size_t i = 0; i < parents.size(); ++i)
+                choices.push_back(ui::ContextMenuItem::item("Parent " + std::to_string(i + 1) + " · " + parents[i].substr(0, 12),
+                    [path = repo.repoPath, commit = repo.selectedCommitHash(), hash = i == 0 ? "" : parents[i]] {
+                        auto* active = find_singleton<RepoComponent, ActiveTab>();
+                        if (active && active->repoPath == path && active->selectedCommitHash() == commit) {
+                            navigation::open(*active, reading::review(hash.empty() ? commit : "parent:" + hash + ":" + commit));
+                        }
+                    }));
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+        }
+    }
+
     detailCache.messageVisibleRows = 0;
-    if (!detailCache.commitDetailBody.empty() && detailCache.messageExpanded) {
+    if (detailsExpanded) {
+        const bool stacked = contentW < 520.f;
+        auto metadata = div(ctx, mk(scrollContainer.ent(), 593020), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{pixels(std::max(1.f, std::min(contentW - PAD * 2.f, 680.f))), children()})
+            .with_flex_direction(FlexDirection::Column).with_no_wrap().with_gap(pixels(6))
+            .with_padding(Padding{.top = pixels(10), .right = pixels(PAD), .bottom = pixels(10), .left = pixels(PAD)})
+            .with_margin(Margin{.top = pixels(8), .bottom = pixels(8), .left = pixels(PAD)})
+            .with_custom_background(theme::SIDEBAR_BG).with_border(theme::BORDER, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(theme::layout::RADIUS_BOX)
+            .with_debug_name("commit_meta_box"));
+        auto metadataRow = [&](int id, const std::string& label, const std::string& value) {
+            auto row = div(ctx, mk(metadata.ent(), id), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), children()}).with_skip_grid_snap()
+                .with_flex_direction(stacked ? FlexDirection::Column : FlexDirection::Row)
+                .with_no_wrap().with_gap(pixels(4)).with_debug_name("meta_row"));
+            div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(label)
+                .with_size(ComponentSize{stacked ? percent(1.f) : pixels(70), pixels(18)})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_alignment(TextAlignment::Left).with_debug_name("meta_label"));
+            auto text = div(ctx, mk(row.ent(), 1), ComponentConfig{}.with_label(value)
+                .with_size(ComponentSize{stacked ? percent(1.f) : expand(), children()})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
+                .with_debug_name("meta_value"));
+            ui::set_tooltip(text.ent(), value);
+        };
+        metadataRow(0, "Commit:", selectedCommit->hash);
+        metadataRow(1, "Author:", selectedCommit->author + (detailCache.commitDetailAuthorEmail.empty() ? "" :
+            " <" + detailCache.commitDetailAuthorEmail + ">"));
+        metadataRow(2, "Date:", selectedCommit->authorDate);
+        if (!detailCache.commitDetailParents.empty()) metadataRow(3, "Parents:", detailCache.commitDetailParents);
+        if (!selectedCommit->decorations.empty()) metadataRow(4, "Refs:", selectedCommit->decorations);
+    }
+    if (detailsExpanded) {
         float bodyWidth = std::max(80.f, contentW - PAD * 2.f - 16.f) * ui::zoom::get();
         float fontSize = 14.f * ui::zoom::get();
         if (detailCache.messageLines.empty() || detailCache.messageWrapWidth != bodyWidth || detailCache.messageFontSize != fontSize) {
             auto& fonts = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::FontManager>();
             const auto font = fonts.get_active_font();
-            detailCache.messageLines = wrap_measured_text(detailCache.commitDetailBody, bodyWidth,
+            const auto message = selectedCommit->subject + (detailCache.commitDetailBody.empty() ? "" : "\n\n" + detailCache.commitDetailBody);
+            detailCache.messageLines = wrap_measured_text(message, bodyWidth,
                 [&](const std::string& text) { return afterhours::measure_text(font, text.c_str(), fontSize, 1.f).x; });
             detailCache.messageWrapWidth = bodyWidth;
             detailCache.messageFontSize = fontSize;
@@ -312,189 +361,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_size(ComponentSize{percent(1.f), pixels(static_cast<float>(count - last) * 18.f)}));
     }
 
-    std::istringstream parentStream(detailCache.commitDetailParents);
-    std::vector<std::string> parents;
-    for (std::string hash; parentStream >> hash;) parents.push_back(std::move(hash));
-    if (parents.size() > 1) {
-        auto chosen = std::find(parents.begin(), parents.end(), selectedParent);
-        size_t index = chosen == parents.end() ? 0 : static_cast<size_t>(chosen - parents.begin());
-        if (button(ctx, mk(scrollContainer.ent(), nextId++), preset::Button("Compare against parent " + std::to_string(index + 1) + " · " + parents[index].substr(0, 12))
-                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_debug_name("merge_parent_select"))) {
-            std::vector<ui::ContextMenuItem> choices;
-            for (size_t i = 0; i < parents.size(); ++i)
-                choices.push_back(ui::ContextMenuItem::item("Parent " + std::to_string(i + 1) + " · " + parents[i].substr(0, 12),
-                    [path = repo.repoPath, commit = repo.selectedCommitHash(), hash = i == 0 ? "" : parents[i]] {
-                        auto* active = find_singleton<RepoComponent, ActiveTab>();
-                        if (active && active->repoPath == path && active->selectedCommitHash() == commit) {
-                            navigation::open(*active, reading::review(hash.empty() ? commit : "parent:" + hash + ":" + commit));
-                        }
-                    }));
-            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
-        }
-    }
-
-    if (layout.commitMetadataExpanded) {
-        float cardW = std::min(contentW - PAD * 2.0f, 680.0f);
-        if (cardW < 160.0f) cardW = std::max(contentW - PAD * 2.0f, 120.0f);
-        float metaValueW = cardW - PAD * 2.0f - LABEL_W - 8.0f;
-        if (metaValueW < 100.0f) metaValueW = 100.0f;
-
-        auto metaBox = div(ctx, mk(scrollContainer.ent(), nextId++),
-            ComponentConfig{}.with_skip_grid_snap()
-                .with_size(ComponentSize{pixels(cardW), children()})
-                .with_custom_background(theme::SIDEBAR_BG)
-                .with_flex_direction(FlexDirection::Column)
-                .with_no_wrap()
-                .with_padding(Padding{
-                    .top = pixels(10), .right = pixels(PAD),
-                    .bottom = pixels(10), .left = pixels(PAD)})
-                .with_margin(Margin{
-                    .top = pixels(8), .bottom = pixels(8),
-                    .left = pixels(PAD), .right = {}})
-                .with_border(theme::BORDER, pixels(1.0f))
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_corner_radius(theme::layout::RADIUS_BOX)
-                .with_debug_name("commit_meta_box"));
-
-        auto metaRow = [&](const std::string& label, const std::string& value,
-                           afterhours::Color valueColor = theme::TEXT_PRIMARY) {
-            auto row = div(ctx, mk(metaBox.ent(), nextId++),
-                ComponentConfig{}.with_skip_grid_snap()
-                    .with_size(ComponentSize{percent(1.0f), children()})
-                    .with_flex_direction(FlexDirection::Row)
-                    .with_align_items(AlignItems::Center)
-                    .with_transparent_bg()
-                    .with_roundness(0.0f)
-                    .with_debug_name("meta_row"));
-
-            div(ctx, mk(row.ent(), 1),
-                ComponentConfig{}.with_skip_grid_snap()
-                    .with_label(label)
-                    .with_size(ComponentSize{pixels(LABEL_W), children()})
-                    .with_transparent_bg()
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(12))
-                    .with_alignment(TextAlignment::Right)
-                    .with_padding(Padding{
-                        .top = pixels(2), .right = pixels(8),
-                        .bottom = pixels(2), .left = {}})
-                    .with_roundness(0.0f)
-                    .with_debug_name("meta_label"));
-
-            div(ctx, mk(row.ent(), 2),
-                ComponentConfig{}.with_skip_grid_snap()
-                    .with_label(value)
-                    .with_size(ComponentSize{pixels(metaValueW), children()})
-                    .with_transparent_bg()
-                    .with_custom_text_color(valueColor)
-                    .with_font_size(pixels(12))
-                    .with_alignment(TextAlignment::Left)
-                    .with_padding(Padding{
-                        .top = pixels(2), .bottom = pixels(2)})
-                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                    .with_roundness(0.0f)
-                    .with_debug_name("meta_value"));
-        };
-
-        metaRow("Commit:", selectedCommit->hash, theme::TEXT_SECONDARY);
-
-        std::string authorStr = selectedCommit->author;
-        if (!detailCache.commitDetailAuthorEmail.empty()) {
-            authorStr += " <" + detailCache.commitDetailAuthorEmail + ">";
-        }
-        metaRow("Author:", authorStr);
-
-        std::string dateStr = selectedCommit->authorDate;
-        if (dateStr.size() >= 16 && dateStr[10] == 'T') {
-            dateStr = dateStr.substr(0, 10) + " " + dateStr.substr(11, 5);
-        }
-        std::string relTime =
-            git_helpers::relative_time(selectedCommit->authorDate, true);
-        if (!relTime.empty()) {
-            dateStr += " (" + relTime + ")";
-        }
-        metaRow("Date:", dateStr);
-
-        if (!detailCache.commitDetailParents.empty()) {
-            std::string parentDisplay;
-            std::string remaining = detailCache.commitDetailParents;
-            while (!remaining.empty()) {
-                size_t sp = remaining.find(' ');
-                std::string hash;
-                if (sp != std::string::npos) {
-                    hash = remaining.substr(0, sp);
-                    remaining = remaining.substr(sp + 1);
-                } else {
-                    hash = remaining;
-                    remaining.clear();
-                }
-                if (!parentDisplay.empty()) parentDisplay += ", ";
-                parentDisplay += hash.substr(0, 7);
-            }
-            metaRow("Parents:", parentDisplay, theme::BUTTON_PRIMARY);
-        }
-
-        if (!selectedCommit->decorations.empty()) {
-            auto badgeRow = div(ctx, mk(metaBox.ent(), nextId++),
-                ComponentConfig{}.with_skip_grid_snap()
-                    .with_size(ComponentSize{percent(1.0f), children()})
-                    .with_flex_direction(FlexDirection::Row)
-                    .with_align_items(AlignItems::Center)
-                    .with_gap(pixels(4))
-                    .with_transparent_bg()
-                    .with_roundness(0.0f)
-                    .with_debug_name("meta_badge_row"));
-
-            div(ctx, mk(badgeRow.ent(), 1),
-                ComponentConfig{}.with_skip_grid_snap()
-                    .with_label("Refs:")
-                    .with_size(ComponentSize{pixels(LABEL_W), children()})
-                    .with_transparent_bg()
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(12))
-                    .with_alignment(TextAlignment::Right)
-                    .with_padding(Padding{
-                        .top = pixels(2), .right = pixels(8),
-                        .bottom = pixels(2), .left = {}})
-                    .with_roundness(0.0f)
-                    .with_debug_name("refs_label"));
-
-            auto badges = cdv::parse_decorations(selectedCommit->decorations);
-            int badgeId = 20;
-            for (auto& badge : badges) {
-                afterhours::Color bg, text;
-                switch (badge.type) {
-                    case cdv::DecorationType::Head:
-                        bg = theme::BADGE_HEAD_BG;
-                        text = afterhours::Color{255, 255, 255, 255};
-                        break;
-                    case cdv::DecorationType::LocalBranch:
-                        bg = theme::BADGE_BRANCH_BG;
-                        text = afterhours::Color{255, 255, 255, 255};
-                        break;
-                    case cdv::DecorationType::RemoteBranch:
-                        bg = theme::BADGE_REMOTE_BG;
-                        text = afterhours::Color{255, 255, 255, 255};
-                        break;
-                    case cdv::DecorationType::Tag:
-                        bg = theme::BADGE_TAG_BG;
-                        text = theme::BADGE_TAG_TEXT;
-                        break;
-                    default:
-                        bg = theme::BADGE_TAG_BG;
-                        text = theme::BADGE_TAG_TEXT;
-                        break;
-                }
-
-                div(ctx, mk(badgeRow.ent(), badgeId++),
-                    preset::Badge(badge.label, bg, text)
-                        .with_debug_name("commit_dec_badge"));
-            }
-        }
-
-    }
-
-    if (layout.commitMetadataExpanded || detailCache.messageExpanded) div(ctx, mk(scrollContainer.ent(), nextId++),
+    if (detailsExpanded) div(ctx, mk(scrollContainer.ent(), nextId++),
         ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.0f), pixels(1)})
             .with_custom_background(theme::BORDER)

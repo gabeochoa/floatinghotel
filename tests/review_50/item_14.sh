@@ -10,5 +10,5 @@ awk 'BEGIN { print "Large expanded message\n"; for(i=1;i<=10000;i++) print "Mess
   git -C "$message_repo" -c user.name=Test -c user.email=test@example.invalid commit -q -F -
 output/floatinghotel.exe "$message_repo" --test-mode --headless \
   --test-script=tests/review_50/item_14.e2e \
-  --screenshot-dir=output/screenshots/review-50 --e2e-timeout=60
-bash tests/check_commit_message.sh
+  --screenshot-dir="${FH_EVIDENCE_DIR:-output/screenshots/review-50}" --e2e-timeout=60
+bash tests/check_commit_message.sh "${FH_EVIDENCE_DIR:-output/screenshots/review-50}/short"

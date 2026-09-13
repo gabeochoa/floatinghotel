@@ -26,7 +26,6 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.reviewTab = LayoutComponent::ReviewTab::ToReview;
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
-    layout.commitMetadataExpanded = false;
     layout.shortcutsOpen = false;
     layout.visibleWhitespace = false;
     // A script that drags the divider otherwise hands its last width to every

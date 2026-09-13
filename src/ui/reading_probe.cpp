@@ -146,6 +146,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                     value["revision"] = reading::scope(review);
                     value["path"] = review.file;
                 }
+                value["details_expanded"] = tab.detailsExpanded;
                 value["find"] = {{"open", tab.find.open}, {"query", tab.find.query}, {"index", tab.find.index}};
                 if (tab.find.position) value["find"]["position"] = {
                     {"path", tab.find.position->path}, {"line", tab.find.position->line},

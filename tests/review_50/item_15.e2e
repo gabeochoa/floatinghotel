@@ -41,7 +41,7 @@ expect_p99_below 15
 validate message_rows_bounded=true
 validate patch_cache_bounded=true
 validate patch_cache_populated=true
-click_ui commit_message_toggle
+click_ui commit_meta_toggle
 wait_frames 10
 bench_frames 120
 expect_p99_below 20

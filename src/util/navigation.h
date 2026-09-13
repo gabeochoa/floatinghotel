@@ -8,6 +8,12 @@
 
 struct navigation {
 
+    static void toggle_commit_details(ecs::RepoComponent& repo) {
+        auto& document = repo.workspace_.current();
+        document.detailsExpanded = !document.detailsExpanded;
+        cancel_anchor(repo);
+    }
+
     static reading::FindState& find(ecs::RepoComponent& repo) { return repo.workspace_.current().find; }
 
     static void focus_document(ecs::RepoComponent& repo, reading::focus::Region region = reading::focus::Region::DocumentTabs) {

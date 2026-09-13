@@ -213,6 +213,7 @@ struct Document {
     bool restoreAnchor = false;
     bool unresolvedSavedRevision = false;
     FindState find;
+    bool detailsExpanded = false;
 };
 
 class ReadingWorkspace {

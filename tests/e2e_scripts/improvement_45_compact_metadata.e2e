@@ -14,4 +14,4 @@ assert_ui commit_meta_box hidden=false
 click_ui commit_meta_toggle
 screenshot improvement_45_collapsed
 expect_no_text "Author:"
-expect_text "Show details"
+expect_text "Details"

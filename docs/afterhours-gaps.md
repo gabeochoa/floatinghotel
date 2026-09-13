@@ -2207,3 +2207,13 @@ item so empty hunk headers cannot substitute for the code viewport. A semantic f
 an ancestor's identity from the region's eligible focus destination. Document
 viewers, game inventories, and composite inspectors would benefit from that
 contract without adding click handlers to decorative children.
+
+### Scroll content needs a reserved scrollbar gutter
+
+Step 39's Details control fit its parent geometry but its right focus border
+overlapped the scrollbar. The app reserves eight logical pixels in the metadata
+row. A scroll-container content-inset API would let inspectors, inventories, and
+readers reserve that space consistently without each child knowing scrollbar
+width. The expanded metadata card's oversized corners were an app configuration
+omission, fixed with the existing explicit corner-radius API. Evidence is in
+`docs/reading-navigation-evidence/step39`.

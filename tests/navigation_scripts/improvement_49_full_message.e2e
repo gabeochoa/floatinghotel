@@ -5,8 +5,8 @@ wait_for_refresh
 screenshot improvement_49_preview
 expect_no_text "Message line 1"
 expect_no_text FULL_MESSAGE_END
-expect_text "Full message"
-click_ui commit_message_toggle
+expect_text "Details"
+click_ui commit_meta_toggle
 screenshot improvement_49_expanded
 expect_text "Message line 1"
 mouse_move 900 400
@@ -18,7 +18,7 @@ expect_text "File beneath the full message"
 scroll_wheel 0 100
 wait_frames 30
 screenshot improvement_49_top
-click_ui commit_message_toggle
+click_ui commit_meta_toggle
 screenshot improvement_49_collapsed
 expect_no_text FULL_MESSAGE_END
-expect_text "Full message"
+expect_text "Details"

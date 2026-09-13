@@ -500,7 +500,6 @@ struct CommitDetailRuntime {
     bool cachedIgnoreWhitespace = false;
     std::vector<FileDiff> commitDetailDiff;
     std::string commitDetailBody;
-    bool messageExpanded = false;
     float messageWrapWidth = 0.f;
     float messageFontSize = 0.f;
     std::vector<std::string> messageLines;
@@ -1018,7 +1017,6 @@ struct LayoutComponent : public afterhours::BaseComponent {
 
     enum class DiffViewMode { Inline, SideBySide };
     DiffViewMode diffViewMode = DiffViewMode::Inline;
-    bool commitMetadataExpanded = false;
     bool diffOptionsOpen = false;
     bool shortcutsOpen = false;
 

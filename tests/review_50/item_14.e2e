@@ -3,7 +3,7 @@ wait_for_refresh
 click_text "Large expanded message"
 wait_for_refresh
 screenshot item_14_preview
-click_ui commit_message_toggle
+click_ui commit_meta_toggle
 screenshot item_14_expanded
 expect_text "Message line 1"
 expect_no_text FULL_MESSAGE_END
@@ -20,6 +20,6 @@ wait_frames 30
 screenshot item_14_return
 expect_text "Message line 1"
 validate message_rows_bounded=true
-click_ui commit_message_toggle
+click_ui commit_meta_toggle
 screenshot item_14_collapsed
 expect_no_text FULL_MESSAGE_END
