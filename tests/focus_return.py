@@ -66,7 +66,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
         return [n for n in data['nodes'] if n['focused'] and n['rendered'] and not n['hidden']]
 
     for name, control, region in [('picker', 'file_picker_input', 'Picker'), ('find', 'diff_find_input', 'Find'),
-        ('picker_return', 'content_document_2', 'DocumentTabs'), ('find_return', 'content_document_2', 'DocumentTabs'),
+        ('picker_return', 'content_document_2', 'DocumentTabs'), ('find_return', 'commit_detail_scroll', 'Code'),
         ('tree_return', 'commit_file_filter', 'Tree'), ('history_return', 'commit_row', 'History'),
         ('menu_return', 'open_tabs_menu', 'DocumentTabs'), ('inactive_menu_return', 'content_document_1', 'DocumentTabs'),
         ('preview_return', 'repo_search_preview', 'Search'), ('search_return', 'content_document_2', 'DocumentTabs'),

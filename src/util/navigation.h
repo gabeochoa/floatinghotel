@@ -8,6 +8,32 @@
 
 struct navigation {
 
+    static reading::FindState& find(ecs::RepoComponent& repo) { return repo.workspace_.current().find; }
+
+    static void focus_document(ecs::RepoComponent& repo, reading::focus::Region region = reading::focus::Region::DocumentTabs) {
+        const auto id = repo.workspace_.active_id();
+        repo.readingFocus = reading::focus::Target{repo.repoPath, id, region, region == reading::focus::Region::Code ? "viewport" : "",
+            region == reading::focus::Region::DocumentTabs ? "content_document_" + std::to_string(id.value) : ""};
+    }
+
+    static void open_find(ecs::RepoComponent& repo, std::string seed = {}, std::optional<reading::ReadingAnchor> position = {}) {
+        auto& state = find(repo);
+        state.open = state.focus = true;
+        state.navigate = false;
+        if (!seed.empty()) {
+            state.query = std::move(seed);
+            state.index = 0;
+            state.position = std::move(position);
+        }
+    }
+
+    static void close_find(ecs::RepoComponent& repo) {
+        auto& state = find(repo);
+        state.open = state.focus = state.navigate = false;
+        focus_document(repo, reading::focus::Region::Code);
+    }
+
+
     static reading::RequestStamp stamp(const ecs::RepoComponent& repo, std::string key) {
         return {repo.repoPath, repo.workspace_.location(), std::move(key), repo.workspace_.generation(), repo.dataGeneration};
     }
@@ -259,10 +285,10 @@ struct navigation {
         repo.workspace_.keep(id);
     }
 
-    static void preview(ecs::RepoComponent& repo, reading::Location location) {
-        open(repo, std::move(location), {}, reading::OpenMode::Preview);
+    static void preview(ecs::RepoComponent& repo, reading::Location location, std::optional<reading::ReadingAnchor> anchor = {}) {
+        open(repo, std::move(location), {}, reading::OpenMode::Preview, std::move(anchor));
         repo.navigationEffect->focus = reading::FocusPolicy::Caller;
-        repo.readingFocusDocument.reset();
+        repo.readingFocus.reset();
     }
 
     static void click(ecs::RepoComponent& repo, reading::Location location, bool enter = false,
@@ -279,9 +305,9 @@ struct navigation {
         } else open(repo, location, {}, enter || repeated ? reading::OpenMode::Keep : reading::OpenMode::Preview);
         if ((region == reading::ClickRegion::Tree || region == reading::ClickRegion::History) && repo.navigationEffect) {
             repo.navigationEffect->focus = reading::FocusPolicy::Caller;
-            repo.readingFocusDocument.reset();
+            repo.readingFocus.reset();
         } else if (enter && region == reading::ClickRegion::Search) {
-            repo.readingFocusDocument = workspace.active_id();
+            focus_document(repo);
         }
         workspace.lastClick_ = std::move(location);
         workspace.lastClickRegion_ = region;

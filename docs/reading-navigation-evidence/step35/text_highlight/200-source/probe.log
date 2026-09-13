@@ -1,0 +1,82 @@
+[INFO] Process start to main: 20 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 6 ms
+[INFO]   Window+GPU init: 84 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 0 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 84 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 60 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 62 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 1 commits, 62 ms after refresh requested, 181 ms since process start
+[INFO] git: 64 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 65 ms
+[INFO] git: 62 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 123 ms
+[INFO] git: 61 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 125 ms
+[INFO] git: 64 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 129 ms
+[WARN] Layout wrap: 'working_review_heading' in parent 'main_content' - NoWrap set but would overflow (child_size=64.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'working_review_heading' extends outside parent 'main_content' bounds (child_rel=[0.0,0.0], child_size=[0.0,64.0], child_end=[0.0,64.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: '' in parent 'main_content' - NoWrap set but would overflow (child_size=60.0, offset=64.0, container=0.0)
+[WARN] Layout overflow: '' extends outside parent 'main_content' bounds (child_rel=[0.0,64.0], child_size=[0.0,60.0], child_end=[0.0,124.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'save_review_baseline' in parent '' - NoWrap set but would overflow (child_size=330.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'save_review_baseline' extends outside parent '' bounds (child_rel=[0.0,0.0], child_size=[330.0,56.0], child_end=[330.0,56.0], parent_size=[0.0,60.0], gap=8.0, start_offset=0.0)
+[WARN] Layout wrap: '' in parent '' - NoWrap set but would overflow (child_size=0.0, offset=338.0, container=0.0)
+[WARN] Layout overflow: '' extends outside parent '' bounds (child_rel=[338.0,0.0], child_size=[0.0,56.0], child_end=[338.0,56.0], parent_size=[0.0,60.0], gap=8.0, start_offset=0.0)
+[WARN] Layout wrap: 'review_primary_toolbar' in parent 'main_content' - NoWrap set but would overflow (child_size=144.0, offset=124.0, container=0.0)
+[WARN] Layout overflow: 'review_primary_toolbar' extends outside parent 'main_content' bounds (child_rel=[0.0,124.0], child_size=[0.0,144.0], child_end=[0.0,268.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'diff_stats_label' in parent '' - NoWrap set but would overflow (child_size=149.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'diff_stats_label' extends outside parent '' bounds (child_rel=[0.0,0.0], child_size=[149.0,60.0], child_end=[149.0,60.0], parent_size=[0.0,60.0], gap=16.0, start_offset=0.0)
+[WARN] Layout wrap: 'diff_additions' in parent '' - NoWrap set but would overflow (child_size=24.0, offset=165.0, container=0.0)
+[WARN] Layout overflow: 'diff_additions' extends outside parent '' bounds (child_rel=[165.0,0.0], child_size=[24.0,60.0], child_end=[189.0,60.0], parent_size=[0.0,60.0], gap=16.0, start_offset=0.0)
+[WARN] Layout wrap: 'diff_deletions' in parent '' - NoWrap set but would overflow (child_size=24.0, offset=205.0, container=0.0)
+[WARN] Layout overflow: 'diff_deletions' extends outside parent '' bounds (child_rel=[205.0,0.0], child_size=[24.0,60.0], child_end=[229.0,60.0], parent_size=[0.0,60.0], gap=16.0, start_offset=0.0)
+[WARN] Layout wrap: 'review_segments' in parent 'diff_mode_toggle' - NoWrap set but would overflow (child_size=216.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'review_segments' extends outside parent 'diff_mode_toggle' bounds (child_rel=[0.0,0.0], child_size=[216.0,64.0], child_end=[216.0,64.0], parent_size=[0.0,64.0], gap=12.0, start_offset=0.0)
+[WARN] Layout wrap: 'basket_toggle_btn' in parent 'diff_mode_toggle' - NoWrap set but would overflow (child_size=0.0, offset=228.0, container=0.0)
+[WARN] Layout overflow: 'basket_toggle_btn' extends outside parent 'diff_mode_toggle' bounds (child_rel=[228.0,2.0], child_size=[0.0,60.0], child_end=[228.0,62.0], parent_size=[0.0,64.0], gap=12.0, start_offset=0.0)
+[WARN] Layout wrap: 'feedback_icon' in parent 'basket_toggle_btn' - NoWrap set but would overflow (child_size=32.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'feedback_icon' extends outside parent 'basket_toggle_btn' bounds (child_rel=[0.0,14.0], child_size=[32.0,32.0], child_end=[32.0,46.0], parent_size=[0.0,60.0], gap=12.0, start_offset=0.0)
+[WARN] Layout wrap: 'Feedback 0' in parent 'basket_toggle_btn' - NoWrap set but would overflow (child_size=0.0, offset=44.0, container=0.0)
+[WARN] Layout overflow: 'Feedback 0' extends outside parent 'basket_toggle_btn' bounds (child_rel=[44.0,2.0], child_size=[0.0,56.0], child_end=[44.0,58.0], parent_size=[0.0,60.0], gap=12.0, start_offset=0.0)
+[WARN] Layout wrap: 'finish_review' in parent 'diff_mode_toggle' - NoWrap set but would overflow (child_size=208.0, offset=240.0, container=0.0)
+[WARN] Layout overflow: 'finish_review' extends outside parent 'diff_mode_toggle' bounds (child_rel=[240.0,2.0], child_size=[208.0,60.0], child_end=[448.0,62.0], parent_size=[0.0,64.0], gap=12.0, start_offset=0.0)
+[WARN] Layout wrap: 'diff_options_toggle' in parent 'diff_mode_toggle' - NoWrap set but would overflow (child_size=64.0, offset=460.0, container=0.0)
+[WARN] Layout overflow: 'diff_options_toggle' extends outside parent 'diff_mode_toggle' bounds (child_rel=[460.0,2.0], child_size=[64.0,60.0], child_end=[524.0,62.0], parent_size=[0.0,64.0], gap=12.0, start_offset=0.0)
+[WARN] Layout wrap: '' in parent 'main_content' - NoWrap set but would overflow (child_size=48.0, offset=268.0, container=0.0)
+[WARN] Layout overflow: '' extends outside parent 'main_content' bounds (child_rel=[0.0,268.0], child_size=[0.0,48.0], child_end=[0.0,316.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'diff_scroll' in parent 'main_content' - NoWrap set but would overflow (child_size=0.0, offset=316.0, container=0.0)
+[WARN] Layout overflow: 'diff_scroll' extends outside parent 'main_content' bounds (child_rel=[0.0,316.0], child_size=[0.0,0.0], child_end=[0.0,316.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'fold_file:sample.txt' in parent '' - NoWrap set but would overflow (child_size=56.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'fold_file:sample.txt' extends outside parent '' bounds (child_rel=[0.0,4.0], child_size=[56.0,56.0], child_end=[56.0,60.0], parent_size=[0.0,64.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'file_header_label' in parent '' - NoWrap set but would overflow (child_size=0.0, offset=56.0, container=0.0)
+[WARN] Layout overflow: 'file_header_label' extends outside parent '' bounds (child_rel=[56.0,0.0], child_size=[0.0,64.0], child_end=[56.0,64.0], parent_size=[0.0,64.0], gap=0.0, start_offset=0.0)
+[WARN] Layout overflow: 'file_additions' extends outside parent 'file_header_btns' bounds (child_rel=[0.0,36.0], child_size=[22.0,56.0], child_end=[22.0,92.0], parent_size=[0.0,128.0], gap=12.0, start_offset=0.0)
+[WARN] Layout overflow: 'file_deletions' extends outside parent 'file_header_btns' bounds (child_rel=[0.0,92.0], child_size=[22.0,56.0], child_end=[22.0,148.0], parent_size=[0.0,128.0], gap=12.0, start_offset=0.0)
+[WARN] Layout overflow: 'open_full_file' extends outside parent 'file_header_btns' bounds (child_rel=[0.0,148.0], child_size=[112.0,56.0], child_end=[112.0,204.0], parent_size=[0.0,128.0], gap=12.0, start_offset=0.0)
+[WARN] Layout overflow: 'approve_file_btn' extends outside parent 'file_header_btns' bounds (child_rel=[0.0,204.0], child_size=[156.0,56.0], child_end=[156.0,260.0], parent_size=[0.0,128.0], gap=12.0, start_offset=0.0)
+[WARN] Layout overflow: 'stage_file_btn' extends outside parent 'file_header_btns' bounds (child_rel=[0.0,260.0], child_size=[117.0,56.0], child_end=[117.0,316.0], parent_size=[0.0,128.0], gap=12.0, start_offset=0.0)
+[WARN] Layout overflow: 'copy_file_diff_btn' extends outside parent 'file_header_btns' bounds (child_rel=[0.0,316.0], child_size=[115.0,56.0], child_end=[115.0,372.0], parent_size=[0.0,128.0], gap=12.0, start_offset=0.0)
+[WARN] Layout wrap: 'hunk_header_btns' in parent 'hunk_header_row' - NoWrap set but would overflow (child_size=609.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'hunk_header_btns' extends outside parent 'hunk_header_row' bounds (child_rel=[0.0,0.0], child_size=[609.0,51.2], child_end=[609.0,51.2], parent_size=[0.0,51.2], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'diff_keyhint' in parent 'main_content' - NoWrap set but would overflow (child_size=48.0, offset=316.0, container=0.0)
+[WARN] Layout overflow: 'diff_keyhint' extends outside parent 'main_content' bounds (child_rel=[0.0,316.0], child_size=[0.0,48.0], child_end=[0.0,364.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[INFO] E2E finished in 0.52 seconds

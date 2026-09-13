@@ -133,7 +133,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     constexpr float PAD = 16.0f;
     constexpr float LABEL_W = 70.0f;
     float contentW = layout.mainContent.width;
-    float controlsHeight = ui::diff_controls_height(contentW, layout.diffOptionsOpen, layout.diffFindOpen,
+    float controlsHeight = ui::diff_controls_height(contentW, layout.diffOptionsOpen,
         true, !detailCache.commitDetailDiff.empty());
     auto boundedLines = [&](std::string_view input, float width, const std::string& font, float size, size_t limit) {
         size_t end = std::min(input.size(), size_t{512});

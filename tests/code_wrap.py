@@ -67,6 +67,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         x2, y2 = last["content_x"], last["rect"]["y"] + last["rect"]["height"] / 2
         scroll = "diff_scroll" if mode == "source" else "commit_detail_scroll"
         replay("select", setup + f"drag_to {x1} {y1} {x2} {y2}\nwait_frames 5\nscreenshot selected\n" +
+            'key CMD+F\nwait_frames 5\nscreenshot seeded\nkey ESCAPE\nwait_frames 5\n' +
             'native_menu_action "Show Whitespace (toggle)"\nwait_frames 5\nscreenshot whitespace\n' +
             'native_menu_action "Show Whitespace (toggle)"\nwait_frames 5\n' +
             f"hover_ui {scroll}\nscroll_wheel 0 -100\nwait_frames 30\nscreenshot end\nbench_frames 120\nexpect_p99_below 20\n")
@@ -74,6 +75,10 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         expected = text.encode()[first["offset"]:last["offset"]].decode()
         assert selected["selection_text"] == expected, (zoom, mode, selected["selection_text"], expected)
         assert selected["selection_location"] == "wrap.cpp:L1\n" + expected
+        seeded = json.loads((directory / "seeded.json").read_text())
+        field = next(n for n in seeded["nodes"] if n["focused"])
+        assert field["text"] == expected, (zoom, mode, "Wrapped selection did not seed Find")
+        assert seeded["reading_rows"] == selected["reading_rows"], (zoom, mode, "Find moved wrapped code")
         whitespace = json.loads((directory / "whitespace.json").read_text())
         assert whitespace["selection_text"] == "", "Reflow retained stale selection entities"
         for node in whitespace["nodes"]:

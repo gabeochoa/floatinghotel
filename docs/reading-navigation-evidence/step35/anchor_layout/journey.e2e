@@ -1,0 +1,156 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "a.cpp"
+wait_frames 3
+key ENTER
+wait_for_refresh
+hover_ui diff_scroll
+scroll_wheel 0 -37
+wait_frames 20
+workspace_checkpoint 2 source
+screenshot source
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 20
+workspace_checkpoint 2 zoomed
+screenshot zoomed
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 20
+workspace_checkpoint 2 zoom200
+screenshot zoom200
+native_menu_action "Zoom Out"
+native_menu_action "Zoom Out"
+native_menu_action "Zoom Out"
+native_menu_action "Zoom Out"
+native_menu_action "Zoom Out"
+native_menu_action "Zoom Out"
+resize 1250 850
+wait_frames 20
+workspace_checkpoint 2 narrow
+screenshot narrow
+key CMD+EQUAL
+key CMD+EQUAL
+wait_frames 20
+workspace_checkpoint 2 font
+screenshot font
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "b.cpp"
+wait_frames 3
+key ENTER
+wait_for_refresh
+native_menu_action "Reset Zoom"
+resize 1600 1000
+wait_frames 5
+click_ui open_tabs_menu
+wait_frames 3
+click_ui "context_menu_item_a.cpp"
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 reactivated
+screenshot reactivated
+click_text "Reading anchor layout"
+wait_for_refresh
+key ENTER
+click_ui "jump_to_diff:a.cpp"
+wait_frames 8
+hover_ui commit_detail_scroll
+scroll_wheel 0 -29
+wait_frames 20
+workspace_checkpoint 4 review
+screenshot review
+click_text "Split"
+wait_frames 20
+workspace_checkpoint 4 split
+screenshot split
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 20
+workspace_checkpoint 4 split_zoom
+screenshot split_zoom
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 20
+workspace_checkpoint 4 split200
+screenshot split200
+native_menu_action "Reset Zoom"
+click_text "Unified"
+click_ui "jump_to_diff:b.cpp"
+wait_frames 8
+click_ui "jump_to_diff:a.cpp"
+wait_frames 20
+workspace_checkpoint 4 before_fold
+screenshot before_fold
+click_ui "fold_file:a.cpp"
+wait_frames 20
+workspace_checkpoint 4 folded
+screenshot folded
+click_ui "fold_file:a.cpp"
+wait_frames 20
+workspace_checkpoint 4 unfolded
+screenshot unfolded
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "notes.md"
+wait_frames 3
+key ENTER
+wait_for_refresh
+click_ui markdown_preview_toggle
+hover_ui markdown_preview
+scroll_wheel 0 -37
+wait_frames 20
+workspace_checkpoint 5 markdown
+screenshot markdown
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 20
+workspace_checkpoint 5 markdown140
+screenshot markdown140
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 20
+workspace_checkpoint 5 markdown200
+screenshot markdown200
+resize 1250 850
+wait_frames 20
+workspace_checkpoint 5 markdown_narrow
+screenshot markdown_narrow
+hover_ui markdown_preview
+scroll_wheel 0 -10
+wait_frames 20
+workspace_checkpoint 5 markdown_scrolled
+screenshot markdown_scrolled
+native_menu_action "Reset Zoom"
+wait_frames 20
+workspace_checkpoint 5 markdown_reset
+screenshot markdown_reset
+bench_frames 120
+expect_p99_below 20

@@ -192,6 +192,15 @@ struct FileSummary {
     bool partial = false;
 };
 
+struct FindState {
+    bool open = false;
+    bool focus = false;
+    std::string query;
+    size_t index = 0;
+    std::optional<ReadingAnchor> position;
+    bool navigate = false;
+};
+
 struct Document {
     DocumentId id;
     Location location = ReviewLocation{};
@@ -202,6 +211,7 @@ struct Document {
     std::optional<ReadingAnchor> anchor;
     bool restoreAnchor = false;
     bool unresolvedSavedRevision = false;
+    FindState find;
 };
 
 class ReadingWorkspace {

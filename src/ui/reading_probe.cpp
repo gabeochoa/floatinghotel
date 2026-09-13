@@ -146,6 +146,10 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                     value["revision"] = reading::scope(review);
                     value["path"] = review.file;
                 }
+                value["find"] = {{"open", tab.find.open}, {"query", tab.find.query}, {"index", tab.find.index}};
+                if (tab.find.position) value["find"]["position"] = {
+                    {"path", tab.find.position->path}, {"line", tab.find.position->line},
+                    {"column", tab.find.position->column}, {"sign", std::string(1, tab.find.position->sign)}};
                 tabs.push_back(std::move(value));
             }
             try {

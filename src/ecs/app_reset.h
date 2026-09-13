@@ -28,12 +28,7 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
     layout.commitMetadataExpanded = false;
     layout.shortcutsOpen = false;
-    layout.diffFindOpen = false;
     layout.visibleWhitespace = false;
-    layout.diffFindQuery.clear();
-    layout.diffFindIndex = 0;
-    layout.diffFindNavigate = 0;
-    layout.diffFindFocus = false;
     // A script that drags the divider otherwise hands its last width to every
     // script after it, and the menu bar collapses into "More" at narrow
     // widths -- so the leak reads as "No UI with text: View" ten files later.

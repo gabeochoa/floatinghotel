@@ -95,7 +95,7 @@ inline std::vector<reading::focus::Popup> open_popups(const ecs::RepoComponent& 
     if (const auto* menu = ecs::find_singleton<ecs::MenuComponent>(); menu && menu->activeMenuIndex >= 0) visible.push_back(Popup::Menu);
     if (is_context_menu_open()) visible.push_back(Popup::ContextMenu);
     if (layout.filePickerOpen) visible.push_back(Popup::Picker);
-    if (layout.diffFindOpen) visible.push_back(Popup::Find);
+    if (repo.workspace().document(repo.workspace().active_id())->find.open) visible.push_back(Popup::Find);
     if (repo.repoSearchOpen) visible.push_back(Popup::Search);
     if (repo.repoSearchOpen && repo.repoSearchPreviewOpen) visible.push_back(Popup::SearchPreview);
     if (const auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>()) {

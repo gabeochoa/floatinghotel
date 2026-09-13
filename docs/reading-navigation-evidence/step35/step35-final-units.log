@@ -1,0 +1,80 @@
+--- Compiling test_diff_tools ---
+--- Running test_diff_tools ---
+  code_wrap_keeps_composed_characters_together                 OK
+  code_wrap_preserves_bytes_and_decoded_boundaries             OK
+  lfs_availability_is_refreshed_with_repository_generation     OK
+  lfs_pointers_require_the_version_digest_and_unsigned_size    OK
+  message_row_window_is_bounded_at_top_middle_and_end          OK
+  codeowners_uses_last_match_and_repository_relative_patterns  OK
+  codeowners_wildcards_are_bounded_and_lines_have_a_limit      OK
+  symlink_reader_returns_target_text_without_following_it      OK
+  file_mode_lookup_uses_exact_nul_terminated_paths             OK
+  review_files_sort_by_churn_with_path_ties_and_preserve_filters OK
+  tooltip_wrapping_preserves_all_text_and_utf8_glyphs          OK
+  navigation_history_truncates_forward_after_a_new_destination OK
+  source_navigation_preserves_the_review_and_its_origin        OK
+  source_tab_keeps_revision_when_review_is_active              OK
+  review_ranges_keep_old_and_new_line_numbers_distinct         OK
+  commit_graph_tracks_forks_merges_and_roots                   OK
+  diff_revision_pairs_keep_comparisons_and_index_distinct      OK
+  history_search_validates_dates_and_keeps_filters_literal     OK
+  file_tree_collapses_descendants_without_hiding_siblings      OK
+  file_tree_preserves_input_rank_inside_directory_groups       OK
+  fuzzy_paths_match_subsequences_and_rank_boundaries           OK
+  syntax_tokens_preserve_source_and_strings                    OK
+  diff_find_tracks_side_line_and_occurrence                    OK
+  intraline_ranges_keep_shared_prefix_and_suffix_unmarked      OK
+  whitespace_display_distinguishes_line_endings_without_mutating_source OK
+  merge_parent_selection_preserves_review_and_source_provenance OK
+  revision_ranges_require_explicit_two_dot_endpoints           OK
+  quick_open_ranks_filename_matches_before_directory_matches   OK
+  quick_open_highlights_the_ranked_match_without_splitting_utf8 OK
+  file_query_prefers_exact_colon_paths_and_parses_positive_positions OK
+  find_state_belongs_to_document_and_survives_close_reopen     OK
+  find_matches_keep_byte_and_decoded_columns                   OK
+
+32/32 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================
+--- Compiling test_reading_session ---
+--- Running test_reading_session ---
+  session_round_trip_preserves_typed_destinations_origins_and_anchors OK
+  session_parser_rejects_invalid_revisions_and_retains_other_documents OK
+  session_parser_drops_duplicate_destinations_and_mismatched_anchor_revisions OK
+  reading_columns_count_decoded_characters_across_wrapped_unicode OK
+  session_preserves_source_column_and_separate_review_origin_anchor OK
+
+5/5 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================
+--- Compiling test_focus_target ---
+--- Running test_focus_target ---
+  focus_returns_to_semantic_caller_after_popup_closes          OK
+  focus_nested_popup_returns_to_immediate_then_original_caller OK
+  focus_does_not_restore_across_navigation_or_repository_changes OK
+  focus_rejects_closed_documents_and_foreign_repository_targets OK
+  focus_pending_return_is_cancelled_if_navigation_changes_before_layout_is_ready OK
+  shortcuts_belong_to_the_focused_region                       OK
+  text_inputs_own_editing_keys_inside_every_region             OK
+  escape_dismisses_the_most_recent_popup_then_leaves_the_document_alone OK
+  escape_menu_stays_above_newly_detected_background_panels     OK
+
+9/9 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================
+--- Compiling test_document_cycle ---
+--- Running test_document_cycle ---
+  document_cycle_wraps_in_both_directions_without_reordering   OK
+  document_cycle_removes_closed_tabs_and_retains_selection     OK
+
+2/2 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

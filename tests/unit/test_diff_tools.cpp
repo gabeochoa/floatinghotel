@@ -414,4 +414,43 @@ TEST(file_query_prefers_exact_colon_paths_and_parses_positive_positions) {
     ASSERT_FALSE(file_query::line("12:4:5").error.empty());
 }
 
+TEST(find_state_belongs_to_document_and_survives_close_reopen) {
+    ecs::RepoComponent repo;
+    repo.repoPath = "fixture";
+    navigation::open(repo, reading::source("a.cpp"), {}, reading::OpenMode::Keep);
+    auto a = repo.workspace().active_id();
+    navigation::open_find(repo, "alpha");
+    navigation::find(repo).index = 2;
+    navigation::find(repo).position = reading::ReadingAnchor{"a.cpp", "", reading::DiffSide::After, 40, 8, .15f, ' '};
+    navigation::open(repo, reading::source("b.cpp"), {}, reading::OpenMode::Keep);
+    ASSERT_FALSE(navigation::find(repo).open);
+    navigation::open_find(repo, "beta");
+    navigation::activate(repo, a);
+    ASSERT_EQ(navigation::find(repo).query, "alpha");
+    ASSERT_EQ(navigation::find(repo).index, 2u);
+    ASSERT_EQ(navigation::find(repo).position->line, 40);
+    navigation::close_find(repo);
+    ASSERT_FALSE(navigation::find(repo).open);
+    ASSERT_EQ(repo.readingFocus->region, reading::focus::Region::Code);
+    navigation::close(repo, a);
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(navigation::find(repo).query, "alpha");
+    ASSERT_EQ(navigation::find(repo).position->column, 8);
+    navigation::open_find(repo);
+    ASSERT_EQ(navigation::find(repo).index, 2u);
+    ASSERT_FALSE(navigation::find(repo).navigate);
+}
+
+TEST(find_matches_keep_byte_and_decoded_columns) {
+    ecs::FileDiff file;
+    file.filePath = "unicode.cpp";
+    file.hunks.push_back({1, 1, 1, 1, "", {"+éλ needle needle"}});
+    auto matches = ecs::find_diff_matches({file}, "needle");
+    ASSERT_EQ(matches.size(), 2u);
+    ASSERT_EQ(matches[0].column, 5u);
+    ASSERT_EQ(matches[0].logicalColumn, 4);
+    ASSERT_EQ(matches[1].column, 12u);
+    ASSERT_EQ(matches[1].logicalColumn, 11);
+}
+
 int main() { RUN_ALL_TESTS(); }

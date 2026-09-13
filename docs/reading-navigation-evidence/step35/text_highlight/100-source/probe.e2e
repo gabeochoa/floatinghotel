@@ -1,0 +1,20 @@
+resize 1600 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_ui review_unstaged_changes
+wait_for_refresh
+key CMD+P
+wait_frames 3
+type "sample.txt"
+wait_for_refresh
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+mouse_move 1500 20
+wait_frames 5
+screenshot before
+hover_ui diff_scroll
+scroll_wheel 0 -10000
+wait_frames 30
+screenshot bottom_probe

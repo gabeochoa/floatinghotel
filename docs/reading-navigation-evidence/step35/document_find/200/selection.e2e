@@ -1,0 +1,43 @@
+resize 1600 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Find fixture"
+wait_for_refresh
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 review_before
+screenshot review_before
+drag_to 925.9600219726562 816.8000774383545 1005.9600219726562 816.8000774383545
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 selected
+screenshot selected
+key CMD+F
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 seeded
+screenshot seeded
+key ESCAPE
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 seed_closed
+screenshot seed_closed

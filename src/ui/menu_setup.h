@@ -78,10 +78,7 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::separator(),
         MenuItem::item("Find...", "Cmd+F", [] {
-            if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {
-                l->diffFindOpen = true;
-                l->diffFindFocus = true;
-            }
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ui::open_find(*repo);
         }),
         MenuItem::item("Go to File...", "Cmd+P", [] {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {

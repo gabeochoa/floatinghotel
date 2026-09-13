@@ -1,0 +1,8 @@
+resize 1600 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_text "Wrapped root"
+wait_for_refresh
+click_text "Split"
+wait_frames 8
+screenshot wrapped

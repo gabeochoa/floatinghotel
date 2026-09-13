@@ -36,13 +36,12 @@ struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
         const auto visible = ui::open_popups(*repo, *layout);
         auto& state = layout->focus;
         state.sync(repo->repoPath, repo->workspace().generation(), visible);
-        if (repo->readingFocusDocument) {
-            if (*repo->readingFocusDocument == repo->workspace().active_id()) {
-                state.pending = reading::focus::Target{repo->repoPath, *repo->readingFocusDocument,
-                    reading::focus::Region::DocumentTabs, {}, "content_document_" + std::to_string(repo->readingFocusDocument->value)};
+        if (repo->readingFocus) {
+            if (repo->readingFocus->repository == repo->repoPath && repo->readingFocus->document == repo->workspace().active_id()) {
+                state.pending = repo->readingFocus;
                 state.pendingGeneration = repo->workspace().generation();
             }
-            repo->readingFocusDocument.reset();
+            repo->readingFocus.reset();
         }
         if (!state.pending) return;
         if (!state.valid(*state.pending, repo->workspace())) { state.pending.reset(); return; }
@@ -56,12 +55,13 @@ struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
             const auto target = ui::focus_target(entity);
             if (!target || target->repository != state.pending->repository || target->document != state.pending->document ||
                 target->region != state.pending->region) continue;
-            if (*target == *state.pending) {
+            if ((*target == *state.pending || (state.pending->control.empty() && entity.has<ui::FocusIdentity>() &&
+                    target->item == state.pending->item)) && (entity.has<HasClickListener>() || ui::text_control(entity))) {
                 ui::focus_control(ctx, entity);
                 state.pending.reset();
                 return;
             }
-            if (entity.has<ui::FocusIdentity>() && target->item.empty()) fallback = entity.id;
+            if (entity.has<ui::FocusIdentity>() && entity.has<HasClickListener>() && target->item.empty()) fallback = entity.id;
         }
         if (fallback) {
             auto entity = afterhours::ui::UICollectionHolder::getEntityForID(*fallback);

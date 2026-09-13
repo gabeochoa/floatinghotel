@@ -1,0 +1,25 @@
+resize 1600 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_ui review_unstaged_changes
+wait_for_refresh
+click_text "Split"
+wait_frames 8
+mouse_move 1500 20
+wait_frames 5
+screenshot before
+drag_to 1021.0 280.4000062942505 1101.0 280.4000062942505
+wait_frames 5
+screenshot selected
+drag_to 1101.0 280.4000062942505 1021.0 280.4000062942505
+wait_frames 5
+screenshot reversed
+drag_to 389.0 280.4000062942505 469.0 280.4000062942505
+wait_frames 5
+screenshot deleted
+key CMD+F
+click_ui diff_find_input
+key CMD+A
+type "3456"
+wait_frames 5
+screenshot found

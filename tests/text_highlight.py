@@ -37,7 +37,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         if mode == "split":
             setup += 'click_text "Split"\nwait_frames 8\n'
         if mode == "source":
-            setup += 'click_ui open_full_file\nwait_for_refresh\n'
+            setup += 'key CMD+P\nwait_frames 3\ntype "sample.txt"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\nwait_frames 3\nwait_for_refresh\n'
         setup += 'mouse_move 1500 20\nwait_frames 5\nscreenshot before\n'
 
         def replay(name, script):

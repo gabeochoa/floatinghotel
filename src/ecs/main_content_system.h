@@ -362,7 +362,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 repoPtr->navigationEffect.reset();
                 bool dismissPicker = layout.filePickerOpen;
                 if (effect.changed) {
-                    layout.diffFindOpen = layout.shelfCollapsed = false;
+                    layout.shelfCollapsed = false;
                     if (const auto* working = std::get_if<reading::WorkingChanges>(&repoPtr->workspace().review().destination);
                         working && repoPtr->workspace().active() == reading::Slot::Review) {
                         const bool untracked = std::find(repoPtr->untrackedFiles.begin(), repoPtr->untrackedFiles.end(),
@@ -380,7 +380,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ui::diff_sel::reset();
                 }
                 layout.filePickerOpen = false;
-                if (effect.focus == reading::FocusPolicy::Document && (effect.changed || effect.dismissedPanel || dismissPicker)) repoPtr->readingFocusDocument = repoPtr->workspace().active_id();
+                if (effect.focus == reading::FocusPolicy::Document && (effect.changed || effect.dismissedPanel || dismissPicker)) navigation::focus_document(*repoPtr);
             }
         }
 
@@ -397,7 +397,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             break;
                         case Popup::ContextMenu: ui::close_context_menu(); break;
                         case Popup::Picker: layout.filePickerOpen = false; break;
-                        case Popup::Find: layout.diffFindOpen = false; break;
+                        case Popup::Find: navigation::close_find(*repoPtr); break;
                         case Popup::SearchPreview: repoPtr->repoSearchPreviewOpen = false; break;
                         case Popup::Search:
                             if (ui::shortcut_owner(ctx, *repoPtr).reader() && repoPtr->repoSearchSelected &&
@@ -725,8 +725,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 open_repo_search(*repoPtr);
                 layout.filePickerOpen = false;
             } else {
-                layout.diffFindOpen = true;
-                layout.diffFindFocus = true;
+                if (repoPtr) ui::open_find(*repoPtr);
             }
         }
         if (!shortcutsActive && !ui::shortcuts_blocked(layout) && superDown && afterhours::input::is_key_pressed(80)) {

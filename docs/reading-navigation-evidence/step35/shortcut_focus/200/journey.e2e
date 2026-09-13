@@ -1,0 +1,127 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Focus fixture"
+wait_for_refresh
+key ENTER
+click_ui content_document_2
+key CMD+P
+wait_frames 3
+type "a.cpp"
+wait_frames 8
+workspace_checkpoint 2 before
+screenshot before
+key ALT+LEFT
+key ALT+RIGHT
+wait_frames 8
+wait_frames 8
+workspace_checkpoint 2 after
+screenshot after
+key ESCAPE
+click_ui content_document_2
+key J
+wait_frames 8
+workspace_checkpoint 2 commit_keys
+screenshot commit_keys
+key K
+key A
+key C
+wait_frames 8
+workspace_checkpoint 2 hidden_actions
+screenshot hidden_actions
+click_ui open_tabs_menu
+key J
+key C
+key A
+wait_frames 8
+workspace_checkpoint 2 menu_keys
+screenshot menu_keys
+key ESCAPE
+click_ui content_document_2
+key CMD+F
+wait_frames 4
+type "value"
+wait_frames 8
+workspace_checkpoint 2 find_before
+screenshot find_before
+key ALT+LEFT
+key ALT+RIGHT
+key CMD+A
+key CMD+C
+wait_frames 8
+workspace_checkpoint 2 find_after
+screenshot find_after
+click_ui content_document_2
+key ENTER
+wait_frames 8
+workspace_checkpoint 2 find_unfocused
+screenshot find_unfocused
+key ESCAPE
+click_ui commit_file_filter
+key J
+key C
+key A
+wait_frames 8
+workspace_checkpoint 2 tree_keys
+screenshot tree_keys
+key CMD+A
+key BACKSPACE
+click_ui commit_row
+key J
+key C
+key A
+wait_frames 8
+workspace_checkpoint 2 history_keys
+screenshot history_keys
+click_ui review_unstaged_changes
+wait_for_refresh
+wait_frames 8
+click_ui content_document_1
+key J
+wait_frames 8
+workspace_checkpoint 2 reader_next
+screenshot reader_next
+key K
+click_ui comment_hunk_btn
+wait_frames 4
+click_ui comment_input
+type "alpha beta"
+wait_frames 8
+workspace_checkpoint 2 comment_before
+screenshot comment_before
+key ALT+LEFT
+key ALT+RIGHT
+key CMD+A
+key CMD+C
+wait_frames 8
+workspace_checkpoint 2 comment_after
+screenshot comment_after
+type "jac"
+wait_frames 8
+workspace_checkpoint 2 comment_typed
+screenshot comment_typed
+key CMD+SHIFT+F
+wait_frames 4
+type "value"
+wait_frames 8
+workspace_checkpoint 2 search_before
+screenshot search_before
+key ALT+LEFT
+key ALT+RIGHT
+key ENTER
+wait_for_refresh
+wait_frames 8
+workspace_checkpoint 2 search_after
+screenshot search_after
+bench_frames 120
+expect_p99_below 20

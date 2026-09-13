@@ -1,0 +1,29 @@
+resize 1600 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Wrapped root"
+wait_for_refresh
+screenshot wrapped
+drag_to 606.800048828125 437.3600044250488 606.800048828125 509.0399971008301
+wait_frames 5
+screenshot selected
+key CMD+F
+wait_frames 5
+screenshot seeded
+key ESCAPE
+wait_frames 5
+native_menu_action "Show Whitespace (toggle)"
+wait_frames 5
+screenshot whitespace
+native_menu_action "Show Whitespace (toggle)"
+wait_frames 5
+hover_ui commit_detail_scroll
+scroll_wheel 0 -100
+wait_frames 30
+screenshot end
+bench_frames 120
+expect_p99_below 20

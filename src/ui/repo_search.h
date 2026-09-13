@@ -55,7 +55,7 @@ inline void open_repo_search(RepoComponent& repo) {
 inline void close_repo_search(RepoComponent& repo, LayoutComponent& layout) {
     for (const auto& point : layout.focus.returns)
         if (point.popup == reading::focus::Popup::Search && point.generation != repo.workspace().generation())
-            repo.readingFocusDocument = repo.workspace().active_id();
+            navigation::focus_document(repo);
     repo.repoSearchOpen = repo.repoSearchPreviewOpen = false;
     if (repo.repoSearchFuture.valid()) repo.repoSearchDue = std::chrono::steady_clock::now();
     repo.repoSearchFuture = {};

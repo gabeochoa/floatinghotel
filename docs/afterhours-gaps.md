@@ -2154,3 +2154,15 @@ therefore skipped keyboard preview commands. Floatinghotel routes through its
 semantic `FocusIdentity` ancestor instead. A widget-owned focus query or semantic
 control handle would help search boxes, game consoles, and composite controls
 without exposing their internal entity structure.
+
+### Semantic focus restoration must resolve an eligible control
+
+Step 35 exposed an unnamed layout child inheriting the same semantic Code region
+as its viewport. Restoring an empty control identity selected that child, then
+Afterhours dropped focus because the child had no input listener. The app now
+requires a click listener or text control for exact restoration, and a region's
+own click listener for fallback. Reading viewports also have an explicit semantic
+item so empty hunk headers cannot substitute for the code viewport. A semantic focus-region API should distinguish
+an ancestor's identity from the region's eligible focus destination. Document
+viewers, game inventories, and composite inspectors would benefit from that
+contract without adding click handlers to decorative children.

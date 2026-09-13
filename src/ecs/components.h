@@ -28,6 +28,7 @@
 #include "../util/tree_navigation.h"
 #include "../util/diff_revisions.h"
 #include "../util/reading_workspace.h"
+#include "../util/reading_anchor.h"
 #include "../util/review_files.h"
 #include "../util/review_comment_kind.h"
 #include "../util/review_verdict.h"
@@ -267,7 +268,7 @@ private:
 public:
     const reading::ReadingWorkspace& workspace() const { return workspace_; }
     std::optional<reading::NavigationEffect> navigationEffect;
-    std::optional<reading::DocumentId> readingFocusDocument;
+    std::optional<reading::focus::Target> readingFocus;
     file_tree::NavigationState reviewTreeNavigation;
     file_tree::NavigationState filesTreeNavigation;
     std::vector<FileDiff> originFileSummaries;
@@ -909,6 +910,7 @@ struct DiffMatch {
     int line = 0;
     char sign = ' ';
     size_t column = 0;
+    int logicalColumn = 1;
 };
 
 inline std::vector<DiffMatch> find_diff_matches(const std::vector<FileDiff>& diffs,
@@ -923,7 +925,7 @@ inline std::vector<DiffMatch> find_diff_matches(const std::vector<FileDiff>& dif
                 int number = sign == '-' ? oldLine : newLine;
                 for (size_t at = line.find(query, 1); at != std::string::npos;
                      at = line.find(query, at + query.size()))
-                    matches.push_back({file.filePath, number, sign, at - 1});
+                    matches.push_back({file.filePath, number, sign, at - 1, reading::column_at_byte(std::string_view(line).substr(1), at - 1)});
                 if (sign != '+') ++oldLine;
                 if (sign != '-') ++newLine;
             }
@@ -966,12 +968,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     std::string filePickerSelectedPath;
     std::vector<std::string> filePickerResults;
     int filePickerIndex = 0;
-    bool diffFindOpen = false;
     bool visibleWhitespace = false;
-    bool diffFindFocus = false;
-    std::string diffFindQuery;
-    int diffFindIndex = 0;
-    int diffFindNavigate = 0;
     static constexpr float kDefaultSidebarWidth = 280.0f;
     static constexpr float kCommitSplitterHeight = 16.f;
     float sidebarWidth = kDefaultSidebarWidth;

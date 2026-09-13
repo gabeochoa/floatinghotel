@@ -1,0 +1,152 @@
+resize 1600 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Find fixture"
+wait_for_refresh
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 review_before
+screenshot review_before
+key CMD+F
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 review_open
+screenshot review_open
+type "ALPHA"
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 review_found
+screenshot review_found
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 review_second
+screenshot review_second
+key SHIFT+ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 review_previous
+screenshot review_previous
+key ESCAPE
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 review_closed
+screenshot review_closed
+key CMD+P
+wait_frames 3
+type "a.cpp:50"
+wait_for_refresh
+wait_frames 3
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 source_before
+screenshot source_before
+key CMD+F
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 source_open
+screenshot source_open
+type "ALPHA"
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 source_found
+screenshot source_found
+key ENTER
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 source_third
+screenshot source_third
+key CMD+P
+wait_frames 3
+type "b.cpp"
+wait_for_refresh
+wait_frames 3
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 other_before
+screenshot other_before
+key CMD+F
+type "BETA"
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 other_second
+screenshot other_second
+click_ui content_document_3
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 source_return
+screenshot source_return
+click_ui diff_find_close
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 source_closed
+screenshot source_closed
+key CMD+F
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 source_reopened
+screenshot source_reopened
+key ESCAPE
+resize 1150 850
+wait_frames 15
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 narrow_before
+screenshot narrow_before
+key CMD+F
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 narrow_open
+screenshot narrow_open
+key ESCAPE
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 narrow_closed
+screenshot narrow_closed
+bench_frames 120
+expect_p99_below 20

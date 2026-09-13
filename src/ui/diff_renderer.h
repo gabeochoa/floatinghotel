@@ -1274,10 +1274,31 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
 // This is the main entry point called by MainContentSystem.
 // When embedInParentScroll is true, diff content is added directly to the parent
 // without creating a nested scroll container (used by commit detail view).
-inline float diff_controls_height(float width, bool optionsOpen, bool findOpen,
+inline void open_find(ecs::RepoComponent& repo) {
+    auto& selection = diff_sel::state();
+    std::string seed;
+    std::optional<reading::ReadingAnchor> position;
+    int first, begin, last, end;
+    if (selection.hasSel && diff_sel::ordered_span(selection.lastLines, selection.anchor, selection.head,
+                                                   first, begin, last, end)) {
+        seed = diff_sel::build_copy_text(selection, false);
+        if (seed.find_first_of("\r\n") != std::string::npos) seed.clear();
+        if (!seed.empty()) {
+            const auto& row = selection.lastLines[first];
+            const int number = row.sign == '-' ? row.oldLine : row.newLine;
+            position = reading::ReadingAnchor{row.filePath, reading::anchor_revision(repo.workspace().location()),
+                row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
+                number > 0 ? number : row.lineNo,
+                row.logicalColumn + reading::column_at_byte(row.content, begin) - 1, .15f, row.sign};
+        }
+    }
+    navigation::open_find(repo, std::move(seed), std::move(position));
+}
+
+inline float diff_controls_height(float width, bool optionsOpen,
                                   bool filterable, bool hasDiffs) {
     return (filterable ? (width < 680.f ? 72.f : 36.f) + (optionsOpen ? 90.f : 0.f) : 0.f) +
-        (findOpen ? 34.f : 0.f) + (filterable && hasDiffs ? 24.f : 0.f);
+        (filterable && hasDiffs ? 24.f : 0.f);
 }
 
 inline void render_diff(UIContext<InputAction>& ctx,
@@ -1527,70 +1548,90 @@ inline void render_diff(UIContext<InputAction>& ctx,
         return !filterable || !filterRepo || ecs::review_file_visible(file, filterRepo->fileFilter, review, reviewScope);
     };
     auto fileOrder = ecs::visible_review_file_indices(diffs, filterRepo ? filterRepo->fileFilter : review_files::Filter{}, review, reviewScope);
-    if (layout && layout->diffFindOpen) {
-        findHeight += 34.f;
-        auto bar = div(ctx, mk(findParent ? *findParent : parent, 580001), ComponentConfig{}.with_skip_grid_snap()
-            .with_size(ComponentSize{pixels(contentWidth), pixels(34.f)})
-            .with_flex_direction(FlexDirection::Row)
-            .with_align_items(AlignItems::Center)
+    if (layout && filterRepo && navigation::find(*filterRepo).open) {
+        auto& find = navigation::find(*filterRepo);
+        const float width = std::min(420.f, std::max(180.f, layout->mainContent.width - 16.f));
+        auto bar = div(ctx, mk(ui_imm::getUIRootEntity(), 580001), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{pixels(width), pixels(34.f)})
+            .with_absolute_position(layout->mainContent.x + layout->mainContent.width - width - 8.f,
+                                    layout->mainContent.y + 8.f)
+            .with_custom_background(theme::SIDEBAR_BG).with_border(theme::BORDER, pixels(1))
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
+            .with_align_items(AlignItems::Center).with_render_layer(900)
             .with_debug_name("diff_find_bar"));
-        if (filterRepo) bind_focus(bar.ent(), *filterRepo, reading::focus::Region::Find);
-        auto previous = layout->diffFindQuery;
-        auto input = afterhours::text_input::text_input(ctx, mk(bar.ent(), 0), layout->diffFindQuery,
+        bind_focus(bar.ent(), *filterRepo, reading::focus::Region::Find);
+        auto previous = find.query;
+        auto input = afterhours::text_input::text_input(ctx, mk(bar.ent(), 0), find.query,
             ComponentConfig{}.with_skip_grid_snap()
-                .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - 240.f)), pixels(28)})
+                .with_size(ComponentSize{expand(), pixels(28)})
                 .with_debug_name("diff_find_input"));
-        if (layout->diffFindFocus) {
+        if (find.focus) {
             ui::focus_control(ctx, input.ent());
-            layout->diffFindFocus = false;
+            find.focus = false;
         }
-        if (previous != layout->diffFindQuery) {
-            layout->diffFindIndex = 0;
-            layout->diffFindNavigate = 3;
+        if (previous != find.query) {
+            find.index = 0;
+            find.position.reset();
+            find.navigate = !find.query.empty();
         }
-        auto matches = ecs::find_diff_matches(diffs, layout->diffFindQuery);
+        auto matches = ecs::find_diff_matches(diffs, find.query);
         std::set<std::string_view> visiblePaths;
         for (const auto& file : diffs) if (fileVisible(file)) visiblePaths.insert(file.filePath);
-        std::erase_if(matches, [&](const auto& match) {
-            return !visiblePaths.contains(match.file);
-        });
-        int count = static_cast<int>(matches.size());
+        std::erase_if(matches, [&](const auto& match) { return !visiblePaths.contains(match.file); });
+        const int count = static_cast<int>(matches.size());
+        if (find.position) {
+            const auto match = std::ranges::find_if(matches, [&](const auto& value) {
+                return value.file == find.position->path && value.line == find.position->line &&
+                    value.sign == find.position->sign && value.logicalColumn == find.position->column;
+            });
+            if (match != matches.end()) find.index = static_cast<size_t>(match - matches.begin());
+        }
         int step = 0;
-        if (button(ctx, mk(bar.ent(), 1), preset::Button("Previous")
-                .with_size(ComponentSize{pixels(70), pixels(28)}).with_debug_name("diff_find_previous"))) step = -1;
-        if (button(ctx, mk(bar.ent(), 2), preset::Button("Next")
-                .with_size(ComponentSize{pixels(48), pixels(28)}).with_debug_name("diff_find_next"))) step = 1;
-        if (filterRepo && !shortcuts_blocked(*layout) && shortcut_owner(ctx, *filterRepo).input(reading::focus::Region::Find) &&
-            afterhours::input::is_key_pressed(257))
-            step = afterhours::input::is_key_down(340) ? -1 : 1;
+        if (button(ctx, mk(bar.ent(), 1), preset::Button("<")
+                .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_previous"))) step = -1;
+        if (button(ctx, mk(bar.ent(), 2), preset::Button(">")
+                .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_next"))) step = 1;
+        if (!shortcuts_blocked(*layout) && shortcut_owner(ctx, *filterRepo).input(reading::focus::Region::Find) &&
+            afterhours::input::is_key_pressed(257)) step = afterhours::input::is_key_down(340) ? -1 : 1;
         if (count > 0) {
-            layout->diffFindIndex = (layout->diffFindIndex + step + count) % count;
-            sess.findMatch = matches[layout->diffFindIndex];
-            sess.findQuery = layout->diffFindQuery;
-            if (step != 0) layout->diffFindNavigate = 3;
-            sess.findNavigate = layout->diffFindNavigate > 0;
-            if (layout->diffFindNavigate > 0) --layout->diffFindNavigate;
-            if (review && sess.findNavigate) {
-                for (const auto& file : diffs) {
-                    if (file.filePath != sess.findMatch->file) continue;
-                    for (const auto& hunk : file.hunks) {
-                        int start = sess.findMatch->sign == '-' ? hunk.oldStart : hunk.newStart;
-                        int length = sess.findMatch->sign == '-' ? hunk.oldCount : hunk.newCount;
-                        if (sess.findMatch->line >= start && sess.findMatch->line < start + length)
-                            review->foldedHunks.erase(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, hunk));
+            find.index = (static_cast<int>(find.index % count) + step + count) % count;
+            sess.findMatch = matches[find.index];
+            sess.findQuery = find.query;
+            const auto& match = *sess.findMatch;
+            find.position = reading::ReadingAnchor{match.file, reading::anchor_revision(filterRepo->workspace().location()),
+                match.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
+                match.line, match.logicalColumn, .15f, match.sign};
+            if (find.navigate || step != 0) {
+                if (review) {
+                    review->foldedFiles.erase(reviewScope + "\n" + match.file);
+                    for (const auto& file : diffs) {
+                        if (file.filePath != match.file) continue;
+                        for (const auto& hunk : file.hunks) {
+                            int start = match.sign == '-' ? hunk.oldStart : hunk.newStart;
+                            int length = match.sign == '-' ? hunk.oldCount : hunk.newCount;
+                            if (match.line >= start && match.line < start + length)
+                                review->foldedHunks.erase(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, hunk));
+                        }
                     }
                 }
+                auto location = filterRepo->workspace().location();
+                if (auto* source = std::get_if<reading::SourceLocation>(&location)) {
+                    source->line = match.line;
+                    source->column = match.logicalColumn;
+                } else std::get<reading::ReviewLocation>(location).file = match.file;
+                navigation::preview(*filterRepo, std::move(location), find.position);
             }
         }
+        find.navigate = false;
         div(ctx, mk(bar.ent(), 3), ComponentConfig{}.with_skip_grid_snap()
-            .with_label(count == 0 ? "No matches" : std::to_string(layout->diffFindIndex + 1) + "/" + std::to_string(count))
-            .with_size(ComponentSize{pixels(80), pixels(28)})
+            .with_label(count == 0 ? "0/0" : std::to_string(find.index + 1) + "/" + std::to_string(count))
+            .with_size(ComponentSize{pixels(56), pixels(28)})
             .with_font_size(pixels(12)).with_debug_name("diff_find_count"));
         if (button(ctx, mk(bar.ent(), 4), preset::Button("x")
                 .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_close")))
-            layout->diffFindOpen = false;
+            navigation::close_find(*filterRepo);
     }
-    if (!diffs.empty() && diffs.front().isFullContent && !(layout && layout->diffFindOpen)) {
+    if (!diffs.empty() && diffs.front().isFullContent && !(filterRepo && navigation::find(*filterRepo).open)) {
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             repo && diff_target(reviewScope).kind == DiffTarget::Kind::File && repo->fullFileTargetLine() > 0 && !diffs.front().hunks.empty()) {
             const auto& lines = diffs.front().hunks.front().lines;
