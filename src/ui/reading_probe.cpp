@@ -35,16 +35,26 @@ void input_dispatched() {
     if (!probe.label.empty() && !probe.dispatched) probe.dispatched = Clock::now();
 }
 
+static size_t owned_hunk_bytes(const ecs::DiffHunk& hunk) {
+    size_t bytes = hunk.header.capacity() + 1 + hunk.lines.capacity() * sizeof(std::string);
+    for (const auto& line : hunk.lines) bytes += line.capacity() + 1;
+    return bytes;
+}
+
+static size_t owned_context_bytes(const ecs::HunkContextRuntime& context) {
+    size_t bytes = 0;
+    for (const auto& [key, entry] : context.entries)
+        bytes += sizeof(entry) + key.capacity() + entry.version.capacity() + entry.result.error.capacity() + 3 + owned_hunk_bytes(entry.result.lines);
+    return bytes;
+}
+
 static size_t owned_content_bytes(const std::vector<ecs::FileDiff>& files) {
     size_t bytes = files.capacity() * sizeof(ecs::FileDiff);
     for (const auto& file : files) {
         for (const auto* value : {&file.filePath, &file.oldPath, &file.oldMode, &file.newMode,
                 &file.oldObject, &file.newObject}) bytes += value->capacity() + 1;
         bytes += file.hunks.capacity() * sizeof(ecs::DiffHunk);
-        for (const auto& hunk : file.hunks) {
-            bytes += hunk.header.capacity() + 1 + hunk.lines.capacity() * sizeof(std::string);
-            for (const auto& line : hunk.lines) bytes += line.capacity() + 1;
-        }
+        for (const auto& hunk : file.hunks) bytes += owned_hunk_bytes(hunk);
     }
     return bytes;
 }
@@ -147,6 +157,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                     value["path"] = review.file;
                 }
                 value["details_expanded"] = tab.detailsExpanded;
+                value["context_lines"] = tab.contextLines;
                 value["find"] = {{"open", tab.find.open}, {"query", tab.find.query}, {"index", tab.find.index}};
                 if (tab.find.position) value["find"]["position"] = {
                     {"path", tab.find.position->path}, {"line", tab.find.position->line},
@@ -158,6 +169,17 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 std::ofstream output(directory / (cmd.arg(1) + ".workspace.json"));
                 output.exceptions(std::ios::failbit | std::ios::badbit);
                 output << nlohmann::json{{"active", repo->workspace().active_id().value},
+                    {"hunk_context", [&] {
+                        size_t bytes = 0, lines = 0;
+                        auto ranges = nlohmann::json::array();
+                        for (const auto& [key, entry] : repo->hunkContext.entries) {
+                            ranges.push_back({{"key", key}, {"old_start", entry.result.lines.oldStart},
+                                {"new_start", entry.result.lines.newStart}, {"count", entry.result.lines.newCount}, {"error", entry.result.error}});
+                            bytes += entry.result.bytes;
+                            lines += entry.result.lines.lines.size();
+                        }
+                        return nlohmann::json{{"bytes", bytes}, {"owned_bytes", owned_context_bytes(repo->hunkContext)}, {"lines", lines}, {"ranges", ranges}, {"loading", repo->hunkContext.future.valid()}};
+                    }()},
                     {"source_find", {{"matches", repo->sourceFind.result.matches.size()}, {"loading", repo->sourceFind.future.valid()},
                         {"match_bytes", repo->sourceFind.result.matches.capacity() * sizeof(ecs::SourceFindMatch)},
                         {"limited", repo->sourceFind.result.limited}, {"error", repo->sourceFind.result.error},
@@ -247,7 +269,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
             if (!repo) { cmd.fail("No repository at reading checkpoint"); return; }
-            size_t bytes = repo->fullFileBytes.capacity() + repo->fullFileDecodedText.capacity() + 2 +
+            size_t bytes = owned_context_bytes(repo->hunkContext) + repo->fullFileBytes.capacity() + repo->fullFileDecodedText.capacity() + 2 +
                 owned_content_bytes(repo->fullFileDiff) + owned_content_bytes(repo->currentDiff) + owned_content_bytes(repo->stagedDiff);
             if (detail) bytes += owned_content_bytes(detail->commitDetailDiff) + detail->commitDetailBody.capacity() + 1;
             auto blob = git::blob_page_cache().activity();

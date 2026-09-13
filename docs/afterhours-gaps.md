@@ -2080,6 +2080,20 @@ Native modal focus restoration stores entity IDs; the app disables that return
 path and uses its semantic focus stack so closed documents and other repositories
 cannot regain stale focus.
 
+### Virtualized controls need a semantic focus fallback
+
+Step 43's 200% native replay expanded context above a hunk while preserving the
+reading line. The invoking hunk header left the rendered region, and framework
+focus fell back to a repository tab. The code viewer then lost its reading
+shortcuts. Evidence: `output/step43-final/context/200/above.json` and
+`docs/reading-navigation-evidence/step43`.
+
+When context is applied, the app transfers existing code focus to the stable
+Code region before rebuilding virtual rows. It leaves text inputs and other
+regions alone. Afterhours could support a declared fallback focus region for
+removed or virtualized controls; this would help editors, scrolling inventories,
+and game lists keep keyboard ownership through asynchronous layout changes.
+
 ### Click-to-focus containers need independent hover styling
 
 Adding `HasClickListener` makes an entity eligible for the renderer's default

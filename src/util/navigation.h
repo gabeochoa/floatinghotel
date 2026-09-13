@@ -15,6 +15,13 @@ struct navigation {
         restore_anchor(repo);
     }
 
+    static void expand_hunk_context(ecs::RepoComponent& repo, const std::string& key) {
+        auto& counts = repo.workspace_.current().contextLines;
+        if (!counts.contains(key) && counts.size() >= 256) return;
+        counts[key] = std::min(4096, counts[key] + 20);
+        repo.hunkContext.future = {};
+    }
+
     static void toggle_commit_details(ecs::RepoComponent& repo) {
         auto& document = repo.workspace_.current();
         document.detailsExpanded = !document.detailsExpanded;
@@ -127,6 +134,7 @@ struct navigation {
         const auto* source = std::get_if<reading::SourceLocation>(&after);
         const auto* oldSource = std::get_if<reading::SourceLocation>(&before);
         if (!reading::same_document(before, after)) release_source(repo);
+        if (!reading::same_document(before, after) || repo.workspace_.current().contextLines.empty()) repo.hunkContext = {};
         repo.originFileSummaries.clear();
         if (source) {
             const auto* origin = repo.workspace_.retained_review();

@@ -509,4 +509,27 @@ TEST(review_file_navigation_drops_the_previous_files_anchor) {
     ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->anchor, std::optional{point});
 }
 
+TEST(context_state_cancels_superseded_reads_and_releases_closed_documents) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::review("wt", "a.cpp"), {}, reading::OpenMode::Keep);
+    navigation::expand_hunk_context(repo, "a.cpp\nabove");
+    repo.hunkContext.entries["a.cpp\nabove"].result.lines.lines = {" context"};
+    navigation::open(repo, reading::review("wt", "b.cpp"));
+    ASSERT_EQ(repo.hunkContext.entries.size(), 1u);
+    std::promise<ecs::HunkContextResult> promise;
+    std::stop_source stop;
+    repo.hunkContext.future = {promise.get_future(), stop};
+    navigation::expand_hunk_context(repo, "a.cpp\nabove");
+    ASSERT_TRUE(stop.stop_requested());
+    ASSERT_FALSE(repo.hunkContext.future.valid());
+    navigation::open(repo, reading::source("a.cpp"));
+    ASSERT_TRUE(repo.hunkContext.entries.empty());
+    navigation::activate(repo, reading::Slot::Review);
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->contextLines.at("a.cpp\nabove"), 40);
+    repo.hunkContext.entries["a.cpp\nabove"].result.lines.lines = {" context"};
+    navigation::reset(repo);
+    ASSERT_TRUE(repo.hunkContext.entries.empty());
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->contextLines.empty());
+}
+
 int main() { RUN_ALL_TESTS(); }

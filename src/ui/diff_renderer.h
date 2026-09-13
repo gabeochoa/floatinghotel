@@ -15,6 +15,7 @@
 #include "diff_metrics.h"
 #include "context_menu.h"
 #include "image_diff.h"
+#include "hunk_context.h"
 #include "reading_position.h"
 #include "zoom.h"
 #include "text_area.h"
@@ -651,6 +652,61 @@ inline void render_sbs_hunk(UIContext<InputAction>&, Entity&, const ecs::FileDif
                             const ecs::DiffHunk&, int&, float,
                             diff_detail::DiffViewport*, diff_sel::Session*, bool);
 
+inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const ecs::FileDiff& fileDiff,
+                              const ecs::DiffHunk& hunk, int& nextId, float contentWidth,
+                              diff_sel::Session* sel, diff_detail::DiffViewport* vp,
+                              bool sideBySide, float lineWidth) {
+    if (sideBySide) {
+        render_sbs_hunk(ctx, parent, fileDiff, hunk, nextId,
+                        lineWidth > 0 ? lineWidth : contentWidth, vp, sel, false);
+        return;
+    }
+
+    int oldLine = hunk.oldStart;
+    int newLine = hunk.newStart;
+
+    auto changedRanges = code_highlight::hunk_ranges(hunk.lines);
+    for (size_t index = 0; index < hunk.lines.size(); ++index) {
+        const auto& line = hunk.lines[index];
+        char sign = line.empty() ? ' ' : line.front();
+        std::string content = line.empty() ? "" : line.substr(1);
+        auto gutter = code_gutter::prefix(sign == '+' ? "" : std::to_string(oldLine),
+            sign == '-' ? "" : std::to_string(newLine), sign, fileDiff.isFullContent);
+        float width = lineWidth > 0 ? lineWidth : contentWidth;
+        float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
+        auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index));
+        PreparedCode prepared;
+        prepared.column = newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1;
+        for (size_t part = 0; part + 1 < breaks.size(); ++part) {
+            int lineId = nextId++;
+            auto begin = breaks[part], end = breaks[part + 1];
+            if (vp) {
+                if (sign != '-') vp->observe_line(fileDiff.filePath, newLine, reading::DiffSide::After, sign, content, begin, end, newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1);
+                if (sign != '+') vp->observe_line(fileDiff.filePath, oldLine, reading::DiffSide::Before, sign, content, begin, end);
+            }
+            if (sel->findNavigate && vp &&
+                diff_sel::found_line(sel, fileDiff.filePath, sign == '-' ? oldLine : newLine, sign) &&
+                sel->findMatch->column >= begin && (sel->findMatch->column < end || part + 2 == breaks.size()))
+                vp->reveal();
+            if (!vp || vp->visible(diff_detail::code_line_height())) {
+                if (vp) vp->flush(ctx, parent, nextId);
+                int oldNumber = oldLine, newNumber = newLine;
+                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get(code_highlight::display_text(content, sel->visibleWhitespace), fileDiff.filePath);
+                render_diff_line(ctx, parent, lineId, std::string(1, sign) + content.substr(begin, end - begin),
+                    oldNumber, newNumber, width, fileDiff.filePath, sel,
+                    code_wrap::intersect(changedRanges[index], begin, end), !hunk.noNewline.contains(index),
+                    hunk.movedLines.contains(index), fileDiff.isFullContent, begin, part + 2 == breaks.size(), &content, &prepared);
+                if (vp) vp->built(diff_detail::code_line_height());
+            } else vp->skipped(diff_detail::code_line_height());
+            const auto fragment = std::string_view(content).substr(begin, end - begin);
+            prepared.offset += code_highlight::display_size(fragment, sel->visibleWhitespace);
+            prepared.column += reading::column_at_byte(fragment, fragment.size()) - 1;
+        }
+        if (sign != '+') ++oldLine;
+        if (sign != '-') ++newLine;
+    }
+}
+
 inline void render_hunk(UIContext<InputAction>& ctx,
                          Entity& parent,
                          const ecs::FileDiff& fileDiff,
@@ -735,16 +791,17 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             auto* active = ecs::find_singleton_entity<ecs::RepoComponent, ecs::ActiveTab>();
             return ownerId && active && active->id == *ownerId && !active->cleanup ? active : nullptr;
         };
-        if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent) {
-            items.push_back(ContextMenuItem::item("Show surrounding lines", [currentTab] {
-                if (auto* tab = currentTab()) {
-                    auto* repo = &tab->get<ecs::RepoComponent>();
-                    repo->diffContext = std::min(10000, repo->diffContext + 20);
-                    repo->refreshRequested = true;
-                    repo->cachedFilePath.clear();
-                    if (tab->has<ecs::CommitDetailCache>()) tab->get<ecs::CommitDetailCache>().cachedCommitHash.clear();
-                }
-            }));
+        if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent && !fileDiff.isNew && !fileDiff.isDeleted && sel->reviewScope != "snapshot") {
+            for (bool above : {true, false}) {
+                auto key = hunk_context::key(fileDiff, hunk, above);
+                auto stamp = navigation::stamp(owner->get<ecs::RepoComponent>(), key);
+                items.push_back(ContextMenuItem::item(above ? "Show 20 lines above" : "Show 20 lines below", [currentTab, key, stamp] {
+                    if (auto* tab = currentTab()) {
+                        auto& repo = tab->get<ecs::RepoComponent>();
+                        if (navigation::accepts(repo, stamp, key)) navigation::expand_hunk_context(repo, key);
+                    }
+                }));
+            }
         }
         items.push_back(ContextMenuItem::item("Copy hunk", [hunk] {
             afterhours::clipboard::set_text(diff_detail::hunk_to_text(hunk));
@@ -832,22 +889,26 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_opacity(revealActions ? 1.f : 0.f)
             .with_debug_name("hunk_header_btns"));
 
-    if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent) {
-        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button(compactActions ? "+" : "Show surrounding lines")
+    if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent && !fileDiff.isNew && !fileDiff.isDeleted && sel->reviewScope != "snapshot") {
+        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button(compactActions ? "+" : "Expand context")
             .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
-            .with_padding(Padding{})
-            .with_font_size(pixels(12))
-            .with_custom_background(theme::BUTTON_SECONDARY)
-            .with_debug_name("expand_diff_context"));
-        set_tooltip(context.ent(), "Show 20 more unchanged lines before and after each change.");
+            .with_padding(Padding{}).with_font_size(pixels(12))
+            .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("expand_diff_context"));
+        set_tooltip(context.ent(), "Show 20 more unchanged lines above or below this hunk");
         if (context) {
-            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
-                repo->diffContext = std::min(10000, repo->diffContext + 20);
-                repo->refreshRequested = true;
-                repo->cachedFilePath.clear();
+            remember_focus_origin(ctx, context.ent());
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            std::vector<ContextMenuItem> items;
+            for (bool above : {true, false}) {
+                auto key = hunk_context::key(fileDiff, hunk, above);
+                auto stamp = navigation::stamp(*repo, key);
+                items.push_back(ContextMenuItem::item(above ? "Show 20 lines above" : "Show 20 lines below", [key, stamp] {
+                    auto* active = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                    if (active && navigation::accepts(*active, stamp, key)) navigation::expand_hunk_context(*active, key);
+                }));
             }
-            if (auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
-                cache->cachedCommitHash.clear();
+            auto rect = visible_rect(context.ent());
+            show_context_menu(rect.x, rect.y + rect.height, std::move(items));
         }
     }
 
@@ -999,55 +1060,36 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         return;
     }
 
-    if (sideBySide) {
-        render_sbs_hunk(ctx, parent, fileDiff, hunk, nextId,
-                        lineWidth > 0 ? lineWidth : contentWidth, vp, sel, false);
-        return;
-    }
-
-    int oldLine = hunk.oldStart;
-    int newLine = hunk.newStart;
-
-    auto changedRanges = code_highlight::hunk_ranges(hunk.lines);
-    for (size_t index = 0; index < hunk.lines.size(); ++index) {
-        const auto& line = hunk.lines[index];
-        char sign = line.empty() ? ' ' : line.front();
-        std::string content = line.empty() ? "" : line.substr(1);
-        auto gutter = code_gutter::prefix(sign == '+' ? "" : std::to_string(oldLine),
-            sign == '-' ? "" : std::to_string(newLine), sign, fileDiff.isFullContent);
-        float width = lineWidth > 0 ? lineWidth : contentWidth;
-        float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
-        auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index));
-        PreparedCode prepared;
-        prepared.column = newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1;
-        for (size_t part = 0; part + 1 < breaks.size(); ++part) {
-            int lineId = nextId++;
-            auto begin = breaks[part], end = breaks[part + 1];
-            if (vp) {
-                if (sign != '-') vp->observe_line(fileDiff.filePath, newLine, reading::DiffSide::After, sign, content, begin, end, newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1);
-                if (sign != '+') vp->observe_line(fileDiff.filePath, oldLine, reading::DiffSide::Before, sign, content, begin, end);
-            }
-            if (sel->findNavigate && vp &&
-                diff_sel::found_line(sel, fileDiff.filePath, sign == '-' ? oldLine : newLine, sign) &&
-                sel->findMatch->column >= begin && (sel->findMatch->column < end || part + 2 == breaks.size()))
-                vp->reveal();
-            if (!vp || vp->visible(diff_detail::code_line_height())) {
-                if (vp) vp->flush(ctx, parent, nextId);
-                int oldNumber = oldLine, newNumber = newLine;
-                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get(code_highlight::display_text(content, sel->visibleWhitespace), fileDiff.filePath);
-                render_diff_line(ctx, parent, lineId, std::string(1, sign) + content.substr(begin, end - begin),
-                    oldNumber, newNumber, width, fileDiff.filePath, sel,
-                    code_wrap::intersect(changedRanges[index], begin, end), !hunk.noNewline.contains(index),
-                    hunk.movedLines.contains(index), fileDiff.isFullContent, begin, part + 2 == breaks.size(), &content, &prepared);
-                if (vp) vp->built(diff_detail::code_line_height());
-            } else vp->skipped(diff_detail::code_line_height());
-            const auto fragment = std::string_view(content).substr(begin, end - begin);
-            prepared.offset += code_highlight::display_size(fragment, sel->visibleWhitespace);
-            prepared.column += reading::column_at_byte(fragment, fragment.size()) - 1;
+    auto* contextRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    const bool localContext = contextRepo && sel && !contextRepo->workspace().document(contextRepo->workspace().active_id())->contextLines.empty() && !fileDiff.isFullContent && !fileDiff.isNew &&
+        !fileDiff.isDeleted && sel->reviewScope != "snapshot";
+    size_t hunkIndex = static_cast<size_t>(&hunk - fileDiff.hunks.data());
+    auto drawContext = [&](bool above) {
+        if (!localContext) return;
+        int previousBelow = 0;
+        if (above && hunkIndex > 0) {
+            const auto& previous = fileDiff.hunks[hunkIndex - 1];
+            auto previousKey = sel->reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, previous);
+            if (!reviewOn || (!sel->review->foldedHunks.contains(previousKey) &&
+                (sel->review->showApproved || !sel->review->approvedHunks.contains(previousKey))))
+                if (const auto* context = hunk_context::content(*contextRepo, fileDiff, hunkIndex - 1, false, sel->reviewScope))
+                    previousBelow = context->lines.newCount;
         }
-        if (sign != '+') ++oldLine;
-        if (sign != '-') ++newLine;
-    }
+        const auto* context = hunk_context::content(*contextRepo, fileDiff, hunkIndex, above, sel->reviewScope, previousBelow);
+        if (!context) return;
+        if (!context->error.empty()) {
+            if (vp) { vp->flush(ctx, parent, nextId); vp->built(24.f); }
+            div(ctx, mk(parent, nextId++), ComponentConfig{}.with_skip_grid_snap()
+                .with_label(context->error).with_size(ComponentSize{w, pixels(24)})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::STATUS_MODIFIED)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("hunk_context_notice"));
+            return;
+        }
+        render_hunk_lines(ctx, parent, fileDiff, context->lines, nextId, contentWidth, sel, vp, sideBySide, lineWidth);
+    };
+    drawContext(true);
+    render_hunk_lines(ctx, parent, fileDiff, hunk, nextId, contentWidth, sel, vp, sideBySide, lineWidth);
+    drawContext(false);
 }
 
 namespace diff_detail {
@@ -1364,6 +1406,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
     for (const auto& file : diffs) imageContext += "\n" + file.filePath;
     image_diff::begin(imageContext);
     auto* ownerRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    if (ownerRepo) {
+        const auto focusOwner = shortcut_owner(ctx, *ownerRepo);
+        hunk_context::poll(*ownerRepo, focusOwner.region == reading::focus::Region::Code && !focusOwner.text);
+    }
     if (ownerRepo && !repoPath.empty() && !diffs.empty() && reviewScope != "snapshot") {
         auto revision = diff_revisions(reviewScope).second;
         std::string key = repoPath + "\n" + revision;
@@ -2270,8 +2316,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
             const std::string language = type == "H" ? "C++" : type == "PY" ? "Python" :
                 type == "TS" ? "TypeScript" : type == "JS" ? "JavaScript" : type == "MD" ? "Markdown" :
                 type == "{}" ? "JSON" : type == "<>" ? "Markup" : type == "·" ? "Text" : type;
-            std::string footer = "Up to " + std::to_string(filterRepo ? filterRepo->diffContext : 3) +
-                " lines of context · " + language;
+            std::string footer = "Initial context: " + std::to_string(filterRepo ? filterRepo->diffContext : 3) +
+                " lines · " + language;
             if (fileDiff.isRenamed) footer += " · Renamed from " + fileDiff.oldPath;
             else if (fileDiff.isNew) footer += " · New file";
             else if (fileDiff.isDeleted) footer += " · Deleted file";

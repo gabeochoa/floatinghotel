@@ -48,7 +48,7 @@ for zoom in [100, 140, 200]:
     script += 'click_ui hunk_header_label\nmouse_move 1 1\n' + capture('focused')
     script += 'key TAB\n' + capture('keyboard')
     script += 'right_click_ui hunk_header_row\n' + capture('menu')
-    script += 'expect_text "Copy hunk"\nexpect_text "Show surrounding lines"\nexpect_text "Approve hunk"\nexpect_text "Comment on hunk"\nkey ESCAPE\n'
+    script += 'expect_text "Copy hunk"\nexpect_text "Show 20 lines above"\nexpect_text "Approve hunk"\nexpect_text "Comment on hunk"\nkey ESCAPE\n'
     script += 'resize 1150 850\nwait_frames 10\nclick_ui jump_to_diff:sample.cpp\nhover_ui diff_scroll\nscroll_wheel 0 20000\nwait_frames 15\nmouse_move 1 1\n' + capture('narrow_idle')
     script += 'hover_ui hunk_header_row\n' + capture('narrow_hover')
     if not args.baseline:

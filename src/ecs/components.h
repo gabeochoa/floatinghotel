@@ -284,6 +284,25 @@ struct SourceFindRuntime {
     SourceFindResult result;
 };
 
+struct HunkContextResult {
+    DiffHunk lines;
+    std::string error;
+    size_t bytes = 0;
+};
+
+struct HunkContextEntry {
+    std::string version;
+    HunkContextResult result;
+};
+
+struct HunkContextRuntime {
+    std::map<std::string, HunkContextEntry> entries;
+    async_work::Task<HunkContextResult> future;
+    reading::RequestStamp request;
+    std::string pending;
+    std::string version;
+};
+
 struct RepoComponent : public afterhours::BaseComponent {
     RangeDiffState rangeDiff;
     bool reviewWorkspace = false;
@@ -347,6 +366,7 @@ public:
     std::string fullFileError;
     std::string fullFileBytes;
     SourceFindRuntime sourceFind;
+    HunkContextRuntime hunkContext;
     async_work::Task<FullFileContent> fullFileFuture;
     reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;

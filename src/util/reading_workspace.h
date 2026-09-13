@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <chrono>
 #include <optional>
+#include <map>
 #include <string>
 #include <variant>
 #include <type_traits>
@@ -214,6 +215,7 @@ struct Document {
     bool unresolvedSavedRevision = false;
     FindState find;
     bool detailsExpanded = false;
+    std::map<std::string, int> contextLines;
 };
 
 class ReadingWorkspace {
