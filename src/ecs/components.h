@@ -162,6 +162,11 @@ struct FullFileContent {
     std::string resolvedRevision;
 };
 
+struct SourcePageWindow {
+    std::vector<FilePage> pages;
+    std::string raw;
+};
+
 inline char file_change(const FileDiff& file) {
     return file.isRenamed ? 'R' : file.isDeleted ? 'D' : file.isNew ? 'A' : 'M';
 }
@@ -378,7 +383,8 @@ public:
     bool fullFileMarkdownPreview = false;
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
-    std::string fullFileBytes;
+    SourcePageWindow sourceWindow;
+    bool fullFileExtendRequest = false;
     SourceFindRuntime sourceFind;
     SelectionCopyRuntime selectionCopy;
     HunkContextRuntime hunkContext;

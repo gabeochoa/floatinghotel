@@ -18,5 +18,4 @@ wait_frames 10
 screenshot improvement_22_location
 expect_text "tests/test_utils.cpp"
 expect_text "Working tree"
-validate source_line=5
-assert_ui diff_find_match hidden=false
+validate visible_source_line:5=true

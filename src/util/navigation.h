@@ -147,7 +147,8 @@ struct navigation {
         repo.fullFileCacheKey.clear();
         repo.fullFileSourceKey.clear();
         std::vector<ecs::FileDiff>{}.swap(repo.fullFileDiff);
-        std::string{}.swap(repo.fullFileBytes);
+        repo.sourceWindow = {};
+        repo.fullFileExtendRequest = false;
         std::string{}.swap(repo.fullFileDecodedText);
         repo.fullFileHexPreview = {};
         repo.fullFileHexPreviewKey.clear();

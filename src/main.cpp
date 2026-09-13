@@ -1363,11 +1363,13 @@ int main(int argc, char* argv[]) {
         } else if (key == "diff_rows_bounded") {
             return ui::diff_sel::state().lastLines.size() < 300 ? "true" : "false";
         } else if (key == "file_page_content_bounded") {
-            if (auto* r = repo()) return file_page::stats(r->fullFileBytes, r->fullFileDiff, r->fullFileDecodedText).bounded() ? "true" : "false";
+            if (auto* r = repo()) return source_pages::bounded(r->sourceWindow) && file_page::stats(r->sourceWindow.raw, r->fullFileDiff, r->fullFileDecodedText).bounded(r->sourceWindow.pages.size()) ? "true" : "false";
+        } else if (key == "source_page_count") {
+            if (auto* r = repo()) return std::to_string(r->sourceWindow.pages.size());
         } else if (key == "file_page_raw_bytes") {
-            if (auto* r = repo()) return std::to_string(r->fullFileBytes.size());
+            if (auto* r = repo()) return std::to_string(r->sourceWindow.raw.size());
         } else if (key == "file_page_line_count") {
-            if (auto* r = repo()) return std::to_string(file_page::stats(r->fullFileBytes, r->fullFileDiff).lines);
+            if (auto* r = repo()) return std::to_string(file_page::stats(r->sourceWindow.raw, r->fullFileDiff).lines);
         } else if (key == "blob_cache_bytes") {
             return std::to_string(git::blob_page_cache().bytes());
         } else if (key == "blob_cache_bounded") {

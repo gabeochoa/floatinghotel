@@ -24,4 +24,24 @@ TEST(syntax_cache_budget_does_not_prevent_oversized_lines_from_rendering) {
     ASSERT_TRUE(cache.bytes() <= 1024u);
 }
 
+TEST(published_lines_reuse_tokens_with_separate_language_whitespace_and_revision_keys) {
+    code_highlight::TokenCache cache;
+    const std::string text = "int\tvalue = 42;\r";
+    auto first = cache.get_source(text, "file.cpp", false, "99:a:1");
+    ASSERT_EQ(first, cache.get_source(text, "another.cpp", false, "99:a:1"));
+    ASSERT_EQ(cache.hits(), 1u);
+    ASSERT_NE(first, cache.get_source(text, "file.cpp", true, "99:a:1"));
+    ASSERT_NE(first, cache.get_source(text, "file.cpp", false, "99:b:1"));
+    ASSERT_NE(first, cache.get_source("changed", "file.cpp", false, "100:a:1"));
+    ASSERT_NE(first, cache.get_source(text, "file.txt", false, "99:a:1"));
+    std::string joined;
+    for (const auto& token : *first) joined += token.text;
+    ASSERT_EQ(joined, code_highlight::display_text(text, false));
+    const std::string longLine(768 * 1024, 'x');
+    const auto longTokens = cache.get_source(longLine, "file.txt", false, "101:a:1");
+    ASSERT_EQ(longTokens->front().text, longLine);
+    ASSERT_EQ(longTokens, cache.get_source(longLine, "file.txt", false, "101:a:1"));
+    ASSERT_TRUE(cache.bytes() <= 4 * 1024 * 1024u);
+}
+
 int main() { RUN_ALL_TESTS(); }

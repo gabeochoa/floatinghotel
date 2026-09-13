@@ -80,7 +80,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         assert field["text"] == expected, (zoom, mode, "Wrapped selection did not seed Find")
         assert seeded["reading_rows"] == selected["reading_rows"], (zoom, mode, "Find moved wrapped code")
         whitespace = json.loads((directory / "whitespace.json").read_text())
-        assert whitespace["selection_text"] == "", "Reflow retained stale selection entities"
+        assert whitespace["selection_text"] == expected, "Reflow changed the logical selection"
         for node in whitespace["nodes"]:
             if node.get("name") in ("diff_line", "sbs_cell") and node["rendered"]:
                 assert node["measured_text_width"] <= node["rect"]["width"] - 5, (zoom, mode, node)

@@ -5,7 +5,7 @@ click_ui repo_search_input
 type manyneedle
 click_ui repo_search_submit
 wait_for_refresh
-expect_text "Results limited to 5000 matches or 4 MiB"
+expect_text "5000 matches · limit reached"
 validate search_results_bounded=true
 validate search_result_count=5000
 validate search_truncated=true
@@ -15,7 +15,7 @@ key CMD+A
 type hugeneedle
 click_ui repo_search_submit
 wait_for_refresh
-expect_text "Results limited to 5000 matches or 4 MiB"
+expect_text "No matches · limit reached"
 validate search_results_bounded=true
 validate search_result_count=0
 validate search_captured_bytes=4194304

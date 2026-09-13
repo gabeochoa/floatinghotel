@@ -137,6 +137,12 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_hunk_context" ]; then
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_source_pages" ]; then
+    run_test "test_source_pages" "tests/unit/test_source_pages.cpp" \
+        "src/git/content_reader.cpp" "src/git/git_parser.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \
+        "vendor/afterhours/src/plugins/files.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_selection_copy" ]; then
     run_test "test_selection_copy" "tests/unit/test_selection_copy.cpp" \
         "src/git/selection_copy.cpp" "src/git/content_reader.cpp" "src/git/git_parser.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" \

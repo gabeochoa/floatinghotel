@@ -8,6 +8,7 @@
 #include "../util/hex_view.h"
 #include "../util/markdown_preview.h"
 #include "../util/text_decode.h"
+#include "../util/source_pages.h"
 
 namespace ecs {
 
@@ -19,6 +20,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     if (repo.fullFileSourceKey != sourceKey) {
         repo.fullFileSourceKey = sourceKey;
         repo.fullFilePage = {};
+        repo.sourceWindow = {};
         repo.fullFilePageRequest = {};
         repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
     }
@@ -40,17 +42,39 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     bool changed = repo.fullFileCacheKey != key;
     if (changed) {
         repo.fullFileCacheKey = key;
-        repo.fullFileDiff.clear();
+        repo.fullFileExtendRequest = !repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary &&
+            !repo.fullFileMarkdownPreview && !repo.sourceWindow.pages.empty() &&
+            ((pageRequest.action == FilePageRequest::Action::Next && pageRequest.cursor.offset == repo.fullFilePage.next.offset) ||
+             (pageRequest.action == FilePageRequest::Action::Previous && pageRequest.cursor.offset == repo.fullFilePage.begin.offset));
+        if (!repo.fullFileExtendRequest) {
+            repo.fullFileDiff.clear();
+            repo.sourceWindow = {};
+            repo.fullFileDecodedText.clear();
+        }
         repo.fullFileError.clear();
-        repo.fullFileBytes.clear();
-        repo.fullFileDecodedText.clear();
         repo.blameOpen = false;
         repo.blameFuture = {};
         repo.fullFileRequestStamp = navigation::stamp(repo, key);
         repo.fullFileFuture = git::read_file_async({repo.repoPath, repo.fullFilePath(), repo.fullFileRevision(),
             pageRequest, repo.fullFileEncodingOverride, repo.fullFilePage.encoding});
+        if (repo.fullFileExtendRequest) changed = false;
     }
-    if (repo.fullFileFuture.valid() && repo.fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+    bool pageLayoutReady = true;
+    if (repo.fullFileExtendRequest && !repo.pendingCaret) {
+        const auto* document = repo.workspace().document(repo.workspace().active_id());
+        auto viewport = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
+        pageLayoutReady = document->anchor && !document->restoreAnchor && viewport.valid() &&
+            (**viewport).has<afterhours::ui::HasScrollView>();
+        if (pageLayoutReady) {
+            const auto& scroll = (**viewport).get<afterhours::ui::HasScrollView>();
+            const auto wheel = afterhours::input::get_mouse_wheel_move_v();
+            const bool scrolling = scroll.dragging_scrollbar || ((wheel.x != 0.f || wheel.y != 0.f) &&
+                afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(**viewport)));
+            pageLayoutReady = !scrolling && repo.reading.previousDocument == document->id &&
+                std::fabs(repo.reading.offset - scroll.scroll_offset.y) < .5f;
+        }
+    }
+    if (pageLayoutReady && repo.fullFileFuture.valid() && repo.fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto content = repo.fullFileFuture.get();
         if (!navigation::accepts(repo, repo.fullFileRequestStamp, key)) {
             repo.fullFileCacheKey.clear();
@@ -62,11 +86,34 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             repo.fullFileSourceKey = resolvedKey;
         }
         repo.fullFileError = std::move(content.error);
-        repo.fullFileBytes = std::move(content.raw);
-        repo.fullFilePage = std::move(content.page);
-        repo.fullFileEncodingLabel = std::move(content.encodingLabel);
-        repo.fullFileDecodedText = std::move(content.decodedText);
-        if (repo.fullFileError.empty()) repo.fullFileDiff.push_back(std::move(content.diff));
+        if (repo.fullFileError.empty()) {
+            if (repo.fullFileExtendRequest) {
+                if (source_pages::extend(repo.sourceWindow, std::move(content.page), std::move(content.raw))) {
+                    repo.fullFilePage = source_pages::range(repo.sourceWindow);
+                    auto decoded = file_page::decode(repo.sourceWindow.raw, repo.fullFilePage.encoding, repo.fullFilePage.begin.offset);
+                    auto file = git::parse_complete_file(repo.fullFilePath(), decoded.text);
+                    file.oldMode = file.newMode = content.diff.newMode;
+                    file.isPartialContent = repo.fullFilePage.begin.offset != 0 || repo.fullFilePage.next.offset < repo.fullFilePage.totalBytes;
+                    if (!file.hunks.empty()) file.hunks.front().oldStart = file.hunks.front().newStart = repo.fullFilePage.begin.line;
+                    repo.fullFileDiff.clear();
+                    repo.fullFileDiff.push_back(std::move(file));
+                    repo.fullFileEncodingLabel = std::move(decoded.encoding);
+                    if (markdown_preview::is_markdown_path(repo.fullFilePath())) repo.fullFileDecodedText = std::move(decoded.text);
+                    navigation::restore_anchor(repo);
+                } else repo.fullFileError = "Source changed while scrolling. Reload file to continue.";
+            } else {
+                repo.sourceWindow = {{content.page}, std::move(content.raw)};
+                repo.fullFilePage = std::move(content.page);
+                repo.fullFileEncodingLabel = std::move(content.encodingLabel);
+                repo.fullFileDecodedText = std::move(content.decodedText);
+                repo.fullFileDiff.clear();
+                repo.fullFileDiff.push_back(std::move(content.diff));
+            }
+        }
+        if (!repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary) {
+            repo.fullFileHexPreviewKey.clear();
+            repo.fullFileHexPreview = {};
+        }
         if (repo.pendingCaret) {
             auto position = *repo.pendingCaret;
             const auto motion = repo.pendingCaretMotion;
@@ -98,7 +145,9 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     if (render_source_header(ctx, parent, repo, layout)) return;
     const auto& page = repo.fullFilePage;
     bool partial = page.begin.offset != 0 || page.next.offset < page.totalBytes;
-    float pageHeight = partial || repo.fullFileFuture.valid() || !repo.fullFileError.empty() ? 64.f : 0.f;
+    const bool manualPages = repo.fullFileMarkdownPreview || !repo.fullFileHexPreviewKey.empty() ||
+        (!repo.fullFileDiff.empty() && repo.fullFileDiff.front().isBinary);
+    float pageHeight = manualPages && (partial || repo.fullFileFuture.valid() || !repo.fullFileError.empty()) ? 64.f : 0.f;
     if (pageHeight > 0) {
         auto controls = div(ctx, mk(parent, 585020), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
@@ -162,11 +211,11 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         if (button(ctx, mk(panel.ent(), 1), preset::Button("Close")
                 .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.blameOpen = false;
     }
-    if (repo.fullFileFuture.valid()) {
+    if (repo.fullFileFuture.valid() && repo.fullFileDiff.empty()) {
         div(ctx, mk(parent, 585003), ComponentConfig{}
             .with_label("Loading file...").with_size(ComponentSize{percent(1.f), pixels(40)})
             .with_font_size(pixels(14)).with_debug_name("full_file_loading"));
-    } else if (!repo.fullFileError.empty()) {
+    } else if (!repo.fullFileError.empty() && repo.fullFileDiff.empty()) {
         div(ctx, mk(parent, 585001), ComponentConfig{}
             .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(100)})
             .with_font_size(pixels(14)).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
@@ -174,7 +223,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     } else if (!repo.fullFileDiff.empty() && repo.fullFileDiff.front().isBinary) {
         if (repo.fullFileHexPreviewKey != repo.fullFileCacheKey) {
             repo.fullFileHexPreviewKey = repo.fullFileCacheKey;
-            repo.fullFileHexPreview = hex_view::make(repo.fullFileBytes, 0, 4096, repo.fullFilePage.begin.offset);
+            repo.fullFileHexPreview = hex_view::make(repo.sourceWindow.raw, 0, 4096, repo.fullFilePage.begin.offset);
         }
         const auto& preview = repo.fullFileHexPreview;
         float bodyHeight = layout.mainContent.height - headerHeight - blameHeight - pageHeight;
@@ -280,6 +329,31 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
                         layout.mainContent.height - headerHeight - blameHeight - pageHeight, false, changed, false,
                         repo.repoPath, nullptr, "file:" + repo.fullFileRevision());
+        if (!repo.fullFileError.empty()) {
+            div(ctx, mk(parent, 585001), ComponentConfig{}.with_skip_grid_snap()
+                .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(32)})
+                .with_absolute_position(0.f, headerHeight).with_font_size(pixels(12))
+                .with_custom_background(theme::PANEL_BG).with_debug_name("full_file_error"));
+        }
+        if (!changed && !repo.fullFileFuture.valid() && repo.fullFileError.empty() && !repo.pendingCaret &&
+            !repo.workspace().document(repo.workspace().active_id())->restoreAnchor) {
+            auto viewport = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
+            if (viewport.valid() && (**viewport).has<afterhours::ui::HasScrollView>()) {
+                const auto& scroll = (**viewport).get<afterhours::ui::HasScrollView>();
+                const float height = scroll.viewport_or_zero().y;
+                if (height > 0.f) {
+                    std::optional<FilePageRequest> next;
+                    if (scroll.scroll_offset.y + height >= scroll.content_size.y - height * .75f && page.next.offset < page.totalBytes)
+                        next = FilePageRequest{FilePageRequest::Action::Next, page.next, 0, page.sourceIdentity};
+                    else if (scroll.scroll_offset.y < height * .75f && page.begin.offset > 0)
+                        next = FilePageRequest{FilePageRequest::Action::Previous, page.begin, 0, page.sourceIdentity};
+                    if (next) {
+                        repo.fullFilePageRequest = std::move(*next);
+                        repo.fullFileCacheKey.clear();
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -23,11 +23,11 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
             ((wheel.x != 0.f || wheel.y != 0.f) && afterhours::ui::is_mouse_inside(ctx.mouse.pos, viewport));
         if (userScroll) navigation::cancel_anchor(*repo);
         if (!state.ready || !repo->hasLoadedOnce || repo->isRefreshing || repo->refreshRequested ||
-            (source_tab_active(*repo) && repo->fullFileFuture.valid())) return;
+            (source_tab_active(*repo) && repo->fullFileFuture.valid() && !repo->fullFileExtendRequest)) return;
         const auto* document = repo->workspace().document(repo->workspace().active_id());
         const bool changedLayout = state.previousDocument == document->id &&
             (state.previousKey != state.key || std::fabs(state.width - viewport.width) > .5f || std::fabs(state.height - viewport.height) > .5f ||
-             std::fabs(state.contentHeight - scroll.content_size.y) > .5f);
+             (!(source_tab_active(*repo) && state.codeRows) && std::fabs(state.contentHeight - scroll.content_size.y) > .5f));
         const bool revealing = repo->fullFileNavigateFrames > 0 || repo->diffTargetFrames > 0;
         if (changedLayout && !userScroll && !revealing) navigation::restore_anchor(*repo);
         std::optional<reading::ReadingAnchor> sample;
@@ -78,6 +78,10 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
                 sample = reading::ReadingAnchor{row.path, reading::anchor_revision(document->location),
                     reading::DiffSide::After, row.newStart, row.column, y / viewport.height, ' '};
         }
+        if (std::getenv("FH_TRACE_READING") && (userScroll || changedLayout || state.offset != scroll.scroll_offset.y))
+            log_info("Reading layout offset {} previous {} content {} previousContent {} userScroll {} changedLayout {} sample {} anchor {} restoring {}",
+                scroll.scroll_offset.y, state.offset, scroll.content_size.y, state.contentHeight, userScroll, changedLayout,
+                sample ? sample->line : 0, document->anchor ? document->anchor->line : 0, document->restoreAnchor);
         const bool applyingAnchor = document->restoreAnchor && document->anchor && targetY;
         if (applyingAnchor) {
             const float target = std::clamp(*targetY - document->anchor->viewportFraction * viewport.height,

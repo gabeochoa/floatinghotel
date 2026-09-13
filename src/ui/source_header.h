@@ -108,6 +108,13 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         if (auto* active = current()) active->fullFileMarkdownPreview = !active->fullFileMarkdownPreview;
     }));
     items.push_back(ui::ContextMenuItem::separator());
+    items.push_back(ui::ContextMenuItem::item("Reload file", [current] {
+        if (auto* active = current()) {
+            navigation::set_selection(*active, {});
+            navigation::release_source(*active);
+            navigation::restore_anchor(*active);
+        }
+    }));
     items.push_back(ui::ContextMenuItem::item("Encoding", [current, x, y] {
         auto* active = current();
         if (!active) return;

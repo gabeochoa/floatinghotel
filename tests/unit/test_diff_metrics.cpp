@@ -84,4 +84,51 @@ TEST(narrow_split_wraps_reuse_published_line_identity) {
     ASSERT_TRUE(cache.bytes() <= 5 * 1024 * 1024u);
 }
 
+TEST(three_source_pages_reuse_wraps_and_keep_key_fields_distinct) {
+    ui::DiffMetricsCache cache;
+    size_t measurements = 0;
+    auto measure = [&](std::string_view glyph) { ++measurements; return static_cast<float>(glyph.size()); };
+    const std::string text = "source_12345 éλ\tvalue\r";
+    for (int pass = 0; pass < 2; ++pass) {
+        const auto before = measurements;
+        for (int i = 0; i < 3 * 4096; ++i)
+            cache.wraps(text, 300.f, 24.64f, false, measure, "123:a:" + std::to_string(i));
+        if (pass) ASSERT_EQ(measurements, before);
+    }
+    const auto before = cache.wrap_scans();
+    cache.wraps(text, 301.f, 24.64f, false, measure, "123:a:0");
+    cache.wraps(text, 300.f, 25.64f, false, measure, "123:a:0");
+    cache.wraps(text, 300.f, 24.64f, true, measure, "123:a:0");
+    cache.wraps(text, 300.f, 24.64f, false, measure, "123:b:0");
+    cache.wraps("123:a:0", 300.f, 24.64f, false, measure);
+    ASSERT_EQ(cache.wrap_scans(), before + 5);
+    ASSERT_EQ(cache.wrap_hits(), 3u * 4096u);
+    ASSERT_TRUE(cache.bytes() <= 5 * 1024 * 1024u);
+}
+
+TEST(source_row_extents_share_the_existing_budget_and_invalidate_with_layout) {
+    ui::DiffMetricsCache cache;
+    size_t builds = 0;
+    auto build = [&] {
+        ++builds;
+        std::vector<size_t> rows{0};
+        for (size_t i = 0; i < 3 * 4096; ++i) rows.push_back(rows.back() + i % 3 + 1);
+        return rows;
+    };
+    const auto first = cache.source_rows(99, 800.f, 17.6f, false, build);
+    ASSERT_EQ(first.size(), 3u * 4096u + 1u);
+    ASSERT_EQ(first.back(), 3u * 4096u * 2u);
+    ASSERT_EQ(cache.source_rows(99, 800.f, 17.6f, false, build), first);
+    ASSERT_EQ(builds, 1u);
+    cache.source_rows(100, 800.f, 17.6f, false, build);
+    cache.source_rows(99, 801.f, 17.6f, false, build);
+    cache.source_rows(99, 800.f, 18.6f, false, build);
+    cache.source_rows(99, 800.f, 17.6f, true, build);
+    ASSERT_EQ(builds, 5u);
+    for (std::uint64_t i = 0; i < 100; ++i) cache.source_rows(i, 900.f, 17.6f, false, build);
+    ASSERT_TRUE(cache.bytes() <= 5 * 1024 * 1024u);
+    cache.source_rows(99, 800.f, 17.6f, false, build);
+    ASSERT_EQ(builds, 106u);
+}
+
 int main() { RUN_ALL_TESTS(); }

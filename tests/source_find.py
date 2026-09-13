@@ -47,7 +47,7 @@ for zoom in [100, 140, 200]:
     script += 'key ENTER\n' + capture('long_second', 6)
     script += 'key ESCAPE\nclick_ui content_document_5\nwait_for_refresh\nclick_ui content_document_6\n' + capture('long_return', 6)
     script += 'key CMD+F\n' + capture('long_reopened', 6)
-    script += 'click_ui file_page_start\n' + capture('full_page', 6)
+    script += 'focus_ui diff_scroll\nkey CMD+HOME\n' + capture('full_page', 6)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)

@@ -17,13 +17,16 @@ screenshot item_40_historical_preview
 click_ui repo_search_preview_close
 wait_for_refresh
 screenshot item_40_closed_preview
-expect_no_text "historical before"
+expect_text "historical before"
+assert_ui repo_search_input hidden=false
 click_ui repo_search_result
 wait_for_refresh
 expect_text "historical needle"
-expect_text "Loaded lines 2–3"
+validate visible_source_line:2=true
+validate file_page_content_bounded=true
 expect_no_text "working before"
-click_ui file_page_start
+focus_ui diff_scroll
+key CMD+HOME
 wait_for_refresh
 expect_text "historical before"
 expect_no_text "working before"

@@ -800,18 +800,18 @@ struct DiffViewport {
     float screenH = 720.f;
     float contentWidth = 0.f;   // for spacer width; <=0 -> percent(1.0)
     float top = 0.f, bottom = 1e30f; // visible content-Y window (px, w/ overscan)
-    float curY = 0.f;           // running content-Y of the next row (px)
-    float pending = 0.f;        // height of skipped rows not yet flushed (px)
+    double curY = 0.;           // running content-Y of the next row (px)
+    double pending = 0.;        // height of skipped rows not yet flushed (px)
     ecs::ReadingLayout* layout = nullptr;
     std::optional<reading::ReadingAnchor> restoreAnchor;
-    struct AnchorCandidate { int distance; int line; float y; };
+    struct AnchorCandidate { int distance; int line; double y; };
     std::optional<AnchorCandidate> nearestAnchor;
     bool restoredAnchor = false;
     std::optional<size_t> anchorByte;
 
-    void restore_at(float y) {
+    void restore_at(double y) {
         const float height = scroll->viewport_or_zero().y;
-        const float target = std::max(0.f, y - restoreAnchor->viewportFraction * height);
+        const float target = std::max(0., y - restoreAnchor->viewportFraction * height);
         scroll->scroll_offset.y = scroll->scroll_target.y = scroll->last_eased_offset.y = target;
         scroll->anchor_child = -1;
         top = target - height;
@@ -848,8 +848,8 @@ struct DiffViewport {
     void reveal() {
         if (!active || !scroll) return;
         float height = scroll->viewport_or_zero().y;
-        float target = std::clamp(curY - px(36.f), 0.f,
-                                 std::max(0.f, scroll->content_size.y - height));
+        float target = std::clamp(curY - px(36.f), 0.,
+                                 static_cast<double>(std::max(0.f, scroll->content_size.y - height)));
         scroll->scroll_offset.y = scroll->scroll_target.y = scroll->last_eased_offset.y = target;
         top = target - height;
         bottom = target + height * 2.f;
@@ -1059,17 +1059,50 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
     int oldLine = hunk.oldStart;
     int newLine = hunk.newStart;
 
+    const float width = lineWidth > 0 ? lineWidth : contentWidth;
+    std::vector<size_t> sourceRows;
+    if (fileDiff.isFullContent && vp && vp->active) {
+        sourceRows = diff_metrics().source_rows(fileDiff.renderIdentity, width * zoom::get(), sel->fontSize, sel->visibleWhitespace, [&] {
+            std::vector<size_t> rows{0};
+            rows.reserve(hunk.lines.size() + 1);
+            for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                const auto& line = hunk.lines[i];
+                const auto content = line.empty() ? "" : line.substr(1);
+                const int number = hunk.newStart + static_cast<int>(i);
+                const auto gutter = code_gutter::prefix(std::to_string(number), std::to_string(number), ' ', true);
+                const float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
+                const auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(i),
+                    std::to_string(fileDiff.renderIdentity) + ":a:" + std::to_string(number));
+                rows.push_back(rows.back() + breaks.size() - 1);
+            }
+            return rows;
+        });
+    }
     auto changedRanges = code_highlight::hunk_ranges(hunk.lines);
     for (size_t index = 0; index < hunk.lines.size(); ++index) {
+        if (!sourceRows.empty()) {
+            const auto count = sourceRows[index + 1] - sourceRows[index];
+            const double height = static_cast<double>(vp->px(diff_detail::code_line_height())) * count;
+            const bool anchor = vp->restoreAnchor && !vp->restoredAnchor &&
+                newLine == std::clamp(vp->restoreAnchor->line, hunk.newStart, hunk.newStart + static_cast<int>(hunk.lines.size()) - 1);
+            const bool find = sel->findNavigate && diff_sel::found_line(sel, fileDiff.filePath, newLine, ' ');
+            if (!anchor && !find && (vp->curY + height < vp->top || vp->curY > vp->bottom)) {
+                vp->pending += height;
+                vp->curY += height;
+                nextId += static_cast<int>(count);
+                ++oldLine;
+                ++newLine;
+                continue;
+            }
+        }
         const auto& line = hunk.lines[index];
         char sign = line.empty() ? ' ' : line.front();
         std::string content = line.empty() ? "" : line.substr(1);
         auto gutter = code_gutter::prefix(sign == '+' ? "" : std::to_string(oldLine),
             sign == '-' ? "" : std::to_string(newLine), sign, fileDiff.isFullContent);
-        float width = lineWidth > 0 ? lineWidth : contentWidth;
         float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
-        auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index),
-            std::to_string(fileDiff.renderIdentity) + (sign == '-' ? ":b:" : ":a:") + std::to_string(sign == '-' ? oldLine : newLine));
+        const auto identity = std::to_string(fileDiff.renderIdentity) + (sign == '-' ? ":b:" : ":a:") + std::to_string(sign == '-' ? oldLine : newLine);
+        auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index), identity);
         PreparedCode prepared;
         prepared.column = newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1;
         for (size_t part = 0; part + 1 < breaks.size(); ++part) {
@@ -1086,7 +1119,7 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
             if (!vp || vp->visible(diff_detail::code_line_height())) {
                 if (vp) vp->flush(ctx, parent, nextId);
                 int oldNumber = oldLine, newNumber = newLine;
-                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get(code_highlight::display_text(content, sel->visibleWhitespace), fileDiff.filePath);
+                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get_source(content, fileDiff.filePath, sel->visibleWhitespace, identity);
                 render_diff_line(ctx, parent, lineId, std::string(1, sign) + content.substr(begin, end - begin),
                     oldNumber, newNumber, width, fileDiff.filePath, sel,
                     code_wrap::intersect(changedRanges[index], begin, end), !hunk.noNewline.contains(index),
@@ -1117,7 +1150,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     // Review state for this hunk (working-tree diff only).
     bool reviewOn = sel && sel->reviewActions && sel->review;
-    const std::string hkey = (sel ? sel->reviewScope : "") + "\n" +
+    const std::string hkey = fileDiff.isFullContent ? std::string{} : (sel ? sel->reviewScope : "") + "\n" +
         ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk);
     bool isCursor = false;
     if (reviewOn) {
@@ -1130,8 +1163,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         isCursor = !sel->embedded && (ord == sel->review->cursor);
         if (isCursor && sel->review->cursorMoved && vp && vp->scroll) {
             float viewportHeight = vp->scroll->viewport_or_zero().y;
-            float target = std::clamp(vp->curY - vp->px(24.f), 0.f,
-                                     std::max(0.f, vp->scroll->content_size.y - viewportHeight));
+            float target = std::clamp(vp->curY - vp->px(24.f), 0.,
+                                     static_cast<double>(std::max(0.f, vp->scroll->content_size.y - viewportHeight)));
             vp->scroll->scroll_offset.y = target;
             vp->scroll->scroll_target.y = target;
             vp->scroll->last_eased_offset.y = target;
@@ -2344,7 +2377,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
     if (anchorRequest && navigation::accepts(*filterRepo, *anchorRequest, "reading-anchor")) {
         auto& state = filterRepo->reading;
         state.key += "\n" + std::to_string(contentWidth) + ":" + std::to_string(contentHeight) + ":" +
-            std::to_string(sess.fontSize) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(sideBySide);
+            std::to_string(sess.fontSize) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(sideBySide) +
+            (sess.visibleWhitespace ? ":spaces" : ":plain");
         for (const auto& file : diffs) state.key += ":" + std::to_string(file.renderIdentity);
         if (review) {
             for (const auto& fold : review->foldedFiles) state.key += "\nfile:" + fold;
@@ -2363,7 +2397,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (document->restoreAnchor && document->anchor && vp.scroll) vp.restoreAnchor = document->anchor;
     }
 
-    struct ContextLocation { float y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
+    struct ContextLocation { double y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
     std::vector<ContextLocation> contextLocations;
     if (fileOrder.empty() && !diffs.empty())
         div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("No files match these filters")

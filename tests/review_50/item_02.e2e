@@ -1,24 +1,42 @@
 resize 1440 900
 wait_for_refresh
-click_ui sidebar_working_files
+click_ui sidebar_review
+click_ui review_unstaged_changes
 screenshot item_02_files_navigation
-click_text large.txt
-wait_frames 3
-click_ui open_full_file
+key CMD+P
+wait_for_refresh
+screenshot item_02_picker
+click_ui file_picker_input
+key CMD+A
+type large.txt
+key ENTER
+wait_for_refresh
 wait_frames 3
 wait_for_refresh
+wait_frames 15
+screenshot item_02_source_ready
+assert_ui full_file_header hidden=false
 expect_text "working source"
-expect_text "Loaded lines 1–4096"
-expect_text "Copy loaded page"
+validate file_page_content_bounded=true
+validate source_page_count=1
+expect_no_text "Next page"
 expect_no_text "faraway needle"
 screenshot item_02_first_page
-click_ui file_page_next
+hover_ui diff_scroll
+scroll_wheel 0 -20000
+wait_frames 30
 wait_frames 3
 wait_for_refresh
-expect_text "Loaded lines 4097–8192"
+validate file_page_content_bounded=true
+validate source_page_count=2
+hover_ui diff_scroll
+scroll_wheel 0 -10
+wait_frames 5
 expect_text "second page marker"
 screenshot item_02_next_page
-click_ui file_page_previous
+hover_ui diff_scroll
+scroll_wheel 0 20000
+wait_frames 30
 wait_frames 3
 wait_for_refresh
 expect_text "working source"
@@ -30,24 +48,47 @@ wait_for_refresh
 click_ui repo_search_result
 wait_frames 3
 wait_for_refresh
-expect_text "Loaded lines 12000–15000"
+validate file_page_content_bounded=true
 expect_text "faraway needle"
 screenshot item_02_distant_line
-mouse_move 900 500
+hover_ui diff_scroll
 scroll_wheel 0 -20000
 wait_frames 30
 screenshot item_02_page_end
 expect_text END_OF_LARGE_FILE
-validate visible_source_line:15000=true
+focus_ui diff_scroll
+key CMD+END
+wait_for_refresh
+wait_frames 15
+screenshot item_02_end_ready
 validate diff_rows_bounded=true
+click_ui repo_search_close
+screenshot item_02_search_closed
 click_ui full_file_back
+wait_frames 5
+click_ui sidebar_review
+screenshot item_02_history_ready
 click_text latest
 wait_for_refresh
 wait_frames 3
-click_ui open_full_file
+wait_for_refresh
+wait_frames 15
+screenshot item_02_commit_ready
+key CMD+P
+wait_for_refresh
+screenshot item_02_historical_picker
+click_ui file_picker_input
+key CMD+A
+type large.txt
+key ENTER
+wait_for_refresh
 wait_frames 3
 wait_for_refresh
+wait_frames 15
+screenshot item_02_source_ready
+assert_ui full_file_header hidden=false
 expect_text "historical source"
 expect_no_text "working source"
-expect_text "Loaded lines 1–4096"
+validate file_page_content_bounded=true
+validate source_page_count=1
 screenshot item_02_historical_page

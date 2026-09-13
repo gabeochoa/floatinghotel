@@ -2329,3 +2329,75 @@ offset-vector capacity. A 10,000-row, eight-column unit replay passes without
 increasing the budget. The final 18-case native replay passes at p99 3.39–17.50 ms, with a 23.84 ms
 maximum frame. Failed and passing results are retained; evidence starts at `output/step48-profile/sample.txt` and
 `output/step48-final/100-unified/journey.log`.
+
+## Incremental text windows need a layout acknowledgement
+
+Step 49 keeps up to three adjacent source pages in one active byte window. A fast
+read initially restored the pre-scroll anchor because the next page completed
+before layout recorded the new scroll position. The host now keeps the existing
+reader active while that read is pending and waits for matching laid-out scroll
+state before publishing the joined window. This uses existing repository-owned
+reading state; it does not add frame-count retries or a retention cache.
+
+Afterhours could expose a layout-generation acknowledgement with a stable logical
+anchor for virtualized text, logs, and inventories that prepend or evict rows.
+Applications would supply source positions and bounded data; the framework would
+identify which layout and viewport produced an anchor. The first two failed
+native runs are `output/step49-first` and `output/step49-second`. Final source
+and fragment acceptance passes; see `docs/reading-navigation-step49.md`.
+
+## Accumulate virtualized extents without float32 drift
+
+With 8,192 rows at 25.6 pixels, float32 spacer accumulation changes the total by
+about 21 pixels when visible rows split the list into different groups. The
+source reader interpreted that height change as a reflow and restored an old
+anchor after ordinary scrolling. The app now accumulates diff extents with double
+precision and recognizes source reflow from content identity, font/whitespace
+mode, and viewport geometry. A source window's rounded aggregate height no longer
+triggers restoration on its own.
+
+The native layout still uses float coordinates. A reusable virtual-list geometry
+helper should keep cumulative extents at higher precision until producing the
+visible coordinates, and distinguish content changes from virtualization-only
+regrouping. This would help long logs, asset browsers, inventories, and chat
+history. Numeric evidence is `output/step49-height-rounding.json`. Final source-window
+acceptance and geometry checks pass at all three zooms.
+
+## Hot cache lookups should avoid formatting allocations
+
+A step 49 native profile of a three-page reader put 1,037 of 1,738 sampled
+hunk-rendering stacks under wrapping lookup. Formatting the same floating
+width/font fields as decimal strings and concatenating key pieces allocated on
+every line, even when wrapping was cached. The app now uses fixed-width binary
+fields plus the source identity, preserving separate whitespace and content-key
+modes. The existing budget remains unchanged. A reusable text-layout cache should
+accept typed metric keys directly; games with long logs and virtualized asset
+lists would avoid the same per-frame serialization cost. The measured failure
+and profile are retained in `output/step49-continuous_source-final3` and
+`output/step49-profile`. Final native source and fragment gates pass at p99
+14.89 ms and 13.75 ms respectively; earlier misses remain in the evidence.
+
+The same profile also exposed per-frame work proportional to all loaded source
+lines, even when most rows were virtualized. The app now caches cumulative
+wrapped-row counts under the existing metrics budget and skips offscreen source
+lines without gutter preparation or wrap lookups. A shared variable-height list
+index should expose cumulative extents and stable row identities, with explicit
+invalidation for content and text metrics. This applies to wrapped chat, log,
+and inventory rows as well as source code. Logical anchor and Find targets must
+still be evaluated when outside the current viewport.
+
+The long-line replay also found full display-text conversion before every token
+cache hit and review-hunk hashing for a source-only view. The app now looks up
+tokens by published file/side/line identity plus language and whitespace mode,
+and builds display text only on a miss. Source-only hunks skip review-key hashing.
+Framework text caches should accept immutable content identities and defer text
+transformation until a miss. This matters for long console lines and game logs,
+where a cache hit can otherwise still scan and allocate the entire line.
+Evidence: `output/step49-fragment-profile/sample.log`.
+
+The legacy EOF probe also treated a 0.00625-pixel layout rounding difference as
+an invisible final row. The screenshot reports line 15,000 at y=848.40625 with
+height 25.60000038 inside a viewport ending at y=874. The rendered clipped height
+is 25.59375. That test now asserts the actual final-row text and geometry with a
+0.5-pixel tolerance. Shared geometry assertions should distinguish subpixel
+rounding from clipped content. Evidence is in `output/step49-legacy-failures`.

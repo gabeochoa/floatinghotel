@@ -1,5 +1,7 @@
 #include "reading_probe.h"
 #include "../util/document_titles.h"
+#include "../util/source_pages.h"
+#include "../util/file_page_stats.h"
 
 #include "../ecs/ui_imports.h"
 #include "layout_dump.h"
@@ -135,7 +137,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
             }
             const bool source = ecs::source_tab_active(*repo);
             if ((source && detail && (!detail->commitDetailDiff.empty() || !detail->commitDetailBody.empty())) ||
-                (!source && (!repo->fullFileDiff.empty() || !repo->fullFileBytes.empty() || !repo->fullFileDecodedText.empty()))) {
+                (!source && (!repo->fullFileDiff.empty() || !repo->sourceWindow.raw.empty() || !repo->fullFileDecodedText.empty()))) {
                 cmd.fail("Inactive document retained a rendering payload");
                 return;
             }
@@ -186,6 +188,18 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                             lines += entry.result.lines.lines.size();
                         }
                         return nlohmann::json{{"bytes", bytes}, {"owned_bytes", owned_context_bytes(repo->hunkContext)}, {"lines", lines}, {"ranges", ranges}, {"loading", repo->hunkContext.future.valid()}};
+                    }()},
+                    {"source_pages", [&] {
+                        auto pages = nlohmann::json::array();
+                        for (const auto& page : repo->sourceWindow.pages)
+                            pages.push_back({{"begin", page.begin.offset}, {"end", page.next.offset}, {"first_line", page.begin.line},
+                                {"last_line", page.next.line}, {"first_column", page.begin.column}, {"last_column", page.next.column},
+                                {"identity", page.sourceIdentity}});
+                        return nlohmann::json{{"pages", pages}, {"raw_bytes", repo->sourceWindow.raw.size()},
+                            {"owned_bytes", source_pages::owned_bytes(repo->sourceWindow)}, {"error", repo->fullFileError},
+                            {"bounded", source_pages::bounded(repo->sourceWindow) && file_page::stats(repo->sourceWindow.raw,
+                                repo->fullFileDiff, repo->fullFileDecodedText).bounded(repo->sourceWindow.pages.size())},
+                            {"loading", repo->fullFileFuture.valid()}};
                     }()},
                     {"source_find", {{"matches", repo->sourceFind.result.matches.size()}, {"loading", repo->sourceFind.future.valid()},
                         {"match_bytes", repo->sourceFind.result.matches.capacity() * sizeof(ecs::SourceFindMatch)},
@@ -276,7 +290,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
             if (!repo) { cmd.fail("No repository at reading checkpoint"); return; }
-            size_t bytes = owned_context_bytes(repo->hunkContext) + repo->fullFileBytes.capacity() + repo->fullFileDecodedText.capacity() + 2 +
+            size_t bytes = owned_context_bytes(repo->hunkContext) + source_pages::owned_bytes(repo->sourceWindow) + repo->fullFileDecodedText.capacity() + 1 +
                 owned_content_bytes(repo->fullFileDiff) + owned_content_bytes(repo->currentDiff) + owned_content_bytes(repo->stagedDiff);
             if (detail) bytes += owned_content_bytes(detail->commitDetailDiff) + detail->commitDetailBody.capacity() + 1;
             auto blob = git::blob_page_cache().activity();

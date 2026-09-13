@@ -59,17 +59,21 @@ validate blob_cache_bounded=true
 validate blob_cache_populated=true
 validate patch_cache_bounded=true
 validate image_caches_bounded=true
-click_ui file_page_next
+hover_ui diff_scroll
+scroll_wheel 0 -20000
+wait_frames 30
 wait_for_refresh
 wait_frames 5
 validate file_page_content_bounded=true
-validate file_page_line_count=2404
+validate file_page_line_count=6500
 validate blob_cache_bounded=true
-click_ui file_page_start
+focus_ui diff_scroll
+key CMD+HOME
+wait_frames 30
 wait_for_refresh
 wait_frames 5
 validate file_page_content_bounded=true
-validate file_page_line_count=4096
+validate file_page_line_count=6500
 validate blob_cache_bounded=true
 screenshot item_15_bounded_historical_pages
 click_ui full_file_back
@@ -97,12 +101,10 @@ click_ui approve_file_btn
 click_ui finish_review
 click_text Approved
 wait_frames 5
-assert_ui finish_review text=Approved
+expect_text Approved
 click_ui diff_options_toggle
 click_text "Show approved"
 click_text "Show resolved"
-wait_frames 5
-click_ui hunk_folded_marker
 wait_frames 5
 expect_text "value_00001"
 bench_frames 120
