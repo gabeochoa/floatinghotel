@@ -30,18 +30,7 @@ struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
             layout->focus = {};
             layout->focusRepositoryOwner = owner->id;
         }
-        using reading::focus::Popup;
-        std::vector<Popup> visible;
-        if (const auto* menu = find_singleton<MenuComponent>(); menu && menu->activeMenuIndex >= 0) visible.push_back(Popup::Menu);
-        if (ui::is_context_menu_open()) visible.push_back(Popup::ContextMenu);
-        if (layout->filePickerOpen) visible.push_back(Popup::Picker);
-        if (layout->diffFindOpen) visible.push_back(Popup::Find);
-        if (repo->repoSearchOpen) visible.push_back(Popup::Search);
-        if (repo->repoSearchOpen && repo->repoSearchPreviewOpen) visible.push_back(Popup::SearchPreview);
-        if (const auto* review = find_singleton<ReviewComponent, ActiveTab>(); review && review->basketOpen && layout->feedback.width > 0.f)
-            visible.push_back(Popup::Feedback);
-        if (repo->commitSearchOpen) visible.push_back(Popup::CommitSearch);
-        if (repo->fileHistoryOpen) visible.push_back(Popup::FileHistory);
+        const auto visible = ui::open_popups(*repo, *layout);
         auto& state = layout->focus;
         state.sync(repo->repoPath, repo->workspace().generation(), visible);
         if (!state.pending) return;

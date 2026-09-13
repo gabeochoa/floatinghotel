@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ecs/ui_imports.h"
+#include "zoom.h"
 #include <afterhours/src/plugins/modal.h>
 
 namespace ui {
@@ -12,15 +13,19 @@ inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutCo
     if (command && shift && input::is_key_pressed(47)) layout.shortcutsOpen = true;
     bool active = layout.shortcutsOpen;
     auto& root = ui_imm::getUIRootEntity();
-    float width = std::min(620.f, ctx.screen_width - 32.f);
-    float height = std::min(580.f, ctx.screen_height - 32.f);
+    const float screenWidth = ctx.screen_width / zoom::get();
+    const float screenHeight = ctx.screen_height / zoom::get();
+    float width = std::min(620.f, screenWidth - 32.f);
+    float height = std::min(580.f, screenHeight - 32.f);
     auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 595000), layout.shortcutsOpen,
         afterhours::ModalConfig{}.with_size(pixels(width), pixels(height))
             .with_title("Keyboard Shortcuts").with_show_close_button(false)
             .with_backdrop_color({0, 0, 0, 0}));
     if (!modal) return active;
+    modal.cmp().absolute_pos_x = (ctx.screen_width - width * zoom::get()) * 0.5f;
+    modal.cmp().absolute_pos_y = (ctx.screen_height - height * zoom::get()) * 0.5f;
     div(ctx, mk(root, 595001), ComponentConfig{}
-        .with_size(ComponentSize{pixels(ctx.screen_width), pixels(ctx.screen_height)})
+        .with_size(ComponentSize{pixels(screenWidth), pixels(screenHeight)})
         .with_absolute_position().with_custom_background(afterhours::Color{0, 0, 0, 120})
         .with_roundness(0.f).with_render_layer(998));
     auto body = div(ctx, mk(modal.ent(), 1), ComponentConfig{}
@@ -37,11 +42,12 @@ inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutCo
         {"j or n / k", "Next / previous review hunk"},
         {"a / c", "Approve / comment on the hunk"},
         {"Cmd+C", "Copy selected code"},
-        {"Cmd+Enter", "Export queued feedback"},
-        {"Cmd+= / Cmd+-", "Zoom the whole interface"},
-        {"Cmd+0", "Reset interface zoom"},
+        {"Cmd+Enter", "Export from the feedback panel"},
+        {"Cmd+= / Cmd+-", "Increase / decrease code text size"},
+        {"Cmd+0", "Reset code text size"},
         {"Tab / Shift+Tab", "Move keyboard focus"},
-        {"Escape", "Close the current view or dialog"},
+        {"Cmd+W", "Close the current document"},
+        {"Escape", "Dismiss temporary panels or dialogs"},
     };
     for (size_t i = 0; i < std::size(bindings); ++i) {
         bool narrow = width < 480.f;
@@ -57,7 +63,7 @@ inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutCo
             .with_font_size(FontSize::Small).with_custom_text_color(theme::TEXT_SECONDARY).with_render_layer(1001));
     }
     div(ctx, mk(modal.ent(), 2), ComponentConfig{}
-        .with_label("Cmd on macOS, Ctrl elsewhere. Review keys: outside text fields.")
+        .with_label("Review keys work in the reader. View menu: collapse or expand the reading panel.")
         .with_size(ComponentSize{percent(1.f), pixels(32)})
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_font_size(FontSize::Small).with_render_layer(1001));
     if (button(ctx, mk(modal.ent(), 3), preset::Button("Close")

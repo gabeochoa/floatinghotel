@@ -16,6 +16,7 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.filePickerCacheKey.clear();
     layout.filePickerIndex = 0;
     layout.sidebarVisible = true;
+    layout.readingPanelCollapsed.reset();
     layout.commandLogVisible = false;
     layout.sidebarMode = LayoutComponent::SidebarMode::Changes;
     layout.reviewTab = LayoutComponent::ReviewTab::ToReview;

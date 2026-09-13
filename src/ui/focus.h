@@ -84,6 +84,27 @@ inline bool reader_shortcuts(UIContext<InputAction>& ctx, const ecs::RepoCompone
         shortcut_owner(ctx, repo).reader();
 }
 
+inline std::vector<reading::focus::Popup> open_popups(const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
+    using reading::focus::Popup;
+    std::vector<Popup> visible;
+    if (const auto* menu = ecs::find_singleton<ecs::MenuComponent>(); menu && menu->activeMenuIndex >= 0) visible.push_back(Popup::Menu);
+    if (is_context_menu_open()) visible.push_back(Popup::ContextMenu);
+    if (layout.filePickerOpen) visible.push_back(Popup::Picker);
+    if (layout.diffFindOpen) visible.push_back(Popup::Find);
+    if (repo.repoSearchOpen) visible.push_back(Popup::Search);
+    if (repo.repoSearchOpen && repo.repoSearchPreviewOpen) visible.push_back(Popup::SearchPreview);
+    if (const auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>()) {
+        if (review->basketOpen && layout.feedback.width > 0.f) visible.push_back(Popup::Feedback);
+        if (!review->composingKey.empty()) visible.push_back(Popup::Composer);
+        if (review->sinceReviewOpen) visible.push_back(Popup::Snapshot);
+    }
+    if (repo.comparisonEditorOpen) visible.push_back(Popup::ComparisonEditor);
+    if (repo.commitSearchOpen) visible.push_back(Popup::CommitSearch);
+    if (repo.fileHistoryOpen) visible.push_back(Popup::FileHistory);
+    if (layout.diffOptionsOpen) visible.push_back(Popup::Options);
+    return visible;
+}
+
 inline void focus_control(UIContext<InputAction>& ctx, Entity& entity) {
     if (text_control(entity) && entity.has<afterhours::ui::UIComponent>()) {
         for (const auto id : entity.get<afterhours::ui::UIComponent>().children) {

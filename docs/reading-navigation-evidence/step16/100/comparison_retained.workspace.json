@@ -1,0 +1,227 @@
+{
+  "active": 4,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.1433628350496292,
+        "line": 1,
+        "path": "a.cpp",
+        "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+          },
+          "file": "",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.07305122911930084,
+        "line": 1,
+        "path": "a.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+            },
+            "file": "",
+            "kind": "commit"
+          },
+          "origin_anchor": {
+            "column": 1,
+            "fraction": 0.1433628350496292,
+            "line": 1,
+            "path": "a.cpp",
+            "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+            "side": "after",
+            "sign": "+"
+          },
+          "path": "a.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.08169014751911163,
+        "line": 8,
+        "path": "a.cpp",
+        "revision": "wt",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": true
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.05836905911564827,
+        "line": 24,
+        "path": "a.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+            },
+            "file": "",
+            "kind": "commit"
+          },
+          "origin_anchor": {
+            "column": 1,
+            "fraction": 0.1433628350496292,
+            "line": 1,
+            "path": "a.cpp",
+            "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+            "side": "after",
+            "sign": "+"
+          },
+          "path": "a.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": true
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.17212389409542084,
+        "line": 1,
+        "path": "a.cpp",
+        "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+          },
+          "file": "",
+          "kind": "commit"
+        }
+      },
+      "reviewing": true
+    },
+    {
+      "location": {
+        "review": {
+          "after": {
+            "kind": "object",
+            "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+          },
+          "before": {
+            "kind": "object",
+            "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+          },
+          "file": "",
+          "kind": "comparison"
+        }
+      },
+      "reviewing": true
+    }
+  ],
+  "history_index": 6,
+  "inactive_payloads_empty": true,
+  "review": {
+    "approve_pending": false,
+    "approved": 0,
+    "comment_pending": false,
+    "comments": 0,
+    "composing": "",
+    "cursor": 0,
+    "draft": "",
+    "hunks": 0
+  },
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+      "title": "Focus fixture",
+      "tooltip": "Focus fixture\nCommit cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3\nFirst parent"
+    },
+    {
+      "badge": "",
+      "id": 3,
+      "kind": "source",
+      "path": "a.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "a.cpp",
+      "tooltip": "a.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 4,
+      "kind": "review",
+      "path": "",
+      "preview": true,
+      "revision": "compare:cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3:cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+      "title": "cee3a21 → cee3a21",
+      "tooltip": "Compare cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3 → cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+    }
+  ]
+}

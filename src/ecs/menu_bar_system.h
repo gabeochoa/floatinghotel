@@ -40,6 +40,10 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             for (auto& menu : menus)
                 if (menu.label == "Repository")
                     for (auto& item : menu.items) item.enabled = false;
+        if (auto* layout = find_singleton<LayoutComponent>())
+            for (auto& menu : menus)
+                for (auto& item : menu.items)
+                    if (item.label == "Collapse reading panel" && layout->shelfCollapsed) item.label = "Expand reading panel";
         return menus;
     }
 

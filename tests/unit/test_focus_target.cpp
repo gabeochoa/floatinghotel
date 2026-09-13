@@ -78,6 +78,29 @@ TEST(text_inputs_own_editing_keys_inside_every_region) {
     ASSERT_FALSE((ShortcutOwner{Region::Find, true}.input(Region::Search)));
 }
 
+TEST(escape_dismisses_the_most_recent_popup_then_leaves_the_document_alone) {
+    State state;
+    ASSERT_FALSE(state.topmost().has_value());
+    state.sync("repo", 1, {Popup::Find});
+    state.sync("repo", 1, {Popup::Picker, Popup::Find});
+    ASSERT_EQ(state.topmost(), std::optional{Popup::Picker});
+    state.sync("repo", 1, {Popup::ContextMenu, Popup::Picker, Popup::Find});
+    ASSERT_EQ(state.topmost(), std::optional{Popup::ContextMenu});
+    state.sync("repo", 1, {Popup::Picker, Popup::Find});
+    ASSERT_EQ(state.topmost(), std::optional{Popup::Picker});
+    state.sync("repo", 1, {Popup::Find});
+    ASSERT_EQ(state.topmost(), std::optional{Popup::Find});
+    state.sync("repo", 1, {});
+    ASSERT_FALSE(state.topmost().has_value());
+}
+
+TEST(escape_menu_stays_above_newly_detected_background_panels) {
+    State state;
+    state.sync("repo", 1, {Popup::ContextMenu});
+    state.sync("repo", 1, {Popup::ContextMenu, Popup::Feedback});
+    ASSERT_EQ(state.topmost(), std::optional{Popup::ContextMenu});
+}
+
 int main() {
     RUN_ALL_TESTS();
 }

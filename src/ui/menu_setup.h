@@ -117,6 +117,13 @@ inline std::vector<Menu> createMenuBar() {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) navigation::step(*repo, 1);
         }),
         MenuItem::separator(),
+        MenuItem::item("Collapse reading panel", "", [] {
+            if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
+                layout->readingPanelCollapsed = !layout->shelfCollapsed;
+                if (!*layout->readingPanelCollapsed)
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) navigation::restore_anchor(*repo);
+            }
+        }),
         MenuItem::item("Toggle Sidebar", "Cmd+B", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->sidebarVisible = !l->sidebarVisible;

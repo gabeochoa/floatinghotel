@@ -357,6 +357,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(262)) navigation::step(*repoPtr, 1);
             if (repoPtr->navigationEffect) {
                 revealActiveDocument = true;
+                layout.readingPanelCollapsed.reset();
                 auto effect = *repoPtr->navigationEffect;
                 repoPtr->navigationEffect.reset();
                 bool dismissPicker = layout.filePickerOpen;
@@ -383,50 +384,37 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
 
-        // Esc collapses the shelf (clears the current selection) unless a menu
-        // is open. Mirrors the mock's "Esc closes the diff shelf".
-        if (!shortcutsActive && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE))
+        if (!shortcutsActive && !cancelledTabDrag && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
             (void)ctx.pressed(InputAction::MenuBack);
-        const bool dismissedContextMenu = !shortcutsActive && ui::is_context_menu_open() &&
-            afterhours::input::is_key_pressed(afterhours::keys::ESCAPE);
-        if (dismissedContextMenu) ui::close_context_menu();
-        if (!shortcutsActive && !dismissedContextMenu && !cancelledTabDrag && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
-            if (layout.diffFindOpen) {
-                layout.diffFindOpen = false;
-                ctx.set_focus(ctx.ROOT);
-                return;
-            }
-            if (repoPtr && repoPtr->commitSearchOpen) {
-                repoPtr->commitSearchOpen = false;
-                return;
-            }
-            if (repoPtr && repoPtr->fileHistoryOpen) {
-                repoPtr->fileHistoryOpen = false;
-                return;
-            }
-            if (repoPtr && repoPtr->repoSearchOpen) {
-                repoPtr->repoSearchOpen = false;
-                return;
-            }
-            if (layout.filePickerOpen) {
-                layout.filePickerOpen = false;
-                return;
-            }
-            if (repoPtr && source_tab_active(*repoPtr)) {
-                navigation::activate(*repoPtr, reading::Slot::Review);
-                return;
-            }
-            if (repoPtr && repoPtr->comparisonOpen()) {
-                navigation::open(*repoPtr, reading::review("wt"));
-                return;
-            }
-            auto* menu = find_singleton<MenuComponent>();
-            bool menuOpen = menu && menu->activeMenuIndex >= 0;
-            if (!menuOpen && repoPtr) {
-                if (!repoPtr->reviewQueueScope.empty()) close_review_queue(*repoPtr);
-                else {
-                    navigation::open(*repoPtr, reading::review("wt"));
+            if (repoPtr) {
+                layout.focus.sync(repoPtr->repoPath, repoPtr->workspace().generation(), ui::open_popups(*repoPtr, layout));
+                if (const auto popup = layout.focus.topmost()) {
+                    using reading::focus::Popup;
+                    auto* review = find_singleton<ReviewComponent, ActiveTab>();
+                    switch (*popup) {
+                        case Popup::Menu:
+                            if (auto* menu = find_singleton<MenuComponent>()) menu->activeMenuIndex = -1;
+                            break;
+                        case Popup::ContextMenu: ui::close_context_menu(); break;
+                        case Popup::Picker: layout.filePickerOpen = false; break;
+                        case Popup::Find: layout.diffFindOpen = false; break;
+                        case Popup::SearchPreview: repoPtr->repoSearchPreviewOpen = false; break;
+                        case Popup::Search: repoPtr->repoSearchOpen = false; break;
+                        case Popup::CommitSearch: repoPtr->commitSearchOpen = false; break;
+                        case Popup::FileHistory: repoPtr->fileHistoryOpen = false; break;
+                        case Popup::Feedback: if (review) review->basketOpen = false; break;
+                        case Popup::Composer: if (review) dismiss_pending_comment(*review); break;
+                        case Popup::Options: layout.diffOptionsOpen = false; break;
+                        case Popup::Snapshot: if (review) review->sinceReviewOpen = false; break;
+                        case Popup::ComparisonEditor:
+                            repoPtr->comparisonEditorOpen = false;
+                            repoPtr->comparisonFuture = {};
+                            break;
+                    }
                 }
+            } else {
+                ui::close_context_menu();
+                if (auto* menu = find_singleton<MenuComponent>()) menu->activeMenuIndex = -1;
             }
         }
 

@@ -1875,3 +1875,26 @@ by replacement worked. The focus replay verifies selection replacement and
 review isolation; it does not claim to verify system clipboard contents.
 A scoped clipboard backend for tests would let apps and games exercise these
 paths without changing the user's pasteboard or presenting a native window.
+
+### Modal centering mixes physical resolution and scaled pixels
+
+`modal::detail::modal_impl` centers its container using the physical
+`ProvidesCurrentResolution` dimensions, then passes the position through
+`with_absolute_position`, which applies UI scaling. At 200% zoom, the shortcut
+dialog's left edge was at 1180 on an 1800-pixel viewport and its Close button
+was offscreen. `output/step16-escape-first/200/shortcuts.png` records this.
+
+The app sizes this dialog from the logical viewport and assigns its final
+absolute position in physical pixels after creation. Its backdrop uses the
+logical viewport dimensions. Geometry assertions cover the dialog bounds and
+Close button at 100%, 140%, and 200%. A framework modal should use the layout
+viewport's coordinate space consistently for size, centering, clipping, and
+hit testing. This matters to settings dialogs and game pause menus as well.
+
+### Escape dismissal needs one owner across temporary controls
+
+Independent raw Escape handlers can dismiss a popup and navigate the document
+underneath on the same key press. The app uses its semantic focus return stack
+to choose one dismissal, with menus above other panels. With no temporary UI,
+Escape leaves the document unchanged. A framework dismissal stack shared by
+menus, pickers, overlays, and dialogs would remove this coordination from apps.

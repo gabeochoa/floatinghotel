@@ -5,7 +5,7 @@
 namespace reading::focus {
 
 enum class Region { Tree, History, DocumentTabs, Code, Picker, Find, Search, SearchPreview, Feedback, Menu };
-enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory };
+enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory, Composer, Options, Snapshot, ComparisonEditor };
 
 struct Target {
     std::string repository;
@@ -60,6 +60,12 @@ struct State {
             }
         }
         if (pending && pending->repository != repo) pending.reset();
+    }
+
+    std::optional<Popup> topmost() const {
+        for (auto it = returns.rbegin(); it != returns.rend(); ++it)
+            if (it->popup == Popup::ContextMenu || it->popup == Popup::Menu) return it->popup;
+        return returns.empty() ? std::nullopt : std::optional{returns.back().popup};
     }
 
     bool valid(const Target& target, const ReadingWorkspace& workspace) const {

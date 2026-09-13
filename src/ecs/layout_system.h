@@ -48,7 +48,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             auto* shelfReview = find_singleton<ReviewComponent, ActiveTab>();
             bool reviewingShelf = shelfReview && shelfReview->reviewing;
             layout.shelfCollapsed =
-                layout.sidebarVisible && nothingSelected && !reviewingShelf;
+                layout.sidebarVisible && hasRepoForShelf && layout.readingPanelCollapsed.value_or(nothingSelected && !reviewingShelf);
 
             if (!app_state::testModeEnabled) {
                 float collapsedW = layout.sidebarWidth * ui::zoom::get();

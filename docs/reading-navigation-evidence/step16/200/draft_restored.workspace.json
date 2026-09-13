@@ -1,0 +1,139 @@
+{
+  "active": 1,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.5962265133857727,
+        "line": 1,
+        "path": "a.cpp",
+        "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+          },
+          "file": "",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.2574712932109833,
+        "line": 1,
+        "path": "a.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3"
+            },
+            "file": "",
+            "kind": "commit"
+          },
+          "origin_anchor": {
+            "column": 1,
+            "fraction": 0.5962265133857727,
+            "line": 1,
+            "path": "a.cpp",
+            "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+            "side": "after",
+            "sign": "+"
+          },
+          "path": "a.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.48721811175346375,
+        "line": 8,
+        "path": "a.cpp",
+        "revision": "wt",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": true
+    }
+  ],
+  "history_index": 3,
+  "inactive_payloads_empty": true,
+  "review": {
+    "approve_pending": false,
+    "approved": 0,
+    "comment_pending": false,
+    "comments": 0,
+    "composing": "wt\na.cpp\n@@ -8,7 +8,7 @@ int value_6 = 6;:17634072341753176075",
+    "cursor": 0,
+    "draft": "Escape keeps this draft",
+    "hunks": 1
+  },
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3",
+      "title": "Focus fixture",
+      "tooltip": "Focus fixture\nCommit cee3a21cd671a3aee937b6fe2a0e468e7cd52bc3\nFirst parent"
+    },
+    {
+      "badge": "",
+      "id": 3,
+      "kind": "source",
+      "path": "a.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "a.cpp",
+      "tooltip": "a.cpp @ working tree"
+    }
+  ]
+}

@@ -819,6 +819,15 @@ inline ReviewComponent::Comment comment_with_context(ReviewComponent::Comment co
     return comment;
 }
 
+inline void dismiss_pending_comment(ReviewComponent& review) {
+    if (review.composingKey.empty()) return;
+    if (review.composingText.empty()) review.drafts.erase(review.composingKey);
+    else review.drafts[review.composingKey] = pending_comment(review);
+    review.composingKey.clear();
+    review.composingText.clear();
+    review.dirty = true;
+}
+
 inline void begin_comment(ReviewComponent& review, const std::string& key,
                            ReviewComponent::Comment location) {
     if (!review.composingKey.empty()) {
@@ -976,6 +985,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     // window (Bear-like). Derived each frame from whether anything is selected;
     // set by LayoutUpdateSystem and read by the sidebar/main-content renderers.
     bool shelfCollapsed = false;
+    std::optional<bool> readingPanelCollapsed;
     // Starts true because the window itself opens at the shelf width. If the
     // first frame finds something selected (a restored review, say), the
     // true->false transition expands it, same as any later selection.
