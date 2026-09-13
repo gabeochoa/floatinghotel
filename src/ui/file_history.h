@@ -53,7 +53,7 @@ inline void render_file_history(UIContext<InputAction>& ctx, Entity& parent,
                     .with_size(ComponentSize{percent(1.f), pixels(36)}).with_alignment(TextAlignment::Left)
                     .with_custom_background(theme::PANEL_BG).with_font_size(FontSize::Medium)
                     .with_debug_name("file_history_commit:" + std::to_string(i)))) {
-                navigation::open(repo, reading::review(commit.hash));
+                navigation::click(repo, reading::review(commit.hash), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 100.f))}));
     if (!repo.fileHistoryFuture.valid() && (static_cast<int>(repo.fileHistoryEntries.size()) == repo.fileHistoryLimit || !repo.fileHistoryError.empty())) {

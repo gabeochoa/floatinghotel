@@ -1,0 +1,88 @@
+[INFO] Process start to main: 485 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 3 ms
+[INFO]   Window+GPU init: 89 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 2 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 92 ms (from graphics::run to app_init done)
+[INFO] git: 114 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 167 ms (waited 0 ms for lock): git status
+[INFO] git: 103 ms (waited 0 ms for lock): git diff
+[INFO] git: 131 ms (waited 0 ms for lock): git diff
+[INFO] git: 210 ms (waited 0 ms for lock): git branch
+[INFO] git: 425 ms (waited 0 ms for lock): git log
+[INFO] make_test_repo: switching from '/Users/gabeochoa/p/wm_afterhours/vendor/afterhours' to '/tmp/floatinghotel_test_repo'
+[INFO] git: 93 ms (waited 0 ms for lock): git status
+[INFO] git: 120 ms (waited 0 ms for lock): git log
+[INFO] git: 82 ms (waited 0 ms for lock): git diff
+[INFO] git: 66 ms (waited 0 ms for lock): git diff
+[INFO] git: 68 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 67 ms (waited 0 ms for lock): git branch
+[INFO] git: 63 ms (waited 0 ms for lock): git rev-parse
+[INFO] make_test_repo: done, path=/tmp/floatinghotel_test_repo
+[WARN] Layout wrap: 'empty_icon' in parent 'empty_state' - NoWrap set but would overflow (child_size=49.8, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'empty_icon' extends outside parent 'empty_state' bounds (child_rel=[-3.5,0.0], child_size=[7.0,49.8], child_end=[3.5,49.8], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_1' in parent 'empty_state' - NoWrap set but would overflow (child_size=22.7, offset=49.8, container=0.0)
+[WARN] Layout overflow: 'empty_hint_1' extends outside parent 'empty_state' bounds (child_rel=[-67.8,49.8], child_size=[135.5,22.7], child_end=[67.8,72.4], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_2' in parent 'empty_state' - NoWrap set but would overflow (child_size=18.4, offset=72.4, container=0.0)
+[WARN] Layout overflow: 'empty_hint_2' extends outside parent 'empty_state' bounds (child_rel=[-44.8,72.4], child_size=[89.5,18.4], child_end=[44.8,90.9], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_shortcuts' in parent 'empty_state' - NoWrap set but would overflow (child_size=31.8, offset=90.9, container=0.0)
+[WARN] Layout overflow: 'empty_shortcuts' extends outside parent 'empty_state' bounds (child_rel=[-112.8,90.9], child_size=[225.5,31.8], child_end=[112.8,122.7], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[INFO] [Validation] No UI violations detected
+[WARN] Layout wrap: 'commit_heading' in parent 'main_content' - NoWrap set but would overflow (child_size=60.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_heading' extends outside parent 'main_content' bounds (child_rel=[0.0,0.0], child_size=[0.0,60.0], child_end=[0.0,60.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_sticky_revision' in parent 'commit_heading' - NoWrap set but would overflow (child_size=88.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_sticky_revision' extends outside parent 'commit_heading' bounds (child_rel=[0.0,0.0], child_size=[88.0,52.0], child_end=[88.0,52.0], parent_size=[0.0,52.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_find_host' in parent 'main_content' - NoWrap set but would overflow (child_size=72.0, offset=60.0, container=0.0)
+[WARN] Layout overflow: 'commit_find_host' extends outside parent 'main_content' bounds (child_rel=[0.0,60.0], child_size=[0.0,72.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_detail_scroll' in parent 'main_content' - NoWrap set but would overflow (child_size=0.0, offset=132.0, container=0.0)
+[WARN] Layout overflow: 'commit_detail_scroll' extends outside parent 'main_content' bounds (child_rel=[0.0,132.0], child_size=[0.0,0.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_relative_date' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=62.0, offset=6.0, container=0.0)
+[WARN] Layout overflow: 'commit_relative_date' extends outside parent 'commit_meta_compact' bounds (child_rel=[6.0,2.0], child_size=[62.0,28.0], child_end=[68.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_short_hash' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=84.0, offset=74.0, container=0.0)
+[WARN] Layout overflow: 'commit_short_hash' extends outside parent 'commit_meta_compact' bounds (child_rel=[74.0,2.0], child_size=[84.0,28.0], child_end=[158.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_meta_toggle' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=80.0, offset=164.0, container=0.0)
+[WARN] Layout overflow: 'commit_meta_toggle' extends outside parent 'commit_meta_compact' bounds (child_rel=[164.0,2.0], child_size=[80.0,28.0], child_end=[244.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[INFO] git: 60 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 85 ms (waited 0 ms for lock): git show
+[INFO] git: 145 ms (waited 0 ms for lock): git show
+[INFO] git: 124 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 106 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 132 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 94 ms (waited 0 ms for lock): git show
+[INFO] git: 103 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 127 ms (waited 0 ms for lock): git show
+[INFO] git: 88 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 100 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 138 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 195 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 122 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 183 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 132 ms (waited 0 ms for lock): git cat-file
+[INFO] bench_frames: 120 frames, 290 entities: avg 1.82 ms  p50 1.50  p99 4.13  max 9.36
+[INFO]     0.52 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.41 ms/frame  ecs::SidebarSystem
+[INFO]     0.18 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.12 ms/frame  ecs::MainContentSystem
+[INFO]     0.04 ms/frame  ecs::TabSyncSystem
+[INFO]     0.02 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.02 ms/frame  ecs::MenuBarSystem
+[INFO]     0.01 ms/frame  ecs::StatusBarSystem
+[INFO] expect_p99_below: 4.13ms <= 20.00ms (PASS)
+[INFO] E2E finished in 1.03 seconds

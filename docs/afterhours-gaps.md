@@ -1701,3 +1701,21 @@ large tables, terminals, logs, and game consoles avoid this cache pressure.
 The gutter change passed the same native replay at 4.62 ms average and 6.46 ms
 p99, with 172 rendered entities and unchanged cache limits. Evidence:
 `output/priority-polish/large-build9/run.log`.
+
+### Preview navigation and focus
+
+Resetting `UIContext::focus_id` to `ROOT` does not leave focus empty. The next
+focusable control calls `try_to_grab` and takes it. A native Enter-to-keep test
+caught focus moving to an unrelated control after document navigation. The app
+now retains a repository-owned destination DocumentId until its tab is built,
+then explicitly focuses that tab. A reusable semantic focus request, resolved
+after rebuilding UI entities and scoped to its owning screen, would help menus,
+document readers, inventory screens, and game overlays.
+
+The general button API exposes click activation but no reusable double-click
+sequence. Text inputs implement their own click counts. Preview tabs use an
+app-owned 500 ms sequence keyed by repository, control region, and destination;
+file rows include their file/line target, while tabs ignore reading-position
+changes. A reusable click-count gesture with target identity, pointer-distance
+limits, and cancellation on drag or navigation would help document tabs, asset
+browsers, inventories, and map interactions.

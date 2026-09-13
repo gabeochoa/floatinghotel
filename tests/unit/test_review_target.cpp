@@ -2,6 +2,10 @@
 #include "../../src/util/navigation.h"
 #include "../../src/ecs/components.h"
 
+static void open_kept(ecs::RepoComponent& repo, reading::Location location, std::optional<bool> reviewing = {}) {
+    navigation::open(repo, std::move(location), reviewing, reading::OpenMode::Keep);
+}
+
 TEST(comparison_target_jump_discards_the_previous_pending_result) {
     ecs::RepoComponent repo;
     repo.comparisonLoadedScope = "compare:old-base:old-target";
@@ -9,7 +13,7 @@ TEST(comparison_target_jump_discards_the_previous_pending_result) {
     std::promise<git::RevisionComparison> previous;
     repo.comparisonFuture = async_work::Task<git::RevisionComparison>(
         previous.get_future(), std::stop_source{});
-    navigation::open(repo, reading::review("compare:new-base:new-target", "file.cpp"));
+    open_kept(repo, reading::review("compare:new-base:new-target", "file.cpp"));
     ASSERT_FALSE(repo.comparisonFuture.valid());
     ASSERT_TRUE(repo.comparisonNeedsLoad);
     ASSERT_TRUE(repo.comparisonError.empty());
@@ -24,7 +28,7 @@ TEST(staged_review_draft_restores_its_file_and_index_side) {
     navigation::restore_draft(repo, review);
     ASSERT_EQ(repo.selectedFilePath(), "file.cpp");
     ASSERT_TRUE(repo.selectedFileStaged());
-    navigation::open(repo, reading::review("wt", "other.cpp"));
+    open_kept(repo, reading::review("wt", "other.cpp"));
     ASSERT_FALSE(repo.selectedFileStaged());
 }
 
@@ -38,9 +42,9 @@ TEST(comparison_loading_does_not_restore_an_unrelated_branch_review) {
     review.storageScope = "compare:old-base:old-target";
     repo.comparisonEditorOpen = true;
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), review.storageScope);
-    navigation::open(repo, reading::review("compare:new-base:new-target"));
+    open_kept(repo, reading::review("compare:new-base:new-target"));
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), repo.comparisonScope());
-    navigation::open(repo, reading::review("wt"));
+    open_kept(repo, reading::review("wt"));
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), ecs::review_scope(repo));
     repo.comparisonEditorOpen = true;
     repo.repoPath = "other-repo";
@@ -53,7 +57,7 @@ TEST(saved_review_target_exits_series_mode_and_discards_its_pending_result) {
     std::promise<git::GitResult> previous;
     repo.rangeDiff.future = async_work::Task<git::GitResult>(
         previous.get_future(), std::stop_source{});
-    navigation::open(repo, reading::review("compare:base:target", "file.cpp"));
+    open_kept(repo, reading::review("compare:base:target", "file.cpp"));
     ASSERT_FALSE(repo.rangeDiff.enabled);
     ASSERT_FALSE(repo.rangeDiff.future.valid());
     ASSERT_TRUE(repo.comparisonOpen());
@@ -62,7 +66,7 @@ TEST(saved_review_target_exits_series_mode_and_discards_its_pending_result) {
 TEST(navigation_result_stamp_rejects_each_superseded_identity) {
     ecs::RepoComponent repo;
     repo.repoPath = "repo";
-    navigation::open(repo, reading::source("first.cpp", "main"));
+    open_kept(repo, reading::source("first.cpp", "main"));
     auto first = navigation::stamp(repo, "page:1");
     ASSERT_TRUE(navigation::accepts(repo, first, "page:1"));
     ASSERT_FALSE(navigation::accepts(repo, first, "page:2"));
@@ -72,28 +76,28 @@ TEST(navigation_result_stamp_rejects_each_superseded_identity) {
     ++repo.dataGeneration;
     ASSERT_FALSE(navigation::accepts(repo, first, "page:1"));
     --repo.dataGeneration;
-    navigation::open(repo, reading::source("second.cpp", "main"));
+    open_kept(repo, reading::source("second.cpp", "main"));
     ASSERT_FALSE(navigation::accepts(repo, first, "page:1"));
     navigation::step(repo, -1);
     ASSERT_EQ(repo.fullFilePath(), "first.cpp");
     ASSERT_FALSE(navigation::accepts(repo, first, "page:1"));
     auto current = navigation::stamp(repo, "page:1");
     navigation::reset(repo);
-    navigation::open(repo, reading::source("first.cpp", "main"));
+    open_kept(repo, reading::source("first.cpp", "main"));
     ASSERT_FALSE(navigation::accepts(repo, current, "page:1"));
 }
 
 TEST(historical_resolution_pins_history_without_creating_a_visit) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("origin", "old.cpp"));
-    navigation::open(repo, reading::source("old.cpp", "main", 12));
+    open_kept(repo, reading::review("origin", "old.cpp"));
+    open_kept(repo, reading::source("old.cpp", "main", 12));
     auto request = navigation::stamp(repo, "page");
     const auto count = repo.workspace().history().size();
     std::string oid(40, 'a');
     ASSERT_TRUE(navigation::resolve_source(repo, request, oid));
     ASSERT_EQ(repo.workspace().history().size(), count);
     ASSERT_EQ(repo.fullFileRevision(), oid);
-    navigation::open(repo, reading::source("working.cpp"));
+    open_kept(repo, reading::source("working.cpp"));
     ASSERT_FALSE(navigation::resolve_source(repo, request, std::string(40, 'b')));
     navigation::step(repo, -1);
     ASSERT_EQ(repo.fullFileRevision(), oid);
@@ -104,19 +108,19 @@ TEST(historical_resolution_pins_history_without_creating_a_visit) {
 
 TEST(reselecting_the_same_destination_keeps_pending_work) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::source("same.cpp"));
+    open_kept(repo, reading::source("same.cpp"));
     std::promise<ecs::FullFileContent> promise;
     std::stop_source stop;
     repo.fullFileFuture = {promise.get_future(), stop};
     auto generation = repo.workspace().generation();
     repo.navigationEffect.reset();
-    navigation::open(repo, reading::source("same.cpp"));
+    open_kept(repo, reading::source("same.cpp"));
     ASSERT_FALSE(repo.navigationEffect->changed);
     ASSERT_FALSE(repo.navigationEffect->dismissedPanel);
     ASSERT_EQ(repo.workspace().generation(), generation);
     ASSERT_TRUE(repo.fullFileFuture.valid());
     ASSERT_FALSE(stop.stop_requested());
-    navigation::open(repo, reading::source("next.cpp"));
+    open_kept(repo, reading::source("next.cpp"));
     ASSERT_TRUE(stop.stop_requested());
 }
 
@@ -130,7 +134,7 @@ TEST(typed_destinations_separate_working_index_historical_and_review) {
 
 TEST(comparison_resolution_updates_the_same_visit_and_ignores_late_results) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("compare:main:topic", "changed.cpp"));
+    open_kept(repo, reading::review("compare:main:topic", "changed.cpp"));
     auto count = repo.workspace().history().size();
     auto request = navigation::stamp(repo, navigation::comparison_request_key(repo));
     std::string base(40, 'a'), target(40, 'b');
@@ -138,7 +142,7 @@ TEST(comparison_resolution_updates_the_same_visit_and_ignores_late_results) {
     ASSERT_EQ(repo.workspace().history().size(), count);
     ASSERT_EQ(repo.comparisonScope(), "compare:" + base + ":" + target);
     ASSERT_EQ(repo.selectedFilePath(), "changed.cpp");
-    navigation::open(repo, reading::review("wt"));
+    open_kept(repo, reading::review("wt"));
     ASSERT_FALSE(navigation::complete_comparison(repo, request, base, target));
     ASSERT_FALSE(repo.comparisonOpen());
 }
@@ -147,9 +151,9 @@ TEST(opening_source_keeps_the_retained_comparisons_review_storage) {
     ecs::RepoComponent repo;
     ecs::ReviewComponent review;
     repo.repoPath = "repo";
-    navigation::open(repo, reading::review("compare:base:target"));
+    open_kept(repo, reading::review("compare:base:target"));
     auto scope = ecs::selected_review_storage_scope(repo, review);
-    navigation::open(repo, reading::source("changed.cpp", "target"));
+    open_kept(repo, reading::source("changed.cpp", "target"));
     ASSERT_FALSE(repo.comparisonOpen());
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), scope);
     navigation::return_to_review(repo);
@@ -158,7 +162,7 @@ TEST(opening_source_keeps_the_retained_comparisons_review_storage) {
 
 TEST(consuming_a_source_reveal_does_not_restore_a_stale_line_on_activation) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::source("file.cpp", "", 42));
+    open_kept(repo, reading::source("file.cpp", "", 42));
     auto count = repo.workspace().history().size();
     navigation::clear_source_reveal(repo);
     ASSERT_EQ(repo.fullFileTargetLine(), 0);
@@ -170,7 +174,7 @@ TEST(consuming_a_source_reveal_does_not_restore_a_stale_line_on_activation) {
 
 TEST(comparison_results_from_old_diff_options_are_not_applied) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("compare:main:topic"));
+    open_kept(repo, reading::review("compare:main:topic"));
     auto request = navigation::stamp(repo, navigation::comparison_request_key(repo));
     repo.diffContext = 20;
     ASSERT_FALSE(navigation::complete_comparison(repo, request, std::string(40, 'a'), std::string(40, 'b')));
@@ -202,7 +206,7 @@ TEST(submitted_comparison_rejects_edited_fields_and_merge_mode) {
 
 TEST(document_comparison_reload_ignores_unsubmitted_form_edits) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("compare:main:topic"));
+    open_kept(repo, reading::review("compare:main:topic"));
     auto request = navigation::stamp(repo, navigation::comparison_request_key(repo));
     repo.comparisonBase = "unsubmitted";
     repo.comparisonTarget = "edits";
@@ -212,13 +216,13 @@ TEST(document_comparison_reload_ignores_unsubmitted_form_edits) {
 
 TEST(document_collection_retains_two_reviews_and_three_sources) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("first", "one.cpp"));
+    open_kept(repo, reading::review("first", "one.cpp"));
     auto first = repo.workspace().active_id();
-    navigation::open(repo, reading::review("second", "two.cpp"));
+    open_kept(repo, reading::review("second", "two.cpp"));
     auto second = repo.workspace().active_id();
     std::vector<reading::DocumentId> sources;
     for (const auto& path : {"a.cpp", "b.cpp", "c.cpp"}) {
-        navigation::open(repo, reading::source(path, "second", 12));
+        open_kept(repo, reading::source(path, "second", 12));
         sources.push_back(repo.workspace().active_id());
     }
     ASSERT_EQ(repo.workspace().documents().size(), 6u);
@@ -241,24 +245,24 @@ TEST(document_collection_retains_two_reviews_and_three_sources) {
 
 TEST(document_identity_excludes_reading_location_and_origin) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("commit", "a.cpp"));
+    open_kept(repo, reading::review("commit", "a.cpp"));
     auto review = repo.workspace().active_id();
-    navigation::open(repo, reading::review("commit", "b.cpp"));
+    open_kept(repo, reading::review("commit", "b.cpp"));
     ASSERT_EQ(repo.workspace().active_id(), review);
-    navigation::open(repo, reading::source("a.cpp", "commit", 12));
+    open_kept(repo, reading::source("a.cpp", "commit", 12));
     auto source = repo.workspace().active_id();
-    navigation::open(repo, reading::source("a.cpp", "commit", 99, reading::review("another")));
+    open_kept(repo, reading::source("a.cpp", "commit", 99, reading::review("another")));
     ASSERT_EQ(repo.workspace().active_id(), source);
     ASSERT_EQ(repo.fullFileTargetLine(), 99);
     ASSERT_EQ(repo.workspace().documents().size(), 3u);
-    navigation::open(repo, reading::source("a.cpp", "INDEX"));
+    open_kept(repo, reading::source("a.cpp", "INDEX"));
     ASSERT_FALSE(repo.workspace().active_id() == source);
 }
 
 TEST(inactive_documents_release_rendering_payloads_and_keep_file_summaries) {
     ecs::RepoComponent repo;
     ecs::CommitDetailCache cache;
-    navigation::open(repo, reading::review("commit"));
+    open_kept(repo, reading::review("commit"));
     cache.cachedCommitHash = "commit";
     cache.commitDetailBody = std::string(10000, 'x');
     ecs::FileDiff file;
@@ -268,7 +272,7 @@ TEST(inactive_documents_release_rendering_payloads_and_keep_file_summaries) {
     file.hunks.back().lines.push_back(std::string(10000, 'y'));
     cache.commitDetailDiff.push_back(file);
     navigation::remember_review_files(repo, cache.commitDetailDiff);
-    navigation::open(repo, reading::source("file.cpp", "commit"));
+    open_kept(repo, reading::source("file.cpp", "commit"));
     navigation::release_inactive_review(repo, cache);
     ASSERT_TRUE(cache.commitDetailDiff.empty());
     ASSERT_EQ(cache.commitDetailDiff.capacity(), 0u);
@@ -288,12 +292,12 @@ TEST(inactive_documents_release_rendering_payloads_and_keep_file_summaries) {
 
 TEST(comparison_tab_reloads_after_another_review_releases_its_payload) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("compare:base:target"));
+    open_kept(repo, reading::review("compare:base:target"));
     auto comparison = repo.workspace().active_id();
     repo.comparisonLoadedScope = repo.comparisonScope();
     repo.comparisonNeedsLoad = false;
     repo.comparisonDiff.resize(100);
-    navigation::open(repo, reading::review("another"));
+    open_kept(repo, reading::review("another"));
     ASSERT_EQ(repo.comparisonDiff.capacity(), 0u);
     ASSERT_TRUE(repo.comparisonLoadedScope.empty());
     navigation::activate(repo, comparison);
@@ -304,13 +308,13 @@ TEST(resolved_aliases_reuse_existing_source_review_and_comparison_documents) {
     const std::string oid(40, 'a'), parent(40, 'b');
     for (int kind = 0; kind < 3; ++kind) {
         ecs::RepoComponent repo;
-        if (kind == 0) navigation::open(repo, reading::source("file.cpp", oid));
-        if (kind == 1) navigation::open(repo, reading::review(oid));
-        if (kind == 2) navigation::open(repo, reading::review("compare:" + parent + ":" + oid));
+        if (kind == 0) open_kept(repo, reading::source("file.cpp", oid));
+        if (kind == 1) open_kept(repo, reading::review(oid));
+        if (kind == 2) open_kept(repo, reading::review("compare:" + parent + ":" + oid));
         auto existing = repo.workspace().active_id();
-        if (kind == 0) navigation::open(repo, reading::source("file.cpp", "main", 17));
-        if (kind == 1) navigation::open(repo, reading::review("main", "file.cpp"));
-        if (kind == 2) navigation::open(repo, reading::review("compare:base:main", "file.cpp"));
+        if (kind == 0) open_kept(repo, reading::source("file.cpp", "main", 17));
+        if (kind == 1) open_kept(repo, reading::review("main", "file.cpp"));
+        if (kind == 2) open_kept(repo, reading::review("compare:base:main", "file.cpp"));
         ASSERT_EQ(repo.workspace().documents().size(), 3u);
         auto request = navigation::stamp(repo, kind == 2 ? navigation::comparison_request_key(repo) : "request");
         if (kind == 0) ASSERT_TRUE(navigation::resolve_source(repo, request, oid));
@@ -318,7 +322,7 @@ TEST(resolved_aliases_reuse_existing_source_review_and_comparison_documents) {
         if (kind == 2) ASSERT_TRUE(navigation::complete_comparison(repo, request, parent, oid));
         ASSERT_EQ(repo.workspace().active_id(), existing);
         ASSERT_EQ(repo.workspace().documents().size(), 2u);
-        navigation::open(repo, reading::review("wt"));
+        open_kept(repo, reading::review("wt"));
         navigation::activate(repo, existing);
         ASSERT_EQ(repo.workspace().active_id(), existing);
         if (kind == 0) ASSERT_EQ(repo.fullFileTargetLine(), 17);
@@ -329,7 +333,7 @@ TEST(resolved_aliases_reuse_existing_source_review_and_comparison_documents) {
 TEST(inactive_review_summaries_preserve_filters_rename_comments_and_progress) {
     ecs::RepoComponent repo;
     ecs::ReviewComponent review;
-    navigation::open(repo, reading::review("commit"));
+    open_kept(repo, reading::review("commit"));
     std::vector<ecs::FileDiff> files;
     for (char change : {'A', 'D', 'R', 'M'}) {
         ecs::FileDiff file;
@@ -350,7 +354,7 @@ TEST(inactive_review_summaries_preserve_filters_rename_comments_and_progress) {
     comment.oldSide = true;
     review.comments.push_back(comment);
     navigation::remember_review_files(repo, files);
-    navigation::open(repo, reading::source("M.cpp", "commit"));
+    open_kept(repo, reading::source("M.cpp", "commit"));
     const auto& summaries = *repo.workspace().document(repo.workspace().review())->files;
     ASSERT_EQ(ecs::review_progress(review, "commit", summaries).reviewed, 4u);
     for (char change : {'A', 'D', 'R', 'M'}) {
@@ -374,9 +378,9 @@ TEST(resolving_reviews_updates_retained_source_origins_and_history) {
     const std::string oid(40, 'a'), parent(40, 'b');
     for (bool comparison : {false, true}) {
         ecs::RepoComponent repo;
-        navigation::open(repo, reading::review(comparison ? "compare:base:main" : "main", "original.cpp"));
+        open_kept(repo, reading::review(comparison ? "compare:base:main" : "main", "original.cpp"));
         auto review = repo.workspace().active_id();
-        navigation::open(repo, reading::source("file.cpp", oid));
+        open_kept(repo, reading::source("file.cpp", oid));
         auto source = repo.workspace().active_id();
         navigation::activate(repo, review);
         auto request = navigation::stamp(repo, comparison ? navigation::comparison_request_key(repo) : "request");
@@ -397,14 +401,14 @@ TEST(resolving_reviews_updates_retained_source_origins_and_history) {
 
 TEST(document_close_reopens_reading_location_and_keeps_origin_summaries) {
     ecs::RepoComponent repo;
-    navigation::open(repo, reading::review("commit", "original.cpp"));
+    open_kept(repo, reading::review("commit", "original.cpp"));
     auto review = repo.workspace().active_id();
     ecs::FileDiff file;
     file.filePath = "original.cpp";
     file.hunks.push_back({});
     file.hunks[0].lines = {"+line"};
     navigation::remember_review_files(repo, {file});
-    navigation::open(repo, reading::source("original.cpp", "commit", 42));
+    open_kept(repo, reading::source("original.cpp", "commit", 42));
     auto source = repo.workspace().active_id();
     navigation::activate(repo, review);
     navigation::close(repo, review);
@@ -424,7 +428,7 @@ TEST(document_close_reopens_reading_location_and_keeps_origin_summaries) {
 TEST(document_close_history_is_bounded_and_final_fallback_does_not_fill_it) {
     ecs::RepoComponent repo;
     for (int i = 0; i < 25; ++i) {
-        navigation::open(repo, reading::source(std::to_string(i), ""));
+        open_kept(repo, reading::source(std::to_string(i), ""));
         navigation::close(repo, repo.workspace().active_id());
     }
     ASSERT_EQ(repo.workspace().closed().size(), 20u);
@@ -441,15 +445,143 @@ TEST(document_close_history_is_bounded_and_final_fallback_does_not_fill_it) {
 TEST(closed_source_origins_resolve_with_their_review) {
     ecs::RepoComponent repo;
     const std::string oid(40, 'a');
-    navigation::open(repo, reading::review("main"));
+    open_kept(repo, reading::review("main"));
     auto review = repo.workspace().active_id();
-    navigation::open(repo, reading::source("source.cpp", oid));
+    open_kept(repo, reading::source("source.cpp", oid));
     navigation::close(repo, repo.workspace().active_id());
     navigation::activate(repo, review);
     auto stamp = navigation::stamp(repo, "request");
     ASSERT_TRUE(navigation::resolve_review(repo, stamp, oid, ""));
     navigation::reopen_closed(repo);
     ASSERT_EQ(repo.workspace().source()->origin->destination, reading::review(oid).destination);
+}
+
+TEST(previews_replace_in_place_without_closing_kept_documents) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::review("a"));
+    auto a = repo.workspace().active_id();
+    navigation::open(repo, reading::review("b"));
+    auto b = repo.workspace().active_id();
+    ASSERT_TRUE(repo.workspace().document(a) == nullptr);
+    ASSERT_EQ(repo.workspace().documents().size(), 2u);
+    ASSERT_EQ(repo.workspace().documents()[1].id, b);
+    ASSERT_TRUE(repo.workspace().closed().empty());
+    navigation::keep(repo, b);
+    navigation::open(repo, reading::review("c"));
+    navigation::open(repo, reading::review("d"));
+    ASSERT_EQ(repo.workspace().documents().size(), 3u);
+    ASSERT_FALSE(repo.workspace().document(b)->preview);
+    navigation::activate(repo, b);
+    ASSERT_FALSE(repo.workspace().document(b)->preview);
+}
+
+TEST(source_previews_keep_their_origin_and_replace_only_other_previews) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::review("commit", "a.cpp"));
+    auto origin = repo.workspace().active_id();
+    navigation::open(repo, reading::source("a.cpp", "commit"));
+    auto source = repo.workspace().active_id();
+    ASSERT_FALSE(repo.workspace().document(origin)->preview);
+    navigation::open(repo, reading::source("b.cpp", "commit"));
+    ASSERT_TRUE(repo.workspace().document(source) == nullptr);
+    ASSERT_TRUE(repo.workspace().document(origin) != nullptr);
+    ASSERT_EQ(repo.workspace().documents().size(), 3u);
+    navigation::return_to_review(repo);
+    ASSERT_EQ(repo.workspace().active_id(), origin);
+    ASSERT_EQ(repo.selectedFilePath(), "a.cpp");
+}
+
+TEST(keeping_a_preview_does_not_restart_its_pending_read) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::source("same.cpp"));
+    std::promise<ecs::FullFileContent> promise;
+    std::stop_source stop;
+    repo.fullFileFuture = {promise.get_future(), stop};
+    auto stamp = navigation::stamp(repo, "page");
+    auto id = repo.workspace().active_id();
+    navigation::keep(repo, id);
+    ASSERT_FALSE(repo.workspace().document(id)->preview);
+    ASSERT_TRUE(navigation::accepts(repo, stamp, "page"));
+    ASSERT_TRUE(repo.fullFileFuture.valid());
+    ASSERT_FALSE(stop.stop_requested());
+}
+
+TEST(double_click_and_enter_keep_only_the_requested_destination) {
+    ecs::RepoComponent repo;
+    auto now = std::chrono::steady_clock::now();
+    navigation::click(repo, reading::review("a"), false, reading::ClickRegion::Tree, now);
+    navigation::click(repo, reading::review("a"), false, reading::ClickRegion::Tree, now + std::chrono::milliseconds(300));
+    ASSERT_FALSE(repo.workspace().document(repo.workspace().active_id())->preview);
+    navigation::click(repo, reading::review("b"), false, reading::ClickRegion::Tree, now + std::chrono::milliseconds(400));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->preview);
+    navigation::click(repo, reading::review("b"), false, reading::ClickRegion::Tree, now + std::chrono::milliseconds(1000));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->preview);
+    navigation::click(repo, reading::review("b"), true, reading::ClickRegion::Tree, now + std::chrono::milliseconds(2000));
+    ASSERT_FALSE(repo.workspace().document(repo.workspace().active_id())->preview);
+}
+
+TEST(resolving_a_preview_alias_preserves_the_existing_kept_tab) {
+    ecs::RepoComponent repo;
+    std::string oid(40, 'a');
+    open_kept(repo, reading::review(oid));
+    auto kept = repo.workspace().active_id();
+    navigation::open(repo, reading::review("HEAD"));
+    auto stamp = navigation::stamp(repo, "patch");
+    ASSERT_TRUE(navigation::resolve_review(repo, stamp, oid, ""));
+    ASSERT_EQ(repo.workspace().active_id(), kept);
+    ASSERT_FALSE(repo.workspace().document(kept)->preview);
+    ASSERT_EQ(repo.workspace().documents().size(), 2u);
+}
+
+TEST(reopen_keeps_a_closed_preview_without_replacing_the_current_preview) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::source("a.cpp"));
+    auto a = repo.workspace().active_id();
+    navigation::close(repo, a);
+    navigation::open(repo, reading::source("b.cpp"));
+    auto b = repo.workspace().active_id();
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.workspace().active_id(), a);
+    ASSERT_FALSE(repo.workspace().document(a)->preview);
+    ASSERT_TRUE(repo.workspace().document(b)->preview);
+}
+
+TEST(back_recreates_a_replaced_preview_and_invalidates_its_old_request) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::review("a"));
+    auto stamp = navigation::stamp(repo, "patch");
+    navigation::open(repo, reading::review("b"));
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.selectedCommitHash(), "a");
+    ASSERT_EQ(repo.workspace().documents().size(), 2u);
+    ASSERT_FALSE(navigation::accepts(repo, stamp, "patch"));
+}
+
+TEST(clicks_in_different_regions_do_not_count_as_a_double_click) {
+    ecs::RepoComponent repo;
+    auto now = std::chrono::steady_clock::now();
+    navigation::click(repo, reading::source("a.cpp"), false, reading::ClickRegion::Picker, now);
+    navigation::click(repo, reading::source("a.cpp"), false, reading::ClickRegion::Tabs, now + std::chrono::milliseconds(10));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->preview);
+    navigation::click(repo, reading::source("a.cpp"), false, reading::ClickRegion::Tabs, now + std::chrono::milliseconds(20));
+    ASSERT_FALSE(repo.workspace().document(repo.workspace().active_id())->preview);
+}
+
+TEST(history_navigation_breaks_a_double_click_sequence) {
+    ecs::RepoComponent repo;
+    auto now = std::chrono::steady_clock::now();
+    navigation::click(repo, reading::review("a"), false, reading::ClickRegion::History, now);
+    navigation::step(repo, -1);
+    navigation::click(repo, reading::review("a"), false, reading::ClickRegion::History, now + std::chrono::milliseconds(10));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->preview);
+}
+
+TEST(different_rows_in_one_review_do_not_count_as_a_double_click) {
+    ecs::RepoComponent repo;
+    auto now = std::chrono::steady_clock::now();
+    navigation::click(repo, reading::review("commit", "a.cpp"), false, reading::ClickRegion::Tree, now);
+    navigation::click(repo, reading::review("commit", "b.cpp"), false, reading::ClickRegion::Tree, now + std::chrono::milliseconds(10));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->preview);
 }
 
 int main() { RUN_ALL_TESTS(); }

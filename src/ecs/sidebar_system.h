@@ -703,7 +703,7 @@ private:
                     .with_custom_text_color(theme::DIFF_DEL_TEXT).with_alignment(TextAlignment::Right)
                     .with_debug_name("tree_deletions"));
             }, config);
-        if (selectedPath) navigation::open(*repo, reading::review(scope, *selectedPath));
+        if (selectedPath) navigation::click(*repo, reading::review(scope, *selectedPath), afterhours::input::is_key_pressed(257));
     }
 
     // ---- Sidebar mode toggle (T031) ----
@@ -1943,8 +1943,8 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
-                if (allFilesMode_) navigation::open(*r, reading::source(path));
-                else navigation::open(*r, reading::review(staged ? "index" : "wt", path));
+                if (allFilesMode_) navigation::click(*r, reading::source(path), afterhours::input::is_key_pressed(257));
+                else navigation::click(*r, reading::review(staged ? "index" : "wt", path), afterhours::input::is_key_pressed(257));
             }
         }
 
@@ -2179,7 +2179,7 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
-                navigation::open(*r, reading::review(commit.hash));
+                navigation::click(*r, reading::review(commit.hash), afterhours::input::is_key_pressed(257), reading::ClickRegion::History);
             }
         }
     }

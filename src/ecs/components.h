@@ -274,6 +274,7 @@ private:
 public:
     const reading::ReadingWorkspace& workspace() const { return workspace_; }
     std::optional<reading::NavigationEffect> navigationEffect;
+    std::optional<reading::DocumentId> readingFocusDocument;
     std::vector<FileDiff> originFileSummaries;
     std::string repoPath;
     std::string currentBranch;

@@ -44,7 +44,7 @@ inline nlohmann::json layout_snapshot() {
         const auto& cmp = entity.get<UIComponent>();
         const auto rect = screen_rect(entity);
         nlohmann::json node{
-            {"id", entity.id}, {"hot", context && context->is_hot(entity.id)}, {"parent", cmp.parent}, {"children", cmp.children},
+            {"id", entity.id}, {"focused", context && context->has_focus(entity.id)}, {"hot", context && context->is_hot(entity.id)}, {"parent", cmp.parent}, {"children", cmp.children},
             {"rendered", cmp.was_rendered_to_screen}, {"hidden", cmp.should_hide},
             {"rect", rect_json(rect)}, {"visible_rect", rect_json(visible_rect(entity))},
             {"padding", edges_json(cmp.computed_padd)},

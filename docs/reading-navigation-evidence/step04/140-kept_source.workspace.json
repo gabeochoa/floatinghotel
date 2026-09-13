@@ -1,0 +1,27 @@
+{
+  "active": 5,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt"
+    },
+    {
+      "id": 3,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "62ac8d9e6f21acfffbc2b004ddf6935300213355"
+    },
+    {
+      "id": 5,
+      "kind": "source",
+      "path": "README.md",
+      "preview": false,
+      "revision": ""
+    }
+  ]
+}

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <chrono>
 #include <optional>
 #include <string>
 #include <variant>
@@ -125,6 +126,8 @@ inline std::string scope(const ReviewLocation& location) {
 }
 
 enum class Slot { Review, Source };
+enum class OpenMode { Preview, Keep };
+enum class ClickRegion { Tabs, Tree, History, Picker, Search };
 
 struct Visit {
     Location location = ReviewLocation{};
@@ -161,6 +164,7 @@ struct Document {
     Location location = ReviewLocation{};
     std::uint64_t lastActivated = 0;
     std::optional<std::vector<FileSummary>> files;
+    bool preview = false;
 };
 
 class ReadingWorkspace {
@@ -172,18 +176,32 @@ class ReadingWorkspace {
     std::vector<Visit> history_{{}};
     size_t index_ = 0;
     std::uint64_t generation_ = 0;
+    std::optional<Location> lastClick_;
+    ClickRegion lastClickRegion_ = ClickRegion::Tree;
+    std::chrono::steady_clock::time_point lastClickTime_;
 
     Document& current() {
         return *std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == active_; });
     }
-    void select(const Location& location) {
+    void keep(DocumentId id) {
+        for (auto& document : documents_) if (document.id == id) document.preview = false;
+    }
+    void select(const Location& location, OpenMode mode = OpenMode::Preview) {
+        if (const auto* source = std::get_if<SourceLocation>(&location); source && source->origin)
+            if (const auto* origin = document(*source->origin)) keep(origin->id);
         auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) {
             return same_document(tab.location, location);
         });
         if (found == documents_.end()) {
-            documents_.push_back({DocumentId{nextId_++}, location});
-            found = std::prev(documents_.end());
+            if (mode == OpenMode::Preview)
+                found = std::find_if(documents_.begin(), documents_.end(), [](const auto& tab) { return tab.preview; });
+            Document next{DocumentId{nextId_++}, location, 0, {}, mode == OpenMode::Preview};
+            if (found == documents_.end()) {
+                documents_.push_back(std::move(next));
+                found = std::prev(documents_.end());
+            } else *found = std::move(next);
         }
+        if (mode == OpenMode::Keep) found->preview = false;
         found->location = location;
         active_ = found->id;
         found->lastActivated = ++generation_;
@@ -239,14 +257,17 @@ private:
         *this = {};
         generation_ = next;
     }
-    bool open(Location next, bool reviewing = false) {
+    bool open(Location next, bool reviewing = false, OpenMode mode = OpenMode::Preview) {
         Visit visit{std::move(next), reviewing};
-        if (history_[index_] == visit && location() == visit.location) return false;
+        if (history_[index_] == visit && location() == visit.location) {
+            if (mode == OpenMode::Keep) keep(active_);
+            return false;
+        }
         history_.resize(index_ + 1);
         history_.push_back(visit);
         if (history_.size() > 256) history_.erase(history_.begin());
         index_ = history_.size() - 1;
-        select(visit.location);
+        select(visit.location, mode);
         return true;
     }
     bool close(DocumentId id, bool reviewing) {
@@ -269,6 +290,7 @@ private:
     bool reopen(bool reviewing) {
         if (closed_.empty()) return false;
         auto restored = std::move(closed_.back());
+        restored.preview = false;
         closed_.pop_back();
         auto next = restored.location;
         auto existing = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) {
@@ -276,7 +298,7 @@ private:
         });
         if (existing == documents_.end()) documents_.push_back(std::move(restored));
         else if (!existing->files && restored.files) existing->files = std::move(restored.files);
-        return open(std::move(next), reviewing);
+        return open(std::move(next), reviewing, OpenMode::Keep);
     }
     bool step(int direction) {
         if (direction == 0 || (direction < 0 && index_ == 0) ||
@@ -301,6 +323,7 @@ private:
             auto replaced = active_;
             found->location = resolved.location;
             found->lastActivated = resolved.lastActivated;
+            found->preview = found->preview && resolved.preview;
             if (!found->files) found->files = std::move(resolved.files);
             active_ = found->id;
             std::erase_if(documents_, [&](const auto& tab) { return tab.id == replaced; });

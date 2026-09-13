@@ -19,6 +19,7 @@ click_ui basket_close
 click_ui review_staged_changes
 wait_for_refresh
 screenshot staged_review
+key ENTER
 expect_text "Staged changes"
 expect_text ".gitignore"
 click_text "Add contributing guidelines"

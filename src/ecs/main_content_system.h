@@ -337,7 +337,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ui::diff_sel::reset();
                 }
                 layout.filePickerOpen = false;
-                if (effect.changed || effect.dismissedPanel || dismissPicker) ctx.set_focus(ctx.ROOT);
+                if (effect.changed || effect.dismissedPanel || dismissPicker) repoPtr->readingFocusDocument = repoPtr->workspace().active_id();
             }
         }
 
@@ -385,6 +385,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
 
+        bool activeDocumentFocused = false;
         if (repoPtr && layout.contentTabs.height > 0.f) {
             auto tabs = div(ctx, mk(uiRoot, 2990), ComponentConfig{}
                 .with_size(ComponentSize{pixels(layout.contentTabs.width), pixels(layout.contentTabs.height)})
@@ -410,6 +411,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         title = changes->staged ? "Staged changes" : "Unstaged changes";
                     else title = "Comparison";
                 }
+                if (document.preview) title = "Preview · " + title;
                 const float textWidth = afterhours::ui::measure_text_line(title, afterhours::ui::UIComponent::DEFAULT_FONT,
                     14.f * ui::zoom::get()).x / ui::zoom::get();
                 const float available = layout.contentTabs.width / static_cast<float>(workspace.documents().size());
@@ -441,6 +443,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
                 ui::set_tooltip(tab.ent(), source ? source->destination.path + " @ " +
                     (reading::revision_text(source->destination.revision).empty() ? "working tree" : reading::revision_text(source->destination.revision)) : title);
+                if (active && repoPtr->readingFocusDocument == document.id) {
+                    ctx.set_focus(tab.ent().id);
+                    repoPtr->readingFocusDocument.reset();
+                }
+                activeDocumentFocused |= active && ctx.has_focus(tab.ent().id);
                 if (tab) activate = document.id;
                 auto close = button(ctx, mk(tab.ent(), 20), preset::Button("")
                     .with_size(ComponentSize{pixels(24), percent(1.f)})
@@ -471,6 +478,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     };
                     const auto id = document.id;
                     ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+                        ui::ContextMenuItem::item("Keep Open", [target, id] { if (auto* repo = target()) navigation::keep(*repo, id); }, document.preview),
                         ui::ContextMenuItem::item("Close", [target, id] { if (auto* repo = target()) navigation::close(*repo, id); }, true, "Cmd+W"),
                         ui::ContextMenuItem::item("Close Others", [target, id] { if (auto* repo = target()) navigation::close_others(*repo, id); }),
                         ui::ContextMenuItem::item("Close Tabs to the Right", [target, id] { if (auto* repo = target()) navigation::close_others(*repo, id, true); }),
@@ -481,7 +489,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }
             if (closeDocument) navigation::close(*repoPtr, *closeDocument);
-            else if (activate) navigation::activate(*repoPtr, *activate);
+            else if (activate) {
+                if (const auto* document = workspace.document(*activate))
+                    navigation::click(*repoPtr, document->location, afterhours::input::is_key_pressed(257), reading::ClickRegion::Tabs);
+            }
         }
 
         auto mainBg = div(ctx, mk(uiRoot, 3000),
@@ -571,6 +582,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool editingText = focused.valid() && focused->has<afterhours::text_input::HasTextInputState>();
         auto* keyboardMenu = find_singleton<MenuComponent>();
         bool keyboardMenuOpen = keyboardMenu && keyboardMenu->activeMenuIndex >= 0;
+        if (repoPtr && !shortcutsActive && !editingText && !keyboardMenuOpen && !ui::is_context_menu_open() && !superDown &&
+            !layout.filePickerOpen && !repoPtr->repoSearchOpen && !repoPtr->commitSearchOpen &&
+            !repoPtr->fileHistoryOpen && (!reviewPtr || reviewPtr->composingKey.empty()) &&
+            activeDocumentFocused && afterhours::input::is_key_pressed(257))
+            navigation::keep(*repoPtr, repoPtr->workspace().active_id());
         if (!shortcutsActive && reviewPtr && repoPtr && !source_tab_active(*repoPtr) && !editingText && !keyboardMenuOpen &&
             reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
             if (!superDown) {

@@ -1,0 +1,5 @@
+PASS 100%: row, icon, count and close hover match rendered targets; icon click selects correct file
+PASS 140%: row, icon, count and close hover match rendered targets; icon click selects correct file
+PASS 200%: row, icon, count and close hover match rendered targets; icon click selects correct file
+PASS unstaged/staged separation, feedback, compact heading, independent text size, tab menus and closure
+Priority feedback and index preservation passed

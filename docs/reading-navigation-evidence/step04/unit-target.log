@@ -1,0 +1,42 @@
+--- Compiling test_review_target ---
+--- Running test_review_target ---
+  comparison_target_jump_discards_the_previous_pending_result  OK
+  staged_review_draft_restores_its_file_and_index_side         OK
+  comparison_loading_does_not_restore_an_unrelated_branch_review OK
+  saved_review_target_exits_series_mode_and_discards_its_pending_result OK
+  navigation_result_stamp_rejects_each_superseded_identity     OK
+  historical_resolution_pins_history_without_creating_a_visit  OK
+  reselecting_the_same_destination_keeps_pending_work          OK
+  typed_destinations_separate_working_index_historical_and_review OK
+  comparison_resolution_updates_the_same_visit_and_ignores_late_results OK
+  opening_source_keeps_the_retained_comparisons_review_storage OK
+  consuming_a_source_reveal_does_not_restore_a_stale_line_on_activation OK
+  comparison_results_from_old_diff_options_are_not_applied     OK
+  submitted_comparison_rejects_edited_fields_and_merge_mode    OK
+  document_comparison_reload_ignores_unsubmitted_form_edits    OK
+  document_collection_retains_two_reviews_and_three_sources    OK
+  document_identity_excludes_reading_location_and_origin       OK
+  inactive_documents_release_rendering_payloads_and_keep_file_summaries OK
+  comparison_tab_reloads_after_another_review_releases_its_payload OK
+  resolved_aliases_reuse_existing_source_review_and_comparison_documents OK
+  inactive_review_summaries_preserve_filters_rename_comments_and_progress OK
+  resolving_reviews_updates_retained_source_origins_and_history OK
+  document_close_reopens_reading_location_and_keeps_origin_summaries OK
+  document_close_history_is_bounded_and_final_fallback_does_not_fill_it OK
+  closed_source_origins_resolve_with_their_review              OK
+  previews_replace_in_place_without_closing_kept_documents     OK
+  source_previews_keep_their_origin_and_replace_only_other_previews OK
+  keeping_a_preview_does_not_restart_its_pending_read          OK
+  double_click_and_enter_keep_only_the_requested_destination   OK
+  resolving_a_preview_alias_preserves_the_existing_kept_tab    OK
+  reopen_keeps_a_closed_preview_without_replacing_the_current_preview OK
+  back_recreates_a_replaced_preview_and_invalidates_its_old_request OK
+  clicks_in_different_regions_do_not_count_as_a_double_click   OK
+  history_navigation_breaks_a_double_click_sequence            OK
+  different_rows_in_one_review_do_not_count_as_a_double_click  OK
+
+34/34 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

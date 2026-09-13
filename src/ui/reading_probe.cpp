@@ -112,7 +112,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
             }
             nlohmann::json tabs = nlohmann::json::array();
             for (const auto& tab : repo->workspace().documents()) {
-                nlohmann::json value{{"id", tab.id.value}};
+                nlohmann::json value{{"id", tab.id.value}, {"preview", tab.preview}};
                 if (const auto* file = std::get_if<reading::SourceLocation>(&tab.location)) {
                     value["kind"] = "source";
                     value["path"] = file->destination.path;

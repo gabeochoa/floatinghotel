@@ -122,13 +122,31 @@ struct navigation {
         }
     }
 
-    static void open(ecs::RepoComponent& repo, reading::Location location, std::optional<bool> reviewing = {}) {
+    static void open(ecs::RepoComponent& repo, reading::Location location, std::optional<bool> reviewing = {},
+                     reading::OpenMode mode = reading::OpenMode::Preview) {
+        repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
         if (auto* source = std::get_if<reading::SourceLocation>(&location); source && !source->origin)
             source->origin = repo.workspace_.review();
-        bool mode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
-        bool changed = repo.workspace_.open(std::move(location), mode);
+        bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
+        bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode);
         finish(repo, before, changed);
+    }
+
+    static void keep(ecs::RepoComponent& repo, reading::DocumentId id) {
+        repo.workspace_.keep(id);
+    }
+
+    static void click(ecs::RepoComponent& repo, reading::Location location, bool enter = false,
+                      reading::ClickRegion region = reading::ClickRegion::Tree, std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) {
+        auto& workspace = repo.workspace_;
+        const bool repeated = workspace.lastClick_ && region == workspace.lastClickRegion_ &&
+            (region == reading::ClickRegion::Tabs ? reading::same_document(*workspace.lastClick_, location) : *workspace.lastClick_ == location) &&
+            now >= workspace.lastClickTime_ && now - workspace.lastClickTime_ <= std::chrono::milliseconds(500);
+        open(repo, location, {}, enter || repeated ? reading::OpenMode::Keep : reading::OpenMode::Preview);
+        workspace.lastClick_ = std::move(location);
+        workspace.lastClickRegion_ = region;
+        workspace.lastClickTime_ = now;
     }
 
     static void activate(ecs::RepoComponent& repo, reading::Slot slot) {
@@ -169,6 +187,7 @@ struct navigation {
     }
 
     static void step(ecs::RepoComponent& repo, int direction) {
+        repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
         if (repo.workspace_.step(direction)) finish(repo, before, true);
     }

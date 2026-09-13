@@ -1,0 +1,20 @@
+{
+  "active": 2,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt"
+    },
+    {
+      "id": 2,
+      "kind": "review",
+      "path": "",
+      "preview": true,
+      "revision": "81699ee2c1c329efe76dce04632a0ae309409639"
+    }
+  ]
+}

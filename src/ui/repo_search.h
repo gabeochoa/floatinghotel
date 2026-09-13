@@ -134,7 +134,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                     .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
                     .with_font_size(FontSize::Small).with_custom_background(theme::PANEL_BG)
                     .with_debug_name("repo_search_result"))) {
-                navigation::open(repo, reading::source(match.file, match.revision, match.line));
+                navigation::click(repo, reading::source(match.file, match.revision, match.line), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);
             }
             if (button(ctx, mk(resultRow.ent(), 1), preset::Button("Preview")
                     .with_size(ComponentSize{pixels(80), pixels(30)}).with_font_size(FontSize::Small)

@@ -20,14 +20,14 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         layout.filePickerCacheKey = key;
         layout.filePickerIndex = 0;
     }
-    auto open = [&](const std::string& path) {
-        navigation::open(repo, reading::source(path));
+    auto open = [&](const std::string& path, bool keep) {
+        navigation::click(repo, reading::source(path), keep, reading::ClickRegion::Picker);
     };
     auto& results = layout.filePickerResults;
     if (!results.empty()) {
         if (afterhours::input::is_key_pressed(264)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
         if (afterhours::input::is_key_pressed(265)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
-        if (afterhours::input::is_key_pressed(257)) open(results[layout.filePickerIndex]);
+        if (afterhours::input::is_key_pressed(257)) open(results[layout.filePickerIndex], true);
     }
     div(ctx, mk(parent, 586002), ComponentConfig{}
         .with_label(repo.filesError.empty() ? std::to_string(results.size()) + " matches · arrows to choose, Enter to open, Escape to close" : repo.filesError)
@@ -38,7 +38,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                     .with_size(ComponentSize{percent(1.f), pixels(28)})
                     .with_alignment(TextAlignment::Left)
                     .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
-                    .with_font_size(FontSize::Small).with_debug_name("file_picker_result"))) open(results[i]);
+                    .with_font_size(FontSize::Small).with_debug_name("file_picker_result"))) open(results[i], false);
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 90.f))})
             .with_debug_name("file_picker_list"));
     if (list.ent().has<afterhours::ui::HasScrollView>() &&

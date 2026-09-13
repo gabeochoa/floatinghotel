@@ -3,8 +3,10 @@ resize 1600 1000
 wait_for_refresh
 click_text "Add contributing guidelines"
 wait_for_refresh
+key ENTER
 click_text "Add unit tests for utils"
 wait_for_refresh
+key ENTER
 key CMD+P
 screenshot tabs_picker_a
 click_ui file_picker_input
