@@ -2418,3 +2418,32 @@ and shader/source previews in games without reprocessing entire documents after
 each page load. Delimiter lookahead and source positions must survive chunk cuts;
 keys must encode state fields rather than struct padding. The app's current
 workaround keeps the existing cache budgets and native styled-text renderer.
+
+## Folded ranges in a virtualized reader
+
+Step 51 adds source folds using repository-owned line ranges. The renderer keeps
+its cumulative index of original wrapped rows and skips folded intervals while
+reserving the same row identities. Source selection, syntax, and copy positions
+remain independent of the rendered entities. Gutter controls reserve two text
+columns and use the same measured font/zoom geometry as the code.
+
+A reusable Afterhours range-visibility adapter could provide this behavior for
+source previews, nested game logs, stack traces, and inspectors. Applications
+would supply proven ranges and stable source positions; the widget would handle
+virtualization, disclosure targets, and anchor preservation. Language parsing
+and repository identities should stay with the application.
+
+The app also caught a CRLF boundary error in its first folding scanner: treating
+CR and LF separately could expose braces inside a continued quoted string. It
+now shares the lexer's line-lookahead helper. The failing test is retained in
+`output/step51-crlf-before.log`. A framework callback for stateful text transforms
+should carry logical line endings consistently for styling and range discovery.
+
+The step 51 fast fold/close/reopen replay also exposed overlapping input ownership:
+a child disclosure click entered the parent reader's text-selection gesture,
+including edge autoscroll. The app excludes its two-column disclosure gutter
+from text selection. Upstream, custom pointer gestures need an input-consumption
+contract that composes with child buttons, including press/drag/release ownership.
+This applies to tree inspectors, game editors, timelines, and selectable logs.
+Fold generations also participate in the app's layout acknowledgement stamp so
+geometry built before a visibility change cannot consume its new reading anchor.

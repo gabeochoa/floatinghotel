@@ -141,6 +141,16 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         }
         changed = true;
     }
+    if (!repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary) {
+        const auto& file = repo.fullFileDiff.front();
+        navigation::sync_source_folds(repo, repo.fullFilePage.sourceIdentity + "\n" + repo.fullFilePage.encoding);
+        if (repo.sourceFoldIdentity != file.renderIdentity) {
+            repo.sourceFoldIdentity = file.renderIdentity;
+            auto lines = ui::diff_sel::code_lines(file, reading::DiffSide::After, repo.fullFilePage.begin.column);
+            repo.sourceFoldRanges = source_folding::discover(repo.fullFilePath(), lines, repo.fullFilePage.begin.lexical,
+                repo.fullFilePage.next.offset == repo.fullFilePage.totalBytes);
+        }
+    }
     constexpr float headerHeight = 32.f;
     if (render_source_header(ctx, parent, repo, layout)) return;
     const auto& page = repo.fullFilePage;

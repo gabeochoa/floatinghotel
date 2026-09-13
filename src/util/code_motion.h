@@ -1,18 +1,13 @@
 #pragma once
 
 #include "code_words.h"
+#include "code_line.h"
 #include "code_position.h"
 #include <span>
 
 namespace reading {
 
 enum class CodeMotion { Left, Right, Up, Down, WordLeft, WordRight, LineStart, LineEnd, DocumentStart, DocumentEnd };
-
-struct CodeLine {
-    int number = 1;
-    int column = 1;
-    std::string_view text;
-};
 
 inline int end_column(const CodeLine& line) {
     return line.column + column_at_byte(line.text, line.text.size()) - 1;

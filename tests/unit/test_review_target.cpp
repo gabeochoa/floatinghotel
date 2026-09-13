@@ -1085,4 +1085,84 @@ TEST(explicit_review_line_visits_restore_logical_anchors_and_only_unfold_the_tar
     ASSERT_EQ(reading::position_in_diff(file, point)->sign, '-');
 }
 
+
+TEST(source_folds_follow_kept_documents_and_explicit_line_destinations) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("first.cpp"));
+    const auto first = repo.workspace().active_id();
+    navigation::sync_source_folds(repo, "first-version");
+    navigation::toggle_source_fold(repo, {1, 40});
+    navigation::toggle_source_fold(repo, {3, 8});
+    open_kept(repo, reading::source("second.py"));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->sourceFolds.folded.empty());
+    navigation::activate(repo, first);
+    ASSERT_EQ(repo.workspace().document(first)->sourceFolds.folded.size(), 2u);
+    open_kept(repo, reading::source("first.cpp", "", 5));
+    ASSERT_EQ(repo.workspace().active_id(), first);
+    ASSERT_TRUE(repo.workspace().document(first)->sourceFolds.folded.empty());
+    navigation::toggle_source_fold(repo, {1, 40});
+    navigation::sync_source_folds(repo, "changed-version");
+    ASSERT_TRUE(repo.workspace().document(first)->sourceFolds.folded.empty());
+}
+
+TEST(back_to_a_hidden_source_line_unfolds_its_destination) {
+    ecs::RepoComponent repo;
+    auto visit = [&](int line) {
+        navigation::open(repo, reading::source("first.cpp", "", line), {}, reading::OpenMode::Keep,
+            reading::ReadingAnchor{"first.cpp", "", reading::DiffSide::After, line, 1, .15f});
+    };
+    visit(5);
+    visit(80);
+    navigation::toggle_source_fold(repo, {1, 40});
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->sourceFolds.folded.size(), 1u);
+    navigation::step(repo, -1);
+    const auto* document = repo.workspace().document(repo.workspace().active_id());
+    ASSERT_EQ(document->anchor->line, 5);
+    ASSERT_TRUE(document->sourceFolds.folded.empty());
+}
+
+
+TEST(folds_in_different_revisions_of_the_same_path_are_independent) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("same.cpp"));
+    const auto working = repo.workspace().active_id();
+    navigation::sync_source_folds(repo, "working");
+    navigation::toggle_source_fold(repo, {1, 20});
+    open_kept(repo, reading::source("same.cpp", "INDEX"));
+    const auto index = repo.workspace().active_id();
+    navigation::sync_source_folds(repo, "index-blob");
+    navigation::toggle_source_fold(repo, {30, 40});
+    ASSERT_NE(working, index);
+    navigation::activate(repo, working);
+    ASSERT_TRUE(repo.workspace().document(working)->sourceFolds.closed({1, 20}));
+    ASSERT_FALSE(repo.workspace().document(working)->sourceFolds.closed({30, 40}));
+    ASSERT_TRUE(repo.workspace().document(index)->sourceFolds.closed({30, 40}));
+    navigation::reveal_caret(repo, {"same.cpp", reading::DiffSide::After, 5, 1}, .15f);
+    ASSERT_TRUE(repo.workspace().document(working)->sourceFolds.folded.empty());
+    ASSERT_TRUE(repo.workspace().document(index)->sourceFolds.closed({30, 40}));
+}
+
+
+TEST(fold_changes_invalidate_layout_acknowledgements_without_adding_history) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("file.cpp"));
+    const auto history = repo.workspace().history().size();
+    navigation::sync_source_folds(repo, "source");
+    auto request = navigation::stamp(repo, navigation::reading_layout_key(repo));
+    navigation::sync_source_folds(repo, "source");
+    ASSERT_TRUE(navigation::accepts(repo, request, navigation::reading_layout_key(repo)));
+    navigation::toggle_source_fold(repo, {1, 40});
+    ASSERT_FALSE(navigation::accepts(repo, request, navigation::reading_layout_key(repo)));
+    request = navigation::stamp(repo, navigation::reading_layout_key(repo));
+    navigation::reveal_source_line(repo, 5);
+    ASSERT_FALSE(navigation::accepts(repo, request, navigation::reading_layout_key(repo)));
+    ASSERT_EQ(repo.workspace().history().size(), history);
+    navigation::toggle_source_fold(repo, {1, 40});
+    const auto id = repo.workspace().active_id();
+    navigation::close(repo, id);
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.workspace().active_id(), id);
+    ASSERT_TRUE(repo.workspace().document(id)->sourceFolds.closed({1, 40}));
+}
+
 int main() { RUN_ALL_TESTS(); }

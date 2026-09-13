@@ -10,6 +10,8 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--binary', type=Path, default=ROOT / 'output/floatinghotel.exe')
 parser.add_argument('--baseline', action='store_true')
+parser.add_argument('--zooms', nargs='+', type=int, default=[100, 140, 200])
+parser.add_argument('--modes', nargs='+', choices=['source', 'unified', 'split'], default=['source', 'unified', 'split'])
 args = parser.parse_args()
 out = args.output.resolve()
 out.mkdir(parents=True, exist_ok=False)
@@ -39,8 +41,8 @@ def settle():
 def capture(label, count):
     return settle() + f'workspace_checkpoint {count} {label}\nscreenshot {label}\n'
 
-for zoom in [100, 140, 200]:
-    for mode in ['source', 'unified', 'split']:
+for zoom in args.zooms:
+    for mode in args.modes:
         directory = out / f'{zoom}-{mode}'
         directory.mkdir()
         count = 2 if mode == 'source' else 1

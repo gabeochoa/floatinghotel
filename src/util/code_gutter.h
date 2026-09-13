@@ -10,7 +10,7 @@ inline std::string pad(const std::string& number, size_t width = 5) {
 
 inline std::string prefix(const std::string& oldNumber, const std::string& newNumber,
                           char sign, bool fullContent) {
-    if (fullContent) return pad(newNumber) + "  ";
+    if (fullContent) return "  " + pad(newNumber) + "  ";
     return pad(oldNumber) + " " + pad(newNumber) + "  " + sign + " ";
 }
 

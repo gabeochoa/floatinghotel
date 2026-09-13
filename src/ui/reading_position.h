@@ -12,7 +12,7 @@ inline void bind_reading_view(ecs::RepoComponent& repo, Entity& entity,
     auto& state = repo.reading;
     state.entity = entity.id;
     state.key = repo.repoPath + "\n" + view;
-    state.request = navigation::stamp(repo, "reading-layout");
+    state.request = navigation::stamp(repo, navigation::reading_layout_key(repo));
     state.ready = ready;
     state.bound = true;
     state.rows.clear();

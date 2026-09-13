@@ -407,6 +407,8 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
             auto entity = afterhours::ui::UICollectionHolder::getEntityForID(st.lastLines[i].ent);
             if (!entity.valid() || !entity->has<afterhours::ui::UIComponent>()) continue;
             const auto rc = ui::visible_rect(**entity);
+            if (sess.owner && sess.owner->workspace().source() &&
+                mx < ui::screen_rect(**entity).x + code_mw(sess, "  ")) continue;
             if (rc.width > 0.f && rc.height > 0.f && mx >= rc.x && mx <= rc.x + rc.width &&
                 my >= rc.y && my <= rc.y + rc.height) return i;
         }
@@ -923,7 +925,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               diff_sel::Session* sel = nullptr,
                               code_highlight::Range changed = {},
                               bool hasNewline = true, bool moved = false, bool fullContent = false,
-                              size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr, const PreparedCode* prepared = nullptr) {
+                              size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr, const PreparedCode* prepared = nullptr,
+                              const source_folding::Range* fold = nullptr, bool folded = false) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
@@ -1032,6 +1035,19 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             }
         }
     }
+    if (fold && !sourceOffset && sel) {
+        const float foldWidth = diff_sel::code_mw(*sel, "  ") / zoom::get();
+        auto* foldRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        const bool enabled = foldRepo && foldRepo->workspace().document(foldRepo->workspace().active_id())->sourceFolds.can_toggle(*fold);
+        auto toggle = button(ctx, mk(lineDiv.ent(), 90003), preset::Button(folded ? ">" : "v")
+            .with_skip_grid_snap().with_size(ComponentSize{pixels(foldWidth), pixels(16)})
+            .with_absolute_position(0.f, std::max(0.f, (diff_detail::code_line_height() - 16.f) * .5f))
+            .with_transparent_bg().with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_padding(Padding{}).with_disabled(!enabled).with_debug_name("source_fold_" + std::to_string(fold->first)));
+        set_tooltip(toggle.ent(), enabled ? std::string(folded ? "Expand " : "Collapse ") + std::to_string(fold->end - fold->first - 1) + " lines" :
+            "Unfold a block before folding another");
+        if (toggle && foldRepo) navigation::toggle_source_fold(*foldRepo, *fold);
+    }
     if (sel) diff_sel::render_caret(ctx, lineDiv.ent(), *sel, filePath, caretSide, caretLine, content,
         diff_sel::content_x_offset(*sel, gutter), prepared ? prepared->column : reading::column_at_byte(original ? *original : content, sourceOffset), finalFragment);
 }
@@ -1080,8 +1096,22 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
             return rows;
         });
     }
+    auto* foldOwner = fileDiff.isFullContent ? ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>() : nullptr;
+    if (foldOwner && sel->findNavigate && sel->findMatch) navigation::reveal_source_line(*foldOwner, sel->findMatch->line);
+    std::vector<source_folding::Range> closed;
+    if (foldOwner) for (auto range : foldOwner->sourceFoldRanges)
+        if (foldOwner->workspace().document(foldOwner->workspace().active_id())->sourceFolds.closed(range)) closed.push_back(range);
     auto changedRanges = code_highlight::hunk_ranges(hunk.lines);
     for (size_t index = 0; index < hunk.lines.size(); ++index) {
+        auto hidden = std::find_if(closed.begin(), closed.end(), [&](auto range) { return range.contains(newLine); });
+        if (hidden != closed.end()) {
+            const auto next = std::min(hunk.lines.size(), static_cast<size_t>(hidden->end - hunk.newStart));
+            nextId += static_cast<int>(sourceRows.empty() ? next - index : sourceRows[next] - sourceRows[index]);
+            oldLine += static_cast<int>(next - index);
+            newLine += static_cast<int>(next - index);
+            index = next - 1;
+            continue;
+        }
         if (!sourceRows.empty()) {
             const auto count = sourceRows[index + 1] - sourceRows[index];
             const double height = static_cast<double>(vp->px(diff_detail::code_line_height())) * count;
@@ -1122,10 +1152,17 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
                 if (vp) vp->flush(ctx, parent, nextId);
                 int oldNumber = oldLine, newNumber = newLine;
                 if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get_source(content, sign == '-' && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath, sel->visibleWhitespace, identity, hunk_syntax::at(hunk, index, sign == '-'));
+                const source_folding::Range* fold = nullptr;
+                if (foldOwner) {
+                    auto found = std::lower_bound(foldOwner->sourceFoldRanges.begin(), foldOwner->sourceFoldRanges.end(), newLine,
+                        [](auto range, int number) { return range.first < number; });
+                    if (found != foldOwner->sourceFoldRanges.end() && found->first == newLine) fold = &*found;
+                }
                 render_diff_line(ctx, parent, lineId, std::string(1, sign) + content.substr(begin, end - begin),
                     oldNumber, newNumber, width, fileDiff.filePath, sel,
                     code_wrap::intersect(changedRanges[index], begin, end), !hunk.noNewline.contains(index),
-                    hunk.movedLines.contains(index), fileDiff.isFullContent, begin, part + 2 == breaks.size(), &content, &prepared);
+                    hunk.movedLines.contains(index), fileDiff.isFullContent, begin, part + 2 == breaks.size(), &content, &prepared, fold,
+                    fold && foldOwner->workspace().document(foldOwner->workspace().active_id())->sourceFolds.closed(*fold));
                 if (vp) vp->built(diff_detail::code_line_height());
             } else vp->skipped(diff_detail::code_line_height());
             const auto fragment = std::string_view(content).substr(begin, end - begin);

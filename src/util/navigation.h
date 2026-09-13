@@ -16,6 +16,7 @@ struct navigation {
     }
 
     static void set_caret(ecs::RepoComponent& repo, reading::CodePosition position, bool focus = false) {
+        if (repo.workspace_.source()) repo.workspace_.current().sourceFolds.reveal(position.line);
         repo.workspace_.current().caret = std::move(position);
         if (focus) focus_document(repo, reading::focus::Region::Code);
     }
@@ -42,6 +43,35 @@ struct navigation {
         repo.fullFileCacheKey.clear();
         repo.pendingCaret = std::move(position);
         repo.pendingCaretMotion = motion;
+    }
+
+    static std::string reading_layout_key(const ecs::RepoComponent& repo) {
+        return "reading-layout:" + std::to_string(repo.workspace_.document(repo.workspace_.active_id())->sourceFolds.generation);
+    }
+
+    static void sync_source_folds(ecs::RepoComponent& repo, const std::string& identity) {
+        repo.workspace_.current().sourceFolds.sync(identity);
+    }
+
+    static void reveal_source_line(ecs::RepoComponent& repo, int line) {
+        repo.workspace_.current().sourceFolds.reveal(line);
+    }
+
+    static void toggle_source_fold(ecs::RepoComponent& repo, source_folding::Range range) {
+        auto& document = repo.workspace_.current();
+        if (!repo.workspace_.source() || !document.sourceFolds.toggle(range)) return;
+        if (document.sourceFolds.closed(range)) {
+            if (document.anchor && range.contains(document.anchor->line)) { document.anchor->line = range.first; document.anchor->column = 1; }
+            if (document.caret && range.contains(document.caret->line)) { document.caret->line = range.first; document.caret->column = 1; }
+        }
+        restore_anchor(repo);
+        focus_document(repo, reading::focus::Region::Code);
+    }
+
+    static void unfold_source(ecs::RepoComponent& repo) {
+        repo.workspace_.current().sourceFolds.unfold();
+        restore_anchor(repo);
+        focus_document(repo, reading::focus::Region::Code);
     }
 
     static void set_review_display_mode(ecs::RepoComponent& repo, review_files::DisplayMode mode) {
@@ -139,6 +169,8 @@ struct navigation {
     }
 
     static void release_source(ecs::RepoComponent& repo) {
+        repo.sourceFoldIdentity = 0;
+        std::vector<source_folding::Range>{}.swap(repo.sourceFoldRanges);
         repo.diffSyntax = {};
         repo.sourceFind = {};
         repo.selectionCopy = {};
@@ -173,6 +205,8 @@ struct navigation {
         const auto after = repo.workspace_.location();
         const auto* source = std::get_if<reading::SourceLocation>(&after);
         const auto* oldSource = std::get_if<reading::SourceLocation>(&before);
+        if (source && repo.workspace_.current().restoreAnchor && repo.workspace_.current().anchor)
+            repo.workspace_.current().sourceFolds.reveal(repo.workspace_.current().anchor->line);
         if (!reading::same_document(before, after)) release_source(repo);
         if (!reading::same_document(before, after) || repo.workspace_.current().contextLines.empty()) repo.hunkContext = {};
         repo.originFileSummaries.clear();

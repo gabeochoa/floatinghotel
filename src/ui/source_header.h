@@ -61,6 +61,20 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         ? selection->anchor.line : 0;
     const int bookmarkLine = selectedLine > 0 ? selectedLine : document->caret ? document->caret->line :
         document->anchor ? document->anchor->line : std::max(1, repo.fullFileTargetLine());
+    const auto range = std::find_if(repo.sourceFoldRanges.rbegin(), repo.sourceFoldRanges.rend(), [&](auto fold) {
+        return fold.first == bookmarkLine || fold.contains(bookmarkLine);
+    });
+    if (range != repo.sourceFoldRanges.rend()) {
+        const auto fold = *range;
+        const auto identity = repo.sourceFoldIdentity;
+        items.push_back(ui::ContextMenuItem::item(document->sourceFolds.closed(fold) ? "Unfold block at caret" : "Fold block at caret",
+            [current, fold, identity] {
+                if (auto* active = current(); active && active->sourceFoldIdentity == identity) navigation::toggle_source_fold(*active, fold);
+            }, document->sourceFolds.can_toggle(fold), document->sourceFolds.can_toggle(fold) ? "" : "Limit reached"));
+    }
+    if (!document->sourceFolds.folded.empty()) items.push_back(ui::ContextMenuItem::item("Unfold all", [current] {
+        if (auto* active = current()) navigation::unfold_source(*active);
+    }));
     const auto sameBookmark = [path = repo.fullFilePath(), revision, bookmarkLine](const CodeBookmark& bookmark) {
         return bookmark.path == path && bookmark.revision == revision && bookmark.line == bookmarkLine;
     };

@@ -12,7 +12,7 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
         if (!repo || !repo->reading.bound) return;
         auto& state = repo->reading;
         state.bound = false;
-        if (!state.request || !navigation::accepts(*repo, *state.request, "reading-layout")) return;
+        if (!state.request || !navigation::accepts(*repo, *state.request, navigation::reading_layout_key(*repo))) return;
         auto entity = afterhours::ui::UICollectionHolder::getEntityForID(state.entity);
         if (!entity.valid() || !entity->has<afterhours::ui::HasScrollView>()) return;
         auto& scroll = entity->get<afterhours::ui::HasScrollView>();

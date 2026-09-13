@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "diff_revisions.h"
+#include "source_folding.h"
 
 struct navigation;
 
@@ -233,6 +234,7 @@ struct Document {
     FindState find;
     bool detailsExpanded = false;
     std::map<std::string, int> contextLines;
+    source_folding::State sourceFolds;
     std::optional<CodePosition> caret;
     std::optional<CodeSelection> selection;
 };

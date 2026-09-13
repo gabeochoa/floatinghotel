@@ -134,9 +134,13 @@ inline State scan(std::string_view text, Language lang, State state = {}) {
     return state;
 }
 
+inline std::string_view line_lookahead(std::string_view text, size_t offset, bool newline) {
+    return newline && offset + 1 == text.size() && text[offset] == '\r' ? std::string_view("\r\n") : text.substr(offset, lookaheadSize);
+}
+
 inline State scan_line(std::string_view text, bool newline, Language lang, State state = {}) {
     for (size_t i = 0; i < text.size(); ++i) {
-        const auto next = newline && i + 1 == text.size() && text[i] == '\r' ? std::string_view("\r\n") : text.substr(i, lookaheadSize);
+        const auto next = line_lookahead(text, i, newline);
         advance_with_lookahead(state, lang, next);
     }
     if (newline) advance_with_lookahead(state, lang, "\n");

@@ -190,7 +190,12 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         }
                         return nlohmann::json{{"bytes", bytes}, {"owned_bytes", owned_context_bytes(repo->hunkContext)}, {"lines", lines}, {"ranges", ranges}, {"loading", repo->hunkContext.future.valid()}};
                     }()},
-                    {"source_pages", [&] {
+                    {"source_folds", {{"ranges", [&] {
+                        auto ranges = nlohmann::json::array();
+                        for (auto range : repo->sourceFoldRanges) ranges.push_back({{"first", range.first}, {"end", range.end},
+                            {"closed", repo->workspace().document(repo->workspace().active_id())->sourceFolds.closed(range)}});
+                        return ranges;
+                    }()}, {"retained", repo->workspace().document(repo->workspace().active_id())->sourceFolds.folded.size()}}}, {"source_pages", [&] {
                         auto pages = nlohmann::json::array();
                         for (const auto& page : repo->sourceWindow.pages)
                             pages.push_back({{"begin", page.begin.offset}, {"end", page.next.offset}, {"first_line", page.begin.line},
@@ -291,7 +296,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
             if (!repo) { cmd.fail("No repository at reading checkpoint"); return; }
-            size_t bytes = owned_context_bytes(repo->hunkContext) + source_pages::owned_bytes(repo->sourceWindow) + repo->fullFileDecodedText.capacity() + 1 +
+            size_t bytes = repo->sourceFoldRanges.capacity() * sizeof(source_folding::Range) + owned_context_bytes(repo->hunkContext) + source_pages::owned_bytes(repo->sourceWindow) + repo->fullFileDecodedText.capacity() + 1 +
                 owned_content_bytes(repo->fullFileDiff) + owned_content_bytes(repo->currentDiff) + owned_content_bytes(repo->stagedDiff);
             if (detail) bytes += owned_content_bytes(detail->commitDetailDiff) + detail->commitDetailBody.capacity() + 1;
             auto blob = git::blob_page_cache().activity();

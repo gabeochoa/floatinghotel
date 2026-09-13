@@ -401,6 +401,8 @@ public:
     SourcePageWindow sourceWindow;
     bool fullFileExtendRequest = false;
     SourceFindRuntime sourceFind;
+    std::uint64_t sourceFoldIdentity = 0;
+    std::vector<source_folding::Range> sourceFoldRanges;
     SelectionCopyRuntime selectionCopy;
     HunkContextRuntime hunkContext;
     DiffSyntaxRuntime diffSyntax;
