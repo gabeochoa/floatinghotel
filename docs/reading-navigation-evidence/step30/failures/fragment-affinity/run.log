@@ -1,0 +1,113 @@
+[INFO] Process start to main: 759 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 6 ms
+[INFO]   Window+GPU init: 210 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 4 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 215 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 181 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 211 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 212 ms
+[INFO] git: 349 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 533 ms
+[INFO] git: 579 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 1 commits, 581 ms after refresh requested, 1587 ms since process start
+[INFO] git: 427 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 639 ms
+[INFO] git: 155 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 687 ms
+[WARN] Layout wrap: 'commit_heading' in parent 'main_content' - NoWrap set but would overflow (child_size=60.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_heading' extends outside parent 'main_content' bounds (child_rel=[0.0,0.0], child_size=[0.0,60.0], child_end=[0.0,60.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_sticky_revision' in parent 'commit_heading' - NoWrap set but would overflow (child_size=88.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_sticky_revision' extends outside parent 'commit_heading' bounds (child_rel=[0.0,0.0], child_size=[88.0,52.0], child_end=[88.0,52.0], parent_size=[0.0,52.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_find_host' in parent 'main_content' - NoWrap set but would overflow (child_size=72.0, offset=60.0, container=0.0)
+[WARN] Layout overflow: 'commit_find_host' extends outside parent 'main_content' bounds (child_rel=[0.0,60.0], child_size=[0.0,72.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_detail_scroll' in parent 'main_content' - NoWrap set but would overflow (child_size=0.0, offset=132.0, container=0.0)
+[WARN] Layout overflow: 'commit_detail_scroll' extends outside parent 'main_content' bounds (child_rel=[0.0,132.0], child_size=[0.0,0.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_relative_date' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=54.0, offset=6.0, container=0.0)
+[WARN] Layout overflow: 'commit_relative_date' extends outside parent 'commit_meta_compact' bounds (child_rel=[6.0,2.0], child_size=[54.0,28.0], child_end=[60.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_short_hash' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=84.0, offset=66.0, container=0.0)
+[WARN] Layout overflow: 'commit_short_hash' extends outside parent 'commit_meta_compact' bounds (child_rel=[66.0,2.0], child_size=[84.0,28.0], child_end=[150.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_meta_toggle' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=80.0, offset=156.0, container=0.0)
+[WARN] Layout overflow: 'commit_meta_toggle' extends outside parent 'commit_meta_compact' bounds (child_rel=[156.0,2.0], child_size=[80.0,28.0], child_end=[236.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[INFO] git: 104 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 144 ms (waited 0 ms for lock): git show
+[INFO] git: 140 ms (waited 0 ms for lock): git show
+[INFO] git: 128 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 116 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 137 ms (waited 0 ms for lock): git rev-parse
+[INFO] Reading row column 1 chosen 141 bytes 146 y 205.19995 h 25.6
+[INFO] Reading row column 141 chosen 141 bytes 147 y 230.79993 h 25.6
+[INFO] Reading row column 281 chosen 141 bytes 80 y 256.3999 h 25.6
+[INFO] Reading restore a.cpp line 8 column 141 fraction 0.0756218 target 632 viewport 804 content 28124.828
+[INFO] Reading row column 1 chosen 1 bytes 146 y 228.40625 h 25.6
+[INFO] Reading row column 141 chosen 1 bytes 147 y 254.00586 h 25.6
+[INFO] Reading row column 281 chosen 1 bytes 80 y 279.60547 h 25.6
+[INFO] Reading restore b.cpp line 7 column 1 fraction 0.072628796 target 9887.616 viewport 804 content 28124.809
+[INFO] Reading row column 1 chosen 141 bytes 146 y 205.19995 h 25.6
+[INFO] Reading row column 141 chosen 141 bytes 147 y 230.79993 h 25.6
+[INFO] Reading row column 281 chosen 141 bytes 80 y 256.3999 h 25.6
+[INFO] Reading restore a.cpp line 8 column 141 fraction 0.0756218 target 632 viewport 804 content 28124.828
+[INFO] git: 84 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 103 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 95 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 131 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 108 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 91 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 111 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 132 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 134 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 127 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 97 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 132 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 104 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 101 ms (waited 0 ms for lock): git cat-file
+[INFO] Reading row column 1 chosen 149 bytes 154 y 578.80005 h 25.6
+[INFO] Reading row column 149 chosen 149 bytes 156 y 604.4 h 25.6
+[INFO] Reading restore a.cpp line 8 column 297 fraction 0.065384574 target 348.18466 viewport 768 content 9051.215
+[INFO] git: 129 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 127 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 147 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 139 ms (waited 0 ms for lock): git cat-file
+[INFO] Reading row column 1 chosen 1 bytes 154 y 578.80005 h 25.6
+[INFO] Reading restore c.cpp line 7 column 149 fraction 0.062500075 target 324.8 viewport 768 content 9128.014
+[INFO] git: 102 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 156 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 165 ms (waited 0 ms for lock): git ls-tree
+[INFO] blob page cache hit for b58e90887f9558495f4f1efaad8c714f2eb83b52
+[INFO] Reading row column 1 chosen 149 bytes 154 y 578.80005 h 25.6
+[INFO] Reading row column 149 chosen 149 bytes 156 y 604.4 h 25.6
+[INFO] Reading restore a.cpp line 8 column 297 fraction 0.065384574 target 348.18466 viewport 768 content 9051.215
+[INFO] git: 139 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 124 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 159 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 127 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 109 ms (waited 0 ms for lock): git cat-file
+[INFO] bench_frames: 120 frames, 241 entities: avg 3.49 ms  p50 3.32  p99 5.69  max 20.72
+[INFO]     1.18 ms/frame  ecs::MainContentSystem
+[INFO]     0.96 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.21 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.15 ms/frame  ecs::SidebarSystem
+[INFO]     0.08 ms/frame  ecs::TabSyncSystem
+[INFO]     0.06 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.06 ms/frame  afterhours::testing::ui_commands::HandleExpectInputSelectionCommand<InputAction>
+[INFO]     0.03 ms/frame  ecs::MenuBarSystem
+[INFO] expect_p99_below: 5.69ms <= 20.00ms (PASS)
+[INFO] E2E finished in 1.67 seconds

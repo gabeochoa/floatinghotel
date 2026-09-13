@@ -17,6 +17,8 @@
 #include "../git/git_runner.h"
 #include "../git/history_query.h"
 #include "../git/path_list.h"
+#include "../git/source_position.h"
+#include "../util/file_query.h"
 #include "../util/codeowners.h"
 #include "../util/code_bookmark.h"
 #include "../util/hex_view.h"
@@ -966,10 +968,23 @@ struct FilePickerScope {
     async_work::Task<git::PathList> future;
 };
 
+struct FilePickerPosition {
+    bool lineMode = false;
+    std::string input;
+    std::optional<reading::ReadingAnchor> point;
+    file_query::Query parsed;
+    reading::RequestStamp request;
+    async_work::Task<git::SourcePosition> future;
+    std::string key;
+    std::string error;
+    reading::OpenMode mode = reading::OpenMode::Keep;
+};
+
 struct LayoutComponent : public afterhours::BaseComponent {
     reading::focus::State focus;
     int focusRepositoryOwner = -1;
     FilePickerScope filePickerScope;
+    FilePickerPosition filePickerPosition;
     bool filePickerOpen = false;
     bool filePickerFocus = false;
     std::string filePickerQuery;

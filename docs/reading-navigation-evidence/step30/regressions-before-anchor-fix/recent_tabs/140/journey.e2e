@@ -1,0 +1,163 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+hold_key 345
+key TAB
+release_key 345
+wait_frames 3
+workspace_checkpoint 1 single
+screenshot single
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "a.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "b.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "c.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "d.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "e.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "f.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "g.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "h.cpp"
+wait_frames 2
+key ENTER
+wait_for_refresh
+hover_ui diff_scroll
+scroll_wheel 0 -20
+wait_frames 20
+workspace_checkpoint 9 before
+screenshot before
+key TAB
+wait_frames 3
+workspace_checkpoint 9 plain_tab
+screenshot plain_tab
+hold_key 341
+key TAB
+wait_frames 3
+workspace_checkpoint 9 first
+screenshot first
+key TAB
+wait_frames 3
+workspace_checkpoint 9 second
+screenshot second
+hold_key 340
+key TAB
+release_key 340
+wait_frames 3
+workspace_checkpoint 9 reverse
+screenshot reverse
+release_key 341
+wait_for_refresh
+workspace_checkpoint 9 committed
+screenshot committed
+hold_key 345
+key TAB
+wait_frames 3
+workspace_checkpoint 9 returning
+screenshot returning
+release_key 345
+wait_for_refresh
+workspace_checkpoint 9 returned
+screenshot returned
+hold_key 341
+hold_key 340
+key TAB
+wait_frames 3
+workspace_checkpoint 9 backward
+screenshot backward
+key ESCAPE
+wait_frames 3
+workspace_checkpoint 9 escaped
+screenshot escaped
+release_key 340
+release_key 341
+click_ui close_document_8
+wait_frames 3
+workspace_checkpoint 8 closed
+screenshot closed
+hold_key 341
+key TAB
+wait_frames 3
+workspace_checkpoint 8 without_closed
+screenshot without_closed
+key W
+wait_for_refresh
+workspace_checkpoint 7 close_while_held
+screenshot close_while_held
+release_key 341
+wait_for_refresh
+workspace_checkpoint 7 released_after_close
+screenshot released_after_close
+hold_key 341
+key TAB
+wait_frames 3
+new_tab
+wait_frames 3
+workspace_checkpoint 1 switch_repo
+screenshot switch_repo
+release_key 341
+close_tab
+wait_for_refresh
+workspace_checkpoint 7 return_repo
+screenshot return_repo
+resize 950 700
+wait_frames 5
+hold_key 341
+hold_key 340
+key TAB
+wait_frames 3
+workspace_checkpoint 7 narrow
+screenshot narrow
+key ESCAPE
+release_key 340
+release_key 341
+wait_frames 3
+workspace_checkpoint 7 narrow_dismissed
+screenshot narrow_dismissed
+bench_frames 120
+expect_p99_below 20

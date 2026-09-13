@@ -1,0 +1,99 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_text "Review lines"
+wait_for_refresh
+key ENTER
+click_ui "jump_to_diff:a.cpp"
+wait_frames 8
+hover_ui commit_detail_scroll
+scroll_wheel 0 -30
+wait_frames 20
+workspace_checkpoint 2 review_a
+screenshot review_a
+click_ui "jump_to_diff:b.cpp"
+wait_frames 8
+hover_ui commit_detail_scroll
+scroll_wheel 0 -25
+wait_frames 20
+workspace_checkpoint 2 review_b
+screenshot review_b
+key ALT+LEFT
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 2 back_a
+screenshot back_a
+key ALT+RIGHT
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 2 forward_b
+screenshot forward_b
+key ALT+LEFT
+wait_for_refresh
+wait_frames 12
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "a.cpp"
+wait_frames 3
+key ENTER
+wait_for_refresh
+hover_ui diff_scroll
+scroll_wheel 0 -30
+wait_frames 20
+workspace_checkpoint 3 source_a
+screenshot source_a
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "c.cpp"
+wait_frames 3
+key ENTER
+wait_for_refresh
+hover_ui diff_scroll
+scroll_wheel 0 -25
+wait_frames 20
+workspace_checkpoint 4 source_c
+screenshot source_c
+click_ui close_document_3
+wait_frames 20
+workspace_checkpoint 3 closed_a
+screenshot closed_a
+key ALT+LEFT
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 4 revisited_a
+screenshot revisited_a
+key ALT+RIGHT
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 4 forward_c
+screenshot forward_c
+key ALT+LEFT
+wait_for_refresh
+wait_frames 12
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "b.cpp"
+wait_frames 3
+key ENTER
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 5 branch
+screenshot branch
+key ALT+RIGHT
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 5 no_forward
+screenshot no_forward
+hover_ui diff_scroll
+scroll_wheel 0 -27
+wait_frames 20
+workspace_checkpoint 5 scrolled
+screenshot scrolled
+bench_frames 120
+expect_p99_below 20

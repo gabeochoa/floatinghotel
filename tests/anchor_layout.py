@@ -30,7 +30,7 @@ def capture(name, count):
 
 
 def picker(path):
-    return f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
+    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
 
 script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
 script += picker('a.cpp') + 'hover_ui diff_scroll\nscroll_wheel 0 -37\n' + capture('source', 2)

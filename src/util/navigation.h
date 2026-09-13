@@ -137,7 +137,7 @@ struct navigation {
     }
 
     static void open(ecs::RepoComponent& repo, reading::Location location, std::optional<bool> reviewing = {},
-                     reading::OpenMode mode = reading::OpenMode::Preview) {
+                     reading::OpenMode mode = reading::OpenMode::Preview, std::optional<reading::ReadingAnchor> anchor = {}) {
         repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
         if (auto* source = std::get_if<reading::SourceLocation>(&location)) {
@@ -151,17 +151,33 @@ struct navigation {
             }
         }
         bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
-        bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode);
+        bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode, anchor);
         if (repo.workspace_.current().subject.empty())
             for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
                 for (const auto& entry : *entries)
                     if (entry.hash == repo.selectedCommitHash()) remember_commit_subject(repo, entry.subject);
         finish(repo, before, changed);
+        if (anchor) repo.fullFileNavigateFrames = repo.diffTargetFrames = 0;
     }
 
     static void open_source(ecs::RepoComponent& repo, const ecs::FileDiff& file,
                             std::optional<reading::ReadingAnchor> point = {}) {
         open(repo, reading::source_at_diff(repo.workspace_.review(), file, std::move(point)));
+    }
+
+    static void go_to_review_line(ecs::RepoComponent& repo, ecs::ReviewComponent& review,
+                                  const ecs::FileDiff& file, reading::ReadingAnchor anchor) {
+        auto location = repo.workspace_.review();
+        location.file = file.filePath;
+        const auto scope = reading::scope(location);
+        review.foldedFiles.erase(scope + "\n" + file.filePath);
+        for (const auto& hunk : file.hunks) {
+            const int start = anchor.side == reading::DiffSide::Before ? hunk.oldStart : hunk.newStart;
+            const int count = anchor.side == reading::DiffSide::Before ? hunk.oldCount : hunk.newCount;
+            if (anchor.line >= start && anchor.line - start < count)
+                review.foldedHunks.erase(scope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, hunk));
+        }
+        open(repo, location, {}, reading::OpenMode::Keep, anchor);
     }
 
     static void restore_session(ecs::RepoComponent& repo, const reading::ReadingSession& session, bool reviewing) {

@@ -1,0 +1,108 @@
+[INFO] Process start to main: 26 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 8 ms
+[INFO]   Window+GPU init: 157 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 0 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 158 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 162 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 189 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 190 ms
+[INFO] git: 245 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 1 commits, 245 ms after refresh requested, 449 ms since process start
+[INFO] git: 157 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 347 ms
+[INFO] git: 184 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 348 ms
+[INFO] git: 212 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 458 ms
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 819.096 viewport 815.19995 content 25416.258
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1174.6719 viewport 798.4 content 36942.99
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1276.8093 viewport 781.6 content 40021.145
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1378.9448 viewport 764.7999 content 43099.69
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1826.6816 viewport 748 content 57697.758
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1992.8164 viewport 731.19995 content 61545.89
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 2512.2344 viewport 714.39996 content 78447.62
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 2706.2102 viewport 697.5999 content 83103.45
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 3297.143 viewport 680.7999 content 102315.23
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 3934.1592 viewport 664 content 123061.68
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 3297.1436 viewport 680.7999 content 102315.23
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 2706.2097 viewport 697.5999 content 83103.45
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 2512.2344 viewport 714.39996 content 78447.62
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1992.8164 viewport 731.19995 content 61545.9
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1826.6816 viewport 748 content 57697.754
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 1378.9448 viewport 764.7999 content 43099.69
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 2101.1484 viewport 614.7999 content 64637.2
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 2516.1084 viewport 614.7999 content 78330.04
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 2608.5078 viewport 614.7999 content 81273.15
+[INFO] Reading restore b.cpp line 1 column 1 fraction 0.20858821 target 0 viewport 682 content 33187.285
+[INFO] Reading restore b.cpp line 1 column 1 fraction 0.20858821 target 0 viewport 832 content 24907.402
+[INFO] Reading restore a.cpp line 10 column 149 fraction 0.05096135 target 304.46173 viewport 768 content 24410.617
+[INFO] git: 129 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 249 ms (waited 0 ms for lock): git show
+[INFO] git: 169 ms (waited 0 ms for lock): git show
+[INFO] git: 98 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 92 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 104 ms (waited 0 ms for lock): git rev-parse
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 1301.9995 viewport 804 content 199207.34
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 1619.8322 viewport 784.39996 content 249479.28
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 1970.785 viewport 764.8 content 308588.28
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 2390.7368 viewport 745.19995 content 370197.9
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 2810.689 viewport 725.6 content 429585.75
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 3263.7612 viewport 706 content 514091.2
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 4062.2258 viewport 628.8 content 627809.06
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 4929.4946 viewport 605.6 content 760935
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 5926.852 viewport 582.3999 content 910411.5
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 7255.513 viewport 559.19995 content 1112946.5
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 8357.878 viewport 535.99994 content 1292924.6
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 1301.9996 viewport 804 content 199207.38
+[INFO] Reading restore a.cpp line 7 column 124 fraction 0.05472629 target 612 viewport 804 content 97082.875
+[INFO] Reading restore a.cpp line 1 column 1 fraction 0.1238806 target 0 viewport 804 content 72159.48
+[INFO] Reading restore a.cpp line 1 column 1 fraction 0.1238806 target 0 viewport 804 content 72159.48
+[INFO] Reading restore a.cpp line 1 column 1 fraction 0.1238806 target 32 viewport 804 content 97082.86
+[INFO] Reading restore a.cpp line 1 column 1 fraction 0.1238806 target 32 viewport 804 content 97082.86
+[INFO] git: 83 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 85 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 82 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 88 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 80 ms (waited 0 ms for lock): git cat-file
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 885.048 viewport 815.19995 content 32808.6
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 1153.6963 viewport 798.4 content 41911.2
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 1332.0444 viewport 781.6 content 49303.8
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 1568.5925 viewport 764.7999 content 56036.402
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 1774.2405 viewport 748 content 64539.004
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 2140.6885 viewport 731.19995 content 77001.61
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 2537.7363 viewport 714.39996 content 90484.21
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 2959.985 viewport 697.5999 content 106606.81
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 3417.9326 viewport 680.7999 content 122219.41
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 3906.4812 viewport 664 content 138852.02
+[INFO] Reading restore notes.md line 17 column 541 fraction 0.050480768 target 5744.053 viewport 513.9999 content 201852.02
+[INFO] Reading restore notes.md line 19 column 3 fraction 0.24503359 target 977.8871 viewport 682 content 37926
+[INFO] bench_frames: 120 frames, 229 entities: avg 1.69 ms  p50 1.20  p99 3.21  max 3.82
+[INFO]     0.78 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.19 ms/frame  ecs::MainContentSystem
+[INFO]     0.14 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.12 ms/frame  ecs::SidebarSystem
+[INFO]     0.04 ms/frame  ecs::TabSyncSystem
+[INFO]     0.03 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.01 ms/frame  ecs::MenuBarSystem
+[INFO]     0.01 ms/frame  ecs::StatusBarSystem
+[INFO] expect_p99_below: 3.21ms <= 20.00ms (PASS)
+[INFO] E2E finished in 2.62 seconds

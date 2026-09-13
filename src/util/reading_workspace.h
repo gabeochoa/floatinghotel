@@ -310,10 +310,11 @@ private:
         *this = {};
         generation_ = next;
     }
-    bool open(Location next, bool reviewing = false, OpenMode mode = OpenMode::Preview) {
-        Visit visit{std::move(next), reviewing};
+    bool open(Location next, bool reviewing = false, OpenMode mode = OpenMode::Preview, std::optional<ReadingAnchor> anchor = {}) {
+        Visit visit{std::move(next), reviewing, anchor};
         if (history_[index_].reviewing == visit.reviewing &&
-            same_document(history_[index_].location, visit.location) && location() == visit.location) {
+            same_document(history_[index_].location, visit.location) && location() == visit.location &&
+            (!anchor || history_[index_].anchor == anchor)) {
             if (mode == OpenMode::Keep) keep(active_);
             return false;
         }
@@ -322,6 +323,7 @@ private:
         if (history_.size() > 256) history_.erase(history_.begin());
         index_ = history_.size() - 1;
         select(visit.location, mode);
+        if (anchor) { current().anchor = std::move(anchor); current().restoreAnchor = true; }
         return true;
     }
     bool reorder(DocumentId id, size_t insertion) {

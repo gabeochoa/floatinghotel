@@ -1051,4 +1051,38 @@ TEST(restored_sources_seed_recents_without_loading_documents) {
     ASSERT_FALSE(repo.fullFileFuture.valid());
 }
 
+TEST(explicit_review_line_visits_restore_logical_anchors_and_only_unfold_the_target) {
+    ecs::RepoComponent repo;
+    ecs::ReviewComponent review;
+    ecs::FileDiff file;
+    file.filePath = "a.cpp";
+    file.hunks = {{10, 2, 10, 2, "@@ -10,2 +10,2 @@", {" old", "-removed", "+added"}},
+        {80, 1, 80, 1, "@@ -80 +80 @@", {"-before", "+after"}}};
+    const auto location = reading::review(std::string(40, 'b'), "a.cpp");
+    open_kept(repo, location);
+    const auto id = repo.workspace().active_id();
+    const auto scope = reading::scope(location);
+    const auto first = scope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, file.hunks[0]);
+    const auto second = scope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, file.hunks[1]);
+    review.foldedFiles.insert(scope + "\na.cpp");
+    review.foldedHunks.insert(first); review.foldedHunks.insert(second);
+    auto point = reading::ReadingAnchor{"a.cpp", scope, reading::DiffSide::After, 11, 99, .15f};
+    auto validated = reading::position_in_diff(file, point);
+    ASSERT_TRUE(validated.has_value()); ASSERT_EQ(validated->column, 6);
+    navigation::go_to_review_line(repo, review, file, *validated);
+    ASSERT_EQ(repo.workspace().active_id(), id);
+    ASSERT_TRUE(repo.workspace().document(id)->restoreAnchor);
+    ASSERT_EQ(repo.diffTargetFrames, 0);
+    ASSERT_FALSE(review.foldedHunks.contains(first)); ASSERT_TRUE(review.foldedHunks.contains(second));
+    point.line = 80; point.column = 2;
+    navigation::go_to_review_line(repo, review, file, *reading::position_in_diff(file, point));
+    ASSERT_EQ(repo.workspace().history().back().anchor->line, 80);
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.workspace().document(id)->anchor->line, 11);
+    point.line = 50;
+    ASSERT_FALSE(reading::position_in_diff(file, point).has_value());
+    point.line = 11; point.side = reading::DiffSide::Before;
+    ASSERT_EQ(reading::position_in_diff(file, point)->sign, '-');
+}
+
 int main() { RUN_ALL_TESTS(); }

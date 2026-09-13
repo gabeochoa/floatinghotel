@@ -1,0 +1,77 @@
+[INFO] Process start to main: 2288 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 227 ms
+[INFO]   Window+GPU init: 1017 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 801 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 1 ms
+[INFO] Startup time: 1821 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 3120 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 3130 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 3131 ms
+[INFO] git: 3201 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 2 commits, 3206 ms after refresh requested, 7822 ms since process start
+[INFO] git: 627 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 3759 ms
+[INFO] git: 577 ms (waited 0 ms for lock): git diff
+[INFO] git: 1396 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 4517 ms
+[INFO] refresh: done in 4517 ms
+[WARN] [E2E ERROR] click_ui (line 34): Visible click target not found: line_picker_input
+[WARN] [E2E ERROR] click_ui (line 47): Visible click target not found: line_picker_input
+[WARN] [E2E ERROR] click_ui (line 58): Visible click target not found: line_picker_input
+[WARN] [E2E ERROR] click_ui (line 78): Visible click target not found: line_picker_input
+[WARN] [E2E ERROR] click_ui (line 112): Visible click target not found: line_picker_input
+[INFO] git: 492 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 397 ms (waited 0 ms for lock): git show
+[INFO] git: 604 ms (waited 0 ms for lock): git show
+[INFO] git: 1477 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 1409 ms (waited 1 ms for lock): git ls-tree
+[INFO] git: 1404 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 841 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 472 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 458 ms (waited 2 ms for lock): git rev-parse
+[INFO] git: 639 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 598 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 847 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 397 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 340 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 435 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 985 ms (waited 1 ms for lock): git cat-file
+[INFO] git: 540 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for dff5df9ef748c2144e235477b20a3eb2741c2098
+[WARN] [E2E ERROR] click_ui (line 191): Visible click target not found: line_picker_input
+[INFO] git: 1041 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 762 ms (waited 0 ms for lock): git show
+[INFO] git: 753 ms (waited 0 ms for lock): git show
+[INFO] git: 447 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 565 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 603 ms (waited 0 ms for lock): git rev-parse
+[WARN] [E2E ERROR] click_ui (line 215): Visible click target not found: line_picker_input
+[INFO] bench_frames: 120 frames, 273 entities: avg 4.59 ms  p50 3.99  p99 10.04  max 13.37
+[INFO]     1.18 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     1.08 ms/frame  ecs::MainContentSystem
+[INFO]     0.46 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.25 ms/frame  ecs::SidebarSystem
+[INFO]     0.11 ms/frame  ecs::TabSyncSystem
+[INFO]     0.09 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.06 ms/frame  ecs::ReadingLayoutSystem
+[INFO]     0.06 ms/frame  ui::RenderWrappedTooltip<InputAction>
+[INFO] expect_p99_below: 10.04ms <= 20.00ms (PASS)
+[INFO] E2E finished in 3.97 seconds

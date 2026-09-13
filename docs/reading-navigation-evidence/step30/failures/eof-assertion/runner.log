@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/tests/line_navigation.py", line 99, in <module>
+    assert point['path'] == path_name and point['line'] == row and point['column'] == column, (zoom, name, point)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (100, 'last_line', {'column': 1, 'fraction': 0.056235600262880325, 'line': 569, 'path': 'a.cpp', 'revision': '', 'side': 'after', 'sign': ' '})

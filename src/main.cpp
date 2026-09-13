@@ -718,7 +718,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             constexpr auto MAX_REFRESH_WAIT = std::chrono::seconds(30);
             bool refreshDone = !ui::image_diff::pending();
             if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
-                refreshDone = refreshDone && !layout->filePickerScope.future.valid();
+                refreshDone = refreshDone && !layout->filePickerScope.future.valid() && !layout->filePickerPosition.future.valid();
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
                 refreshDone = refreshDone && !repo->refreshRequested && !repo->isRefreshing;
@@ -895,7 +895,7 @@ static UiActivitySnapshot capture_ui_activity_snapshot() {
 }
 
 static bool app_has_pending_work() {
-    if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>(); layout && layout->filePickerScope.future.valid()) return true;
+    if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>(); layout && (layout->filePickerScope.future.valid() || layout->filePickerPosition.future.valid())) return true;
     if (ui::image_diff::pending()) return true;
     {
         std::lock_guard<std::mutex> lock(g_gitLogMutex);

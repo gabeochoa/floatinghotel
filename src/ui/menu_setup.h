@@ -16,6 +16,7 @@
 #include "../git/git_runner.h"
 #include "../settings.h"
 #include "diff_renderer.h"
+#include "file_picker.h"
 
 namespace menu_setup {
 
@@ -83,9 +84,15 @@ inline std::vector<Menu> createMenuBar() {
         }),
         MenuItem::item("Go to File...", "Cmd+P", [] {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {
+                l->filePickerPosition = {};
                 l->filePickerOpen = true;
                 l->filePickerFocus = true;
             }
+        }),
+        MenuItem::item("Go to Line...", "Ctrl+G", [] {
+            auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (layout && repo) ecs::open_line_picker(*repo, *layout);
         }),
         MenuItem::item("Search Repository...", "Cmd+Shift+F", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {

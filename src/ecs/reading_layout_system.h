@@ -44,8 +44,9 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
                 if (line > 0) {
                     const int distance = std::abs(line - anchor.line);
                     const int end = row.logicalColumn + reading::column_at_byte(row.content, row.content.size()) - 1;
-                    const bool matches = line == anchor.line && anchor.column >= row.logicalColumn && anchor.column <= end;
-                    if (matches || (state.projectedLine == line && nearestDistance >= 0 && distance < nearestDistance)) {
+                    const bool matches = line == anchor.line && anchor.column >= row.logicalColumn &&
+                        (anchor.column < end || (row.finalFragment && anchor.column == end));
+                    if (matches || (distance > 0 && state.projectedLine == line && nearestDistance >= 0 && distance < nearestDistance)) {
                         targetY = rect.y + scroll.scroll_offset.y - viewport.y;
                         nearestDistance = matches ? -1 : distance;
                     }
@@ -83,6 +84,7 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
                 0.f, std::max(0.f, scroll.content_size.y - viewport.height));
             scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = target;
             scroll.anchor_child = -1;
+            if (std::getenv("FH_TRACE_READING")) log_info("Reading restore {} line {} column {} fraction {} target {} viewport {} content {}", document->anchor->path, document->anchor->line, document->anchor->column, document->anchor->viewportFraction, target, viewport.height, scroll.content_size.y);
             navigation::restored_anchor(*repo);
         } else if (!revealing && sample && (!document->anchor || state.wasRevealing || state.offset != scroll.scroll_offset.y)) {
             navigation::remember_anchor(*repo, std::move(*sample));

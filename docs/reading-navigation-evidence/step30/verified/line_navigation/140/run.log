@@ -1,0 +1,86 @@
+[INFO] Process start to main: 25 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 8 ms
+[INFO]   Window+GPU init: 105 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 0 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 105 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 141 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 141 ms
+[INFO] git: 162 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 2 commits, 162 ms after refresh requested, 310 ms since process start
+[INFO] git: 162 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 232 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 375 ms
+[INFO] git: 212 ms (waited 0 ms for lock): git diff
+[INFO] git: 242 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 405 ms
+[INFO] refresh: done in 405 ms
+[INFO] Reading restore a.cpp line 80 column 5 fraction 0.15 target 190.6 viewport 775.19995 content 19194.508
+[INFO] Reading restore a.cpp line 500 column 9 fraction 0.15 target 15458.401 viewport 775.19995 content 19194.516
+[INFO] Reading restore a.cpp line 600 column 20 fraction 0.15 target 18419.309 viewport 775.19995 content 19194.508
+[INFO] Reading restore a.cpp line 500 column 9 fraction 0.15 target 15458.394 viewport 775.19995 content 19194.508
+[INFO] Reading restore a.cpp line 200 column 300 fraction 0.15 target 4563.0825 viewport 775.19995 content 19194.521
+[INFO] Reading restore large.cpp line 4200 column 2 fraction 0.15 target 190.6 viewport 775.19995 content 29014.623
+[INFO] Reading restore large.cpp line 1 column 1 fraction 0.15 target 0 viewport 775.19995 content 146900.56
+[INFO] Reading restore large.cpp line 4200 column 2 fraction 0.15 target 190.6 viewport 775.19995 content 29014.623
+[INFO] git: 145 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 183 ms (waited 0 ms for lock): git show
+[INFO] git: 188 ms (waited 0 ms for lock): git show
+[INFO] git: 162 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 139 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 163 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 169 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 139 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 45 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 142 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 154 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 151 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 667 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 159 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 208 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 175 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 737 ms (waited 0 ms for lock): git cat-file
+[INFO] Reading restore a.cpp line 90 column 3 fraction 0.15 target 190.6 viewport 775.19995 content 18836.107
+[INFO] git: 265 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 3d06afa78f63015d459dea1715d0d6e9e5a99134
+[INFO] Reading restore a.cpp line 1 column 1 fraction 0.21976744 target 0 viewport 825.6 content 205413.4
+[INFO] Reading restore a.cpp line 400 column 7 fraction 0.15 target 14572.765 viewport 825.6 content 205413.42
+[INFO] Reading restore a.cpp line 1 column 1 fraction 0.21976744 target 0 viewport 825.6 content 205413.4
+[INFO] git: 250 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 265 ms (waited 0 ms for lock): git show
+[INFO] git: 269 ms (waited 0 ms for lock): git show
+[INFO] Reading restore gone.cpp line 90 column 4 fraction 0.15 target 3035.0405 viewport 825.6 content 3860.6404
+[INFO] git: 209 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 235 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 241 ms (waited 0 ms for lock): git rev-parse
+[INFO] Reading restore gone.cpp line 90 column 4 fraction 0.15 target 3383.9226 viewport 475.19995 content 3944.6436
+[INFO] Reading restore gone.cpp line 90 column 4 fraction 0.15 target 3035.0435 viewport 825.6 content 3860.6433
+[INFO] bench_frames: 120 frames, 232 entities: avg 2.28 ms  p50 2.18  p99 3.60  max 5.33
+[INFO]     0.59 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.52 ms/frame  ecs::MainContentSystem
+[INFO]     0.22 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.17 ms/frame  ecs::SidebarSystem
+[INFO]     0.07 ms/frame  ecs::TabSyncSystem
+[INFO]     0.05 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.02 ms/frame  ecs::MenuBarSystem
+[INFO]     0.02 ms/frame  ecs::TabBarSystem
+[INFO] expect_p99_below: 3.60ms <= 20.00ms (PASS)
+[INFO] E2E finished in 4.37 seconds

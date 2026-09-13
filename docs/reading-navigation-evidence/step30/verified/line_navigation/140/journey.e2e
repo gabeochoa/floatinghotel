@@ -1,0 +1,261 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "literal:12"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 literal
+screenshot literal
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "a.cpp:80:5"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 working_80
+screenshot working_80
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "500:9"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 working_500
+screenshot working_500
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "9999"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 beyond_eof
+screenshot beyond_eof
+click_ui line_picker_input
+key CMD+A
+type "0"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 invalid_line
+screenshot invalid_line
+key ESCAPE
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 invalid_return
+screenshot invalid_return
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "600:999"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 last_line
+screenshot last_line
+key ALT+LEFT
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 back_500
+screenshot back_500
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "200:300"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 wrapped_column
+screenshot wrapped_column
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "large.cpp:4200:2"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 large_4200
+screenshot large_4200
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "1:1"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 large_start
+screenshot large_start
+key ALT+LEFT
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 large_back
+screenshot large_back
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "a.cpp:80:"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 invalid_suffix
+screenshot invalid_suffix
+key ESCAPE
+click_text "Original lines"
+wait_for_refresh
+key ENTER
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "a.cpp:80:4"
+wait_frames 6
+key ENTER
+wait_frames 3
+screenshot checking_position
+click_ui file_picker_input
+key CMD+A
+type "a.cpp:90:3"
+wait_frames 6
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 5 superseded_position
+screenshot superseded_position
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 historical_90
+screenshot historical_90
+click_ui full_file_back
+wait_for_refresh
+click_ui content_document_5
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 review_origin
+screenshot review_origin
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "400:7"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 review_400
+screenshot review_400
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "99999"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 outside_diff
+screenshot outside_diff
+key ESCAPE
+key ALT+LEFT
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 review_back
+screenshot review_back
+click_text "Delete old file"
+wait_for_refresh
+key ENTER
+click_ui content_document_7
+key CTRL+G
+wait_frames 4
+click_ui line_picker_input
+key CMD+A
+type "90:4"
+wait_frames 6
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 7 deleted_90
+screenshot deleted_90
+native_menu_action "Go to Line..."
+resize 1100 800
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 7 narrow_line_picker
+screenshot narrow_line_picker
+key ESCAPE
+resize 1800 1100
+bench_frames 120
+expect_p99_below 20

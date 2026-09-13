@@ -1713,8 +1713,11 @@ p99, with 172 rendered entities and unchanged cache limits. Evidence:
 Resetting `UIContext::focus_id` to `ROOT` does not leave focus empty. The next
 focusable control calls `try_to_grab` and takes it. A native Enter-to-keep test
 caught focus moving to an unrelated control after document navigation. The app
-now retains a repository-owned destination DocumentId until its tab is built,
-then explicitly focuses that tab. A reusable semantic focus request, resolved
+now retains a repository-owned destination DocumentId and resolves its semantic
+focus target after layout and modal input-gate removal. A line-navigation replay
+caught `set_focus` rejecting the new tab while the closing picker's input gate
+was still installed; consuming the request at that point left focus on the
+repository tab. The request now survives until the final focus phase. A reusable semantic focus request, resolved
 after rebuilding UI entities and scoped to its owning screen, would help menus,
 document readers, inventory screens, and game overlays.
 
@@ -1805,6 +1808,13 @@ restoration. Step 13 uses an ordinary ECS system immediately after
 `registerUIPostLayoutSystems` to resolve anchors against current row bounds.
 `tests/anchor_layout.py` covers zoom, resize, folding, Markdown reflow, and
 manual scrolling; `tests/anchor_pages.py` covers a released source page.
+Step 30 also exposed an app-side boundary error: two wrapped fragments could
+claim the same column, and the next fragment might not be in the virtualized
+row registry yet. Non-final fragments now exclude their end column; the final
+fragment accepts the end-of-line position. An upstream text-position projection
+API should define fragment-end affinity explicitly so editors and chat readers
+can restore positions without depending on which rows have been rendered.
+`tests/history_visits.py` covers the UTF-8 boundary and closed-document revisit.
 
 ### Scroll anchoring needs an application-owned identity option
 

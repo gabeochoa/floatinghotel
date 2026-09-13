@@ -1,0 +1,78 @@
+[INFO] Process start to main: 50 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 65 ms
+[INFO]   Window+GPU init: 195 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 0 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 196 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 118 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 133 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 134 ms
+[INFO] git: 225 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 1 commits, 226 ms after refresh requested, 552 ms since process start
+[INFO] git: 158 ms (waited 0 ms for lock): git branch
+[INFO] git: 173 ms (waited 0 ms for lock): git diff
+[INFO] refresh: branches ready at 293 ms
+[INFO] refresh: diff ready at 293 ms
+[INFO] git: 196 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 422 ms
+[WARN] Layout wrap: 'commit_heading' in parent 'main_content' - NoWrap set but would overflow (child_size=60.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_heading' extends outside parent 'main_content' bounds (child_rel=[0.0,0.0], child_size=[0.0,60.0], child_end=[0.0,60.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_sticky_revision' in parent 'commit_heading' - NoWrap set but would overflow (child_size=88.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_sticky_revision' extends outside parent 'commit_heading' bounds (child_rel=[0.0,0.0], child_size=[88.0,52.0], child_end=[88.0,52.0], parent_size=[0.0,52.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_find_host' in parent 'main_content' - NoWrap set but would overflow (child_size=72.0, offset=60.0, container=0.0)
+[WARN] Layout overflow: 'commit_find_host' extends outside parent 'main_content' bounds (child_rel=[0.0,60.0], child_size=[0.0,72.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_detail_scroll' in parent 'main_content' - NoWrap set but would overflow (child_size=0.0, offset=132.0, container=0.0)
+[WARN] Layout overflow: 'commit_detail_scroll' extends outside parent 'main_content' bounds (child_rel=[0.0,132.0], child_size=[0.0,0.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_relative_date' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=54.0, offset=6.0, container=0.0)
+[WARN] Layout overflow: 'commit_relative_date' extends outside parent 'commit_meta_compact' bounds (child_rel=[6.0,2.0], child_size=[54.0,28.0], child_end=[60.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_short_hash' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=84.0, offset=66.0, container=0.0)
+[WARN] Layout overflow: 'commit_short_hash' extends outside parent 'commit_meta_compact' bounds (child_rel=[66.0,2.0], child_size=[84.0,28.0], child_end=[150.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_meta_toggle' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=80.0, offset=156.0, container=0.0)
+[WARN] Layout overflow: 'commit_meta_toggle' extends outside parent 'commit_meta_compact' bounds (child_rel=[156.0,2.0], child_size=[80.0,28.0], child_end=[236.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[INFO] git: 174 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 179 ms (waited 0 ms for lock): git show
+[INFO] git: 149 ms (waited 0 ms for lock): git show
+[INFO] git: 186 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 129 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 161 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 135 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 33 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 26 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 102 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 147 ms (waited 0 ms for lock): git grep
+[INFO] git: 102 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 27 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 111 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 6755b2ce5f8686e89655d85d01d96647acc56f2a
+[INFO] git: 131 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 139 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 127 ms (waited 0 ms for lock): git rev-parse
+[INFO] bench_frames: 120 frames, 228 entities: avg 2.76 ms  p50 2.72  p99 4.58  max 11.17
+[INFO]     0.70 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.61 ms/frame  ecs::MainContentSystem
+[INFO]     0.22 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.17 ms/frame  ecs::SidebarSystem
+[INFO]     0.12 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.09 ms/frame  ecs::TabSyncSystem
+[INFO]     0.03 ms/frame  ecs::MenuBarSystem
+[INFO]     0.02 ms/frame  ecs::TabBarSystem
+[INFO] expect_p99_below: 4.58ms <= 20.00ms (PASS)
+[INFO] E2E finished in 1.97 seconds

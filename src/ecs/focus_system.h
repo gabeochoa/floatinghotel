@@ -26,7 +26,7 @@ struct BeginFocusFrame : afterhours::System<UIContext<InputAction>> {
 struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity&, UIContext<InputAction>& ctx, float) override {
         auto* layout = find_singleton<LayoutComponent>();
-        const auto* repo = find_singleton<RepoComponent, ActiveTab>();
+        auto* repo = find_singleton<RepoComponent, ActiveTab>();
         if (!layout || !repo) return;
         const auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
         if (layout->focusRepositoryOwner != owner->id) {
@@ -36,6 +36,14 @@ struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
         const auto visible = ui::open_popups(*repo, *layout);
         auto& state = layout->focus;
         state.sync(repo->repoPath, repo->workspace().generation(), visible);
+        if (repo->readingFocusDocument) {
+            if (*repo->readingFocusDocument == repo->workspace().active_id()) {
+                state.pending = reading::focus::Target{repo->repoPath, *repo->readingFocusDocument,
+                    reading::focus::Region::DocumentTabs, {}, "content_document_" + std::to_string(repo->readingFocusDocument->value)};
+                state.pendingGeneration = repo->workspace().generation();
+            }
+            repo->readingFocusDocument.reset();
+        }
         if (!state.pending) return;
         if (!state.valid(*state.pending, repo->workspace())) { state.pending.reset(); return; }
         std::optional<int> fallback;

@@ -1,0 +1,68 @@
+make_test_repo
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_text "Add contributing guidelines"
+wait_for_refresh
+workspace_checkpoint 2 first
+screenshot first
+click_text "Add unit tests for utils"
+wait_for_refresh
+workspace_checkpoint 2 replaced
+screenshot replaced
+key ENTER
+wait_frames 2
+workspace_checkpoint 2 kept_review
+screenshot kept_review
+click_ui open_full_file
+wait_for_refresh
+workspace_checkpoint 3 source
+screenshot source
+key CMD+P
+wait_for_refresh
+click_ui file_picker_working_scope
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "README.md"
+wait_frames 3
+click_ui file_picker_result
+wait_for_refresh
+workspace_checkpoint 3 second_source
+screenshot second_source
+click_ui content_document_5
+wait_frames 1
+click_ui content_document_5
+wait_frames 2
+workspace_checkpoint 3 kept_source
+screenshot kept_source
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "CONTRIBUTING.md"
+wait_frames 3
+click_ui file_picker_result
+wait_for_refresh
+workspace_checkpoint 4 third_source
+screenshot third_source
+key CMD+P
+wait_for_refresh
+click_ui file_picker_input
+key CMD+A
+type "README.md"
+wait_frames 3
+key ENTER
+wait_for_refresh
+workspace_checkpoint 4 reused
+screenshot reused
+click_ui scroll_tabs_right
+wait_frames 3
+right_click_ui content_document_6
+wait_frames 2
+click_text "Keep Open"
+wait_frames 2
+workspace_checkpoint 4 kept_from_menu
+screenshot kept_from_menu
+bench_frames 120
+expect_p99_below 20

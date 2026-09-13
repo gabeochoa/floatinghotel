@@ -549,10 +549,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
                 ui::bind_focus(tab.ent(), *repoPtr, reading::focus::Region::DocumentTabs, {}, document.id);
                 ui::set_tooltip(tab.ent(), suppressTabActions ? "" : label.tooltip);
-                if (active && repoPtr->readingFocusDocument == document.id) {
-                    ctx.set_focus(tab.ent().id);
-                    repoPtr->readingFocusDocument.reset();
-                }
                 activeDocumentFocused |= active && ctx.has_focus(tab.ent().id);
                 if (tab && !suppressTabActions) activate = document.id;
                 auto close = button(ctx, mk(tab.ent(), 20), preset::Button("")
@@ -730,10 +726,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
         }
         if (!shortcutsActive && !ui::shortcuts_blocked(layout) && superDown && afterhours::input::is_key_pressed(80)) {
+            layout.filePickerPosition = {};
             layout.filePickerOpen = true;
             layout.filePickerFocus = true;
         }
         const bool readingKeys = repoPtr && !shortcutsActive && ui::reader_shortcuts(ctx, *repoPtr, layout);
+        if (readingKeys && (afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345)) && afterhours::input::is_key_pressed(71))
+            open_line_picker(*repoPtr, layout);
         if (readingKeys && !superDown && (!reviewPtr || reviewPtr->composingKey.empty()) &&
             activeDocumentFocused && afterhours::input::is_key_pressed(257))
             navigation::keep(*repoPtr, repoPtr->workspace().active_id());

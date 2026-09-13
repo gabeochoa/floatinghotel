@@ -93,6 +93,7 @@ struct Rec {
     int newLine = 0;
     size_t sourceOffset = 0;
     int logicalColumn = 1;
+    bool finalFragment = true;
 };
 
 struct State {
@@ -597,7 +598,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         diff_sel::state().curLines.push_back(
             {lineDiv.ent().id, content, filePath, lno, r, cx0, 0, prefix,
              oldNum.empty() ? 0 : std::stoi(oldNum), newNum.empty() ? 0 : std::stoi(newNum), sourceOffset,
-             reading::column_at_byte(original ? *original : content, sourceOffset)});
+             reading::column_at_byte(original ? *original : content, sourceOffset), finalFragment});
         if (diff_sel::found_line(sel, filePath, lno, prefix))
             diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, prefixW, sourceOffset);
 
@@ -1069,7 +1070,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
              rect, rect.x + prefix, leftBorder ? 1 : 2, sign,
              leftBorder && !num.empty() ? std::stoi(num) : 0,
              !leftBorder && !num.empty() ? std::stoi(num) : 0, sourceOffset,
-             reading::column_at_byte(original ? *original : content, sourceOffset)});
+             reading::column_at_byte(original ? *original : content, sourceOffset), finalFragment});
         if (diff_sel::found_line(sel, filePath, num.empty() ? 0 : std::stoi(num), sign) &&
             (kind != SbsKind::Context || !leftBorder))
             diff_sel::render_find_match(ctx, cell.ent(), *sel, content, prefix, sourceOffset);

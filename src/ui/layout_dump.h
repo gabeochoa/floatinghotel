@@ -87,7 +87,7 @@ inline nlohmann::json layout_snapshot() {
     for (const auto& row : diff_sel::state().lastLines) {
         reading.push_back({{"id", row.ent}, {"text", row.content}, {"path", row.filePath},
             {"line", row.lineNo}, {"side", row.side}, {"sign", std::string(1, row.sign)},
-            {"offset", row.sourceOffset}, {"rect", rect_json(row.rect)}, {"content_x", row.contentX0}});
+            {"offset", row.sourceOffset}, {"column", row.logicalColumn}, {"final_fragment", row.finalFragment}, {"rect", rect_json(row.rect)}, {"content_x", row.contentX0}});
     }
     auto projections = nlohmann::json::array();
     if (const auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {

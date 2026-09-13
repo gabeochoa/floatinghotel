@@ -3,6 +3,7 @@
 #include "../ecs/ui_imports.h"
 #include "../util/fuzzy_match.h"
 #include "focus.h"
+#include "diff_renderer.h"
 #include "virtual_list.h"
 #include <afterhours/src/plugins/modal.h>
 
@@ -67,11 +68,124 @@ inline std::vector<afterhours::ui::TextSpan> file_picker_label(const std::string
     return spans;
 }
 
+inline const std::vector<FileDiff>* line_picker_diffs(const RepoComponent& repo) {
+    const auto& target = repo.workspace().review().destination;
+    if (const auto* working = std::get_if<reading::WorkingChanges>(&target))
+        return working->staged ? &repo.stagedDiff : &repo.currentDiff;
+    if (std::holds_alternative<reading::ComparisonReview>(target)) return &repo.comparisonDiff;
+    const auto* cache = find_singleton<CommitDetailCache, ActiveTab>();
+    return cache && cache->cachedRepoPath == repo.repoPath && cache->cachedCommitHash == repo.selectedCommitHash()
+        ? &cache->commitDetailDiff : nullptr;
+}
+
+inline void open_line_picker(RepoComponent& repo, LayoutComponent& layout) {
+    layout.filePickerPosition = {};
+    auto& position = layout.filePickerPosition;
+    position.lineMode = true;
+    const auto* document = repo.workspace().document(repo.workspace().active_id());
+    auto point = document->anchor.value_or(reading::ReadingAnchor{});
+    point.revision = reading::anchor_revision(document->location);
+    point.viewportFraction = .15f;
+    if (const auto* source = std::get_if<reading::SourceLocation>(&document->location)) {
+        point.path = source->destination.path;
+        point.side = reading::DiffSide::After;
+    } else {
+        const auto& review = std::get<reading::ReviewLocation>(document->location);
+        if (!review.file.empty() && point.path != review.file) {
+            point.path = review.file;
+            point.side = reading::DiffSide::After;
+        }
+        if (point.path.empty() && document->files && !document->files->empty()) point.path = document->files->front().path;
+        if (const auto* files = line_picker_diffs(repo)) for (const auto& file : *files)
+            if (file.filePath == point.path && file.isDeleted) point.side = reading::DiffSide::Before;
+    }
+    if (!point.path.empty()) position.point = std::move(point);
+    layout.filePickerScope = {};
+    layout.filePickerOpen = layout.filePickerFocus = true;
+}
+
+inline bool poll_file_picker_position(RepoComponent& repo, LayoutComponent& layout, const std::string& key) {
+    auto& position = layout.filePickerPosition;
+    if (position.key != key) {
+        position.future = {};
+        position.error.clear();
+        position.key = key;
+    }
+    if (!position.future.valid() || position.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return false;
+    auto result = position.future.get();
+    if (!navigation::accepts(repo, position.request, position.request.key)) return false;
+    position.error = std::move(result.error);
+    if (!position.error.empty()) return false;
+    const auto anchor = reading::ReadingAnchor{result.location.destination.path, reading::anchor_revision(result.location),
+        reading::DiffSide::After, result.location.line, result.location.column, .15f};
+    navigation::open(repo, result.location, {}, position.mode, anchor);
+    return true;
+}
+
+inline void request_file_picker_position(RepoComponent& repo, LayoutComponent& layout,
+                                         reading::SourceLocation target, reading::OpenMode mode) {
+    auto& position = layout.filePickerPosition;
+    position.error.clear();
+    position.mode = mode;
+    position.request = navigation::stamp(repo, position.key + "\n" + target.destination.path + ":" +
+        std::to_string(target.line) + ":" + std::to_string(target.column));
+    position.future = git::locate_source_position_async(repo.repoPath, std::move(target), repo.fullFileEncodingOverride);
+}
+
+inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo, LayoutComponent& layout) {
+    auto& position = layout.filePickerPosition;
+    ui::bind_focus(parent, repo, reading::focus::Region::Picker);
+    div(ctx, mk(parent, 587000), ComponentConfig{}.with_label("Go to line")
+        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(14)));
+    div(ctx, mk(parent, 587001), ComponentConfig{}
+        .with_label(position.point ? position.point->path + (position.point->side == reading::DiffSide::Before ? " · before" : "") : "Select a file to go to a line")
+        .with_size(ComponentSize{percent(1.f), pixels(24)}).with_font_size(pixels(12))
+        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("line_picker_path"));
+    auto input = afterhours::text_input::text_input(ctx, mk(parent, 587002), position.input,
+        ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)})
+            .with_debug_name("line_picker_input"));
+    if (layout.filePickerFocus) { ui::focus_control(ctx, input.ent()); layout.filePickerFocus = false; }
+    position.parsed = file_query::line(position.input);
+    if (poll_file_picker_position(repo, layout, "line:" + position.input)) return;
+    const bool valid = position.point && position.parsed.position && position.parsed.error.empty();
+    const auto status = position.future.valid() ? "Checking line..." : !position.error.empty() ? position.error : position.parsed.error;
+    div(ctx, mk(parent, 587003), ComponentConfig{}.with_label(status.empty() ? "Line[:column] · Enter to go · Esc to return" : status)
+        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
+        .with_custom_text_color(theme::TEXT_PRIMARY)
+        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("line_picker_status"));
+    const bool pressed = button(ctx, mk(parent, 587004), preset::Button("Go", valid && !position.future.valid())
+        .with_size(ComponentSize{pixels(64), pixels(28)}).with_debug_name("line_picker_go"));
+    const bool enter = ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && afterhours::input::is_key_pressed(257);
+    if (!valid || position.future.valid() || (!pressed && !enter)) return;
+    auto point = *position.point;
+    point.revision = reading::anchor_revision(repo.workspace().location());
+    point.line = position.parsed.position->line;
+    point.column = position.parsed.position->column;
+    if (const auto* source = std::get_if<reading::SourceLocation>(&repo.workspace().location())) {
+        auto target = *source;
+        target.line = point.line;
+        target.column = point.column;
+        request_file_picker_position(repo, layout, std::move(target), reading::OpenMode::Keep);
+    } else {
+        const auto* files = line_picker_diffs(repo);
+        auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        if (files && review) for (const auto& file : *files) {
+            if (file.filePath != point.path) continue;
+            if (const auto found = reading::position_in_diff(file, point)) {
+                navigation::go_to_review_line(repo, *review, file, *found);
+                return;
+            }
+        }
+        position.error = "Line is not in this diff. Use Go to File to read its source.";
+    }
+}
+
 inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout, float height) {
     bool revealSelection = layout.filePickerFocus;
     ui::bind_focus(parent, repo, reading::focus::Region::Picker);
     auto& scope = layout.filePickerScope;
+    auto& position = layout.filePickerPosition;
     auto heading = div(ctx, mk(parent, 586000), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row).with_gap(pixels(6)));
     div(ctx, mk(heading.ent(), 0), ComponentConfig{}.with_label("Go to file")
@@ -113,15 +227,23 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     std::string key = repo.repoPath + ":" + std::to_string(repo.dataGeneration) + ":" +
                       std::to_string(repo.repoVersion) + "\n" + scope.request.key + "\n" + layout.filePickerQuery;
     if (key != layout.filePickerCacheKey) {
-        layout.filePickerResults = fuzzy::rank(paths, layout.filePickerQuery, repo.workspace().recent_source_paths(scope.listing.revision));
+        position.parsed = file_query::parse(layout.filePickerQuery, paths);
+        layout.filePickerResults = position.parsed.error.empty()
+            ? fuzzy::rank(paths, position.parsed.path, repo.workspace().recent_source_paths(scope.listing.revision)) : std::vector<std::string>{};
         layout.filePickerCacheKey = key;
         layout.filePickerIndex = 0;
         const auto selected = std::find(layout.filePickerResults.begin(), layout.filePickerResults.end(), layout.filePickerSelectedPath);
         if (selected != layout.filePickerResults.end()) layout.filePickerIndex = static_cast<int>(selected - layout.filePickerResults.begin());
         revealSelection = true;
     }
+    if (poll_file_picker_position(repo, layout, key)) return;
     auto open = [&](const std::string& path, bool keep) {
-        navigation::click(repo, reading::SourceLocation{{path, scope.listing.revision}}, keep, reading::ClickRegion::Picker);
+        auto target = reading::SourceLocation{{path, scope.listing.revision}};
+        if (position.parsed.position) {
+            target.line = position.parsed.position->line;
+            target.column = position.parsed.position->column;
+            request_file_picker_position(repo, layout, std::move(target), keep ? reading::OpenMode::Keep : reading::OpenMode::Preview);
+        } else navigation::click(repo, std::move(target), keep, reading::ClickRegion::Picker);
     };
     auto& results = layout.filePickerResults;
     const bool pickerKeys = !ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker);
@@ -132,7 +254,8 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     }
     if (!results.empty()) layout.filePickerSelectedPath = results[layout.filePickerIndex];
     const auto& error = working ? repo.filesError : scope.listing.error;
-    const std::string status = scope.future.valid() ? "Loading files..." : !error.empty() ? error :
+    const std::string status = position.future.valid() ? "Checking line..." : !position.error.empty() ? position.error :
+        !position.parsed.error.empty() ? position.parsed.error : scope.future.valid() ? "Loading files..." : !error.empty() ? error :
         std::to_string(results.size()) + (scope.listing.truncated ? " matches · file list limit reached" : (layout.filePickerQuery.empty() ? " files · recent first · Enter open · Esc close" : " matches · arrows to choose · Enter open · Esc close"));
     div(ctx, mk(parent, 586002), ComponentConfig{}
         .with_label(status).with_debug_name("file_picker_status")
@@ -158,7 +281,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     ui::virtual_list(ctx, listParent, results.size(), 28.f,
         [&](size_t i, Entity& row) {
             auto result = button(ctx, mk(row, 0), preset::Button(results[i])
-                    .with_styled_label(file_picker_label(results[i], layout.filePickerQuery, static_cast<int>(i) == layout.filePickerIndex))
+                    .with_styled_label(file_picker_label(results[i], position.parsed.path, static_cast<int>(i) == layout.filePickerIndex))
                     .with_tooltip(results[i])
                     .with_size(ComponentSize{percent(1.f), pixels(28)})
                     .with_alignment(TextAlignment::Left)
@@ -192,7 +315,7 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         const float screenWidth = ctx.screen_width / zoom;
         const float screenHeight = ctx.screen_height / zoom;
         const float width = std::max(100.f, std::min(620.f, screenWidth - 32.f));
-        const float height = std::max(160.f, std::min(440.f, screenHeight - 80.f));
+        const float height = layout->filePickerPosition.lineMode ? 204.f : std::max(160.f, std::min(440.f, screenHeight - 80.f));
         auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 586100), layout->filePickerOpen,
             afterhours::ModalConfig{}.with_size(pixels(width), pixels(height))
                 .with_show_close_button(false).with_closed_by(afterhours::ClosedBy::Any)
@@ -201,6 +324,7 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         if (!modal || !repo) {
             if (layout->filePickerScope.owner) {
                 layout->filePickerScope = {};
+                layout->filePickerPosition = {};
                 layout->filePickerResults.clear();
                 layout->filePickerCacheKey.clear();
             }
@@ -221,7 +345,8 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         ctx.add_input_gate("file_picker", [modalId](afterhours::EntityID id) {
             return afterhours::modal::detail::is_entity_in_tree(modalId, id);
         });
-        render_file_picker(ctx, body.ent(), *repo, *layout, height - 48.f);
+        if (layout->filePickerPosition.lineMode) render_line_picker(ctx, body.ent(), *repo, *layout);
+        else render_file_picker(ctx, body.ent(), *repo, *layout, height - 48.f);
     }
 };
 

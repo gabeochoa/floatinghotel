@@ -30,9 +30,10 @@ def capture(name):
     return f"workspace_checkpoint {checkpoints[name][0]} {name}\nscreenshot {name}\n"
 
 
-def picker(path, keep=False):
+def picker(path, keep=False, working=False):
     action = "key ENTER" if keep else "click_ui file_picker_result"
-    return f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\n{action}\nwait_for_refresh\n'
+    scope = "click_ui file_picker_working_scope\nwait_for_refresh\n" if working else ""
+    return f'key CMD+P\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\n{action}\nwait_for_refresh\n'
 
 
 for zoom, steps in ((100, 0), (140, 4), (200, 10)):
@@ -44,7 +45,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
     script += 'click_text "Add unit tests for utils"\nwait_for_refresh\n' + capture("replaced")
     script += 'key ENTER\nwait_frames 2\n' + capture("kept_review")
     script += 'click_ui open_full_file\nwait_for_refresh\n' + capture("source")
-    script += picker("README.md") + capture("second_source")
+    script += picker("README.md", working=True) + capture("second_source")
     script += 'click_ui content_document_5\nwait_frames 1\nclick_ui content_document_5\nwait_frames 2\n' + capture("kept_source")
     script += picker("CONTRIBUTING.md") + capture("third_source")
     script += picker("README.md", True) + capture("reused")
@@ -67,7 +68,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         tabs = [node for node in nodes if node.get("name", "").startswith("content_document_")]
         assert 1 <= len(tabs) <= count
         if name in ("first", "replaced", "kept_review"):
-            assert next(tab for tab in tabs if tab["name"] == f"content_document_{active}")["focused"], (zoom, name, "Reader tab lost focus")
+            assert any(node["focused"] and node.get("focus_target", {}).get("region") == "History" for node in nodes), (zoom, name, "History preview lost focus")
         for tab in tabs:
             assert tab["visible_rect"]["width"] <= tab["rect"]["width"] + .2, (zoom, name, tab)
         if name != "kept_from_menu":

@@ -1,4 +1,5 @@
 #include "test_framework.h"
+#include "../../src/util/file_query.h"
 #include "../../src/ecs/components.h"
 #include "../../src/ui/code_highlight.h"
 #include "../../src/util/fuzzy_match.h"
@@ -395,6 +396,22 @@ TEST(quick_open_highlights_the_ranked_match_without_splitting_utf8) {
     ASSERT_EQ(fuzzy::matched_ranges("日本", "src/日本.cpp"), (std::vector<fuzzy::Range>{{4, 7}, {7, 10}}));
     ASSERT_TRUE(fuzzy::matched_ranges("日本", "src/日語.cpp").empty());
     ASSERT_FALSE(fuzzy::score("日本", "src/日語.cpp").has_value());
+}
+
+TEST(file_query_prefers_exact_colon_paths_and_parses_positive_positions) {
+    const std::vector<std::string> paths{"a.cpp", "literal:12", "report:year.cpp"};
+    auto exact = file_query::parse("literal:12", paths);
+    ASSERT_EQ(exact.path, std::string("literal:12")); ASSERT_FALSE(exact.position.has_value());
+    auto nested = file_query::parse("literal:12:3", paths);
+    ASSERT_EQ(nested.path, std::string("literal:12")); ASSERT_EQ(nested.position->line, 3);
+    auto query = file_query::parse("a.cpp:120:8", paths);
+    ASSERT_EQ(query.path, std::string("a.cpp")); ASSERT_EQ(query.position->line, 120); ASSERT_EQ(query.position->column, 8);
+    ASSERT_EQ(file_query::parse("report:year.cpp:4:2", paths).path, std::string("report:year.cpp"));
+    for (const auto* text : {"a.cpp:0", "a.cpp:-1", "a.cpp:3:0", "a.cpp:2147483648", "a.cpp:2:", ":12", "a.cpp:bad"})
+        ASSERT_FALSE(file_query::parse(text, paths).error.empty());
+    ASSERT_TRUE(file_query::line("").error.empty());
+    ASSERT_EQ(file_query::line("12:4").position->column, 4);
+    ASSERT_FALSE(file_query::line("12:4:5").error.empty());
 }
 
 int main() { RUN_ALL_TESTS(); }

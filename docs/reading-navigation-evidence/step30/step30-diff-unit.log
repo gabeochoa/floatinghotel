@@ -1,0 +1,38 @@
+--- Compiling test_diff_tools ---
+--- Running test_diff_tools ---
+  code_wrap_keeps_composed_characters_together                 OK
+  code_wrap_preserves_bytes_and_decoded_boundaries             OK
+  lfs_availability_is_refreshed_with_repository_generation     OK
+  lfs_pointers_require_the_version_digest_and_unsigned_size    OK
+  message_row_window_is_bounded_at_top_middle_and_end          OK
+  codeowners_uses_last_match_and_repository_relative_patterns  OK
+  codeowners_wildcards_are_bounded_and_lines_have_a_limit      OK
+  symlink_reader_returns_target_text_without_following_it      OK
+  file_mode_lookup_uses_exact_nul_terminated_paths             OK
+  review_files_sort_by_churn_with_path_ties_and_preserve_filters OK
+  tooltip_wrapping_preserves_all_text_and_utf8_glyphs          OK
+  navigation_history_truncates_forward_after_a_new_destination OK
+  source_navigation_preserves_the_review_and_its_origin        OK
+  source_tab_keeps_revision_when_review_is_active              OK
+  review_ranges_keep_old_and_new_line_numbers_distinct         OK
+  commit_graph_tracks_forks_merges_and_roots                   OK
+  diff_revision_pairs_keep_comparisons_and_index_distinct      OK
+  history_search_validates_dates_and_keeps_filters_literal     OK
+  file_tree_collapses_descendants_without_hiding_siblings      OK
+  file_tree_preserves_input_rank_inside_directory_groups       OK
+  fuzzy_paths_match_subsequences_and_rank_boundaries           OK
+  syntax_tokens_preserve_source_and_strings                    OK
+  diff_find_tracks_side_line_and_occurrence                    OK
+  intraline_ranges_keep_shared_prefix_and_suffix_unmarked      OK
+  whitespace_display_distinguishes_line_endings_without_mutating_source OK
+  merge_parent_selection_preserves_review_and_source_provenance OK
+  revision_ranges_require_explicit_two_dot_endpoints           OK
+  quick_open_ranks_filename_matches_before_directory_matches   OK
+  quick_open_highlights_the_ranked_match_without_splitting_utf8 OK
+  file_query_prefers_exact_colon_paths_and_parses_positive_positions OK
+
+30/30 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

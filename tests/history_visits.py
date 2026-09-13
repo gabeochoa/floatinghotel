@@ -30,7 +30,7 @@ def capture(name, count):
 
 
 def picker(path):
-    return f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
+    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
 
 
 for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
