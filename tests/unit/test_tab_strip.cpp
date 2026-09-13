@@ -26,4 +26,24 @@ TEST(reveal_clamps_after_removal_or_expansion) {
     ASSERT_EQ(reading::reveal_tab(700, 0, 160, 1000, 760), 0.f);
 }
 
+TEST(tab_insertion_uses_midpoints_and_supports_both_ends) {
+    const std::vector<float> widths{160, 240, 200};
+    ASSERT_EQ(reading::tab_insertion(widths, -10), size_t{0});
+    ASSERT_EQ(reading::tab_insertion(widths, 79), size_t{0});
+    ASSERT_EQ(reading::tab_insertion(widths, 80), size_t{1});
+    ASSERT_EQ(reading::tab_insertion(widths, 279), size_t{1});
+    ASSERT_EQ(reading::tab_insertion(widths, 280), size_t{2});
+    ASSERT_EQ(reading::tab_insertion(widths, 900), size_t{3});
+    ASSERT_EQ(reading::tab_insertion({}, 30), size_t{0});
+}
+
+TEST(tab_edge_scroll_is_bounded_and_only_near_edges) {
+    ASSERT_EQ(reading::tab_edge_scroll(200, 400, .02f), 0.f);
+    ASSERT_EQ(reading::tab_edge_scroll(12, 400, .02f), -4.f);
+    ASSERT_EQ(reading::tab_edge_scroll(388, 400, .02f), 4.f);
+    ASSERT_EQ(reading::tab_edge_scroll(400, 400, 10.f), 20.f);
+    ASSERT_EQ(reading::tab_edge_scroll(0, 400, -1.f), 0.f);
+    ASSERT_EQ(reading::tab_edge_scroll(0, 0, .02f), 0.f);
+}
+
 int main() { RUN_ALL_TESTS(); }

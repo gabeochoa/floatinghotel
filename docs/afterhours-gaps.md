@@ -1763,3 +1763,15 @@ A framework scroll snapshot keyed by stable content identity, with a layout-read
 restore operation, would help readers, inspectors, inventory lists, and game
 menus preserve position across immediate-mode rebuilds. Logical-anchor restore
 is still pending in step 13; this fix does not claim to provide it.
+
+### Reordering collections with pointer capture
+
+Afterhours already retains the active pointer target across frames and provides
+press/release click modes. Document tabs compose those pieces into an app-owned
+drag: threshold, stable item identity, insertion marker, bounded edge scrolling,
+Escape/outside/resize cancellation, and suppression of nested close actions.
+A reusable reorderable collection gesture could support asset lists, game
+inventories, loadout slots, and document strips. It should report a move intent
+without changing selection or content loading, and let the caller own ordering.
+The native replay in `tests/reorder_tabs.py` checks these interactions at three
+zooms, including dragging an inactive tab without changing the reader.

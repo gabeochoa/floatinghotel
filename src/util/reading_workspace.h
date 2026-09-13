@@ -271,6 +271,16 @@ private:
         select(visit.location, mode);
         return true;
     }
+    bool reorder(DocumentId id, size_t insertion) {
+        auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == id; });
+        if (found == documents_.end() || insertion > documents_.size()) return false;
+        const size_t index = static_cast<size_t>(found - documents_.begin());
+        if (insertion == index || insertion == index + 1) return false;
+        if (insertion < index) std::rotate(documents_.begin() + insertion, found, found + 1);
+        else std::rotate(found, found + 1, documents_.begin() + insertion);
+        lastClick_.reset();
+        return true;
+    }
     bool close(DocumentId id, bool reviewing) {
         auto found = std::find_if(documents_.begin(), documents_.end(), [&](const auto& tab) { return tab.id == id; });
         if (found == documents_.end()) return false;

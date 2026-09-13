@@ -170,6 +170,10 @@ struct navigation {
         if (const auto* document = repo.workspace_.document(id)) open(repo, document->location);
     }
 
+    static bool reorder(ecs::RepoComponent& repo, reading::DocumentId id, size_t insertion) {
+        return repo.workspace_.reorder(id, insertion);
+    }
+
     static void close_source(ecs::RepoComponent& repo) {
         if (const auto* source = repo.workspace_.recent(reading::Slot::Source)) close(repo, source->id);
     }

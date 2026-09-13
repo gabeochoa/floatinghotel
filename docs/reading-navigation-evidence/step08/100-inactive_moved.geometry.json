@@ -1,0 +1,245 @@
+{
+  "viewport": {
+    "height": 1000,
+    "width": 1600
+  },
+  "nodes": [
+    {
+      "name": "main_content",
+      "rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      },
+      "visible_rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      }
+    },
+    {
+      "name": "content_tabs",
+      "rect": {
+        "height": 40.0,
+        "width": 1312.0,
+        "x": 288.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 1312.0,
+        "x": 288.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_tab_viewport",
+      "rect": {
+        "height": 40.0,
+        "width": 1232.0,
+        "x": 288.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 1232.0,
+        "x": 288.0,
+        "y": 28.0
+      },
+      "scroll": {
+        "content_height": 40.0,
+        "content_width": 1475.0,
+        "x": 243.0,
+        "y": 0.0
+      }
+    },
+    {
+      "name": "content_document_1",
+      "rect": {
+        "height": 40.0,
+        "width": 195.0,
+        "x": 45.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 0.0,
+        "x": 288.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_document_2",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 240.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 112.0,
+        "x": 288.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "diff_scroll",
+      "rect": {
+        "height": 832.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 142.0
+      },
+      "visible_rect": {
+        "height": 832.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 142.0
+      },
+      "scroll": {
+        "content_height": 12865.5810546875,
+        "content_width": 1264.0,
+        "x": 0.0,
+        "y": 400.0
+      }
+    },
+    {
+      "name": "content_document_3",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 400.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 400.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_document_4",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 560.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 560.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_document_5",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 720.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 720.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_document_6",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 880.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 880.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_document_7",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 1040.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 1040.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_document_8",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 1360.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 1360.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_document_9",
+      "rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 1200.0,
+        "y": 28.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 160.0,
+        "x": 1200.0,
+        "y": 28.0
+      }
+    },
+    {
+      "name": "content_tab_indicator",
+      "rect": {
+        "height": 2.0,
+        "width": 140.0,
+        "x": 1220.0,
+        "y": 66.0
+      },
+      "visible_rect": {
+        "height": 2.0,
+        "width": 140.0,
+        "x": 1220.0,
+        "y": 66.0
+      }
+    },
+    {
+      "name": "document_tab_insertion",
+      "rect": {
+        "height": 32.0,
+        "width": 2.0,
+        "x": 1518.0,
+        "y": 32.0
+      },
+      "visible_rect": {
+        "height": 32.0,
+        "width": 2.0,
+        "x": 1518.0,
+        "y": 32.0
+      }
+    }
+  ]
+}

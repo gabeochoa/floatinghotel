@@ -658,4 +658,35 @@ TEST(reopening_a_recreated_review_restores_its_retained_subject) {
     ASSERT_STREQ(repo.workspace().document(recreated)->subject, "Retained subject");
 }
 
+TEST(reordering_changes_only_order_and_preserves_requests_and_history) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("a.cpp"));
+    const auto a = repo.workspace().active_id();
+    open_kept(repo, reading::source("b.cpp"));
+    const auto b = repo.workspace().active_id();
+    navigation::open(repo, reading::source("c.cpp"));
+    const auto c = repo.workspace().active_id();
+    const auto generation = repo.workspace().generation();
+    const auto visits = repo.workspace().history();
+    repo.fullFileCacheKey = "retained";
+    const auto request = navigation::stamp(repo, "reader");
+    ASSERT_TRUE(navigation::reorder(repo, c, 0));
+    ASSERT_EQ(repo.workspace().documents()[0].id.value, c.value);
+    ASSERT_EQ(repo.workspace().active_id().value, c.value);
+    ASSERT_TRUE(repo.workspace().document(c)->preview);
+    ASSERT_EQ(repo.workspace().generation(), generation);
+    ASSERT_TRUE(repo.workspace().history() == visits);
+    ASSERT_EQ(repo.fullFileCacheKey, std::string("retained"));
+    ASSERT_TRUE(navigation::accepts(repo, request, "reader"));
+    ASSERT_TRUE(navigation::reorder(repo, c, 4));
+    ASSERT_EQ(repo.workspace().documents()[3].id.value, c.value);
+    ASSERT_TRUE(navigation::reorder(repo, b, 1));
+    ASSERT_EQ(repo.workspace().documents()[1].id.value, b.value);
+    ASSERT_FALSE(navigation::reorder(repo, a, 2));
+    ASSERT_FALSE(navigation::reorder(repo, a, 3));
+    ASSERT_FALSE(navigation::reorder(repo, a, 99));
+    ASSERT_FALSE(navigation::reorder(repo, reading::DocumentId{99}, 0));
+    ASSERT_EQ(repo.workspace().generation(), generation);
+}
+
 int main() { RUN_ALL_TESTS(); }

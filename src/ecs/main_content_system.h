@@ -306,12 +306,31 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
 }
 
 struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
+    struct TabDrag {
+        int repository;
+        int owner;
+        reading::DocumentId document;
+        float x;
+        float y;
+        float scale;
+        int windowWidth;
+        int windowHeight;
+        std::vector<reading::DocumentId> order;
+        bool dragging = false;
+        bool cancelled = false;
+    };
+    std::optional<TabDrag> tabDrag;
+
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
-                       float) override {
+                       float dt) override {
         auto* layoutPtr = find_singleton<LayoutComponent>();
         if (!layoutPtr) return;
         auto& layout = *layoutPtr;
 
+        if (tabDrag && !ctx.mouse.left_down && !ctx.mouse.just_released) tabDrag.reset();
+        const bool cancelledTabDrag = tabDrag && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE);
+        if (cancelledTabDrag) tabDrag->cancelled = true;
+        if (tabDrag && (tabDrag->dragging || tabDrag->cancelled)) ctx.set_active(tabDrag->owner);
         bool shortcutsActive = ui::render_keyboard_shortcuts(ctx, layout);
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
@@ -358,7 +377,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         const bool dismissedContextMenu = !shortcutsActive && ui::is_context_menu_open() &&
             afterhours::input::is_key_pressed(afterhours::keys::ESCAPE);
         if (dismissedContextMenu) ui::close_context_menu();
-        if (!shortcutsActive && !dismissedContextMenu && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+        if (!shortcutsActive && !dismissedContextMenu && !cancelledTabDrag && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
             if (layout.diffFindOpen) {
                 layout.diffFindOpen = false;
                 ctx.set_focus(ctx.ROOT);
@@ -462,6 +481,30 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
             scroll.viewport_size = {viewportWidth * scale, layout.contentTabs.height * scale};
             scroll.content_size = {contentWidth * scale, layout.contentTabs.height * scale};
+            std::vector<reading::DocumentId> order;
+            for (const auto& document : workspace.documents()) order.push_back(document.id);
+            if (tabDrag && (tabDrag->repository != repositoryId || tabDrag->order != order ||
+                tabDrag->scale != scale || tabDrag->windowWidth != afterhours::graphics::get_screen_width() ||
+                tabDrag->windowHeight != afterhours::graphics::get_screen_height() || ui::is_context_menu_open()))
+                tabDrag->cancelled = true;
+            if (tabDrag && !tabDrag->cancelled && ctx.mouse.left_down) {
+                const float dx = ctx.mouse.pos.x - tabDrag->x;
+                const float dy = ctx.mouse.pos.y - tabDrag->y;
+                tabDrag->dragging |= dx * dx + dy * dy >= 36.f * scale * scale;
+            }
+            const bool suppressTabActions = tabDrag && (tabDrag->dragging || tabDrag->cancelled);
+            if (suppressTabActions) ctx.set_active(tabDrag->owner);
+            const float pointerX = ctx.mouse.pos.x / scale - layout.contentTabs.x;
+            const float pointerY = ctx.mouse.pos.y / scale - layout.contentTabs.y;
+            const bool overStrip = pointerX >= 0.f && pointerX <= viewportWidth &&
+                pointerY >= 0.f && pointerY <= layout.contentTabs.height;
+            if (tabDrag && tabDrag->dragging && !tabDrag->cancelled && ctx.mouse.left_down && overStrip) {
+                scroll.scroll_offset.x = std::clamp(scroll.scroll_offset.x +
+                    reading::tab_edge_scroll(pointerX, viewportWidth, dt) * scale,
+                    0.f, std::max(0.f, contentWidth - viewportWidth) * scale);
+                scroll.scroll_target.x = scroll.scroll_offset.x;
+            }
+            const auto insertion = reading::tab_insertion(widths, pointerX + scroll.scroll_offset.x / scale);
             size_t titleIndex = 0;
             for (const auto& document : workspace.documents()) {
                 const auto* source = std::get_if<reading::SourceLocation>(&document.location);
@@ -478,6 +521,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_custom_background(active ? theme::WINDOW_BG : theme::SIDEBAR_BG)
                     .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
                     .with_roundness(0.f).with_corner_radius(0.f)
+                    .with_click_activation(afterhours::ui::ClickActivationMode::Release)
                     .with_debug_name("content_document_" + std::to_string(document.id.value)));
                 if (source) div(ctx, mk(tab.ent(), 10), ComponentConfig{}
                     .with_label(ui::file_tree_style::type_marker(source->destination.path))
@@ -501,13 +545,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_size(ComponentSize{pixels(std::max(0.f, width - 20.f)), pixels(2)})
                     .with_absolute_position(10.f, layout.contentTabs.height - 2.f)
                     .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
-                ui::set_tooltip(tab.ent(), label.tooltip);
+                ui::set_tooltip(tab.ent(), suppressTabActions ? "" : label.tooltip);
                 if (active && repoPtr->readingFocusDocument == document.id) {
                     ctx.set_focus(tab.ent().id);
                     repoPtr->readingFocusDocument.reset();
                 }
                 activeDocumentFocused |= active && ctx.has_focus(tab.ent().id);
-                if (tab) activate = document.id;
+                if (tab && !suppressTabActions) activate = document.id;
                 auto close = button(ctx, mk(tab.ent(), 20), preset::Button("")
                     .with_size(ComponentSize{pixels(24), percent(1.f)})
                     .with_padding(Padding{.top = pixels(0), .right = pixels(0), .bottom = pixels(0), .left = pixels(0)})
@@ -519,7 +563,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 const float highlightSize = 20.f * ui::zoom::get();
                 Rectangle highlightRect{closeRect.x + (closeRect.width - highlightSize) * .5f,
                     closeRect.y + (closeRect.height - highlightSize) * .5f, highlightSize, highlightSize};
-                const bool closeHovered = afterhours::ui::is_mouse_inside(
+                const bool closeHovered = !suppressTabActions && afterhours::ui::is_mouse_inside(
                     ctx.mouse.pos, highlightRect);
                 div(ctx, mk(close.ent(), 0), ComponentConfig{}.with_label("×")
                     .with_size(ComponentSize{pixels(20), pixels(20)}).with_font_size(pixels(14))
@@ -527,8 +571,16 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_custom_background(closeHovered ? theme::BUTTON_SECONDARY : afterhours::Color{0, 0, 0, 0})
                     .with_corner_radius(4.f).with_debug_name("document_close_glyph"));
-                if (close) closeDocument = document.id;
-                if (ctx.is_right_click(tab.ent().id)) {
+                if (close && !suppressTabActions) closeDocument = document.id;
+                if (!tabDrag && ctx.mouse.just_pressed && !ui::is_context_menu_open() &&
+                    ctx.is_input_allowed(tab.ent().id) &&
+                    afterhours::ui::is_mouse_inside(ctx.mouse.pos,
+                        afterhours::ui::detail::hit_rect(tab.ent(), tab.ent().get<afterhours::ui::UIComponent>())) &&
+                    !afterhours::ui::is_mouse_inside(ctx.mouse.pos, closeRect)) {
+                    tabDrag = TabDrag{repositoryId, tabs.ent().id, document.id, ctx.mouse.pos.x, ctx.mouse.pos.y,
+                        scale, afterhours::graphics::get_screen_width(), afterhours::graphics::get_screen_height(), order};
+                }
+                if (!suppressTabActions && ctx.is_right_click(tab.ent().id)) {
                     const auto id = document.id;
                     ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
                         ui::ContextMenuItem::item("Keep Open", [target, id] { if (auto* repo = target()) navigation::keep(*repo, id); }, document.preview),
@@ -541,6 +593,17 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     });
                 }
             }
+            if (tabDrag && tabDrag->dragging && !tabDrag->cancelled && overStrip) {
+                float marker = 0.f;
+                for (size_t i = 0; i < insertion; ++i) marker += widths[i];
+                marker = std::clamp(marker - scroll.scroll_offset.x / scale, 0.f, std::max(0.f, viewportWidth - 2.f));
+                div(ctx, mk(strip.ent(), 4), ComponentConfig{}
+                    .with_size(ComponentSize{pixels(2), pixels(std::max(0.f, layout.contentTabs.height - 8.f))})
+                    .with_absolute_position(marker, 4.f).with_custom_background(theme::SELECTED_ACCENT)
+                    .with_debug_name("document_tab_insertion"));
+            }
+            if (tabDrag && ctx.mouse.just_released && tabDrag->dragging && !tabDrag->cancelled && overStrip)
+                navigation::reorder(*repoPtr, tabDrag->document, insertion);
             auto control = [&](int id, const std::string& text, float width, const std::string& name) {
                 return button(ctx, mk(strip.ent(), id), preset::Button(text)
                     .with_size(ComponentSize{pixels(width), percent(1.f)})
