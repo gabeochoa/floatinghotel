@@ -666,11 +666,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     // Review state for this hunk (working-tree diff only).
     bool reviewOn = sel && sel->reviewActions && sel->review;
-    std::string hkey;
+    const std::string hkey = (sel ? sel->reviewScope : "") + "\n" +
+        ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk);
     bool isCursor = false;
     if (reviewOn) {
-        hkey = sel->reviewScope + "\n" +
-               ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk);
         if (sel->review->approvedHunks.count(hkey) && !sel->review->showApproved)
             return;
         // Keyboard chunk cursor + pending vim actions (a=approve, c=comment).
@@ -811,20 +810,32 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     // Buttons live in a right-aligned group so they cluster together instead of
     // being spread apart by the row's SpaceBetween.
+    const auto headerRect = visible_rect(hunkRow.ent());
+    bool revealActions = ctx.is_input_allowed(hunkRow.ent().id) && headerRect.width > 0.f && headerRect.height > 0.f &&
+        afterhours::ui::is_mouse_inside(ctx.mouse.pos, headerRect);
+    if (auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id); focused.valid()) {
+        const auto target = focus_target(**focused);
+        const auto owner = focus_target(hunkRow.ent());
+        revealActions |= target && owner && target->repository == owner->repository && target->document == owner->document &&
+            target->region == reading::focus::Region::Code && target->item == hkey;
+    }
+    const bool compactActions = contentWidth > 0.f && contentWidth < 680.f;
     auto hunkBtns = div(ctx, mk(hunkRow.ent(), 9),
         ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{children(), percent(1.0f)})
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
-            .with_gap(pixels(6))
+            .with_gap(pixels(compactActions ? 4 : 6))
             .with_margin(Margin{.right = pixels(8)})
             .with_transparent_bg()
             .with_roundness(0.0f)
+            .with_opacity(revealActions ? 1.f : 0.f)
             .with_debug_name("hunk_header_btns"));
 
     if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent) {
-        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button("Show surrounding lines")
-            .with_size(ComponentSize{children(), pixels(18)})
+        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button(compactActions ? "+" : "Show surrounding lines")
+            .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
+            .with_padding(Padding{})
             .with_font_size(pixels(12))
             .with_custom_background(theme::BUTTON_SECONDARY)
             .with_debug_name("expand_diff_context"));
@@ -847,10 +858,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         std::string hunkText = diff_detail::hunk_to_text(hunk);
         auto copyBtn = button(ctx, mk(hunkBtns.ent(), 1),
             preset::Button("Copy")
-                .with_size(ComponentSize{children(), pixels(18)})
+                .with_size(ComponentSize{compactActions ? pixels(36) : children(), pixels(compactActions ? 22 : 18)})
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = pixels(8)})
+                    .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
+                    .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
                 .with_custom_background(afterhours::Color{78, 78, 86, 255})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(pixels(12))
@@ -865,15 +876,19 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         {
             bool approved = sel->review->approvedHunks.contains(hkey);
             auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
-                preset::Button(approved ? "Unapprove" : "Approve")
-                    .with_size(ComponentSize{children(), pixels(18)})
+                preset::Button(compactActions ? "" : approved ? "Unapprove" : "Approve")
+                    .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
                     .with_padding(Padding{
-                        .top = pixels(2), .right = pixels(8),
-                        .bottom = pixels(2), .left = pixels(8)})
+                        .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
+                        .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::TEXT_PRIMARY)
                     .with_font_size(pixels(12))
+                    .with_align_items(AlignItems::Center).with_justify_content(JustifyContent::Center)
                     .with_debug_name("approve_hunk_btn"));
+            set_tooltip(approveBtn.ent(), approved ? "Remove hunk approval" : "Approve hunk for review");
+            if (compactActions) chrome_icon(ctx, mk(approveBtn.ent(), 0), ChromeIcon::Check,
+                approved ? theme::DIFF_ADD_TEXT : theme::TEXT_PRIMARY, "hunk_approve_icon");
             if (approveBtn) {
                 if (approved) sel->review->approvedHunks.erase(hkey);
                 else sel->review->approvedHunks.insert(hkey);
@@ -884,7 +899,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         auto* hunkRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if (sel->reviewScope == "wt" && (!hunkRepo || !hunkRepo->reviewWorkspace)) {
             if (button(ctx, mk(hunkBtns.ent(), 5), preset::Button("Stage")
-                    .with_size(ComponentSize{children(), pixels(18)})
+                    .with_size(ComponentSize{compactActions ? pixels(40) : children(), pixels(compactActions ? 22 : 18)})
+                    .with_padding(Padding{})
                     .with_font_size(pixels(12)).with_custom_background(theme::BUTTON_SECONDARY)
                     .with_debug_name("stage_hunk_btn"))) {
                 auto res = fileDiff.isSubmodule
@@ -897,15 +913,19 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             }
         }
         auto commentBtn = button(ctx, mk(hunkBtns.ent(), 3),
-            preset::Button("Comment")
-                .with_size(ComponentSize{children(), pixels(18)})
+            preset::Button(compactActions ? "" : "Comment")
+                .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = pixels(8)})
+                    .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
+                    .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(pixels(12))
+                .with_align_items(AlignItems::Center).with_justify_content(JustifyContent::Center)
                 .with_debug_name("comment_hunk_btn"));
+        set_tooltip(commentBtn.ent(), "Comment on hunk");
+        if (compactActions) chrome_icon(ctx, mk(commentBtn.ent(), 0), ChromeIcon::Message,
+            theme::TEXT_PRIMARY, "hunk_comment_icon");
         if (commentBtn) {
             int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
             begin_diff_comment(*sel->review, hkey,

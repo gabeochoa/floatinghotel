@@ -41,6 +41,7 @@ inline nlohmann::json layout_snapshot() {
             {"align", std::string(magic_enum::enum_name(cmp.align_items))},
             {"font_size", {{"value", cmp.font_size.value}, {"unit", std::string(magic_enum::enum_name(cmp.font_size.dim))}}}
         };
+        node["opacity"] = afterhours::ui::detail::compute_effective_opacity(entity);
         if (const auto target = focus_target(entity)) node["focus_target"] = {
             {"repository", target->repository}, {"document", target->document.value},
             {"region", std::string(magic_enum::enum_name(target->region))}, {"item", target->item}, {"control", target->control}};

@@ -2217,3 +2217,10 @@ readers reserve that space consistently without each child knowing scrollbar
 width. The expanded metadata card's oversized corners were an app configuration
 omission, fixed with the existing explicit corner-radius API. Evidence is in
 `docs/reading-navigation-evidence/step39`.
+
+Step 41 applies the same scrollbar gutter to hover-revealed hunk actions.
+Afterhours already supports inherited opacity; the app uses it to reserve
+action space while hiding the controls. The native layout dump now includes
+effective opacity so behavioral checks can distinguish layout presence from
+visibility. Compact icon buttons also need explicit child alignment and enough
+content height after padding; those were app styling corrections.
