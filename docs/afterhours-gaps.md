@@ -2456,3 +2456,25 @@ Afterhours delayed-visibility primitive, accepting a monotonic clock for tests,
 would be useful for editor panels, asset browsers, save operations, and game
 matchmaking menus. It must reset on replacement and disappear on completion;
 it must not debounce the user's selection or defer the heading update.
+
+### Cancellable speculative work with one admission slot
+
+Step 54 uses a 150 ms hover intent and one background prefetch slot. Cancelling a
+queued future does not immediately remove its executor job; dropping a tab must
+not make that slot appear free prematurely. The app holds an admission permit
+until the captured worker closure is destroyed and keeps completed content only
+in its existing bounded cache.
+
+A reusable Afterhours speculative-work slot should expose stable intent,
+cancellation, queue admission, and foreground priority without storing renderer
+payloads. Asset thumbnails, inventory previews, scene browsers, and inspector
+panels could use it. Repository identity and Git revision validation remain
+application policy. The app also switches intent to keyboard navigation until
+the pointer moves, so a stationary pointer cannot keep warming the old row.
+
+The step 54 native replay also needed the app's asynchronous frame barrier for
+its prefetch wait. Retrying an ECS test command alone allowed the accelerated
+command loop to advance without the intended rendered-frame handoff. The wait
+now participates in the same host barrier as reading and filesystem waits,
+with an explicit ten-second failure. A library-level await-condition command
+should make this scheduling requirement explicit and reusable.

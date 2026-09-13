@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../git/commit_patch.h"
+
 #include <algorithm>
 #include <cstdlib>
 #include <ctime>
@@ -202,6 +204,19 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         auto& layout = *layoutPtr;
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        bool prefetchAvailable = true;
+        for (Entity& entity : afterhours::EntityQuery({.force_merge = true}).whereHasComponent<RepoComponent>().gen()) {
+            if (entity.has<ActiveTab>()) continue;
+            auto& state = entity.get<RepoComponent>().commitPrefetch;
+            state.observe({});
+            prefetchAvailable &= !state.future.valid();
+        }
+        hoveredCommit_.clear();
+        focusedCommit_.clear();
+        if (lastPrefetchMouse_.x != ctx.mouse.pos.x || lastPrefetchMouse_.y != ctx.mouse.pos.y) hoverPrefetch_ = true;
+        lastPrefetchMouse_ = ctx.mouse.pos;
+        if (repoPtr && (!layout.sidebarVisible || layout.sidebar.width <= 0.f || repoPtr->repoSearchOpen))
+            repoPtr->commitPrefetch.observe({});
         if ((!layout.sidebarVisible && !(repoPtr && repoPtr->repoSearchOpen)) || layout.sidebar.width <= 0.f) return;
 
         // Working tree clean = nothing staged/unstaged/untracked. Used to hide
@@ -540,6 +555,22 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             render_no_repo(ctx, logScroll.ent(), 0, "no_repo_log");
         }
 
+        if (repoPtr) {
+            if (historyMove) hoverPrefetch_ = false;
+            const auto& hash = hoverPrefetch_ && !hoveredCommit_.empty() ? hoveredCommit_ : focusedCommit_;
+            std::optional<commit_prefetch::Candidate> candidate;
+            if (reading::is_object_id(hash) && hash != repoPtr->selectedCommitHash())
+                candidate = commit_prefetch::Candidate{repoPtr->repoPath, hash, repoPtr->diffContext, repoPtr->ignoreWhitespace};
+            auto& state = repoPtr->commitPrefetch;
+            if (state.observe(candidate) && prefetchAvailable) {
+                if (auto pending = git::prefetch_commit_patch_async({candidate->repository, candidate->commit, {}, candidate->context, candidate->ignoreWhitespace})) {
+                    state.attempted = true;
+                    ++state.submitted;
+                    state.future = std::move(*pending);
+                }
+            }
+        }
+
 
         // === Commit workflow + Unstaged Changes Dialog (T030) ===
         if (repoPtr && repoPtr->reviewWorkspace) {
@@ -579,6 +610,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
     }
 
 private:
+    std::string hoveredCommit_;
+    std::string focusedCommit_;
+    vec2 lastPrefetchMouse_{};
+    bool hoverPrefetch_ = true;
     std::string commitFileQuery_;
     std::string commitTreeKey_;
     std::vector<file_tree::Row> commitTreeRows_;
@@ -2282,6 +2317,10 @@ private:
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
         if (focus) ctx.set_focus(row.ent().id);
+        if (ctx.is_input_allowed(row.ent().id)) {
+            if (afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(row.ent()))) hoveredCommit_ = commit.hash;
+            if (ctx.focus_id == row.ent().id) focusedCommit_ = commit.hash;
+        }
 
         constexpr float rowPx = ROW_H;
 

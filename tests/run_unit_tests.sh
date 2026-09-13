@@ -60,6 +60,10 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_commit_prefetch" ]; then
+    run_test "test_commit_prefetch" "tests/unit/test_commit_prefetch.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_loading_feedback" ]; then
     run_test "test_loading_feedback" "tests/unit/test_loading_feedback.cpp"
 fi

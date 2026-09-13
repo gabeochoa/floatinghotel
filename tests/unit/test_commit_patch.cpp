@@ -31,6 +31,13 @@ TEST(commit_patches_are_parsed_on_workers_with_resolved_revision_identity) {
     ASSERT_EQ(warm.metadata, root.metadata);
     ASSERT_FALSE(warm.metadata.empty());
     ASSERT_EQ(warm.files[0].hunks[0].lines, root.files[0].hunks[0].lines);
+    ASSERT_FALSE(git::prefetch_commit_patch_async({directory, "HEAD"}).has_value());
+    ASSERT_TRUE(git::prefetch_commit_patch_async({directory, root.resolvedCommit, {}, 11})->get());
+    auto activity = git::commit_patch_cache().activity();
+    auto prefetched = git::read_commit_patch({directory, root.resolvedCommit, {}, 11});
+    ASSERT_TRUE(prefetched.error.empty());
+    ASSERT_EQ(git::commit_patch_cache().activity().first, activity.first + 1);
+    ASSERT_TRUE(git::commit_patch_cache().bytes() <= git::commitPatchCacheBudget);
     { std::ofstream file(path / "app.cpp"); file << "after\n"; }
     ASSERT_TRUE(git::git_run(directory, commit).success());
     auto next = git::load_commit_patch_async({directory, "HEAD", root.resolvedCommit, 0}).get();
@@ -212,6 +219,37 @@ TEST(commit_patch_cache_keys_include_repository_parent_and_all_diff_options) {
     ecs::CommitPatch failed;
     failed.error = "failed";
     ASSERT_FALSE(cache.put(key, failed));
+}
+
+TEST(closing_a_queued_prefetch_does_not_admit_another_until_the_job_drains) {
+    std::promise<void> release;
+    auto ready = release.get_future().share();
+    std::atomic<int> started = 0;
+    std::vector<async_work::Task<bool>> blockers;
+    for (int i = 0; i < 3; ++i) blockers.push_back(async_work::launch([&](std::stop_token) {
+        ++started;
+        ready.wait();
+        return true;
+    }, async_work::Priority::Background));
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
+    while (started < 3 && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+    const bool saturated = started == 3;
+    auto first = git::prefetch_commit_patch_async({"unused", std::string(40, 'a')});
+    const bool admitted = first.has_value();
+    auto second = git::prefetch_commit_patch_async({"another repository", std::string(40, 'b')});
+    const bool rejected = !second.has_value();
+    if (first) first->cancel();
+    first.reset();
+    auto afterClose = git::prefetch_commit_patch_async({"third repository", std::string(40, 'c')});
+    const bool closedRejected = !afterClose.has_value();
+    release.set_value();
+    for (auto& task : blockers) task.get();
+    auto drained = async_work::launch([](std::stop_token) { return true; }, async_work::Priority::Background);
+    drained.get();
+    ASSERT_TRUE(saturated);
+    ASSERT_TRUE(admitted);
+    ASSERT_TRUE(rejected);
+    ASSERT_TRUE(closedRejected);
 }
 
 int main() { RUN_ALL_TESTS(); }

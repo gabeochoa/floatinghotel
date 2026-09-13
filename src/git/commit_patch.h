@@ -14,5 +14,6 @@ struct CommitPatchRequest {
 
 ecs::CommitPatch read_commit_patch(const CommitPatchRequest& request, std::stop_token stop = {});
 async_work::Task<ecs::CommitPatch> load_commit_patch_async(CommitPatchRequest request);
+std::optional<async_work::Task<bool>> prefetch_commit_patch_async(CommitPatchRequest request);
 
 }

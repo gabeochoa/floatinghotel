@@ -1,4 +1,5 @@
 #include "reading_probe.h"
+#include <charconv>
 #include "../util/document_titles.h"
 #include "../util/source_pages.h"
 #include "../util/file_page_stats.h"
@@ -30,8 +31,9 @@ struct Probe {
 static Probe probe;
 static bool checkpointPending = false;
 static std::optional<Clock::time_point> pathWaitStart;
+static std::optional<Clock::time_point> prefetchWaitStart;
 
-bool checkpoint_pending() { return checkpointPending || pathWaitStart.has_value(); }
+bool checkpoint_pending() { return checkpointPending || pathWaitStart.has_value() || prefetchWaitStart.has_value(); }
 
 void input_dispatched() {
     if (!probe.label.empty() && !probe.dispatched) probe.dispatched = Clock::now();
@@ -179,6 +181,10 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 std::ofstream output(directory / (cmd.arg(1) + ".workspace.json"));
                 output.exceptions(std::ios::failbit | std::ios::badbit);
                 output << nlohmann::json{{"active", repo->workspace().active_id().value},
+                    {"prefetch", {{"candidate", repo->commitPrefetch.candidate ? repo->commitPrefetch.candidate->commit : ""},
+                        {"pending", repo->commitPrefetch.future.valid()}, {"submitted", repo->commitPrefetch.submitted},
+                        {"completed", repo->commitPrefetch.completed}, {"cancelled", repo->commitPrefetch.cancelled},
+                        {"discarded", repo->commitPrefetch.discarded}}},
                     {"hunk_context", [&] {
                         size_t bytes = 0, lines = 0;
                         auto ranges = nlohmann::json::array();
@@ -267,6 +273,19 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         }()}}}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
                 cmd.consume();
             } catch (const std::exception& error) { cmd.fail(error.what()); }
+        } else if (cmd.is("wait_commit_prefetch")) {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (!repo || cmd.args.size() != 1) { cmd.fail("wait_commit_prefetch requires a completion count and repository"); return; }
+            size_t count = 0;
+            const auto& input = cmd.arg(0);
+            auto [end, error] = std::from_chars(input.data(), input.data() + input.size(), count);
+            if (error != std::errc{} || end != input.data() + input.size()) { cmd.fail("Invalid prefetch completion count"); return; }
+            if (!prefetchWaitStart) prefetchWaitStart = Clock::now();
+            if (repo->commitPrefetch.completed >= count) { prefetchWaitStart.reset(); cmd.consume(); }
+            else if (Clock::now() - *prefetchWaitStart > std::chrono::seconds(10)) {
+                prefetchWaitStart.reset();
+                cmd.fail("Timed out waiting for commit prefetch completion");
+            } else { cmd.frames_alive = 0; cmd.retry(); }
         } else if (cmd.is("reading_probe")) {
             if (cmd.args.size() != 4 || cmd.arg(0).empty() ||
                 cmd.arg(0).find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos ||

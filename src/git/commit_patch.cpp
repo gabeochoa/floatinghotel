@@ -63,4 +63,22 @@ async_work::Task<ecs::CommitPatch> load_commit_patch_async(CommitPatchRequest re
     }, async_work::Priority::Foreground, ecs::CommitPatch{.error = "Background queue is full; retry the commit"});
 }
 
+std::optional<async_work::Task<bool>> prefetch_commit_patch_async(CommitPatchRequest request) {
+    if (!reading::is_object_id(request.commit) || (!request.parent.empty() && !reading::is_object_id(request.parent))) return {};
+    struct Permit {};
+    static std::mutex mutex;
+    static std::weak_ptr<Permit> outstanding;
+    std::shared_ptr<Permit> permit;
+    {
+        std::lock_guard lock(mutex);
+        if (!outstanding.expired()) return {};
+        permit = std::make_shared<Permit>();
+        outstanding = permit;
+    }
+    return async_work::launch([request = std::move(request), permit = std::move(permit)](std::stop_token stop) {
+        (void)permit;
+        return read_commit_patch(request, stop).error.empty();
+    }, async_work::Priority::Background, false);
+}
+
 }

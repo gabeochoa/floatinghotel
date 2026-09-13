@@ -30,6 +30,7 @@
 #include "../util/reading_workspace.h"
 #include "../util/code_motion.h"
 #include "../util/loading_feedback.h"
+#include "../util/commit_prefetch.h"
 #include "../util/code_lexer.h"
 #include "../util/reading_anchor.h"
 #include "../util/review_files.h"
@@ -340,6 +341,7 @@ struct DiffSyntaxRuntime {
 
 struct RepoComponent : public afterhours::BaseComponent {
     RangeDiffState rangeDiff;
+    commit_prefetch::State commitPrefetch;
     bool reviewWorkspace = false;
     review_files::Filter fileFilter;
     ReadingLayout reading;
