@@ -1,0 +1,121 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_text "Original keyboard files"
+wait_for_refresh
+key ENTER
+key CMD+SHIFT+F
+wait_frames 3
+click_ui repo_search_input
+type "NEEDLE"
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 results
+screenshot results
+key DOWN
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 first
+screenshot first
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 twentieth
+screenshot twentieth
+key CMD+DOWN
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 modified
+screenshot modified
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 kept
+screenshot kept
+key ESCAPE
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 3 search_focus
+screenshot search_focus
+hover_ui repo_search_results
+scroll_wheel 0 100
+wait_frames 30
+click_ui repo_search_file
+click_ui repo_search_input
+key DOWN
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 deleted
+screenshot deleted
+key DOWN
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 deleted_second
+screenshot deleted_second
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 deleted_kept
+screenshot deleted_kept
+key ESCAPE
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 deleted_focus
+screenshot deleted_focus
+click_ui repo_search_input
+key CMD+A
+type "NEEDLE_79"
+key ENTER
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 new_query
+screenshot new_query
+key DOWN
+wait_for_refresh
+wait_frames 3
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 4 later_line
+screenshot later_line
+bench_frames 120
+expect_p99_below 20

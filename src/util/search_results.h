@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <bitset>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <string>
@@ -77,6 +79,23 @@ inline std::vector<ecs::SearchFileGroup> group(const std::vector<ecs::SearchMatc
         groups[entry->second].matches.push_back(i);
     }
     return groups;
+}
+
+inline std::optional<size_t> adjacent_match(const std::vector<ecs::SearchResultRow>& rows,
+                                          std::optional<size_t> selected, int direction) {
+    auto current = rows.end();
+    if (selected) current = std::find_if(rows.begin(), rows.end(), [&](const auto& row) { return row.match == selected; });
+    if (direction > 0) {
+        for (auto row = current == rows.end() ? rows.begin() : std::next(current); row != rows.end(); ++row)
+            if (row->match) return row->match;
+    } else {
+        auto row = current;
+        while (row != rows.begin()) {
+            --row;
+            if (row->match) return row->match;
+        }
+    }
+    return current == rows.end() ? std::nullopt : selected;
 }
 
 inline std::vector<ecs::SearchResultRow> visible_rows(const std::vector<ecs::SearchFileGroup>& groups) {

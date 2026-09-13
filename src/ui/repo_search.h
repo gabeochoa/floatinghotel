@@ -99,6 +99,13 @@ inline void start_repo_search(RepoComponent& repo) {
     if (!query.text.empty()) repo.repoSearchFuture = git::search_repository_async(std::move(query));
 }
 
+inline reading::SourceLocation repo_search_location(const RepoComponent& repo, const SearchMatch& match) {
+    auto target = reading::source(match.file, match.revision, match.line);
+    target.origin = repo.repoSearchOrigin;
+    target.originAnchor = repo.repoSearchOriginAnchor;
+    return target;
+}
+
 inline std::vector<afterhours::ui::TextSpan> repo_search_match_label(const SearchMatch& match) {
     std::vector<afterhours::ui::TextSpan> spans{{std::to_string(match.line) + "  ", theme::TEXT_SECONDARY}};
     if (match.excerptStart) spans.push_back({"…", theme::TEXT_SECONDARY});
@@ -191,7 +198,11 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             submit = true;
         }
     }
-    if (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(257)) submit = true;
+    const auto owner = ui::shortcut_owner(ctx, repo);
+    auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
+    const auto focusTarget = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
+    const bool queryFocused = focusTarget && focusTarget->control == "repo_search_input";
+    const bool enter = !ui::shortcuts_blocked(layout) && owner.input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(257);
     const auto now = std::chrono::steady_clock::now();
     const std::array text{repo.repoSearchQuery, repo.repoSearchIncludeGlob, repo.repoSearchExcludeGlob};
     if (text != repo.repoSearchObservedText) {
@@ -200,6 +211,8 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         repo.repoSearchDue = repo.repoSearchQuery.empty() ? std::nullopt
             : std::optional{now + std::chrono::milliseconds(150)};
     }
+    const bool keepSelected = enter && queryFocused && repo.repoSearchSelected.has_value();
+    submit |= enter && !keepSelected;
     if (!repo.repoSearchQuery.empty() && (submit || (repo.repoSearchDue && now >= *repo.repoSearchDue))) {
         if (std::getenv("FH_TRACE_READING")) {
             const auto delay = repo.repoSearchDue ? std::chrono::duration<double, std::milli>(
@@ -230,6 +243,28 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             repo.repoSearchCapturedBytes = result.capturedBytes;
         }
     }
+    if (repo.repoSearchRebuildRows) {
+        repo.repoSearchRows = search_results::visible_rows(repo.repoSearchGroups);
+        repo.repoSearchRebuildRows = false;
+    }
+    bool revealSelected = false;
+    bool modified = false;
+    for (int key = 340; key <= 347; ++key) modified |= afterhours::input::is_key_down(key);
+    if (!ui::shortcuts_blocked(layout) && !modified && (queryFocused || (!owner.text && owner.region == reading::focus::Region::Search))) {
+        const int direction = afterhours::input::is_key_pressed(264) ? 1 : afterhours::input::is_key_pressed(265) ? -1 : 0;
+        if (direction) {
+            const auto selected = search_results::adjacent_match(repo.repoSearchRows, repo.repoSearchSelected, direction);
+            if (selected && selected != repo.repoSearchSelected) {
+                repo.repoSearchSelected = selected;
+                repo.repoSearchPreviewOpen = false;
+                repo.repoSearchPreviewFuture = {};
+                navigation::preview(repo, repo_search_location(repo, repo.repoSearchResults[*selected]));
+                revealSelected = true;
+            }
+            ui::focus_control(ctx, input.ent());
+        }
+    }
+    if (keepSelected) navigation::click(repo, repo_search_location(repo, repo.repoSearchResults[*repo.repoSearchSelected]), true, reading::ClickRegion::Search);
     std::string status = repo.repoSearchDue ? "Waiting for typing..." : repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchQuery.empty() ? "Search repository contents" : repo.repoSearchResults.empty() ? "No matches" :
         std::to_string(repo.repoSearchResults.size()) + " matches";
     if (!repo.repoSearchFuture.valid() && repo.repoSearchTruncated) status += " · limit reached";
@@ -255,9 +290,19 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     }
     scrollOwner.repository = repository;
     scrollOwner.zoom = ui::zoom::get();
-    if (repo.repoSearchRebuildRows) {
-        repo.repoSearchRows = search_results::visible_rows(repo.repoSearchGroups);
-        repo.repoSearchRebuildRows = false;
+    if (revealSelected && listEntity.has<afterhours::ui::HasScrollView>()) {
+        const auto row = std::find_if(repo.repoSearchRows.begin(), repo.repoSearchRows.end(),
+            [&](const auto& value) { return value.match == repo.repoSearchSelected; });
+        auto& scroll = listEntity.get<afterhours::ui::HasScrollView>();
+        const float rowHeight = 32.f * ui::zoom::get();
+        const float top = static_cast<float>(row - repo.repoSearchRows.begin()) * rowHeight;
+        const float viewport = (available - previewHeight) * ui::zoom::get();
+        float target = scroll.scroll_offset.y;
+        if (top < target) target = top;
+        else if (top + rowHeight > target + viewport) target = top + rowHeight - viewport;
+        scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = std::max(0.f, target);
+        scroll.anchor_child = -1;
+        repo.repoSearchScroll = scroll.scroll_offset.y / ui::zoom::get();
     }
     ui::virtual_list(ctx, listParent, repo.repoSearchRows.size(), 32.f,
         [&](size_t rowIndex, Entity& item) {
@@ -307,10 +352,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             ui::set_tooltip(result.ent(), label);
             if (result) {
                 repo.repoSearchSelected = i;
-                auto target = reading::source(match.file, match.revision, match.line);
-                target.origin = repo.repoSearchOrigin;
-                target.originAnchor = repo.repoSearchOriginAnchor;
-                navigation::click(repo, std::move(target), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);
+                navigation::click(repo, repo_search_location(repo, match), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);
             }
             if (button(ctx, mk(resultRow.ent(), 1), preset::Button("Preview")
                     .with_size(ComponentSize{pixels(60), pixels(30)}).with_font_size(pixels(12))

@@ -8,7 +8,9 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, required=True)
-out = parser.parse_args().output.resolve()
+parser.add_argument('--keyboard', action='store_true')
+options = parser.parse_args()
+out = options.output.resolve()
 out.mkdir(parents=True, exist_ok=False)
 repo = out / 'fixture'
 repo.mkdir()
@@ -35,7 +37,7 @@ for zoom in [100, 140, 200]:
     script += f'click_ui compare_base\nkey CMD+A\ntype "{base}"\nclick_ui compare_target\nkey CMD+A\ntype "{target}"\nclick_ui compare_submit\nwait_for_refresh\nwait_frames 20\n'
     script += 'click_ui open_full_file\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 source\nscreenshot source\n'
     script += 'key CMD+SHIFT+F\nwait_frames 3\nclick_ui repo_search_options\nclick_ui repo_search_changed_only\nclick_ui repo_search_input\ntype "NEEDLE"\nkey ENTER\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 results\nscreenshot results\n'
-    script += 'click_ui repo_search_result\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 deleted\nscreenshot deleted\n'
+    script += ('key DOWN\n' if options.keyboard else 'click_ui repo_search_result\n') + 'wait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 deleted\nscreenshot deleted\n'
     script += 'click_ui full_file_back\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 returned\nscreenshot returned\nbench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)
@@ -53,10 +55,12 @@ for zoom in [100, 140, 200]:
     assert active['path'] == 'gone.cpp' and active['revision'] == base, (zoom, active)
     source = deleted['history'][deleted['history_index']]['location']['source']
     assert source['origin']['kind'] == 'comparison' and source['origin']['before']['value'] == base and source['origin']['after']['value'] == target, source
+    rendered = json.loads((directory / 'deleted.json').read_text())['reading_rows']
+    assert any(row['path'] == 'gone.cpp' and row['line'] == source['line'] for row in rendered), (zoom, 'Deleted source line not rendered')
     returned = state('returned')
     assert next(t for t in returned['tabs'] if t['id'] == returned['active'])['kind'] == 'review'
     assert returned['search']['submissions'] == 1 and returned['search']['matches'] == 80
     assert subprocess.check_output(['git', '-C', str(repo), 'status', '--porcelain']) == b''
     print(f'PASS {zoom}%: search from comparison source keeps actual base, deleted revision, origin and retained results', flush=True)
 assert hashlib.sha256(binary.read_bytes()).hexdigest() == digest
-(out / 'result.json').write_text(json.dumps(dict(passed=True, binary_sha256=digest), indent=2) + '\n')
+(out / 'result.json').write_text(json.dumps(dict(passed=True, binary_sha256=digest, keyboard=options.keyboard), indent=2) + '\n')

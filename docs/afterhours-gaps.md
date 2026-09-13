@@ -2145,3 +2145,12 @@ label is present in the layout dump and remains clickable, but the native visibl
 text registry records spans separately. The app tests now assert file-group
 identities and the opened source line. Upstream text assertions should also expose
 the joined visible label, so adding color does not change its text identity.
+
+### Text-input focus belongs to an inner field
+
+Step 34's search query wrapper was returned by `text_input`, while focus belonged
+to its `text_input_field` child. Comparing the returned entity ID to `focus_id`
+therefore skipped keyboard preview commands. Floatinghotel routes through its
+semantic `FocusIdentity` ancestor instead. A widget-owned focus query or semantic
+control handle would help search boxes, game consoles, and composite controls
+without exposing their internal entity structure.

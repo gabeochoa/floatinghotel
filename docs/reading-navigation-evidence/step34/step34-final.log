@@ -1,0 +1,6 @@
+PASS 100%: arrows preview exact historical lines, retain input focus, reveal results, skip collapsed groups, Enter keeps, Escape returns, deleted sources
+PASS 140%: arrows preview exact historical lines, retain input focus, reveal results, skip collapsed groups, Enter keeps, Escape returns, deleted sources
+PASS 200%: arrows preview exact historical lines, retain input focus, reveal results, skip collapsed groups, Enter keeps, Escape returns, deleted sources
+PASS 100%: search from comparison source keeps actual base, deleted revision, origin and retained results
+PASS 140%: search from comparison source keeps actual base, deleted revision, origin and retained results
+PASS 200%: search from comparison source keeps actual base, deleted revision, origin and retained results

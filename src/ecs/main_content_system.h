@@ -399,7 +399,12 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         case Popup::Picker: layout.filePickerOpen = false; break;
                         case Popup::Find: layout.diffFindOpen = false; break;
                         case Popup::SearchPreview: repoPtr->repoSearchPreviewOpen = false; break;
-                        case Popup::Search: close_repo_search(*repoPtr, layout); break;
+                        case Popup::Search:
+                            if (ui::shortcut_owner(ctx, *repoPtr).reader() && repoPtr->repoSearchSelected &&
+                                reading::same_document(repoPtr->workspace().location(), repo_search_location(*repoPtr,
+                                    repoPtr->repoSearchResults[*repoPtr->repoSearchSelected]))) repoPtr->repoSearchFocus = true;
+                            else close_repo_search(*repoPtr, layout);
+                            break;
                         case Popup::CommitSearch: repoPtr->commitSearchOpen = false; break;
                         case Popup::FileHistory: repoPtr->fileHistoryOpen = false; break;
                         case Popup::Feedback: if (review) review->basketOpen = false; break;

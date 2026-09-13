@@ -214,4 +214,18 @@ TEST(search_highlights_use_query_semantics_and_bounded_unicode_excerpts) {
     std::filesystem::remove_all(directory);
 }
 
+TEST(search_keyboard_navigation_skips_headers_and_collapsed_matches) {
+    std::vector<ecs::SearchFileGroup> groups{{"a", "", {0, 1}, false}, {"b", "", {2, 3}, true}, {"c", "", {4}, false}};
+    auto rows = search_results::visible_rows(groups);
+    ASSERT_EQ(*search_results::adjacent_match(rows, {}, 1), 0u);
+    ASSERT_EQ(*search_results::adjacent_match(rows, {}, -1), 4u);
+    ASSERT_EQ(*search_results::adjacent_match(rows, 1, 1), 4u);
+    ASSERT_EQ(*search_results::adjacent_match(rows, 4, -1), 1u);
+    ASSERT_EQ(*search_results::adjacent_match(rows, 0, -1), 0u);
+    ASSERT_EQ(*search_results::adjacent_match(rows, 4, 1), 4u);
+    for (auto& group : groups) group.collapsed = true;
+    ASSERT_FALSE(search_results::adjacent_match(search_results::visible_rows(groups), 1, 1).has_value());
+    ASSERT_FALSE(search_results::adjacent_match({}, {}, -1).has_value());
+}
+
 int main() { RUN_ALL_TESTS(); }

@@ -1,0 +1,42 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Compare Revisions..."
+wait_frames 3
+click_ui compare_base
+key CMD+A
+type "49890f50d84f7f15988cd0e4ced3ebcc50289ef9"
+click_ui compare_target
+key CMD+A
+type "0953f1a363f5ac4c9882bb31ebae2468dae8616d"
+click_ui compare_submit
+wait_for_refresh
+wait_frames 20
+click_ui open_full_file
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 source
+screenshot source
+key CMD+SHIFT+F
+wait_frames 3
+click_ui repo_search_options
+click_ui repo_search_changed_only
+click_ui repo_search_input
+type "NEEDLE"
+key ENTER
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 results
+screenshot results
+key DOWN
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 deleted
+screenshot deleted
+click_ui full_file_back
+wait_for_refresh
+wait_frames 20
+workspace_checkpoint 3 returned
+screenshot returned
+bench_frames 120
+expect_p99_below 20

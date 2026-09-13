@@ -280,6 +280,8 @@ struct navigation {
         if ((region == reading::ClickRegion::Tree || region == reading::ClickRegion::History) && repo.navigationEffect) {
             repo.navigationEffect->focus = reading::FocusPolicy::Caller;
             repo.readingFocusDocument.reset();
+        } else if (enter && region == reading::ClickRegion::Search) {
+            repo.readingFocusDocument = workspace.active_id();
         }
         workspace.lastClick_ = std::move(location);
         workspace.lastClickRegion_ = region;

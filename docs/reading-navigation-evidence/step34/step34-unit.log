@@ -1,0 +1,139 @@
+--- Compiling test_repository_search ---
+In file included from vendor/afterhours/src/plugins/files.cpp:7:
+In file included from vendor/afterhours/src/plugins/files.h:14:
+vendor/afterhours/src/plugins/../core/system.h:429:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  429 |     void for_each(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:506:25: note: in instantiation of template class 'afterhours::System<>' requested here
+  506 | struct CallbackSystem : System<> {
+      |                         ^
+vendor/afterhours/src/plugins/../core/system.h:147:18: note: overridden virtual function is here
+  147 |     virtual void for_each(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:437:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  437 |     void for_each_derived(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:153:18: note: overridden virtual function is here
+  153 |     virtual void for_each_derived(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:444:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  444 |     void for_each_derived(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:154:18: note: overridden virtual function is here
+  154 |     virtual void for_each_derived(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:451:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  451 |     virtual void for_each_with_derived(Entity &, Components &..., const float) {
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:179:18: note: overridden virtual function is here
+  179 |     virtual void for_each_with_derived(Entity &, const float) {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:453:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  453 |     virtual void for_each_with_derived(const Entity &, const Components &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:180:18: note: overridden virtual function is here
+  180 |     virtual void for_each_with_derived(const Entity &, const float) const {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:456:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  456 |     void for_each(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:148:18: note: overridden virtual function is here
+  148 |     virtual void for_each(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:429:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  429 |     void for_each(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../developer.h:208:57: note: in instantiation of template class 'afterhours::System<afterhours::files::ProvidesResourcePaths>' requested here
+  208 | template <typename Component> struct EnforceSingleton : System<Component> {
+      |                                                         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/unique_ptr.h:759:30: note: in instantiation of template class 'afterhours::developer::EnforceSingleton<afterhours::files::ProvidesResourcePaths>' requested here
+  759 |   return unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
+      |                              ^
+vendor/afterhours/src/plugins/files.cpp:199:12: note: in instantiation of function template specialization 'std::make_unique<afterhours::developer::EnforceSingleton<afterhours::files::ProvidesResourcePaths>, 0>' requested here
+  199 |       std::make_unique<developer::EnforceSingleton<ProvidesResourcePaths>>());
+      |            ^
+vendor/afterhours/src/plugins/../core/system.h:147:18: note: overridden virtual function is here
+  147 |     virtual void for_each(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:437:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  437 |     void for_each_derived(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:153:18: note: overridden virtual function is here
+  153 |     virtual void for_each_derived(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:444:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  444 |     void for_each_derived(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:154:18: note: overridden virtual function is here
+  154 |     virtual void for_each_derived(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:451:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  451 |     virtual void for_each_with_derived(Entity &, Components &..., const float) {
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:170:18: note: overridden virtual function is here
+  170 |     virtual void for_each_with_derived(Entity &, Cs &..., const float) {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:453:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  453 |     virtual void for_each_with_derived(const Entity &, const Components &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:171:18: note: overridden virtual function is here
+  171 |     virtual void for_each_with_derived(const Entity &, const Cs &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:456:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  456 |     void for_each(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:148:18: note: overridden virtual function is here
+  148 |     virtual void for_each(const Entity &, const float) const = 0;
+      |                  ^
+12 warnings generated.
+--- Running test_repository_search ---
+  repository_search_arguments_keep_tree_index_and_working_tree_distinct OK
+  repository_search_removes_only_the_known_revision_prefix     OK
+  changed_file_search_keeps_paths_literal_and_empty_scope_empty OK
+  repository_search_matching_flags_are_explicit_and_composable OK
+  search_globs_support_nested_paths_and_do_not_broaden_changed_scope OK
+  search_preview_preserves_line_numbers_revision_and_detects_stale_results OK
+  search_preview_caps_working_and_historical_reads_and_does_not_follow_symlinks [INFO] git: 2155 ms (waited 0 ms for lock): git init
+[INFO] git: 819 ms (waited 0 ms for lock): git add
+[INFO] git: 3743 ms (waited 0 ms for lock): git -c
+[INFO] git: 652 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 429 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 388 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 588 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 553 ms (waited 0 ms for lock): git cat-file
+OK
+  repository_search_drops_an_oversized_record_before_publishing_results [INFO] git: 2705 ms (waited 0 ms for lock): git init
+[INFO] git: 347 ms (waited 0 ms for lock): git grep
+OK
+  repository_search_shares_the_hit_budget_with_deleted_file_queries [INFO] git: 944 ms (waited 0 ms for lock): git init
+[INFO] git: 596 ms (waited 0 ms for lock): git add
+[INFO] git: 749 ms (waited 0 ms for lock): git -c
+[INFO] git: 179 ms (waited 0 ms for lock): git grep
+[INFO] git: 151 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 131 ms (waited 0 ms for lock): git grep
+OK
+  repository_search_shares_the_byte_budget_with_deleted_file_queries [INFO] git: 674 ms (waited 0 ms for lock): git init
+[INFO] git: 331 ms (waited 0 ms for lock): git add
+[INFO] git: 820 ms (waited 0 ms for lock): git -c
+[INFO] git: 227 ms (waited 0 ms for lock): git grep
+[INFO] git: 135 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 220 ms (waited 0 ms for lock): git grep
+OK
+  search_groups_keep_revision_identity_and_flatten_only_expanded_matches OK
+  search_highlights_use_query_semantics_and_bounded_unicode_excerpts [INFO] git: 604 ms (waited 0 ms for lock): git init
+[INFO] git: 227 ms (waited 0 ms for lock): git grep
+[INFO] git: 168 ms (waited 0 ms for lock): git grep
+[INFO] git: 421 ms (waited 0 ms for lock): git grep
+[INFO] git: 441 ms (waited 0 ms for lock): git grep
+[INFO] git: 283 ms (waited 0 ms for lock): git grep
+[INFO] git: 503 ms (waited 0 ms for lock): git grep
+[INFO] git: 309 ms (waited 0 ms for lock): git grep
+[INFO] git: 363 ms (waited 0 ms for lock): git grep
+OK
+  search_keyboard_navigation_skips_headers_and_collapsed_matches OK
+
+13/13 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================
