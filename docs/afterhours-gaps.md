@@ -2478,3 +2478,13 @@ command loop to advance without the intended rendered-frame handoff. The wait
 now participates in the same host barrier as reading and filesystem waits,
 with an explicit ten-second failure. A library-level await-condition command
 should make this scheduling requirement explicit and reusable.
+
+### Native dock verification and pending geometry (step 55)
+
+The generic E2E resize command controls the test viewport; app-driven native
+resizing is normally disabled in test mode. Floatinghotel now has an isolated
+hidden-window dock option and commands that wait for actual dimensions. A
+reusable native-window driver with an await-layout/presentation barrier would
+help resizable inspectors, editors, game tools, and dockable panels. Pending
+window changes must not overwrite remembered expanded geometry. The app keeps
+that guard beside its dock state and leaves Afterhours unchanged.

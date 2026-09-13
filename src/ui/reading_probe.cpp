@@ -11,6 +11,9 @@
 #include "../git/commit_patch_cache.h"
 #include <chrono>
 
+extern "C" void metal_set_window_size(int, int);
+extern "C" bool metal_window_resize_pending();
+
 namespace reading_probe {
 
 using Clock = std::chrono::steady_clock;
@@ -32,8 +35,9 @@ static Probe probe;
 static bool checkpointPending = false;
 static std::optional<Clock::time_point> pathWaitStart;
 static std::optional<Clock::time_point> prefetchWaitStart;
+static std::optional<Clock::time_point> windowWaitStart;
 
-bool checkpoint_pending() { return checkpointPending || pathWaitStart.has_value() || prefetchWaitStart.has_value(); }
+bool checkpoint_pending() { return checkpointPending || pathWaitStart.has_value() || prefetchWaitStart.has_value() || windowWaitStart.has_value(); }
 
 void input_dispatched() {
     if (!probe.label.empty() && !probe.dispatched) probe.dispatched = Clock::now();
@@ -120,6 +124,36 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
             } else if (error || now - *pathWaitStart > std::chrono::seconds(10)) {
                 pathWaitStart.reset();
                 cmd.fail(error ? error.message() : "Timed out waiting for " + cmd.arg(0));
+            } else {
+                cmd.frames_alive = 0;
+                cmd.retry();
+            }
+            return;
+        }
+        if (cmd.is("native_window_size") || cmd.is("wait_window_size")) {
+            if (!std::getenv("FH_TEST_NATIVE_DOCK") || !std::getenv("FH_TEST_NATIVE_HIDDEN") ||
+                !std::getenv("FH_TEST_SETTINGS_DIR") || cmd.args.size() != 2) {
+                cmd.fail("Native window checks require isolated hidden dock tests and width/height");
+                return;
+            }
+            int width = 0, height = 0;
+            const auto w = std::from_chars(cmd.arg(0).data(), cmd.arg(0).data() + cmd.arg(0).size(), width);
+            const auto h = std::from_chars(cmd.arg(1).data(), cmd.arg(1).data() + cmd.arg(1).size(), height);
+            if (w.ec != std::errc{} || h.ec != std::errc{} || width <= 0 || height <= 0) {
+                cmd.fail("Invalid native dimensions");
+                return;
+            }
+            if (!windowWaitStart) {
+                windowWaitStart = Clock::now();
+                if (cmd.is("native_window_size")) metal_set_window_size(width, height);
+            }
+            if (!metal_window_resize_pending() && afterhours::graphics::get_screen_width() == width &&
+                afterhours::graphics::get_screen_height() == height) {
+                windowWaitStart.reset();
+                cmd.consume();
+            } else if (Clock::now() - *windowWaitStart > std::chrono::seconds(10)) {
+                windowWaitStart.reset();
+                cmd.fail("Native dimensions did not settle");
             } else {
                 cmd.frames_alive = 0;
                 cmd.retry();

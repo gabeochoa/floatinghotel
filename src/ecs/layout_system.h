@@ -50,7 +50,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.shelfCollapsed =
                 layout.sidebarVisible && hasRepoForShelf && layout.readingPanelCollapsed.value_or(nothingSelected && !reviewingShelf);
 
-            if (!app_state::testModeEnabled) {
+            if (!app_state::testModeEnabled || (std::getenv("FH_TEST_NATIVE_DOCK") &&
+                std::getenv("FH_TEST_NATIVE_HIDDEN") && std::getenv("FH_TEST_SETTINGS_DIR"))) {
                 float collapsedW = layout.sidebarWidth * ui::zoom::get();
                 // The window opened at the default shelf width; settings may
                 // hold a different sidebar width. Square that once, silently,
@@ -63,7 +64,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                     }
                 }
                 if (layout.shelfCollapsed != layout.lastShelfCollapsed) {
-                    if (layout.shelfCollapsed)
+                    if (layout.shelfCollapsed && !metal_window_resize_pending())
                         layout.reviewPanelWidth = std::max(368.f, sw / ui::zoom::get() - layout.sidebarWidth);
                     const float target = review_layout::window_width(
                         layout.sidebarWidth, layout.reviewPanelWidth, layout.shelfCollapsed) * ui::zoom::get();
