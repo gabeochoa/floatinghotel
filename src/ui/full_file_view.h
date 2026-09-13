@@ -67,6 +67,27 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFileEncodingLabel = std::move(content.encodingLabel);
         repo.fullFileDecodedText = std::move(content.decodedText);
         if (repo.fullFileError.empty()) repo.fullFileDiff.push_back(std::move(content.diff));
+        if (repo.pendingCaret) {
+            auto position = *repo.pendingCaret;
+            const auto motion = repo.pendingCaretMotion;
+            repo.pendingCaret.reset();
+            repo.pendingCaretMotion.reset();
+            if (repo.fullFileError.empty() && !repo.fullFileDiff.front().isBinary) {
+                auto lines = ui::diff_sel::code_lines(repo.fullFileDiff.front(), reading::DiffSide::After, repo.fullFilePage.begin.column);
+                if (!lines.empty()) {
+                    if (motion) position = reading::move_code(position, *motion, lines);
+                    else {
+                        auto line = std::lower_bound(lines.begin(), lines.end(), position.line,
+                            [](const reading::CodeLine& row, int number) { return row.number < number; });
+                        if (line == lines.end()) line = std::prev(lines.end());
+                        position.line = line->number;
+                        position.column = std::clamp(position.column, line->column, reading::end_column(*line));
+                    }
+                    navigation::reveal_caret(repo, position, motion == reading::CodeMotion::DocumentEnd ? .85f : .15f);
+                    navigation::focus_document(repo, reading::focus::Region::Code);
+                }
+            }
+        }
         changed = true;
     }
     constexpr float headerHeight = 32.f;

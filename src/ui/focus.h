@@ -80,7 +80,8 @@ inline bool reader_visible(const ecs::RepoComponent& repo, const ecs::LayoutComp
 }
 
 inline bool history_shortcuts(UIContext<InputAction>& ctx, const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
-    return !shortcuts_blocked(layout) && reader_visible(repo, layout) && !shortcut_owner(ctx, repo).text;
+    const auto owner = shortcut_owner(ctx, repo);
+    return !shortcuts_blocked(layout) && reader_visible(repo, layout) && !owner.text && owner.region != reading::focus::Region::Code;
 }
 
 inline bool reader_shortcuts(UIContext<InputAction>& ctx, const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {

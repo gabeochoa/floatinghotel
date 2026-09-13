@@ -5,6 +5,7 @@
 #include "../util/reading_anchor.h"
 #include "../util/code_position.h"
 #include "../util/code_words.h"
+#include "../util/code_motion.h"
 #include "geometry.h"
 
 #include "review_comment_kind.h"
@@ -107,12 +108,19 @@ struct Rec {
     bool finalFragment = true;
 };
 
+inline int number_on_side(const Rec& row, reading::DiffSide side) {
+    if (side == reading::DiffSide::Before) return row.side == 2 ? 0 : row.oldLine;
+    return row.side == 1 ? 0 : row.newLine;
+}
+
 struct State {
     bool dragging = false;
     bool hasSel = false;
     int clickCount = 0;
     double clickTime = -1.;
     float clickX = 0.f, clickY = 0.f;
+    std::optional<reading::CodePosition> keyboardAnchor;
+    std::optional<float> preferredX;
     std::string context;
     Pos anchor, head;
     std::vector<Rec> lastLines; // prior frame (used for hit-test + copy)
@@ -133,6 +141,8 @@ inline void reset() {
     s.hasSel = false;
     s.clickCount = 0;
     s.clickTime = -1.;
+    s.keyboardAnchor.reset();
+    s.preferredX.reset();
     s.anchor = {};
     s.head = {};
     s.lastLines.clear();
@@ -250,7 +260,8 @@ inline void recompute_highlight(State& st) {
     if (!ordered_span(st.lastLines, st.anchor, st.head, i1, c1, i2, c2)) return;
     for (int k = i1; k <= i2; ++k) {
         if (st.lastLines[k].side != st.lastLines[i1].side ||
-            st.lastLines[k].filePath != st.lastLines[i1].filePath) continue;
+            st.lastLines[k].filePath != st.lastLines[i1].filePath ||
+            (st.keyboardAnchor && number_on_side(st.lastLines[k], st.keyboardAnchor->side) == 0)) continue;
         int a = (k == i1) ? c1 : 0;
         int b = (k == i2) ? c2 : (int)st.lastLines[k].content.size();
         if (k == i1 && k == i2 && a == b) continue;
@@ -261,21 +272,24 @@ inline void recompute_highlight(State& st) {
 // Build the clipboard text for the current selection. Optionally prepends a
 // "path:Lstart[-Lend]" location so it's ready to paste into an AI review chat.
 inline std::string build_copy_text(State& st, bool withLocation) {
+    if (!st.hasSel) return {};
     int i1, c1, i2, c2;
     if (!ordered_span(st.lastLines, st.anchor, st.head, i1, c1, i2, c2)) return "";
     std::string out;
     if (withLocation) {
         const Rec& r = st.lastLines[i1];
-        int endNo = st.lastLines[i2].lineNo;
-        out += r.filePath + ":L" + std::to_string(r.lineNo);
-        if (endNo != r.lineNo) out += "-" + std::to_string(endNo);
+        int firstNo = st.keyboardAnchor ? number_on_side(r, st.keyboardAnchor->side) : r.lineNo;
+        int endNo = st.keyboardAnchor ? number_on_side(st.lastLines[i2], st.keyboardAnchor->side) : st.lastLines[i2].lineNo;
+        out += r.filePath + ":L" + std::to_string(firstNo);
+        if (endNo != firstNo) out += "-" + std::to_string(endNo);
         out += "\n";
     }
     bool emitted = false;
     int previous = i1;
     for (int k = i1; k <= i2; ++k) {
         if (st.lastLines[k].side != st.lastLines[i1].side ||
-            st.lastLines[k].filePath != st.lastLines[i1].filePath) continue;
+            st.lastLines[k].filePath != st.lastLines[i1].filePath ||
+            (st.keyboardAnchor && number_on_side(st.lastLines[k], st.keyboardAnchor->side) == 0)) continue;
         const std::string& c = st.lastLines[k].content;
         int a = std::min((k == i1) ? c1 : 0, (int)c.size());
         int b = std::min((k == i2) ? c2 : (int)c.size(), (int)c.size());
@@ -332,6 +346,8 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     };
 
     if (mouse.just_pressed) {
+        st.keyboardAnchor.reset();
+        st.preferredX.reset();
         const int li = lineUnder();
         if (li >= 0) {
             const auto& row = st.lastLines[li];
@@ -409,9 +425,199 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     recompute_highlight(st);
 }
 
+inline reading::CodePosition code_position(const Rec& row, int byte, std::optional<reading::DiffSide> requestedSide = {}) {
+    const auto side = requestedSide.value_or(row.side == 1 || row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After);
+    return {row.filePath, side, number_on_side(row, side), row.logicalColumn + reading::column_at_byte(row.content, static_cast<size_t>(std::max(0, byte))) - 1};
+}
+
+inline std::optional<Pos> rendered_position(const reading::CodePosition& position, const std::vector<Rec>& rows) {
+    for (const auto& row : rows) {
+        if (auto byte = reading::caret_byte(position, row.filePath, position.side, number_on_side(row, position.side), row.content, row.logicalColumn, row.finalFragment))
+            return Pos{row.ent, static_cast<int>(*byte)};
+    }
+    return {};
+}
+
+inline void append_code_lines(std::vector<reading::CodeLine>& lines, const ecs::DiffHunk& hunk,
+                              reading::DiffSide side, int firstColumn = 1) {
+    int oldLine = hunk.oldStart, newLine = hunk.newStart;
+    for (const auto& raw : hunk.lines) {
+        if (raw.empty()) continue;
+        const char sign = raw.front();
+        const int oldNumber = sign == '+' ? 0 : oldLine++;
+        const int newNumber = sign == '-' ? 0 : newLine++;
+        const int number = side == reading::DiffSide::Before ? oldNumber : newNumber;
+        if (number <= 0) continue;
+        std::string_view text(raw);
+        text.remove_prefix(1);
+        if (text.ends_with('\r')) text.remove_suffix(1);
+        lines.push_back({number, lines.empty() ? firstColumn : 1, text});
+    }
+}
+
+inline std::vector<reading::CodeLine> code_lines(const ecs::FileDiff& file, reading::DiffSide side, int firstColumn = 1) {
+    std::vector<reading::CodeLine> lines;
+    for (const auto& hunk : file.hunks) append_code_lines(lines, hunk, side, firstColumn);
+    if (file.isFullContent && lines.empty()) lines.push_back({1, 1, {}});
+    return lines;
+}
+
+inline void keyboard_selection(const reading::CodePosition& head) {
+    auto& st = state();
+    if (!st.keyboardAnchor) {
+        if (!st.hasSel) if (auto point = rendered_position(head, st.lastLines)) st.anchor = st.head = *point;
+        return;
+    }
+    auto first = rendered_position(*st.keyboardAnchor, st.lastLines);
+    auto last = rendered_position(head, st.lastLines);
+    st.hasSel = first && last && !(*first == *last);
+    if (first && last) { st.anchor = *first; st.head = *last; }
+    recompute_highlight(st);
+}
+
+inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const std::vector<ecs::FileDiff>& diffs,
+                             const ecs::LayoutComponent& layout) {
+    if (!session.owner || !reader_shortcuts(ctx, *session.owner, layout)) return;
+    auto& repo = *session.owner;
+    const auto owner = shortcut_owner(ctx, repo);
+    if (owner.text || owner.region != reading::focus::Region::Code) return;
+    using Motion = reading::CodeMotion;
+    const bool shift = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
+    const bool alt = afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346);
+    const bool command = afterhours::input::is_key_down(343) || afterhours::input::is_key_down(347) ||
+        afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345);
+    const bool control = afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345);
+    std::optional<Motion> motion;
+    auto key = [&](int code, InputAction action, Motion plain, Motion word, Motion boundary) {
+        if (!afterhours::input::is_key_pressed(code)) return;
+        (void)ctx.pressed(action);
+        motion = command ? boundary : alt || control ? word : plain;
+    };
+    key(263, InputAction::WidgetLeft, Motion::Left, Motion::WordLeft, Motion::LineStart);
+    key(262, InputAction::WidgetRight, Motion::Right, Motion::WordRight, Motion::LineEnd);
+    key(265, InputAction::WidgetUp, Motion::Up, Motion::Up, Motion::DocumentStart);
+    key(264, InputAction::WidgetDown, Motion::Down, Motion::Down, Motion::DocumentEnd);
+    if (afterhours::input::is_key_pressed(268)) motion = control || command ? Motion::DocumentStart : Motion::LineStart;
+    if (afterhours::input::is_key_pressed(269)) motion = control || command ? Motion::DocumentEnd : Motion::LineEnd;
+    auto& st = state();
+    const auto* document = repo.workspace().document(repo.workspace().active_id());
+    if (document->caret) keyboard_selection(*document->caret);
+    if (!motion || diffs.empty()) return;
+    auto point = document->caret.value_or(reading::CodePosition{diffs.front().filePath});
+    const auto file = std::find_if(diffs.begin(), diffs.end(), [&](const ecs::FileDiff& value) { return value.filePath == point.path; });
+    if (file == diffs.end() || file->isBinary) return;
+    auto lines = code_lines(*file, point.side, file->isFullContent ? repo.fullFilePage.begin.column : 1);
+    for (const auto& [key, entry] : repo.hunkContext.entries)
+        if (key.starts_with(file->filePath + "\n")) append_code_lines(lines, entry.result.lines, point.side);
+    std::stable_sort(lines.begin(), lines.end(), [](const auto& a, const auto& b) { return a.number < b.number; });
+    lines.erase(std::unique(lines.begin(), lines.end(), [](const auto& a, const auto& b) { return a.number == b.number; }), lines.end());
+    if (lines.empty()) return;
+    std::optional<reading::CodePosition> collapsed;
+    if (!shift && st.hasSel && (*motion == Motion::Left || *motion == Motion::Right)) {
+        int first, a, last, b;
+        if (ordered_span(st.lastLines, st.anchor, st.head, first, a, last, b))
+            collapsed = *motion == Motion::Left ? code_position(st.lastLines[first], a, point.side) : code_position(st.lastLines[last], b, point.side);
+    }
+    if (shift && !st.keyboardAnchor) {
+        st.keyboardAnchor = point;
+        for (const auto& row : st.lastLines) if (st.hasSel && row.ent == st.anchor.ent) st.keyboardAnchor = code_position(row, st.anchor.col, point.side);
+    } else if (!shift) {
+        st.keyboardAnchor.reset();
+        st.hasSel = false;
+        st.hl.clear();
+    }
+    auto moved = collapsed.value_or(reading::move_code(point, *motion, lines));
+    const bool backward = *motion == Motion::Left || *motion == Motion::WordLeft || *motion == Motion::Up ||
+        *motion == Motion::LineStart || *motion == Motion::DocumentStart;
+    if (*motion == Motion::Up || *motion == Motion::Down) {
+        std::vector<const Rec*> rows;
+        for (const auto& row : st.lastLines) if (row.filePath == point.path && number_on_side(row, point.side) > 0) rows.push_back(&row);
+        auto current = std::find_if(rows.begin(), rows.end(), [&](const Rec* row) {
+            return reading::caret_byte(point, row->filePath, point.side, number_on_side(*row, point.side), row->content, row->logicalColumn, row->finalFragment).has_value();
+        });
+        if (current != rows.end()) {
+            const auto& row = **current;
+            if (!st.preferredX) st.preferredX = code_mw(session, row.content.substr(0, reading::byte_at_column(row.content, point.column - row.logicalColumn + 1)));
+            auto next = current;
+            if (backward && current != rows.begin()) --next;
+            if (!backward && std::next(current) != rows.end()) ++next;
+            if (next != current) {
+                int byte = 0;
+                float distance = *st.preferredX;
+                for (size_t end : code_wrap::character_ends((*next)->content)) {
+                    const float candidate = std::abs(code_mw(session, (*next)->content.substr(0, end)) - *st.preferredX);
+                    if (candidate < distance) { distance = candidate; byte = static_cast<int>(end); }
+                }
+                moved = code_position(**next, byte, point.side);
+            }
+        }
+    } else st.preferredX.reset();
+    if (file->isFullContent) {
+        const auto& page = repo.fullFilePage;
+        std::optional<ecs::FilePageRequest> request;
+        std::optional<Motion> afterLoad;
+        if (*motion == Motion::DocumentStart && page.begin.offset > 0) {
+            request = ecs::FilePageRequest{};
+            moved.line = moved.column = 1;
+        } else if (*motion == Motion::DocumentEnd && page.next.offset < page.totalBytes) {
+            request = ecs::FilePageRequest{ecs::FilePageRequest::Action::Previous, {page.totalBytes}};
+            afterLoad = Motion::DocumentEnd;
+        } else if ((*motion == Motion::LineStart && point.line == page.begin.line && page.begin.column > 1) ||
+                   (backward && moved == point && page.begin.offset > 0)) {
+            moved.line = *motion == Motion::LineStart || page.begin.continuation ? point.line : std::max(1, point.line - 1);
+            moved.column = *motion == Motion::LineStart ? 1 : std::max(1, point.column - 1);
+            if (!page.begin.continuation && *motion != Motion::Up) moved.column = std::numeric_limits<int>::max();
+            request = ecs::FilePageRequest{ecs::FilePageRequest::Action::TargetLine, {}, moved.line, {}, 0, moved.column};
+        } else if ((*motion == Motion::LineEnd && point.line == page.next.line && page.next.continuation && page.next.offset < page.totalBytes) ||
+                   (!backward && moved == point && page.next.offset < page.totalBytes)) {
+            moved.line = page.next.line;
+            moved.column = *motion == Motion::LineEnd ? std::numeric_limits<int>::max() : page.next.column;
+            request = ecs::FilePageRequest{ecs::FilePageRequest::Action::TargetLine, {}, moved.line, {}, 0, moved.column};
+        }
+        if (request && point.line == moved.line &&
+            (*motion == Motion::Left || *motion == Motion::Right || *motion == Motion::WordLeft || *motion == Motion::WordRight)) {
+            moved = point;
+            afterLoad = *motion;
+        }
+        if (request) {
+            navigation::request_caret_page(repo, std::move(*request), moved, afterLoad);
+            return;
+        }
+    }
+    if (session.review) {
+        session.review->foldedFiles.erase(session.reviewScope + "\n" + file->filePath);
+        for (const auto& hunk : file->hunks) {
+            const int start = point.side == reading::DiffSide::Before ? hunk.oldStart : hunk.newStart;
+            const int count = point.side == reading::DiffSide::Before ? hunk.oldCount : hunk.newCount;
+            if (moved.line >= start && moved.line < start + count)
+                session.review->foldedHunks.erase(session.reviewScope + "\n" + ecs::ReviewComponent::hunk_key(file->filePath, hunk));
+        }
+    }
+    navigation::set_caret(repo, moved);
+    session.caret = moved;
+    keyboard_selection(moved);
+    auto viewportEntity = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
+    if (!viewportEntity.valid()) return;
+    const auto viewport = ui::visible_rect(**viewportEntity);
+    if (viewport.height <= 0.f) return;
+    const float margin = 36.f * zoom::get();
+    float fraction = backward ? margin / viewport.height : 1.f - (session.fontSize + 8.f * zoom::get()) / viewport.height;
+    for (const auto& row : st.lastLines) {
+        if (!reading::caret_byte(moved, row.filePath, moved.side, number_on_side(row, moved.side), row.content, row.logicalColumn, row.finalFragment)) continue;
+        if (row.rect.y >= viewport.y + margin && row.rect.y + row.rect.height <= viewport.y + viewport.height) return;
+        fraction = row.rect.y < viewport.y + margin ? margin / viewport.height : 1.f - row.rect.height / viewport.height;
+        break;
+    }
+    navigation::reveal_caret(repo, moved, std::clamp(fraction, 0.f, 1.f));
+}
+
 inline std::optional<reading::ReadingAnchor> source_point(const ecs::FileDiff& file, const Rectangle& viewport,
-                                                         const std::string& revision) {
+                                                         const std::string& revision, const std::optional<reading::CodePosition>& caret) {
     const auto& selection = state();
+    const auto position = selection.hasSel ? selection.keyboardAnchor : caret;
+    if (position && position->path == file.filePath)
+        return reading::ReadingAnchor{file.filePath, revision, position->side, position->line, position->column, 0.f,
+            position->side == reading::DiffSide::Before ? '-' : ' '};
     auto anchor = [&](const Rec& row, int column) {
         const auto side = row.sign == '-' || row.side == 1 ? reading::DiffSide::Before : reading::DiffSide::After;
         const auto text = reading::diff_text_at(file, row.lineNo, side);
@@ -1944,6 +2150,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             afterhours::ui::TextMeasureCache>();
         sess.fontSize = Settings::get().get_code_font_size() * zoom::get();
         diff_sel::handle_mouse(ctx, sess);
+        if (layout) diff_sel::handle_keyboard(ctx, sess, diffs, *layout);
         if (filterRepo) {
             if (sess.findNavigate && navigation::find(*filterRepo).position) {
                 const auto& point = *navigation::find(*filterRepo).position;
@@ -2249,7 +2456,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 if (open) {
                     if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
                         navigation::open_source(*repo, fileDiff,
-                            diff_sel::source_point(fileDiff, visible_rect(*contentParent), reviewScope));
+                            diff_sel::source_point(fileDiff, visible_rect(*contentParent), reviewScope,
+                                repo->workspace().document(repo->workspace().active_id())->caret));
                         return;
                     }
                 }

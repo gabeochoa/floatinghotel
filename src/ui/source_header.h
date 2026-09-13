@@ -58,9 +58,9 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
     const auto& selection = ui::diff_sel::state();
     int selectedLine = 0;
     for (const auto& line : selection.lastLines)
-        if (line.ent == selection.anchor.ent && line.filePath == repo.fullFilePath()) selectedLine = line.lineNo;
+        if (selection.hasSel && line.ent == selection.anchor.ent && line.filePath == repo.fullFilePath()) selectedLine = line.lineNo;
     const auto* document = repo.workspace().document(repo.workspace().active_id());
-    const int bookmarkLine = selectedLine > 0 ? selectedLine :
+    const int bookmarkLine = selectedLine > 0 ? selectedLine : document->caret ? document->caret->line :
         document->anchor ? document->anchor->line : std::max(1, repo.fullFileTargetLine());
     const auto sameBookmark = [path = repo.fullFilePath(), revision, bookmarkLine](const CodeBookmark& bookmark) {
         return bookmark.path == path && bookmark.revision == revision && bookmark.line == bookmarkLine;

@@ -28,6 +28,7 @@
 #include "../util/tree_navigation.h"
 #include "../util/diff_revisions.h"
 #include "../util/reading_workspace.h"
+#include "../util/code_motion.h"
 #include "../util/reading_anchor.h"
 #include "../util/review_files.h"
 #include "../util/review_comment_kind.h"
@@ -371,6 +372,8 @@ public:
     reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;
     FilePageRequest fullFilePageRequest;
+    std::optional<reading::CodePosition> pendingCaret;
+    std::optional<reading::CodeMotion> pendingCaretMotion;
     std::string fullFileEncodingOverride = "auto";
     std::string fullFileEncodingLabel;
     int fullFileRequestedTargetLine = 0;

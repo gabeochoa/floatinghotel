@@ -11,6 +11,7 @@
 #include "../../src/util/change_navigation.h"
 #include "../../src/util/code_position.h"
 #include "../../src/util/code_words.h"
+#include "../../src/util/code_motion.h"
 #include "../../src/util/wrap_text.h"
 #include "../../src/util/code_wrap.h"
 #include "../../src/util/visible_rows.h"
@@ -588,6 +589,68 @@ TEST(code_words_group_whitespace_without_swallowing_punctuation) {
     ASSERT_EQ(text.substr(first, last - first), "\t  ");
     auto [a, b] = reading::word_at(text, 9);
     ASSERT_EQ(text.substr(a, b - a), "-");
+}
+
+TEST(code_motion_keeps_composed_characters_whole_and_crosses_lines) {
+    std::vector<reading::CodeLine> lines{{1, 1, "aé é 🙂"}, {2, 1, "short"}};
+    reading::CodePosition point{"a.cpp", reading::DiffSide::After, 1, 4};
+    point = reading::move_code(point, reading::CodeMotion::Right, lines);
+    ASSERT_EQ(point.column, 6);
+    point = reading::move_code(point, reading::CodeMotion::Left, lines);
+    ASSERT_EQ(point.column, 4);
+    point = reading::move_code(point, reading::CodeMotion::LineEnd, lines);
+    ASSERT_EQ(point.column, 8);
+    point = reading::move_code(point, reading::CodeMotion::Right, lines);
+    ASSERT_EQ(point.line, 2);
+    ASSERT_EQ(point.column, 1);
+    point = reading::move_code(point, reading::CodeMotion::Left, lines);
+    ASSERT_EQ(point.line, 1);
+    ASSERT_EQ(point.column, 8);
+}
+
+TEST(code_motion_word_and_document_boundaries_preserve_identity) {
+    std::vector<reading::CodeLine> lines{{20, 50, "alpha_éλ beta"}, {22, 1, ""}, {30, 1, "end"}};
+    reading::CodePosition point{"old.cpp", reading::DiffSide::Before, 20, 50};
+    point = reading::move_code(point, reading::CodeMotion::WordRight, lines);
+    ASSERT_EQ(point.column, 58);
+    point = reading::move_code(point, reading::CodeMotion::WordRight, lines);
+    ASSERT_EQ(point.column, 63);
+    point = reading::move_code(point, reading::CodeMotion::WordLeft, lines);
+    ASSERT_EQ(point.column, 59);
+    point = reading::move_code(point, reading::CodeMotion::Down, lines);
+    ASSERT_EQ(point.line, 22);
+    ASSERT_EQ(point.column, 1);
+    point = reading::move_code(point, reading::CodeMotion::DocumentEnd, lines);
+    ASSERT_EQ(point.line, 30);
+    ASSERT_EQ(point.column, 4);
+    ASSERT_EQ(point.path, "old.cpp");
+    ASSERT_EQ(point.side, reading::DiffSide::Before);
+    point = reading::move_code(point, reading::CodeMotion::DocumentStart, lines);
+    ASSERT_EQ(point.line, 20);
+    ASSERT_EQ(point.column, 50);
+    ASSERT_EQ(reading::move_code(point, reading::CodeMotion::Left, lines), point);
+}
+
+TEST(caret_reveal_does_not_append_visits_and_page_requests_cancel_on_navigation) {
+    ecs::RepoComponent repo;
+    repo.repoPath = "fixture";
+    navigation::open(repo, reading::source("a.cpp"), {}, reading::OpenMode::Keep);
+    const auto visits = repo.workspace().history().size();
+    reading::CodePosition point{"a.cpp", reading::DiffSide::After, 5000, 8};
+    navigation::reveal_caret(repo, point, .8f);
+    ASSERT_EQ(repo.workspace().history().size(), visits);
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->caret, std::optional{point});
+    ASSERT_EQ(repo.fullFileTargetLine(), 5000);
+    repo.fullFilePage.sourceIdentity = "version-one";
+    navigation::request_caret_page(repo, {ecs::FilePageRequest::Action::Previous, {90000}}, point, reading::CodeMotion::DocumentEnd);
+    ASSERT_EQ(repo.fullFilePageRequest.sourceIdentity, "version-one");
+    ASSERT_TRUE(repo.pendingCaret.has_value());
+    ASSERT_EQ(repo.pendingCaretMotion, std::optional{reading::CodeMotion::DocumentEnd});
+    auto stamp = navigation::stamp(repo, "pending-page");
+    navigation::open(repo, reading::source("b.cpp"));
+    ASSERT_FALSE(repo.pendingCaret.has_value());
+    ASSERT_FALSE(repo.pendingCaretMotion.has_value());
+    ASSERT_FALSE(navigation::accepts(repo, stamp, "pending-page"));
 }
 
 int main() { RUN_ALL_TESTS(); }

@@ -14,6 +14,30 @@ struct navigation {
         if (focus) focus_document(repo, reading::focus::Region::Code);
     }
 
+    static void reveal_caret(ecs::RepoComponent& repo, reading::CodePosition position, float fraction) {
+        set_caret(repo, position);
+        auto& document = repo.workspace_.current();
+        document.anchor = reading::ReadingAnchor{position.path, reading::anchor_revision(document.location),
+            position.side, position.line, position.column, fraction, position.side == reading::DiffSide::Before ? '-' : ' '};
+        restore_anchor(repo);
+        if (auto* source = std::get_if<reading::SourceLocation>(&document.location);
+            source && !repo.fullFilePage.contains(position.line, position.column, 0)) {
+            source->line = position.line;
+            source->column = position.column;
+        }
+    }
+
+    static void request_caret_page(ecs::RepoComponent& repo, ecs::FilePageRequest request,
+                                   reading::CodePosition position, std::optional<reading::CodeMotion> motion = {}) {
+        cancel_anchor(repo);
+        request.sourceIdentity = repo.fullFilePage.sourceIdentity;
+        repo.fullFilePageRequest = std::move(request);
+        repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
+        repo.fullFileCacheKey.clear();
+        repo.pendingCaret = std::move(position);
+        repo.pendingCaretMotion = motion;
+    }
+
     static void set_review_display_mode(ecs::RepoComponent& repo, review_files::DisplayMode mode) {
         if (Settings::get().get_review_display_mode(repo.repoPath) == mode) return;
         Settings::get().set_review_display_mode(repo.repoPath, mode);
@@ -110,6 +134,8 @@ struct navigation {
 
     static void release_source(ecs::RepoComponent& repo) {
         repo.sourceFind = {};
+        repo.pendingCaret.reset();
+        repo.pendingCaretMotion.reset();
         repo.fullFileFuture = {};
         repo.fullFileCacheKey.clear();
         repo.fullFileSourceKey.clear();
