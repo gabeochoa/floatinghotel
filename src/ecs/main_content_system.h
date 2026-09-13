@@ -19,6 +19,7 @@
 #include "../ui/revision_comparison.h"
 #include "../ui/review_snapshot.h"
 #include "../ui/keyboard_shortcuts.h"
+#include "../ui/document_switcher.h"
 #include "../ui/zoom.h"
 #include "../ui/file_tree_style.h"
 #include "../ui/chrome_icons.h"
@@ -334,6 +335,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool shortcutsActive = ui::render_keyboard_shortcuts(ctx, layout);
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        shortcutsActive |= ui::render_document_switcher(ctx, layout, repoPtr, shortcutsActive || tabDrag.has_value());
         bool revealActiveDocument = false;
         if (repoPtr) {
             if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>())

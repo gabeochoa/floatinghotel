@@ -1,0 +1,203 @@
+{
+  "viewport": {
+    "height": 1000,
+    "width": 1600
+  },
+  "nodes": [
+    {
+      "name": "main_content",
+      "rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      },
+      "visible_rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      }
+    },
+    {
+      "name": "diff_scroll",
+      "rect": {
+        "height": 832.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 142.0
+      },
+      "visible_rect": {
+        "height": 832.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 142.0
+      },
+      "scroll": {
+        "content_height": 12865.5810546875,
+        "content_width": 1264.0,
+        "x": 0.0,
+        "y": 400.0
+      }
+    },
+    {
+      "name": "recent_tabs",
+      "rect": {
+        "height": 280.0,
+        "width": 520.0,
+        "x": 540.0,
+        "y": 252.0
+      },
+      "visible_rect": {
+        "height": 280.0,
+        "width": 520.0,
+        "x": 540.0,
+        "y": 252.0
+      }
+    },
+    {
+      "name": "recent_tabs_position",
+      "rect": {
+        "height": 40.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 252.0
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 252.0
+      },
+      "text": "Recent tabs \u00b7 2 of 9"
+    },
+    {
+      "name": "recent_tab_9",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 292.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 292.0
+      },
+      "text": "h.cpp"
+    },
+    {
+      "name": "recent_tab_selected_8",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 322.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 322.0
+      },
+      "text": "g.cpp"
+    },
+    {
+      "name": "recent_tab_7",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 352.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 352.0
+      },
+      "text": "f.cpp"
+    },
+    {
+      "name": "recent_tab_6",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 382.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 382.0
+      },
+      "text": "e.cpp"
+    },
+    {
+      "name": "recent_tab_5",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 412.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 412.0
+      },
+      "text": "d.cpp"
+    },
+    {
+      "name": "recent_tab_4",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 442.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 442.0
+      },
+      "text": "c.cpp"
+    },
+    {
+      "name": "recent_tab_3",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 472.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 472.0
+      },
+      "text": "b.cpp"
+    },
+    {
+      "name": "recent_tab_2",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 502.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 502.0
+      },
+      "text": "a.cpp"
+    }
+  ]
+}

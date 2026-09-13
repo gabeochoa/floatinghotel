@@ -28,6 +28,20 @@
 #include "../util/process.h"
 #include "../platform/native_menu.h"
 
+struct HandleHeldKey : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || (!cmd.is("hold_key") && !cmd.is("release_key"))) return;
+        if (cmd.args.size() != 1) { cmd.fail("hold_key/release_key requires a numeric key code"); return; }
+        int key = 0;
+        try { key = std::stoi(cmd.args[0]); }
+        catch (...) { cmd.fail("Invalid key code"); return; }
+        if (key < 32 || key > 348) { cmd.fail("Key code out of range"); return; }
+        if (cmd.is("hold_key")) afterhours::testing::input_injector::set_key_held(key);
+        else afterhours::testing::input_injector::set_key_up(key);
+        cmd.consume();
+    }
+};
+
 struct HandleSaveWindowState : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("save_window_state")) return;

@@ -1,0 +1,10 @@
+--- Compiling test_document_cycle ---
+--- Running test_document_cycle ---
+  document_cycle_wraps_in_both_directions_without_reordering   OK
+  document_cycle_removes_closed_tabs_and_retains_selection     OK
+
+2/2 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

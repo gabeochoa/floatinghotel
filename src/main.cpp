@@ -565,6 +565,7 @@ static void app_init() {
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
             sm.register_update_system(std::make_unique<HandleSaveWindowState>());
+            sm.register_update_system(std::make_unique<HandleHeldKey>());
             sm.register_update_system(std::make_unique<HandleShowToast>());
             sm.register_update_system(std::make_unique<HandleNativeMenuAction>());
             sm.register_update_system(std::make_unique<HandleReviewRoundtrip>());

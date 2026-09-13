@@ -1,0 +1,96 @@
+{
+  "active": 9,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "source",
+      "path": "a.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "a.cpp",
+      "tooltip": "a.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 3,
+      "kind": "source",
+      "path": "b.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "b.cpp",
+      "tooltip": "b.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 4,
+      "kind": "source",
+      "path": "c.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "c.cpp",
+      "tooltip": "c.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 5,
+      "kind": "source",
+      "path": "d.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "d.cpp",
+      "tooltip": "d.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 6,
+      "kind": "source",
+      "path": "e.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "e.cpp",
+      "tooltip": "e.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 7,
+      "kind": "source",
+      "path": "f.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "f.cpp",
+      "tooltip": "f.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 8,
+      "kind": "source",
+      "path": "g.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "g.cpp",
+      "tooltip": "g.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 9,
+      "kind": "source",
+      "path": "h.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "h.cpp",
+      "tooltip": "h.cpp @ working tree"
+    }
+  ]
+}

@@ -1775,3 +1775,13 @@ inventories, loadout slots, and document strips. It should report a move intent
 without changing selection or content loading, and let the caller own ordering.
 The native replay in `tests/reorder_tabs.py` checks these interactions at three
 zooms, including dragging an inactive tab without changing the reader.
+
+### Modifier-held navigation overlays
+
+The framework test driver's `key` command releases its modifier after two
+frames. That cannot observe a recent-tab switcher while Ctrl remains held over
+several Tab presses. The app adds `hold_key` and `release_key` commands using the
+existing key injector. Reusable held-modifier commands would also help test game
+radial menus, temporary scoreboards, alternate tool modes, and chorded controls.
+The app's switcher retains a fixed candidate order during the chord, removes
+closed candidates, and commits only on modifier release.

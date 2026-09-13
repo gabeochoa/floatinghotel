@@ -1,5 +1,6 @@
 #include "test_framework.h"
 #include "../../src/util/navigation.h"
+#include "../../src/util/document_cycle.h"
 #include "../../src/ecs/components.h"
 
 static void open_kept(ecs::RepoComponent& repo, reading::Location location, std::optional<bool> reviewing = {}) {
@@ -687,6 +688,30 @@ TEST(reordering_changes_only_order_and_preserves_requests_and_history) {
     ASSERT_FALSE(navigation::reorder(repo, a, 99));
     ASSERT_FALSE(navigation::reorder(repo, reading::DocumentId{99}, 0));
     ASSERT_EQ(repo.workspace().generation(), generation);
+}
+
+TEST(recent_documents_follow_activation_and_ignore_tab_order_and_closed_tabs) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("a.cpp"));
+    const auto a = repo.workspace().active_id();
+    open_kept(repo, reading::source("b.cpp"));
+    const auto b = repo.workspace().active_id();
+    open_kept(repo, reading::source("c.cpp"));
+    const auto c = repo.workspace().active_id();
+    navigation::activate(repo, a);
+    auto recent = reading::recent_documents(repo.workspace());
+    ASSERT_EQ(recent[0], a);
+    ASSERT_EQ(recent[1], c);
+    ASSERT_EQ(recent[2], b);
+    navigation::reorder(repo, b, 0);
+    ASSERT_TRUE(reading::recent_documents(repo.workspace()) == recent);
+    navigation::close(repo, c);
+    recent = reading::recent_documents(repo.workspace());
+    ASSERT_EQ(recent.size(), size_t{3});
+    ASSERT_EQ(recent[0], a);
+    ASSERT_EQ(recent[1], b);
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(reading::recent_documents(repo.workspace())[0], c);
 }
 
 int main() { RUN_ALL_TESTS(); }

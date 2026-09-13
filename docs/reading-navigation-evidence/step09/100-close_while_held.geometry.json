@@ -1,0 +1,219 @@
+{
+  "viewport": {
+    "height": 1000,
+    "width": 1600
+  },
+  "nodes": [
+    {
+      "name": "main_content",
+      "rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      },
+      "visible_rect": {
+        "height": 898.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 76.0
+      }
+    },
+    {
+      "name": "diff_scroll",
+      "rect": {
+        "height": 832.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 142.0
+      },
+      "visible_rect": {
+        "height": 832.0,
+        "width": 1264.0,
+        "x": 312.0,
+        "y": 142.0
+      },
+      "scroll": {
+        "content_height": 12865.5751953125,
+        "content_width": 1264.0,
+        "x": 0.0,
+        "y": 0.0
+      }
+    },
+    {
+      "name": "recent_tabs",
+      "rect": {
+        "height": 250.0,
+        "width": 520.0,
+        "x": 540.0,
+        "y": 262.5
+      },
+      "visible_rect": {
+        "height": 250.0,
+        "width": 520.0,
+        "x": 540.0,
+        "y": 262.5
+      }
+    },
+    {
+      "name": "recent_tabs_position",
+      "rect": {
+        "height": 40.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 262.5
+      },
+      "visible_rect": {
+        "height": 40.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 262.5
+      },
+      "text": "Recent tabs \u00b7 1 of 7"
+    },
+    {
+      "name": "recent_tab_9",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 292.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 292.0
+      },
+      "text": "h.cpp"
+    },
+    {
+      "name": "recent_tab_8",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 292.0
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 292.0
+      },
+      "text": "g.cpp"
+    },
+    {
+      "name": "recent_tab_selected_7",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 302.5
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 302.5
+      },
+      "text": "f.cpp"
+    },
+    {
+      "name": "recent_tab_6",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 332.5
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 332.5
+      },
+      "text": "e.cpp"
+    },
+    {
+      "name": "recent_tab_5",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 362.5
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 362.5
+      },
+      "text": "d.cpp"
+    },
+    {
+      "name": "recent_tab_4",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 392.5
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 392.5
+      },
+      "text": "c.cpp"
+    },
+    {
+      "name": "recent_tab_3",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 422.5
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 422.5
+      },
+      "text": "b.cpp"
+    },
+    {
+      "name": "recent_tab_2",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 452.5
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 452.5
+      },
+      "text": "a.cpp"
+    },
+    {
+      "name": "recent_tab_1",
+      "rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 482.5
+      },
+      "visible_rect": {
+        "height": 30.0,
+        "width": 504.0,
+        "x": 548.0,
+        "y": 482.5
+      },
+      "text": "Unstaged changes"
+    }
+  ]
+}

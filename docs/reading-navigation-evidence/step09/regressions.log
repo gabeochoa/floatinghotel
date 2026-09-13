@@ -1,0 +1,16 @@
+RUN recent_tabs
+PASS 100%: frozen MRU order, reverse, modifier release, Escape, closed tabs, repository separation, narrow overlay, unchanged retained reading position
+PASS 140%: frozen MRU order, reverse, modifier release, Escape, closed tabs, repository separation, narrow overlay, unchanged retained reading position
+PASS 200%: frozen MRU order, reverse, modifier release, Escape, closed tabs, repository separation, narrow overlay, unchanged retained reading position
+RUN preview_tabs
+PASS 100%: one preview, Enter/double-click/menu keep, origin retention and destination reuse
+PASS 140%: one preview, Enter/double-click/menu keep, origin retention and destination reuse
+PASS 200%: one preview, Enter/double-click/menu keep, origin retention and destination reuse
+RUN close_tabs
+PASS 100%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact scroll restoration, working-changes fallback
+PASS 140%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact scroll restoration, working-changes fallback
+PASS 200%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact scroll restoration, working-changes fallback
+RUN reorder_tabs
+PASS 100%: both reorder directions, edge scrolling, visible marker, Escape, outside release, close suppression, jitter, resize cancellation, stable document and reading position
+PASS 140%: both reorder directions, edge scrolling, visible marker, Escape, outside release, close suppression, jitter, resize cancellation, stable document and reading position
+PASS 200%: both reorder directions, edge scrolling, visible marker, Escape, outside release, close suppression, jitter, resize cancellation, stable document and reading position
