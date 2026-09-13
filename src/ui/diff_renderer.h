@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../git/source_find.h"
+#include "../git/selection_copy.h"
 
 #include "../util/reading_anchor.h"
 #include "../util/code_position.h"
@@ -119,10 +120,13 @@ struct State {
     int clickCount = 0;
     double clickTime = -1.;
     float clickX = 0.f, clickY = 0.f;
-    std::optional<reading::CodePosition> keyboardAnchor;
+    bool extending = false;
+    reading::SourceDestination source;
+    std::string sourceIdentity;
+    unsigned sourceGeneration = 0;
     std::optional<float> preferredX;
     std::string context;
-    Pos anchor, head;
+    reading::CodePosition anchor, head;
     std::vector<Rec> lastLines; // prior frame (used for hit-test + copy)
     std::vector<Rec> curLines;  // being built this frame
     std::unordered_map<afterhours::EntityID, std::pair<int, int>> hl; // ent -> [a,b)
@@ -141,7 +145,7 @@ inline void reset() {
     s.hasSel = false;
     s.clickCount = 0;
     s.clickTime = -1.;
-    s.keyboardAnchor.reset();
+    s.extending = false;
     s.preferredX.reset();
     s.anchor = {};
     s.head = {};
@@ -152,6 +156,7 @@ inline void reset() {
 
 struct Session {
     ecs::RepoComponent* owner = nullptr;
+    const std::vector<ecs::FileDiff>* files = nullptr;
     std::optional<reading::CodePosition> caret;
     bool codeFocused = false;
     int sourceStartLine = 0;
@@ -193,9 +198,9 @@ inline std::string ending_label(const Session& session, const std::string& text,
     return label;
 }
 
-inline std::vector<size_t> wrapped_rows(const Session& session, const std::string& text, float available, bool newline) {
+inline std::vector<size_t> wrapped_rows(const Session& session, const std::string& text, float available, bool newline, const std::string& identity) {
     auto breaks = diff_metrics().wraps(text, available, session.fontSize, session.visibleWhitespace,
-        [&](std::string_view glyph) { return code_mw(session, std::string(glyph)); });
+        [&](std::string_view glyph) { return code_mw(session, std::string(glyph)); }, identity);
     if (session.visibleWhitespace && !text.empty() &&
         code_mw(session, text.substr(breaks[breaks.size() - 2])) + mw(session, ending_label(session, text, newline, available)) > available)
         breaks.push_back(text.size());
@@ -237,35 +242,51 @@ inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
         .with_debug_name("diff_find_match"));
 }
 
+inline reading::CodePosition code_position(const Rec& row, int byte, std::optional<reading::DiffSide> requestedSide = {}) {
+    const auto side = requestedSide.value_or(row.side == 1 || row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After);
+    return {row.filePath, side, number_on_side(row, side), row.logicalColumn + reading::column_at_byte(row.content, static_cast<size_t>(std::max(0, byte))) - 1};
+}
+
+inline std::optional<Pos> rendered_position(const reading::CodePosition& position, const std::vector<Rec>& rows) {
+    for (const auto& row : rows) {
+        if (auto byte = reading::caret_byte(position, row.filePath, position.side, number_on_side(row, position.side), row.content, row.logicalColumn, row.finalFragment))
+            return Pos{row.ent, static_cast<int>(*byte)};
+    }
+    return {};
+}
+
 // Resolve anchor/head into an ordered span (i1,c1) <= (i2,c2) as indices into
 // `lines`. Returns false if either endpoint's line is no longer present.
-inline bool ordered_span(const std::vector<Rec>& lines, Pos anchor, Pos head,
+inline bool ordered_span(const std::vector<Rec>& lines, reading::CodePosition anchor, reading::CodePosition head,
                          int& i1, int& c1, int& i2, int& c2) {
+    const auto a = rendered_position(anchor, lines);
+    const auto h = rendered_position(head, lines);
+    if (!a || !h || anchor.path != head.path || anchor.side != head.side) return false;
     int ai = -1, hi = -1;
-    for (int i = 0; i < (int)lines.size(); ++i) {
-        if (lines[i].ent == anchor.ent) ai = i;
-        if (lines[i].ent == head.ent) hi = i;
+    for (int i = 0; i < static_cast<int>(lines.size()); ++i) {
+        if (lines[i].ent == a->ent) ai = i;
+        if (lines[i].ent == h->ent) hi = i;
     }
-    if (ai < 0 || hi < 0 || lines[ai].side != lines[hi].side ||
-        lines[ai].filePath != lines[hi].filePath) return false;
-    i1 = ai; c1 = anchor.col; i2 = hi; c2 = head.col;
+    if (ai < 0 || hi < 0) return false;
+    i1 = ai; c1 = a->col; i2 = hi; c2 = h->col;
     if (i1 > i2 || (i1 == i2 && c1 > c2)) { std::swap(i1, i2); std::swap(c1, c2); }
     return true;
 }
 
 inline void recompute_highlight(State& st) {
     st.hl.clear();
+    st.hasSel = st.anchor.path == st.head.path && st.anchor.side == st.head.side && st.anchor != st.head;
     if (!st.hasSel) return;
-    int i1, c1, i2, c2;
-    if (!ordered_span(st.lastLines, st.anchor, st.head, i1, c1, i2, c2)) return;
-    for (int k = i1; k <= i2; ++k) {
-        if (st.lastLines[k].side != st.lastLines[i1].side ||
-            st.lastLines[k].filePath != st.lastLines[i1].filePath ||
-            (st.keyboardAnchor && number_on_side(st.lastLines[k], st.keyboardAnchor->side) == 0)) continue;
-        int a = (k == i1) ? c1 : 0;
-        int b = (k == i2) ? c2 : (int)st.lastLines[k].content.size();
-        if (k == i1 && k == i2 && a == b) continue;
-        st.hl[st.lastLines[k].ent] = {a, b};
+    auto first = st.anchor, last = st.head;
+    if (std::tie(first.line, first.column) > std::tie(last.line, last.column)) std::swap(first, last);
+    for (const auto& row : st.lastLines) {
+        const int line = number_on_side(row, first.side);
+        if (row.filePath != first.path || line < first.line || line > last.line) continue;
+        const int a = line == first.line ? std::max(1, first.column - row.logicalColumn + 1) : 1;
+        const int b = line == last.line ? std::max(1, last.column - row.logicalColumn + 1) : INT_MAX;
+        auto begin = reading::byte_at_column(row.content, a);
+        auto end = reading::byte_at_column(row.content, b);
+        if (begin < end) st.hl[row.ent] = {static_cast<int>(begin), static_cast<int>(end)};
     }
 }
 
@@ -278,8 +299,8 @@ inline std::string build_copy_text(State& st, bool withLocation) {
     std::string out;
     if (withLocation) {
         const Rec& r = st.lastLines[i1];
-        int firstNo = st.keyboardAnchor ? number_on_side(r, st.keyboardAnchor->side) : r.lineNo;
-        int endNo = st.keyboardAnchor ? number_on_side(st.lastLines[i2], st.keyboardAnchor->side) : st.lastLines[i2].lineNo;
+        int firstNo = number_on_side(r, st.anchor.side);
+        int endNo = number_on_side(st.lastLines[i2], st.anchor.side);
         out += r.filePath + ":L" + std::to_string(firstNo);
         if (endNo != firstNo) out += "-" + std::to_string(endNo);
         out += "\n";
@@ -289,7 +310,7 @@ inline std::string build_copy_text(State& st, bool withLocation) {
     for (int k = i1; k <= i2; ++k) {
         if (st.lastLines[k].side != st.lastLines[i1].side ||
             st.lastLines[k].filePath != st.lastLines[i1].filePath ||
-            (st.keyboardAnchor && number_on_side(st.lastLines[k], st.keyboardAnchor->side) == 0)) continue;
+            (number_on_side(st.lastLines[k], st.anchor.side) == 0)) continue;
         const std::string& c = st.lastLines[k].content;
         int a = std::min((k == i1) ? c1 : 0, (int)c.size());
         int b = std::min((k == i2) ? c2 : (int)c.size(), (int)c.size());
@@ -302,11 +323,62 @@ inline std::string build_copy_text(State& st, bool withLocation) {
     return out;
 }
 
-inline bool copy_selection(bool withLocation) {
-    auto text = build_copy_text(state(), withLocation);
-    if (text.empty()) return false;
-    afterhours::clipboard::set_text(text);
-    return true;
+inline std::string copy_selection(bool withLocation) {
+    auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    if (!repo) return "No selection to copy";
+    const auto& document = *repo->workspace().document(repo->workspace().active_id());
+    if (!document.selection || document.selection->anchor == document.selection->head) return "No selection to copy";
+    const auto& selection = *document.selection;
+    if (selection.dataGeneration != repo->dataGeneration &&
+        (std::holds_alternative<reading::WorkingTree>(selection.source.revision) || std::holds_alternative<reading::Index>(selection.source.revision)))
+        return "Source changed; select the text again";
+    auto& runtime = repo->selectionCopy;
+    runtime = {};
+    runtime.selection = selection;
+    runtime.withLocation = withLocation;
+    runtime.request = navigation::stamp(*repo, "selection-copy");
+    runtime.future = git::copy_source_selection_async({repo->repoPath, selection.source.path,
+        reading::revision_text(selection.source.revision), {}, repo->workspace().source() ? repo->fullFileEncodingOverride : "auto"}, selection, withLocation);
+    return {};
+}
+
+inline void poll_copy(UIContext<InputAction>& ctx, ecs::RepoComponent& repo) {
+    auto& runtime = repo.selectionCopy;
+    if (!runtime.future.valid() || runtime.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+    auto result = runtime.future.get();
+    const auto& selection = repo.workspace().document(repo.workspace().active_id())->selection;
+    if (!navigation::accepts(repo, runtime.request, "selection-copy") || !selection || *selection != runtime.selection) return;
+    if (!result.error.empty()) afterhours::toast::send_info(ctx, result.error, 4.f);
+    else {
+        afterhours::clipboard::set_text(result.text);
+        afterhours::toast::send_info(ctx, runtime.withLocation ? "Copied selection with location" : "Copied selection", 1.5f);
+    }
+}
+
+inline void remember_selection(const Session& session) {
+    if (!session.owner) return;
+    auto& st = state();
+    if (st.hasSel || st.extending)
+        navigation::set_selection(*session.owner, reading::CodeSelection{st.anchor, st.head, st.source, st.sourceIdentity, st.sourceGeneration});
+    else navigation::set_selection(*session.owner, {});
+}
+
+inline void bind_selection_source(const Session& session) {
+    if (!session.owner) return;
+    auto& st = state();
+    auto& repo = *session.owner;
+    st.sourceGeneration = repo.dataGeneration;
+    st.sourceIdentity.clear();
+    if (const auto* source = repo.workspace().source()) {
+        st.source = source->destination;
+        st.sourceIdentity = repo.fullFilePage.sourceIdentity;
+    } else if (session.files) {
+        const auto file = std::find_if(session.files->begin(), session.files->end(), [&](const auto& value) { return value.filePath == st.anchor.path; });
+        if (file != session.files->end()) {
+            reading::ReadingAnchor point{st.anchor.path, session.reviewScope, st.anchor.side, st.anchor.line, st.anchor.column};
+            st.source = reading::source_at_diff(repo.workspace().review(), *file, point).destination;
+        }
+    }
 }
 
 // Update the selection from this frame's mouse against the prior frame's lines.
@@ -340,11 +412,8 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     };
     auto nearestLine = [&]() -> int {
         int nn = -1; float bd = 1e30f;
-        auto anchor = std::find_if(st.lastLines.begin(), st.lastLines.end(),
-            [&](const Rec& r) { return r.ent == st.anchor.ent; });
         for (int i = 0; i < (int)st.lastLines.size(); ++i) {
-            if (anchor != st.lastLines.end() &&
-                (st.lastLines[i].side != anchor->side || st.lastLines[i].filePath != anchor->filePath)) continue;
+            if (st.lastLines[i].filePath != st.anchor.path || number_on_side(st.lastLines[i], st.anchor.side) == 0) continue;
             const Rectangle& rc = st.lastLines[i].rect;
             float d = std::fabs(my - (rc.y + rc.height / 2.f));
             if (d < bd) { bd = d; nn = i; }
@@ -353,12 +422,13 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     };
 
     if (mouse.just_pressed) {
-        st.keyboardAnchor.reset();
+        st.extending = false;
         st.preferredX.reset();
         const int li = lineUnder();
         if (li >= 0) {
             const auto& row = st.lastLines[li];
             const Pos hit{row.ent, colAt(row)};
+            auto position = code_position(row, hit.col);
             const bool shift = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
             const double now = afterhours::graphics::get_time();
             const float tolerance = 4.f * zoom::get();
@@ -393,35 +463,55 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
                 };
                 const auto range = st.clickCount == 2 ? reading::word_at(text, hitOffset)
                     : std::pair<size_t, size_t>{0, text.size()};
-                st.anchor = resolve(range.first);
-                st.head = resolve(range.second);
+                const auto start = resolve(range.first), end = resolve(range.second);
+                auto locate = [&](Pos point) {
+                    const auto found = std::find_if(st.lastLines.begin(), st.lastLines.end(), [&](const Rec& value) { return value.ent == point.ent; });
+                    return code_position(*found, point.col);
+                };
+                st.anchor = locate(start);
+                st.head = locate(end);
+                bind_selection_source(sess);
                 st.dragging = false;
                 if (st.clickCount >= 3) st.clickCount = 0;
             } else {
-                int first, firstColumn, last, lastColumn;
-                if (!shift || !ordered_span(st.lastLines, st.anchor, hit, first, firstColumn, last, lastColumn)) st.anchor = hit;
-                st.head = hit;
+                if (!shift || st.anchor.path != position.path || number_on_side(row, st.anchor.side) == 0) {
+                    st.anchor = position;
+                    bind_selection_source(sess);
+                } else position = code_position(row, hit.col, st.anchor.side);
+                st.head = position;
                 st.dragging = true;
             }
             st.hasSel = !(st.anchor == st.head);
-            auto head = std::find_if(st.lastLines.begin(), st.lastLines.end(), [&](const Rec& candidate) { return candidate.ent == st.head.ent; });
-            if (sess.owner && head != st.lastLines.end() && head->lineNo > 0) navigation::set_caret(*sess.owner,
-                {head->filePath, head->side == 1 || head->sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
-                 head->lineNo, head->logicalColumn + reading::column_at_byte(head->content, st.head.col) - 1}, true);
+            if (sess.owner && st.head.line > 0) navigation::set_caret(*sess.owner, st.head, true);
         } else {
             st.clickCount = 0;
             st.clickTime = -1.;
         }
     }
-    if (st.dragging && !ctx.is_input_allowed(st.anchor.ent)) st.dragging = false;
+    if (st.dragging && sess.owner && !ctx.is_input_allowed(sess.owner->reading.entity)) st.dragging = false;
+    if (mouse.left_down && st.dragging && sess.owner) {
+        auto entity = afterhours::ui::UICollectionHolder::getEntityForID(sess.owner->reading.entity);
+        if (entity.valid() && entity->has<afterhours::ui::HasScrollView>()) {
+            const auto viewport = ui::visible_rect(**entity);
+            const float edge = 32.f * zoom::get();
+            float velocity = my < viewport.y + edge ? -1.f : my > viewport.y + viewport.height - edge ? 1.f : 0.f;
+            if (velocity != 0.f && viewport.height > edge * 2) {
+                auto& scroll = entity->get<afterhours::ui::HasScrollView>();
+                float target = std::clamp(scroll.scroll_offset.y + velocity * 600.f * zoom::get() *
+                    std::min(.05f, afterhours::graphics::get_frame_time()), 0.f, std::max(0.f, scroll.content_size.y - viewport.height));
+                if (target != scroll.scroll_offset.y) {
+                    navigation::cancel_anchor(*sess.owner);
+                    scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = target;
+                }
+            }
+            my = std::clamp(my, viewport.y + 1.f, viewport.y + std::max(1.f, viewport.height - 1.f));
+        }
+    }
     if (mouse.left_down && st.dragging) {
         int li = nearestLine();
         if (li >= 0) {
-            st.head = {st.lastLines[li].ent, colAt(st.lastLines[li])};
-            const auto& row = st.lastLines[li];
-            if (sess.owner && row.lineNo > 0) navigation::set_caret(*sess.owner,
-                {row.filePath, row.side == 1 || row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
-                 row.lineNo, row.logicalColumn + reading::column_at_byte(row.content, st.head.col) - 1});
+            st.head = code_position(st.lastLines[li], colAt(st.lastLines[li]), st.anchor.side);
+            if (sess.owner && st.head.line > 0) navigation::set_caret(*sess.owner, st.head);
             if (!(st.head == st.anchor)) st.hasSel = true;
         }
     }
@@ -430,19 +520,7 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
         if (st.head == st.anchor) st.hasSel = false;
     }
     recompute_highlight(st);
-}
-
-inline reading::CodePosition code_position(const Rec& row, int byte, std::optional<reading::DiffSide> requestedSide = {}) {
-    const auto side = requestedSide.value_or(row.side == 1 || row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After);
-    return {row.filePath, side, number_on_side(row, side), row.logicalColumn + reading::column_at_byte(row.content, static_cast<size_t>(std::max(0, byte))) - 1};
-}
-
-inline std::optional<Pos> rendered_position(const reading::CodePosition& position, const std::vector<Rec>& rows) {
-    for (const auto& row : rows) {
-        if (auto byte = reading::caret_byte(position, row.filePath, position.side, number_on_side(row, position.side), row.content, row.logicalColumn, row.finalFragment))
-            return Pos{row.ent, static_cast<int>(*byte)};
-    }
-    return {};
+    if (mouse.just_pressed || mouse.left_down || mouse.just_released) remember_selection(sess);
 }
 
 inline void append_code_lines(std::vector<reading::CodeLine>& lines, const ecs::DiffHunk& hunk,
@@ -471,14 +549,8 @@ inline std::vector<reading::CodeLine> code_lines(const ecs::FileDiff& file, read
 
 inline void keyboard_selection(const reading::CodePosition& head) {
     auto& st = state();
-    if (!st.keyboardAnchor) {
-        if (!st.hasSel) if (auto point = rendered_position(head, st.lastLines)) st.anchor = st.head = *point;
-        return;
-    }
-    auto first = rendered_position(*st.keyboardAnchor, st.lastLines);
-    auto last = rendered_position(head, st.lastLines);
-    st.hasSel = first && last && !(*first == *last);
-    if (first && last) { st.anchor = *first; st.head = *last; }
+    if (st.extending) st.head = head;
+    else if (!st.hasSel) st.anchor = st.head = head;
     recompute_highlight(st);
 }
 
@@ -508,7 +580,6 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     if (afterhours::input::is_key_pressed(269)) motion = control || command ? Motion::DocumentEnd : Motion::LineEnd;
     auto& st = state();
     const auto* document = repo.workspace().document(repo.workspace().active_id());
-    if (document->caret) keyboard_selection(*document->caret);
     if (!motion || diffs.empty()) return;
     auto point = document->caret.value_or(reading::CodePosition{diffs.front().filePath});
     const auto file = std::find_if(diffs.begin(), diffs.end(), [&](const ecs::FileDiff& value) { return value.filePath == point.path; });
@@ -521,18 +592,20 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     if (lines.empty()) return;
     std::optional<reading::CodePosition> collapsed;
     if (!shift && st.hasSel && (*motion == Motion::Left || *motion == Motion::Right)) {
-        int first, a, last, b;
-        if (ordered_span(st.lastLines, st.anchor, st.head, first, a, last, b))
-            collapsed = *motion == Motion::Left ? code_position(st.lastLines[first], a, point.side) : code_position(st.lastLines[last], b, point.side);
+        auto first = st.anchor, last = st.head;
+        if (std::tie(first.line, first.column) > std::tie(last.line, last.column)) std::swap(first, last);
+        collapsed = *motion == Motion::Left ? first : last;
     }
-    if (shift && !st.keyboardAnchor) {
-        st.keyboardAnchor = point;
-        for (const auto& row : st.lastLines) if (st.hasSel && row.ent == st.anchor.ent) st.keyboardAnchor = code_position(row, st.anchor.col, point.side);
-    } else if (!shift) {
-        st.keyboardAnchor.reset();
+    if (shift) {
+        if (!st.hasSel && !st.extending) { st.anchor = point; bind_selection_source(session); }
+        st.extending = true;
+    } else {
+        st.extending = false;
         st.hasSel = false;
+        st.anchor = st.head = point;
         st.hl.clear();
     }
+    remember_selection(session);
     auto moved = collapsed.value_or(reading::move_code(point, *motion, lines));
     const bool backward = *motion == Motion::Left || *motion == Motion::WordLeft || *motion == Motion::Up ||
         *motion == Motion::LineStart || *motion == Motion::DocumentStart;
@@ -602,7 +675,9 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     }
     navigation::set_caret(repo, moved);
     session.caret = moved;
+    if (!shift) st.anchor = st.head = moved;
     keyboard_selection(moved);
+    remember_selection(session);
     auto viewportEntity = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
     if (!viewportEntity.valid()) return;
     const auto viewport = ui::visible_rect(**viewportEntity);
@@ -621,7 +696,7 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
 inline std::optional<reading::ReadingAnchor> source_point(const ecs::FileDiff& file, const Rectangle& viewport,
                                                          const std::string& revision, const std::optional<reading::CodePosition>& caret) {
     const auto& selection = state();
-    const auto position = selection.hasSel ? selection.keyboardAnchor : caret;
+    const auto position = selection.hasSel ? std::optional<reading::CodePosition>{selection.anchor} : caret;
     if (position && position->path == file.filePath)
         return reading::ReadingAnchor{file.filePath, revision, position->side, position->line, position->column, 0.f,
             position->side == reading::DiffSide::Before ? '-' : ' '};
@@ -631,8 +706,6 @@ inline std::optional<reading::ReadingAnchor> source_point(const ecs::FileDiff& f
         return reading::ReadingAnchor{file.filePath, revision, side, row.lineNo,
             reading::column_at_byte(text, row.sourceOffset + static_cast<size_t>(std::max(0, column))), 0.f, row.sign};
     };
-    for (const auto& row : selection.lastLines)
-        if (row.ent == selection.anchor.ent && row.filePath == file.filePath) return anchor(row, selection.anchor.col);
     for (const auto& row : selection.lastLines)
         if (row.filePath == file.filePath && (row.sign == '+' || row.sign == '-') &&
             row.rect.y + row.rect.height > viewport.y && row.rect.y < viewport.y + viewport.height)
@@ -995,7 +1068,8 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
             sign == '-' ? "" : std::to_string(newLine), sign, fileDiff.isFullContent);
         float width = lineWidth > 0 ? lineWidth : contentWidth;
         float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
-        auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index));
+        auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index),
+            std::to_string(fileDiff.renderIdentity) + (sign == '-' ? ":b:" : ":a:") + std::to_string(sign == '-' ? oldLine : newLine));
         PreparedCode prepared;
         prepared.column = newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1;
         for (size_t part = 0; part + 1 < breaks.size(); ++part) {
@@ -1605,8 +1679,10 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                        const std::string& rContent, SbsKind rKind) {
         float gutter = diff_sel::content_x_offset(*sel, code_gutter::pad(lNum.size() > rNum.size() ? lNum : rNum) + "  + ");
         float available = std::max(1.f, contentWidth * zoom::get() * .5f - gutter - 12.f);
-        auto left = diff_sel::wrapped_rows(*sel, lContent, available, lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)));
-        auto right = diff_sel::wrapped_rows(*sel, rContent, available, rNum.empty() || !newNoNewline.contains(std::stoi(rNum)));
+        auto left = diff_sel::wrapped_rows(*sel, lContent, available, lNum.empty() || !oldNoNewline.contains(std::stoi(lNum)),
+            std::to_string(fileDiff.renderIdentity) + ":b:" + lNum);
+        auto right = diff_sel::wrapped_rows(*sel, rContent, available, rNum.empty() || !newNoNewline.contains(std::stoi(rNum)),
+            std::to_string(fileDiff.renderIdentity) + ":a:" + rNum);
         auto changes = lKind == SbsKind::Del && rKind == SbsKind::Add
             ? code_highlight::changed_ranges(lContent, rContent)
             : std::pair<code_highlight::Range, code_highlight::Range>{};
@@ -2138,20 +2214,38 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
     bool selEnabled = true;
     if (selEnabled) {
-        std::string context = repoPath + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline") +
+        std::string context = repoPath + "\n" + (filterRepo ? std::to_string(filterRepo->workspace().active_id().value) : "") + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline") +
             std::to_string(contentWidth) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(Settings::get().get_code_font_size()) +
             (sess.visibleWhitespace ? ":spaces" : ":plain");
         for (const auto& diff : diffs) if (fileVisible(diff)) context += "\n" + diff.filePath + diff_metrics().signature(diff);
         if (diff_sel::state().context != context) {
             diff_sel::reset();
-            diff_sel::state().context = std::move(context);
+            auto& selectionState = diff_sel::state();
+            selectionState.context = std::move(context);
         }
         sess.enabled = true;
         sess.owner = filterRepo;
+        sess.files = &diffs;
         if (filterRepo && !diffs.empty() && diffs.front().isFullContent && !filterRepo->workspace().document(filterRepo->workspace().active_id())->caret) {
             const auto& anchor = filterRepo->workspace().document(filterRepo->workspace().active_id())->anchor;
             navigation::set_caret(*filterRepo, {diffs.front().filePath, reading::DiffSide::After,
                 anchor ? anchor->line : 1, anchor ? anchor->column : 1});
+        }
+        if (filterRepo) {
+            auto& selectionState = diff_sel::state();
+            const auto& document = *filterRepo->workspace().document(filterRepo->workspace().active_id());
+            if (const auto& saved = document.selection) {
+                selectionState.anchor = saved->anchor;
+                selectionState.head = saved->head;
+                selectionState.source = saved->source;
+                selectionState.sourceIdentity = saved->sourceIdentity;
+                selectionState.sourceGeneration = saved->dataGeneration;
+                selectionState.extending = true;
+            } else {
+                selectionState.anchor = selectionState.head = document.caret.value_or(reading::CodePosition{});
+                selectionState.extending = false;
+            }
+            diff_sel::recompute_highlight(selectionState);
         }
         sess.tmc = &EntityHelper::get_singleton_cmp_enforce<
             afterhours::ui::TextMeasureCache>();
@@ -2161,6 +2255,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (filterRepo) {
             if (sess.findNavigate && navigation::find(*filterRepo).position) {
                 const auto& point = *navigation::find(*filterRepo).position;
+                navigation::set_selection(*filterRepo, {});
                 navigation::set_caret(*filterRepo, {point.path, point.side, point.line, point.column});
             }
             sess.caret = filterRepo->workspace().document(filterRepo->workspace().active_id())->caret;
@@ -2177,8 +2272,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (filterRepo && layout && reader_shortcuts(ctx, *filterRepo, *layout) && superDown && afterhours::input::is_key_pressed(67) &&
             diff_sel::state().hasSel) {
             const bool withLocation = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
-            if (diff_sel::copy_selection(withLocation))
-                afterhours::toast::send_info(ctx, withLocation ? "Copied selection with location" : "Copied selection", 1.5f);
+            auto message = diff_sel::copy_selection(withLocation);
+            if (!message.empty()) afterhours::toast::send_info(ctx, message, 4.f);
         }
         diff_sel::state().curLines.clear();
     }

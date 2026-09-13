@@ -337,6 +337,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool shortcutsActive = ui::render_keyboard_shortcuts(ctx, layout);
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        if (repoPtr) {
+            if (ui::shortcut_owner(ctx, *repoPtr).reader()) (void)ctx.pressed(InputAction::TextCopy);
+            ui::diff_sel::poll_copy(ctx, *repoPtr);
+        }
         if (repoPtr && !repoPtr->repoPath.empty() && repoPtr->readingSessionPath != repoPtr->repoPath &&
             (!app_state::testModeEnabled || std::getenv("FH_TEST_SETTINGS_DIR"))) {
             repoPtr->readingSessionPath = repoPtr->repoPath;

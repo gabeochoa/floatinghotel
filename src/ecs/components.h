@@ -269,6 +269,19 @@ struct SourceFindMatch {
     int column = 1;
 };
 
+struct SelectionCopyResult {
+    std::string text;
+    std::string error;
+    size_t maxPageBytes = 0;
+};
+
+struct SelectionCopyRuntime {
+    reading::RequestStamp request;
+    reading::CodeSelection selection;
+    async_work::Task<SelectionCopyResult> future;
+    bool withLocation = false;
+};
+
 struct SourceFindResult {
     std::vector<SourceFindMatch> matches;
     std::string sourceIdentity;
@@ -367,6 +380,7 @@ public:
     std::string fullFileError;
     std::string fullFileBytes;
     SourceFindRuntime sourceFind;
+    SelectionCopyRuntime selectionCopy;
     HunkContextRuntime hunkContext;
     async_work::Task<FullFileContent> fullFileFuture;
     reading::RequestStamp fullFileRequestStamp;

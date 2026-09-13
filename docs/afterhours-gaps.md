@@ -1527,10 +1527,10 @@ make the distinction between requested position and sampled position explicit.
 
 ### U8. Read-only selection over a virtualized text source
 
-`src/ui/diff_renderer.h::diff_sel` stores endpoints as entity IDs and byte
-columns, rebuilds line records each frame, measures prefixes for hit testing,
-and copies from `lastLines`. `ordered_span` cannot resolve an endpoint whose
-rendered row has disappeared. Log viewers, chat transcripts, and scripting
+At the audit baseline, `src/ui/diff_renderer.h::diff_sel` stored endpoints as
+entity IDs and byte columns, rebuilt line records each frame, measured prefixes
+for hit testing, and copied from `lastLines`. `ordered_span` could not resolve
+an endpoint whose rendered row had disappeared. Log viewers, chat transcripts, and scripting
 inspectors need selection independent of the rows currently rendered.
 
 Afterhours already exposes backend-independent selection geometry in
@@ -1551,6 +1551,15 @@ source-reviewed limitation, not a newly reproduced selection failure. No native
 selection test was run in this audit. Tests must select beyond the virtual
 viewport, return to the starting row, and compare copied bytes with the original
 source, including Unicode, tabs, and CRLF.
+
+Step 48 follow-up: the old executable reproduced the missing-endpoint copy failure
+in 18 scope/zoom cases. Selection now lives on the document as source positions,
+with a bounded worker reading exact text for clipboard commands. All 18 final
+hidden native cases, three edge-drag cases, cancellation, 8 MiB refusal, and nine
+offscreen screenshot journeys pass; geometry checks cover clipped highlights and
+split-side isolation. The implementation remains app-owned because Afterhours
+has no source-backed selection controller. See `docs/reading-navigation-step48.md`
+and the packaged step-48 evidence for the reproduced failure and final checks.
 
 ### U9. Optional text normalization at file and clipboard boundaries
 
@@ -1942,6 +1951,13 @@ uses the general pasteboard during the test; concurrent user copying is not
 isolated. A named pasteboard or injectable scoped clipboard remains the useful
 upstream interface for apps, game consoles, and automated UI tests.
 
+Step 48 replaces the general-pasteboard guard with a named pasteboard per
+native replay. Hidden test mode redirects the process-local AppKit lookup;
+the helper reads and releases only that board. This avoids altering the user's
+clipboard and makes cancellation failures reproducible. The renderer still
+needs separate offscreen screenshots. A scoped clipboard interface upstream
+would remove this AppKit-specific test adapter.
+
 ### Modal centering mixes physical resolution and scaled pixels
 
 `modal::detail::modal_impl` centers its container using the physical
@@ -2276,3 +2292,40 @@ using decoded composed-character boundaries. An upstream configurable word polic
 would let code viewers and ordinary prose fields share geometry and gesture
 handling without forcing the same definition of a word. Step 45's native replay
 checks exact UTF-8/tab bytes and both split-diff sides.
+
+### Raw shortcut handlers must consume the matching UI action
+
+The reader handled the physical Cmd+C key while `UIContext::last_action` still
+contained `TextCopy`. Opening Quick Open later let its newly focused text input
+consume that old action and replace the clipboard with the selected filename.
+The native cancellation replay captured `sentinel.txt` on the private pasteboard
+instead of the previously copied source text. This reproduced after isolating
+the pasteboard, so it was not external clipboard interference.
+
+The app now consumes `TextCopy` at the reader focus boundary. Apps and games
+mixing direct key handlers with framework widgets need a single dispatch/consume
+contract, or a frame-scoped action lifetime, so an action cannot run again after
+focus changes. Tests should copy in a custom viewer, open a text field, and
+verify that merely opening the field leaves the clipboard unchanged.
+
+## Avoid duplicate key ownership in bounded content caches
+
+Step 48's 5,000-line diff produced 10,000 display rows and repeatedly evicted its
+own wrapping results from the 3 MiB cache. A stack sample from the real offscreen renderer attributed most content
+preparation time to recomputing Unicode cluster boundaries; the native replay
+measured p99 203.60 ms. Each cache key was owned both by its LRU entry and by its
+lookup table. The repository cache now keeps one stable key in the list and a
+string view in the table, removes the view before freeing the entry, and trims
+excess key capacity. The same fixture fits without changing the budget. Tests
+cover a complete second traversal, rehashing, replacement, and eviction, including
+an AddressSanitizer/UndefinedBehaviorSanitizer run.
+
+A reusable byte-budgeted LRU with explicit ownership accounting would help games
+cache text layout, sprites, and resource metadata without duplicating large keys.
+Keep this independent of floatinghotel's document model. The first 100% unified replay improved to p99 17.75 ms, but 200% split still
+failed at 194.85 ms because narrow columns retain more offsets. The follow-up
+uses published file/side/line identities instead of full text keys and trims
+offset-vector capacity. A 10,000-row, eight-column unit replay passes without
+increasing the budget. The final 18-case native replay passes at p99 3.39–17.50 ms, with a 23.84 ms
+maximum frame. Failed and passing results are retained; evidence starts at `output/step48-profile/sample.txt` and
+`output/step48-final/100-unified/journey.log`.

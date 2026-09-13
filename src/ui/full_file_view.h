@@ -84,6 +84,10 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                         position.column = std::clamp(position.column, line->column, reading::end_column(*line));
                     }
                     navigation::reveal_caret(repo, position, motion == reading::CodeMotion::DocumentEnd ? .85f : .15f);
+                    if (auto selection = repo.workspace().document(repo.workspace().active_id())->selection) {
+                        selection->head = position;
+                        navigation::set_selection(repo, std::move(selection));
+                    }
                     navigation::focus_document(repo, reading::focus::Region::Code);
                 }
             }
@@ -125,7 +129,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         auto range = repo.fullFileFuture.valid() ? "Loading bounded file page..." :
             "Loaded lines " + std::to_string(page.begin.line) + "–" + std::to_string(page.next.line - (page.next.continuation ? 0 : 1)) +
             " · bytes " + std::to_string(page.begin.offset) + "–" + std::to_string(page.next.offset) + " of " + std::to_string(page.totalBytes) +
-            (page.begin.continuation || (page.next.offset < page.totalBytes && page.next.continuation) ? " · line fragment" : "") + " · Copy covers this page only";
+            (page.begin.continuation || (page.next.offset < page.totalBytes && page.next.continuation) ? " · line fragment" : "");
         div(ctx, mk(parent, 585021), ComponentConfig{}.with_label(range)
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));

@@ -731,6 +731,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                      repo->untrackedReviewRepository == repo->repoPath && !repo->untrackedReviewFuture.valid()));
                 refreshDone = refreshDone && (repo->fullFilePath().empty() || !repo->fullFileFuture.valid() ||
                     repo->fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                refreshDone = refreshDone && (!repo->selectionCopy.future.valid() ||
+                    repo->selectionCopy.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->sourceFind.future.valid() ||
                     repo->sourceFind.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->hunkContext.future.valid() ||
@@ -918,7 +920,7 @@ static bool app_has_pending_work() {
             const auto& repo = entity.get<ecs::RepoComponent>();
             pending = pending || repo.refreshRequested || repo.isRefreshing ||
                 frame_pacer::in_flight(repo.untrackedReviewFuture) ||
-                frame_pacer::in_flight(repo.fullFileFuture) || frame_pacer::in_flight(repo.repoSearchFuture) ||
+                frame_pacer::in_flight(repo.fullFileFuture) || repo.selectionCopy.future.valid() || frame_pacer::in_flight(repo.repoSearchFuture) ||
                 frame_pacer::in_flight(repo.repoSearchPreviewFuture) || frame_pacer::in_flight(repo.codeownersFuture) ||
                 frame_pacer::in_flight(repo.fileHistoryFuture) || frame_pacer::in_flight(repo.blameFuture) ||
                 frame_pacer::in_flight(repo.commitSearchFuture) || frame_pacer::in_flight(repo.comparisonFuture) ||

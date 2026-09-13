@@ -9,6 +9,12 @@
 
 struct navigation {
 
+    static void set_selection(ecs::RepoComponent& repo, std::optional<reading::CodeSelection> selection) {
+        auto& current = repo.workspace_.current();
+        if (current.selection != selection) repo.selectionCopy = {};
+        current.selection = std::move(selection);
+    }
+
     static void set_caret(ecs::RepoComponent& repo, reading::CodePosition position, bool focus = false) {
         repo.workspace_.current().caret = std::move(position);
         if (focus) focus_document(repo, reading::focus::Region::Code);
@@ -134,6 +140,7 @@ struct navigation {
 
     static void release_source(ecs::RepoComponent& repo) {
         repo.sourceFind = {};
+        repo.selectionCopy = {};
         repo.pendingCaret.reset();
         repo.pendingCaretMotion.reset();
         repo.fullFileFuture = {};
@@ -234,8 +241,10 @@ struct navigation {
         }
         bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode, anchor);
-        if (const auto* source = repo.workspace_.source(); source && source->line > 0)
+        if (const auto* source = repo.workspace_.source(); source && source->line > 0) {
+            set_selection(repo, {});
             set_caret(repo, {source->destination.path, reading::DiffSide::After, source->line, std::max(1, source->column)});
+        }
         if (repo.workspace_.current().subject.empty())
             for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
                 for (const auto& entry : *entries)
@@ -262,6 +271,7 @@ struct navigation {
                 review.foldedHunks.erase(scope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, hunk));
         }
         open(repo, location, {}, reading::OpenMode::Keep, anchor);
+        set_selection(repo, {});
         set_caret(repo, {anchor.path, anchor.side, anchor.line, anchor.column});
     }
 

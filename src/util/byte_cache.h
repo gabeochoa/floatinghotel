@@ -2,6 +2,7 @@
 
 #include <list>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <utility>
 
@@ -9,7 +10,7 @@ template<class Value>
 class ByteCache {
     struct Entry { std::string key; Value value; size_t bytes; };
     std::list<Entry> entries_;
-    std::unordered_map<std::string, typename std::list<Entry>::iterator> index_;
+    std::unordered_map<std::string_view, typename std::list<Entry>::iterator> index_;
     size_t limit_, bytes_ = 0;
 public:
     explicit ByteCache(size_t limit) : limit_(limit) {}
@@ -24,13 +25,15 @@ public:
     bool put(std::string key, Value value, size_t valueBytes) {
         if (auto it = index_.find(key); it != index_.end()) {
             bytes_ -= it->second->bytes;
-            entries_.erase(it->second);
+            auto entry = it->second;
             index_.erase(it);
+            entries_.erase(entry);
         }
-        const size_t overhead = sizeof(Entry) + sizeof(std::string) + 10 * sizeof(void*);
-        if (valueBytes > limit_ || key.capacity() > limit_ / 2 ||
-            overhead > limit_ - valueBytes || key.capacity() * 2 > limit_ - valueBytes - overhead) return false;
-        const size_t bytes = overhead + key.capacity() * 2 + valueBytes;
+        key.shrink_to_fit();
+        const size_t overhead = sizeof(Entry) + sizeof(std::string_view) + 10 * sizeof(void*);
+        if (valueBytes > limit_ || key.capacity() > limit_ ||
+            overhead > limit_ - valueBytes || key.capacity() > limit_ - valueBytes - overhead) return false;
+        const size_t bytes = overhead + key.capacity() + valueBytes;
         while (!entries_.empty() && this->bytes() > limit_ - bytes) {
             auto& oldest = entries_.back();
             bytes_ -= oldest.bytes;

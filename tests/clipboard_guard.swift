@@ -5,11 +5,12 @@ import Darwin
 func run() -> Int32 {
     let args = CommandLine.arguments
     guard args.count >= 4 else { return 2 }
-    let board = NSPasteboard.general
     let marker = args[2]
+    let name = "org.floatinghotel.tests." + marker
+    let board = NSPasteboard(name: NSPasteboard.Name(name))
     if args[1] == "read" {
-        guard let value = board.string(forType: .string), value.contains(marker) else {
-            fputs("Clipboard did not contain this test's marker\n", stderr)
+        guard let value = board.string(forType: .string) else {
+            fputs("Private test pasteboard has no text\n", stderr)
             return 1
         }
         do {
@@ -22,24 +23,16 @@ func run() -> Int32 {
         }
     }
     guard args[1] == "guard", args.count >= 5 else { return 2 }
-    let original = (board.pasteboardItems ?? []).map { item -> NSPasteboardItem in
-        let copy = NSPasteboardItem()
-        for type in item.types {
-            if let data = item.data(forType: type) { copy.setData(data, forType: type) }
-        }
-        return copy
-    }
     defer {
-        if board.string(forType: .string)?.contains(marker) == true {
-            board.clearContents()
-            if !original.isEmpty { board.writeObjects(original) }
-        }
+        board.clearContents()
+        board.releaseGlobally()
     }
     let process = Process()
     process.executableURL = URL(fileURLWithPath: args[3])
     process.arguments = Array(args.dropFirst(4))
     var environment = ProcessInfo.processInfo.environment
     environment["FH_TEST_CLIPBOARD_MARKER"] = marker
+    environment["FH_TEST_PASTEBOARD_NAME"] = name
     process.environment = environment
     do {
         try process.run()

@@ -653,4 +653,28 @@ TEST(caret_reveal_does_not_append_visits_and_page_requests_cancel_on_navigation)
     ASSERT_FALSE(navigation::accepts(repo, stamp, "pending-page"));
 }
 
+TEST(selection_survives_closing_and_cancels_superseded_copy_work) {
+    ecs::RepoComponent repo;
+    repo.repoPath = "fixture";
+    navigation::open(repo, reading::source("a.cpp"), {}, reading::OpenMode::Keep);
+    reading::CodeSelection selection{{"a.cpp", reading::DiffSide::After, 1, 2},
+        {"a.cpp", reading::DiffSide::After, 5000, 9}, {"a.cpp", reading::WorkingTree{}}, "version"};
+    navigation::set_selection(repo, selection);
+    std::promise<ecs::SelectionCopyResult> promise;
+    std::stop_source stop;
+    repo.selectionCopy.future = {promise.get_future(), stop};
+    navigation::set_selection(repo, selection);
+    ASSERT_FALSE(stop.stop_requested());
+    selection.head.line = 6000;
+    navigation::set_selection(repo, selection);
+    ASSERT_TRUE(stop.stop_requested());
+    ASSERT_FALSE(repo.selectionCopy.future.valid());
+    const auto id = repo.workspace().active_id();
+    navigation::close(repo, id);
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->selection, std::optional{selection});
+    navigation::set_selection(repo, {});
+    ASSERT_FALSE(repo.workspace().document(repo.workspace().active_id())->selection.has_value());
+}
+
 int main() { RUN_ALL_TESTS(); }

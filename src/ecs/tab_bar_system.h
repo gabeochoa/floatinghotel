@@ -230,6 +230,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             oldTabComp.fileViewMode = layout.fileViewMode;
             oldTabComp.diffViewMode = layout.diffViewMode;
             oldTabComp.sidebarVisible = layout.sidebarVisible;
+            if (oldTab.id != newTab.id && oldTab.has<RepoComponent>()) oldTab.get<RepoComponent>().selectionCopy = {};
             oldTab.removeComponent<ActiveTab>();
         }
 
@@ -261,6 +262,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             oldTabComp.fileViewMode = layout.fileViewMode;
             oldTabComp.diffViewMode = layout.diffViewMode;
             oldTabComp.sidebarVisible = layout.sidebarVisible;
+            if (oldTab.has<RepoComponent>()) oldTab.get<RepoComponent>().selectionCopy = {};
             oldTab.removeComponent<ActiveTab>();
         }
 

@@ -103,7 +103,7 @@ for zoom in [100, 140, 200]:
         if args.baseline:
             commands = [('baseline', 'key CMD+C', located)]
         for label, command, expected in commands:
-            copied = replay(label, selection + command + '\nwait_frames 6\nscreenshot ' + label + '\n', True)
+            copied = replay(label, selection + command + '\n' + settle() + 'screenshot ' + label + '\n', True)
             assert copied == expected, (zoom, mode, label, repr(copied), repr(expected))
             snapshot = json.loads((directory / 'selected.json').read_text())
             assert snapshot['selection_text'] == plain

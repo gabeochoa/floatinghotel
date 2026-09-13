@@ -119,7 +119,20 @@ static void resize_and_draw(id delegate, SEL selector, NSNotification* notificat
 static bool startup_presented = false;
 static bool hidden_native_test = false;
 
-extern "C" void metal_enable_hidden_test(void) { hidden_native_test = true; }
+static NSString* test_pasteboard_name = nil;
+
+static NSPasteboard* scoped_test_pasteboard(id, SEL) {
+    return [NSPasteboard pasteboardWithName:test_pasteboard_name];
+}
+
+extern "C" void metal_enable_hidden_test(void) {
+    hidden_native_test = true;
+    if (const char* name = std::getenv("FH_TEST_PASTEBOARD_NAME")) {
+        test_pasteboard_name = [NSString stringWithUTF8String:name];
+        Method method = class_getClassMethod([NSPasteboard class], @selector(generalPasteboard));
+        method_setImplementation(method, reinterpret_cast<IMP>(scoped_test_pasteboard));
+    }
+}
 static bool startup_submitted = false;
 static NSTimer* startup_draw_timer = nil;
 static void (*startup_order_window)(id, SEL, NSWindowOrderingMode, NSInteger);

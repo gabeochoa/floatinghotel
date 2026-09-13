@@ -22,12 +22,14 @@ public:
         return value;
     }
     template<class Measure>
-    std::vector<size_t> wraps(const std::string& text, float width, float fontSize, bool whitespace, Measure measure) {
+    std::vector<size_t> wraps(const std::string& text, float width, float fontSize, bool whitespace, Measure measure, std::string_view identity = {}) {
         auto key = std::to_string(std::bit_cast<std::uint32_t>(width)) + ":" +
-            std::to_string(std::bit_cast<std::uint32_t>(fontSize)) + (whitespace ? ":spaces:" : ":plain:") + text;
+            std::to_string(std::bit_cast<std::uint32_t>(fontSize)) + (whitespace ? ":spaces:" : ":plain:") +
+            (identity.empty() ? "text:" + text : "line:" + std::string(identity));
         if (const auto* value = wraps_.get(key)) { ++wrapHits_; return *value; }
         ++wrapScans_;
         auto value = code_wrap::breaks(text, width, measure);
+        value.shrink_to_fit();
         auto bytes = value.capacity() * sizeof(size_t);
         wraps_.put(std::move(key), value, bytes);
         return value;

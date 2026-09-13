@@ -62,10 +62,12 @@ inline std::vector<Menu> createMenuBar() {
     // Edit menu
     menus.push_back({"Edit", {
         MenuItem::item("Copy", "Cmd+C", [] {
-            set_pending_toast(ui::diff_sel::copy_selection(false) ? "Copied selection" : "No diff selection to copy");
+            auto message = ui::diff_sel::copy_selection(false);
+            if (!message.empty()) set_pending_toast(message);
         }),
         MenuItem::item("Copy with location", "Cmd+Shift+C", [] {
-            set_pending_toast(ui::diff_sel::copy_selection(true) ? "Copied selection with location" : "No diff selection to copy");
+            auto message = ui::diff_sel::copy_selection(true);
+            if (!message.empty()) set_pending_toast(message);
         }),
         MenuItem::separator(),
         MenuItem::item("Find...", "Cmd+F", [] {

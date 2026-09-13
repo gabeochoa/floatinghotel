@@ -211,6 +211,15 @@ struct CodePosition {
     bool operator==(const CodePosition&) const = default;
 };
 
+struct CodeSelection {
+    CodePosition anchor;
+    CodePosition head;
+    SourceDestination source;
+    std::string sourceIdentity;
+    unsigned dataGeneration = 0;
+    bool operator==(const CodeSelection&) const = default;
+};
+
 struct Document {
     DocumentId id;
     Location location = ReviewLocation{};
@@ -225,6 +234,7 @@ struct Document {
     bool detailsExpanded = false;
     std::map<std::string, int> contextLines;
     std::optional<CodePosition> caret;
+    std::optional<CodeSelection> selection;
 };
 
 class ReadingWorkspace {

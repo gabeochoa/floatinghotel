@@ -55,11 +55,10 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
     items.push_back(ui::ContextMenuItem::item("File history", [current] {
         if (auto* active = current()) open_file_history(*active, active->fullFilePath(), active->fullFileRevision());
     }));
-    const auto& selection = ui::diff_sel::state();
-    int selectedLine = 0;
-    for (const auto& line : selection.lastLines)
-        if (selection.hasSel && line.ent == selection.anchor.ent && line.filePath == repo.fullFilePath()) selectedLine = line.lineNo;
     const auto* document = repo.workspace().document(repo.workspace().active_id());
+    const auto& selection = document->selection;
+    const int selectedLine = selection && selection->anchor.path == repo.fullFilePath() && selection->anchor != selection->head
+        ? selection->anchor.line : 0;
     const int bookmarkLine = selectedLine > 0 ? selectedLine : document->caret ? document->caret->line :
         document->anchor ? document->anchor->line : std::max(1, repo.fullFileTargetLine());
     const auto sameBookmark = [path = repo.fullFilePath(), revision, bookmarkLine](const CodeBookmark& bookmark) {
