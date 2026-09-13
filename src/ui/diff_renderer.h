@@ -2115,8 +2115,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
     if (filterRepo) {
         if (vp.restoreAnchor && !vp.restoredAnchor && vp.nearestAnchor) vp.restore_at(vp.nearestAnchor->second);
         if (vp.restoredAnchor) navigation::restored_anchor(*filterRepo);
-        else if (vp.anchor && filterRepo->hasLoadedOnce && !filterRepo->isRefreshing &&
-            !filterRepo->refreshRequested && filterRepo->reading.restoreFrames == 0) navigation::remember_anchor(*filterRepo, std::move(*vp.anchor));
+        else if (vp.anchor && filterRepo->hasLoadedOnce && !filterRepo->isRefreshing && !sess.findNavigate &&
+            !filterRepo->refreshRequested && filterRepo->reading.restoreFrames == 0 &&
+            filterRepo->fullFileNavigateFrames == 0 && filterRepo->diffTargetFrames == 0)
+            navigation::remember_anchor(*filterRepo, std::move(*vp.anchor));
     }
 
     // This frame's registry becomes next frame's hit-test source.

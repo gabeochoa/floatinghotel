@@ -1,0 +1,161 @@
+{
+  "active": 5,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.16119404137134552,
+        "line": 1,
+        "path": "a.cpp",
+        "revision": "b5df04f9761c7dc5b198d8bf289728075296f225",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "b5df04f9761c7dc5b198d8bf289728075296f225"
+          },
+          "file": "",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 141,
+        "fraction": 0.07562179863452911,
+        "line": 8,
+        "path": "a.cpp",
+        "revision": "b5df04f9761c7dc5b198d8bf289728075296f225",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "b5df04f9761c7dc5b198d8bf289728075296f225"
+          },
+          "file": "a.cpp",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 297,
+        "fraction": 0.06538458913564682,
+        "line": 8,
+        "path": "a.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "line": 0,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "b5df04f9761c7dc5b198d8bf289728075296f225"
+            },
+            "file": "a.cpp",
+            "kind": "commit"
+          },
+          "path": "a.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 149,
+        "fraction": 0.06250007450580597,
+        "line": 7,
+        "path": "c.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "line": 0,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "b5df04f9761c7dc5b198d8bf289728075296f225"
+            },
+            "file": "a.cpp",
+            "kind": "commit"
+          },
+          "path": "c.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    }
+  ],
+  "history_index": 3,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "review",
+      "path": "a.cpp",
+      "preview": false,
+      "revision": "b5df04f9761c7dc5b198d8bf289728075296f225",
+      "title": "Review lines",
+      "tooltip": "Review lines\nCommit b5df04f9761c7dc5b198d8bf289728075296f225\nFirst parent"
+    },
+    {
+      "badge": "",
+      "id": 4,
+      "kind": "source",
+      "path": "c.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "c.cpp",
+      "tooltip": "c.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 5,
+      "kind": "source",
+      "path": "a.cpp",
+      "preview": true,
+      "revision": "",
+      "title": "a.cpp",
+      "tooltip": "a.cpp @ working tree"
+    }
+  ]
+}

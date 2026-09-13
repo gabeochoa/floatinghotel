@@ -135,7 +135,20 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 std::ofstream output(directory / (cmd.arg(1) + ".workspace.json"));
                 output.exceptions(std::ios::failbit | std::ios::badbit);
                 output << nlohmann::json{{"active", repo->workspace().active_id().value},
-                    {"tabs", tabs}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
+                    {"tabs", tabs}, {"history_index", repo->workspace().history_index()}, {"history", [&] {
+                        auto visits = nlohmann::json::array();
+                        for (const auto& visit : repo->workspace().history()) {
+                            nlohmann::json value{{"location", reading::encode_location(visit.location)}, {"reviewing", visit.reviewing}};
+                            if (visit.anchor) {
+                                const auto& anchor = *visit.anchor;
+                                value["anchor"] = {{"path", anchor.path}, {"revision", anchor.revision}, {"line", anchor.line},
+                                    {"column", anchor.column}, {"side", anchor.side == reading::DiffSide::Before ? "before" : "after"},
+                                    {"fraction", anchor.viewportFraction}, {"sign", std::string(1, anchor.sign)}};
+                            }
+                            visits.push_back(std::move(value));
+                        }
+                        return visits;
+                    }()}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
                 cmd.consume();
             } catch (const std::exception& error) { cmd.fail(error.what()); }
         } else if (cmd.is("reading_probe")) {

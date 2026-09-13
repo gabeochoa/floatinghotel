@@ -129,9 +129,23 @@ enum class Slot { Review, Source };
 enum class OpenMode { Preview, Keep };
 enum class ClickRegion { Tabs, Tree, History, Picker, Search };
 
+enum class DiffSide { Before, After };
+
+struct ReadingAnchor {
+    std::string path;
+    std::string revision;
+    DiffSide side = DiffSide::After;
+    int line = 1;
+    int column = 1;
+    float viewportFraction = 0.f;
+    char sign = ' ';
+    bool operator==(const ReadingAnchor&) const = default;
+};
+
 struct Visit {
     Location location = ReviewLocation{};
     bool reviewing = false;
+    std::optional<ReadingAnchor> anchor;
     bool operator==(const Visit&) const = default;
 };
 
@@ -157,19 +171,6 @@ struct FileSummary {
     std::vector<std::string> hunkKeys;
     bool requiresFileRecord = false;
     bool partial = false;
-};
-
-enum class DiffSide { Before, After };
-
-struct ReadingAnchor {
-    std::string path;
-    std::string revision;
-    DiffSide side = DiffSide::After;
-    int line = 1;
-    int column = 1;
-    float viewportFraction = 0.f;
-    char sign = ' ';
-    bool operator==(const ReadingAnchor&) const = default;
 };
 
 struct Document {
@@ -277,7 +278,8 @@ private:
     }
     bool open(Location next, bool reviewing = false, OpenMode mode = OpenMode::Preview) {
         Visit visit{std::move(next), reviewing};
-        if (history_[index_] == visit && location() == visit.location) {
+        if (history_[index_].reviewing == visit.reviewing &&
+            same_document(history_[index_].location, visit.location) && location() == visit.location) {
             if (mode == OpenMode::Keep) keep(active_);
             return false;
         }
@@ -342,14 +344,18 @@ private:
             (direction > 0 && index_ + 1 >= history_.size())) return false;
         if (direction < 0) --index_;
         else ++index_;
-        select(history_[index_].location);
+        const auto visit = history_[index_];
+        select(visit.location);
+        current().anchor = visit.anchor;
+        current().restoreAnchor = visit.anchor.has_value();
+        if (auto* source = std::get_if<SourceLocation>(&current().location); source && visit.anchor)
+            source->line = visit.anchor->line;
         return true;
     }
     void clear_source_reveal() {
         auto* source = std::get_if<SourceLocation>(&current().location);
         if (!source) return;
         source->line = 0;
-        history_[index_].location = *source;
     }
     void coalesce_resolved_document() {
         auto& resolved = current();

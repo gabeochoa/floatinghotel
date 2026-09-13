@@ -184,8 +184,10 @@ struct navigation {
 
     static void remember_anchor(ecs::RepoComponent& repo, reading::ReadingAnchor anchor) {
         auto& document = repo.workspace_.current();
-        if (!document.restoreAnchor && anchor.revision == reading::anchor_revision(document.location))
+        if (!document.restoreAnchor && anchor.revision == reading::anchor_revision(document.location)) {
+            repo.workspace_.history_[repo.workspace_.index_].anchor = anchor;
             document.anchor = std::move(anchor);
+        }
     }
 
     static void restored_anchor(ecs::RepoComponent& repo) {

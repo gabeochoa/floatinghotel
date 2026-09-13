@@ -782,4 +782,71 @@ TEST(restoring_tabs_preserves_the_window_review_mode) {
     ASSERT_TRUE(repo.workspace().history().front().reviewing);
 }
 
+TEST(history_keeps_distinct_file_anchors_in_one_commit_without_scroll_visits) {
+    ecs::RepoComponent repo;
+    const std::string oid(40, 'a');
+    open_kept(repo, reading::review(oid, "a.cpp"));
+    const auto id = repo.workspace().active_id();
+    const auto count = repo.workspace().history().size();
+    const reading::ReadingAnchor a{"a.cpp", oid, reading::DiffSide::Before, 81, 7, .3f, '-'};
+    navigation::remember_anchor(repo, a);
+    navigation::remember_anchor(repo, {"a.cpp", oid, reading::DiffSide::Before, 90, 9, .2f, '-'});
+    navigation::remember_anchor(repo, a);
+    ASSERT_EQ(repo.workspace().history().size(), count);
+    navigation::activate(repo, id);
+    ASSERT_EQ(repo.workspace().history().size(), count);
+    open_kept(repo, reading::review(oid, "b.cpp"));
+    const reading::ReadingAnchor b{"b.cpp", oid, reading::DiffSide::After, 31, 4, .4f, '+'};
+    navigation::remember_anchor(repo, b);
+    ASSERT_EQ(repo.workspace().active_id(), id);
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.selectedFilePath(), std::string("a.cpp"));
+    ASSERT_TRUE(repo.workspace().document(id)->restoreAnchor);
+    ASSERT_TRUE(repo.workspace().document(id)->anchor == a);
+    navigation::remember_anchor(repo, b);
+    ASSERT_TRUE(repo.workspace().history()[repo.workspace().history_index()].anchor == a);
+    navigation::restored_anchor(repo);
+    navigation::step(repo, 1);
+    ASSERT_EQ(repo.selectedFilePath(), std::string("b.cpp"));
+    ASSERT_TRUE(repo.workspace().document(id)->anchor == b);
+}
+
+TEST(history_reopens_closed_sources_with_the_visit_origin_and_requested_line) {
+    ecs::RepoComponent repo;
+    const auto origin = reading::review(std::string(40, 'a'), "renamed.cpp");
+    open_kept(repo, origin);
+    open_kept(repo, reading::source("old.cpp", std::string(40, 'b'), 300, origin));
+    const auto source = repo.workspace().active_id();
+    const reading::ReadingAnchor anchor{"old.cpp", std::string(40, 'b'), reading::DiffSide::After, 298, 8, .25f, ' '};
+    navigation::remember_anchor(repo, anchor);
+    navigation::clear_source_reveal(repo);
+    ASSERT_EQ(std::get<reading::SourceLocation>(repo.workspace().history().back().location).line, 300);
+    navigation::close(repo, source);
+    ASSERT_TRUE(repo.workspace().document(source) == nullptr);
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.fullFilePath(), std::string("old.cpp"));
+    ASSERT_EQ(repo.fullFileTargetLine(), 298);
+    ASSERT_TRUE(repo.workspace().source()->origin == origin);
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->anchor == anchor);
+}
+
+TEST(history_truncates_forward_visits_and_retains_only_256_precise_locations) {
+    ecs::RepoComponent repo;
+    for (int i = 1; i <= 300; ++i) {
+        open_kept(repo, reading::source("a.cpp", "", i));
+        navigation::remember_anchor(repo, {"a.cpp", "", reading::DiffSide::After, i, i + 1, .1f, ' '});
+    }
+    ASSERT_EQ(repo.workspace().history().size(), size_t{256});
+    ASSERT_EQ(repo.workspace().history().front().anchor->line, 45);
+    navigation::step(repo, -1);
+    navigation::step(repo, -1);
+    const auto count = repo.workspace().history_index() + 2;
+    open_kept(repo, reading::source("new.cpp"));
+    ASSERT_EQ(repo.workspace().history().size(), count);
+    const auto generation = repo.workspace().generation();
+    navigation::step(repo, 1);
+    ASSERT_EQ(repo.workspace().generation(), generation);
+    ASSERT_EQ(repo.fullFilePath(), std::string("new.cpp"));
+}
+
 int main() { RUN_ALL_TESTS(); }
