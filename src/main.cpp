@@ -1519,7 +1519,9 @@ int main(int argc, char* argv[]) {
     app_state::restoreWindowSize = !app_state::testModeEnabled;
     if (app_state::testModeEnabled) {
         if (const char* directory = std::getenv("FH_TEST_SETTINGS_DIR")) {
-            afterhours::EntityHelper::get_singleton_cmp_enforce<afterhours::files::ProvidesResourcePaths>().config_folder_path = directory;
+            auto& paths = afterhours::EntityHelper::get_singleton_cmp_enforce<afterhours::files::ProvidesResourcePaths>();
+            paths.config_folder_path = directory;
+            paths.save_folder_path = directory;
             app_state::restoreWindowSize = true;
         }
     }

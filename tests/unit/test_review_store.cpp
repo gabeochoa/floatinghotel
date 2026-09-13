@@ -385,7 +385,7 @@ TEST(comment_anchors_relocate_only_unique_matches_and_keep_original_evidence) {
     ASSERT_EQ(moved.status, review_anchor::Status::Relocated);
     ASSERT_EQ(moved.line, 9);
     files.front().hunks.front().lines.push_back(" saved target");
-    ASSERT_EQ(review_anchor::locate(comment, &files).status, review_anchor::Status::Unknown);
+    ASSERT_EQ(review_anchor::locate(comment, &files).status, review_anchor::Status::Ambiguous);
     ASSERT_EQ(review_anchor::locate(comment, nullptr).status, review_anchor::Status::Unknown);
     ASSERT_EQ(comment.line, 2);
     ASSERT_EQ(comment.codeContext, "1: before\n2: saved target\n3: after\n");

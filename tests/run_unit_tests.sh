@@ -88,6 +88,10 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_document_titles" ]; then
     run_test "test_document_titles" "tests/unit/test_document_titles.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_follow_up_review" ]; then
+    run_test "test_follow_up_review" "tests/unit/test_follow_up_review.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_layout" ]; then
     run_test "test_review_layout" "tests/unit/test_review_layout.cpp"
 fi

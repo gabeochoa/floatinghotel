@@ -36,3 +36,11 @@ snapshot bytes would require a snapshot source destination.
 Inspected images and scripts/layouts/logs are in
 `docs/reading-navigation-evidence/step57`: 25 artifacts, 3,638,954 bytes.
 All compressed members and PNG signatures verified.
+
+Step 58 follow-up found that configuration and review-save paths are separate
+Afterhours provider fields. The original test option isolated configuration but
+wrote fixture-keyed reviews under the normal save root. Step 58 now sets both
+paths, verifies loaded review paths stay under the isolated directory, and
+removes only the eight prior records whose stored repository paths identify
+the step-57 fixtures. The behavioral results above remain valid; they did not
+prove save-directory isolation.

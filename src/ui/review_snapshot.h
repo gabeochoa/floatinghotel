@@ -6,6 +6,7 @@
 #include "../git/git_parser.h"
 #include <nlohmann/json.hpp>
 #include <ctime>
+#include "../util/follow_up_review.h"
 
 namespace app_state { extern bool testModeEnabled; }
 
@@ -73,7 +74,41 @@ inline void render_review_snapshot(UIContext<InputAction>& ctx, Entity& parent,
     auto actions = div(ctx, mk(parent, 592000), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row));
     div(ctx, mk(actions.ent(), 0), ComponentConfig{}.with_label("Changes since saved review")
-        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(FontSize::Medium));
+        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14)));
+    if (!review.snapshotFuture.valid() && review.snapshotError.empty()) {
+        if (button(ctx, mk(actions.ent(), 3), preset::Button("Follow-up")
+                .with_size(ComponentSize{pixels(100), pixels(28)}).with_debug_name("follow_up_review"))) {
+            auto itinerary = follow_up_review::build(review.sinceReviewDiff, review.comments, repo.currentDiff);
+            std::vector<ui::ContextMenuItem> items;
+            const auto request = navigation::stamp(repo, "follow-up");
+            const auto generation = repo.dataGeneration;
+            for (const auto& item : itinerary) items.push_back(ui::ContextMenuItem::item(follow_up_review::label(item), [request, generation, item] {
+                auto* current = find_singleton<RepoComponent, ActiveTab>();
+                auto* feedback = find_singleton<ReviewComponent, ActiveTab>();
+                if (!current || !feedback || current->dataGeneration != generation || !navigation::accepts(*current, request, "follow-up")) return;
+                feedback->sinceReviewOpen = false;
+                auto destination = reading::review("wt");
+                destination.file = item.path;
+                navigation::open(*current, destination, true, reading::OpenMode::Keep);
+                if (item.comments) feedback->basketOpen = true;
+                if (item.line > 0 && (item.status == review_anchor::Status::Current || item.status == review_anchor::Status::Relocated)) {
+                    auto file = std::find_if(current->currentDiff.begin(), current->currentDiff.end(), [&](const auto& value) { return value.filePath == item.path; });
+                    if (file != current->currentDiff.end()) {
+                        reading::ReadingAnchor anchor;
+                        anchor.path = item.path;
+                        anchor.revision = reading::anchor_revision(destination);
+                        anchor.side = item.oldSide ? reading::DiffSide::Before : reading::DiffSide::After;
+                        anchor.line = item.line;
+                        anchor.column = 1;
+                        anchor.viewportFraction = .15f;
+                        navigation::go_to_review_line(*current, *feedback, *file, anchor);
+                    }
+                }
+            }));
+            if (items.empty()) items.push_back(ui::ContextMenuItem::item("No outstanding work", {}, false));
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+        }
+    }
     if (!review.snapshotFuture.valid() && button(ctx, mk(actions.ent(), 1), preset::Button("Refresh")
         .with_size(ComponentSize{pixels(75), pixels(28)}))) start_review_snapshot(repo, review, false);
     if (button(ctx, mk(actions.ent(), 2), preset::Button("Close")

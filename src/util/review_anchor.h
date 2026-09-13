@@ -7,7 +7,7 @@
 
 namespace review_anchor {
 
-enum class Status { Current, Relocated, Outdated, Unknown };
+enum class Status { Current, Relocated, Outdated, Ambiguous, Unknown };
 
 struct Result {
     Status status = Status::Unknown;
@@ -21,6 +21,7 @@ inline std::string label(const Result& result) {
         case Status::Current: return "Current";
         case Status::Relocated: return "Moved to line " + std::to_string(result.line);
         case Status::Outdated: return "Outdated";
+        case Status::Ambiguous: return "Ambiguous: multiple matching locations";
         case Status::Unknown: return "Unknown: outside loaded patch evidence";
     }
     return "Unknown";
@@ -87,7 +88,7 @@ inline Result locate(const ecs::ReviewComponent::Comment& comment, const std::ve
         result.current = result.saved;
         return result;
     }
-    if (!candidates.empty()) return result;
+    if (!candidates.empty()) { result.status = Status::Ambiguous; return result; }
     for (const auto& [number, text] : saved) {
         auto found = current.find(number);
         if (found == current.end()) return result;

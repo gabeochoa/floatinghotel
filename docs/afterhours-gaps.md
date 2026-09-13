@@ -2498,3 +2498,13 @@ isolated persistent storage would let editors and games test saves and resume
 without bypassing persistence or touching a user's normal data. The snapshot
 view also now avoids binding the retained document's reading state; that was
 app-owned state wiring, not an Afterhours renderer defect.
+
+### Isolate every persistent provider path (step 58 correction)
+
+`ProvidesResourcePaths::config_folder_path` and `save_folder_path` are separate.
+The first review-persistence probe isolated only configuration; its fixture
+records reached the ordinary save root. Test startup now redirects both fields,
+and the native regression asserts every loaded review path is inside its
+fixture. An upstream isolated-storage test scope should redirect configuration,
+saves, and temporary artifacts together and restore them on scope exit. Eight
+verified step-57 fixture records were removed; normal reviews were untouched.
