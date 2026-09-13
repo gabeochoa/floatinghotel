@@ -1,0 +1,11 @@
+{
+  "100": [
+    "bench_frames: 120 frames, 188 entities: avg 2.31 ms  p50 2.17  p99 4.06  max 6.69"
+  ],
+  "140": [
+    "bench_frames: 120 frames, 188 entities: avg 2.45 ms  p50 2.00  p99 6.64  max 9.16"
+  ],
+  "200": [
+    "bench_frames: 120 frames, 188 entities: avg 2.79 ms  p50 2.15  p99 8.02  max 22.22"
+  ]
+}

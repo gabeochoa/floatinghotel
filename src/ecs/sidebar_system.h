@@ -560,6 +560,54 @@ private:
     std::vector<size_t> commitFileIndices_;
     std::optional<review_files::Filter> commitFileFilter_;
 
+    void open_review_file_menu(UIContext<InputAction>& ctx, const RepoComponent& repo, const FileDiff& file) {
+        const auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
+        if (!owner) return;
+        auto target = [id = owner->id, path = repo.repoPath, document = repo.workspace().active_id(),
+                       generation = repo.workspace().generation()]() -> RepoComponent* {
+            auto* active = find_singleton_entity<RepoComponent, ActiveTab>();
+            if (!active || active->id != id || active->cleanup) return nullptr;
+            auto& current = active->get<RepoComponent>();
+            return current.repoPath == path && current.workspace().active_id() == document &&
+                current.workspace().generation() == generation ? &current : nullptr;
+        };
+        auto destination = repo.workspace().review();
+        destination.file = file.filePath;
+        const auto source = reading::source_at_diff(destination, file);
+        std::vector<ui::ContextMenuItem> items{
+            ui::ContextMenuItem::item("Open diff", [target, destination] {
+                if (auto* current = target()) navigation::open(*current, destination, true);
+            }),
+            ui::ContextMenuItem::item("Open source", [target, source] {
+                if (auto* current = target()) navigation::open(*current, source);
+            }),
+            ui::ContextMenuItem::item("Keep open", [target, destination] {
+                if (auto* current = target()) navigation::open(*current, destination, true, reading::OpenMode::Keep);
+            }),
+            ui::ContextMenuItem::separator(),
+            ui::ContextMenuItem::item("Copy relative path", [target, path = file.filePath] {
+                if (target()) afterhours::clipboard::set_text(path);
+            })
+        };
+        if (const auto* working = std::get_if<reading::WorkingChanges>(&destination.destination)) {
+            const auto tab = working->staged ? LayoutComponent::ReviewTab::Staged :
+                std::find(repo.untrackedFiles.begin(), repo.untrackedFiles.end(), file.filePath) != repo.untrackedFiles.end()
+                    ? LayoutComponent::ReviewTab::Untracked : LayoutComponent::ReviewTab::ToReview;
+            items.push_back(ui::ContextMenuItem::item("Reveal in tree", [target, destination, tab] {
+                if (auto* current = target()) {
+                    navigation::open(*current, destination, true);
+                    auto& layout = *find_singleton<LayoutComponent>();
+                    layout.sidebarNavigation = LayoutComponent::SidebarNavigation::Files;
+                    layout.sidebarMode = LayoutComponent::SidebarMode::Changes;
+                    layout.reviewTab = tab;
+                    layout.fileViewMode = LayoutComponent::FileViewMode::Tree;
+                    current->filesTreeNavigation.navigationGeneration.reset();
+                }
+            }));
+        }
+        ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+    }
+
     void render_commit_files(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent* repo, float height) {
         auto* layout = find_singleton<LayoutComponent>();
@@ -713,6 +761,10 @@ private:
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path));
                 if (row) selectedPath = file.filePath;
+                if (ctx.is_right_click(row.ent().id)) {
+                    ui::remember_focus_origin(ctx, row.ent());
+                    open_review_file_menu(ctx, *repo, file);
+                }
                 if (review) {
                     bool reviewed = file_reviewed(*review, scope, file);
                     if (source_tab_active(*repo)) {

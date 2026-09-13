@@ -1,0 +1,19 @@
+[
+  {
+    "command": [
+      "python3",
+      "tests/focus_return.py",
+      "--output",
+      "output/step22-focus-return"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "bash",
+      "tests/run_unit_tests.sh",
+      "test_context_menu"
+    ],
+    "exit_code": 0
+  }
+]
