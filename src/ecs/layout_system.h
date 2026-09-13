@@ -40,7 +40,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         {
             auto* shelfRepo = find_singleton<RepoComponent, ActiveTab>();
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
-            bool nothingSelected = hasRepoForShelf && !source_tab_active(*shelfRepo) &&
+            bool nothingSelected = hasRepoForShelf && shelfRepo->workspace().documents().size() == 1 && !source_tab_active(*shelfRepo) &&
                                    shelfRepo->selectedFilePath().empty() &&
                                    shelfRepo->selectedCommitHash().empty() && !layout.filePickerOpen && !shelfRepo->repoSearchOpen && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen && !shelfRepo->comparisonOpen();
             // While reviewing (in the ballroom) the diff pane shows every
@@ -119,7 +119,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
 
         layout.contentTabs = {};
         auto* review = find_singleton<ReviewComponent, ActiveTab>();
-        const bool hasContent = repo && (!repo->selectedCommitHash().empty() ||
+        const bool hasContent = repo && (repo->workspace().documents().size() > 1 || !repo->selectedCommitHash().empty() ||
             !repo->selectedFilePath().empty() || !repo->fullFilePath().empty() ||
             repo->comparisonOpen() || (review && review->reviewing));
         if (hasContent && !sidebarOnly) {

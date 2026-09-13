@@ -33,27 +33,37 @@ key ENTER
 wait_for_refresh
 workspace_checkpoint 6 tabs_all
 screenshot tabs_all
-click_ui content_document_2
+click_ui open_tabs_menu
+wait_frames 2
+click_ui "context_menu_item_Add contributing guidelines"
 wait_for_refresh
 expect_text "Add contributing guidelines"
 workspace_checkpoint 6 tabs_first_review
 screenshot tabs_first_review
-click_ui content_document_3
+click_ui open_tabs_menu
+wait_frames 2
+click_ui "context_menu_item_Add unit tests for utils"
 wait_for_refresh
 expect_text "Add unit tests for utils"
 workspace_checkpoint 6 tabs_second_review
 screenshot tabs_second_review
-click_ui content_document_4
+click_ui open_tabs_menu
+wait_frames 2
+click_ui "context_menu_item_README.md"
 wait_for_refresh
 expect_text "README.md @ working tree"
 workspace_checkpoint 6 tabs_first_source
 screenshot tabs_first_source
-click_ui content_document_5
+click_ui open_tabs_menu
+wait_frames 2
+click_ui "context_menu_item_CONTRIBUTING.md"
 wait_for_refresh
 expect_text "CONTRIBUTING.md @ working tree"
 workspace_checkpoint 6 tabs_second_source
 screenshot tabs_second_source
-click_ui content_document_6
+click_ui open_tabs_menu
+wait_frames 2
+click_ui "context_menu_item_app.cpp"
 wait_for_refresh
 expect_text "src/app.cpp @ working tree"
 workspace_checkpoint 6 tabs_third_source

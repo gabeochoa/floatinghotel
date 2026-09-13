@@ -1,0 +1,23 @@
+--- Compiling test_context_menu ---
+--- Running test_context_menu ---
+=== context_menu tests ===
+  context_menu_initial_state                                   OK
+  show_opens_menu                                              OK
+  show_sets_position                                           OK
+  show_sets_items                                              OK
+  close_clears_menu                                            OK
+  close_resets_hover_index                                     OK
+  show_resets_hover_index                                      OK
+  show_close_cycle                                             OK
+  show_with_empty_items                                        OK
+  separator_factory                                            OK
+  item_factory                                                 OK
+  item_factory_defaults                                        OK
+  destructive_factory                                          OK
+  disabled_item                                                OK
+
+14/14 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

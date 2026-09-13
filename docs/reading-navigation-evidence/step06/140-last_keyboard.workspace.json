@@ -1,0 +1,256 @@
+{
+  "active": 25,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "source",
+      "path": "source_00_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_00_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_00_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 3,
+      "kind": "source",
+      "path": "source_01_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_01_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_01_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 4,
+      "kind": "source",
+      "path": "source_02_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_02_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_02_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 5,
+      "kind": "source",
+      "path": "source_03_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_03_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_03_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 6,
+      "kind": "source",
+      "path": "source_04_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_04_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_04_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 7,
+      "kind": "source",
+      "path": "source_05_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_05_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_05_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 8,
+      "kind": "source",
+      "path": "source_06_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_06_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_06_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 9,
+      "kind": "source",
+      "path": "source_07_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_07_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_07_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 10,
+      "kind": "source",
+      "path": "source_08_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_08_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_08_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 11,
+      "kind": "source",
+      "path": "source_09_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_09_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_09_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 12,
+      "kind": "source",
+      "path": "source_10_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_10_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_10_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 13,
+      "kind": "source",
+      "path": "source_11_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_11_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_11_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 14,
+      "kind": "source",
+      "path": "source_12_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_12_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_12_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 15,
+      "kind": "source",
+      "path": "source_13_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_13_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_13_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 16,
+      "kind": "source",
+      "path": "source_14_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_14_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_14_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 17,
+      "kind": "source",
+      "path": "source_15_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_15_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_15_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 18,
+      "kind": "source",
+      "path": "source_16_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_16_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_16_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 19,
+      "kind": "source",
+      "path": "source_17_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_17_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_17_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 20,
+      "kind": "source",
+      "path": "source_18_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_18_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_18_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 21,
+      "kind": "source",
+      "path": "source_19_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_19_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_19_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 22,
+      "kind": "source",
+      "path": "source_20_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_20_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_20_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 23,
+      "kind": "source",
+      "path": "source_21_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_21_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_21_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 24,
+      "kind": "source",
+      "path": "source_22_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_22_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_22_with_a_long_but_distinct_filename.cpp @ working tree"
+    },
+    {
+      "badge": "",
+      "id": 25,
+      "kind": "source",
+      "path": "source_23_with_a_long_but_distinct_filename.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "source_23_with_a_long_but_distinct_filename.cpp",
+      "tooltip": "source_23_with_a_long_but_distinct_filename.cpp @ working tree"
+    }
+  ]
+}

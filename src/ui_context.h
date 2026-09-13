@@ -7,6 +7,7 @@
 #include "rl.h"
 #include "input_mapping.h"
 #include "ui/tooltip.h"
+#include "ui/context_menu.h"
 
 namespace ui_imm {
 
@@ -65,6 +66,7 @@ struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction>
         const auto [clipped, clip] = afterhours::ui::detail::compute_intersected_clip_rect(entity);
         if (rect.width <= 0 || rect.height <= 0 || !is_mouse_inside(context->mouse.pos, rect) ||
             (clipped && !is_mouse_inside(context->mouse.pos, clip))) return;
+        if (::ui::is_context_menu_open()) return;
         const auto wheel = input::get_mouse_wheel_move_v();
         const float direction = scroll.invert_scroll ? 1.f : -1.f;
         if (scroll.vertical_enabled) scroll.scroll_target.y += direction * wheel.y * scroll.scroll_speed;

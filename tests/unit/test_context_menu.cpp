@@ -55,15 +55,19 @@ TEST(close_resets_hover_index) {
     ui::show_context_menu(0.0f, 0.0f, {});
     auto& state = ui::get_context_menu_state();
     state.hoveredIndex = 3;
+    state.scrollOffset = 240.f;
     ui::close_context_menu();
     ASSERT_EQ(state.hoveredIndex, -1);
+    ASSERT_EQ(state.scrollOffset, 0.f);
 }
 
 TEST(show_resets_hover_index) {
     auto& state = ui::get_context_menu_state();
     state.hoveredIndex = 5;
+    state.scrollOffset = 240.f;
     ui::show_context_menu(0.0f, 0.0f, {});
     ASSERT_EQ(state.hoveredIndex, -1);
+    ASSERT_EQ(state.scrollOffset, 0.f);
     ui::close_context_menu();
 }
 

@@ -40,6 +40,7 @@ struct ContextMenuState {
     float y = 0;
     std::vector<ContextMenuItem> items;
     int hoveredIndex = -1;
+    float scrollOffset = 0.f;
 };
 
 // Show a context menu at the given position

@@ -1,0 +1,88 @@
+[INFO] Process start to main: 529 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 11 ms
+[INFO]   Window+GPU init: 197 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 5 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 4 ms
+[INFO] Startup time: 207 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 268 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 272 ms (waited 0 ms for lock): git status
+[INFO] refresh: status ready at 273 ms
+[INFO] git: 446 ms (waited 0 ms for lock): git log
+[INFO] commits loaded: 1 commits, 448 ms after refresh requested, 1213 ms since process start
+[INFO] git: 260 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 533 ms
+[INFO] git: 316 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 585 ms
+[INFO] git: 175 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 623 ms
+[WARN] Layout wrap: 'empty_icon' in parent 'empty_state' - NoWrap set but would overflow (child_size=50.9, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'empty_icon' extends outside parent 'empty_state' bounds (child_rel=[-3.5,0.0], child_size=[7.0,50.9], child_end=[3.5,50.9], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_1' in parent 'empty_state' - NoWrap set but would overflow (child_size=23.1, offset=50.9, container=0.0)
+[WARN] Layout overflow: 'empty_hint_1' extends outside parent 'empty_state' bounds (child_rel=[-73.5,50.9], child_size=[147.0,23.1], child_end=[73.5,74.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_2' in parent 'empty_state' - NoWrap set but would overflow (child_size=18.7, offset=74.0, container=0.0)
+[WARN] Layout overflow: 'empty_hint_2' extends outside parent 'empty_state' bounds (child_rel=[-50.5,74.0], child_size=[101.0,18.7], child_end=[50.5,92.7], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_shortcuts' in parent 'empty_state' - NoWrap set but would overflow (child_size=32.9, offset=92.7, container=0.0)
+[WARN] Layout overflow: 'empty_shortcuts' extends outside parent 'empty_state' bounds (child_rel=[-118.5,92.7], child_size=[237.0,32.9], child_end=[118.5,125.6], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] [E2E ERROR] click_ui (line 191): Visible click target not found: open_tabs_menu
+[WARN] Layout wrap: 'commit_heading' in parent 'main_content' - NoWrap set but would overflow (child_size=60.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_heading' extends outside parent 'main_content' bounds (child_rel=[0.0,0.0], child_size=[0.0,60.0], child_end=[0.0,60.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_sticky_revision' in parent 'commit_heading' - NoWrap set but would overflow (child_size=88.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_sticky_revision' extends outside parent 'commit_heading' bounds (child_rel=[0.0,0.0], child_size=[88.0,52.0], child_end=[88.0,52.0], parent_size=[0.0,52.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_find_host' in parent 'main_content' - NoWrap set but would overflow (child_size=72.0, offset=60.0, container=0.0)
+[WARN] Layout overflow: 'commit_find_host' extends outside parent 'main_content' bounds (child_rel=[0.0,60.0], child_size=[0.0,72.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_detail_scroll' in parent 'main_content' - NoWrap set but would overflow (child_size=0.0, offset=132.0, container=0.0)
+[WARN] Layout overflow: 'commit_detail_scroll' extends outside parent 'main_content' bounds (child_rel=[0.0,132.0], child_size=[0.0,0.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_relative_date' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=54.0, offset=6.0, container=0.0)
+[WARN] Layout overflow: 'commit_relative_date' extends outside parent 'commit_meta_compact' bounds (child_rel=[6.0,2.0], child_size=[54.0,28.0], child_end=[60.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_short_hash' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=84.0, offset=66.0, container=0.0)
+[WARN] Layout overflow: 'commit_short_hash' extends outside parent 'commit_meta_compact' bounds (child_rel=[66.0,2.0], child_size=[84.0,28.0], child_end=[150.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_meta_toggle' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=80.0, offset=156.0, container=0.0)
+[WARN] Layout overflow: 'commit_meta_toggle' extends outside parent 'commit_meta_compact' bounds (child_rel=[156.0,2.0], child_size=[80.0,28.0], child_end=[236.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[INFO] git: 231 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 461 ms (waited 0 ms for lock): git show
+[INFO] git: 172 ms (waited 0 ms for lock): git show
+[WARN] [E2E ERROR] workspace_checkpoint (line 197): Unexpected document count
+[INFO] git: 126 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 163 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 106 ms (waited 0 ms for lock): git rev-parse
+[WARN] [E2E ERROR] workspace_checkpoint (line 206): Unexpected document count
+[WARN] [E2E ERROR] workspace_checkpoint (line 216): Unexpected document count
+[WARN] [E2E ERROR] workspace_checkpoint (line 220): Unexpected document count
+[WARN] Layout wrap: 'empty_icon' in parent 'empty_state' - NoWrap set but would overflow (child_size=47.6, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'empty_icon' extends outside parent 'empty_state' bounds (child_rel=[-3.5,0.0], child_size=[7.0,47.6], child_end=[3.5,47.6], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_1' in parent 'empty_state' - NoWrap set but would overflow (child_size=21.8, offset=47.6, container=0.0)
+[WARN] Layout overflow: 'empty_hint_1' extends outside parent 'empty_state' bounds (child_rel=[-71.9,47.6], child_size=[143.9,21.8], child_end=[71.9,69.4], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_2' in parent 'empty_state' - NoWrap set but would overflow (child_size=17.9, offset=69.4, container=0.0)
+[WARN] Layout overflow: 'empty_hint_2' extends outside parent 'empty_state' bounds (child_rel=[-48.9,69.4], child_size=[97.9,17.9], child_end=[48.9,87.3], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_shortcuts' in parent 'empty_state' - NoWrap set but would overflow (child_size=29.6, offset=87.3, container=0.0)
+[WARN] Layout overflow: 'empty_shortcuts' extends outside parent 'empty_state' bounds (child_rel=[-116.9,87.3], child_size=[233.9,29.6], child_end=[116.9,116.8], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] [E2E ERROR] workspace_checkpoint (line 226): Unexpected document count
+[INFO] bench_frames: 120 frames, 102 entities: avg 1.57 ms  p50 1.34  p99 4.09  max 4.88
+[INFO]     0.44 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.23 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.12 ms/frame  ecs::SidebarSystem
+[INFO]     0.08 ms/frame  ecs::MenuBarSystem
+[INFO]     0.06 ms/frame  ecs::TabSyncSystem
+[INFO]     0.03 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.02 ms/frame  afterhours::ui::UIPluginPreUpdateBridge<InputAction>
+[INFO]     0.01 ms/frame  ecs::TabBarSystem
+[INFO] expect_p99_below: 4.09ms <= 20.00ms (PASS)
+[INFO] E2E finished in 3.83 seconds

@@ -10,12 +10,14 @@ void show_context_menu(float x, float y, std::vector<ContextMenuItem> items) {
     g_context_menu.y = y;
     g_context_menu.items = std::move(items);
     g_context_menu.hoveredIndex = -1;
+    g_context_menu.scrollOffset = 0.f;
 }
 
 void close_context_menu() {
     g_context_menu.isOpen = false;
     g_context_menu.items.clear();
     g_context_menu.hoveredIndex = -1;
+    g_context_menu.scrollOffset = 0.f;
 }
 
 bool is_context_menu_open() {

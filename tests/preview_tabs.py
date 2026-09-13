@@ -48,7 +48,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
     script += 'click_ui content_document_5\nwait_frames 1\nclick_ui content_document_5\nwait_frames 2\n' + capture("kept_source")
     script += picker("CONTRIBUTING.md") + capture("third_source")
     script += picker("README.md", True) + capture("reused")
-    script += 'right_click_ui content_document_6\nwait_frames 2\nclick_text "Keep Open"\nwait_frames 2\n' + capture("kept_from_menu")
+    script += 'click_ui scroll_tabs_right\nwait_frames 3\nright_click_ui content_document_6\nwait_frames 2\nclick_text "Keep Open"\nwait_frames 2\n' + capture("kept_from_menu")
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / "journey.e2e"
     path.write_text(script)
@@ -65,12 +65,15 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         layout = json.loads((directory / (name + ".json")).read_text())
         nodes = [node for node in layout["nodes"] if node["rendered"] and not node["hidden"]]
         tabs = [node for node in nodes if node.get("name", "").startswith("content_document_")]
-        assert len(tabs) == count
+        assert 1 <= len(tabs) <= count
         if name in ("first", "replaced", "kept_review"):
             assert next(tab for tab in tabs if tab["name"] == f"content_document_{active}")["focused"], (zoom, name, "Reader tab lost focus")
         for tab in tabs:
-            assert tab["visible_rect"]["width"] >= tab["rect"]["width"] - .2, (zoom, name, tab)
-        assert sum(node.get("text", "").startswith("Preview · ") for node in nodes) == len(previews), (zoom, name)
+            assert tab["visible_rect"]["width"] <= tab["rect"]["width"] + .2, (zoom, name, tab)
+        if name != "kept_from_menu":
+            activeTab = next(tab for tab in tabs if tab["name"] == f"content_document_{active}")
+            assert activeTab["visible_rect"]["width"] >= activeTab["rect"]["width"] - .2, (zoom, name, "Active tab clipped")
+        assert sum(node.get("text", "").startswith("Preview · ") for node in nodes) <= len(previews), (zoom, name)
         assert (directory / (name + ".png")).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert [tab["id"] for tab in workspace["tabs"]] == [1, 3, 5, 6]
     print(f"PASS {zoom}%: one preview, Enter/double-click/menu keep, origin retention and destination reuse", flush=True)

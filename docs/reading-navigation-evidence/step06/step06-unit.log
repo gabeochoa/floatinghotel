@@ -1,0 +1,12 @@
+--- Compiling test_tab_strip ---
+--- Running test_tab_strip ---
+  tab_widths_keep_short_titles_readable_and_bound_long_titles  OK
+  narrow_viewport_still_contains_the_entire_active_tab         OK
+  reveal_moves_only_when_the_active_tab_is_outside_the_viewport OK
+  reveal_clamps_after_removal_or_expansion                     OK
+
+4/4 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

@@ -1730,3 +1730,25 @@ A framework probe exposing resolved label bounds, text width, and whether
 ellipsis was applied would help automated checks for tabs, menus, inventory
 labels, and localized game interfaces. The app also explicitly reserves the
 icon, gaps, close target, and badge before allocating its title width.
+
+### Horizontal tab scrolling and bounded menus
+
+Directly assigning `HasScrollView::scroll_offset` during UI construction can be
+undone before input easing: layout calls `clamp_scroll`, which updates
+`last_eased_offset`. The step 06 native replay caught arrow-button scrolling
+snapping back. The app assigns both `scroll_offset` and `scroll_target` for
+explicit jumps. A framework `scroll_to` operation would remove this ordering
+dependency for tab strips, carousels, lists, and game inventories.
+
+The app's existing context menu assumed every row fit in the window. Open-tabs
+menus require a bounded viewport, wheel scrolling, and keyboard reveal. The
+app now renders only fully visible rows and blocks underlying scroll views
+while a context menu owns input. A framework menu/list primitive with scrolling,
+selection reveal, and input ownership would be useful beyond this application.
+
+The configured text font did not render the dropdown triangle or current-tab
+checkmark used by the first open-tabs menu. Geometry checks still saw labels,
+so the native replay now checks icon pixels. The app uses its existing vector
+chevron and a textual Current label. Also, a button's default hover background
+can override a manually chosen menu-selection background; the menu now sets
+both explicitly so keyboard selection has one visible highlight.

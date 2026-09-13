@@ -25,11 +25,20 @@
 #include "../ui/text_area.h"
 #include "../util/navigation.h"
 #include "../util/document_titles.h"
+#include "../util/tab_strip.h"
 #include "ui_imports.h"
 
 namespace app_state { extern bool testModeEnabled; }
 
 namespace ecs {
+
+struct DocumentStripState : afterhours::BaseComponent {
+    int repository = -1;
+    reading::DocumentId active;
+    float viewport = 0;
+    float content = 0;
+    float scale = 1;
+};
 
 inline void persist_pending_review(UIContext<InputAction>& ctx, ReviewComponent& review,
                                     RepoComponent* repo, bool immediate = false) {
@@ -306,6 +315,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool shortcutsActive = ui::render_keyboard_shortcuts(ctx, layout);
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        bool revealActiveDocument = false;
         if (repoPtr) {
             if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>())
                 navigation::release_inactive_review(*repoPtr, *cache);
@@ -316,6 +326,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (!shortcutsActive && alt && afterhours::input::is_key_pressed(263)) navigation::step(*repoPtr, -1);
             if (!shortcutsActive && alt && afterhours::input::is_key_pressed(262)) navigation::step(*repoPtr, 1);
             if (repoPtr->navigationEffect) {
+                revealActiveDocument = true;
                 auto effect = *repoPtr->navigationEffect;
                 repoPtr->navigationEffect.reset();
                 bool dismissPicker = layout.filePickerOpen;
@@ -344,7 +355,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
-        if (!shortcutsActive && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
+        const bool dismissedContextMenu = !shortcutsActive && ui::is_context_menu_open() &&
+            afterhours::input::is_key_pressed(afterhours::keys::ESCAPE);
+        if (dismissedContextMenu) ui::close_context_menu();
+        if (!shortcutsActive && !dismissedContextMenu && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
             if (layout.diffFindOpen) {
                 layout.diffFindOpen = false;
                 ctx.set_focus(ctx.ROOT);
@@ -388,32 +402,74 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         bool activeDocumentFocused = false;
         if (repoPtr && layout.contentTabs.height > 0.f) {
-            auto tabs = div(ctx, mk(uiRoot, 2990), ComponentConfig{}
+            auto strip = div(ctx, mk(uiRoot, 2990), ComponentConfig{}
                 .with_size(ComponentSize{pixels(layout.contentTabs.width), pixels(layout.contentTabs.height)})
                 .with_absolute_position().with_translate(layout.contentTabs.x, layout.contentTabs.y).with_skip_grid_snap()
                 .with_custom_background(theme::SIDEBAR_BG).with_border_bottom(theme::BORDER)
                 .with_flex_direction(FlexDirection::Row).with_no_wrap()
                 .with_overflow(Overflow::Hidden).with_debug_name("content_tabs"));
+            const float viewportWidth = std::max(1.f, layout.contentTabs.width - 80.f);
+            auto tabs = div(ctx, mk(strip.ent(), 0), ComponentConfig{}
+                .with_size(ComponentSize{pixels(viewportWidth), percent(1.f)})
+                .with_flex_direction(FlexDirection::Row).with_no_wrap().with_skip_grid_snap()
+                .with_overflow(Overflow::Scroll, Axis::X).with_debug_name("content_tab_viewport"));
+            auto& scroll = tabs.ent().get<afterhours::ui::HasScrollView>();
+            scroll.show_scrollbar = false;
+            auto& stripState = tabs.ent().addComponentIfMissing<DocumentStripState>();
             const auto& workspace = repoPtr->workspace();
             const auto* recentReview = workspace.document(workspace.review());
             const auto* recentSource = workspace.recent(reading::Slot::Source);
             std::optional<reading::DocumentId> activate;
             std::optional<reading::DocumentId> closeDocument;
             const auto titles = reading::document_titles(workspace.documents());
+            auto measure = [&](const std::string& text, float size) {
+                return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
+                    size * ui::zoom::get()).x / ui::zoom::get();
+            };
+            std::vector<float> desiredWidths;
+            for (size_t i = 0; i < titles.size(); ++i)
+                desiredWidths.push_back(measure((workspace.documents()[i].preview ? "Preview · " : "") + titles[i].label, 14.f) +
+                    (titles[i].badge.empty() ? 0.f : measure(titles[i].badge, 11.f) + 10.f) + 96.f);
+            const auto widths = reading::tab_widths(desiredWidths, viewportWidth);
+            float contentWidth = 0.f;
+            float activeStart = 0.f;
+            float activeWidth = 0.f;
+            for (size_t i = 0; i < widths.size(); ++i) {
+                if (workspace.documents()[i].id == workspace.active_id()) {
+                    activeStart = contentWidth;
+                    activeWidth = widths[i];
+                }
+                contentWidth += widths[i];
+            }
+            auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
+            const int repositoryId = owner ? owner->id : -1;
+            auto target = [repositoryId, path = repoPtr->repoPath]() -> RepoComponent* {
+                auto* current = find_singleton_entity<RepoComponent, ActiveTab>();
+                return current && current->id == repositoryId && current->get<RepoComponent>().repoPath == path
+                    ? &current->get<RepoComponent>() : nullptr;
+            };
+            const float scale = ui::zoom::get();
+            if (revealActiveDocument || stripState.repository != repositoryId || stripState.active != workspace.active_id() ||
+                stripState.viewport != viewportWidth || stripState.content != contentWidth || stripState.scale != scale) {
+                const float offset = stripState.repository == repositoryId ? scroll.scroll_offset.x / stripState.scale : 0.f;
+                scroll.scroll_offset.x = reading::reveal_tab(offset, activeStart, activeWidth, viewportWidth, contentWidth) * scale;
+                scroll.scroll_target = scroll.scroll_offset;
+                stripState.repository = repositoryId;
+                stripState.active = workspace.active_id();
+                stripState.viewport = viewportWidth;
+                stripState.content = contentWidth;
+                stripState.scale = scale;
+            }
+            scroll.viewport_size = {viewportWidth * scale, layout.contentTabs.height * scale};
+            scroll.content_size = {contentWidth * scale, layout.contentTabs.height * scale};
             size_t titleIndex = 0;
             for (const auto& document : workspace.documents()) {
                 const auto* source = std::get_if<reading::SourceLocation>(&document.location);
                 const bool active = document.id == workspace.active_id();
                 const auto& label = titles[titleIndex++];
                 std::string title = (document.preview ? "Preview · " : "") + label.label;
-                auto measure = [&](const std::string& text, float size) {
-                    return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
-                        size * ui::zoom::get()).x / ui::zoom::get();
-                };
-                const float textWidth = measure(title, 14.f);
                 const float badgeWidth = label.badge.empty() ? 0.f : measure(label.badge, 11.f) + 10.f;
-                const float available = layout.contentTabs.width / static_cast<float>(workspace.documents().size());
-                const float width = std::min(textWidth + badgeWidth + 96.f, std::max(80.f, available));
+                const float width = widths[titleIndex - 1];
                 auto tab = button(ctx, mk(tabs.ent(), static_cast<int>(document.id.value)), preset::Button("")
                     .with_size(ComponentSize{pixels(width), percent(1.f)})
                     .with_padding(Padding{.top = pixels(0), .right = pixels(10), .bottom = pixels(0), .left = pixels(10)})
@@ -473,12 +529,6 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_corner_radius(4.f).with_debug_name("document_close_glyph"));
                 if (close) closeDocument = document.id;
                 if (ctx.is_right_click(tab.ent().id)) {
-                    auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
-                    auto target = [ownerId = owner ? owner->id : -1, path = repoPtr->repoPath]() -> RepoComponent* {
-                        auto* current = find_singleton_entity<RepoComponent, ActiveTab>();
-                        return current && current->id == ownerId && current->get<RepoComponent>().repoPath == path
-                            ? &current->get<RepoComponent>() : nullptr;
-                    };
                     const auto id = document.id;
                     ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
                         ui::ContextMenuItem::item("Keep Open", [target, id] { if (auto* repo = target()) navigation::keep(*repo, id); }, document.preview),
@@ -490,6 +540,40 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             !workspace.closed().empty(), "Cmd+Shift+T")
                     });
                 }
+            }
+            auto control = [&](int id, const std::string& text, float width, const std::string& name) {
+                return button(ctx, mk(strip.ent(), id), preset::Button(text)
+                    .with_size(ComponentSize{pixels(width), percent(1.f)})
+                    .with_padding(Padding{.top = pixels(0), .right = pixels(0), .bottom = pixels(0), .left = pixels(0)})
+                    .with_font_size(pixels(14)).with_alignment(TextAlignment::Center)
+                    .with_align_items(AlignItems::Center).with_justify_content(JustifyContent::Center)
+                    .with_transparent_bg().with_debug_name(name));
+            };
+            if (control(1, "‹", 24.f, "scroll_tabs_left")) {
+                scroll.scroll_offset.x = std::max(0.f, scroll.scroll_offset.x - viewportWidth * scale * .75f);
+                scroll.scroll_target.x = scroll.scroll_offset.x;
+            }
+            if (control(2, "›", 24.f, "scroll_tabs_right")) {
+                scroll.scroll_offset.x = std::min(std::max(0.f, contentWidth - viewportWidth) * scale,
+                    scroll.scroll_offset.x + viewportWidth * scale * .75f);
+                scroll.scroll_target.x = scroll.scroll_offset.x;
+            }
+            auto menu = control(3, "", 32.f, "open_tabs_menu");
+            ui::chrome_icon(ctx, mk(menu.ent(), 0), ui::ChromeIcon::ChevronDown, theme::TEXT_SECONDARY, "open_tabs_chevron");
+            ui::set_tooltip(menu.ent(), "Open tabs");
+            if (menu) {
+                std::vector<ui::ContextMenuItem> items;
+                for (size_t i = 0; i < titles.size(); ++i) {
+                    const auto& document = workspace.documents()[i];
+                    std::string label = (document.id == workspace.active_id() ? "Current · " : "") +
+                        std::string(document.preview ? "Preview · " : "") + titles[i].label;
+                    if (!titles[i].badge.empty()) label += " · " + titles[i].badge;
+                    items.push_back(ui::ContextMenuItem::item(label,
+                        [target, id = document.id] { if (auto* repo = target()) navigation::activate(*repo, id); },
+                        true));
+                }
+                auto rect = menu.ent().get<afterhours::ui::UIComponent>().rect();
+                ui::show_context_menu(rect.x, rect.y + rect.height, std::move(items));
             }
             if (closeDocument) navigation::close(*repoPtr, *closeDocument);
             else if (activate) {

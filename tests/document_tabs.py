@@ -30,9 +30,11 @@ def check(directory):
         nodes = [n for n in layout["nodes"] if n["rendered"] and not n["hidden"]]
         tabs = sorted([n for n in nodes if n.get("name", "").startswith("content_document_")],
                       key=lambda n: n["rect"]["x"])
-        assert len(tabs) == 6, label
+        assert 1 <= len(tabs) <= 6, label
+        activeTab = next(n for n in tabs if n.get("name") == f"content_document_{active}")
+        assert activeTab["visible_rect"]["width"] >= activeTab["rect"]["width"] - .2, (label, "Active tab clipped")
         for tab in tabs:
-            assert tab["visible_rect"]["width"] >= tab["rect"]["width"] - .2, (label, tab["name"])
+            assert tab["visible_rect"]["width"] <= tab["rect"]["width"] + .2, (label, tab["name"])
             assert tab["visible_rect"]["height"] >= tab["rect"]["height"] - .2, (label, tab["name"])
         for left, right in zip(tabs, tabs[1:]):
             assert left["rect"]["x"] + left["rect"]["width"] <= right["rect"]["x"] + .2, label

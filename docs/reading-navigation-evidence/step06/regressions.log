@@ -1,0 +1,25 @@
+document_tabs
+PASS 100%: six independent tabs, six destinations, geometry and payload checks
+PASS 140%: six independent tabs, six destinations, geometry and payload checks
+PASS 200%: six independent tabs, six destinations, geometry and payload checks
+preview_tabs
+PASS 100%: one preview, Enter/double-click/menu keep, origin retention and destination reuse
+PASS 140%: one preview, Enter/double-click/menu keep, origin retention and destination reuse
+PASS 200%: one preview, Enter/double-click/menu keep, origin retention and destination reuse
+zoom_hover
+PASS 100%: row, icon, count and close hover match rendered targets; icon click selects correct file
+PASS 140%: row, icon, count and close hover match rendered targets; icon click selects correct file
+PASS 200%: row, icon, count and close hover match rendered targets; icon click selects correct file
+document_titles
+PASS 100%: subjects, duplicate paths, revision badges, mouse tab activation
+PASS 140%: subjects, duplicate paths, revision badges, mouse tab activation
+PASS 200%: subjects, duplicate paths, revision badges, mouse tab activation
+navigation_regressions
+PASS improvement_21_file_picker
+PASS improvement_22_repo_search
+PASS improvement_24_all_files
+PASS improvement_27_commit_search
+PASS improvement_35_comment_jump
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary
