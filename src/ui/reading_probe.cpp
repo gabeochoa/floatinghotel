@@ -163,7 +163,13 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         };
                         return nlohmann::json{{"review", value(repo->reviewTreeNavigation)}, {"files", value(repo->filesTreeNavigation)},
                             {"generation", repo->workspace().generation()}};
-                    }()}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
+                    }()}, {"commit_log", {{"count", repo->commitLog.size()}, {"has_more", repo->commitLogHasMore},
+                        {"loading", repo->commitLogPage.requested || repo->commitLogPage.future.valid()},
+                        {"error", repo->commitLogPage.error}, {"hashes", [&] {
+                            auto hashes = nlohmann::json::array();
+                            for (const auto& commit : repo->commitLog) hashes.push_back(commit.hash);
+                            return hashes;
+                        }()}}}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
                 cmd.consume();
             } catch (const std::exception& error) { cmd.fail(error.what()); }
         } else if (cmd.is("reading_probe")) {

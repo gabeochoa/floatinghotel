@@ -1984,3 +1984,23 @@ text control. This keeps arrows with the editor while preserving Tab traversal.
 Afterhours text-input and text-area widgets should declare this ownership on
 their focusable child. Search boxes, chat inputs, game-console commands, and
 forms would benefit without each app adapting the composite's internal focus.
+
+### Virtual lists should expose their visible range for incremental loading
+
+`virtual_list_impl` computes the viewport range and adds four overscan rows,
+but its public result only returns the list entity. History pagination currently
+requests the next page from the final row's render callback, guarded by one
+repository-owned request. That works, but ties loading to rendering and implicit
+overscan behavior.
+
+An exposed visible/overscan range or an explicit near-end notification would
+serve chat history, activity feeds, paged inventories, and leaderboards. Keep
+fetching and retry state in the app; expose list geometry without requiring a
+render callback to schedule work. `tests/history_pagination.py` verifies that
+appending pages preserves existing rows at three zoom levels.
+
+A focused pagination/retry row disappearing after append also lets framework
+focus fall back to a repository tab (`output/step26-verified-history_pagination/140/appended.json`).
+The sidebar restores the selected commit's focus before rebuilding the list.
+An explicit focus fallback for removed list items would avoid this application
+coordination in any progressively loaded list.

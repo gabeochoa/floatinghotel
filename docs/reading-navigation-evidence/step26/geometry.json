@@ -1,0 +1,51 @@
+{
+  "passed": true,
+  "binary_sha256": "c94423d9f79176f715d2cb4fc3266fe1778602c7eef636ac7742f6c5e1d8228b",
+  "geometry": {
+    "100": {
+      "retry_label_contrast": 6.367038723977628,
+      "error": {
+        "rows": 13,
+        "maximum_y_change": 0.0
+      },
+      "loading": {
+        "rows": 13,
+        "maximum_y_change": 0.0
+      },
+      "loading_second": {
+        "rows": 13,
+        "maximum_y_change": 0.0
+      }
+    },
+    "140": {
+      "retry_label_contrast": 6.367038723977628,
+      "error": {
+        "rows": 8,
+        "maximum_y_change": 0.0
+      },
+      "loading": {
+        "rows": 8,
+        "maximum_y_change": 0.0
+      },
+      "loading_second": {
+        "rows": 8,
+        "maximum_y_change": 0.0
+      }
+    },
+    "200": {
+      "retry_label_contrast": 6.367038723977628,
+      "error": {
+        "rows": 4,
+        "maximum_y_change": 0.0
+      },
+      "loading": {
+        "rows": 4,
+        "maximum_y_change": 0.0
+      },
+      "loading_second": {
+        "rows": 4,
+        "maximum_y_change": 0.0
+      }
+    }
+  }
+}

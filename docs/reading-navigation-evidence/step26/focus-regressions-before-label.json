@@ -1,0 +1,14 @@
+[
+  {
+    "test": "history_pagination",
+    "exit": 0
+  },
+  {
+    "test": "commit_keyboard",
+    "exit": 0
+  },
+  {
+    "test": "focus_return",
+    "exit": 0
+  }
+]

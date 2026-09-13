@@ -283,6 +283,15 @@ struct RangeDiffState {
     std::string error;
 };
 
+struct CommitLogPage {
+    bool requested = false;
+    std::string error;
+    std::string repository;
+    std::string head;
+    size_t offset = 0;
+    async_work::Task<git::GitResult> future;
+};
+
 struct RepoComponent : public afterhours::BaseComponent {
     RangeDiffState rangeDiff;
     bool reviewWorkspace = false;
@@ -311,6 +320,7 @@ public:
     std::vector<FileStatus> unstagedFiles;
     std::vector<std::string> untrackedFiles;
     std::vector<CommitEntry> commitLog;
+    CommitLogPage commitLogPage;
     int commitLogLoaded = 0;
     bool commitLogHasMore = true;
     bool commitLogLoading = false; // a `git log` is in flight for this repo

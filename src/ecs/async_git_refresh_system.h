@@ -53,6 +53,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             if (scope == refresh_scope::Scope::None) scope = refresh_scope::Scope::Full;
             repo.refreshScope = refresh_scope::Scope::None;
             auto plan = refresh_scope::plan(scope);
+            if (plan.log) repo.commitLogPage = {};
             repo.lastRefreshScope = refresh_scope::name(scope);
 
             const std::string path = repo.repoPath;
@@ -91,6 +92,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             // subprocess is one more spawn on the startup path.
         }
 
+        update_history_page(repo);
         if (!repo.isRefreshing) {
             if (repo.untrackedReviewFuture.valid() &&
                 (repo.untrackedReviewGeneration != repo.dataGeneration || repo.untrackedReviewRepository != repo.repoPath))
@@ -217,6 +219,32 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
     }
 
 private:
+    static void update_history_page(RepoComponent& repo) {
+        auto& page = repo.commitLogPage;
+        if (page.future.valid() && (page.repository != repo.repoPath || page.head != repo.headCommitHash ||
+                page.offset != repo.commitLog.size())) page = {};
+        if (page.future.valid() && page.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            auto result = page.future.get();
+            if (result.success()) {
+                auto commits = git::parse_log(result.stdout_str());
+                repo.commitLogHasMore = commits.size() == 100;
+                repo.commitLog.insert(repo.commitLog.end(), std::make_move_iterator(commits.begin()), std::make_move_iterator(commits.end()));
+                repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
+                page.error.clear();
+            } else page.error = result.stderr_str().empty() ? "Unable to load older commits" : result.stderr_str();
+        }
+        if (!page.requested || page.future.valid() || repo.isRefreshing || repo.refreshRequested) return;
+        page.requested = false;
+        if (!repo.commitLogHasMore || repo.commitLog.empty()) return;
+        page.repository = repo.repoPath;
+        page.head = repo.headCommitHash;
+        page.offset = repo.commitLog.size();
+        page.error.clear();
+        page.future = git::git_run_async(page.repository, {"log", "--topo-order", "-100",
+            "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P", "--skip=" + std::to_string(page.offset), page.head, "--"},
+            async_work::Priority::Background);
+    }
+
     // Wall time since the process was exec'd, so the number lines up with what
     // a stopwatch started at launch would read (the refresh itself only
     // starts once the window is up).

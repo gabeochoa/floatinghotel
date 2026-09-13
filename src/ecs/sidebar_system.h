@@ -494,6 +494,15 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (key != graphKey_) { graphKey_ = key; graph_ = commit_graph::build(repoPtr->commitLog); }
         }
         const auto logList = mk(logBg.ent(), 2320);
+        auto focusedHistory = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
+        const auto historyTarget = focusedHistory.valid() ? ui::focus_target(**focusedHistory) : std::nullopt;
+        const bool retryFinished = repoPtr && historyTarget && historyTarget->repository == repoPtr->repoPath &&
+            historyTarget->control == "lazy_load" && !repoPtr->commitLogPage.future.valid() &&
+            !repoPtr->commitLogPage.requested && repoPtr->commitLogPage.error.empty();
+        if (retryFinished) {
+            auto [listEntity, listOwner] = afterhours::ui::imm::deref(logList);
+            ctx.set_focus(listEntity.id);
+        }
         const auto historyMove = repoPtr ? history_keys(ctx, *repoPtr, layout, logList) : std::nullopt;
         auto logScroll = windowedLog
             ? ui::virtual_list(
@@ -502,9 +511,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                   [&](size_t i, Entity& row) {
                       if (i < logRows) {
                           render_commit_row(ctx, row, 0, repoPtr->commitLog[i],
-                                            *repoPtr, historyMove == i, !historyMove);
+                                            *repoPtr, historyMove == i || (!historyMove && retryFinished &&
+                                                repoPtr->commitLog[i].hash == repoPtr->selectedCommitHash()), !historyMove);
                       } else {
-                          render_lazy_load_row(ctx, row);
+                          render_lazy_load_row(ctx, row, *repoPtr);
                       }
                   },
                   logPanel)
@@ -2147,23 +2157,32 @@ private:
             render_commit_row(ctx, scrollParent, i, repo.commitLog[i], repo);
         }
 
-        if (repo.commitLogHasMore) render_lazy_load_row(ctx, scrollParent);
+        if (repo.commitLogHasMore) render_lazy_load_row(ctx, scrollParent, repo);
     }
 
     // Lazy load indicator at the bottom of the log.
-    void render_lazy_load_row(UIContext<InputAction>& ctx, Entity& parent) {
-        div(ctx, mk(parent, 9990),
+    void render_lazy_load_row(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo) {
+        auto& page = repo.commitLogPage;
+        if (page.error.empty() && !page.future.valid() && !repo.commitLogLoading) page.requested = true;
+        const bool loading = page.requested || page.future.valid() || repo.commitLogLoading;
+        auto row = button(ctx, mk(parent, 9990),
             ComponentConfig{}
-                .with_label("\xe2\x97\x8b Loading more...")
+                .with_label(loading ? "Loading older commits..." : "Load failed · Retry")
+                .with_disabled(loading)
+                .with_consumes_directional_input()
                 .with_size(ComponentSize{percent(1.0f), pixels(24)})
                 .with_padding(Padding{
                     .top = h720(3), .right = pixels(8),
                     .bottom = h720(3), .left = pixels(8)})
-                .with_custom_text_color(theme::TEXT_TERTIARY)
-                .with_font_size(FontSize::Medium)
+                .with_custom_text_color(loading ? theme::TEXT_SECONDARY : theme::TEXT_PRIMARY)
+                .with_font_size(pixels(12))
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name("lazy_load"));
+        ui::bind_focus(row.ent(), repo, reading::focus::Region::History);
+        if (!page.error.empty()) ui::set_tooltip(row.ent(), page.error);
+        if (row && !loading) page.requested = true;
     }
 
     commit_graph::Graph graph_;
@@ -2180,15 +2199,19 @@ private:
         const bool down = afterhours::input::is_key_pressed(264);
         const bool enter = afterhours::input::is_key_pressed(257);
         if (!up && !down && !enter) return {};
+        auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
+        const auto target = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
+        const bool retry = target && target->control == "lazy_load";
+        if (retry && enter) return {};
         if (up) (void)ctx.pressed(InputAction::WidgetUp);
         if (down) (void)ctx.pressed(InputAction::WidgetDown);
         if (enter) (void)ctx.pressed(InputAction::WidgetPress);
-        auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
-        const auto target = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
+        if (retry && down) return {};
         const auto hash = target && !target->item.empty() ? target->item : repo.selectedCommitHash();
         const auto row = std::find_if(repo.commitLog.begin(), repo.commitLog.end(), [&](const auto& commit) { return commit.hash == hash; });
         size_t index = row == repo.commitLog.end() ? 0 : static_cast<size_t>(row - repo.commitLog.begin());
-        if (row != repo.commitLog.end()) {
+        if (retry) index = repo.commitLog.size() - 1;
+        else if (row != repo.commitLog.end()) {
             if (up && index > 0) --index;
             if (down && index + 1 < repo.commitLog.size()) ++index;
         }

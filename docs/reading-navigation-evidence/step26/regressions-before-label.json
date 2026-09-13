@@ -1,0 +1,18 @@
+[
+  {
+    "test": "history_pagination",
+    "exit": 0
+  },
+  {
+    "test": "commit_keyboard",
+    "exit": 0
+  },
+  {
+    "test": "tree_refresh_position",
+    "exit": 0
+  },
+  {
+    "test": "navigation_regressions",
+    "exit": 0
+  }
+]
