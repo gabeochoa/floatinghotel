@@ -1,0 +1,83 @@
+{
+  "active": 2,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.16119404137134552,
+        "line": 1,
+        "path": "gone.cpp",
+        "revision": "f92bac1c11436bdbeb315a7dd4fabf6befa74c6a",
+        "side": "before",
+        "sign": "-"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "f92bac1c11436bdbeb315a7dd4fabf6befa74c6a"
+          },
+          "file": "",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.07611767202615738,
+        "line": 67,
+        "path": "gone.cpp",
+        "revision": "f92bac1c11436bdbeb315a7dd4fabf6befa74c6a",
+        "side": "before",
+        "sign": "-"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "f92bac1c11436bdbeb315a7dd4fabf6befa74c6a"
+          },
+          "file": "new.cpp",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    }
+  ],
+  "history_index": 2,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "review",
+      "path": "new.cpp",
+      "preview": false,
+      "revision": "f92bac1c11436bdbeb315a7dd4fabf6befa74c6a",
+      "title": "Rename and delete",
+      "tooltip": "Rename and delete\nCommit f92bac1c11436bdbeb315a7dd4fabf6befa74c6a\nFirst parent"
+    }
+  ]
+}

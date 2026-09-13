@@ -849,4 +849,85 @@ TEST(history_truncates_forward_visits_and_retains_only_256_precise_locations) {
     ASSERT_EQ(repo.fullFilePath(), std::string("new.cpp"));
 }
 
+TEST(opening_a_deleted_diff_line_uses_the_before_revision_and_old_path) {
+    ecs::RepoComponent repo;
+    const std::string before(40, 'a'), after(40, 'b');
+    open_kept(repo, reading::review("compare:" + before + ":" + after, "renamed.cpp"));
+    const reading::ReadingAnchor origin{"renamed.cpp", "compare:" + before + ":" + after, reading::DiffSide::Before, 40, 7, .3f, '-'};
+    navigation::remember_anchor(repo, origin);
+    ecs::FileDiff file;
+    file.filePath = "renamed.cpp";
+    file.oldPath = "old.cpp";
+    navigation::open_source(repo, file, origin);
+    ASSERT_EQ(repo.fullFilePath(), std::string("old.cpp"));
+    ASSERT_EQ(repo.fullFileRevision(), before);
+    ASSERT_EQ(repo.fullFileTargetLine(), 40);
+    ASSERT_EQ(repo.workspace().source()->column, 7);
+    ASSERT_TRUE(repo.workspace().source()->originAnchor == origin);
+    ASSERT_FALSE(repo.workspace().documents()[1].preview);
+    navigation::return_to_review(repo);
+    ASSERT_EQ(repo.selectedFilePath(), std::string("renamed.cpp"));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->anchor == origin);
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->restoreAnchor);
+}
+
+TEST(source_destinations_use_the_first_change_without_a_visible_or_selected_line) {
+    ecs::FileDiff file;
+    file.filePath = "new.cpp";
+    file.oldPath = "old.cpp";
+    ecs::DiffHunk hunk;
+    hunk.oldStart = 10;
+    hunk.newStart = 20;
+    hunk.lines = {" context", "-removed", "+added"};
+    file.hunks.push_back(hunk);
+    auto source = reading::source_at_diff(reading::review("wt"), file);
+    ASSERT_EQ(source.destination.path, std::string("old.cpp"));
+    ASSERT_EQ(reading::revision_text(source.destination.revision), std::string("INDEX"));
+    ASSERT_EQ(source.line, 11);
+    ASSERT_EQ(reading::diff_text_at(file, 11, reading::DiffSide::Before), std::string_view("removed"));
+    ASSERT_EQ(reading::diff_text_at(file, 21, reading::DiffSide::After), std::string_view("added"));
+    auto added = reading::source_at_diff(reading::review("index"), file,
+        reading::ReadingAnchor{"new.cpp", "index", reading::DiffSide::After, 21, 3, 0.f, '+'});
+    ASSERT_EQ(added.destination.path, std::string("new.cpp"));
+    ASSERT_EQ(reading::revision_text(added.destination.revision), std::string("INDEX"));
+    ASSERT_EQ(added.line, 21);
+    ASSERT_EQ(added.column, 3);
+}
+
+TEST(source_origin_position_survives_other_files_and_later_review_visits) {
+    ecs::RepoComponent repo;
+    const std::string oid(40, 'a');
+    open_kept(repo, reading::review(oid, "a.cpp"));
+    const reading::ReadingAnchor original{"a.cpp", oid, reading::DiffSide::After, 50, 8, .2f, '+'};
+    navigation::remember_anchor(repo, original);
+    open_kept(repo, reading::source("a.cpp", oid));
+    const auto source = repo.workspace().active_id();
+    open_kept(repo, reading::source("other.cpp"));
+    ASSERT_TRUE(repo.workspace().source()->originAnchor == original);
+    open_kept(repo, reading::review(oid, "b.cpp"));
+    navigation::remember_anchor(repo, {"b.cpp", oid, reading::DiffSide::After, 100, 1, .5f, '+'});
+    navigation::activate(repo, source);
+    navigation::return_to_review(repo);
+    ASSERT_EQ(repo.selectedFilePath(), std::string("a.cpp"));
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->anchor == original);
+}
+
+TEST(source_column_navigation_survives_history_and_is_consumed_with_the_line) {
+    ecs::RepoComponent repo;
+    auto source = reading::source("a.cpp", "", 42);
+    source.column = 20;
+    open_kept(repo, source);
+    navigation::clear_source_reveal(repo);
+    ASSERT_EQ(repo.workspace().source()->column, 1);
+    ASSERT_EQ(std::get<reading::SourceLocation>(repo.workspace().history().back().location).column, 20);
+    navigation::activate(repo, repo.workspace().active_id());
+    ASSERT_EQ(repo.workspace().history().size(), size_t{2});
+    open_kept(repo, source);
+    source.column = 30;
+    open_kept(repo, source);
+    ASSERT_TRUE(repo.fullFileNavigateFrames > 0);
+    navigation::step(repo, -1);
+    ASSERT_EQ(repo.workspace().source()->column, 20);
+}
+
 int main() { RUN_ALL_TESTS(); }

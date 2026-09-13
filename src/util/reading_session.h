@@ -106,11 +106,28 @@ inline ReviewLocation decode_review(const nlohmann::json& value) {
     return review;
 }
 
+inline nlohmann::json encode_anchor(const ReadingAnchor& anchor) {
+    return {{"path", anchor.path}, {"revision", anchor.revision}, {"side", anchor.side == DiffSide::Before ? "before" : "after"},
+        {"line", anchor.line}, {"column", anchor.column}, {"fraction", anchor.viewportFraction}, {"sign", std::string(1, anchor.sign)}};
+}
+
+inline std::optional<ReadingAnchor> decode_anchor(const nlohmann::json& value, const std::string& revision) {
+    const auto side = value.at("side").get<std::string>();
+    const auto sign = value.at("sign").get<std::string>();
+    ReadingAnchor anchor{value.at("path").get<std::string>(), value.at("revision").get<std::string>(), side == "before" ? DiffSide::Before : DiffSide::After,
+        value.at("line").get<int>(), value.at("column").get<int>(), value.at("fraction").get<float>(), sign.empty() ? ' ' : sign.front()};
+    if (!anchor.path.empty() && anchor.revision == revision && (side == "before" || side == "after") &&
+        (sign == " " || sign == "+" || sign == "-") && anchor.line > 0 && anchor.column > 0 &&
+        std::isfinite(anchor.viewportFraction) && anchor.viewportFraction >= 0.f && anchor.viewportFraction <= 1.f) return anchor;
+    return {};
+}
+
 inline nlohmann::json encode_location(const Location& location) {
     if (const auto* review = std::get_if<ReviewLocation>(&location)) return {{"review", encode_review(*review)}};
     const auto& source = std::get<SourceLocation>(location);
-    nlohmann::json value{{"path", source.destination.path}, {"revision", encode_revision(source.destination.revision)}, {"line", source.line}};
+    nlohmann::json value{{"path", source.destination.path}, {"revision", encode_revision(source.destination.revision)}, {"line", source.line}, {"column", source.column}};
     if (source.origin) value["origin"] = encode_review(*source.origin);
+    if (source.originAnchor) value["origin_anchor"] = encode_anchor(*source.originAnchor);
     return {{"source", std::move(value)}};
 }
 
@@ -118,8 +135,10 @@ inline Location decode_location(const nlohmann::json& value) {
     if (value.contains("review")) return decode_review(value.at("review"));
     const auto& source = value.at("source");
     SourceLocation location{{source.at("path").get<std::string>(), decode_revision(source.at("revision"))}, source.value("line", 0), {}};
-    if (location.destination.path.empty() || location.line < 0) throw std::invalid_argument("Invalid saved source");
+    location.column = source.value("column", 1);
+    if (location.destination.path.empty() || location.line < 0 || location.column < 1) throw std::invalid_argument("Invalid saved source");
     if (source.contains("origin")) location.origin = decode_review(source.at("origin"));
+    if (location.origin && source.contains("origin_anchor")) location.originAnchor = decode_anchor(source.at("origin_anchor"), scope(*location.origin));
     return location;
 }
 
@@ -127,11 +146,7 @@ inline nlohmann::json encode_session(const ReadingSession& session) {
     nlohmann::json documents = nlohmann::json::array();
     for (const auto& document : session.documents) {
         nlohmann::json value{{"location", encode_location(document.location)}, {"subject", document.subject}, {"recent", document.lastActivated}};
-        if (document.anchor) {
-            const auto& anchor = *document.anchor;
-            value["anchor"] = {{"path", anchor.path}, {"revision", anchor.revision}, {"side", anchor.side == DiffSide::Before ? "before" : "after"},
-                {"line", anchor.line}, {"column", anchor.column}, {"fraction", anchor.viewportFraction}, {"sign", std::string(1, anchor.sign)}};
-        }
+        if (document.anchor) value["anchor"] = encode_anchor(*document.anchor);
         documents.push_back(std::move(value));
     }
     return {{"version", 1}, {"active", session.active}, {"documents", std::move(documents)}};
@@ -149,17 +164,7 @@ inline std::optional<ReadingSession> decode_session(const nlohmann::json& value)
                 const auto& source = documents[i];
                 SavedDocument document{decode_location(source.at("location")), source.value("subject", std::string{}), source.value("recent", std::uint64_t{0}), {}};
                 if (std::any_of(session.documents.begin(), session.documents.end(), [&](const auto& existing) { return same_document(existing.location, document.location); })) continue;
-                if (source.contains("anchor")) {
-                    const auto& a = source.at("anchor");
-                    const auto side = a.at("side").get<std::string>();
-                    const auto sign = a.at("sign").get<std::string>();
-                    ReadingAnchor anchor{a.at("path").get<std::string>(), a.at("revision").get<std::string>(), side == "before" ? DiffSide::Before : DiffSide::After,
-                        a.at("line").get<int>(), a.at("column").get<int>(), a.at("fraction").get<float>(), sign.empty() ? ' ' : sign.front()};
-                    if (!anchor.path.empty() && anchor.revision == anchor_revision(document.location) &&
-                        (side == "before" || side == "after") && (sign == " " || sign == "+" || sign == "-") &&
-                        anchor.line > 0 && anchor.column > 0 && std::isfinite(anchor.viewportFraction) && anchor.viewportFraction >= 0.f && anchor.viewportFraction <= 1.f)
-                        document.anchor = std::move(anchor);
-                }
+                if (source.contains("anchor")) document.anchor = decode_anchor(source.at("anchor"), anchor_revision(document.location));
                 if (i == active) session.active = session.documents.size();
                 session.documents.push_back(std::move(document));
             } catch (const std::exception&) {}

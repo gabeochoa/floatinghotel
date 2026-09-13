@@ -75,6 +75,19 @@ struct ComparisonReview {
 };
 using ReviewDestination = std::variant<WorkingChanges, CommitReview, ComparisonReview>;
 
+enum class DiffSide { Before, After };
+
+struct ReadingAnchor {
+    std::string path;
+    std::string revision;
+    DiffSide side = DiffSide::After;
+    int line = 1;
+    int column = 1;
+    float viewportFraction = 0.f;
+    char sign = ' ';
+    bool operator==(const ReadingAnchor&) const = default;
+};
+
 struct ReviewLocation {
     ReviewDestination destination = WorkingChanges{};
     std::string file;
@@ -89,6 +102,8 @@ struct SourceLocation {
     SourceDestination destination;
     int line = 0;
     std::optional<ReviewLocation> origin;
+    int column = 1;
+    std::optional<ReadingAnchor> originAnchor;
     bool operator==(const SourceLocation&) const = default;
 };
 using Location = std::variant<ReviewLocation, SourceLocation>;
@@ -128,19 +143,6 @@ inline std::string scope(const ReviewLocation& location) {
 enum class Slot { Review, Source };
 enum class OpenMode { Preview, Keep };
 enum class ClickRegion { Tabs, Tree, History, Picker, Search };
-
-enum class DiffSide { Before, After };
-
-struct ReadingAnchor {
-    std::string path;
-    std::string revision;
-    DiffSide side = DiffSide::After;
-    int line = 1;
-    int column = 1;
-    float viewportFraction = 0.f;
-    char sign = ' ';
-    bool operator==(const ReadingAnchor&) const = default;
-};
 
 struct Visit {
     Location location = ReviewLocation{};
@@ -348,14 +350,17 @@ private:
         select(visit.location);
         current().anchor = visit.anchor;
         current().restoreAnchor = visit.anchor.has_value();
-        if (auto* source = std::get_if<SourceLocation>(&current().location); source && visit.anchor)
+        if (auto* source = std::get_if<SourceLocation>(&current().location); source && visit.anchor) {
             source->line = visit.anchor->line;
+            source->column = visit.anchor->column;
+        }
         return true;
     }
     void clear_source_reveal() {
         auto* source = std::get_if<SourceLocation>(&current().location);
         if (!source) return;
         source->line = 0;
+        source->column = 1;
     }
     void coalesce_resolved_document() {
         auto& resolved = current();
@@ -380,8 +385,10 @@ private:
     }
     void resolve_origins(const ReviewDestination& before, const ReviewDestination& after) {
         auto resolve = [&](Location& location) {
-            if (auto* source = std::get_if<SourceLocation>(&location); source && source->origin && source->origin->destination == before)
+            if (auto* source = std::get_if<SourceLocation>(&location); source && source->origin && source->origin->destination == before) {
                 source->origin->destination = after;
+                if (source->originAnchor) source->originAnchor->revision = scope(*source->origin);
+            }
         };
         for (auto& document : documents_) resolve(document.location);
         for (auto& document : closed_) resolve(document.location);

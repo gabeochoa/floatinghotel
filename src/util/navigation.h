@@ -3,6 +3,7 @@
 #include "../ecs/components.h"
 
 #include "reading_session.h"
+#include "source_destination.h"
 
 struct navigation {
 
@@ -107,7 +108,7 @@ struct navigation {
         if (source) {
             if (!oldSource || oldSource->destination != source->destination) {
                 repo.fullFileNavigateFrames = source->line > 0 ? 3 : 0;
-            } else if (oldSource->line != source->line) {
+            } else if (oldSource->line != source->line || oldSource->column != source->column) {
                 repo.fullFileNavigateFrames = source->line > 0 ? 3 : 0;
             }
         } else {
@@ -135,8 +136,16 @@ struct navigation {
                      reading::OpenMode mode = reading::OpenMode::Preview) {
         repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
-        if (auto* source = std::get_if<reading::SourceLocation>(&location); source && !source->origin)
-            source->origin = repo.workspace_.review();
+        if (auto* source = std::get_if<reading::SourceLocation>(&location)) {
+            if (!source->origin) source->origin = repo.workspace_.review();
+            if (!source->originAnchor) {
+                if (repo.workspace_.active() == reading::Slot::Review && reading::same_document(before, *source->origin))
+                    source->originAnchor = repo.workspace_.current().anchor;
+                else if (const auto* previous = std::get_if<reading::SourceLocation>(&before);
+                    previous && previous->origin && reading::same_document(*previous->origin, *source->origin))
+                    source->originAnchor = previous->originAnchor;
+            }
+        }
         bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode);
         if (repo.workspace_.current().subject.empty())
@@ -144,6 +153,11 @@ struct navigation {
                 for (const auto& entry : *entries)
                     if (entry.hash == repo.selectedCommitHash()) remember_commit_subject(repo, entry.subject);
         finish(repo, before, changed);
+    }
+
+    static void open_source(ecs::RepoComponent& repo, const ecs::FileDiff& file,
+                            std::optional<reading::ReadingAnchor> point = {}) {
+        open(repo, reading::source_at_diff(repo.workspace_.review(), file, std::move(point)));
     }
 
     static void restore_session(ecs::RepoComponent& repo, const reading::ReadingSession& session, bool reviewing) {
@@ -158,8 +172,10 @@ struct navigation {
         for (const auto& saved : session.documents) {
             reading::Document document{reading::DocumentId{workspace.nextId_++}, saved.location, saved.lastActivated, {}, false,
                 saved.subject, saved.anchor, saved.anchor.has_value(), reading::unresolved_destination(saved.location)};
-            if (auto* source = std::get_if<reading::SourceLocation>(&document.location); source && document.anchor)
+            if (auto* source = std::get_if<reading::SourceLocation>(&document.location); source && document.anchor) {
                 source->line = document.anchor->line;
+                source->column = document.anchor->column;
+            }
             mostRecent = std::max(mostRecent, document.lastActivated);
             workspace.documents_.push_back(std::move(document));
         }
@@ -259,8 +275,15 @@ struct navigation {
     }
 
     static void return_to_review(ecs::RepoComponent& repo) {
-        const auto& source = repo.workspace_.source();
-        open(repo, source && source->origin ? *source->origin : repo.workspace_.review());
+        const auto* source = repo.workspace_.source();
+        const auto origin = source && source->origin ? *source->origin : repo.workspace_.review();
+        const auto anchor = source ? source->originAnchor : std::nullopt;
+        open(repo, origin);
+        if (anchor && anchor->revision == reading::anchor_revision(repo.workspace_.location())) {
+            repo.workspace_.current().anchor = anchor;
+            repo.workspace_.current().restoreAnchor = true;
+            repo.workspace_.history_[repo.workspace_.index_].anchor = anchor;
+        }
     }
 
     static void comparison_editor(ecs::RepoComponent& repo) {

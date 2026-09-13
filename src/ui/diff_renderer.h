@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../util/reading_anchor.h"
+#include "geometry.h"
 
 #include "review_comment_kind.h"
 
@@ -327,6 +328,24 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
         if (st.head == st.anchor) st.hasSel = false;
     }
     recompute_highlight(st);
+}
+
+inline std::optional<reading::ReadingAnchor> source_point(const ecs::FileDiff& file, const Rectangle& viewport,
+                                                         const std::string& revision) {
+    const auto& selection = state();
+    auto anchor = [&](const Rec& row, int column) {
+        const auto side = row.sign == '-' || row.side == 1 ? reading::DiffSide::Before : reading::DiffSide::After;
+        const auto text = reading::diff_text_at(file, row.lineNo, side);
+        return reading::ReadingAnchor{file.filePath, revision, side, row.lineNo,
+            reading::column_at_byte(text, row.sourceOffset + static_cast<size_t>(std::max(0, column))), 0.f, row.sign};
+    };
+    for (const auto& row : selection.lastLines)
+        if (row.ent == selection.anchor.ent && row.filePath == file.filePath) return anchor(row, selection.anchor.col);
+    for (const auto& row : selection.lastLines)
+        if (row.filePath == file.filePath && (row.sign == '+' || row.sign == '-') &&
+            row.rect.y + row.rect.height > viewport.y && row.rect.y < viewport.y + viewport.height)
+            return anchor(row, 0);
+    return {};
 }
 
 } // namespace diff_sel
@@ -1300,7 +1319,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
     auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
     sess.visibleWhitespace = layout && layout->visibleWhitespace;
     float findHeight = 0.f;
-    auto* filterRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    auto* filterRepo = ownerRepo;
+    const auto anchorRequest = filterRepo ? std::optional{navigation::stamp(*filterRepo, "reading-anchor")} : std::nullopt;
     bool filterable = diffs.empty() || !diffs.front().isFullContent;
     if (filterRepo && filterable && layout) {
         const auto& candidates = reviewScope == "wt" ? filterRepo->currentDiff :
@@ -1566,8 +1586,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
             const auto& lines = diffs.front().hunks.front().lines;
             int index = repo->fullFileTargetLine() - diffs.front().hunks.front().newStart;
             if (index >= 0 && static_cast<size_t>(index) < lines.size()) {
-                sess.findMatch = ecs::DiffMatch{diffs.front().filePath, repo->fullFileTargetLine(), ' ', 0};
-                sess.findQuery = lines[static_cast<size_t>(index)].substr(1);
+                const auto text = lines[static_cast<size_t>(index)].substr(1);
+                const auto column = reading::byte_at_column(text, repo->workspace().source()->column);
+                sess.findMatch = ecs::DiffMatch{diffs.front().filePath, repo->fullFileTargetLine(), ' ', column};
+                sess.findQuery = text.substr(column);
                 sess.findNavigate = repo->fullFileNavigateFrames > 0;
                 if (repo->fullFileNavigateFrames > 0) --repo->fullFileNavigateFrames;
             }
@@ -1668,7 +1690,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         vp.bottom = scrollY + viewportH + overscan;
     }
 
-    if (filterRepo) {
+    if (anchorRequest && navigation::accepts(*filterRepo, *anchorRequest, "reading-anchor")) {
         const auto* document = filterRepo->workspace().document(filterRepo->workspace().active_id());
         vp.revision = reading::anchor_revision(document->location);
         if (document->restoreAnchor && document->anchor && filterRepo->hasLoadedOnce &&
@@ -1866,11 +1888,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_transparent_bg().with_debug_name("open_full_file"));
             if (open) {
                 if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
-                    auto [before, after] = diff_revisions(reviewScope);
-                    auto path = fileDiff.isDeleted && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath;
-                    auto revision = fileDiff.isDeleted ? before : after;
-                    navigation::open(*repo, reading::source(std::move(path), std::move(revision), 0,
-                        reading::review(reviewScope, fileDiff.filePath)));
+                    navigation::open_source(*repo, fileDiff,
+                        diff_sel::source_point(fileDiff, visible_rect(*contentParent), reviewScope));
                 }
             }
         }
@@ -2112,7 +2131,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         set_tooltip(stickyLabel.ent(), label);
     }
 
-    if (filterRepo) {
+    if (anchorRequest && navigation::accepts(*filterRepo, *anchorRequest, "reading-anchor")) {
         if (vp.restoreAnchor && !vp.restoredAnchor && vp.nearestAnchor) vp.restore_at(vp.nearestAnchor->second);
         if (vp.restoredAnchor) navigation::restored_anchor(*filterRepo);
         else if (vp.anchor && filterRepo->hasLoadedOnce && !filterRepo->isRefreshing && !sess.findNavigate &&

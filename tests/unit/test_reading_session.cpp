@@ -53,4 +53,13 @@ TEST(reading_columns_count_decoded_characters_across_wrapped_unicode) {
     ASSERT_EQ(reading::byte_at_column(text, 99), text.size());
 }
 
+TEST(session_preserves_source_column_and_separate_review_origin_anchor) {
+    auto source = reading::source("a.cpp", std::string(40, 'b'), 91, reading::review(std::string(40, 'a'), "old.cpp"));
+    source.column = 17;
+    source.originAnchor = reading::ReadingAnchor{"old.cpp", std::string(40, 'a'), reading::DiffSide::Before, 85, 9, .25f, '-'};
+    const auto restored = reading::decode_session(reading::encode_session({{{source}}, 0}));
+    ASSERT_TRUE(restored.has_value());
+    ASSERT_TRUE(restored->documents.front().location == reading::Location{source});
+}
+
 int main() { RUN_ALL_TESTS(); }
