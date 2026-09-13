@@ -1914,3 +1914,19 @@ reveals the focused row through its scroll ancestors after layout. A framework
 focus group with explicit visual order and one Tab entry point would help
 virtualized inventories, menus, file browsers, and game editors. It should
 retain focus by item identity when pooled entities are reused.
+
+### E2E character injection needs Unicode code points
+
+The framework's E2E key queue stores `char_value` as `char`, and
+`test_input::get_char_pressed` returns that byte as an integer. Injecting
+`é` with `type` therefore yields UTF-8 bytes instead of the Unicode code
+point expected by the native input API; signed bytes are negative.
+`output/step19-type-second/100/unicode.json` records a failed type-to-select
+attempt despite the correctly decoded filename being present.
+
+The app does not change production character decoding to fit the test queue.
+Its pure selector tests Unicode prefixes, and the native replay types an
+ASCII prefix to select a filename containing Unicode. A code-point E2E
+queue would let apps and games test international text input using the same
+contract as the native backend. Unicode prefix injection remains unverified
+in the current native runner.

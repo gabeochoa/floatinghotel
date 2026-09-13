@@ -2,6 +2,7 @@
 
 #include "focus.h"
 #include "zoom.h"
+#include "../util/text_decode.h"
 
 namespace ui {
 
@@ -13,11 +14,12 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
     auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
     const auto target = focused.valid() ? focus_target(**focused) : std::nullopt;
     const auto owner = shortcut_owner(ctx, repo);
-    if (owner.region != reading::focus::Region::Tree) return {};
+    if (owner.region != reading::focus::Region::Tree) { state.typing = {}; return {}; }
     if (afterhours::input::is_key_down(343) || afterhours::input::is_key_down(347) ||
         afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345) ||
         afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346)) return {};
     if (owner.text) {
+        state.typing = {};
         if (target && target->control == "commit_file_filter" && afterhours::input::is_key_pressed(258) &&
             !afterhours::input::is_key_down(340) && !afterhours::input::is_key_down(344)) {
             (void)ctx.pressed(InputAction::WidgetNext);
@@ -26,15 +28,30 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
         }
         return {};
     }
-    if (target && !target->item.empty()) state.path = target->item;
+    if (target && !target->item.empty()) {
+        if (target->item != state.path) state.typing = {};
+        state.path = target->item;
+    }
     std::optional<file_tree::Key> key;
     if (afterhours::input::is_key_pressed(265)) { key = file_tree::Key::Up; (void)ctx.pressed(InputAction::WidgetUp); }
     if (afterhours::input::is_key_pressed(264)) { key = file_tree::Key::Down; (void)ctx.pressed(InputAction::WidgetDown); }
     if (afterhours::input::is_key_pressed(263)) { key = file_tree::Key::Left; (void)ctx.pressed(InputAction::WidgetLeft); }
     if (afterhours::input::is_key_pressed(262)) { key = file_tree::Key::Right; (void)ctx.pressed(InputAction::WidgetRight); }
     if (afterhours::input::is_key_pressed(257)) { key = file_tree::Key::Enter; (void)ctx.pressed(InputAction::WidgetPress); }
-    if (!key) return {};
-    auto move = file_tree::navigate(rows, collapsed, state.path, *key);
+    std::optional<file_tree::Move> move;
+    if (key) {
+        state.typing = {};
+        move = file_tree::navigate(rows, collapsed, state.path, *key);
+    } else {
+        for (int cp = afterhours::input::get_char_pressed(); cp != 0; cp = afterhours::input::get_char_pressed()) {
+            if (cp < 32 || cp == 127 || cp > 0x10ffff || (cp >= 0xd800 && cp <= 0xdfff)) continue;
+            std::string input;
+            text_decode::append_utf8(input, static_cast<std::uint32_t>(cp));
+            if (cp == 32) (void)ctx.pressed(InputAction::WidgetPress);
+            if (auto selected = file_tree::type_select(rows, move ? move->path : state.path, state.typing,
+                                                       input, std::chrono::steady_clock::now())) move = std::move(selected);
+        }
+    }
     if (move) {
         state.path = move->path;
         state.pendingFocus = state.pendingReveal = true;

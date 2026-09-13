@@ -1,0 +1,14 @@
+[
+  {
+    "zoom": 100,
+    "measurement": "[INFO] bench_frames: 120 frames, 151 entities: avg 1.92 ms  p50 1.78  p99 3.50  max 3.89"
+  },
+  {
+    "zoom": 140,
+    "measurement": "[INFO] bench_frames: 120 frames, 151 entities: avg 1.79 ms  p50 1.62  p99 3.69  max 15.39"
+  },
+  {
+    "zoom": 200,
+    "measurement": "[INFO] bench_frames: 120 frames, 151 entities: avg 2.41 ms  p50 2.18  p99 5.68  max 7.11"
+  }
+]

@@ -62,6 +62,38 @@ std::vector<std::string> parse_null_paths(const std::string& output) {
 
 namespace {
 
+std::pair<std::string, size_t> decode_path(std::string_view input) {
+    if (!input.starts_with('"')) return {std::string(input), input.size()};
+    std::string path;
+    size_t i = 1;
+    while (i < input.size()) {
+        char c = input[i++];
+        if (c == '"') break;
+        if (c != '\\' || i == input.size()) { path += c; continue; }
+        c = input[i++];
+        if (c >= '0' && c <= '7') {
+            unsigned value = static_cast<unsigned>(c - '0');
+            for (int digits = 1; digits < 3 && i < input.size() && input[i] >= '0' && input[i] <= '7'; ++digits)
+                value = value * 8 + static_cast<unsigned>(input[i++] - '0');
+            path += static_cast<char>(value);
+        } else {
+            switch (c) {
+                case 'a': path += '\a'; break;
+                case 'b': path += '\b'; break;
+                case 't': path += '\t'; break;
+                case 'n': path += '\n'; break;
+                case 'v': path += '\v'; break;
+                case 'f': path += '\f'; break;
+                case 'r': path += '\r'; break;
+                case '"': path += '"'; break;
+                case '\\': path += '\\'; break;
+                default: path += '\\'; path += c; break;
+            }
+        }
+    }
+    return {std::move(path), i};
+}
+
 // Find the Nth space in a string, return position after it.
 // Returns std::string::npos if not enough spaces found.
 size_t skip_fields(const std::string& line, int count) {
@@ -243,18 +275,18 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
             currentFile = &diffs.back();
             currentHunk = nullptr;
 
-            // Parse paths from "diff --git a/path b/path"
-            // Find " b/" scanning from the right side to handle paths with
-            // spaces. The last " b/" is the separator.
-            std::string rest = line.substr(11);  // after "diff --git "
-            size_t b_sep = rest.rfind(" b/");
-            if (b_sep != std::string::npos) {
-                std::string a_path = rest.substr(0, b_sep);
-                if (a_path.starts_with("a/")) {
-                    a_path = a_path.substr(2);
-                }
-                currentFile->filePath = a_path;
-                currentFile->oldPath = a_path;
+            std::string_view rest(line.data() + 11, line.size() - 11);
+            size_t separator = std::string_view::npos;
+            if (rest.starts_with('"')) separator = decode_path(rest).second;
+            else {
+                separator = rest.find(" \"b/");
+                if (separator == std::string_view::npos) separator = rest.rfind(" b/");
+            }
+            if (separator != std::string_view::npos && separator < rest.size()) {
+                auto oldPath = decode_path(rest.substr(0, separator)).first;
+                auto newPath = decode_path(rest.substr(separator + 1)).first;
+                currentFile->oldPath = oldPath.starts_with("a/") ? oldPath.substr(2) : oldPath;
+                currentFile->filePath = newPath.starts_with("b/") ? newPath.substr(2) : newPath;
             }
         } else if (line.starts_with("index ") && currentFile) {
             auto dots = line.find("..", 6);
@@ -283,7 +315,7 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
             currentFile->oldMode = line.substr(18);
         } else if (line.starts_with("--- ")) {
             if (currentFile) {
-                std::string path = line.substr(4);
+                std::string path = decode_path(std::string_view(line).substr(4)).first;
                 if (path == "/dev/null") {
                     currentFile->isNew = true;
                 } else if (path.starts_with("a/")) {
@@ -292,7 +324,7 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
             }
         } else if (line.starts_with("+++ ")) {
             if (currentFile) {
-                std::string path = line.substr(4);
+                std::string path = decode_path(std::string_view(line).substr(4)).first;
                 if (path == "/dev/null") {
                     currentFile->isDeleted = true;
                 } else if (path.starts_with("b/")) {
@@ -350,11 +382,11 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output) {
         } else if (line.starts_with("rename from ")) {
             if (currentFile) {
                 currentFile->isRenamed = true;
-                currentFile->oldPath = line.substr(12);
+                currentFile->oldPath = decode_path(std::string_view(line).substr(12)).first;
             }
         } else if (line.starts_with("rename to ")) {
             if (currentFile) {
-                currentFile->filePath = line.substr(10);
+                currentFile->filePath = decode_path(std::string_view(line).substr(10)).first;
             }
         } else if (line.starts_with("Binary files ")) {
             if (currentFile) {

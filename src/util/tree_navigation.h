@@ -1,7 +1,9 @@
 #pragma once
 
 #include "file_tree.h"
+#include <chrono>
 #include <optional>
+#include <string_view>
 
 namespace file_tree {
 
@@ -14,11 +16,17 @@ struct Move {
     bool keep = false;
 };
 
+struct TypeSelectState {
+    std::string prefix;
+    std::chrono::steady_clock::time_point lastInput{};
+};
+
 struct NavigationState {
     std::string context;
     std::string path;
     bool pendingFocus = false;
     bool pendingReveal = false;
+    TypeSelectState typing;
 };
 
 inline std::optional<Move> navigate(const std::vector<Row>& rows, const std::set<std::string>& collapsed,
@@ -47,6 +55,32 @@ inline std::optional<Move> navigate(const std::vector<Row>& rows, const std::set
         if (index == previous) return {};
     }
     return Move{rows[index].path, {}, !rows[index].directory, key == Key::Enter};
+}
+
+inline std::optional<Move> type_select(const std::vector<Row>& rows, const std::string& path,
+        TypeSelectState& state, std::string input, std::chrono::steady_clock::time_point now) {
+    if (input.empty() || rows.empty()) return {};
+    auto fold = [](std::string_view value) {
+        std::string result(value);
+        for (auto& c : result) if (c >= 'A' && c <= 'Z') c = static_cast<char>(c + ('a' - 'A'));
+        return result;
+    };
+    input = fold(input);
+    if (now < state.lastInput || now - state.lastInput >= std::chrono::milliseconds(700)) state.prefix.clear();
+    const bool cycle = state.prefix.empty() || state.prefix == input;
+    state.prefix = cycle ? input : state.prefix + input;
+    state.lastInput = now;
+    const auto current = std::find_if(rows.begin(), rows.end(), [&](const auto& row) { return row.path == path; });
+    const size_t start = current == rows.end() ? 0 : (static_cast<size_t>(current - rows.begin()) + (cycle ? 1 : 0)) % rows.size();
+    for (size_t offset = 0; offset < rows.size(); ++offset) {
+        const auto& row = rows[(start + offset) % rows.size()];
+        std::string_view name(row.path);
+        if (name.ends_with('/')) name.remove_suffix(1);
+        const auto slash = name.find_last_of('/');
+        if (slash != std::string_view::npos) name.remove_prefix(slash + 1);
+        if (fold(name).starts_with(state.prefix)) return Move{row.path, {}, !row.directory};
+    }
+    return {};
 }
 
 }

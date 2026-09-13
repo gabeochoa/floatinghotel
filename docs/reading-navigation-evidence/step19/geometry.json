@@ -1,0 +1,831 @@
+{
+  "passed": true,
+  "binary_sha256": "8c1151beb4d743c7bbc556cf85f536eea7b049ece6b83874bcb7545803dcd056",
+  "geometry": {
+    "100": {
+      "alpha": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpha.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        }
+      },
+      "alpine": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "cycle": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpha.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        }
+      },
+      "prefix": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "no_match": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "beta": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/beta.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        }
+      },
+      "bytes": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 350.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 350.0
+        }
+      },
+      "uppercase": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/beta.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        }
+      },
+      "unicode": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 378.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 378.0
+        }
+      },
+      "kept": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 378.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 378.0
+        }
+      },
+      "no_review_shortcut": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 378.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 378.0
+        }
+      },
+      "working_source": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        }
+      },
+      "source_kept": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        }
+      }
+    },
+    "140": {
+      "alpha": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpha.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        }
+      },
+      "alpine": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "cycle": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpha.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        }
+      },
+      "prefix": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "no_match": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "beta": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/beta.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        }
+      },
+      "bytes": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 490.0000305175781
+        },
+        "visible": {
+          "height": 39.199981689453125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 490.0000305175781
+        }
+      },
+      "uppercase": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/beta.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        }
+      },
+      "unicode": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 529.2000732421875
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 529.2000732421875
+        }
+      },
+      "kept": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 529.2000732421875
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 529.2000732421875
+        }
+      },
+      "no_review_shortcut": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 529.2000732421875
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 529.2000732421875
+        }
+      },
+      "working_source": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        }
+      },
+      "source_kept": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        }
+      }
+    },
+    "200": {
+      "alpha": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpha.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        }
+      },
+      "alpine": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        }
+      },
+      "cycle": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpha.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        }
+      },
+      "prefix": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        }
+      },
+      "no_match": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/alpine.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        }
+      },
+      "beta": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/beta.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0001220703125
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0001220703125
+        }
+      },
+      "bytes": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        }
+      },
+      "uppercase": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/beta.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0001220703125
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0001220703125
+        }
+      },
+      "unicode": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        }
+      },
+      "kept": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        }
+      },
+      "no_review_shortcut": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/echo-\u00e9.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        }
+      },
+      "working_source": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        }
+      },
+      "source_kept": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/bytes.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step19-type-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        }
+      }
+    }
+  }
+}

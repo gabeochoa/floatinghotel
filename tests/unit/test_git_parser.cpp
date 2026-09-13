@@ -737,6 +737,46 @@ TEST(status_nul_records_preserve_renames_and_control_characters_in_paths) {
 }
 
 
+TEST(quoted_diff_paths_decode_unicode_and_control_characters) {
+    const auto files = git::parse_diff(R"patch(diff --git "a/src/\303\251cho.cpp" "b/src/\303\251cho.cpp"
+index abc..def 100644
+--- "a/src/\303\251cho.cpp"
++++ "b/src/\303\251cho.cpp"
+@@ -1 +1 @@
+-old
++new
+)patch");
+    ASSERT_EQ(files.size(), 1u);
+    ASSERT_EQ(files[0].oldPath, std::string("src/écho.cpp"));
+    ASSERT_EQ(files[0].filePath, std::string("src/écho.cpp"));
+    const auto renamed = git::parse_diff(R"patch(diff --git "a/old\tfile.cpp" "b/new\nfile.cpp"
+similarity index 100%
+rename from "old\tfile.cpp"
+rename to "new\nfile.cpp"
+)patch");
+    ASSERT_EQ(renamed[0].oldPath, std::string("old\tfile.cpp"));
+    ASSERT_EQ(renamed[0].filePath, std::string("new\nfile.cpp"));
+    ASSERT_TRUE(renamed[0].isRenamed);
+}
+
+TEST(quoted_binary_and_mode_only_paths_need_no_hunk_headers) {
+    const auto files = git::parse_diff(R"patch(diff --git "a/a\\b\"c.bin" "b/a\\b\"c.bin"
+index abc..def 100644
+Binary files differ
+diff --git a/plain "b/\303\251cho"
+old mode 100644
+new mode 100755
+)patch");
+    ASSERT_EQ(files.size(), 2u);
+    ASSERT_EQ(files[0].oldPath, std::string("a\\b\"c.bin"));
+    ASSERT_EQ(files[0].filePath, files[0].oldPath);
+    ASSERT_TRUE(files[0].isBinary);
+    ASSERT_EQ(files[1].oldPath, std::string("plain"));
+    ASSERT_EQ(files[1].filePath, std::string("écho"));
+    ASSERT_EQ(files[1].newMode, std::string("100755"));
+}
+
+
 int main() {
     printf("=== git_parser tests ===\n");
     RUN_ALL_TESTS();

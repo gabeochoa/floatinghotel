@@ -1,0 +1,97 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Typing fixture"
+wait_for_refresh
+click_ui commit_file_filter
+key TAB
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key LEFT
+type "a"
+wait_frames 4
+workspace_checkpoint 2 alpha
+screenshot alpha
+type "a"
+wait_frames 4
+workspace_checkpoint 2 alpine
+screenshot alpine
+type "a"
+wait_frames 4
+workspace_checkpoint 2 cycle
+screenshot cycle
+type "lpi"
+wait_frames 4
+workspace_checkpoint 2 prefix
+screenshot prefix
+type "x"
+wait_frames 4
+workspace_checkpoint 2 no_match
+screenshot no_match
+key UP
+type "b"
+wait_frames 4
+workspace_checkpoint 2 beta
+screenshot beta
+type "b"
+wait_frames 4
+workspace_checkpoint 2 bytes
+screenshot bytes
+type "B"
+wait_frames 4
+workspace_checkpoint 2 uppercase
+screenshot uppercase
+key UP
+type "e"
+wait_frames 4
+workspace_checkpoint 2 unicode
+screenshot unicode
+key ENTER
+wait_frames 4
+workspace_checkpoint 2 kept
+screenshot kept
+type "c"
+wait_frames 4
+workspace_checkpoint 2 no_review_shortcut
+screenshot no_review_shortcut
+click_ui commit_file_filter
+wait_frames 4
+workspace_checkpoint 2 filter_before
+screenshot filter_before
+type "alpha"
+key ALT+LEFT
+wait_frames 4
+workspace_checkpoint 2 filter_after
+screenshot filter_after
+key CMD+A
+key BACKSPACE
+native_menu_action "Review Workspace (toggle)"
+native_menu_action "All Files View"
+click_ui sidebar_working_files
+wait_frames 6
+click_ui file_row
+type "by"
+wait_for_refresh
+wait_frames 4
+workspace_checkpoint 3 working_source
+screenshot working_source
+key ENTER
+wait_frames 4
+workspace_checkpoint 3 source_kept
+screenshot source_kept
+bench_frames 120
+expect_p99_below 20

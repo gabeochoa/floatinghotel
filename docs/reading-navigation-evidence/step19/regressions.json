@@ -1,0 +1,18 @@
+[
+  {
+    "test": "tree_keyboard",
+    "exit_code": 0
+  },
+  {
+    "test": "shortcut_focus",
+    "exit_code": 0
+  },
+  {
+    "test": "source_origin",
+    "exit_code": 0
+  },
+  {
+    "test": "navigation_regressions",
+    "exit_code": 0
+  }
+]
