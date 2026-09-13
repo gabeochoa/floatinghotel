@@ -2,17 +2,19 @@
 
 #include "../ecs/ui_imports.h"
 #include "../util/fuzzy_match.h"
+#include "focus.h"
 
 namespace ecs {
 
 inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout) {
+    ui::bind_focus(parent, repo, reading::focus::Region::Picker);
     div(ctx, mk(parent, 586000), ComponentConfig{}
         .with_label("Go to file · working tree")
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Medium));
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 586001), layout.filePickerQuery,
         ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)}).with_debug_name("file_picker_input"));
-    if (layout.filePickerFocus) { ctx.set_focus(input.ent().id); layout.filePickerFocus = false; }
+    if (layout.filePickerFocus) { ui::focus_control(ctx, input.ent()); layout.filePickerFocus = false; }
     std::string key = repo.repoPath + ":" + std::to_string(repo.dataGeneration) + ":" +
                       std::to_string(repo.repoVersion) + "\n" + layout.filePickerQuery;
     if (key != layout.filePickerCacheKey) {
@@ -47,7 +49,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         float target = std::clamp(layout.filePickerIndex * 28.f - scroll.viewport_or_zero().y * 0.5f,
                                    0.f, std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
         scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = target;
-        ctx.set_focus(input.ent().id);
+        ui::focus_control(ctx, input.ent());
     }
 }
 

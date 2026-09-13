@@ -20,6 +20,7 @@
 #include "../util/code_bookmark.h"
 #include "../util/hex_view.h"
 #include "../util/markdown_preview.h"
+#include "../util/focus_target.h"
 #include "../util/diff_revisions.h"
 #include "../util/reading_workspace.h"
 #include "../util/review_files.h"
@@ -931,6 +932,8 @@ inline std::vector<DiffMatch> find_diff_matches(const std::vector<FileDiff>& dif
 }
 
 struct LayoutComponent : public afterhours::BaseComponent {
+    reading::focus::State focus;
+    int focusRepositoryOwner = -1;
     bool filePickerOpen = false;
     bool filePickerFocus = false;
     std::string filePickerQuery;

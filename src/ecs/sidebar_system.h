@@ -17,6 +17,7 @@
 #include "network_ops_system.h"
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
+#include "../ui/focus.h"
 #include "../ui/file_history.h"
 #include "../ui/review_snapshot.h"
 #include "../ui/diff_metrics.h"
@@ -224,6 +225,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_overflow(Overflow::Hidden, Axis::Y)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_bg"));
+        if (repoPtr) ui::bind_focus(sidebarRoot.ent(), *repoPtr, reading::focus::Region::Tree);
 
         float sidebarW = layout.sidebar.width;
         sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
@@ -482,6 +484,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             : div(ctx, mk(logBg.ent(), 2320), logPanel);
 
         if (repoPtr) {
+            ui::bind_focus(logScroll.ent(), *repoPtr, reading::focus::Region::History);
             if (!windowedLog) render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
         } else {
             render_no_repo(ctx, logScroll.ent(), 0, "no_repo_log");
@@ -658,6 +661,7 @@ private:
                 auto row = button(ctx, mk(wrapper, 0), ui::file_tree_style::row_config(sidebarPixelWidth_, node.depth,
                     repo->diffTargetFile() == node.path)
                     .with_debug_name("commit_changed_file"));
+                ui::bind_focus(row.ent(), *repo, reading::focus::Region::Tree, node.path);
                 ui::set_tooltip(row.ent(), node.path);
                 div(ctx, mk(row.ent(), 3), ComponentConfig{}.with_label(ui::file_tree_style::type_marker(node.path))
                     .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(11))
@@ -1859,6 +1863,7 @@ private:
             ui::file_tree_style::row_config(sidebarPixelWidth_,
                 treeMode_ ? static_cast<size_t>(std::count(path.begin(), path.end(), '/')) : 0, selected)
                 .with_debug_name("file_row"));
+        ui::bind_focus(row.ent(), repo, reading::focus::Region::Tree, path);
         ui::set_tooltip(row.ent(), path);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
@@ -1938,8 +1943,10 @@ private:
             }
         }
 
-        if (ctx.is_right_click(row.ent().id))
+        if (ctx.is_right_click(row.ent().id)) {
+            ui::remember_focus_origin(ctx, row.ent());
             open_file_context_menu(ctx, path, repo, staged);
+        }
     }
 
     // Whichever of stage/unstage applies, plus the path. No Discard: there is
@@ -2080,6 +2087,7 @@ private:
                     .bottom = pixels(0), .left = pixels(ROW_INSET_L)})
                 .with_gap(pixels(2))
                 .with_debug_name("commit_row"));
+        ui::bind_focus(row.ent(), repo, reading::focus::Region::History, commit.hash);
         ui::set_tooltip(row.ent(), commit.subject + "\n" + commit.hash + "\n" + commit.decorations);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});

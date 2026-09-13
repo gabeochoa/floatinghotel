@@ -8,6 +8,8 @@
 namespace ecs {
 
 inline void reset_layout_defaults(LayoutComponent& layout) {
+    layout.focus = {};
+    layout.focusRepositoryOwner = -1;
     layout.filePickerOpen = false;
     layout.filePickerFocus = false;
     layout.filePickerQuery.clear();

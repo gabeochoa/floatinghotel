@@ -1436,8 +1436,8 @@ and a game canvas, nested dialogs, held modifiers, and one dispatch per frame.
 
 ### U6. Focus return that survives rebuilt controls and closed scopes
 
-`src/ui/file_picker.h` focuses its input by entity ID and resets focus to
-`ctx.ROOT` when a result opens. App menus and feedback panels have separate
+The original app focused picker inputs by entity ID and used root focus or
+separate flags when a view closed. Menus and feedback panels had separate
 open-state handling. Returning to the correct invoking control would also help
 inventory popovers, settings dialogs, and game editor inspectors.
 
@@ -1454,11 +1454,13 @@ and the target is eligible for focus. Otherwise it should use an explicit
 fallback in the current scope. Nested overlays need a stack, and dismissal by
 an outside click must not steal focus back from the newly clicked control.
 
-Current workaround: raw entity IDs, root focus, and app-specific flags. Status:
-source-reviewed only. The unvalidated modal assignment establishes the API
-limitation; this audit did not reproduce focus jumping into a closed repository.
-A runtime test must remove or rebuild the invoking control before closing the
-overlay and verify both the normal return and fallback paths.
+The app now stores semantic region/control targets, resolves rebuilt controls
+after layout, and validates repository owner, document, and navigation generation.
+`tests/focus_return.py` verifies normal return, closed invokers, repository
+switches, and typing after restoration at three zooms. The original audit was
+source-only; step 14 adds runtime evidence for the app workaround. The framework's
+modal token remains a raw entity ID and still needs the reusable API described
+above.
 
 ### U7. Logical scroll anchors resolved after matching layout readiness
 
@@ -1816,3 +1818,35 @@ a caller-supplied stable item key would help code readers, game inventories,
 chat logs, and recycled lists. Preserve automatic child anchoring as the default
 for ordinary lists. Evidence: `output/step13-source_origin/100/journey` and
 `tests/source_origin.py`.
+
+### Composite text inputs need a focus operation on the returned widget
+
+`text_input()` returns an outer entity containing `HasTextInputState`. Its
+focusable field is a child entity. Calling `ctx.set_focus(result.ent().id)`
+focuses the wrapper, then `EndUIContextManager` drops that focus because the
+wrapper is not in the focusable set. The first focusable repository tab then
+takes focus. This was reproduced when opening Quick Open and Find in
+`output/step14-focus-first`.
+
+The app's `ui::focus_control` resolves a text input to its focusable child. Its
+semantic focus identity remains the named outer input, so a rebuilt field can
+receive focus without retaining the old child's entity ID. A widget-level
+focus operation or declared focus proxy would also help forms, game console
+inputs, chat boxes, and reusable composite controls. The framework already has
+focus clusters for drawing an outline; those do not make the wrapper a valid
+keyboard-input target.
+
+### Unconsumed mapped actions can reach a later control
+
+`UIContext::last_action` is replaced when another mapped action arrives, but is
+not cleared on an empty input frame. The app dismissed a picker with the raw
+Escape key without consuming `MenuBack`. A later Find field consumed that stale
+action and blurred. Returning to a tree filter could similarly lose focus after
+the return was applied. `output/step14-focus-second` reproduces both paths.
+
+The app now consumes `MenuBack` when its own dismissal handler handles Escape.
+A frame-scoped action API, or an explicit distinction between queued commands
+and current-frame key presses, would help games and apps that combine custom
+shortcuts with text fields and framework controls. Tests should open a new
+control after an earlier control handled a key and verify that the new control
+does not receive the old action.

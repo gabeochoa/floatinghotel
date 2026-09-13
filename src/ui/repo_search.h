@@ -5,11 +5,13 @@
 #include "../git/repository_search.h"
 #include "../util/diff_revisions.h"
 #include "tooltip.h"
+#include "focus.h"
 
 namespace ecs {
 
 inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout) {
+    ui::bind_focus(parent, repo, reading::focus::Region::Search);
     using namespace std::chrono_literals;
     if (repo.repoSearchPreviewFuture.valid() && repo.repoSearchPreviewFuture.wait_for(0s) == std::future_status::ready) {
         auto result = repo.repoSearchPreviewFuture.get();
@@ -75,7 +77,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     auto input = afterhours::text_input::text_input(ctx, mk(row.ent(), 0), repo.repoSearchQuery,
         ComponentConfig{}.with_size(ComponentSize{pixels(std::max(80.f, layout.mainContent.width - 90.f)), pixels(32)})
             .with_debug_name("repo_search_input"));
-    if (repo.repoSearchFocus) { ctx.set_focus(input.ent().id); repo.repoSearchFocus = false; }
+    if (repo.repoSearchFocus) { ui::focus_control(ctx, input.ent()); repo.repoSearchFocus = false; }
     auto search = button(ctx, mk(row.ent(), 1), preset::Button("Search")
         .with_size(ComponentSize{pixels(86), pixels(32)}).with_debug_name("repo_search_submit"));
     if ((search || scopeChanged || matchingChanged || afterhours::input::is_key_pressed(257)) && !repo.repoSearchQuery.empty()) {
@@ -129,6 +131,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             const auto& match = repo.repoSearchResults[i];
             auto resultRow = div(ctx, mk(item, 10), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
+            ui::bind_focus(resultRow.ent(), repo, reading::focus::Region::Search, match.file + ":" + std::to_string(match.line));
             auto previewText = match.text.substr(0, 512) + (match.text.size() > 512 ? "…" : "");
             if (button(ctx, mk(resultRow.ent(), 0), preset::Button(match.file + ":" + std::to_string(match.line) + "  " + previewText)
                     .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
@@ -150,6 +153,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         const auto& preview = repo.repoSearchPreview;
         auto panel = div(ctx, mk(parent, 587007), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(190)}).with_custom_background(theme::PANEL_BG));
+        ui::bind_focus(panel.ent(), repo, reading::focus::Region::SearchPreview);
         auto heading = div(ctx, mk(panel.ent(), 0), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row));
         div(ctx, mk(heading.ent(), 0), ComponentConfig{}

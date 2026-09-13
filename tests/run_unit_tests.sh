@@ -234,6 +234,10 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_store" ]; then
         "vendor/afterhours/src/plugins/files.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_focus_target" ]; then
+    run_test "test_focus_target" "tests/unit/test_focus_target.cpp"
+fi
+
 if [ -n "$FILTER" ] && [ "$TOTAL" -eq 0 ]; then
     printf 'Unknown test suite: %s\n' "$FILTER" >&2
     exit 1

@@ -94,9 +94,12 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
             for row in rows:
                 assert int(row['name'].rsplit('_', 1)[1]) in [t['id'] for t in workspace['tabs']]
         if name in ['before', 'first', 'second', 'reverse', 'returned', 'backward', 'escaped', 'closed', 'without_closed']:
-            offset = next(n for n in nodes if n.get('name') == 'diff_scroll')['scroll']['y']
-            if saved is None: saved = offset
-            assert saved > 100 and abs(offset - saved) < 1, (zoom, name, 'Underlying reader moved')
+            viewport = next(n for n in nodes if n.get('name') == 'diff_scroll')['rect']
+            if saved is None: saved = workspace['history'][workspace['history_index']]['anchor']
+            assert saved['line'] > 1
+            rows = [r for r in data['reading_rows'] if r['path'] == saved['path'] and r['line'] == saved['line']]
+            expected = viewport['y'] + viewport['height'] * saved['fraction']
+            assert rows and min(abs(r['rect']['y'] - expected) for r in rows) < 2, (zoom, name, 'Underlying reader moved', saved, rows)
     print(f'PASS {zoom}%: frozen MRU order, reverse, modifier release, Escape, closed tabs, repository separation, narrow overlay, unchanged retained reading position', flush=True)
 assert hashlib.sha256(binary.read_bytes()).hexdigest() == digest
 (out / 'result.json').write_text(json.dumps(dict(passed=True, binary_sha256=digest, zooms=[100, 140, 200]), indent=2) + '\n')

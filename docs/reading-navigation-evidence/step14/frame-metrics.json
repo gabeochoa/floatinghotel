@@ -1,0 +1,41 @@
+{
+  "output/step14-verified-focus_return/100/run.log": [
+    1.95
+  ],
+  "output/step14-verified-focus_return/200/run.log": [
+    2.56
+  ],
+  "output/step14-verified-focus_return/140/run.log": [
+    1.67
+  ],
+  "output/step14-verified-recent_tabs/100/run.log": [
+    2.93
+  ],
+  "output/step14-verified-recent_tabs/200/run.log": [
+    2.38
+  ],
+  "output/step14-verified-recent_tabs/140/run.log": [
+    2.44
+  ],
+  "output/step14-source_origin/140/journey/run.log": [
+    4.48
+  ],
+  "output/step14-source_origin/200/journey/run.log": [
+    3.9
+  ],
+  "output/step14-source_origin/100/journey/run.log": [
+    4.38
+  ],
+  "output/step14-close_tabs/100/run.log": [
+    10.23
+  ],
+  "output/step14-close_tabs/200/run.log": [
+    3.43
+  ],
+  "output/step14-close_tabs/140/run.log": [
+    2.92
+  ],
+  "output/step14-anchor_layout/run.log": [
+    3.63
+  ]
+}

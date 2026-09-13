@@ -97,6 +97,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_render_layer(6)
             .with_roundness(0.0f)
             .with_debug_name("feedback_basket"));
+    if (repo) ui::bind_focus(panel.ent(), *repo, reading::focus::Region::Feedback);
 
     auto title = div(ctx, mk(panel.ent(), 0), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_flex_direction(FlexDirection::Row)
@@ -384,6 +385,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         // Esc collapses the shelf (clears the current selection) unless a menu
         // is open. Mirrors the mock's "Esc closes the diff shelf".
+        if (!shortcutsActive && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE))
+            (void)ctx.pressed(InputAction::MenuBack);
         const bool dismissedContextMenu = !shortcutsActive && ui::is_context_menu_open() &&
             afterhours::input::is_key_pressed(afterhours::keys::ESCAPE);
         if (dismissedContextMenu) ui::close_context_menu();
@@ -437,6 +440,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_custom_background(theme::SIDEBAR_BG).with_border_bottom(theme::BORDER)
                 .with_flex_direction(FlexDirection::Row).with_no_wrap()
                 .with_overflow(Overflow::Hidden).with_debug_name("content_tabs"));
+            ui::bind_focus(strip.ent(), *repoPtr, reading::focus::Region::DocumentTabs);
             const float viewportWidth = std::max(1.f, layout.contentTabs.width - 80.f);
             auto tabs = div(ctx, mk(strip.ent(), 0), ComponentConfig{}
                 .with_size(ComponentSize{pixels(viewportWidth), percent(1.f)})
@@ -555,6 +559,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_size(ComponentSize{pixels(std::max(0.f, width - 20.f)), pixels(2)})
                     .with_absolute_position(10.f, layout.contentTabs.height - 2.f)
                     .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
+                ui::bind_focus(tab.ent(), *repoPtr, reading::focus::Region::DocumentTabs, {}, document.id);
                 ui::set_tooltip(tab.ent(), suppressTabActions ? "" : label.tooltip);
                 if (active && repoPtr->readingFocusDocument == document.id) {
                     ctx.set_focus(tab.ent().id);
@@ -591,6 +596,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         scale, afterhours::graphics::get_screen_width(), afterhours::graphics::get_screen_height(), order};
                 }
                 if (!suppressTabActions && ctx.is_right_click(tab.ent().id)) {
+                    ui::remember_focus_origin(ctx, tab.ent());
                     const auto id = document.id;
                     ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
                         ui::ContextMenuItem::item("Keep Open", [target, id] { if (auto* repo = target()) navigation::keep(*repo, id); }, document.preview),
@@ -668,6 +674,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_roundness(0.0f)
                 .with_debug_name("main_content"));
 
+        if (repoPtr) ui::bind_focus(mainBg.ent(), *repoPtr, reading::focus::Region::Code);
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
         if (hasRepo) {
             if (repoPtr->fullFilePath().empty()) {

@@ -1,0 +1,117 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+click_text "Focus fixture"
+wait_for_refresh
+key ENTER
+click_ui content_document_2
+wait_frames 8
+workspace_checkpoint 2 caller
+screenshot caller
+key CMD+P
+wait_frames 3
+type "a.cpp"
+wait_frames 8
+workspace_checkpoint 2 picker
+screenshot picker
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 picker_return
+screenshot picker_return
+key CMD+F
+wait_frames 3
+type "value"
+wait_frames 8
+workspace_checkpoint 2 find
+screenshot find
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 find_return
+screenshot find_return
+click_ui commit_file_filter
+wait_frames 4
+key CMD+P
+wait_frames 4
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 tree_return
+screenshot tree_return
+click_ui commit_row
+wait_frames 4
+key CMD+P
+wait_frames 4
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 history_return
+screenshot history_return
+click_ui content_document_2
+wait_frames 4
+click_ui open_tabs_menu
+wait_frames 3
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 menu_return
+screenshot menu_return
+right_click_ui content_document_1
+wait_frames 3
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 inactive_menu_return
+screenshot inactive_menu_return
+click_ui content_document_2
+key CMD+SHIFT+F
+click_ui repo_search_input
+type "value_1"
+click_ui repo_search_submit
+wait_for_refresh
+wait_frames 20
+click_ui repo_search_preview
+wait_frames 8
+workspace_checkpoint 2 preview
+screenshot preview
+click_ui repo_search_preview_close
+wait_frames 8
+workspace_checkpoint 2 preview_return
+screenshot preview_return
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 search_return
+screenshot search_return
+click_ui review_unstaged_changes
+wait_for_refresh
+wait_frames 6
+click_ui comment_hunk_btn
+wait_frames 4
+click_ui comment_input
+type "Focus fixture feedback"
+click_ui comment_add_btn
+wait_frames 10
+click_ui basket_close
+wait_frames 6
+click_ui basket_toggle_btn
+wait_frames 8
+workspace_checkpoint 2 feedback_open
+screenshot feedback_open
+click_ui basket_close
+wait_frames 8
+workspace_checkpoint 2 feedback_return
+screenshot feedback_return
+right_click_ui content_document_1
+wait_frames 3
+click_ui "context_menu_item_Close"
+wait_frames 4
+wait_frames 8
+workspace_checkpoint 1 closed_invoker
+screenshot closed_invoker
+key CMD+P
+wait_frames 3
+new_tab
+wait_frames 8
+screenshot other_repository
+close_tab
+wait_for_refresh
+wait_frames 8
+workspace_checkpoint 1 repository_return
+screenshot repository_return
+bench_frames 120
+expect_p99_below 20

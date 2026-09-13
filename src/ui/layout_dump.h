@@ -8,6 +8,7 @@
 #include "zoom.h"
 #include "geometry.h"
 #include "diff_renderer.h"
+#include "focus.h"
 #include "../input_mapping.h"
 
 namespace ui {
@@ -40,6 +41,9 @@ inline nlohmann::json layout_snapshot() {
             {"align", std::string(magic_enum::enum_name(cmp.align_items))},
             {"font_size", {{"value", cmp.font_size.value}, {"unit", std::string(magic_enum::enum_name(cmp.font_size.dim))}}}
         };
+        if (const auto target = focus_target(entity)) node["focus_target"] = {
+            {"repository", target->repository}, {"document", target->document.value},
+            {"region", std::string(magic_enum::enum_name(target->region))}, {"item", target->item}, {"control", target->control}};
         if (entity.has<UIComponentDebug>()) node["name"] = entity.get<UIComponentDebug>().name();
         if (entity.has<HasLabel>()) {
             const auto& label = entity.get<HasLabel>();

@@ -1,0 +1,31 @@
+RUN navigation_regressions
+PASS improvement_21_file_picker
+PASS improvement_22_repo_search
+PASS improvement_24_all_files
+PASS improvement_27_commit_search
+PASS improvement_35_comment_jump
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary
+RUN source_origin
+PASS 100%: selected deleted line and column, renamed old path, before object, first visible deleted line, and exact review return
+PASS 140%: selected deleted line and column, renamed old path, before object, first visible deleted line, and exact review return
+PASS 200%: selected deleted line and column, renamed old path, before object, first visible deleted line, and exact review return
+RUN close_tabs
+PASS 100%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact logical restoration, working-changes fallback
+PASS 140%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact logical restoration, working-changes fallback
+PASS 200%: inactive close, Cmd+W, Cmd+Shift+T, nearest neighbor, exact logical restoration, working-changes fallback
+RUN anchor_layout
+{'binary_sha256': '743a568f441a9658297407d1a3576385075ec27cb244bc7c55ee25fe076ba7a5', 'baseline': False, 'errors_px': {'zoomed': 0.00010793082083182526, 'narrow': 0.00029250454213070043, 'font': 0.00029250454213070043, 'zoom200': 1.5657211633879342e-05, 'reactivated': 1.049041748046875e-05, 'split': 6.039440631866455e-05, 'split_zoom': 6.165897184473579e-05, 'split200': 0.0003420984910462721, 'unfolded': 1.7583370208740234e-06, 'markdown140': 8.799479473964311e-06, 'markdown200': 2.966477313748328e-05, 'markdown_narrow': 0.00012339307704678504, 'markdown_reset': 5.304813385009766e-06}}
+RUN recent_tabs
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/tests/recent_tabs.py", line 99, in <module>
+    assert saved > 100 and abs(offset - saved) < 1, (zoom, name, 'Underlying reader moved')
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (100, 'returned', 'Underlying reader moved')
+Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['python3', 'tests/recent_tabs.py', '--output', 'output/step14-recent_tabs']' returned non-zero exit status 1.

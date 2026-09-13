@@ -1,0 +1,8 @@
+RUN focus_return
+PASS 100%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 140%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 200%: picker, Find, menus, search preview, feedback, closed document, repository switch
+RUN recent_tabs
+PASS 100%: frozen MRU order, reverse, modifier release, Escape, closed tabs, repository separation, narrow overlay, unchanged retained reading position
+PASS 140%: frozen MRU order, reverse, modifier release, Escape, closed tabs, repository separation, narrow overlay, unchanged retained reading position
+PASS 200%: frozen MRU order, reverse, modifier release, Escape, closed tabs, repository separation, narrow overlay, unchanged retained reading position

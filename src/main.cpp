@@ -58,6 +58,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include "ecs/file_watcher_system.h"
 #include "ecs/layout_system.h"
 #include "ecs/reading_layout_system.h"
+#include "ecs/focus_system.h"
 #include "ecs/main_content_system.h"
 #include "ecs/menu_bar_system.h"
 #include "ecs/sidebar_system.h"
@@ -528,6 +529,7 @@ static void app_init() {
 
         // UI-creating systems (order determines visual stacking;
         // later systems draw on top of earlier ones)
+        sm.register_update_system(std::make_unique<ecs::BeginFocusFrame>());
         sm.register_update_system(std::make_unique<ecs::TabBarSystem>());
         sm.register_update_system(std::make_unique<ecs::ToolbarSystem>());
         sm.register_update_system(std::make_unique<ecs::SidebarSystem>());
@@ -541,6 +543,7 @@ static void app_init() {
         // Post-layout (entity mapping, autolayout, interactions)
         ui_imm::registerUIPostLayoutSystems(sm);
         sm.register_update_system(std::make_unique<ecs::ReadingLayoutSystem>());
+        sm.register_update_system(std::make_unique<ecs::RestoreFocusSystem>());
 
         // Update systems
         auto fileWatcherPtr = std::make_unique<ecs::FileWatcherSystem>();

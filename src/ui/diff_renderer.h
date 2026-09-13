@@ -705,9 +705,12 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                                              : diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
+    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
+        bind_focus(hunkRow.ent(), *repo, reading::focus::Region::Code, hkey);
     hunkRow.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
     if (vp) vp->built(diff_detail::hunk_header_height());
     if (ctx.is_right_click(hunkRow.ent().id)) {
+        remember_focus_origin(ctx, hunkRow.ent());
         std::vector<ContextMenuItem> items;
         auto* owner = ecs::find_singleton_entity<ecs::RepoComponent, ecs::ActiveTab>();
         auto currentTab = [ownerId = owner ? std::optional(owner->id) : std::nullopt]() -> Entity* {
@@ -1530,13 +1533,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
             .with_debug_name("diff_find_bar"));
+        if (filterRepo) bind_focus(bar.ent(), *filterRepo, reading::focus::Region::Find);
         auto previous = layout->diffFindQuery;
         auto input = afterhours::text_input::text_input(ctx, mk(bar.ent(), 0), layout->diffFindQuery,
             ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - 240.f)), pixels(28)})
                 .with_debug_name("diff_find_input"));
         if (layout->diffFindFocus) {
-            ctx.set_focus(input.ent().id);
+            ui::focus_control(ctx, input.ent());
             layout->diffFindFocus = false;
         }
         if (previous != layout->diffFindQuery) {
@@ -1755,6 +1759,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                 .with_corner_radius(6.f)
                 .with_debug_name("file_header_row"));
+        if (filterRepo) bind_focus(fileHeaderRow.ent(), *filterRepo, reading::focus::Region::Code, fileDiff.filePath);
         set_tooltip(fileHeaderRow.ent(), fileLabel);
         vp.built(fileHeaderHeight);
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
