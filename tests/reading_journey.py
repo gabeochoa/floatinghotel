@@ -95,7 +95,7 @@ def check(directory, head, zoom):
             if kind == "source":
                 assert row["selected_commit"] == head, "Opening source changed the retained review"
                 assert (row["source_path"], row["source_revision"]) == (path, revision)
-                assert any(n.get("name") == "full_file_revision" and path in n.get("text", "") for n in nodes)
+                assert any(n.get("name") == "full_file_path" and path in n.get("text", "") for n in nodes)
                 assert any(n.get("text", "").endswith("int beta_12 = 121;" if path == "beta.cpp" else "int alpha_12 = 120;") for n in nodes)
                 first_line = "int beta_1 = 1;" if path == "beta.cpp" else "int alpha_1 = 1;"
                 assert any(n.get("text", "").endswith(first_line) and n["visible_rect"]["height"] >= n["rect"]["height"] - 0.1

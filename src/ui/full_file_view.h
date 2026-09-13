@@ -3,7 +3,7 @@
 #include <algorithm>
 #include "../settings.h"
 #include "diff_renderer.h"
-#include "file_history.h"
+#include "source_header.h"
 #include "../git/content_reader.h"
 #include "../util/hex_view.h"
 #include "../util/markdown_preview.h"
@@ -78,35 +78,8 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         if (repo.fullFileError.empty()) repo.fullFileDiff.push_back(std::move(content.diff));
         changed = true;
     }
-    auto header = div(ctx, mk(parent, 585000), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), pixels(34)})
-        .with_flex_direction(FlexDirection::Row).with_debug_name("full_file_header"));
-    if (button(ctx, mk(header.ent(), 0), preset::Button("Back to diff")
-            .with_size(ComponentSize{pixels(110), pixels(30)}).with_debug_name("full_file_back"))) {
-        navigation::return_to_review(repo);
-    }
-    div(ctx, mk(header.ent(), 1), ComponentConfig{}
-        .with_label(repo.fullFilePath() + " @ " + (repo.fullFileRevision().empty() ? "working tree" : repo.fullFileRevision()))
-        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(12))
-        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-        .with_debug_name("full_file_revision"));
-    if (button(ctx, mk(header.ent(), 2), preset::Button("History")
-            .with_size(ComponentSize{pixels(75), pixels(30)}).with_debug_name("file_history_open")))
-        open_file_history(repo, repo.fullFilePath(), repo.fullFileRevision());
-    constexpr float headerHeight = 66.f;
-    auto actions = div(ctx, mk(parent, 585010), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), pixels(32)})
-        .with_flex_direction(FlexDirection::Row).with_debug_name("full_file_actions"));
-    if (button(ctx, mk(actions.ent(), 5), preset::Button(text_decode::override_label(repo.fullFileEncodingOverride, repo.fullFileEncodingLabel))
-            .with_size(ComponentSize{expand(), pixels(30)})
-            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("encoding_cycle"))) {
-        repo.fullFileEncodingOverride = text_decode::next_override(repo.fullFileEncodingOverride);
-        repo.fullFileCacheKey.clear();
-        repo.fullFilePage = {};
-        repo.fullFilePageRequest = {};
-        navigation::clear_source_reveal(repo);
-        repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
-    }
+    constexpr float headerHeight = 32.f;
+    if (render_source_header(ctx, parent, repo, layout)) return;
     const auto& page = repo.fullFilePage;
     bool partial = page.begin.offset != 0 || page.next.offset < page.totalBytes;
     float pageHeight = partial || repo.fullFileFuture.valid() || !repo.fullFileError.empty() ? 64.f : 0.f;
@@ -144,51 +117,6 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         div(ctx, mk(parent, 585021), ComponentConfig{}.with_label(range)
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));
-    }
-    bool markdown = markdown_preview::is_markdown_path(repo.fullFilePath()) &&
-                    !repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary;
-    if (markdown && button(ctx, mk(actions.ent(), 6), preset::Button(repo.fullFileMarkdownPreview ? "Raw Markdown" : "Preview")
-            .with_size(ComponentSize{expand(), pixels(30)}).with_debug_name("markdown_preview_toggle")))
-        repo.fullFileMarkdownPreview = !repo.fullFileMarkdownPreview;
-    const auto& selection = ui::diff_sel::state();
-    int selectedLine = 0;
-    for (const auto& line : selection.lastLines)
-        if (line.ent == selection.anchor.ent && line.filePath == repo.fullFilePath()) selectedLine = line.lineNo;
-    int bookmarkLine = selectedLine > 0 ? selectedLine : std::max(1, repo.fullFileTargetLine());
-    auto sameBookmark = [&](const CodeBookmark& bookmark) {
-        return bookmark.path == repo.fullFilePath() &&
-               bookmark.revision == repo.fullFileRevision() &&
-               bookmark.line == bookmarkLine;
-    };
-    bool bookmarked = std::any_of(bookmarks.begin(), bookmarks.end(), sameBookmark);
-    if (button(ctx, mk(actions.ent(), 4), preset::Button(bookmarked ? "Remove bookmark" : "Bookmark line " + std::to_string(bookmarkLine))
-            .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(12))
-            .with_debug_name("bookmark_line"))) {
-        auto updated = bookmarks;
-        if (bookmarked) {
-            std::erase_if(updated, sameBookmark);
-        } else {
-            updated.push_back(CodeBookmark{
-                repo.fullFilePath(),
-                repo.fullFileRevision(),
-                bookmarkLine,
-                repo.fullFilePath() + ":L" + std::to_string(bookmarkLine),
-            });
-        }
-        Settings::get().set_code_bookmarks(repo.repoPath, updated);
-    }
-    if (selectedLine > 0 && repo.fullFileRevision() != "INDEX") {
-        if (button(ctx, mk(actions.ent(), 3), preset::Button("Blame line " + std::to_string(selectedLine))
-                .with_size(ComponentSize{expand(), pixels(30)}).with_debug_name("blame_selected_line"))) {
-            std::vector<std::string> args{"blame", "--line-porcelain", "-L", std::to_string(selectedLine) + "," + std::to_string(selectedLine)};
-            if (!repo.fullFileRevision().empty()) args.push_back(repo.fullFileRevision());
-            args.insert(args.end(), {"--", repo.fullFilePath()});
-            repo.blameFutureStamp = navigation::stamp(repo, std::to_string(selectedLine));
-            repo.blameFuture = git::git_run_async(repo.repoPath, args);
-            repo.blameLine = {};
-            repo.blameError.clear();
-            repo.blameOpen = true;
-        }
     }
     float bookmarkHeight = bookmarks.empty() ? 0.f : 30.f;
     if (!bookmarks.empty()) {
@@ -306,7 +234,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_debug_name("hex_preview_line"));
         }
         spacer(2, static_cast<float>(preview.lines.size() - last) * rowHeight + 16.f);
-    } else if (markdown && repo.fullFileMarkdownPreview) {
+    } else if (markdown_preview::is_markdown_path(repo.fullFilePath()) && repo.fullFileMarkdownPreview) {
         auto& cache = repo.fullFileMarkdownCache;
         auto& fonts = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::FontManager>();
         const auto bodyFont = fonts.get_font(afterhours::ui::UIComponent::DEFAULT_FONT);

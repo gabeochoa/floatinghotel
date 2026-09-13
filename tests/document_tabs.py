@@ -7,12 +7,12 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKPOINTS = {
-    "tabs_all": (6, "full_file_revision", "src/app.cpp @ working tree"),
+    "tabs_all": (6, "full_file_path", "src/app.cpp"),
     "tabs_first_review": (2, "commit_detail_subject", "Add contributing guidelines"),
     "tabs_second_review": (3, "commit_detail_subject", "Add unit tests for utils"),
-    "tabs_first_source": (4, "full_file_revision", "README.md @ working tree"),
-    "tabs_second_source": (5, "full_file_revision", "CONTRIBUTING.md @ working tree"),
-    "tabs_third_source": (6, "full_file_revision", "src/app.cpp @ working tree"),
+    "tabs_first_source": (4, "full_file_path", "README.md"),
+    "tabs_second_source": (5, "full_file_path", "CONTRIBUTING.md"),
+    "tabs_third_source": (6, "full_file_path", "src/app.cpp"),
 }
 
 
@@ -40,6 +40,8 @@ def check(directory):
             assert left["rect"]["x"] + left["rect"]["width"] <= right["rect"]["x"] + .2, label
         assert any(n.get("name") == heading and n.get("text") == text and
                    n["visible_rect"]["width"] > 100 and n["visible_rect"]["height"] > 0 for n in nodes), label
+        if heading == "full_file_path":
+            assert any(n.get("name") == "full_file_revision" and n.get("text") in ["Working tree", "WT"] for n in nodes)
         assert (directory / (label + ".png")).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 

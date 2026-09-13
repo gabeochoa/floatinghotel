@@ -9,12 +9,15 @@ wait_for_refresh
 key ENTER
 key CMD+P
 screenshot tabs_picker_a
+click_ui file_picker_working_scope
+wait_for_refresh
 click_ui file_picker_input
 key CMD+A
 type "README.md"
 screenshot tabs_query_a
 key ENTER
 wait_for_refresh
+wait_frames 15
 key CMD+P
 screenshot tabs_picker_b
 click_ui file_picker_input
@@ -23,6 +26,7 @@ type "CONTRIBUTING.md"
 screenshot tabs_query_b
 key ENTER
 wait_for_refresh
+wait_frames 15
 key CMD+P
 screenshot tabs_picker_c
 click_ui file_picker_input
@@ -51,21 +55,24 @@ click_ui open_tabs_menu
 wait_frames 2
 click_ui "context_menu_item_README.md"
 wait_for_refresh
-expect_text "README.md @ working tree"
+expect_text "README.md"
+assert_ui full_file_revision hidden=false
 workspace_checkpoint 6 tabs_first_source
 screenshot tabs_first_source
 click_ui open_tabs_menu
 wait_frames 2
 click_ui "context_menu_item_CONTRIBUTING.md"
 wait_for_refresh
-expect_text "CONTRIBUTING.md @ working tree"
+expect_text "CONTRIBUTING.md"
+assert_ui full_file_revision hidden=false
 workspace_checkpoint 6 tabs_second_source
 screenshot tabs_second_source
 click_ui open_tabs_menu
 wait_frames 2
 click_ui "context_menu_item_app.cpp"
 wait_for_refresh
-expect_text "src/app.cpp @ working tree"
+expect_text "src/app.cpp"
+assert_ui full_file_revision hidden=false
 workspace_checkpoint 6 tabs_third_source
 screenshot tabs_third_source
 click_ui jump_to_diff:tests/test_utils.cpp

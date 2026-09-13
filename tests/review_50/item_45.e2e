@@ -1,17 +1,21 @@
 resize 1280 800
 wait_for_refresh
-click_ui sidebar_working_files
-screenshot item_45_files_navigation
-click_text "README.md"
-wait_frames 5
-click_ui open_full_file
-wait_frames 5
+key CMD+P
+wait_frames 3
 wait_for_refresh
+type "README.md"
+wait_frames 3
+key ENTER
+wait_for_refresh
+wait_frames 15
 screenshot item_45_source_loaded
-expect_text "Preview"
-click_ui bookmark_line
+click_ui full_file_options
+wait_frames 3
+click_ui "context_menu_item_Bookmark line 1"
 screenshot item_45_bookmarked
-click_ui markdown_preview_toggle
+click_ui full_file_options
+wait_frames 3
+click_ui "context_menu_item_Preview Markdown"
 wait_frames 5
 assert_ui markdown_preview hidden=false
 expect_text "Review notes"
@@ -28,10 +32,12 @@ expect_text End of preview
 expect_no_text Review notes
 scroll_wheel 0 500
 wait_frames 30
+workspace_checkpoint 2 markdown_top
 screenshot item_45_top_again
 expect_text Review notes
 resize 1440 900
 wait_frames 10
+workspace_checkpoint 2 markdown_resized
 screenshot item_45_reflowed
 expect_text Review notes
 assert_no_overflow
@@ -49,14 +55,17 @@ wait_frames 30
 expect_text Review notes
 key CMD+0
 wait_frames 5
-click_ui markdown_preview_toggle
+click_ui full_file_options
 wait_frames 3
-expect_text "Preview"
+click_ui "context_menu_item_Raw Markdown"
+wait_frames 3
 expect_text "# Review notes"
+workspace_checkpoint 2 markdown_raw
 screenshot item_45_markdown_raw
-click_ui markdown_preview_toggle
+click_ui full_file_options
+wait_frames 3
+click_ui "context_menu_item_Preview Markdown"
 screenshot item_45_preview_again
 click_ui code_bookmark
 screenshot item_45_bookmark_source
-expect_text Preview
 expect_text "# Review notes"

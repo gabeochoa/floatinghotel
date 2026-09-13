@@ -6,15 +6,15 @@ import sys
 root = Path(sys.argv[1])
 expectations = {
     "boundary_commit": ("commit_detail_subject", "Add contributing guidelines"),
-    "boundary_first_source": ("full_file_revision", "CONTRIBUTING.md @"),
-    "boundary_second_source": ("full_file_revision", "README.md @ working tree"),
+    "boundary_first_source": ("full_file_path", "CONTRIBUTING.md"),
+    "boundary_second_source": ("full_file_path", "README.md"),
     "boundary_retained_review": ("commit_detail_subject", "Add contributing guidelines"),
-    "boundary_retained_source": ("full_file_revision", "README.md @ working tree"),
-    "boundary_closed_source": ("full_file_revision", "CONTRIBUTING.md @"),
-    "boundary_revisited_source": ("full_file_revision", "README.md @ working tree"),
+    "boundary_retained_source": ("full_file_path", "README.md"),
+    "boundary_closed_source": ("full_file_path", "CONTRIBUTING.md"),
+    "boundary_revisited_source": ("full_file_path", "README.md"),
     "boundary_comparison": (None, "Resolved revisions:"),
     "boundary_comparison_file": (None, "Resolved revisions:"),
-    "boundary_comparison_source": ("full_file_revision", "CONTRIBUTING.md @"),
+    "boundary_comparison_source": ("full_file_path", "CONTRIBUTING.md"),
     "boundary_comparison_return": (None, "Resolved revisions:"),
     "boundary_comparison_reloaded": (None, "Resolved revisions:"),
 }
@@ -31,6 +31,13 @@ for checkpoint, (name, text) in expectations.items():
     if checkpoint == "boundary_comparison_reloaded":
         assert any(n.get("name") == "file_header_label" and n.get("text") == "CONTRIBUTING.md"
                    and n["visible_rect"]["width"] > 100 and n["visible_rect"]["height"] > 0 for n in nodes), checkpoint
+    if name == "full_file_path":
+        badge = next(n for n in nodes if n.get("name") == "full_file_revision")
+        assert badge["visible_rect"]["width"] > 0 and badge["visible_rect"]["height"] > 0
+        if "README" in text:
+            assert badge["text"] in ["Working tree", "WT"]
+        else:
+            assert len(badge["text"]) == 7 and all(c in "0123456789abcdef" for c in badge["text"])
     tabs = next(n for n in nodes if n.get("name") == "content_tabs")
     assert tabs["visible_rect"]["width"] == tabs["rect"]["width"], checkpoint
     assert tabs["visible_rect"]["height"] == tabs["rect"]["height"], checkpoint

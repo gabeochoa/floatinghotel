@@ -13,5 +13,6 @@ key ENTER
 wait_for_refresh
 wait_frames 10
 screenshot improvement_21_open
-expect_text "src/app.cpp @ working tree"
+expect_text "src/app.cpp"
+expect_text "Working tree"
 expect_text "Complete file"

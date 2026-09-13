@@ -23,4 +23,16 @@ git -C "$repo_dir" commit -qm Baseline
 bash tests/run_unit_tests.sh test_markdown_preview
 output/floatinghotel.exe "$repo_dir" --test-mode --headless \
   --test-script=tests/review_50/item_45.e2e \
-  --screenshot-dir=output/screenshots/review-50 --e2e-timeout=40
+  --screenshot-dir="${FH_EVIDENCE_DIR:-output/screenshots/review-50}" --e2e-timeout=40
+python3 - "${FH_EVIDENCE_DIR:-output/screenshots/review-50}" <<'PYTEST'
+import json
+from pathlib import Path
+import sys
+root = Path(sys.argv[1])
+anchors = []
+for name in ['markdown_top', 'markdown_resized', 'markdown_raw']:
+    state = json.loads((root / (name + '.workspace.json')).read_text())
+    anchors.append(state['history'][state['history_index']]['anchor'])
+assert anchors[0] == anchors[1], anchors
+assert anchors[2]['line'] <= 5, anchors
+PYTEST

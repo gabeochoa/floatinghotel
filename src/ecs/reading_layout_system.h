@@ -95,7 +95,7 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
         state.width = viewport.width;
         state.height = viewport.height;
         state.contentHeight = scroll.content_size.y;
-        state.offset = scroll.scroll_offset.y;
+        if (sample || applyingAnchor) state.offset = scroll.scroll_offset.y;
     }
 };
 

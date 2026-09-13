@@ -1,15 +1,22 @@
 resize 1280 800
 wait_for_refresh
-click_ui sidebar_working_files
-screenshot item_41_files_navigation
-click_text "bookmarks.txt"
-wait_frames 5
-click_ui open_full_file
+key CMD+P
+wait_frames 3
 wait_for_refresh
+type "bookmarks.txt"
+wait_frames 3
+key ENTER
+wait_for_refresh
+wait_frames 15
+click_ui full_file_options
+wait_frames 3
 expect_text "Bookmark line 1"
-click_ui bookmark_line
+click_ui "context_menu_item_Bookmark line 1"
+wait_frames 3
+click_ui full_file_options
 wait_frames 3
 expect_text "Remove bookmark"
+key ESCAPE
 assert_ui bookmarks_row hidden=false
 assert_ui code_bookmark hidden=false
 screenshot item_41_bookmark_added
@@ -19,16 +26,22 @@ validate source_line=1
 screenshot item_41_bookmark_jump
 click_text beta
 wait_frames 3
+click_ui full_file_options
+wait_frames 3
 expect_text "Bookmark line 2"
-click_ui bookmark_line
+click_ui "context_menu_item_Bookmark line 2"
 click_text gamma
 wait_frames 3
+click_ui full_file_options
+wait_frames 3
 expect_text "Bookmark line 3"
-click_ui bookmark_line
+click_ui "context_menu_item_Bookmark line 3"
 click_text delta
 wait_frames 3
+click_ui full_file_options
+wait_frames 3
 expect_text "Bookmark line 4"
-click_ui bookmark_line
+click_ui "context_menu_item_Bookmark line 4"
 click_ui bookmarks_next
 wait_frames 3
 expect_text "bookmarks.txt:L4"

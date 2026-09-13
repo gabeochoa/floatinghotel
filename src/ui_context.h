@@ -43,10 +43,24 @@ struct ClearPendingUIDraws : afterhours::System<UIContextType> {
     }
 };
 
+struct ReserveContextMenuKeys : afterhours::System<UIContextType> {
+    void for_each_with(afterhours::Entity&, UIContextType& context, float) override {
+        if (!::ui::is_context_menu_open()) return;
+        for (const auto action : {InputAction::WidgetUp, InputAction::WidgetDown,
+                InputAction::WidgetLeft, InputAction::WidgetRight,
+                InputAction::WidgetNext, InputAction::WidgetPress}) {
+            static_cast<void>(context.pressed(action));
+            const auto index = magic_enum::enum_index(action).value();
+            context.all_actions_repeat[index] = false;
+        }
+    }
+};
+
 inline void registerUIPreLayoutSystems(
     afterhours::SystemManager& manager) {
     manager.register_update_system(std::make_unique<ClearPendingUIDraws>());
     afterhours::ui::register_before_ui_updates<InputAction>(manager);
+    manager.register_update_system(std::make_unique<ReserveContextMenuKeys>());
 }
 
 struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction> {

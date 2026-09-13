@@ -14,7 +14,8 @@ expect_no_text "stable.txt"
 screenshot item_37_changed_search
 click_text "deleted needle"
 wait_for_refresh
-expect_text "removed.txt @"
+expect_text "removed.txt"
+assert_ui full_file_revision hidden=false
 validate source_line=1
 assert_ui diff_find_match hidden=false
 screenshot item_37_deleted_result

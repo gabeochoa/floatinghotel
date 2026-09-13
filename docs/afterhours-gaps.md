@@ -1439,6 +1439,15 @@ Status: source-reviewed design request. No new shortcut conflict was reproduced
 in this audit. Acceptance should include typing in a text field over a reader
 and a game canvas, nested dialogs, held modifiers, and one dispatch per frame.
 
+Step 37's source-action menu reproduced a raw-key/widget-action collision:
+Down moved framework focus behind the menu, then Enter activated a document
+tab instead of File history. The app now consumes widget navigation, activation,
+and repeat actions after `BeginUIContextManager` whenever its context menu is
+open; the menu continues to read its own raw keys. The reusable need is scoped
+input ownership that covers both raw input and framework widget actions. An
+inventory or pause menu should not have to win an execution-order race against
+the controls underneath. Evidence is in the step-37 source-header replay.
+
 ### U6. Focus return that survives rebuilt controls and closed scopes
 
 The original app focused picker inputs by entity ID and used root focus or
@@ -1492,6 +1501,14 @@ source-reviewed. This audit did not reproduce a zoom-restoration failure.
 Acceptance should test delayed content, replaced entities, removed anchor rows,
 resizing, zoom, and cancellation by real wheel input. The existing variable-height
 virtual-list request remains separate from the anchor contract.
+
+Step 37's long-Markdown test exposed an app capture-order defect: a large
+wheel jump changed scroll offset after the virtual rows had been built. No new
+visible anchor existed that frame, but the app marked the offset sampled anyway.
+A later resize restored the previous bottom position. The app now retains the
+pending offset until it can sample a visible row. This is an application fix,
+not proof of a framework defect. A reusable post-layout anchor contract should
+make the distinction between requested position and sampled position explicit.
 
 ### U8. Read-only selection over a virtualized text source
 

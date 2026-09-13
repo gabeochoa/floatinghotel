@@ -5,7 +5,9 @@ screenshot improvement_25_picker
 type "renamed.txt"
 key ENTER
 screenshot improvement_25_source
-click_ui file_history_open
+click_ui full_file_options
+wait_frames 3
+click_ui "context_menu_item_File history"
 wait_for_refresh
 screenshot improvement_25_history
 expect_text "History · renamed.txt · follows renames"
