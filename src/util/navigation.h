@@ -9,6 +9,11 @@
 
 struct navigation {
 
+    static void set_caret(ecs::RepoComponent& repo, reading::CodePosition position, bool focus = false) {
+        repo.workspace_.current().caret = std::move(position);
+        if (focus) focus_document(repo, reading::focus::Region::Code);
+    }
+
     static void set_review_display_mode(ecs::RepoComponent& repo, review_files::DisplayMode mode) {
         if (Settings::get().get_review_display_mode(repo.repoPath) == mode) return;
         Settings::get().set_review_display_mode(repo.repoPath, mode);
@@ -203,6 +208,8 @@ struct navigation {
         }
         bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode, anchor);
+        if (const auto* source = repo.workspace_.source(); source && source->line > 0)
+            set_caret(repo, {source->destination.path, reading::DiffSide::After, source->line, std::max(1, source->column)});
         if (repo.workspace_.current().subject.empty())
             for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
                 for (const auto& entry : *entries)
@@ -229,6 +236,7 @@ struct navigation {
                 review.foldedHunks.erase(scope + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, hunk));
         }
         open(repo, location, {}, reading::OpenMode::Keep, anchor);
+        set_caret(repo, {anchor.path, anchor.side, anchor.line, anchor.column});
     }
 
     static void go_to_review_change(ecs::RepoComponent& repo, ecs::ReviewComponent& review,
@@ -357,7 +365,9 @@ struct navigation {
     static void activate(ecs::RepoComponent& repo, reading::DocumentId id) {
         if (const auto* document = repo.workspace_.document(id)) {
             const bool changed = id != repo.workspace_.active_id();
+            auto caret = document->caret;
             open(repo, document->location);
+            repo.workspace_.current().caret = std::move(caret);
             if (changed) restore_anchor(repo);
         }
     }
@@ -398,7 +408,11 @@ struct navigation {
     static void step(ecs::RepoComponent& repo, int direction) {
         repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
-        if (repo.workspace_.step(direction)) finish(repo, before, true);
+        if (repo.workspace_.step(direction)) {
+            if (const auto* source = repo.workspace_.source(); source && source->line > 0)
+                set_caret(repo, {source->destination.path, reading::DiffSide::After, source->line, std::max(1, source->column)});
+            finish(repo, before, true);
+        }
     }
 
     static void return_to_review(ecs::RepoComponent& repo) {

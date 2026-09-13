@@ -9,6 +9,7 @@
 #include "../../src/util/review_selection.h"
 #include "../../src/util/navigation.h"
 #include "../../src/util/change_navigation.h"
+#include "../../src/util/code_position.h"
 #include "../../src/util/wrap_text.h"
 #include "../../src/util/code_wrap.h"
 #include "../../src/util/visible_rows.h"
@@ -530,6 +531,40 @@ TEST(context_state_cancels_superseded_reads_and_releases_closed_documents) {
     navigation::reset(repo);
     ASSERT_TRUE(repo.hunkContext.entries.empty());
     ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->contextLines.empty());
+}
+
+TEST(caret_positions_use_logical_columns_and_one_wrapped_fragment) {
+    reading::CodePosition point{"a.cpp", reading::DiffSide::After, 12, 4};
+    ASSERT_EQ(reading::caret_byte(point, "a.cpp", reading::DiffSide::After, 12, "éλ ab", 1, false), std::optional<size_t>{5});
+    point.column = 6;
+    ASSERT_FALSE(reading::caret_byte(point, "a.cpp", reading::DiffSide::After, 12, "éλ ab", 1, false));
+    ASSERT_EQ(reading::caret_byte(point, "a.cpp", reading::DiffSide::After, 12, "cde", 6, true), std::optional<size_t>{0});
+    point.column = 9;
+    ASSERT_EQ(reading::caret_byte(point, "a.cpp", reading::DiffSide::After, 12, "cde", 6, true), std::optional<size_t>{3});
+    point.column = 10;
+    ASSERT_FALSE(reading::caret_byte(point, "a.cpp", reading::DiffSide::After, 12, "cde", 6, true));
+    point.column = 1;
+    ASSERT_EQ(reading::caret_byte(point, "a.cpp", reading::DiffSide::After, 12, "", 1, true), std::optional<size_t>{0});
+    ASSERT_FALSE(reading::caret_byte(point, "b.cpp", reading::DiffSide::After, 12, "", 1, true));
+    ASSERT_FALSE(reading::caret_byte(point, "a.cpp", reading::DiffSide::Before, 12, "", 1, true));
+}
+
+TEST(caret_belongs_to_each_document_and_tracks_explicit_line_destinations) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::source("a.cpp", "", 12));
+    navigation::set_caret(repo, {"a.cpp", reading::DiffSide::After, 13, 5});
+    const auto id = repo.workspace().active_id();
+    navigation::keep(repo, id);
+    navigation::open(repo, reading::source("b.cpp", "", 9));
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->caret->line, 9);
+    navigation::activate(repo, id);
+    ASSERT_EQ(repo.workspace().document(id)->caret->line, 13);
+    navigation::set_caret(repo, {"a.cpp", reading::DiffSide::After, 13, 5});
+    navigation::clear_source_reveal(repo);
+    navigation::open(repo, reading::source("b.cpp"));
+    navigation::activate(repo, id);
+    ASSERT_EQ(repo.workspace().document(id)->caret->line, 13);
+    ASSERT_EQ(repo.workspace().document(id)->caret->column, 5);
 }
 
 int main() { RUN_ALL_TESTS(); }

@@ -3,6 +3,7 @@
 #include "../git/source_find.h"
 
 #include "../util/reading_anchor.h"
+#include "../util/code_position.h"
 #include "geometry.h"
 
 #include "review_comment_kind.h"
@@ -50,8 +51,8 @@ struct PreparedCode {
 inline std::vector<afterhours::ui::TextSpan> highlighted_code(
     const std::string& prefix, const std::string& content, const std::string& path,
     bool visibleWhitespace = false, bool hasNewline = true,
-    const std::string* original = nullptr, size_t offset = 0, bool finalFragment = true, const std::string& ending = "", const PreparedCode* prepared = nullptr) {
-    std::vector<afterhours::ui::TextSpan> spans{{prefix, theme::TEXT_SECONDARY}};
+    const std::string* original = nullptr, size_t offset = 0, bool finalFragment = true, const std::string& ending = "", const PreparedCode* prepared = nullptr, bool activeGutter = false) {
+    std::vector<afterhours::ui::TextSpan> spans{{prefix, activeGutter ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY}};
     const auto& source = original ? *original : content;
     auto tokens = prepared ? prepared->tokens : code_highlight::token_cache().get(code_highlight::display_text(source, visibleWhitespace), path);
     size_t begin = prepared ? prepared->offset : code_highlight::display_size(std::string_view(source).substr(0, offset), visibleWhitespace);
@@ -134,6 +135,9 @@ inline void reset() {
 }
 
 struct Session {
+    ecs::RepoComponent* owner = nullptr;
+    std::optional<reading::CodePosition> caret;
+    bool codeFocused = false;
     int sourceStartLine = 0;
     int sourceStartColumn = 1;
     bool visibleWhitespace = false;
@@ -327,6 +331,10 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
             // Press on a line: start a new selection. (A press+release with no
             // drag collapses anchor==head on release, which clears it.)
             st.anchor = st.head = {st.lastLines[li].ent, colAt(st.lastLines[li])};
+            const auto& row = st.lastLines[li];
+            if (sess.owner && row.lineNo > 0) navigation::set_caret(*sess.owner,
+                {row.filePath, row.side == 1 || row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
+                 row.lineNo, row.logicalColumn + reading::column_at_byte(row.content, st.head.col) - 1}, true);
             st.dragging = true; st.hasSel = false;
         }
         // Press off a line (header, Copy button, sidebar): leave any existing
@@ -337,6 +345,10 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
         int li = nearestLine();
         if (li >= 0) {
             st.head = {st.lastLines[li].ent, colAt(st.lastLines[li])};
+            const auto& row = st.lastLines[li];
+            if (sess.owner && row.lineNo > 0) navigation::set_caret(*sess.owner,
+                {row.filePath, row.side == 1 || row.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
+                 row.lineNo, row.logicalColumn + reading::column_at_byte(row.content, st.head.col) - 1});
             if (!(st.head == st.anchor)) st.hasSel = true;
         }
     }
@@ -529,6 +541,37 @@ struct DiffViewport {
 
 } // namespace diff_detail
 
+namespace diff_sel {
+
+inline bool caret_line(const Session* session, const std::string& path, reading::DiffSide side, int line) {
+    return session && session->caret && session->caret->path == path && session->caret->side == side && session->caret->line == line;
+}
+
+inline afterhours::Color active_background(afterhours::Color color) {
+    auto tint = [](unsigned char channel) { return static_cast<unsigned char>(channel + (255 - channel) * .045f); };
+    return {tint(color.r), tint(color.g), tint(color.b), color.a};
+}
+
+inline void render_caret(UIContext<InputAction>& ctx, Entity& row, const Session& session,
+                          const std::string& path, reading::DiffSide side, int line,
+                          const std::string& text, float prefix, int firstColumn, bool finalFragment) {
+    if (!caret_line(&session, path, side, line)) return;
+    div(ctx, mk(row, 90004), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{pixels(std::max(0.f, prefix / zoom::get() - 2.f)), pixels(diff_detail::code_line_height())})
+        .with_absolute_position(2.f, 0.f).with_custom_background(afterhours::Color{110, 156, 220, 24})
+        .with_roundness(0.f).with_debug_name("code_active_gutter"));
+    if (!session.codeFocused) return;
+    const auto at = reading::caret_byte(*session.caret, path, side, line, text, firstColumn, finalFragment);
+    if (!at) return;
+    const float x = (prefix + code_mw(session, text.substr(0, *at))) / zoom::get();
+    div(ctx, mk(row, 90005), ComponentConfig{}.with_skip_grid_snap()
+        .with_size(ComponentSize{pixels(1.5f), pixels(std::max(1.f, diff_detail::code_line_height() - 6.f))})
+        .with_absolute_position(x, 3.f).with_custom_background(theme::TEXT_PRIMARY)
+        .with_roundness(0.f).with_debug_name("code_caret"));
+}
+
+}
+
 // Render a single diff line as a composed label.
 // Format: "  OldLn  NewLn  content"
 inline void render_diff_line(UIContext<InputAction>& ctx,
@@ -571,6 +614,12 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     }
 
     if (moved) bgColor = afterhours::Color{35, 55, 85, 255};
+    const auto caretSide = prefix == '-' || (prefix == ' ' && sel && sel->caret && sel->caret->side == reading::DiffSide::Before)
+        ? reading::DiffSide::Before : reading::DiffSide::After;
+    const int caretLine = caretSide == reading::DiffSide::Before ? (oldNum.empty() ? 0 : std::stoi(oldNum)) : (newNum.empty() ? 0 : std::stoi(newNum));
+    const bool activeLine = diff_sel::caret_line(sel, filePath, caretSide, caretLine);
+    if (activeLine) bgColor = diff_sel::active_background(bgColor);
+
 
     // Format: "OldLn NewLn  <sign> content"
     // The dedicated sign column makes add/del/context scannable without
@@ -589,7 +638,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_border_left(prefix == '+' ? theme::DIFF_ADD_TEXT : prefix == '-' ? theme::DIFF_DEL_TEXT : bgColor, pixels(2))
             .with_custom_text_color(textColor)
             .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
-                                                sel && sel->visibleWhitespace, hasNewline, original, sourceOffset, finalFragment, ending, prepared))
+                                                sel && sel->visibleWhitespace, hasNewline, original, sourceOffset, finalFragment, ending, prepared, activeLine))
             .with_font("mono", pixels(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
@@ -645,6 +694,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             }
         }
     }
+    if (sel) diff_sel::render_caret(ctx, lineDiv.ent(), *sel, filePath, caretSide, caretLine, content,
+        diff_sel::content_x_offset(*sel, gutter), prepared ? prepared->column : reading::column_at_byte(original ? *original : content, sourceOffset), finalFragment);
 }
 
 // Render a single hunk with its header and all diff lines.
@@ -656,6 +707,13 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
                               const ecs::DiffHunk& hunk, int& nextId, float contentWidth,
                               diff_sel::Session* sel, diff_detail::DiffViewport* vp,
                               bool sideBySide, float lineWidth) {
+    if (fileDiff.isFullContent && hunk.lines.empty()) {
+        if (vp) { vp->flush(ctx, parent, nextId); vp->built(diff_detail::code_line_height()); }
+        int oldLine = 1, newLine = 1;
+        render_diff_line(ctx, parent, nextId++, " ", oldLine, newLine, contentWidth, fileDiff.filePath,
+            sel, {}, false, false, true);
+        return;
+    }
     if (sideBySide) {
         render_sbs_hunk(ctx, parent, fileDiff, hunk, nextId,
                         lineWidth > 0 ? lineWidth : contentWidth, vp, sel, false);
@@ -1122,6 +1180,11 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     }
 
     if (moved) bg = afterhours::Color{35, 55, 85, 255};
+    const auto caretSide = leftBorder ? reading::DiffSide::Before : reading::DiffSide::After;
+    const int caretLine = num.empty() ? 0 : std::stoi(num);
+    const bool activeLine = kind != SbsKind::Empty && diff_sel::caret_line(sel, filePath, caretSide, caretLine);
+    if (activeLine) bg = diff_sel::active_background(bg);
+
     std::string gutter = code_gutter::pad(num) + "  " + sign + " ";
     if (sourceOffset) gutter.assign(gutter.size(), ' ');
     std::string label = gutter + content;
@@ -1132,7 +1195,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         .with_custom_background(bg)
         .with_custom_text_color(fg)
         .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
-                                            sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline, original, sourceOffset, finalFragment, ending))
+                                            sel && sel->visibleWhitespace && kind != SbsKind::Empty, hasNewline, original, sourceOffset, finalFragment, ending, nullptr, activeLine))
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
         .with_font("mono", pixels(Settings::get().get_code_font_size()))
         .with_alignment(TextAlignment::Left)
@@ -1174,6 +1237,9 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
                 .with_debug_name("diff_sel_hl"));
         }
     }
+    if (sel && kind != SbsKind::Empty) diff_sel::render_caret(ctx, cell.ent(), *sel, filePath, caretSide, caretLine, content,
+        diff_sel::content_x_offset(*sel, gutter), reading::column_at_byte(original ? *original : content, sourceOffset), finalFragment);
+
 }
 
 } // namespace diff_detail
@@ -1818,10 +1884,26 @@ inline void render_diff(UIContext<InputAction>& ctx,
             diff_sel::state().context = std::move(context);
         }
         sess.enabled = true;
+        sess.owner = filterRepo;
+        if (filterRepo && !diffs.empty() && diffs.front().isFullContent && !filterRepo->workspace().document(filterRepo->workspace().active_id())->caret) {
+            const auto& anchor = filterRepo->workspace().document(filterRepo->workspace().active_id())->anchor;
+            navigation::set_caret(*filterRepo, {diffs.front().filePath, reading::DiffSide::After,
+                anchor ? anchor->line : 1, anchor ? anchor->column : 1});
+        }
         sess.tmc = &EntityHelper::get_singleton_cmp_enforce<
             afterhours::ui::TextMeasureCache>();
         sess.fontSize = Settings::get().get_code_font_size() * zoom::get();
-        diff_sel::handle_mouse(ctx, sess); // update selection from prior frame
+        diff_sel::handle_mouse(ctx, sess);
+        if (filterRepo) {
+            if (sess.findNavigate && navigation::find(*filterRepo).position) {
+                const auto& point = *navigation::find(*filterRepo).position;
+                navigation::set_caret(*filterRepo, {point.path, point.side, point.line, point.column});
+            }
+            sess.caret = filterRepo->workspace().document(filterRepo->workspace().active_id())->caret;
+            const auto focusOwner = shortcut_owner(ctx, *filterRepo);
+            sess.codeFocused = focusOwner.region == reading::focus::Region::Code && !focusOwner.text;
+        }
+
 
         // Cmd+C copies the current selection (keyboard path; the header button
         // is the mouse path). 343/347 = L/R Super, 67 = 'C' (GLFW keycodes).

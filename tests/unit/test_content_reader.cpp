@@ -449,4 +449,21 @@ TEST(untracked_review_includes_files_inside_new_directories) {
     std::filesystem::remove_all(path);
 }
 
+TEST(empty_file_has_a_valid_first_caret_position) {
+    ecs::FilePageRequest request{ecs::FilePageRequest::Action::TargetLine, {}, 1};
+    file_page::Collector first(request, "auto", "");
+    first.finish();
+    ASSERT_TRUE(first.error.empty());
+    ASSERT_TRUE(first.raw.empty());
+    request.targetLine = 2;
+    file_page::Collector beyond(request, "auto", "");
+    beyond.finish();
+    ASSERT_FALSE(beyond.error.empty());
+    request.targetLine = 1;
+    request.targetColumn = 2;
+    file_page::Collector column(request, "auto", "");
+    column.finish();
+    ASSERT_FALSE(column.error.empty());
+}
+
 int main() { RUN_ALL_TESTS(); }

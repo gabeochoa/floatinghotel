@@ -203,6 +203,14 @@ struct FindState {
     bool navigate = false;
 };
 
+struct CodePosition {
+    std::string path;
+    DiffSide side = DiffSide::After;
+    int line = 1;
+    int column = 1;
+    bool operator==(const CodePosition&) const = default;
+};
+
 struct Document {
     DocumentId id;
     Location location = ReviewLocation{};
@@ -216,6 +224,7 @@ struct Document {
     FindState find;
     bool detailsExpanded = false;
     std::map<std::string, int> contextLines;
+    std::optional<CodePosition> caret;
 };
 
 class ReadingWorkspace {

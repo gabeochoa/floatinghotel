@@ -2238,3 +2238,14 @@ action space while hiding the controls. The native layout dump now includes
 effective opacity so behavioral checks can distinguish layout presence from
 visibility. Compact icon buttons also need explicit child alignment and enough
 content height after padding; those were app styling corrections.
+
+### Layout snapshots retain geometry for inactive entities
+
+The step 44 caret replay initially counted a previously rendered caret whose
+`visible_rect` still had nonzero dimensions. The entity was correctly marked
+`rendered=false`; the test now requires both rendered state and clipped geometry.
+An explicit effective-visibility field or shared snapshot query would help
+native UI tests for virtualized readers, inventories, and transient overlays
+avoid interpreting retained layout data as a visible element. This was a test
+assumption, not a caret left on screen. Evidence is in
+`docs/reading-navigation-evidence/step44/first-native.tar.gz`.

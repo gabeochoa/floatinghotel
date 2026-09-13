@@ -158,6 +158,8 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 }
                 value["details_expanded"] = tab.detailsExpanded;
                 value["context_lines"] = tab.contextLines;
+                if (tab.caret) value["caret"] = {{"path", tab.caret->path}, {"line", tab.caret->line},
+                    {"column", tab.caret->column}, {"side", tab.caret->side == reading::DiffSide::Before ? "before" : "after"}};
                 value["find"] = {{"open", tab.find.open}, {"query", tab.find.query}, {"index", tab.find.index}};
                 if (tab.find.position) value["find"]["position"] = {
                     {"path", tab.find.position->path}, {"line", tab.find.position->line},

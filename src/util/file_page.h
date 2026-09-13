@@ -141,6 +141,7 @@ public:
 
     void finish() {
         if (!finished_) process(true);
+        if (position_ == 0 && request_.targetLine == 1 && request_.targetColumn == 1) reachedTarget_ = true;
         if (request_.action == ecs::FilePageRequest::Action::TargetLine && !reachedTarget_)
             error = "Requested line is beyond the end of this file";
         raw.shrink_to_fit();
