@@ -1650,6 +1650,15 @@ selection that survives reflow and offscreen dragging remains in planned steps
 13 and 48; the current reader clears a selection on reflow instead of allowing
 its entity IDs to refer to different text.
 
+Step 36's 256 KiB long-line fixture exposed an app-side cost in this workaround:
+rebuilding the full display string and its prefix for every visible fragment.
+Preparing display text once per source line and advancing byte/column offsets
+across fragments reduced the 100% zoom rendering p99 from 106.16 to 5.49 ms on
+that fixture. An upstream layout result should make these mappings reusable
+across slices, rather than requiring consumers to derive each prefix again.
+This was a host rendering bug, not evidence that Afterhours layout itself took
+106 ms. The app keeps the existing token and wrapping cache budgets.
+
 ### Restore window dimensions before native creation
 
 The application stored window-size fields but never updated them on normal

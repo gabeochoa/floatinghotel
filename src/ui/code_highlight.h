@@ -13,6 +13,12 @@ namespace code_highlight {
 enum class Kind { Plain, Keyword, String, Number, Comment };
 using Range = std::pair<size_t, size_t>;
 
+inline size_t display_size(std::string_view raw, bool visible) {
+    size_t bytes = 0;
+    for (const char ch : raw) bytes += ch == '\t' ? (visible ? 6 : 4) : ch == '\r' ? 0 : ch == ' ' && visible ? 2 : 1;
+    return bytes;
+}
+
 inline std::string display_text(std::string_view raw, bool visible, bool ending = false, bool hasNewline = true) {
     std::string out;
     for (char ch : raw) {

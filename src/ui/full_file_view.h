@@ -29,22 +29,23 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFileSourceKey = sourceKey;
         repo.fullFilePage = {};
         repo.fullFilePageRequest = {};
-        repo.fullFileRequestedTargetLine = 0;
+        repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
     }
-    if (repo.fullFileTargetLine() > 0 && repo.fullFileRequestedTargetLine != repo.fullFileTargetLine()) {
+    const int targetColumn = repo.workspace().source()->column;
+    if (repo.fullFileTargetLine() > 0 && (repo.fullFileRequestedTargetLine != repo.fullFileTargetLine() || repo.fullFileRequestedTargetColumn != targetColumn)) {
         repo.fullFileRequestedTargetLine = repo.fullFileTargetLine();
-        int lastLine = repo.fullFilePage.next.line - (repo.fullFilePage.next.continuation ? 0 : 1);
-        if (repo.fullFileDiff.empty() || repo.fullFileTargetLine() < repo.fullFilePage.begin.line || repo.fullFileTargetLine() > lastLine) {
+        repo.fullFileRequestedTargetColumn = targetColumn;
+        if (repo.fullFileDiff.empty() || !repo.fullFilePage.contains(repo.fullFileTargetLine(), targetColumn, 0)) {
             const auto* document = repo.workspace().document(repo.workspace().active_id());
             const int leading = document->restoreAnchor && document->anchor
                 ? static_cast<int>(std::ceil(layout.mainContent.height * document->anchor->viewportFraction /
                     (Settings::get().get_code_font_size() + 8.f))) + 1 : 0;
-            repo.fullFilePageRequest = {FilePageRequest::Action::TargetLine, {}, repo.fullFileTargetLine(), {}, leading};
+            repo.fullFilePageRequest = {FilePageRequest::Action::TargetLine, {}, repo.fullFileTargetLine(), {}, leading, targetColumn};
         }
     }
     const auto& pageRequest = repo.fullFilePageRequest;
     std::string key = sourceKey + "\n" + repo.fullFileEncodingOverride + ":" +
-        std::to_string(static_cast<int>(pageRequest.action)) + ":" + std::to_string(pageRequest.cursor.offset) + ":" + std::to_string(pageRequest.targetLine) + ":" + std::to_string(pageRequest.leadingLines);
+        std::to_string(static_cast<int>(pageRequest.action)) + ":" + std::to_string(pageRequest.cursor.offset) + ":" + std::to_string(pageRequest.targetLine) + ":" + std::to_string(pageRequest.leadingLines) + ":" + std::to_string(pageRequest.targetColumn);
     bool changed = repo.fullFileCacheKey != key;
     if (changed) {
         repo.fullFileCacheKey = key;
@@ -104,7 +105,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFilePage = {};
         repo.fullFilePageRequest = {};
         navigation::clear_source_reveal(repo);
-        repo.fullFileRequestedTargetLine = 0;
+        repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
     }
     const auto& page = repo.fullFilePage;
     bool partial = page.begin.offset != 0 || page.next.offset < page.totalBytes;
@@ -117,7 +118,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             repo.reading = {};
             repo.fullFilePageRequest = std::move(request);
             navigation::clear_source_reveal(repo);
-            repo.fullFileRequestedTargetLine = 0;
+            repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
             repo.fullFileNavigateFrames = 0;
             repo.fullFileCacheKey.clear();
             repo.fullFileDiff.clear();
@@ -139,7 +140,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         auto range = repo.fullFileFuture.valid() ? "Loading bounded file page..." :
             "Loaded lines " + std::to_string(page.begin.line) + "–" + std::to_string(page.next.line - (page.next.continuation ? 0 : 1)) +
             " · bytes " + std::to_string(page.begin.offset) + "–" + std::to_string(page.next.offset) + " of " + std::to_string(page.totalBytes) +
-            (page.begin.continuation || (page.next.offset < page.totalBytes && page.next.continuation) ? " · line fragment" : "") + " · Find and Copy cover this page only";
+            (page.begin.continuation || (page.next.offset < page.totalBytes && page.next.continuation) ? " · line fragment" : "") + " · Copy covers this page only";
         div(ctx, mk(parent, 585021), ComponentConfig{}.with_label(range)
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));

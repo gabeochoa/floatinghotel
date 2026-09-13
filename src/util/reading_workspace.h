@@ -193,6 +193,7 @@ struct FileSummary {
 };
 
 struct FindState {
+    int pendingStep = 0;
     bool open = false;
     bool focus = false;
     std::string query;

@@ -8,7 +8,7 @@ SourcePosition locate_source_position(const std::string& repository, reading::So
     SourcePosition result{std::move(location)};
     auto& target = result.location;
     auto content = read_file({repository, target.destination.path, reading::revision_text(target.destination.revision),
-        {ecs::FilePageRequest::Action::TargetLine, {}, target.line}, encoding}, stop);
+        {ecs::FilePageRequest::Action::TargetLine, {}, target.line, {}, 0, target.column}, encoding}, stop);
     if (!content.error.empty()) { result.error = std::move(content.error); return result; }
     if (content.diff.isBinary) { result.error = "Line navigation is unavailable for binary files"; return result; }
     if (!content.resolvedRevision.empty()) target.destination.revision = reading::ObjectId{std::move(content.resolvedRevision)};
@@ -18,7 +18,8 @@ SourcePosition locate_source_position(const std::string& repository, reading::So
         std::string_view text = hunk.lines[static_cast<size_t>(index)];
         text.remove_prefix(std::min<size_t>(1, text.size()));
         if (text.ends_with('\r')) text.remove_suffix(1);
-        const int lastColumn = reading::column_at_byte(text, text.size());
+        const int lastColumn = reading::column_at_byte(text, text.size()) +
+            (target.line == content.page.begin.line ? content.page.begin.column - 1 : 0);
         if (target.column > lastColumn && content.page.next.continuation && target.line == content.page.next.line && content.page.next.offset < content.page.totalBytes) {
             result.error = "Column is beyond this loaded line fragment";
             return result;

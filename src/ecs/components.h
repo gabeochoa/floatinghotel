@@ -124,6 +124,7 @@ struct FilePageCursor {
     uint64_t offset = 0;
     int line = 1;
     bool continuation = false;
+    int column = 1;
 };
 
 struct FilePageRequest {
@@ -133,6 +134,7 @@ struct FilePageRequest {
     int targetLine = 0;
     std::string sourceIdentity;
     int leadingLines = 0;
+    int targetColumn = 1;
 };
 
 struct FilePage {
@@ -142,6 +144,11 @@ struct FilePage {
     std::string blob;
     std::string encoding;
     std::string sourceIdentity;
+
+    bool contains(int line, int column, int length = 1) const {
+        return line >= begin.line && (line > begin.line || column >= begin.column) &&
+            (line < next.line || (line == next.line && static_cast<int64_t>(column) + length <= next.column));
+    }
 };
 
 struct FullFileContent {
@@ -256,6 +263,27 @@ struct CommitLogPage {
     async_work::Task<git::GitResult> future;
 };
 
+struct SourceFindMatch {
+    int line = 1;
+    int column = 1;
+};
+
+struct SourceFindResult {
+    std::vector<SourceFindMatch> matches;
+    std::string sourceIdentity;
+    std::string error;
+    bool limited = false;
+    uint64_t scannedBytes = 0;
+    size_t maxPageBytes = 0;
+};
+
+struct SourceFindRuntime {
+    std::string key;
+    reading::RequestStamp request;
+    async_work::Task<SourceFindResult> future;
+    SourceFindResult result;
+};
+
 struct RepoComponent : public afterhours::BaseComponent {
     RangeDiffState rangeDiff;
     bool reviewWorkspace = false;
@@ -318,6 +346,7 @@ public:
     std::vector<FileDiff> fullFileDiff;
     std::string fullFileError;
     std::string fullFileBytes;
+    SourceFindRuntime sourceFind;
     async_work::Task<FullFileContent> fullFileFuture;
     reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;
@@ -325,6 +354,7 @@ public:
     std::string fullFileEncodingOverride = "auto";
     std::string fullFileEncodingLabel;
     int fullFileRequestedTargetLine = 0;
+    int fullFileRequestedTargetColumn = 0;
     bool isRefreshing = false;
     bool hasLoadedOnce = false;
     unsigned repoVersion = 0;

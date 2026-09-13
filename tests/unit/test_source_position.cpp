@@ -40,4 +40,19 @@ TEST(source_positions_validate_bounds_and_preserve_historical_identity) {
     std::filesystem::remove_all(repo);
 }
 
+TEST(source_positions_resolve_columns_beyond_the_first_fragment) {
+    char directory[] = "/tmp/fh-position-column.XXXXXX";
+    auto* repo = mkdtemp(directory);
+    ASSERT_TRUE(repo != nullptr);
+    { std::ofstream out(std::filesystem::path(repo) / "a.cpp"); out << std::string(300000, ' ') << "é NEEDLE"; }
+    auto location = reading::source("a.cpp", "", 1);
+    location.column = 300003;
+    auto found = git::locate_source_position(repo, location);
+    ASSERT_TRUE(found.error.empty()); ASSERT_EQ(found.location.column, 300003);
+    location.column = 900000;
+    auto bounded = git::locate_source_position(repo, location);
+    ASSERT_TRUE(bounded.error.empty()); ASSERT_EQ(bounded.location.column, 300009);
+    std::filesystem::remove_all(repo);
+}
+
 int main() { RUN_ALL_TESTS(); }

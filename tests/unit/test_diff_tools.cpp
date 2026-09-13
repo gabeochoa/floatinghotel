@@ -453,4 +453,15 @@ TEST(find_matches_keep_byte_and_decoded_columns) {
     ASSERT_EQ(matches[1].logicalColumn, 11);
 }
 
+TEST(prepared_display_offsets_match_rendered_utf8_bytes) {
+    const std::string text = "\téλ  value\r";
+    for (const bool visible : {false, true}) {
+        ASSERT_EQ(code_highlight::display_size(text, visible), code_highlight::display_text(text, visible).size());
+        size_t offset = 0;
+        for (const auto part : {std::string_view(text).substr(0, 3), std::string_view(text).substr(3)})
+            offset += code_highlight::display_size(part, visible);
+        ASSERT_EQ(offset, code_highlight::display_text(text, visible).size());
+    }
+}
+
 int main() { RUN_ALL_TESTS(); }

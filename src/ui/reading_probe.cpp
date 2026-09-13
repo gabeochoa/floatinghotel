@@ -157,6 +157,12 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 std::ofstream output(directory / (cmd.arg(1) + ".workspace.json"));
                 output.exceptions(std::ios::failbit | std::ios::badbit);
                 output << nlohmann::json{{"active", repo->workspace().active_id().value},
+                    {"source_find", {{"matches", repo->sourceFind.result.matches.size()}, {"loading", repo->sourceFind.future.valid()},
+                        {"match_bytes", repo->sourceFind.result.matches.capacity() * sizeof(ecs::SourceFindMatch)},
+                        {"limited", repo->sourceFind.result.limited}, {"error", repo->sourceFind.result.error},
+                        {"scanned_bytes", repo->sourceFind.result.scannedBytes}, {"max_page_bytes", repo->sourceFind.result.maxPageBytes},
+                        {"page_line", repo->fullFilePage.begin.line}, {"page_column", repo->fullFilePage.begin.column},
+                        {"page_offset", repo->fullFilePage.begin.offset}}},
                     {"tabs", tabs}, {"history_index", repo->workspace().history_index()}, {"history", [&] {
                         auto visits = nlohmann::json::array();
                         for (const auto& visit : repo->workspace().history()) {

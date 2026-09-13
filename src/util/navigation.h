@@ -20,6 +20,7 @@ struct navigation {
         auto& state = find(repo);
         state.open = state.focus = true;
         state.navigate = false;
+        state.pendingStep = 0;
         if (!seed.empty()) {
             state.query = std::move(seed);
             state.index = 0;
@@ -28,8 +29,10 @@ struct navigation {
     }
 
     static void close_find(ecs::RepoComponent& repo) {
+        if (repo.sourceFind.future.valid()) repo.sourceFind = {};
         auto& state = find(repo);
         state.open = state.focus = state.navigate = false;
+        state.pendingStep = 0;
         focus_document(repo, reading::focus::Region::Code);
     }
 
@@ -81,6 +84,7 @@ struct navigation {
     }
 
     static void release_source(ecs::RepoComponent& repo) {
+        repo.sourceFind = {};
         repo.fullFileFuture = {};
         repo.fullFileCacheKey.clear();
         repo.fullFileSourceKey.clear();

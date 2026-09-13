@@ -82,7 +82,7 @@ for zoom in [100, 140, 200]:
         main = node(opened, 'main_content')['rect']
         assert bar['x'] >= main['x'] and bar['x'] + bar['width'] <= main['x'] + main['width'] + 1
         assert abs(bar['height'] - 34 * zoom / 100) < 1
-    first_source_line = min(r['line'] for r in layout('source_before')['reading_rows'])
+    first_source_line = 1
     for name, index, line in [('review_found', 0, 1), ('review_second', 1, 2), ('review_previous', 0, 1),
         ('source_found', 0, first_source_line), ('source_third', 2, first_source_line + 2), ('source_return', None, first_source_line + 2), ('other_second', 1, 2)]:
         find = active(name)['find']

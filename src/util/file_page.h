@@ -27,6 +27,7 @@ class Collector {
     std::string pending_;
     uint64_t position_ = 0;
     int line_ = 1;
+    int column_ = 1;
     int pageLines_ = 0;
     bool continuation_ = false;
     bool finished_ = false;
@@ -48,7 +49,9 @@ class Collector {
         size_t size = c >= 0xc2 && c <= 0xdf ? 2 : c >= 0xe0 && c <= 0xef ? 3 : c >= 0xf0 && c <= 0xf4 ? 4 : 1;
         for (size_t i = 1; i < std::min(size, left); ++i)
             if ((byte(at + i) & 0xc0) != 0x80) return 1;
-        return left < size ? (eof ? left : 0) : size;
+        if (left >= size && ((size == 3 && ((c == 0xe0 && byte(at + 1) < 0xa0) || (c == 0xed && byte(at + 1) >= 0xa0))) ||
+            (size == 4 && ((c == 0xf0 && byte(at + 1) < 0x90) || (c == 0xf4 && byte(at + 1) >= 0x90))))) return 1;
+        return left < size ? (eof ? 1 : 0) : size;
     }
 
     bool process(bool eof) {
@@ -75,7 +78,7 @@ class Collector {
             const bool target = request_.action == ecs::FilePageRequest::Action::TargetLine;
             const int firstLine = request_.targetLine - std::clamp(request_.leadingLines, 0, lineLimit / 2);
             bool collecting = !target || line_ >= firstLine;
-            if (target && line_ < request_.targetLine && raw.size() + size > byteLimit / 2) {
+            if (target && (line_ < request_.targetLine || (line_ == request_.targetLine && column_ < request_.targetColumn)) && raw.size() + size > byteLimit / 2) {
                 raw.clear();
                 pageLines_ = 0;
             }
@@ -85,18 +88,25 @@ class Collector {
             }
             if (collecting) {
                 reachedTarget_ |= line_ >= request_.targetLine;
-                if (raw.empty()) begin = {position_, line_, continuation_};
+                if (raw.empty()) begin = {position_, line_, continuation_, column_};
                 raw.append(pending_, at, size);
                 if (newline) ++pageLines_;
             }
+            const bool bom = position_ == 0 && ((encoding == "utf8" && pending_.substr(at, size) == "\xef\xbb\xbf") ||
+                (encoding == "utf16le" && pending_.substr(at, size) == "\xff\xfe") ||
+                (encoding == "utf16be" && pending_.substr(at, size) == "\xfe\xff"));
             position_ += size;
             at += size;
             if (newline) {
+                column_ = 1;
                 if (line_ == std::numeric_limits<int>::max()) { error = "File exceeds supported line-number range"; finished_ = true; break; }
                 ++line_;
+            } else if (!bom) {
+                if (column_ == std::numeric_limits<int>::max()) { error = "File exceeds supported column-number range"; finished_ = true; break; }
+                ++column_;
             }
             continuation_ = !newline;
-            next = {position_, line_, continuation_};
+            next = {position_, line_, continuation_, column_};
         }
         pending_.erase(0, at);
         return !finished_;
@@ -111,6 +121,7 @@ public:
     Collector(ecs::FilePageRequest request, std::string overrideEncoding, const std::string& detected, uint64_t sourceOffset = 0)
         : request_(request), position_(sourceOffset),
           line_(request.action == ecs::FilePageRequest::Action::Next ? request.cursor.line : 1),
+          column_(request.action == ecs::FilePageRequest::Action::Next ? request.cursor.column : 1),
           continuation_(request.action == ecs::FilePageRequest::Action::Next && request.cursor.continuation),
           encoding(overrideEncoding == "auto" ? detected : std::move(overrideEncoding)) {
         raw.reserve(byteLimit);

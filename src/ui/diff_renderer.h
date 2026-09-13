@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../git/source_find.h"
+
 #include "../util/reading_anchor.h"
 #include "geometry.h"
 
@@ -38,15 +40,21 @@ inline void begin_diff_comment(ecs::ReviewComponent& review, const std::string& 
         repo ? repo->headCommitHash : ""));
 }
 
+struct PreparedCode {
+    std::shared_ptr<const std::vector<code_highlight::Token>> tokens;
+    size_t offset = 0;
+    int column = 1;
+};
+
 inline std::vector<afterhours::ui::TextSpan> highlighted_code(
     const std::string& prefix, const std::string& content, const std::string& path,
     bool visibleWhitespace = false, bool hasNewline = true,
-    const std::string* original = nullptr, size_t offset = 0, bool finalFragment = true, const std::string& ending = "") {
+    const std::string* original = nullptr, size_t offset = 0, bool finalFragment = true, const std::string& ending = "", const PreparedCode* prepared = nullptr) {
     std::vector<afterhours::ui::TextSpan> spans{{prefix, theme::TEXT_SECONDARY}};
     const auto& source = original ? *original : content;
-    auto tokens = code_highlight::token_cache().get(code_highlight::display_text(source, visibleWhitespace), path);
-    size_t begin = code_highlight::display_text(std::string_view(source).substr(0, offset), visibleWhitespace).size();
-    size_t end = begin + code_highlight::display_text(content, visibleWhitespace).size();
+    auto tokens = prepared ? prepared->tokens : code_highlight::token_cache().get(code_highlight::display_text(source, visibleWhitespace), path);
+    size_t begin = prepared ? prepared->offset : code_highlight::display_size(std::string_view(source).substr(0, offset), visibleWhitespace);
+    size_t end = begin + code_highlight::display_size(content, visibleWhitespace);
     size_t position = 0;
     for (const auto& token : *tokens) {
         auto color = theme::TEXT_PRIMARY;
@@ -125,6 +133,8 @@ inline void reset() {
 }
 
 struct Session {
+    int sourceStartLine = 0;
+    int sourceStartColumn = 1;
     bool visibleWhitespace = false;
     std::optional<ecs::DiffMatch> findMatch;
     std::string findQuery;
@@ -444,6 +454,7 @@ struct DiffViewport {
     struct AnchorCandidate { int distance; int line; float y; };
     std::optional<AnchorCandidate> nearestAnchor;
     bool restoredAnchor = false;
+    std::optional<size_t> anchorByte;
 
     void restore_at(float y) {
         const float height = scroll->viewport_or_zero().y;
@@ -456,13 +467,15 @@ struct DiffViewport {
     }
 
     void observe_line(const std::string& path, int line, reading::DiffSide side, char,
-                      const std::string& text, size_t begin, size_t end) {
+                      const std::string& text, size_t begin, size_t end, int columnBase = 1) {
         if (!scroll || scroll->viewport_or_zero().y <= 0.f) return;
         if (restoreAnchor && !restoredAnchor && path == restoreAnchor->path && side == restoreAnchor->side) {
             const int distance = std::abs(line - restoreAnchor->line);
             if (!nearestAnchor || distance < nearestAnchor->distance) nearestAnchor = AnchorCandidate{distance, line, curY};
-            const size_t byte = reading::byte_at_column(text, restoreAnchor->column);
-            if (line == restoreAnchor->line && byte >= begin && (byte < end || end == text.size())) restore_at(curY);
+            if (line == restoreAnchor->line) {
+                if (!anchorByte) anchorByte = reading::byte_at_column(text, restoreAnchor->column - columnBase + 1);
+                if (*anchorByte >= begin && (*anchorByte < end || end == text.size())) restore_at(curY);
+            }
         }
 
     }
@@ -524,7 +537,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                               diff_sel::Session* sel = nullptr,
                               code_highlight::Range changed = {},
                               bool hasNewline = true, bool moved = false, bool fullContent = false,
-                              size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr) {
+                              size_t sourceOffset = 0, bool finalFragment = true, const std::string* original = nullptr, const PreparedCode* prepared = nullptr) {
     afterhours::Color bgColor, textColor;
     std::string oldNum, newNum;
     std::string content;
@@ -571,7 +584,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
             .with_border_left(prefix == '+' ? theme::DIFF_ADD_TEXT : prefix == '-' ? theme::DIFF_DEL_TEXT : bgColor, pixels(2))
             .with_custom_text_color(textColor)
             .with_styled_label(highlighted_code(label.substr(0, label.size() - content.size()), content, filePath,
-                                                sel && sel->visibleWhitespace, hasNewline, original, sourceOffset, finalFragment, ending))
+                                                sel && sel->visibleWhitespace, hasNewline, original, sourceOffset, finalFragment, ending, prepared))
             .with_font("mono", pixels(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
             .with_padding(Padding{
@@ -598,7 +611,8 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         diff_sel::state().curLines.push_back(
             {lineDiv.ent().id, content, filePath, lno, r, cx0, 0, prefix,
              oldNum.empty() ? 0 : std::stoi(oldNum), newNum.empty() ? 0 : std::stoi(newNum), sourceOffset,
-             reading::column_at_byte(original ? *original : content, sourceOffset), finalFragment});
+             (prepared ? prepared->column : reading::column_at_byte(original ? *original : content, sourceOffset) +
+                 (lno == sel->sourceStartLine ? sel->sourceStartColumn - 1 : 0)), finalFragment});
         if (diff_sel::found_line(sel, filePath, lno, prefix))
             diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, prefixW, sourceOffset);
 
@@ -980,11 +994,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         float width = lineWidth > 0 ? lineWidth : contentWidth;
         float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
         auto breaks = diff_sel::wrapped_rows(*sel, content, available, !hunk.noNewline.contains(index));
+        PreparedCode prepared;
+        prepared.column = newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1;
         for (size_t part = 0; part + 1 < breaks.size(); ++part) {
             int lineId = nextId++;
             auto begin = breaks[part], end = breaks[part + 1];
             if (vp) {
-                if (sign != '-') vp->observe_line(fileDiff.filePath, newLine, reading::DiffSide::After, sign, content, begin, end);
+                if (sign != '-') vp->observe_line(fileDiff.filePath, newLine, reading::DiffSide::After, sign, content, begin, end, newLine == sel->sourceStartLine ? sel->sourceStartColumn : 1);
                 if (sign != '+') vp->observe_line(fileDiff.filePath, oldLine, reading::DiffSide::Before, sign, content, begin, end);
             }
             if (sel->findNavigate && vp &&
@@ -994,12 +1010,16 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             if (!vp || vp->visible(diff_detail::code_line_height())) {
                 if (vp) vp->flush(ctx, parent, nextId);
                 int oldNumber = oldLine, newNumber = newLine;
+                if (!prepared.tokens) prepared.tokens = code_highlight::token_cache().get(code_highlight::display_text(content, sel->visibleWhitespace), fileDiff.filePath);
                 render_diff_line(ctx, parent, lineId, std::string(1, sign) + content.substr(begin, end - begin),
                     oldNumber, newNumber, width, fileDiff.filePath, sel,
                     code_wrap::intersect(changedRanges[index], begin, end), !hunk.noNewline.contains(index),
-                    hunk.movedLines.contains(index), fileDiff.isFullContent, begin, part + 2 == breaks.size(), &content);
+                    hunk.movedLines.contains(index), fileDiff.isFullContent, begin, part + 2 == breaks.size(), &content, &prepared);
                 if (vp) vp->built(diff_detail::code_line_height());
             } else vp->skipped(diff_detail::code_line_height());
+            const auto fragment = std::string_view(content).substr(begin, end - begin);
+            prepared.offset += code_highlight::display_size(fragment, sel->visibleWhitespace);
+            prepared.column += reading::column_at_byte(fragment, fragment.size()) - 1;
         }
         if (sign != '+') ++oldLine;
         if (sign != '-') ++newLine;
@@ -1347,6 +1367,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
     sess.reviewScope = reviewScope;
     auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
     sess.visibleWhitespace = layout && layout->visibleWhitespace;
+    if (ownerRepo && !diffs.empty() && diffs.front().isFullContent) {
+        sess.sourceStartLine = ownerRepo->fullFilePage.begin.line;
+        sess.sourceStartColumn = ownerRepo->fullFilePage.begin.column;
+    }
     float findHeight = 0.f;
     auto* filterRepo = ownerRepo;
     const auto anchorRequest = filterRepo ? std::optional{navigation::stamp(*filterRepo, "reading-anchor")} : std::nullopt;
@@ -1572,19 +1596,63 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (previous != find.query) {
             find.index = 0;
             find.position.reset();
+            find.pendingStep = 0;
             find.navigate = !find.query.empty();
         }
-        auto matches = ecs::find_diff_matches(diffs, find.query);
+        const bool sourceFind = filterRepo->workspace().active() == reading::Slot::Source;
+        auto& sourceRuntime = filterRepo->sourceFind;
+        if (sourceFind) {
+            const auto key = filterRepo->repoPath + "\n" + filterRepo->fullFilePath() + "\n" + filterRepo->fullFileRevision() +
+                "\n" + filterRepo->fullFileEncodingOverride + "\n" + filterRepo->fullFilePage.sourceIdentity +
+                "\n" + std::to_string(filterRepo->dataGeneration) + "\n" + find.query;
+            if (key != sourceRuntime.key) {
+                sourceRuntime = {};
+                sourceRuntime.key = key;
+                sourceRuntime.request = navigation::stamp(*filterRepo, key);
+                if (!find.query.empty()) sourceRuntime.future = git::find_source_async(
+                    {filterRepo->repoPath, filterRepo->fullFilePath(), filterRepo->fullFileRevision(), {}, filterRepo->fullFileEncodingOverride}, find.query);
+            }
+            if (sourceRuntime.future.valid() && sourceRuntime.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                auto result = sourceRuntime.future.get();
+                if (navigation::accepts(*filterRepo, sourceRuntime.request, key)) {
+                    if (result.error.empty() && result.sourceIdentity != filterRepo->fullFilePage.sourceIdentity) {
+                        result.matches.clear();
+                        result.error = "File changed. Reload before searching this version.";
+                    }
+                    sourceRuntime.result = std::move(result);
+                } else sourceRuntime.key.clear();
+            }
+        }
+        auto matches = sourceFind ? std::vector<ecs::DiffMatch>{} : ecs::find_diff_matches(diffs, find.query);
         std::set<std::string_view> visiblePaths;
         for (const auto& file : diffs) if (fileVisible(file)) visiblePaths.insert(file.filePath);
         std::erase_if(matches, [&](const auto& match) { return !visiblePaths.contains(match.file); });
-        const int count = static_cast<int>(matches.size());
+        const int count = static_cast<int>(sourceFind ? sourceRuntime.result.matches.size() : matches.size());
+        auto matchAt = [&](size_t index) {
+            if (!sourceFind) return matches[index];
+            const auto& value = sourceRuntime.result.matches[index];
+            size_t byte = 0;
+            for (const auto& file : diffs) for (const auto& hunk : file.hunks) {
+                const int row = value.line - hunk.newStart;
+                if (row < 0 || static_cast<size_t>(row) >= hunk.lines.size()) continue;
+                const int base = value.line == filterRepo->fullFilePage.begin.line ? filterRepo->fullFilePage.begin.column : 1;
+                byte = reading::byte_at_column(std::string_view(hunk.lines[row]).substr(1), value.column - base + 1);
+            }
+            return ecs::DiffMatch{filterRepo->fullFilePath(), value.line, ' ', byte, value.column};
+        };
         if (find.position) {
-            const auto match = std::ranges::find_if(matches, [&](const auto& value) {
-                return value.file == find.position->path && value.line == find.position->line &&
-                    value.sign == find.position->sign && value.logicalColumn == find.position->column;
-            });
-            if (match != matches.end()) find.index = static_cast<size_t>(match - matches.begin());
+            if (sourceFind) {
+                const auto match = std::ranges::find_if(sourceRuntime.result.matches, [&](const auto& value) {
+                    return value.line == find.position->line && value.column == find.position->column;
+                });
+                if (match != sourceRuntime.result.matches.end()) find.index = static_cast<size_t>(match - sourceRuntime.result.matches.begin());
+            } else {
+                const auto match = std::ranges::find_if(matches, [&](const auto& value) {
+                    return value.file == find.position->path && value.line == find.position->line &&
+                        value.sign == find.position->sign && value.logicalColumn == find.position->column;
+                });
+                if (match != matches.end()) find.index = static_cast<size_t>(match - matches.begin());
+            }
         }
         int step = 0;
         if (button(ctx, mk(bar.ent(), 1), preset::Button("<")
@@ -1593,15 +1661,16 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_next"))) step = 1;
         if (!shortcuts_blocked(*layout) && shortcut_owner(ctx, *filterRepo).input(reading::focus::Region::Find) &&
             afterhours::input::is_key_pressed(257)) step = afterhours::input::is_key_down(340) ? -1 : 1;
+        find.pendingStep += step;
         if (count > 0) {
-            find.index = (static_cast<int>(find.index % count) + step + count) % count;
-            sess.findMatch = matches[find.index];
+            find.index = (static_cast<int>(find.index % count) + find.pendingStep % count + count) % count;
+            sess.findMatch = matchAt(find.index);
             sess.findQuery = find.query;
             const auto& match = *sess.findMatch;
             find.position = reading::ReadingAnchor{match.file, reading::anchor_revision(filterRepo->workspace().location()),
                 match.sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After,
                 match.line, match.logicalColumn, .15f, match.sign};
-            if (find.navigate || step != 0) {
+            if (find.navigate || find.pendingStep != 0) {
                 if (review) {
                     review->foldedFiles.erase(reviewScope + "\n" + match.file);
                     for (const auto& file : diffs) {
@@ -1620,13 +1689,31 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     source->column = match.logicalColumn;
                 } else std::get<reading::ReviewLocation>(location).file = match.file;
                 navigation::preview(*filterRepo, std::move(location), find.position);
+                if (sourceFind && !filterRepo->fullFilePage.contains(match.line, match.logicalColumn,
+                        reading::column_at_byte(find.query, find.query.size()) - 1)) {
+                    filterRepo->fullFilePageRequest = {ecs::FilePageRequest::Action::TargetLine, {}, match.line,
+                        sourceRuntime.result.sourceIdentity, 3, match.logicalColumn};
+                    filterRepo->fullFileRequestedTargetLine = match.line;
+                    filterRepo->fullFileRequestedTargetColumn = match.logicalColumn;
+                    find.focus = true;
+                }
             }
         }
-        find.navigate = false;
+        if (!sourceFind || (!sourceRuntime.future.valid() && !sourceRuntime.key.empty())) {
+            find.navigate = false;
+            find.pendingStep = 0;
+        }
         div(ctx, mk(bar.ent(), 3), ComponentConfig{}.with_skip_grid_snap()
-            .with_label(count == 0 ? "0/0" : std::to_string(find.index + 1) + "/" + std::to_string(count))
-            .with_size(ComponentSize{pixels(56), pixels(28)})
+            .with_label(sourceFind && sourceRuntime.future.valid() ? "..." : count == 0 ? "0/0" : std::to_string(find.index + 1) + "/" + std::to_string(count))
+            .with_size(ComponentSize{pixels(76), pixels(28)})
             .with_font_size(pixels(12)).with_debug_name("diff_find_count"));
+        if (sourceFind && (sourceRuntime.result.limited || !sourceRuntime.result.error.empty()))
+            div(ctx, mk(bar.ent(), 5), ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{pixels(width), pixels(24)})
+                .with_absolute_position(0.f, 34.f).with_custom_background(theme::SIDEBAR_BG)
+                .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_label(sourceRuntime.result.error.empty() ? "Limited to the first 5,000 matches" : sourceRuntime.result.error)
+                .with_debug_name("source_find_notice"));
         if (button(ctx, mk(bar.ent(), 4), preset::Button("x")
                 .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_close")))
             navigation::close_find(*filterRepo);

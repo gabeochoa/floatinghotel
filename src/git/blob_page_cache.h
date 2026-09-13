@@ -19,6 +19,7 @@ inline std::string blob_page_key(const FileRequest& request, const std::string& 
     return blob + "\n" + std::to_string(static_cast<int>(request.page.action)) + ":" +
         std::to_string(request.page.cursor.offset) + ":" + std::to_string(request.page.cursor.line) + ":" +
         std::to_string(request.page.cursor.continuation) + ":" + std::to_string(request.page.targetLine) + ":" + std::to_string(request.page.leadingLines) +
+        "\n" + std::to_string(request.page.cursor.column) + ":" + std::to_string(request.page.targetColumn) +
         "\n" + request.encoding + "\n" + request.detectedEncoding;
 }
 
