@@ -159,6 +159,19 @@ struct FileSummary {
     bool partial = false;
 };
 
+enum class DiffSide { Before, After };
+
+struct ReadingAnchor {
+    std::string path;
+    std::string revision;
+    DiffSide side = DiffSide::After;
+    int line = 1;
+    int column = 1;
+    float viewportFraction = 0.f;
+    char sign = ' ';
+    bool operator==(const ReadingAnchor&) const = default;
+};
+
 struct Document {
     DocumentId id;
     Location location = ReviewLocation{};
@@ -166,6 +179,9 @@ struct Document {
     std::optional<std::vector<FileSummary>> files;
     bool preview = false;
     std::string subject;
+    std::optional<ReadingAnchor> anchor;
+    bool restoreAnchor = false;
+    bool unresolvedSavedRevision = false;
 };
 
 class ReadingWorkspace {
@@ -244,6 +260,7 @@ public:
         return working;
     }
     const SourceLocation* source() const {
+        if (const auto* source = std::get_if<SourceLocation>(&location())) return source;
         const auto* tab = recent(Slot::Source);
         return tab ? &std::get<SourceLocation>(tab->location) : nullptr;
     }
@@ -313,6 +330,10 @@ private:
         else {
             if (!existing->files && restored.files) existing->files = std::move(restored.files);
             if (existing->subject.empty()) existing->subject = std::move(restored.subject);
+            if (!existing->anchor && restored.anchor) {
+                existing->anchor = std::move(restored.anchor);
+                existing->restoreAnchor = restored.restoreAnchor;
+            }
         }
         return open(std::move(next), reviewing, OpenMode::Keep);
     }
@@ -342,6 +363,10 @@ private:
             found->preview = found->preview && resolved.preview;
             if (!found->files) found->files = std::move(resolved.files);
             if (found->subject.empty()) found->subject = std::move(resolved.subject);
+            if (resolved.anchor) {
+                found->anchor = std::move(resolved.anchor);
+                found->restoreAnchor = resolved.restoreAnchor;
+            }
             active_ = found->id;
             std::erase_if(documents_, [&](const auto& tab) { return tab.id == replaced; });
         }

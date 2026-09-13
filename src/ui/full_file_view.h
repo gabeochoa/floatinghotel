@@ -34,12 +34,17 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     if (repo.fullFileTargetLine() > 0 && repo.fullFileRequestedTargetLine != repo.fullFileTargetLine()) {
         repo.fullFileRequestedTargetLine = repo.fullFileTargetLine();
         int lastLine = repo.fullFilePage.next.line - (repo.fullFilePage.next.continuation ? 0 : 1);
-        if (repo.fullFileDiff.empty() || repo.fullFileTargetLine() < repo.fullFilePage.begin.line || repo.fullFileTargetLine() > lastLine)
-            repo.fullFilePageRequest = {FilePageRequest::Action::TargetLine, {}, repo.fullFileTargetLine()};
+        if (repo.fullFileDiff.empty() || repo.fullFileTargetLine() < repo.fullFilePage.begin.line || repo.fullFileTargetLine() > lastLine) {
+            const auto* document = repo.workspace().document(repo.workspace().active_id());
+            const int leading = document->restoreAnchor && document->anchor
+                ? static_cast<int>(std::ceil(layout.mainContent.height * document->anchor->viewportFraction /
+                    (Settings::get().get_code_font_size() + 8.f))) + 1 : 0;
+            repo.fullFilePageRequest = {FilePageRequest::Action::TargetLine, {}, repo.fullFileTargetLine(), {}, leading};
+        }
     }
     const auto& pageRequest = repo.fullFilePageRequest;
     std::string key = sourceKey + "\n" + repo.fullFileEncodingOverride + ":" +
-        std::to_string(static_cast<int>(pageRequest.action)) + ":" + std::to_string(pageRequest.cursor.offset) + ":" + std::to_string(pageRequest.targetLine);
+        std::to_string(static_cast<int>(pageRequest.action)) + ":" + std::to_string(pageRequest.cursor.offset) + ":" + std::to_string(pageRequest.targetLine) + ":" + std::to_string(pageRequest.leadingLines);
     bool changed = repo.fullFileCacheKey != key;
     if (changed) {
         repo.fullFileCacheKey = key;

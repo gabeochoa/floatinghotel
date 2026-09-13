@@ -51,6 +51,8 @@ struct HandleSaveWindowState : afterhours::System<afterhours::testing::PendingE2
             return;
         }
         ecs::remember_window_size(*layout, afterhours::graphics::get_screen_width(), afterhours::graphics::get_screen_height());
+        if (const auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>(); repo && !repo->repoPath.empty())
+            Settings::get().set_reading_session(repo->repoPath, reading::save_session(repo->workspace()));
         Settings::get().write_save_file();
         cmd.consume();
     }

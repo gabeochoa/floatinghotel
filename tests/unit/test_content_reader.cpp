@@ -129,6 +129,34 @@ TEST(file_pages_bound_lines_navigate_both_directions_and_load_distant_targets) {
     std::filesystem::remove_all(path);
 }
 
+TEST(target_pages_include_bounded_leading_context_without_losing_the_target) {
+    ecs::FilePageRequest request{ecs::FilePageRequest::Action::TargetLine, {}, 4, {}, 2};
+    file_page::Collector shortFile(request, "utf8", "");
+    shortFile.consume("one\ntwo\nthree\ntarget\nfive\n");
+    shortFile.finish();
+    ASSERT_EQ(shortFile.begin.line, 2);
+    ASSERT_EQ(shortFile.raw, "two\nthree\ntarget\nfive\n");
+    ASSERT_TRUE(shortFile.error.empty());
+    std::string longPrefix = "one\n" + std::string(file_page::byteLimit * 3, 'x') + "\nthree\ntarget\nfive\n";
+    file_page::Collector bounded(request, "utf8", "");
+    for (size_t offset = 0; offset < longPrefix.size(); offset += 4096)
+        if (!bounded.consume(std::string_view(longPrefix).substr(offset, 4096))) break;
+    bounded.finish();
+    ASSERT_TRUE(bounded.error.empty());
+    ASSERT_TRUE(bounded.raw.size() <= file_page::byteLimit);
+    ASSERT_TRUE(bounded.raw.ends_with("\nthree\ntarget\nfive\n"));
+    request.targetLine = 6;
+    file_page::Collector absent(request, "utf8", "");
+    absent.consume("one\ntwo\nthree\nfour\nfive\n");
+    absent.finish();
+    ASSERT_FALSE(absent.error.empty());
+    git::FileRequest plain{"repo", "a.cpp", "HEAD"};
+    plain.page = request;
+    auto contextKey = git::blob_page_key(plain, "blob");
+    plain.page.leadingLines = 0;
+    ASSERT_TRUE(contextKey != git::blob_page_key(plain, "blob"));
+}
+
 TEST(file_pages_keep_utf16_units_and_long_line_fragments_intact) {
     std::string bytes("\xff\xfe", 2);
     for (size_t i = 0; i < (file_page::byteLimit - 4) / 2; ++i) bytes += std::string("A\0", 2);

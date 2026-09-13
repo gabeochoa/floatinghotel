@@ -714,4 +714,72 @@ TEST(recent_documents_follow_activation_and_ignore_tab_order_and_closed_tabs) {
     ASSERT_EQ(reading::recent_documents(repo.workspace())[0], c);
 }
 
+TEST(saved_sessions_exclude_previews_and_restore_kept_tabs_without_payloads) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("a.cpp", std::string(40, 'a')));
+    navigation::remember_anchor(repo, {"a.cpp", std::string(40, 'a'), reading::DiffSide::After, 120, 5, .2f, ' '});
+    const auto a = repo.workspace().active_id();
+    open_kept(repo, reading::review(std::string(40, 'b')));
+    navigation::remember_commit_subject(repo, "Kept review");
+    const auto commit = repo.workspace().active_id();
+    navigation::reorder(repo, a, 0);
+    navigation::open(repo, reading::source("preview.cpp"));
+    const auto saved = reading::save_session(repo.workspace());
+    ASSERT_EQ(saved.documents.size(), size_t{3});
+    ASSERT_TRUE(reading::same_document(saved.documents[0].location, reading::source("a.cpp", std::string(40, 'a'))));
+    ASSERT_TRUE(reading::same_document(saved.documents[saved.active].location, repo.workspace().document(commit)->location));
+    const auto before = navigation::stamp(repo, "pending");
+    navigation::restore_session(repo, saved, false);
+    ASSERT_EQ(repo.workspace().documents().size(), size_t{3});
+    ASSERT_FALSE(navigation::accepts(repo, before, "pending"));
+    for (const auto& document : repo.workspace().documents()) {
+        ASSERT_FALSE(document.preview);
+        ASSERT_FALSE(document.files.has_value());
+    }
+    ASSERT_TRUE(repo.fullFileDiff.empty());
+    ASSERT_TRUE(repo.workspace().documents()[0].restoreAnchor);
+    navigation::activate(repo, repo.workspace().documents()[0].id);
+    ASSERT_EQ(repo.fullFileTargetLine(), 120);
+    navigation::restored_anchor(repo);
+    ASSERT_EQ(repo.fullFileTargetLine(), 0);
+    ASSERT_FALSE(repo.workspace().documents()[0].restoreAnchor);
+}
+
+TEST(unresolved_saved_revisions_require_explicit_resolution) {
+    ecs::RepoComponent repo;
+    reading::ReadingSession session{{{reading::source("a.cpp", "HEAD")}, {reading::review("HEAD")}}, 0};
+    navigation::restore_session(repo, session, false);
+    ASSERT_TRUE(repo.workspace().documents()[0].unresolvedSavedRevision);
+    ASSERT_TRUE(repo.workspace().documents()[1].unresolvedSavedRevision);
+    const auto generation = repo.workspace().generation();
+    navigation::activate(repo, repo.workspace().active_id());
+    ASSERT_TRUE(repo.workspace().documents()[0].unresolvedSavedRevision);
+    navigation::resolve_saved_revision(repo);
+    ASSERT_FALSE(repo.workspace().documents()[0].unresolvedSavedRevision);
+    ASSERT_TRUE(repo.workspace().generation() > generation);
+    ASSERT_TRUE(repo.fullFileFuture.valid() == false);
+    ASSERT_TRUE(repo.workspace().documents()[1].unresolvedSavedRevision);
+}
+
+TEST(restored_active_source_wins_over_saved_recency) {
+    ecs::RepoComponent repo;
+    reading::ReadingSession session{{{reading::source("recent.cpp"), "", 99},
+        {reading::source("missing.cpp", std::string(40, 'f')), "", 1}}, 1};
+    navigation::restore_session(repo, session, false);
+    ASSERT_EQ(repo.fullFilePath(), std::string("missing.cpp"));
+    ASSERT_EQ(repo.fullFileRevision(), std::string(40, 'f'));
+    ASSERT_EQ(repo.workspace().source()->destination.path, std::string("missing.cpp"));
+}
+
+TEST(restoring_tabs_preserves_the_window_review_mode) {
+    ecs::RepoComponent repo;
+    reading::ReadingSession session{{{reading::review("wt")}}, 0};
+    navigation::restore_session(repo, session, false);
+    ASSERT_FALSE(*repo.navigationEffect->reviewing);
+    ASSERT_FALSE(repo.workspace().history().front().reviewing);
+    navigation::restore_session(repo, session, true);
+    ASSERT_TRUE(*repo.navigationEffect->reviewing);
+    ASSERT_TRUE(repo.workspace().history().front().reviewing);
+}
+
 int main() { RUN_ALL_TESTS(); }

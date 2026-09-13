@@ -30,6 +30,7 @@ class Collector {
     int pageLines_ = 0;
     bool continuation_ = false;
     bool finished_ = false;
+    bool reachedTarget_ = false;
 
     size_t unit_size(size_t at, bool eof) const {
         auto left = pending_.size() - at;
@@ -71,12 +72,19 @@ class Collector {
                 at += size;
                 continue;
             }
-            bool collecting = request_.action != ecs::FilePageRequest::Action::TargetLine || line_ >= request_.targetLine;
+            const bool target = request_.action == ecs::FilePageRequest::Action::TargetLine;
+            const int firstLine = request_.targetLine - std::clamp(request_.leadingLines, 0, lineLimit / 2);
+            bool collecting = !target || line_ >= firstLine;
+            if (target && line_ < request_.targetLine && raw.size() + size > byteLimit / 2) {
+                raw.clear();
+                pageLines_ = 0;
+            }
             if (collecting && (raw.size() + size > byteLimit || pageLines_ >= lineLimit)) {
                 if (request_.action == ecs::FilePageRequest::Action::Previous) { raw.clear(); pageLines_ = 0; }
                 else { finished_ = true; break; }
             }
             if (collecting) {
+                reachedTarget_ |= line_ >= request_.targetLine;
                 if (raw.empty()) begin = {position_, line_, continuation_};
                 raw.append(pending_, at, size);
                 if (newline) ++pageLines_;
@@ -122,7 +130,7 @@ public:
 
     void finish() {
         if (!finished_) process(true);
-        if (request_.action == ecs::FilePageRequest::Action::TargetLine && raw.empty())
+        if (request_.action == ecs::FilePageRequest::Action::TargetLine && !reachedTarget_)
             error = "Requested line is beyond the end of this file";
         raw.shrink_to_fit();
     }

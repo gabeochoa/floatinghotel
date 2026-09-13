@@ -289,6 +289,9 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         auto tabOpt = EntityHelper::getEntityForID(tabId);
         if (tabOpt.valid()) {
             if (!app_state::testModeEnabled && tabOpt->has<RepoComponent>() && tabOpt->has<ReviewComponent>()) {
+                const auto& repo = tabOpt->get<RepoComponent>();
+                if (!repo.repoPath.empty() && repo.readingSessionPath == repo.repoPath)
+                    Settings::get().set_reading_session(repo.repoPath, reading::save_session(repo.workspace()));
                 const auto& review = tabOpt->get<ReviewComponent>();
                 review_store::save_review(review.storageRepoPath.empty() ? tabOpt->get<RepoComponent>().repoPath : review.storageRepoPath, review);
             }

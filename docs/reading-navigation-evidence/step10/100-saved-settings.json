@@ -1,0 +1,145 @@
+{
+  "code_bookmarks": {},
+  "code_font_size": 17.600000381469727,
+  "commit_log_ratio": 0.4000000059604645,
+  "commit_unstaged_policy": "ask",
+  "copy_with_location": true,
+  "expanded_window_width": 1600,
+  "last_active_repo": "",
+  "open_repos": [],
+  "reading_sessions": {
+    "/Users/gabeochoa/p/floatinghotel/output/step10-acceptance-restore_tabs/fixture": {
+      "active": 4,
+      "documents": [
+        {
+          "location": {
+            "review": {
+              "file": "",
+              "kind": "working",
+              "staged": false
+            }
+          },
+          "recent": 0,
+          "subject": ""
+        },
+        {
+          "anchor": {
+            "column": 1,
+            "fraction": 0.12636815011501312,
+            "line": 8,
+            "path": "a.cpp",
+            "revision": "28467726cb6d722a6f24eb1ec33e2ba10bde8ad4",
+            "side": "after",
+            "sign": " "
+          },
+          "location": {
+            "review": {
+              "commit": {
+                "kind": "object",
+                "value": "28467726cb6d722a6f24eb1ec33e2ba10bde8ad4"
+              },
+              "file": "",
+              "kind": "commit"
+            }
+          },
+          "recent": 1,
+          "subject": "Later source"
+        },
+        {
+          "anchor": {
+            "column": 1,
+            "fraction": 0.04975093901157379,
+            "line": 30,
+            "path": "a.cpp",
+            "revision": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb",
+            "side": "after",
+            "sign": "+"
+          },
+          "location": {
+            "review": {
+              "commit": {
+                "kind": "object",
+                "value": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb"
+              },
+              "file": "a.cpp",
+              "kind": "commit"
+            }
+          },
+          "recent": 4,
+          "subject": "Original sources"
+        },
+        {
+          "anchor": {
+            "column": 1,
+            "fraction": 0.06538457423448563,
+            "line": 24,
+            "path": "a.cpp",
+            "revision": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb",
+            "side": "after",
+            "sign": " "
+          },
+          "location": {
+            "source": {
+              "line": 0,
+              "origin": {
+                "commit": {
+                  "kind": "object",
+                  "value": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb"
+                },
+                "file": "a.cpp",
+                "kind": "commit"
+              },
+              "path": "a.cpp",
+              "revision": {
+                "kind": "object",
+                "value": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb"
+              }
+            }
+          },
+          "recent": 3,
+          "subject": ""
+        },
+        {
+          "anchor": {
+            "column": 1,
+            "fraction": 0.06250007450580597,
+            "line": 20,
+            "path": "b.cpp",
+            "revision": "",
+            "side": "after",
+            "sign": " "
+          },
+          "location": {
+            "source": {
+              "line": 0,
+              "origin": {
+                "commit": {
+                  "kind": "object",
+                  "value": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb"
+                },
+                "file": "a.cpp",
+                "kind": "commit"
+              },
+              "path": "b.cpp",
+              "revision": {
+                "kind": "working"
+              }
+            }
+          },
+          "recent": 5,
+          "subject": ""
+        }
+      ],
+      "version": 1
+    }
+  },
+  "recent_repos": [
+    "/Users/gabeochoa/p/floatinghotel/output/step10-acceptance-restore_tabs/fixture"
+  ],
+  "sidebar_width": 280.0,
+  "window_height": 1000,
+  "window_shelf_collapsed": false,
+  "window_width": 1600,
+  "window_x": 100,
+  "window_y": 100
+}

@@ -1128,6 +1128,8 @@ static void app_cleanup() {
                 review_store::save_review(review.storageRepoPath.empty() ? repo.repoPath : review.storageRepoPath, review);
             }
             if (!repo.repoPath.empty()) {
+                if (repo.readingSessionPath == repo.repoPath)
+                    Settings::get().set_reading_session(repo.repoPath, reading::save_session(repo.workspace()));
                 openRepos.push_back(repo.repoPath);
                 if (opt->has<ecs::ActiveTab>()) {
                     activeRepo = repo.repoPath;

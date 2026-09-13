@@ -166,6 +166,7 @@ struct FilePageRequest {
     FilePageCursor cursor;
     int targetLine = 0;
     std::string sourceIdentity;
+    int leadingLines = 0;
 };
 
 struct FilePage {
@@ -268,6 +269,7 @@ struct RepoComponent : public afterhours::BaseComponent {
     bool reviewWorkspace = false;
     review_files::Filter fileFilter;
     ReadingPositions reading;
+    std::string readingSessionPath;
 private:
     reading::ReadingWorkspace workspace_;
     friend struct ::navigation;

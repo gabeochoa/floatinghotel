@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../util/reading_anchor.h"
+
 #include "review_comment_kind.h"
 
 #include "../ecs/ui_imports.h"
@@ -416,6 +418,38 @@ struct DiffViewport {
     float top = 0.f, bottom = 1e30f; // visible content-Y window (px, w/ overscan)
     float curY = 0.f;           // running content-Y of the next row (px)
     float pending = 0.f;        // height of skipped rows not yet flushed (px)
+    std::string revision;
+    std::optional<reading::ReadingAnchor> anchor;
+    std::optional<reading::ReadingAnchor> restoreAnchor;
+    std::optional<std::pair<int, float>> nearestAnchor;
+    bool restoredAnchor = false;
+
+    void restore_at(float y) {
+        const float height = scroll->viewport_or_zero().y;
+        const float target = std::clamp(y - restoreAnchor->viewportFraction * height, 0.f,
+            std::max(0.f, scroll->content_size.y - height));
+        scroll->scroll_offset.y = scroll->scroll_target.y = scroll->last_eased_offset.y = target;
+        scroll->anchor_child = -1;
+        top = target - height;
+        bottom = target + height * 2.f;
+        restoredAnchor = true;
+    }
+
+    void observe_line(const std::string& path, int line, reading::DiffSide side, char sign,
+                      const std::string& text, size_t begin, size_t end) {
+        if (!scroll || scroll->viewport_or_zero().y <= 0.f) return;
+        if (restoreAnchor && !restoredAnchor && path == restoreAnchor->path && side == restoreAnchor->side) {
+            const int distance = std::abs(line - restoreAnchor->line);
+            if (!nearestAnchor || distance < nearestAnchor->first) nearestAnchor = std::pair{distance, curY};
+            const size_t byte = reading::byte_at_column(text, restoreAnchor->column);
+            if (line == restoreAnchor->line && byte >= begin && (byte < end || end == text.size())) restore_at(curY);
+        }
+        const float height = scroll->viewport_or_zero().y;
+        const float visibleY = curY - scroll->scroll_offset.y;
+        if (!anchor && visibleY >= px(36.f) && visibleY < height)
+            anchor = reading::ReadingAnchor{path, revision, side, line, reading::column_at_byte(text, begin), visibleY / height, sign};
+    }
+
 
     float px(float raw720) const {
         return raw720 * zoom::get();
@@ -925,6 +959,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         for (size_t part = 0; part + 1 < breaks.size(); ++part) {
             int lineId = nextId++;
             auto begin = breaks[part], end = breaks[part + 1];
+            if (vp) vp->observe_line(fileDiff.filePath, sign == '-' ? oldLine : newLine,
+                sign == '-' ? reading::DiffSide::Before : reading::DiffSide::After, sign, content, begin, end);
             if (sel->findNavigate && vp &&
                 diff_sel::found_line(sel, fileDiff.filePath, sign == '-' ? oldLine : newLine, sign) &&
                 sel->findMatch->column >= begin && (sel->findMatch->column < end || part + 2 == breaks.size()))
@@ -1135,6 +1171,12 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         for (size_t part = 0; part + 1 < std::max(left.size(), right.size()); ++part) {
             int rowId = nextId++;
             bool hasLeft = part + 1 < left.size(), hasRight = part + 1 < right.size();
+            if (vp) {
+                if (hasRight && !rNum.empty()) vp->observe_line(fileDiff.filePath, std::stoi(rNum), reading::DiffSide::After,
+                    rKind == SbsKind::Add ? '+' : ' ', rContent, right[part], right[part + 1]);
+                if (hasLeft && !lNum.empty()) vp->observe_line(fileDiff.filePath, std::stoi(lNum), reading::DiffSide::Before,
+                    lKind == SbsKind::Del ? '-' : ' ', lContent, left[part], left[part + 1]);
+            }
             auto found = [&](bool exists, const std::vector<size_t>& breaks, const std::string& num, char sign) {
                 return exists && !num.empty() && diff_sel::found_line(sel, fileDiff.filePath, std::stoi(num), sign) &&
                     sel->findMatch->column >= breaks[part] &&
@@ -1626,6 +1668,15 @@ inline void render_diff(UIContext<InputAction>& ctx,
         vp.bottom = scrollY + viewportH + overscan;
     }
 
+    if (filterRepo) {
+        const auto* document = filterRepo->workspace().document(filterRepo->workspace().active_id());
+        vp.revision = reading::anchor_revision(document->location);
+        if (document->restoreAnchor && document->anchor && filterRepo->hasLoadedOnce &&
+            !filterRepo->isRefreshing && !filterRepo->refreshRequested && !sess.findNavigate && filterRepo->reading.restoreFrames == 0 &&
+            filterRepo->fullFileNavigateFrames == 0 && filterRepo->diffTargetFrames == 0 && vp.scroll && vp.scroll->content_size.y > 0.f)
+            vp.restoreAnchor = document->anchor;
+    }
+
     struct ContextLocation { float y; const ecs::FileDiff* file; const ecs::DiffHunk* hunk; };
     std::vector<ContextLocation> contextLocations;
     if (fileOrder.empty() && !diffs.empty())
@@ -2059,6 +2110,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("sticky_diff_context"));
         set_tooltip(stickyLabel.ent(), label);
+    }
+
+    if (filterRepo) {
+        if (vp.restoreAnchor && !vp.restoredAnchor && vp.nearestAnchor) vp.restore_at(vp.nearestAnchor->second);
+        if (vp.restoredAnchor) navigation::restored_anchor(*filterRepo);
+        else if (vp.anchor && filterRepo->hasLoadedOnce && !filterRepo->isRefreshing &&
+            !filterRepo->refreshRequested && filterRepo->reading.restoreFrames == 0) navigation::remember_anchor(*filterRepo, std::move(*vp.anchor));
     }
 
     // This frame's registry becomes next frame's hit-test source.

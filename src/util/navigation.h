@@ -2,6 +2,8 @@
 
 #include "../ecs/components.h"
 
+#include "reading_session.h"
+
 struct navigation {
 
     static reading::RequestStamp stamp(const ecs::RepoComponent& repo, std::string key) {
@@ -142,6 +144,53 @@ struct navigation {
                 for (const auto& entry : *entries)
                     if (entry.hash == repo.selectedCommitHash()) remember_commit_subject(repo, entry.subject);
         finish(repo, before, changed);
+    }
+
+    static void restore_session(ecs::RepoComponent& repo, const reading::ReadingSession& session, bool reviewing) {
+        if (session.documents.empty()) return;
+        auto before = repo.workspace_.location();
+        auto& workspace = repo.workspace_;
+        const auto previousGeneration = workspace.generation_;
+        workspace.reset();
+        workspace.documents_.clear();
+        workspace.nextId_ = 1;
+        std::uint64_t mostRecent = 0;
+        for (const auto& saved : session.documents) {
+            reading::Document document{reading::DocumentId{workspace.nextId_++}, saved.location, saved.lastActivated, {}, false,
+                saved.subject, saved.anchor, saved.anchor.has_value(), reading::unresolved_destination(saved.location)};
+            if (auto* source = std::get_if<reading::SourceLocation>(&document.location); source && document.anchor)
+                source->line = document.anchor->line;
+            mostRecent = std::max(mostRecent, document.lastActivated);
+            workspace.documents_.push_back(std::move(document));
+        }
+        workspace.active_ = workspace.documents_[std::min(session.active, workspace.documents_.size() - 1)].id;
+        workspace.generation_ = std::max(previousGeneration, mostRecent) + 1;
+        workspace.current().lastActivated = workspace.generation_;
+        workspace.history_ = {{workspace.location(), reviewing}};
+        workspace.index_ = 0;
+        repo.reading = {};
+        finish(repo, before, true);
+    }
+
+    static void resolve_saved_revision(ecs::RepoComponent& repo) {
+        auto& document = repo.workspace_.current();
+        if (!document.unresolvedSavedRevision) return;
+        document.unresolvedSavedRevision = false;
+        document.restoreAnchor = false;
+        document.anchor.reset();
+        ++repo.workspace_.generation_;
+        finish(repo, document.location, true);
+    }
+
+    static void remember_anchor(ecs::RepoComponent& repo, reading::ReadingAnchor anchor) {
+        auto& document = repo.workspace_.current();
+        if (!document.restoreAnchor && anchor.revision == reading::anchor_revision(document.location))
+            document.anchor = std::move(anchor);
+    }
+
+    static void restored_anchor(ecs::RepoComponent& repo) {
+        repo.workspace_.current().restoreAnchor = false;
+        if (repo.workspace_.active() == reading::Slot::Source) repo.workspace_.clear_source_reveal();
     }
 
     static void keep(ecs::RepoComponent& repo, reading::DocumentId id) {

@@ -36,7 +36,7 @@ inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx
         return true;
     }
     if (step && !blocked && !layout.filePickerOpen && !is_context_menu_open()) {
-        ctx.pressed(InputAction::WidgetNext);
+        static_cast<void>(ctx.pressed(InputAction::WidgetNext));
         if (!state.cycle) state.cycle = reading::DocumentCycle{reading::recent_documents(repo->workspace())};
         state.repository = owner->id;
         if (state.cycle->order.size() < 2) { state.cycle.reset(); return true; }

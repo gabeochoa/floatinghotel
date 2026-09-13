@@ -335,6 +335,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool shortcutsActive = ui::render_keyboard_shortcuts(ctx, layout);
 
         auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        if (repoPtr && !repoPtr->repoPath.empty() && repoPtr->readingSessionPath != repoPtr->repoPath &&
+            (!app_state::testModeEnabled || std::getenv("FH_TEST_SETTINGS_DIR"))) {
+            repoPtr->readingSessionPath = repoPtr->repoPath;
+            if (const auto* session = Settings::get().get_reading_session(repoPtr->repoPath)) {
+                const auto* review = find_singleton<ReviewComponent, ActiveTab>();
+                navigation::restore_session(*repoPtr, *session, review && review->reviewing);
+            }
+        }
         shortcutsActive |= ui::render_document_switcher(ctx, layout, repoPtr, shortcutsActive || tabDrag.has_value());
         bool revealActiveDocument = false;
         if (repoPtr) {
@@ -803,6 +811,20 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
         if (layout.filePickerOpen) {
             render_file_picker(ctx, mainBg.ent(), repo, layout);
+            return;
+        }
+        if (const auto* document = repo.workspace().document(repo.workspace().active_id()); document->unresolvedSavedRevision) {
+            div(ctx, mk(mainBg.ent(), 595900), ComponentConfig{}
+                .with_label("Saved revision was not resolved: " + reading::anchor_revision(document->location))
+                .with_size(ComponentSize{percent(1.f), pixels(64)}).with_font_size(pixels(14))
+                .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_debug_name("saved_revision_unavailable"));
+            div(ctx, mk(mainBg.ent(), 595901), ComponentConfig{}
+                .with_label("Resolve it now to open the revision's current value.")
+                .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(pixels(14))
+                .with_text_overflow(afterhours::ui::TextOverflow::Wrap));
+            if (button(ctx, mk(mainBg.ent(), 595902), preset::Button("Resolve revision now")
+                    .with_size(ComponentSize{pixels(190), pixels(32)}).with_debug_name("resolve_saved_revision")))
+                navigation::resolve_saved_revision(repo);
             return;
         }
         if (source_tab_active(repo)) {

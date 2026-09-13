@@ -28,6 +28,7 @@ struct Settings::Data {
     bool copyWithLocation = true;
     std::vector<std::string> recentRepos;
     std::map<std::string, std::vector<CodeBookmark>> codeBookmarks;
+    std::map<std::string, reading::ReadingSession> readingSessions;
 };
 
 Settings::Settings() { data_ = new Data(); }
@@ -77,6 +78,11 @@ bool Settings::load_save_file() {
         data_->copyWithLocation = j.value("copy_with_location", true);
         data_->recentRepos =
             j.value("recent_repos", std::vector<std::string>{});
+        data_->readingSessions.clear();
+        if (j.contains("reading_sessions") && j["reading_sessions"].is_object()) {
+            for (const auto& [repo, value] : j["reading_sessions"].items())
+                if (auto session = reading::decode_session(value)) data_->readingSessions.emplace(repo, std::move(*session));
+        }
         data_->codeBookmarks.clear();
         if (j.contains("code_bookmarks") && j["code_bookmarks"].is_object()) {
             for (const auto& [repo, values] : j["code_bookmarks"].items()) {
@@ -137,6 +143,9 @@ void Settings::write_save_file() {
         bookmarks[repo] = std::move(list);
     }
     j["code_bookmarks"] = std::move(bookmarks);
+    j["reading_sessions"] = nlohmann::json::object();
+    for (const auto& [repo, session] : data_->readingSessions)
+        j["reading_sessions"][repo] = reading::encode_session(session);
 
     std::string path = get_settings_path();
     std::ofstream f(path);
@@ -293,5 +302,15 @@ void Settings::set_code_bookmarks(const std::string& repoPath,
                                   const std::vector<CodeBookmark>& bookmarks) {
     if (repoPath.empty()) return;
     data_->codeBookmarks[repoPath] = bookmarks;
+    save_if_auto();
+}
+
+const reading::ReadingSession* Settings::get_reading_session(const std::string& repoPath) const {
+    const auto found = data_->readingSessions.find(repoPath);
+    return found == data_->readingSessions.end() ? nullptr : &found->second;
+}
+
+void Settings::set_reading_session(const std::string& repoPath, reading::ReadingSession session) {
+    data_->readingSessions[repoPath] = std::move(session);
     save_if_auto();
 }

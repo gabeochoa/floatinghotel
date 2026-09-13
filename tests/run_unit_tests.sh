@@ -64,6 +64,10 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_context_menu" ]; then
     run_test "test_context_menu" "tests/unit/test_context_menu.cpp" "src/ui/context_menu.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_reading_session" ]; then
+    run_test "test_reading_session" "tests/unit/test_reading_session.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_document_cycle" ]; then
     run_test "test_document_cycle" "tests/unit/test_document_cycle.cpp"
 fi

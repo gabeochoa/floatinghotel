@@ -1785,3 +1785,16 @@ existing key injector. Reusable held-modifier commands would also help test game
 radial menus, temporary scoreboards, alternate tool modes, and chorded controls.
 The app's switcher retains a fixed candidate order during the chord, removes
 closed candidates, and commits only on modifier release.
+
+### Restoring virtualized reading anchors after layout readiness
+
+The app records path, revision, side, source line, decoded character column, and
+viewport fraction while walking virtual rows. It restores those values only
+after matching content and initial refresh are ready and earlier line-jump
+actions have finished. An explicit layout-ready restoration hook would help
+readers, editors, inventories, and inspectors retain a logical item through
+recreated entities and changed row heights. It should support caller-owned
+identity, cancellation, and one-shot application without a fixed frame retry
+count. The session replay in `tests/restore_tabs.py` covers source and review
+restoration; ordinary navigation still uses the existing pixel restoration
+until step 13.

@@ -1,0 +1,104 @@
+{
+  "binary_sha256": "cda1be1391e6ef9d833102a716227c434b7a0fde18459a547754e10a9528a996",
+  "zooms": {
+    "100": {
+      "p99_ms": 14.12,
+      "cold": {
+        "blob_cache": {
+          "bytes": 0,
+          "hit_delta": 0,
+          "hits": 0,
+          "miss_delta": 0,
+          "misses": 0
+        },
+        "diff_target": "a.cpp",
+        "kind": "source",
+        "label": "cold",
+        "owned_content_bytes": 293406,
+        "patch_cache": {
+          "bytes": 0,
+          "hit_delta": 0,
+          "hits": 0,
+          "miss_delta": 0,
+          "misses": 0
+        },
+        "path": "b.cpp",
+        "ready_ms": 16.10575,
+        "repository": "/Users/gabeochoa/p/floatinghotel/output/step10-acceptance-restore_tabs/fixture",
+        "revision": "",
+        "schema_version": 1,
+        "selected_commit": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb",
+        "selection_ms": 16.10575,
+        "source_path": "b.cpp",
+        "source_revision": ""
+      }
+    },
+    "140": {
+      "p99_ms": 7.51,
+      "cold": {
+        "blob_cache": {
+          "bytes": 0,
+          "hit_delta": 0,
+          "hits": 0,
+          "miss_delta": 0,
+          "misses": 0
+        },
+        "diff_target": "a.cpp",
+        "kind": "source",
+        "label": "cold",
+        "owned_content_bytes": 293725,
+        "patch_cache": {
+          "bytes": 0,
+          "hit_delta": 0,
+          "hits": 0,
+          "miss_delta": 0,
+          "misses": 0
+        },
+        "path": "b.cpp",
+        "ready_ms": 24.400542,
+        "repository": "/Users/gabeochoa/p/floatinghotel/output/step10-acceptance-restore_tabs/fixture",
+        "revision": "",
+        "schema_version": 1,
+        "selected_commit": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb",
+        "selection_ms": 24.400542,
+        "source_path": "b.cpp",
+        "source_revision": ""
+      }
+    },
+    "200": {
+      "p99_ms": 6.04,
+      "cold": {
+        "blob_cache": {
+          "bytes": 0,
+          "hit_delta": 0,
+          "hits": 0,
+          "miss_delta": 0,
+          "misses": 0
+        },
+        "diff_target": "a.cpp",
+        "kind": "source",
+        "label": "cold",
+        "owned_content_bytes": 294046,
+        "patch_cache": {
+          "bytes": 0,
+          "hit_delta": 0,
+          "hits": 0,
+          "miss_delta": 0,
+          "misses": 0
+        },
+        "path": "b.cpp",
+        "ready_ms": 17.897875,
+        "repository": "/Users/gabeochoa/p/floatinghotel/output/step10-acceptance-restore_tabs/fixture",
+        "revision": "",
+        "schema_version": 1,
+        "selected_commit": "6d3c7b1ac105ce262f104b25a7c6d04c2e0a8ffb",
+        "selection_ms": 17.897875,
+        "source_path": "b.cpp",
+        "source_revision": ""
+      }
+    }
+  },
+  "large_file_benchmark": [
+    "[INFO] bench_frames: 120 frames, 177 entities: avg 5.02 ms  p50 4.98  p99 6.55  max 7.21"
+  ]
+}

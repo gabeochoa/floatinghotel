@@ -328,6 +328,29 @@ TEST(settings_remembers_expanded_and_collapsed_window_sizes) {
     fs::remove(settings.get_settings_path());
 }
 
+TEST(settings_reading_sessions_round_trip_per_repository) {
+    auto& settings = Settings::get();
+    const std::string oid(40, 'd');
+    reading::ReadingSession one{{{reading::source("a.cpp", oid), "", 9,
+        reading::ReadingAnchor{"a.cpp", oid, reading::DiffSide::After, 50, 4, .25f, ' '}}}, 0};
+    reading::ReadingSession two{{{reading::review("index")}, {reading::review(oid), "Review title"}}, 1};
+    settings.set_reading_session("/repo-one", one);
+    settings.set_reading_session("/repo-two", two);
+    settings.write_save_file();
+    settings.set_reading_session("/repo-one", {});
+    ASSERT_TRUE(settings.load_save_file());
+    const auto* restoredOne = settings.get_reading_session("/repo-one");
+    const auto* restoredTwo = settings.get_reading_session("/repo-two");
+    ASSERT_TRUE(restoredOne != nullptr && restoredTwo != nullptr);
+    ASSERT_EQ(restoredOne->documents.size(), size_t{1});
+    ASSERT_TRUE(restoredOne->documents[0].location == one.documents[0].location);
+    ASSERT_TRUE(restoredOne->documents[0].anchor == one.documents[0].anchor);
+    ASSERT_EQ(restoredTwo->documents.size(), size_t{2});
+    ASSERT_EQ(restoredTwo->active, size_t{1});
+    ASSERT_TRUE(settings.get_reading_session("/missing-repo") == nullptr);
+    fs::remove(settings.get_settings_path());
+}
+
 int main() {
     // Initialize the files plugin with a temp directory so settings writes
     // go to an isolated location.
