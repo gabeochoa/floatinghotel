@@ -1,0 +1,17 @@
+PASS 100%: text owns editing; reader owns review; hidden controls stay inactive
+PASS 140%: text owns editing; reader owns review; hidden controls stay inactive
+PASS 200%: text owns editing; reader owns review; hidden controls stay inactive
+PASS 100%: same-review file visits, wrapped Unicode anchors, closed-source revisit, origin, Forward truncation, and scrolling without new visits
+PASS 140%: same-review file visits, wrapped Unicode anchors, closed-source revisit, origin, Forward truncation, and scrolling without new visits
+PASS 200%: same-review file visits, wrapped Unicode anchors, closed-source revisit, origin, Forward truncation, and scrolling without new visits
+PASS 100%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 140%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS 200%: picker, Find, menus, search preview, feedback, closed document, repository switch
+PASS improvement_21_file_picker
+PASS improvement_22_repo_search
+PASS improvement_24_all_files
+PASS improvement_27_commit_search
+PASS improvement_35_comment_jump
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary

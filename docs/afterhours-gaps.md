@@ -1850,3 +1850,28 @@ and current-frame key presses, would help games and apps that combine custom
 shortcuts with text fields and framework controls. Tests should open a new
 control after an earlier control handled a key and verify that the new control
 does not receive the old action.
+
+### Shortcut ownership must include composite text fields
+
+A focused text-input entity is the inner field; its editing state belongs to
+an ancestor. Text areas use a separate ECS component even though their C++
+state inherits the single-line input state. Checking only the focused entity
+for `HasTextInputState` let Option+Left navigate away from Quick Open while
+its query was being edited. `output/step15-baseline` records the reproduction.
+
+The app resolves semantic focus and checks both text component types along the
+parent chain before dispatching reader shortcuts. Picker arrows and Enter,
+Find Enter, and search submission are scoped to their own inputs. A reusable
+command-routing API with editing, directional-input, and modal ownership would
+help game consoles, tools, and apps avoid dispatching the same input twice.
+
+### Windowless clipboard verification needs an injectable backend
+
+The offscreen Metal runner does not initialize `sokol_app`, so the clipboard
+plugin's `sapp_set_clipboard_string` and `sapp_get_clipboard_string` do not
+provide a test clipboard. Copy assertions failed for both single-line and
+multiline inputs in `output/step15-shortcuts-first`, while select-all followed
+by replacement worked. The focus replay verifies selection replacement and
+review isolation; it does not claim to verify system clipboard contents.
+A scoped clipboard backend for tests would let apps and games exercise these
+paths without changing the user's pasteboard or presenting a native window.

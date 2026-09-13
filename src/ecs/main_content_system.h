@@ -353,8 +353,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (repoPtr) cancel_hidden_file_read(*repoPtr);
         if (repoPtr && repoPtr->hasLoadedOnce) {
             bool alt = afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346);
-            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(263)) navigation::step(*repoPtr, -1);
-            if (!shortcutsActive && alt && afterhours::input::is_key_pressed(262)) navigation::step(*repoPtr, 1);
+            if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(263)) navigation::step(*repoPtr, -1);
+            if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(262)) navigation::step(*repoPtr, 1);
             if (repoPtr->navigationEffect) {
                 revealActiveDocument = true;
                 auto effect = *repoPtr->navigationEffect;
@@ -731,7 +731,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool superDown = afterhours::input::is_key_down(343) ||
                          afterhours::input::is_key_down(347) ||
                          afterhours::input::is_key_down(341);
-        if (!shortcutsActive && superDown && afterhours::input::is_key_pressed(70)) {
+        if (!shortcutsActive && !ui::shortcuts_blocked(layout) && superDown && afterhours::input::is_key_pressed(70)) {
             if (repoPtr && afterhours::input::is_key_down(340)) {
                 repoPtr->repoSearchOpen = true;
                 repoPtr->repoSearchFocus = true;
@@ -741,20 +741,15 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 layout.diffFindFocus = true;
             }
         }
-        if (!shortcutsActive && superDown && afterhours::input::is_key_pressed(80)) {
+        if (!shortcutsActive && !ui::shortcuts_blocked(layout) && superDown && afterhours::input::is_key_pressed(80)) {
             layout.filePickerOpen = true;
             layout.filePickerFocus = true;
         }
-        auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
-        bool editingText = focused.valid() && focused->has<afterhours::text_input::HasTextInputState>();
-        auto* keyboardMenu = find_singleton<MenuComponent>();
-        bool keyboardMenuOpen = keyboardMenu && keyboardMenu->activeMenuIndex >= 0;
-        if (repoPtr && !shortcutsActive && !editingText && !keyboardMenuOpen && !ui::is_context_menu_open() && !superDown &&
-            !layout.filePickerOpen && !repoPtr->repoSearchOpen && !repoPtr->commitSearchOpen &&
-            !repoPtr->fileHistoryOpen && (!reviewPtr || reviewPtr->composingKey.empty()) &&
+        const bool readingKeys = repoPtr && !shortcutsActive && ui::reader_shortcuts(ctx, *repoPtr, layout);
+        if (readingKeys && !superDown && (!reviewPtr || reviewPtr->composingKey.empty()) &&
             activeDocumentFocused && afterhours::input::is_key_pressed(257))
             navigation::keep(*repoPtr, repoPtr->workspace().active_id());
-        if (!shortcutsActive && reviewPtr && repoPtr && !source_tab_active(*repoPtr) && !editingText && !keyboardMenuOpen &&
+        if (readingKeys && reviewPtr && !source_tab_active(*repoPtr) &&
             reviewPtr->composingKey.empty() && reviewPtr->hunkCount > 0) {
             if (!superDown) {
                 int previousCursor = reviewPtr->cursor;
@@ -765,16 +760,19 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 if (afterhours::input::is_key_pressed(75))
                     reviewPtr->cursor = std::max(reviewPtr->cursor - 1, 0);
                 if (previousCursor != reviewPtr->cursor) reviewPtr->cursorMoved = true;
-                if (afterhours::input::is_key_pressed(65))
-                    reviewPtr->cursorApprove = true;
-                if (afterhours::input::is_key_pressed(67))
-                    reviewPtr->cursorComment = true;
+                const auto scope = reading::scope(repoPtr->workspace().review());
+                const auto target = diff_target(scope);
+                const bool reviewActions = scope == "wt" || reviewPtr->reviewing ||
+                    target.kind == DiffTarget::Kind::Comparison || target.kind == DiffTarget::Kind::ParentComparison;
+                if (reviewActions && afterhours::input::is_key_pressed(65)) reviewPtr->cursorApprove = true;
+                if (reviewActions && afterhours::input::is_key_pressed(67)) reviewPtr->cursorComment = true;
             }
         }
 
-        // Feedback basket + ⌘⏎ send-all (available whenever comments are queued).
         if (reviewPtr && !reviewPtr->comments.empty()) {
-            if (!shortcutsActive && superDown && afterhours::input::is_key_pressed(257))
+            if (!shortcutsActive && repoPtr && !ui::shortcuts_blocked(layout) && ui::reader_visible(*repoPtr, layout) &&
+                ui::shortcut_owner(ctx, *repoPtr).region == reading::focus::Region::Feedback &&
+                !ui::shortcut_owner(ctx, *repoPtr).text && superDown && afterhours::input::is_key_pressed(257))
                 send_review(ctx, *reviewPtr, repoPtr);
             if (reviewPtr->basketOpen && layout.feedback.width > 0)
                 render_basket(ctx, uiRoot, *reviewPtr, repoPtr, layout.feedback);

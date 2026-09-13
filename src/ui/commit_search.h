@@ -2,6 +2,7 @@
 
 #include "../ecs/ui_imports.h"
 #include "../git/git_parser.h"
+#include "focus.h"
 
 namespace ecs {
 
@@ -17,6 +18,7 @@ inline void load_commit_search(RepoComponent& repo) {
 
 inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
                                   RepoComponent& repo, LayoutComponent& layout) {
+    ui::bind_focus(parent, repo, reading::focus::Region::Search);
     using namespace std::chrono_literals;
     if (repo.commitSearchFuture.valid() && repo.commitSearchFuture.wait_for(0s) == std::future_status::ready) {
         auto result = repo.commitSearchFuture.get();
@@ -46,7 +48,7 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
         .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
     if (button(ctx, mk(actions.ent(), 0), preset::Button("Search commits")
             .with_size(ComponentSize{pixels(140), pixels(30)}).with_debug_name("commit_search_submit")) ||
-        afterhours::input::is_key_pressed(257)) {
+        (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(257))) {
         repo.commitSearchLimit = 200;
         repo.commitSearchEntries.clear();
         load_commit_search(repo);

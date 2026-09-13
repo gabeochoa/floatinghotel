@@ -1559,7 +1559,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(70), pixels(28)}).with_debug_name("diff_find_previous"))) step = -1;
         if (button(ctx, mk(bar.ent(), 2), preset::Button("Next")
                 .with_size(ComponentSize{pixels(48), pixels(28)}).with_debug_name("diff_find_next"))) step = 1;
-        if (afterhours::input::is_key_pressed(257))
+        if (filterRepo && !shortcuts_blocked(*layout) && shortcut_owner(ctx, *filterRepo).input(reading::focus::Region::Find) &&
+            afterhours::input::is_key_pressed(257))
             step = afterhours::input::is_key_down(340) ? -1 : 1;
         if (count > 0) {
             layout->diffFindIndex = (layout->diffFindIndex + step + count) % count;
@@ -1624,7 +1625,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         bool superDown = afterhours::input::is_key_down(343) ||
                          afterhours::input::is_key_down(347) ||
                          afterhours::input::is_key_down(341);
-        if (superDown && afterhours::input::is_key_pressed(67) &&
+        if (filterRepo && layout && reader_shortcuts(ctx, *filterRepo, *layout) && superDown && afterhours::input::is_key_pressed(67) &&
             diff_sel::state().hasSel) {
             std::string txt = diff_sel::build_copy_text(
                 diff_sel::state(), Settings::get().get_copy_with_location());

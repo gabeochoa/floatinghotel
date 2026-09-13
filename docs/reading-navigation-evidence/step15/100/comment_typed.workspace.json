@@ -1,0 +1,90 @@
+{
+  "active": 1,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.11238938570022583,
+        "line": 8,
+        "path": "a.cpp",
+        "revision": "ea661f3e0da48309750b7720ec23cfeda82a7ced",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "ea661f3e0da48309750b7720ec23cfeda82a7ced"
+          },
+          "file": "",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.08169014751911163,
+        "line": 8,
+        "path": "a.cpp",
+        "revision": "wt",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": true
+    }
+  ],
+  "history_index": 2,
+  "inactive_payloads_empty": true,
+  "review": {
+    "approve_pending": false,
+    "approved": 0,
+    "comment_pending": false,
+    "comments": 0,
+    "composing": "wt\na.cpp\n@@ -8,7 +8,7 @@ int value_6 = 6;:11103241025708940268",
+    "cursor": 0,
+    "draft": "jac",
+    "hunks": 2
+  },
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "ea661f3e0da48309750b7720ec23cfeda82a7ced",
+      "title": "Focus fixture",
+      "tooltip": "Focus fixture\nCommit ea661f3e0da48309750b7720ec23cfeda82a7ced\nFirst parent"
+    }
+  ]
+}

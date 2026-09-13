@@ -16,6 +16,16 @@ struct Target {
     bool operator==(const Target&) const = default;
 };
 
+struct ShortcutOwner {
+    std::optional<Region> region;
+    bool text = false;
+
+    bool reader() const {
+        return !text && (region == Region::Code || region == Region::DocumentTabs);
+    }
+    bool input(Region expected) const { return text && region == expected; }
+};
+
 struct ReturnPoint {
     Popup popup;
     std::optional<Target> target;

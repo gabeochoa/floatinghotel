@@ -1,0 +1,15 @@
+--- Compiling test_focus_target ---
+--- Running test_focus_target ---
+  focus_returns_to_semantic_caller_after_popup_closes          OK
+  focus_nested_popup_returns_to_immediate_then_original_caller OK
+  focus_does_not_restore_across_navigation_or_repository_changes OK
+  focus_rejects_closed_documents_and_foreign_repository_targets OK
+  focus_pending_return_is_cancelled_if_navigation_changes_before_layout_is_ready OK
+  shortcuts_belong_to_the_focused_region                       OK
+  text_inputs_own_editing_keys_inside_every_region             OK
+
+7/7 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

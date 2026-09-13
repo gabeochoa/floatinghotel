@@ -59,6 +59,25 @@ TEST(focus_pending_return_is_cancelled_if_navigation_changes_before_layout_is_re
     ASSERT_FALSE(state.pending.has_value());
 }
 
+TEST(shortcuts_belong_to_the_focused_region) {
+    ASSERT_TRUE((ShortcutOwner{Region::Code, false}.reader()));
+    ASSERT_TRUE((ShortcutOwner{Region::DocumentTabs, false}.reader()));
+    for (auto region : {Region::Tree, Region::History, Region::Picker, Region::Find, Region::Search,
+                        Region::SearchPreview, Region::Feedback, Region::Menu})
+        ASSERT_FALSE((ShortcutOwner{region, false}.reader()));
+    ASSERT_FALSE((ShortcutOwner{}.reader()));
+}
+
+TEST(text_inputs_own_editing_keys_inside_every_region) {
+    for (auto region : {Region::Code, Region::DocumentTabs, Region::Tree, Region::History,
+                        Region::Picker, Region::Find, Region::Search, Region::Feedback}) {
+        ASSERT_FALSE((ShortcutOwner{region, true}.reader()));
+        ASSERT_TRUE((ShortcutOwner{region, true}.input(region)));
+    }
+    ASSERT_FALSE((ShortcutOwner{Region::Search, false}.input(Region::Search)));
+    ASSERT_FALSE((ShortcutOwner{Region::Find, true}.input(Region::Search)));
+}
+
 int main() {
     RUN_ALL_TESTS();
 }

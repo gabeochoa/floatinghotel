@@ -148,6 +148,12 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                             visits.push_back(std::move(value));
                         }
                         return visits;
+                    }()}, {"review", [&] {
+                        const auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
+                        return review ? nlohmann::json{{"cursor", review->cursor}, {"hunks", review->hunkCount},
+                            {"approve_pending", review->cursorApprove}, {"comment_pending", review->cursorComment},
+                            {"approved", review->approvedHunks.size()}, {"composing", review->composingKey},
+                            {"draft", review->composingText}, {"comments", review->comments.size()}} : nlohmann::json{};
                     }()}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
                 cmd.consume();
             } catch (const std::exception& error) { cmd.fail(error.what()); }

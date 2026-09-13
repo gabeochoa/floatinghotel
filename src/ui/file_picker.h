@@ -26,7 +26,8 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         navigation::click(repo, reading::source(path), keep, reading::ClickRegion::Picker);
     };
     auto& results = layout.filePickerResults;
-    if (!results.empty()) {
+    const bool pickerKeys = !ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker);
+    if (pickerKeys && !results.empty()) {
         if (afterhours::input::is_key_pressed(264)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
         if (afterhours::input::is_key_pressed(265)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
         if (afterhours::input::is_key_pressed(257)) open(results[layout.filePickerIndex], true);
@@ -43,7 +44,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                     .with_font_size(FontSize::Small).with_debug_name("file_picker_result"))) open(results[i], false);
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 90.f))})
             .with_debug_name("file_picker_list"));
-    if (list.ent().has<afterhours::ui::HasScrollView>() &&
+    if (pickerKeys && list.ent().has<afterhours::ui::HasScrollView>() &&
         (afterhours::input::is_key_pressed(264) || afterhours::input::is_key_pressed(265))) {
         auto& scroll = list.ent().get<afterhours::ui::HasScrollView>();
         float target = std::clamp(layout.filePickerIndex * 28.f - scroll.viewport_or_zero().y * 0.5f,

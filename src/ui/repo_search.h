@@ -80,7 +80,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     if (repo.repoSearchFocus) { ui::focus_control(ctx, input.ent()); repo.repoSearchFocus = false; }
     auto search = button(ctx, mk(row.ent(), 1), preset::Button("Search")
         .with_size(ComponentSize{pixels(86), pixels(32)}).with_debug_name("repo_search_submit"));
-    if ((search || scopeChanged || matchingChanged || afterhours::input::is_key_pressed(257)) && !repo.repoSearchQuery.empty()) {
+    if ((search || scopeChanged || matchingChanged || (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(257))) && !repo.repoSearchQuery.empty()) {
         repo.repoSearchResults.clear();
         repo.repoSearchPreviewOpen = false;
         repo.repoSearchPreviewFuture = {};
