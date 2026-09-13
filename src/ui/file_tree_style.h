@@ -4,6 +4,7 @@
 #include "../util/file_tree.h"
 #include "chrome_icons.h"
 #include "tooltip.h"
+#include "tree_keyboard.h"
 
 namespace ui::file_tree_style {
 
@@ -24,6 +25,7 @@ inline std::string type_marker(const std::string& path) {
 inline auto row_config(float width, size_t depth, bool selected) {
     using namespace afterhours::ui;
     return preset::SelectableRow(selected)
+        .with_consumes_directional_input()
         .with_size(ComponentSize{pixels(std::max(0.f, width - 16.f)), pixels(28)})
         .with_margin(Margin{.left = pixels(8), .right = pixels(8)})
         .with_padding(Padding{.top = pixels(0), .right = pixels(8), .bottom = pixels(0),
@@ -59,11 +61,13 @@ inline void review_indicator(UIContext<InputAction>& ctx, Entity& row, bool revi
 }
 
 inline bool directory(afterhours::ui::UIContext<InputAction>& ctx, afterhours::Entity& parent,
-                      const file_tree::Row& node, float width, bool collapsed, const std::string& name) {
+                      const file_tree::Row& node, float width, bool collapsed, const std::string& name,
+                      const ecs::RepoComponent& repo, file_tree::NavigationState& state) {
     using namespace afterhours::ui;
     using namespace afterhours::ui::imm;
     auto row = button(ctx, mk(parent, 0), row_config(width, node.depth, false)
         .with_label("").with_debug_name(name));
+    bind_tree_row(ctx, row.ent(), repo, state, node.path);
     auto disclosure = div(ctx, mk(row.ent(), 0), ComponentConfig{}
         .with_size(ComponentSize{pixels(16), pixels(28)})
         .with_debug_name("tree_disclosure"));

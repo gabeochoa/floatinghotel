@@ -380,7 +380,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     ui::diff_sel::reset();
                 }
                 layout.filePickerOpen = false;
-                if (effect.changed || effect.dismissedPanel || dismissPicker) repoPtr->readingFocusDocument = repoPtr->workspace().active_id();
+                if (effect.focus == reading::FocusPolicy::Document && (effect.changed || effect.dismissedPanel || dismissPicker)) repoPtr->readingFocusDocument = repoPtr->workspace().active_id();
             }
         }
 

@@ -1907,8 +1907,10 @@ row on the seventh press. `output/step17-tab-probe` captures every focus target.
 The rows are focusable and their existing focus outlines render correctly;
 the traversal order reflects when pooled UI entities entered the collection.
 
-The visual-state replay uses the observed Tab sequence and checks the semantic
-focus target. Direct tree arrow navigation is the next app step. A framework
+Step 18 supplies a path-based tree focus group, directs Tab from the filter
+to its remembered row, and handles arrows before generic traversal. It guides
+the virtual list to an unrendered destination before building rows, then
+reveals the focused row through its scroll ancestors after layout. A framework
 focus group with explicit visual order and one Tab entry point would help
 virtualized inventories, menus, file browsers, and game editors. It should
 retain focus by item identity when pooled entities are reused.

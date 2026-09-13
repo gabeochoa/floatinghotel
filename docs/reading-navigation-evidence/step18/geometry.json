@@ -1,0 +1,1461 @@
+{
+  "passed": true,
+  "binary_sha256": "aebe83ae4075d1e45dc4fae7debbaa75e4c91686b2be1ef6376c2a2820f9c03c",
+  "geometry": {
+    "100": {
+      "entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 2,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        }
+      },
+      "directory": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        }
+      },
+      "first": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "second": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        }
+      },
+      "cycled": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        }
+      },
+      "collapsed": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        }
+      },
+      "expanded": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        }
+      },
+      "entered_again": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "enter_collapsed": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 266.0
+        }
+      },
+      "skipped": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/z.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "tail": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "far": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f045.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 674.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 674.0
+        }
+      },
+      "return": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        }
+      },
+      "kept": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        }
+      },
+      "working_entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 1,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        }
+      },
+      "working_file": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 1,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 294.0
+        }
+      },
+      "files_tree": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        }
+      },
+      "files_skipped": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "src/z.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 333.5555419921875
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 333.5555419921875
+        }
+      },
+      "files_flat": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 361.5555419921875
+        }
+      },
+      "files_all": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 305.5555419921875
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 305.5555419921875
+        }
+      },
+      "source_kept": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 305.5555419921875
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 305.5555419921875
+        }
+      },
+      "source_origin_entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 5,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 238.0
+        }
+      },
+      "source_origin_tree": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f001.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        },
+        "visible": {
+          "height": 28.0,
+          "width": 264.0,
+          "x": 8.0,
+          "y": 322.0
+        }
+      }
+    },
+    "140": {
+      "entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 2,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        }
+      },
+      "directory": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        }
+      },
+      "first": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "second": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        }
+      },
+      "cycled": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        }
+      },
+      "collapsed": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        }
+      },
+      "expanded": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        }
+      },
+      "entered_again": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "enter_collapsed": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 372.4000244140625
+        }
+      },
+      "skipped": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/z.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "tail": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "far": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f045.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 679.6002197265625
+        },
+        "visible": {
+          "height": 39.19976806640625,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 679.6002197265625
+        }
+      },
+      "return": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        }
+      },
+      "kept": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        }
+      },
+      "working_entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 1,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        }
+      },
+      "working_file": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 1,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 411.60003662109375
+        }
+      },
+      "files_tree": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        }
+      },
+      "files_skipped": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "src/z.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 432.755615234375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 432.755615234375
+        }
+      },
+      "files_flat": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 471.9555969238281
+        }
+      },
+      "files_all": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 393.55560302734375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 393.55560302734375
+        }
+      },
+      "source_kept": {
+        "focus": {
+          "control": "file_row",
+          "document": 4,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 393.55560302734375
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 393.55560302734375
+        }
+      },
+      "source_origin_entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 5,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 333.20001220703125
+        }
+      },
+      "source_origin_tree": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f001.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 39.20000457763672,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        },
+        "visible": {
+          "height": 39.20001220703125,
+          "width": 369.60003662109375,
+          "x": 11.200000762939453,
+          "y": 450.8000183105469
+        }
+      }
+    },
+    "200": {
+      "entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 2,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        }
+      },
+      "directory": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        }
+      },
+      "first": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        }
+      },
+      "second": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        }
+      },
+      "cycled": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        }
+      },
+      "collapsed": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        }
+      },
+      "expanded": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        }
+      },
+      "entered_again": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        }
+      },
+      "enter_collapsed": {
+        "focus": {
+          "control": "commit_directory:src/lib/",
+          "document": 2,
+          "item": "src/lib/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 532.0000610351562
+        }
+      },
+      "skipped": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "src/z.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        }
+      },
+      "tail": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        }
+      },
+      "far": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f045.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 688.0
+        }
+      },
+      "return": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        }
+      },
+      "kept": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        }
+      },
+      "working_entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 1,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        }
+      },
+      "working_file": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 1,
+          "item": "src/lib/a.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 588.0000610351562
+        }
+      },
+      "files_tree": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        }
+      },
+      "files_skipped": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "src/z.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 525.5556030273438
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 525.5556030273438
+        }
+      },
+      "files_flat": {
+        "focus": {
+          "control": "file_row",
+          "document": 1,
+          "item": "tail/f000.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 575.9999389648438
+        }
+      },
+      "files_all": {
+        "focus": {
+          "control": "file_row",
+          "document": 5,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 525.5556030273438
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 525.5556030273438
+        }
+      },
+      "source_kept": {
+        "focus": {
+          "control": "file_row",
+          "document": 5,
+          "item": "src/lib/b.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 525.5556030273438
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 525.5556030273438
+        }
+      },
+      "source_origin_entry": {
+        "focus": {
+          "control": "commit_directory:src/",
+          "document": 6,
+          "item": "src/",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 476.00006103515625
+        }
+      },
+      "source_origin_tree": {
+        "focus": {
+          "control": "commit_changed_file",
+          "document": 2,
+          "item": "tail/f001.cpp",
+          "region": "Tree",
+          "repository": "/Users/gabeochoa/p/floatinghotel/output/step18-keyboard-final/fixture"
+        },
+        "rect": {
+          "height": 56.00000762939453,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        },
+        "visible": {
+          "height": 56.0,
+          "width": 528.0000610351562,
+          "x": 16.000001907348633,
+          "y": 644.0001220703125
+        }
+      }
+    }
+  }
+}

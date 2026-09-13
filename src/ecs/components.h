@@ -21,6 +21,7 @@
 #include "../util/hex_view.h"
 #include "../util/markdown_preview.h"
 #include "../util/focus_target.h"
+#include "../util/tree_navigation.h"
 #include "../util/diff_revisions.h"
 #include "../util/reading_workspace.h"
 #include "../util/review_files.h"
@@ -295,6 +296,8 @@ public:
     const reading::ReadingWorkspace& workspace() const { return workspace_; }
     std::optional<reading::NavigationEffect> navigationEffect;
     std::optional<reading::DocumentId> readingFocusDocument;
+    file_tree::NavigationState reviewTreeNavigation;
+    file_tree::NavigationState filesTreeNavigation;
     std::vector<FileDiff> originFileSummaries;
     std::string repoPath;
     std::string currentBranch;
@@ -354,6 +357,7 @@ public:
     unsigned dataGeneration = 0;
     unsigned patchGeneration = 0;
     std::vector<std::string> allFilePaths;
+    unsigned allFilePathsGeneration = 0;
     std::string filesError;
     std::string codeownersKey;
     async_work::Task<codeowners::Document> codeownersFuture;

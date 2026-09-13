@@ -1,0 +1,50 @@
+[
+  {
+    "run": "fourth",
+    "zoom": 100,
+    "measurement": "[INFO] bench_frames: 120 frames, 1589 entities: avg 12.18 ms  p50 11.63  p99 20.29  max 30.27",
+    "passed": false
+  },
+  {
+    "run": "fifth",
+    "zoom": 100,
+    "measurement": "[INFO] bench_frames: 120 frames, 1596 entities: avg 14.09 ms  p50 12.61  p99 30.27  max 51.57",
+    "passed": false
+  },
+  {
+    "run": "culled",
+    "zoom": 100,
+    "measurement": "[INFO] bench_frames: 120 frames, 924 entities: avg 4.77 ms  p50 4.31  p99 7.79  max 8.62",
+    "passed": true
+  },
+  {
+    "run": "culled",
+    "zoom": 140,
+    "measurement": "[INFO] bench_frames: 120 frames, 791 entities: avg 6.06 ms  p50 5.87  p99 13.16  max 22.46",
+    "passed": true
+  },
+  {
+    "run": "culled",
+    "zoom": 200,
+    "measurement": "[INFO] bench_frames: 120 frames, 614 entities: avg 15.71 ms  p50 8.99  p99 74.94  max 314.31",
+    "passed": false
+  },
+  {
+    "run": "final",
+    "zoom": 100,
+    "measurement": "[INFO] bench_frames: 120 frames, 924 entities: avg 5.76 ms  p50 5.52  p99 8.34  max 9.50",
+    "passed": true
+  },
+  {
+    "run": "final",
+    "zoom": 140,
+    "measurement": "[INFO] bench_frames: 120 frames, 791 entities: avg 6.11 ms  p50 5.80  p99 10.37  max 14.29",
+    "passed": true
+  },
+  {
+    "run": "final",
+    "zoom": 200,
+    "measurement": "[INFO] bench_frames: 120 frames, 614 entities: avg 3.67 ms  p50 3.53  p99 5.10  max 5.17",
+    "passed": true
+  }
+]

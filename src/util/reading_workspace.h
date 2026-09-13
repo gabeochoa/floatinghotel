@@ -427,9 +427,12 @@ private:
     }
 };
 
+enum class FocusPolicy { Document, Caller };
+
 struct NavigationEffect {
     bool changed = false;
     bool dismissedPanel = false;
+    FocusPolicy focus = FocusPolicy::Document;
     std::optional<bool> reviewing;
 };
 

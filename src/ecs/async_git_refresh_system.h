@@ -205,6 +205,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.files.reset();
             repo.filesError = result.success() ? "" : result.stderr_str();
             repo.allFilePaths = result.success() ? git::parse_null_paths(result.stdout_str()) : std::vector<std::string>{};
+            ++repo.allFilePathsGeneration;
         }
         if (!pf.status && !pf.log && !pf.diff && !pf.stagedDiff && !pf.branches && !pf.files) {
             repo.isRefreshing = false;

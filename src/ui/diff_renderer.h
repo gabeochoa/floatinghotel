@@ -1775,220 +1775,223 @@ inline void render_diff(UIContext<InputAction>& ctx,
             --repo->diffTargetFrames;
         }
 
-        bool showApproveFile = review && !fileDiff.isFullContent;
-        auto fileTitle = div(ctx, mk(fileHeaderRow.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
-            .with_size(ComponentSize{contentWidth < 600.f ? percent(1.f) : expand(), pixels(32)})
-            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_align_items(AlignItems::Center)
-            .with_overflow(Overflow::Hidden));
-        if (review && !fileDiff.isFullContent) {
-            auto fold = button(ctx, mk(fileTitle.ent(), 1), preset::Button("")
-                .with_size(ComponentSize{pixels(28), pixels(28)})
-                .with_padding(Padding{.top = pixels(6), .right = pixels(6), .bottom = pixels(6), .left = pixels(6)})
-                .with_transparent_bg().with_debug_name("fold_file:" + fileDiff.filePath));
-            chrome_icon(ctx, mk(fold.ent(), 0), fileFolded ? ChromeIcon::ChevronRight : ChromeIcon::ChevronDown,
-                theme::TEXT_SECONDARY, "file_fold_icon");
-            set_tooltip(fold.ent(), fileFolded ? "Expand file" : "Collapse file");
-            if (fold) {
-                if (fileFolded) review->foldedFiles.erase(fileFoldKey);
-                else review->foldedFiles.insert(fileFoldKey);
-                fileFolded = !fileFolded;
-            }
-        }
-        const auto directoryEnd = fileDiff.filePath.find_last_of('/');
-        const auto basenameStart = directoryEnd == std::string::npos ? 0 : directoryEnd + 1;
-        std::vector<afterhours::ui::TextSpan> pathSpans{
-            {fileDiff.filePath.substr(0, basenameStart), theme::TEXT_TERTIARY},
-            {fileDiff.filePath.substr(basenameStart), theme::TEXT_PRIMARY}};
-        div(ctx, mk(fileTitle.ent(), 0),
-            ComponentConfig{}.with_skip_grid_snap()
-                .with_styled_label(std::move(pathSpans))
-                .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font("mono", pixels(15))
-                .with_alignment(TextAlignment::Left)
-                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_padding(Padding{
-                    .right = pixels(4), .left = pixels(8)})
-                .with_debug_name("file_header_label"));
-
-        auto fileBtns = div(ctx, mk(fileHeaderRow.ent(), 1),
-            ComponentConfig{}.with_skip_grid_snap()
-                .with_size(ComponentSize{narrowFile ? pixels(contentWidth - 24.f) : children(), pixels(actionsHeight)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_wrap()
-                .with_gap(pixels(6))
-                .with_margin(Margin{.right = pixels(12)})
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-            .with_debug_name("file_header_btns"));
-        if (!fileDiff.isFullContent) {
-            std::string stateLabel = fileDiff.isPartialContent ? "Partial preview" : fileDiff.isRenamed ? "Renamed" : fileDiff.isNew ? "New file" :
-                fileDiff.isDeleted ? "Deleted" : fileDiff.isBinary ? "Binary" : "";
-            const auto unresolved = review ? ecs::unresolved_file_count(*review, reviewScope,
-                fileDiff.filePath, fileDiff.oldPath) : 0;
-            if (unresolved) stateLabel += (stateLabel.empty() ? "" : " · ") + std::to_string(unresolved) + " unresolved";
-            if (!stateLabel.empty())
-                div(ctx, mk(fileBtns.ent(), 9), ComponentConfig{}.with_skip_grid_snap()
-                    .with_label(stateLabel).with_size(ComponentSize{children(), pixels(28)})
-                    .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_debug_name("file_state_badge"));
-            div(ctx, mk(fileBtns.ent(), 7), ComponentConfig{}.with_skip_grid_snap()
-                .with_label("+" + std::to_string(fileDiff.additions))
-                .with_size(ComponentSize{children(), pixels(28)}).with_font("mono", pixels(12))
-                .with_custom_text_color(theme::DIFF_ADD_TEXT).with_debug_name("file_additions"));
-            div(ctx, mk(fileBtns.ent(), 8), ComponentConfig{}.with_skip_grid_snap()
-                .with_label("-" + std::to_string(fileDiff.deletions))
-                .with_size(ComponentSize{children(), pixels(28)}).with_font("mono", pixels(12))
-                .with_custom_text_color(theme::DIFF_DEL_TEXT).with_debug_name("file_deletions"));
-        }
-        if (sess.reviewActions && diff_sel::state().hasSel) {
-            std::vector<std::pair<int, int>> selectedLines;
-            const auto& selection = diff_sel::state();
-            for (const auto& line : selection.lastLines) {
-                auto span = selection.hl.find(line.ent);
-                if (line.filePath == fileDiff.filePath && span != selection.hl.end() && span->second.second > span->second.first)
-                    selectedLines.emplace_back(line.oldLine, line.newLine);
-            }
-            if (!selectedLines.empty()) {
-                if (button(ctx, mk(fileBtns.ent(), 6), preset::Button("Comment selection")
-                        .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_transparent_bg()
-                        .with_debug_name("comment_selection_btn"))) {
-                    auto range = review_selection::range(selectedLines);
-                    if (!range) afterhours::toast::send_info(ctx, "Select lines from one side of the diff", 2.f);
-                    else {
-                        for (const auto& hunk : fileDiff.hunks) {
-                            int first = range->oldSide ? hunk.oldStart : hunk.newStart;
-                            int count = range->oldSide ? hunk.oldCount : hunk.newCount;
-                            if (range->first < first || range->first >= first + count) continue;
-                            begin_diff_comment(*review, reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk),
-                                {reviewScope, range->oldSide && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath,
-                                 range->first, "", range->last, range->oldSide}, hunk);
-                            review->foldedHunks.erase(review->composingKey);
-                            diff_sel::reset();
-                            break;
-                        }
-                    }
+        if (!vp.active || (vp.curY >= vp.top && vp.curY - vp.px(fileHeaderHeight) <= vp.bottom)) {
+            bool showApproveFile = review && !fileDiff.isFullContent;
+            auto fileTitle = div(ctx, mk(fileHeaderRow.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{contentWidth < 600.f ? percent(1.f) : expand(), pixels(32)})
+                .with_flex_direction(FlexDirection::Row).with_no_wrap().with_align_items(AlignItems::Center)
+                .with_overflow(Overflow::Hidden));
+            if (review && !fileDiff.isFullContent) {
+                auto fold = button(ctx, mk(fileTitle.ent(), 1), preset::Button("")
+                    .with_size(ComponentSize{pixels(28), pixels(28)})
+                    .with_padding(Padding{.top = pixels(6), .right = pixels(6), .bottom = pixels(6), .left = pixels(6)})
+                    .with_transparent_bg().with_debug_name("fold_file:" + fileDiff.filePath));
+                chrome_icon(ctx, mk(fold.ent(), 0), fileFolded ? ChromeIcon::ChevronRight : ChromeIcon::ChevronDown,
+                    theme::TEXT_SECONDARY, "file_fold_icon");
+                set_tooltip(fold.ent(), fileFolded ? "Expand file" : "Collapse file");
+                if (fold) {
+                    if (fileFolded) review->foldedFiles.erase(fileFoldKey);
+                    else review->foldedFiles.insert(fileFoldKey);
+                    fileFolded = !fileFolded;
                 }
             }
-        }
-        auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-        if ((!activeRepo || !activeRepo->reviewWorkspace) && reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
-            !fileDiff.isSubmodule && diff_sel::state().hasSel) {
-            auto stage = button(ctx, mk(fileBtns.ent(), 3), preset::Button("Stage selection")
-                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_transparent_bg()
-                .with_debug_name("stage_selected_lines"));
-            if (stage) {
-                std::vector<std::set<size_t>> selected(fileDiff.hunks.size());
-                const auto& state = diff_sel::state();
-                for (size_t h = 0; h < fileDiff.hunks.size(); ++h) {
-                    const auto& hunk = fileDiff.hunks[h];
-                    int oldLine = hunk.oldStart, newLine = hunk.newStart;
-                    for (size_t i = 0; i < hunk.lines.size(); ++i) {
-                        char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i].front();
-                        int number = sign == '-' ? oldLine : newLine;
-                        for (const auto& record : state.lastLines) {
-                            if (record.filePath == fileDiff.filePath && record.sign == sign &&
-                                record.lineNo == number && state.hl.contains(record.ent))
-                                selected[h].insert(i);
-                        }
-                        if (sign != '+') ++oldLine;
-                        if (sign != '-') ++newLine;
-                    }
-                }
-                auto result = git::stage_selected_lines(repoPath, fileDiff, selected);
-                if (result.success()) {
-                    diff_sel::reset();
-                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
-                    afterhours::toast::send_info(ctx, "Selected lines staged", 1.5f);
-                } else afterhours::toast::send_info(ctx, "Stage selection failed: " + result.stderr_str(), 3.f);
-            }
-        }
-
-        if (!fileDiff.isFullContent && !repoPath.empty() && reviewScope != "snapshot") {
-            auto open = button(ctx, mk(fileBtns.ent(), 2), preset::Button(fileDiff.isDeleted ? "Open previous file" : "Open file")
-                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
-                .with_transparent_bg().with_debug_name("open_full_file"));
-            if (open) {
-                if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
-                    navigation::open_source(*repo, fileDiff,
-                        diff_sel::source_point(fileDiff, visible_rect(*contentParent), reviewScope));
-                }
-            }
-        }
-
-        if (showApproveFile) {
-            bool viewed = ecs::file_reviewed(*review, reviewScope, fileDiff);
-            auto approveFileBtn = button(ctx, mk(fileBtns.ent(), 0),
-                preset::Button("", !fileDiff.isPartialContent)
-                    .with_size(ComponentSize{pixels(78), pixels(28)})
-                    .with_padding(Padding{
-                        .top = pixels(6), .right = pixels(4),
-                        .bottom = pixels(6), .left = pixels(4)})
-                    .with_flex_direction(FlexDirection::Row).with_gap(pixels(5)).with_no_wrap()
-                    .with_transparent_bg()
+            const auto directoryEnd = fileDiff.filePath.find_last_of('/');
+            const auto basenameStart = directoryEnd == std::string::npos ? 0 : directoryEnd + 1;
+            std::vector<afterhours::ui::TextSpan> pathSpans{
+                {fileDiff.filePath.substr(0, basenameStart), theme::TEXT_TERTIARY},
+                {fileDiff.filePath.substr(basenameStart), theme::TEXT_PRIMARY}};
+            div(ctx, mk(fileTitle.ent(), 0),
+                ComponentConfig{}.with_skip_grid_snap()
+                    .with_styled_label(std::move(pathSpans))
+                    .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(pixels(12))
-                    .with_debug_name("approve_file_btn"));
-            if (fileDiff.isPartialContent) set_tooltip(approveFileBtn.ent(),
-                "Only part of this file is loaded. A preview cannot mark the whole file reviewed.");
-            auto checkbox = div(ctx, mk(approveFileBtn.ent(), 0), ComponentConfig{}
-                .with_size(ComponentSize{pixels(16), pixels(16)})
-                .with_border(viewed ? theme::DIFF_ADD_TEXT : theme::TEXT_TERTIARY, pixels(1))
-                .with_debug_name("viewed_checkbox"));
-            if (viewed) chrome_icon(ctx, mk(checkbox.ent(), 0), ChromeIcon::Check, theme::DIFF_ADD_TEXT, "viewed_check");
-            div(ctx, mk(approveFileBtn.ent(), 1), ComponentConfig{}.with_label("Viewed")
-                .with_size(ComponentSize{expand(), pixels(16)}).with_font_size(pixels(12))
-                .with_custom_text_color(viewed ? theme::DIFF_ADD_TEXT : theme::TEXT_SECONDARY));
-            if (approveFileBtn) {
-                if (viewed) {
-                    review->reviewedFiles.erase(reviewScope + "\n" + fileDiff.filePath);
-                    for (const auto& hunk : fileDiff.hunks)
-                        review->approvedHunks.erase(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
-                } else {
-                    review->reviewedFiles[reviewScope + "\n" + fileDiff.filePath] = ecs::diff_signature(fileDiff);
-                    for (const auto& hunk : fileDiff.hunks)
-                        review->approvedHunks.insert(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
-                }
-                review->dirty = true;
-                afterhours::toast::send_info(ctx, viewed ? "File marked unreviewed; index unchanged" : "File approved for review; index unchanged", 1.5f);
+                    .with_font("mono", pixels(15))
+                    .with_alignment(TextAlignment::Left)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_padding(Padding{
+                        .right = pixels(4), .left = pixels(8)})
+                    .with_debug_name("file_header_label"));
+
+            auto fileBtns = div(ctx, mk(fileHeaderRow.ent(), 1),
+                ComponentConfig{}.with_skip_grid_snap()
+                    .with_size(ComponentSize{narrowFile ? pixels(contentWidth - 24.f) : children(), pixels(actionsHeight)})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_align_items(AlignItems::Center)
+                    .with_wrap()
+                    .with_gap(pixels(6))
+                    .with_margin(Margin{.right = pixels(12)})
+                    .with_transparent_bg()
+                    .with_roundness(0.0f)
+                .with_debug_name("file_header_btns"));
+            if (!fileDiff.isFullContent) {
+                std::string stateLabel = fileDiff.isPartialContent ? "Partial preview" : fileDiff.isRenamed ? "Renamed" : fileDiff.isNew ? "New file" :
+                    fileDiff.isDeleted ? "Deleted" : fileDiff.isBinary ? "Binary" : "";
+                const auto unresolved = review ? ecs::unresolved_file_count(*review, reviewScope,
+                    fileDiff.filePath, fileDiff.oldPath) : 0;
+                if (unresolved) stateLabel += (stateLabel.empty() ? "" : " · ") + std::to_string(unresolved) + " unresolved";
+                if (!stateLabel.empty())
+                    div(ctx, mk(fileBtns.ent(), 9), ComponentConfig{}.with_skip_grid_snap()
+                        .with_label(stateLabel).with_size(ComponentSize{children(), pixels(28)})
+                        .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_debug_name("file_state_badge"));
+                div(ctx, mk(fileBtns.ent(), 7), ComponentConfig{}.with_skip_grid_snap()
+                    .with_label("+" + std::to_string(fileDiff.additions))
+                    .with_size(ComponentSize{children(), pixels(28)}).with_font("mono", pixels(12))
+                    .with_custom_text_color(theme::DIFF_ADD_TEXT).with_debug_name("file_additions"));
+                div(ctx, mk(fileBtns.ent(), 8), ComponentConfig{}.with_skip_grid_snap()
+                    .with_label("-" + std::to_string(fileDiff.deletions))
+                    .with_size(ComponentSize{children(), pixels(28)}).with_font("mono", pixels(12))
+                    .with_custom_text_color(theme::DIFF_DEL_TEXT).with_debug_name("file_deletions"));
             }
-        }
-        if (reviewScope == "wt" && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
-            if (button(ctx, mk(fileBtns.ent(), 4), preset::Button("Stage file")
+            if (sess.reviewActions && diff_sel::state().hasSel) {
+                std::vector<std::pair<int, int>> selectedLines;
+                const auto& selection = diff_sel::state();
+                for (const auto& line : selection.lastLines) {
+                    auto span = selection.hl.find(line.ent);
+                    if (line.filePath == fileDiff.filePath && span != selection.hl.end() && span->second.second > span->second.first)
+                        selectedLines.emplace_back(line.oldLine, line.newLine);
+                }
+                if (!selectedLines.empty()) {
+                    if (button(ctx, mk(fileBtns.ent(), 6), preset::Button("Comment selection")
+                            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_transparent_bg()
+                            .with_debug_name("comment_selection_btn"))) {
+                        auto range = review_selection::range(selectedLines);
+                        if (!range) afterhours::toast::send_info(ctx, "Select lines from one side of the diff", 2.f);
+                        else {
+                            for (const auto& hunk : fileDiff.hunks) {
+                                int first = range->oldSide ? hunk.oldStart : hunk.newStart;
+                                int count = range->oldSide ? hunk.oldCount : hunk.newCount;
+                                if (range->first < first || range->first >= first + count) continue;
+                                begin_diff_comment(*review, reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk),
+                                    {reviewScope, range->oldSide && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath,
+                                     range->first, "", range->last, range->oldSide}, hunk);
+                                review->foldedHunks.erase(review->composingKey);
+                                diff_sel::reset();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if ((!activeRepo || !activeRepo->reviewWorkspace) && reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
+                !fileDiff.isSubmodule && diff_sel::state().hasSel) {
+                auto stage = button(ctx, mk(fileBtns.ent(), 3), preset::Button("Stage selection")
+                    .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_transparent_bg()
+                    .with_debug_name("stage_selected_lines"));
+                if (stage) {
+                    std::vector<std::set<size_t>> selected(fileDiff.hunks.size());
+                    const auto& state = diff_sel::state();
+                    for (size_t h = 0; h < fileDiff.hunks.size(); ++h) {
+                        const auto& hunk = fileDiff.hunks[h];
+                        int oldLine = hunk.oldStart, newLine = hunk.newStart;
+                        for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                            char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i].front();
+                            int number = sign == '-' ? oldLine : newLine;
+                            for (const auto& record : state.lastLines) {
+                                if (record.filePath == fileDiff.filePath && record.sign == sign &&
+                                    record.lineNo == number && state.hl.contains(record.ent))
+                                    selected[h].insert(i);
+                            }
+                            if (sign != '+') ++oldLine;
+                            if (sign != '-') ++newLine;
+                        }
+                    }
+                    auto result = git::stage_selected_lines(repoPath, fileDiff, selected);
+                    if (result.success()) {
+                        diff_sel::reset();
+                        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
+                        afterhours::toast::send_info(ctx, "Selected lines staged", 1.5f);
+                    } else afterhours::toast::send_info(ctx, "Stage selection failed: " + result.stderr_str(), 3.f);
+                }
+            }
+
+            if (!fileDiff.isFullContent && !repoPath.empty() && reviewScope != "snapshot") {
+                auto open = button(ctx, mk(fileBtns.ent(), 2), preset::Button(fileDiff.isDeleted ? "Open previous file" : "Open file")
                     .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
-                    .with_transparent_bg().with_debug_name("stage_file_btn"))) {
-                auto result = git::stage_file(repoPath, fileDiff.filePath);
-                if (result.success()) {
-                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
-                } else afterhours::toast::send_info(ctx, "Stage failed: " + diff_detail::git_err(result), 2.5f);
-            }
-        }
-
-        {
-            std::string diffText = diff_detail::file_diff_to_text(fileDiff);
-            if (fileDiff.isFullContent) {
-                diffText.clear();
-                for (const auto& hunk : fileDiff.hunks)
-                    for (size_t i = 0; i < hunk.lines.size(); ++i) {
-                        diffText += hunk.lines[i].substr(1);
-                        if (!hunk.noNewline.contains(i)) diffText += '\n';
+                    .with_transparent_bg().with_debug_name("open_full_file"));
+                if (open) {
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
+                        navigation::open_source(*repo, fileDiff,
+                            diff_sel::source_point(fileDiff, visible_rect(*contentParent), reviewScope));
                     }
+                }
             }
-            auto fileCopyBtn = button(ctx, mk(fileBtns.ent(), 1),
-                preset::Button(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy Diff")
-                    .with_size(ComponentSize{children(), pixels(28)})
-                    .with_padding(Padding{
-                        .top = pixels(2), .right = pixels(8),
-                        .bottom = pixels(2), .left = pixels(8)})
-                    .with_transparent_bg()
-                    .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(pixels(12))
-                    .with_debug_name("copy_file_diff_btn"));
-            if (fileCopyBtn) {
-                afterhours::clipboard::set_text(diffText);
-                afterhours::toast::send_info(ctx, fileDiff.isPartialContent ? "Copied loaded page to clipboard" : "Copied diff to clipboard", 1.5f);
+
+            if (showApproveFile) {
+                bool viewed = ecs::file_reviewed(*review, reviewScope, fileDiff);
+                auto approveFileBtn = button(ctx, mk(fileBtns.ent(), 0),
+                    preset::Button("", !fileDiff.isPartialContent)
+                        .with_size(ComponentSize{pixels(78), pixels(28)})
+                        .with_padding(Padding{
+                            .top = pixels(6), .right = pixels(4),
+                            .bottom = pixels(6), .left = pixels(4)})
+                        .with_flex_direction(FlexDirection::Row).with_gap(pixels(5)).with_no_wrap()
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::TEXT_PRIMARY)
+                        .with_font_size(pixels(12))
+                        .with_debug_name("approve_file_btn"));
+                if (fileDiff.isPartialContent) set_tooltip(approveFileBtn.ent(),
+                    "Only part of this file is loaded. A preview cannot mark the whole file reviewed.");
+                auto checkbox = div(ctx, mk(approveFileBtn.ent(), 0), ComponentConfig{}
+                    .with_size(ComponentSize{pixels(16), pixels(16)})
+                    .with_border(viewed ? theme::DIFF_ADD_TEXT : theme::TEXT_TERTIARY, pixels(1))
+                    .with_debug_name("viewed_checkbox"));
+                if (viewed) chrome_icon(ctx, mk(checkbox.ent(), 0), ChromeIcon::Check, theme::DIFF_ADD_TEXT, "viewed_check");
+                div(ctx, mk(approveFileBtn.ent(), 1), ComponentConfig{}.with_label("Viewed")
+                    .with_size(ComponentSize{expand(), pixels(16)}).with_font_size(pixels(12))
+                    .with_custom_text_color(viewed ? theme::DIFF_ADD_TEXT : theme::TEXT_SECONDARY));
+                if (approveFileBtn) {
+                    if (viewed) {
+                        review->reviewedFiles.erase(reviewScope + "\n" + fileDiff.filePath);
+                        for (const auto& hunk : fileDiff.hunks)
+                            review->approvedHunks.erase(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
+                    } else {
+                        review->reviewedFiles[reviewScope + "\n" + fileDiff.filePath] = ecs::diff_signature(fileDiff);
+                        for (const auto& hunk : fileDiff.hunks)
+                            review->approvedHunks.insert(reviewScope + "\n" + ecs::ReviewComponent::hunk_key(fileDiff.filePath, hunk));
+                    }
+                    review->dirty = true;
+                    afterhours::toast::send_info(ctx, viewed ? "File marked unreviewed; index unchanged" : "File approved for review; index unchanged", 1.5f);
+                }
             }
+            if (reviewScope == "wt" && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
+                if (button(ctx, mk(fileBtns.ent(), 4), preset::Button("Stage file")
+                        .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+                        .with_transparent_bg().with_debug_name("stage_file_btn"))) {
+                    auto result = git::stage_file(repoPath, fileDiff.filePath);
+                    if (result.success()) {
+                        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
+                    } else afterhours::toast::send_info(ctx, "Stage failed: " + diff_detail::git_err(result), 2.5f);
+                }
+            }
+
+            {
+                std::string diffText = diff_detail::file_diff_to_text(fileDiff);
+                if (fileDiff.isFullContent) {
+                    diffText.clear();
+                    for (const auto& hunk : fileDiff.hunks)
+                        for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                            diffText += hunk.lines[i].substr(1);
+                            if (!hunk.noNewline.contains(i)) diffText += '\n';
+                        }
+                }
+                auto fileCopyBtn = button(ctx, mk(fileBtns.ent(), 1),
+                    preset::Button(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy Diff")
+                        .with_size(ComponentSize{children(), pixels(28)})
+                        .with_padding(Padding{
+                            .top = pixels(2), .right = pixels(8),
+                            .bottom = pixels(2), .left = pixels(8)})
+                        .with_transparent_bg()
+                        .with_custom_text_color(theme::TEXT_PRIMARY)
+                        .with_font_size(pixels(12))
+                        .with_debug_name("copy_file_diff_btn"));
+                if (fileCopyBtn) {
+                    afterhours::clipboard::set_text(diffText);
+                    afterhours::toast::send_info(ctx, fileDiff.isPartialContent ? "Copied loaded page to clipboard" : "Copied diff to clipboard", 1.5f);
+                }
+            }
+
         }
 
         if (fileFolded) {

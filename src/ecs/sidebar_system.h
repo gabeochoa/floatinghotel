@@ -362,6 +362,25 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
                 .with_debug_name("sidebar_files");
             if (repoPtr) update_file_tree(*repoPtr, layout);
+            if (repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
+                auto& state = repoPtr->filesTreeNavigation;
+                auto& collapsed = layout.collapsedDirectories[repoPtr->repoPath];
+                const std::string scope = active_review_tab() == LayoutComponent::ReviewTab::Staged ? "index" : "wt";
+                const auto context = repoPtr->repoPath + "\nfiles:" + scope + ":" + std::to_string(static_cast<int>(layout.fileViewMode));
+                if (auto move = ui::tree_keys(ctx, *repoPtr, layout, state, context, treeRows_, collapsed)) {
+                    if (move->toggle) {
+                        if (collapsed.contains(*move->toggle)) collapsed.erase(*move->toggle); else collapsed.insert(*move->toggle);
+                        update_file_tree(*repoPtr, layout);
+                    }
+                    if (move->open) {
+                        reading::Location destination = allFilesMode_ ? reading::Location{reading::source(move->path)} :
+                            reading::Location{reading::review(scope, move->path)};
+                        if (move->keep) navigation::click(*repoPtr, std::move(destination), true);
+                        else navigation::preview(*repoPtr, std::move(destination));
+                    }
+                }
+                ui::reveal_tree_row(mk(controlsBody.ent(), 2100), state, treeRows_);
+            }
             const bool windowedFiles =
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
                 repoPtr && active_file_count(*repoPtr) > 0;
@@ -532,6 +551,7 @@ private:
     std::string commitFileQuery_;
     std::string commitTreeKey_;
     std::vector<file_tree::Row> commitTreeRows_;
+    std::vector<std::string> commitTreePaths_;
     std::vector<size_t> commitFileIndices_;
     std::optional<review_files::Filter> commitFileFilter_;
 
@@ -627,13 +647,22 @@ private:
             commitTreeKey_ = std::move(key);
             commitFileFilter_ = repo->fileFilter;
             commitFileIndices_.clear();
-            std::vector<std::string> paths;
+            commitTreePaths_.clear();
             for (size_t index : visible_review_file_indices(*files, repo->fileFilter, review, scope)) {
                 if (!commitFileQuery_.empty() && (*files)[index].filePath.find(commitFileQuery_) == std::string::npos) continue;
-                paths.push_back((*files)[index].filePath);
+                commitTreePaths_.push_back((*files)[index].filePath);
                 commitFileIndices_.push_back(index);
             }
-            commitTreeRows_ = file_tree::flatten(paths, collapsed);
+            commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
+        }
+        auto& treeState = repo->reviewTreeNavigation;
+        const auto move = ui::tree_keys(ctx, *repo, *layout, treeState, collapseKey, commitTreeRows_, collapsed);
+        if (move) {
+            if (move->toggle) {
+                if (collapsed.contains(*move->toggle)) collapsed.erase(*move->toggle); else collapsed.insert(*move->toggle);
+                commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
+                commitTreeKey_.clear();
+            }
         }
         auto config = preset::ScrollPanel().with_size(ComponentSize{percent(1.f), pixels(std::max(0.f, height - 70.f))})
             .with_debug_name("commit_files_scroll");
@@ -646,12 +675,13 @@ private:
             return;
         }
         std::optional<std::string> selectedPath;
+        ui::reveal_tree_row(mk(section.ent(), 3), treeState, commitTreeRows_);
         ui::virtual_list(ctx, mk(section.ent(), 3), commitTreeRows_.size(), 28.f,
             [&](size_t index, Entity& wrapper) {
                 const auto& node = commitTreeRows_[index];
                 if (node.directory) {
                     if (ui::file_tree_style::directory(ctx, wrapper, node, sidebarPixelWidth_,
-                            collapsed.contains(node.path), "commit_directory:" + node.path)) {
+                            collapsed.contains(node.path), "commit_directory:" + node.path, *repo, treeState)) {
                         if (collapsed.contains(node.path)) collapsed.erase(node.path);
                         else collapsed.insert(node.path);
                     }
@@ -661,7 +691,7 @@ private:
                 auto row = button(ctx, mk(wrapper, 0), ui::file_tree_style::row_config(sidebarPixelWidth_, node.depth,
                     repo->diffTargetFile() == node.path)
                     .with_debug_name("commit_changed_file"));
-                ui::bind_focus(row.ent(), *repo, reading::focus::Region::Tree, node.path);
+                ui::bind_tree_row(ctx, row.ent(), *repo, treeState, node.path);
                 ui::set_tooltip(row.ent(), node.path);
                 div(ctx, mk(row.ent(), 3), ComponentConfig{}.with_label(ui::file_tree_style::type_marker(node.path))
                     .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(11))
@@ -713,7 +743,11 @@ private:
                     .with_custom_text_color(theme::DIFF_DEL_TEXT).with_alignment(TextAlignment::Right)
                     .with_debug_name("tree_deletions"));
             }, config);
-        if (selectedPath) navigation::click(*repo, reading::review(scope, *selectedPath), afterhours::input::is_key_pressed(257));
+        if (move && move->open) {
+            if (move->keep) navigation::click(*repo, reading::review(scope, move->path), true);
+            else navigation::preview(*repo, reading::review(scope, move->path));
+            treeState.pendingFocus = true;
+        } else if (selectedPath) navigation::click(*repo, reading::review(scope, *selectedPath), afterhours::input::is_key_pressed(257));
     }
 
     // ---- Sidebar mode toggle (T031) ----
@@ -1614,6 +1648,7 @@ private:
         unsigned generation;
         unsigned patches;
         unsigned version;
+        unsigned paths;
         LayoutComponent::ReviewTab tab;
         LayoutComponent::FileViewMode mode;
         review_files::Filter filter;
@@ -1625,9 +1660,16 @@ private:
     void update_file_tree(const RepoComponent& repo, const LayoutComponent& layout) {
         allFilesMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::All;
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
-        if (allFilesMode_) return;
         auto tab = active_review_tab();
-        FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, tab, layout.fileViewMode, repo.fileFilter};
+        FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, repo.allFilePathsGeneration, tab, layout.fileViewMode, repo.fileFilter};
+        if (allFilesMode_) {
+            if (!fileRowsKey_ || *fileRowsKey_ != key) {
+                treeRows_.clear();
+                for (size_t i = 0; i < repo.allFilePaths.size(); ++i) treeRows_.push_back({repo.allFilePaths[i], i, 0, false});
+                fileRowsKey_ = std::move(key);
+            }
+            return;
+        }
         auto* review = find_singleton<ReviewComponent, ActiveTab>();
         std::string scope = tab == LayoutComponent::ReviewTab::Staged ? "index" : "wt";
         if (repo.fileFilter.onlyUnresolved && review)
@@ -1675,7 +1717,9 @@ private:
         }
         fileIndices_ = std::move(indices);
         treeCollapsed_ = collapsed;
+        treeRows_.clear();
         if (treeMode_) treeRows_ = file_tree::flatten(treePaths_, treeCollapsed_);
+        else for (size_t i = 0; i < treePaths_.size(); ++i) treeRows_.push_back({treePaths_[i], i, 0, false});
     }
 
     size_t active_file_count(const RepoComponent& repo) const {
@@ -1699,7 +1743,7 @@ private:
             const auto& node = treeRows_[i];
             if (node.directory) {
                 if (ui::file_tree_style::directory(ctx, row, node, sidebarPixelWidth_,
-                        treeCollapsed_.contains(node.path), "tree_directory:" + node.path)) {
+                        treeCollapsed_.contains(node.path), "tree_directory:" + node.path, repo, repo.filesTreeNavigation)) {
                     auto& collapsed = find_singleton<LayoutComponent>()->collapsedDirectories[repo.repoPath];
                     if (collapsed.contains(node.path)) collapsed.erase(node.path); else collapsed.insert(node.path);
                 }
@@ -1877,7 +1921,7 @@ private:
             ui::file_tree_style::row_config(sidebarPixelWidth_,
                 treeMode_ ? static_cast<size_t>(std::count(path.begin(), path.end(), '/')) : 0, selected)
                 .with_debug_name("file_row"));
-        ui::bind_focus(row.ent(), repo, reading::focus::Region::Tree, path);
+        ui::bind_tree_row(ctx, row.ent(), repo, repo.filesTreeNavigation, path);
         ui::set_tooltip(row.ent(), path);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});

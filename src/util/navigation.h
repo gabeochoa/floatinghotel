@@ -72,6 +72,7 @@ struct navigation {
     static void finish(ecs::RepoComponent& repo, const reading::Location& before, bool changed) {
         if (!repo.navigationEffect) repo.navigationEffect.emplace();
         auto& effect = *repo.navigationEffect;
+        effect.focus = reading::FocusPolicy::Document;
         effect.changed |= changed;
         effect.dismissedPanel |= repo.repoSearchOpen || repo.fileHistoryOpen || repo.commitSearchOpen;
         repo.repoSearchOpen = repo.fileHistoryOpen = repo.commitSearchOpen = false;
@@ -239,6 +240,12 @@ struct navigation {
         repo.workspace_.keep(id);
     }
 
+    static void preview(ecs::RepoComponent& repo, reading::Location location) {
+        open(repo, std::move(location), {}, reading::OpenMode::Preview);
+        repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+        repo.readingFocusDocument.reset();
+    }
+
     static void click(ecs::RepoComponent& repo, reading::Location location, bool enter = false,
                       reading::ClickRegion region = reading::ClickRegion::Tree, std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now()) {
         auto& workspace = repo.workspace_;
@@ -251,6 +258,10 @@ struct navigation {
             activate(repo, id);
             if (enter || repeated) keep(repo, id);
         } else open(repo, location, {}, enter || repeated ? reading::OpenMode::Keep : reading::OpenMode::Preview);
+        if (region == reading::ClickRegion::Tree && repo.navigationEffect) {
+            repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+            repo.readingFocusDocument.reset();
+        }
         workspace.lastClick_ = std::move(location);
         workspace.lastClickRegion_ = region;
         workspace.lastClickTime_ = now;

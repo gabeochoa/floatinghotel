@@ -1,0 +1,264 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Keyboard fixture"
+wait_for_refresh
+click_ui commit_file_filter
+key TAB
+wait_frames 6
+workspace_checkpoint 2 entry
+screenshot entry
+key RIGHT
+wait_frames 6
+workspace_checkpoint 2 directory
+screenshot directory
+key RIGHT
+wait_frames 6
+workspace_checkpoint 2 first
+screenshot first
+key DOWN
+wait_frames 6
+workspace_checkpoint 2 second
+screenshot second
+key UP
+key DOWN
+wait_frames 6
+workspace_checkpoint 2 cycled
+screenshot cycled
+key LEFT
+key LEFT
+wait_frames 6
+workspace_checkpoint 2 collapsed
+screenshot collapsed
+key RIGHT
+wait_frames 6
+workspace_checkpoint 2 expanded
+screenshot expanded
+key RIGHT
+wait_frames 6
+workspace_checkpoint 2 entered_again
+screenshot entered_again
+key LEFT
+key ENTER
+wait_frames 6
+workspace_checkpoint 2 enter_collapsed
+screenshot enter_collapsed
+key DOWN
+wait_frames 6
+workspace_checkpoint 2 skipped
+screenshot skipped
+key LEFT
+key LEFT
+key DOWN
+key RIGHT
+wait_frames 6
+workspace_checkpoint 2 tail
+screenshot tail
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+key DOWN
+wait_frames 6
+workspace_checkpoint 2 far
+screenshot far
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+wait_frames 6
+workspace_checkpoint 2 return
+screenshot return
+key ENTER
+wait_frames 6
+workspace_checkpoint 2 kept
+screenshot kept
+click_ui commit_file_filter
+type "f001"
+wait_frames 6
+workspace_checkpoint 2 filter
+screenshot filter
+key CMD+A
+key BACKSPACE
+click_ui review_unstaged_changes
+wait_for_refresh
+click_ui commit_file_filter
+key TAB
+wait_frames 6
+workspace_checkpoint 2 working_entry
+screenshot working_entry
+key RIGHT
+key RIGHT
+wait_frames 6
+workspace_checkpoint 2 working_file
+screenshot working_file
+native_menu_action "Review Workspace (toggle)"
+click_ui sidebar_working_files
+wait_frames 8
+native_menu_action "Tree View"
+wait_frames 8
+click_ui file_row
+key DOWN
+wait_frames 6
+workspace_checkpoint 2 files_tree
+screenshot files_tree
+key LEFT
+key LEFT
+key DOWN
+wait_frames 6
+workspace_checkpoint 2 files_skipped
+screenshot files_skipped
+native_menu_action "Changed Files View"
+wait_frames 8
+click_ui file_row
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key DOWN
+key DOWN
+key DOWN
+wait_frames 6
+workspace_checkpoint 2 files_flat
+screenshot files_flat
+native_menu_action "All Files View"
+wait_for_refresh
+click_ui file_row
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key UP
+key DOWN
+wait_frames 6
+workspace_checkpoint 3 files_all
+screenshot files_all
+key ENTER
+wait_frames 6
+workspace_checkpoint 3 source_kept
+screenshot source_kept
+click_ui content_document_2
+click_ui sidebar_review
+wait_for_refresh
+wait_frames 30
+click_text "Open file"
+wait_for_refresh
+wait_frames 8
+click_ui commit_file_filter
+key TAB
+wait_frames 6
+workspace_checkpoint 4 source_origin_entry
+screenshot source_origin_entry
+key DOWN
+key RIGHT
+wait_for_refresh
+wait_frames 8
+key DOWN
+wait_frames 8
+wait_frames 6
+workspace_checkpoint 4 source_origin_tree
+screenshot source_origin_tree
+bench_frames 120
+expect_p99_below 20

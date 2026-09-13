@@ -963,4 +963,19 @@ TEST(tab_clicks_restore_anchors_but_repeated_activation_does_not_restart_restora
     ASSERT_FALSE(repo.workspace().document(source)->restoreAnchor);
 }
 
+TEST(keyboard_previews_preserve_caller_focus_and_do_not_become_double_clicks) {
+    ecs::RepoComponent repo;
+    navigation::preview(repo, reading::source("a.cpp"));
+    navigation::preview(repo, reading::source("b.cpp"));
+    navigation::preview(repo, reading::source("a.cpp"));
+    ASSERT_EQ(repo.workspace().documents().size(), 2u);
+    ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->preview);
+    ASSERT_EQ(repo.navigationEffect->focus, reading::FocusPolicy::Caller);
+    navigation::click(repo, reading::source("a.cpp"), true);
+    ASSERT_FALSE(repo.workspace().document(repo.workspace().active_id())->preview);
+    ASSERT_EQ(repo.navigationEffect->focus, reading::FocusPolicy::Caller);
+    navigation::activate(repo, reading::Slot::Review);
+    ASSERT_EQ(repo.navigationEffect->focus, reading::FocusPolicy::Document);
+}
+
 int main() { RUN_ALL_TESTS(); }

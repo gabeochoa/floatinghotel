@@ -238,6 +238,10 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_focus_target" ]; then
     run_test "test_focus_target" "tests/unit/test_focus_target.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_tree_navigation" ]; then
+    run_test "test_tree_navigation" "tests/unit/test_tree_navigation.cpp"
+fi
+
 if [ -n "$FILTER" ] && [ "$TOTAL" -eq 0 ]; then
     printf 'Unknown test suite: %s\n' "$FILTER" >&2
     exit 1
