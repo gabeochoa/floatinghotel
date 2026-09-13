@@ -13,7 +13,26 @@ struct Row {
     size_t sourceIndex = 0;
     size_t depth = 0;
     bool directory = false;
+    std::string label;
 };
+
+inline bool directory_collapsed(const Row& row, const std::set<std::string>& collapsed) {
+    const auto start = row.path.size() - row.label.size() - 1;
+    for (auto slash = row.path.find('/', start); slash != std::string::npos; slash = row.path.find('/', slash + 1))
+        if (collapsed.contains(row.path.substr(0, slash + 1))) return true;
+    return false;
+}
+
+inline void toggle_directory(const Row& row, std::set<std::string>& collapsed) {
+    if (!directory_collapsed(row, collapsed)) { collapsed.insert(row.path); return; }
+    const auto start = row.path.size() - row.label.size() - 1;
+    for (auto slash = row.path.find('/', start); slash != std::string::npos; slash = row.path.find('/', slash + 1))
+        collapsed.erase(row.path.substr(0, slash + 1));
+}
+
+inline void toggle_directory(const std::vector<Row>& rows, const std::string& path, std::set<std::string>& collapsed) {
+    toggle_directory(*std::find_if(rows.begin(), rows.end(), [&](const auto& row) { return row.path == path; }), collapsed);
+}
 
 inline std::vector<Row> flatten(const std::vector<std::string>& paths,
                                 const std::set<std::string>& collapsed) {
@@ -42,7 +61,7 @@ inline std::vector<Row> flatten(const std::vector<std::string>& paths,
         }
     }
     std::vector<Row> rows;
-    auto append = [&](auto&& self, const std::string& parent) -> void {
+    auto append = [&](auto&& self, const std::string& parent, size_t depth) -> void {
         auto children = nodes[parent].children;
         std::stable_sort(children.begin(), children.end(), [&](const auto& left, const auto& right) {
             const auto& a = nodes[left];
@@ -51,12 +70,17 @@ inline std::vector<Row> flatten(const std::vector<std::string>& paths,
             return left < right;
         });
         for (const auto& child : children) {
-            const auto& node = nodes[child];
-            rows.push_back(node.row);
-            if (node.row.directory && !collapsed.contains(child)) self(self, child);
+            const auto* node = &nodes[child];
+            while (node->row.directory && node->children.size() == 1 && nodes[node->children.front()].row.directory)
+                node = &nodes[node->children.front()];
+            auto row = node->row;
+            row.depth = depth;
+            if (row.directory) row.label = row.path.substr(parent.size(), row.path.size() - parent.size() - 1);
+            rows.push_back(row);
+            if (row.directory && !directory_collapsed(row, collapsed)) self(self, row.path, depth + 1);
         }
     };
-    append(append, "");
+    append(append, "", 0);
     return rows;
 }
 

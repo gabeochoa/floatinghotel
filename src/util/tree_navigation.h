@@ -60,12 +60,12 @@ inline std::optional<Move> navigate(const std::vector<Row>& rows, const std::set
             case Key::Up: if (index > 0) --index; break;
             case Key::Down: if (index + 1 < rows.size()) ++index; break;
             case Key::Left:
-                if (current->directory && !collapsed.contains(path)) return Move{path, path};
+                if (current->directory && !directory_collapsed(*current, collapsed)) return Move{path, path};
                 for (size_t i = index; i > 0; --i)
                     if (rows[i - 1].directory && path.starts_with(rows[i - 1].path)) { index = i - 1; break; }
                 break;
             case Key::Right:
-                if (current->directory && collapsed.contains(path)) return Move{path, path};
+                if (current->directory && directory_collapsed(*current, collapsed)) return Move{path, path};
                 if (current->directory && index + 1 < rows.size() && rows[index + 1].depth > current->depth) ++index;
                 break;
             case Key::Enter:
@@ -98,6 +98,7 @@ inline std::optional<Move> type_select(const std::vector<Row>& rows, const std::
         if (name.ends_with('/')) name.remove_suffix(1);
         const auto slash = name.find_last_of('/');
         if (slash != std::string_view::npos) name.remove_prefix(slash + 1);
+        if (row.directory) name = row.label;
         if (fold(name).starts_with(state.prefix)) return Move{row.path, {}, !row.directory};
     }
     return {};

@@ -374,7 +374,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                         allFilesMode_ ? repoPtr->allFilePaths : treePaths_, collapsed)) update_file_tree(*repoPtr, layout);
                 if (auto move = ui::tree_keys(ctx, *repoPtr, layout, state, context, treeRows_, collapsed)) {
                     if (move->toggle) {
-                        if (collapsed.contains(*move->toggle)) collapsed.erase(*move->toggle); else collapsed.insert(*move->toggle);
+                        file_tree::toggle_directory(treeRows_, *move->toggle, collapsed);
                         update_file_tree(*repoPtr, layout);
                     }
                     if (move->open) {
@@ -717,7 +717,7 @@ private:
         const auto move = ui::tree_keys(ctx, *repo, *layout, treeState, collapseKey, commitTreeRows_, collapsed);
         if (move) {
             if (move->toggle) {
-                if (collapsed.contains(*move->toggle)) collapsed.erase(*move->toggle); else collapsed.insert(*move->toggle);
+                file_tree::toggle_directory(commitTreeRows_, *move->toggle, collapsed);
                 commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
                 commitTreeKey_.clear();
             }
@@ -740,9 +740,8 @@ private:
                 const auto& node = commitTreeRows_[index];
                 if (node.directory) {
                     if (ui::file_tree_style::directory(ctx, wrapper, node, sidebarPixelWidth_,
-                            collapsed.contains(node.path), "commit_directory:" + node.path, *repo, treeState)) {
-                        if (collapsed.contains(node.path)) collapsed.erase(node.path);
-                        else collapsed.insert(node.path);
+                            file_tree::directory_collapsed(node, collapsed), "commit_directory:" + node.path, *repo, treeState)) {
+                        file_tree::toggle_directory(node, collapsed);
                     }
                     return;
                 }
@@ -1788,13 +1787,15 @@ private:
             render_file_row_impl(ctx, row, 0, path, status, repo, false, false);
             return;
         }
+        size_t depth = 0;
         if (treeMode_) {
             const auto& node = treeRows_[i];
+            depth = node.depth;
             if (node.directory) {
                 if (ui::file_tree_style::directory(ctx, row, node, sidebarPixelWidth_,
-                        treeCollapsed_.contains(node.path), "tree_directory:" + node.path, repo, repo.filesTreeNavigation)) {
+                        file_tree::directory_collapsed(node, treeCollapsed_), "tree_directory:" + node.path, repo, repo.filesTreeNavigation)) {
                     auto& collapsed = find_singleton<LayoutComponent>()->collapsedDirectories[repo.repoPath];
-                    if (collapsed.contains(node.path)) collapsed.erase(node.path); else collapsed.insert(node.path);
+                    file_tree::toggle_directory(node, collapsed);
                 }
                 return;
             }
@@ -1803,11 +1804,11 @@ private:
         i = fileIndices_[i];
         auto tab = active_review_tab();
         if (tab == LayoutComponent::ReviewTab::ToReview) {
-            render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false);
+            render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false, depth);
         } else if (tab == LayoutComponent::ReviewTab::Staged) {
-            render_file_row(ctx, row, 0, repo.stagedFiles[i], repo, true);
+            render_file_row(ctx, row, 0, repo.stagedFiles[i], repo, true, depth);
         } else {
-            render_untracked_row(ctx, row, 0, repo.untrackedFiles[i], repo);
+            render_untracked_row(ctx, row, 0, repo.untrackedFiles[i], repo, depth);
         }
     }
 
@@ -1935,27 +1936,27 @@ private:
     void render_file_row(UIContext<InputAction>& ctx,
                          Entity& parent, int id,
                          const FileStatus& file,
-                         RepoComponent& repo, bool staged) {
+                         RepoComponent& repo, bool staged, size_t depth = 0) {
         char statusChar = staged ? file.indexStatus : file.workTreeStatus;
         if (statusChar == ' ' || statusChar == '\0') {
             statusChar = staged ? 'A' : 'M';
         }
         render_file_row_impl(ctx, parent, id, file.path, statusChar, repo,
-                             file.isSubmodule, staged, file.origPath);
+                             file.isSubmodule, staged, file.origPath, depth);
     }
 
     void render_untracked_row(UIContext<InputAction>& ctx,
                                Entity& parent, int id,
                                const std::string& path,
-                               RepoComponent& repo) {
-        render_file_row_impl(ctx, parent, id, path, 'U', repo, false, false);
+                               RepoComponent& repo, size_t depth = 0) {
+        render_file_row_impl(ctx, parent, id, path, 'U', repo, false, false, {}, depth);
     }
 
     void render_file_row_impl(UIContext<InputAction>& ctx,
                                Entity& parent, int id,
                                const std::string& path, char statusChar,
                                RepoComponent& repo, bool isSubmodule,
-                               bool staged, const std::string& oldPath = "") {
+                               bool staged, const std::string& oldPath = "", size_t depth = 0) {
         bool selected = path == (source_tab_active(repo) ? repo.fullFilePath() : repo.selectedFilePath());
 
         std::string fname = sidebar_detail::basename_from_path(path);
@@ -1968,7 +1969,7 @@ private:
 
         auto row = div(ctx, mk(parent, id),
             ui::file_tree_style::row_config(sidebarPixelWidth_,
-                treeMode_ ? static_cast<size_t>(std::count(path.begin(), path.end(), '/')) : 0, selected)
+                depth, selected)
                 .with_debug_name("file_row"));
         ui::bind_tree_row(ctx, row.ent(), repo, repo.filesTreeNavigation, path);
         ui::set_tooltip(row.ent(), path);

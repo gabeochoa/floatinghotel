@@ -1,0 +1,37 @@
+[
+  {
+    "command": [
+      "python3",
+      "tests/tree_keyboard.py",
+      "--output",
+      "output/step23-tree_keyboard"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "tests/tree_reveal.py",
+      "--output",
+      "output/step23-tree_reveal"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "tests/review_tree_menu.py",
+      "--output",
+      "output/step23-review_tree_menu"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "bash",
+      "tests/run_unit_tests.sh",
+      "test_diff_tools"
+    ],
+    "exit_code": 0
+  }
+]

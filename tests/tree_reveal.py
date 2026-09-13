@@ -45,7 +45,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'click_ui content_document_2\nwait_for_refresh\nclick_ui commit_file_filter\nkey TAB\nkey LEFT\nkey LEFT\nkey LEFT\nkey LEFT\n' + capture('collapsed', 3)
     script += picker('a/f000.cpp') + 'click_ui content_document_3\nwait_for_refresh\n' + capture('historical_reveal', 4)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\n' + capture('historical_reading', 4)
-    script += 'native_menu_action "Review Workspace (toggle)"\nnative_menu_action "Tree View"\nclick_ui sidebar_working_files\nwait_frames 8\nclick_ui tree_directory:a/\nwait_frames 4\nclick_ui tree_directory:current/deep/\nclick_ui tree_directory:current/\nclick_ui tree_directory:a/\n' + capture('files_historical', 4)
+    script += 'native_menu_action "Review Workspace (toggle)"\nnative_menu_action "Tree View"\nclick_ui sidebar_working_files\nwait_frames 8\nclick_ui tree_directory:a/\nwait_frames 4\nclick_ui tree_directory:current/deep/\nclick_ui tree_directory:a/\n' + capture('files_historical', 4)
     script += picker('current/deep/target.cpp') + capture('working_reveal', 5)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\n' + capture('working_reading', 5)
     script += 'hover_ui sidebar_files\nscroll_wheel 0 200\n' + capture('away', 5)

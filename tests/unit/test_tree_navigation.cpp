@@ -14,11 +14,11 @@ TEST(arrows_skip_collapsed_descendants) {
 }
 
 TEST(left_collapses_a_folder_then_moves_to_its_visible_parent) {
-    auto rows = flatten({"src/lib/a.cpp", "src/lib/b.cpp"}, {});
+    auto rows = flatten({"src/lib/a.cpp", "src/lib/b.cpp", "src/z.cpp"}, {});
     ASSERT_EQ(navigate(rows, {}, "src/lib/a.cpp", Key::Left)->path, std::string("src/lib/"));
     ASSERT_EQ(navigate(rows, {}, "src/lib/", Key::Left)->toggle, std::optional{std::string("src/lib/")});
     const std::set<std::string> collapsed{"src/lib/"};
-    rows = flatten({"src/lib/a.cpp", "src/lib/b.cpp"}, collapsed);
+    rows = flatten({"src/lib/a.cpp", "src/lib/b.cpp", "src/z.cpp"}, collapsed);
     ASSERT_EQ(navigate(rows, collapsed, "src/lib/", Key::Left)->path, std::string("src/"));
 }
 
@@ -138,5 +138,56 @@ TEST(missing_destinations_cancel_old_reveals_without_expanding_anything) {
     ASSERT_TRUE(collapsed.contains("src/"));
 }
 
+
+
+TEST(single_child_directory_chains_keep_full_identity_and_display_depth) {
+    const auto rows = flatten({"src/ui/components/a.cpp", "src/ui/components/b.cpp", "other/src/ui/components/a.cpp"}, {});
+    ASSERT_EQ(rows.size(), 5u);
+    ASSERT_EQ(rows[0].path, std::string("src/ui/components/"));
+    ASSERT_EQ(rows[0].label, std::string("src/ui/components"));
+    ASSERT_EQ(rows[0].depth, 0u);
+    ASSERT_EQ(rows[1].depth, 1u);
+    ASSERT_EQ(rows[2].sourceIndex, 1u);
+    ASSERT_EQ(rows[3].path, std::string("other/src/ui/components/"));
+    ASSERT_EQ(rows[3].label, std::string("other/src/ui/components"));
+    ASSERT_EQ(rows[4].sourceIndex, 2u);
+    ASSERT_EQ(navigate(rows, {}, rows[1].path, Key::Left)->path, rows[0].path);
+}
+
+TEST(directory_branches_stop_compaction) {
+    const auto rows = flatten({"src/ui/a.cpp", "src/tools/b.cpp"}, {});
+    ASSERT_EQ(rows.size(), 5u);
+    ASSERT_EQ(rows[0].path, std::string("src/"));
+    ASSERT_EQ(rows[1].label, std::string("ui"));
+    ASSERT_EQ(rows[1].depth, 1u);
+    ASSERT_EQ(rows[2].depth, 2u);
+    ASSERT_EQ(rows[3].label, std::string("tools"));
+}
+
+TEST(compact_directories_preserve_and_expand_collapsed_intermediate_paths) {
+    const std::vector<std::string> paths{"src/ui/components/a.cpp", "other/a.cpp"};
+    std::set<std::string> collapsed{"src/", "src/ui/", "other/"};
+    auto rows = flatten(paths, collapsed);
+    ASSERT_EQ(rows.size(), 2u);
+    ASSERT_EQ(rows[0].label, std::string("src/ui/components"));
+    ASSERT_TRUE(directory_collapsed(rows[0], collapsed));
+    auto move = navigate(rows, collapsed, rows[0].path, Key::Right);
+    ASSERT_EQ(move->toggle, std::optional{std::string("src/ui/components/")});
+    toggle_directory(rows, *move->toggle, collapsed);
+    ASSERT_EQ(collapsed, (std::set<std::string>{"other/"}));
+    rows = flatten(paths, collapsed);
+    ASSERT_EQ(navigate(rows, collapsed, rows[0].path, Key::Right)->path, paths[0]);
+    toggle_directory(rows[0], collapsed);
+    ASSERT_TRUE(collapsed.contains("src/ui/components/"));
+    ASSERT_EQ(flatten(paths, collapsed).size(), 2u);
+}
+
+TEST(type_selection_matches_the_displayed_compact_path) {
+    const auto rows = flatten({"src/ui/components/a.cpp", "other/a.cpp"}, {});
+    TypeSelectState state;
+    const auto selected = type_select(rows, "", state, "src/ui", std::chrono::steady_clock::now());
+    ASSERT_EQ(selected->path, std::string("src/ui/components/"));
+    ASSERT_FALSE(selected->open);
+}
 
 int main() { RUN_ALL_TESTS(); }
