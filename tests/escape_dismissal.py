@@ -36,7 +36,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'native_menu_action "Zoom In"\n' * steps
     script += 'click_text "Focus fixture"\nwait_for_refresh\nkey ENTER\nclick_ui content_document_2\n' + capture('before')
     script += 'key ESCAPE\nkey ESCAPE\n' + capture('after')
-    script += 'key CMD+P\nwait_frames 3\ntype "a.cpp"\nkey ENTER\nwait_for_refresh\n' + capture('source', 3)
+    script += 'key CMD+P\nwait_frames 3\ntype "a.cpp"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n' + capture('source', 3)
     script += 'key ESCAPE\nkey ESCAPE\n' + capture('source_retained', 3)
     script += 'key CMD+F\nwait_frames 3\ntype "value"\nkey CMD+P\nwait_frames 3\n' + capture('nested', 3)
     script += 'key ESCAPE\n' + capture('picker_closed', 3)

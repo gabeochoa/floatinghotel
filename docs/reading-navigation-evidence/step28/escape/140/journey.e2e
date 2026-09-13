@@ -1,0 +1,185 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Focus fixture"
+wait_for_refresh
+key ENTER
+click_ui content_document_2
+wait_frames 8
+workspace_checkpoint 2 before
+screenshot before
+key ESCAPE
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 after
+screenshot after
+key CMD+P
+wait_frames 3
+type "a.cpp"
+wait_for_refresh
+key ENTER
+wait_for_refresh
+wait_frames 8
+workspace_checkpoint 3 source
+screenshot source
+key ESCAPE
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 source_retained
+screenshot source_retained
+key CMD+F
+wait_frames 3
+type "value"
+key CMD+P
+wait_frames 3
+wait_frames 8
+workspace_checkpoint 3 nested
+screenshot nested
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 picker_closed
+screenshot picker_closed
+key ESCAPE
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 find_closed
+screenshot find_closed
+click_ui open_tabs_menu
+wait_frames 3
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 menu_closed
+screenshot menu_closed
+key CMD+SHIFT+F
+wait_frames 3
+type "value"
+click_ui repo_search_submit
+wait_for_refresh
+wait_frames 12
+click_ui repo_search_preview
+wait_frames 8
+workspace_checkpoint 3 search_preview
+screenshot search_preview
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 preview_closed
+screenshot preview_closed
+key ESCAPE
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 search_closed
+screenshot search_closed
+click_ui review_unstaged_changes
+wait_for_refresh
+wait_frames 6
+click_ui comment_hunk_btn
+wait_frames 4
+click_ui comment_input
+type "Escape keeps this draft"
+wait_frames 8
+workspace_checkpoint 3 draft
+screenshot draft
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 composer_closed
+screenshot composer_closed
+click_ui comment_hunk_btn
+wait_frames 4
+wait_frames 8
+workspace_checkpoint 3 draft_restored
+screenshot draft_restored
+click_ui comment_add_btn
+wait_frames 12
+wait_frames 8
+workspace_checkpoint 3 feedback
+screenshot feedback
+key ESCAPE
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 feedback_closed
+screenshot feedback_closed
+click_ui content_document_3
+wait_for_refresh
+hover_ui diff_scroll
+scroll_wheel 0 -30
+wait_frames 8
+workspace_checkpoint 3 expanded_before
+screenshot expanded_before
+native_menu_action "Collapse reading panel"
+wait_frames 8
+workspace_checkpoint 3 collapsed
+screenshot collapsed
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 collapsed_escape
+screenshot collapsed_escape
+native_menu_action "Expand reading panel"
+wait_frames 8
+workspace_checkpoint 3 expanded_after
+screenshot expanded_after
+native_menu_action "Collapse reading panel"
+wait_frames 5
+click_ui commit_row
+wait_for_refresh
+wait_frames 8
+workspace_checkpoint 3 row_expands
+screenshot row_expands
+native_menu_action "Keyboard Shortcuts"
+wait_frames 5
+screenshot shortcuts
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 shortcuts_closed
+screenshot shortcuts_closed
+resize 900 800
+wait_frames 8
+native_menu_action "Keyboard Shortcuts"
+wait_frames 6
+screenshot shortcuts_narrow
+key ESCAPE
+resize 1800 1100
+wait_frames 8
+native_menu_action "Compare Revisions..."
+wait_frames 8
+workspace_checkpoint 3 comparison_editor
+screenshot comparison_editor
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 3 comparison_cancelled
+screenshot comparison_cancelled
+native_menu_action "Compare Revisions..."
+click_ui compare_base
+key CMD+A
+type "HEAD"
+click_ui compare_target
+key CMD+A
+type "HEAD"
+click_ui compare_submit
+wait_for_refresh
+wait_frames 8
+workspace_checkpoint 4 comparison
+screenshot comparison
+key ESCAPE
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 4 comparison_retained
+screenshot comparison_retained
+key CMD+W
+wait_frames 5
+click_ui content_document_2
+wait_for_refresh
+key CMD+W
+wait_frames 8
+workspace_checkpoint 2 document_closed
+screenshot document_closed
+key ESCAPE
+key ESCAPE
+wait_frames 8
+workspace_checkpoint 2 closed_stays_closed
+screenshot closed_stays_closed
+bench_frames 120
+expect_p99_below 20

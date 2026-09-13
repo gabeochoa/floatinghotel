@@ -108,6 +108,23 @@ struct SourceLocation {
 };
 using Location = std::variant<ReviewLocation, SourceLocation>;
 
+inline SourceRevision source_revision_for(const Location& location) {
+    return std::visit([](const auto& target) -> SourceRevision {
+        using T = std::decay_t<decltype(target)>;
+        if constexpr (std::is_same_v<T, SourceLocation>) return target.destination.revision;
+        else return std::visit([](const auto& review) -> SourceRevision {
+            using R = std::decay_t<decltype(review)>;
+            if constexpr (std::is_same_v<R, WorkingChanges>) {
+                if (review.staged) return Index{};
+                return WorkingTree{};
+            } else if constexpr (std::is_same_v<R, CommitReview>)
+                return std::visit([](const auto& revision) -> SourceRevision { return revision; }, review.commit);
+            else return std::visit([](const auto& revision) -> SourceRevision { return revision; }, review.after);
+        }, target.destination);
+    }, location);
+}
+
+
 inline ReviewLocation review(const std::string& scope, std::string file = {}) {
     const auto target = diff_target(scope);
     switch (target.kind) {

@@ -1,0 +1,12 @@
+resize 1800 1100
+wait_for_refresh
+click_text "Original files"
+wait_for_refresh
+key CMD+P
+wait_frames 3
+key SHIFT+TAB
+wait_frames 3
+screenshot waiting
+wait_for_refresh
+wait_frames 3
+screenshot loaded

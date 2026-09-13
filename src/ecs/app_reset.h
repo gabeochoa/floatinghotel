@@ -10,10 +10,13 @@ namespace ecs {
 inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.focus = {};
     layout.focusRepositoryOwner = -1;
+    layout.filePickerScope = {};
     layout.filePickerOpen = false;
     layout.filePickerFocus = false;
     layout.filePickerQuery.clear();
     layout.filePickerCacheKey.clear();
+    layout.filePickerSelectionKey.clear();
+    layout.filePickerSelectedPath.clear();
     layout.filePickerIndex = 0;
     layout.sidebarVisible = true;
     layout.readingPanelCollapsed.reset();

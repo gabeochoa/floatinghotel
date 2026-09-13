@@ -16,6 +16,7 @@
 #include "../../vendor/afterhours/src/core/entity_helper.h"
 #include "../git/git_runner.h"
 #include "../git/history_query.h"
+#include "../git/path_list.h"
 #include "../util/codeowners.h"
 #include "../util/code_bookmark.h"
 #include "../util/hex_view.h"
@@ -956,13 +957,25 @@ inline std::vector<DiffMatch> find_diff_matches(const std::vector<FileDiff>& dif
     return matches;
 }
 
+struct FilePickerScope {
+    std::optional<reading::RequestStamp> owner;
+    reading::SourceRevision documentRevision;
+    bool workingTree = false;
+    reading::RequestStamp request;
+    git::PathList listing;
+    async_work::Task<git::PathList> future;
+};
+
 struct LayoutComponent : public afterhours::BaseComponent {
     reading::focus::State focus;
     int focusRepositoryOwner = -1;
+    FilePickerScope filePickerScope;
     bool filePickerOpen = false;
     bool filePickerFocus = false;
     std::string filePickerQuery;
     std::string filePickerCacheKey;
+    std::string filePickerSelectionKey;
+    std::string filePickerSelectedPath;
     std::vector<std::string> filePickerResults;
     int filePickerIndex = 0;
     bool diffFindOpen = false;

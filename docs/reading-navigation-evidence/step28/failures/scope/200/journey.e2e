@@ -1,0 +1,115 @@
+resize 1800 1100
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+click_text "Original files"
+wait_for_refresh
+key ENTER
+key CMD+P
+wait_frames 3
+screenshot historical_loading
+click_ui file_picker_working_scope
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 working_after_cancel
+screenshot working_after_cancel
+wait_frames 400
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 working_after_delay
+screenshot working_after_delay
+click_ui file_picker_document_scope
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 historical_catalog
+screenshot historical_catalog
+click_ui file_picker_input
+key CMD+A
+type "gone.cpp"
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 2 historical_match
+screenshot historical_match
+key ENTER
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 historical_source
+screenshot historical_source
+key ALT+LEFT
+wait_for_refresh
+key CMD+P
+wait_frames 3
+click_ui file_picker_working_scope
+click_ui file_picker_input
+key CMD+A
+type "a.cpp"
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 3 working_match
+screenshot working_match
+key ENTER
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 4 working_source
+screenshot working_source
+click_ui review_staged_changes
+wait_for_refresh
+click_ui content_document_5
+key ENTER
+key CMD+P
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 5 index_match
+screenshot index_match
+key ENTER
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 index_source
+screenshot index_source
+key CMD+P
+wait_frames 3
+click_ui file_picker_working_scope
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 index_to_working
+screenshot index_to_working
+key ENTER
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 working_reused
+screenshot working_reused
+click_ui content_document_2
+key CMD+P
+click_ui file_picker_input
+key CMD+A
+type "old_name.cpp"
+wait_frames 8
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 6 old_name_match
+screenshot old_name_match
+key ENTER
+wait_for_refresh
+wait_frames 12
+workspace_checkpoint 7 old_name_source
+screenshot old_name_source
+key CMD+P
+wait_frames 3
+new_tab
+wait_frames 400
+screenshot other_repository
+close_tab
+wait_for_refresh
+bench_frames 120
+expect_p99_below 20

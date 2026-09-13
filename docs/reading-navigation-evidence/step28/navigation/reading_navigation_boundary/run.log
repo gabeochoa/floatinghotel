@@ -1,0 +1,302 @@
+[INFO] Process start to main: 35 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 13 ms
+[INFO]   Window+GPU init: 182 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 2 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 185 ms (from graphics::run to app_init done)
+[INFO] git: 214 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 441 ms (waited 0 ms for lock): git log
+[INFO] git: 764 ms (waited 0 ms for lock): git status
+[INFO] git: 673 ms (waited 0 ms for lock): git diff
+[INFO] git: 147 ms (waited 0 ms for lock): git diff
+[INFO] git: 582 ms (waited 0 ms for lock): git branch
+[INFO] make_test_repo: switching from '/Users/gabeochoa/p/wm_afterhours/.' to '/tmp/floatinghotel_test_repo'
+[INFO] git: 98 ms (waited 0 ms for lock): git status
+[INFO] git: 120 ms (waited 0 ms for lock): git log
+[INFO] git: 102 ms (waited 0 ms for lock): git diff
+[INFO] git: 94 ms (waited 0 ms for lock): git diff
+[INFO] git: 97 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 94 ms (waited 0 ms for lock): git branch
+[INFO] git: 89 ms (waited 0 ms for lock): git rev-parse
+[INFO] make_test_repo: done, path=/tmp/floatinghotel_test_repo
+[WARN] Layout wrap: 'empty_icon' in parent 'empty_state' - NoWrap set but would overflow (child_size=50.7, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'empty_icon' extends outside parent 'empty_state' bounds (child_rel=[-3.5,0.0], child_size=[7.0,50.7], child_end=[3.5,50.7], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_1' in parent 'empty_state' - NoWrap set but would overflow (child_size=23.0, offset=50.7, container=0.0)
+[WARN] Layout overflow: 'empty_hint_1' extends outside parent 'empty_state' bounds (child_rel=[-73.2,50.7], child_size=[146.4,23.0], child_end=[73.2,73.7], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_2' in parent 'empty_state' - NoWrap set but would overflow (child_size=18.7, offset=73.7, container=0.0)
+[WARN] Layout overflow: 'empty_hint_2' extends outside parent 'empty_state' bounds (child_rel=[-50.2,73.7], child_size=[100.4,18.7], child_end=[50.2,92.4], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_shortcuts' in parent 'empty_state' - NoWrap set but would overflow (child_size=32.7, offset=92.4, container=0.0)
+[WARN] Layout overflow: 'empty_shortcuts' extends outside parent 'empty_state' bounds (child_rel=[-118.2,92.4], child_size=[236.4,32.7], child_end=[118.2,125.1], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[INFO] [Validation] No UI violations detected
+[WARN] Layout wrap: 'commit_heading' in parent 'main_content' - NoWrap set but would overflow (child_size=60.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_heading' extends outside parent 'main_content' bounds (child_rel=[0.0,0.0], child_size=[0.0,60.0], child_end=[0.0,60.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_sticky_revision' in parent 'commit_heading' - NoWrap set but would overflow (child_size=88.0, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'commit_sticky_revision' extends outside parent 'commit_heading' bounds (child_rel=[0.0,0.0], child_size=[88.0,52.0], child_end=[88.0,52.0], parent_size=[0.0,52.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_find_host' in parent 'main_content' - NoWrap set but would overflow (child_size=72.0, offset=60.0, container=0.0)
+[WARN] Layout overflow: 'commit_find_host' extends outside parent 'main_content' bounds (child_rel=[0.0,60.0], child_size=[0.0,72.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_detail_scroll' in parent 'main_content' - NoWrap set but would overflow (child_size=0.0, offset=132.0, container=0.0)
+[WARN] Layout overflow: 'commit_detail_scroll' extends outside parent 'main_content' bounds (child_rel=[0.0,132.0], child_size=[0.0,0.0], child_end=[0.0,132.0], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_relative_date' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=55.0, offset=6.0, container=0.0)
+[WARN] Layout overflow: 'commit_relative_date' extends outside parent 'commit_meta_compact' bounds (child_rel=[6.0,2.0], child_size=[55.0,28.0], child_end=[61.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_short_hash' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=84.0, offset=67.0, container=0.0)
+[WARN] Layout overflow: 'commit_short_hash' extends outside parent 'commit_meta_compact' bounds (child_rel=[67.0,2.0], child_size=[84.0,28.0], child_end=[151.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[WARN] Layout wrap: 'commit_meta_toggle' in parent 'commit_meta_compact' - NoWrap set but would overflow (child_size=80.0, offset=157.0, container=0.0)
+[WARN] Layout overflow: 'commit_meta_toggle' extends outside parent 'commit_meta_compact' bounds (child_rel=[157.0,2.0], child_size=[80.0,28.0], child_end=[237.0,30.0], parent_size=[0.0,32.0], gap=6.0, start_offset=0.0)
+[INFO] git: 92 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 114 ms (waited 0 ms for lock): git show
+[INFO] git: 106 ms (waited 0 ms for lock): git show
+[INFO] git: 122 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 115 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 119 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 131 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 138 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 140 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 121 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 131 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 111 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 124 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 130 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 118 ms (waited 0 ms for lock): git cat-file
+[WARN] [TIMEOUT] expect_text (line 19): Text not found: 'README.md @ working tree'. Visible (65):
+  | floatinghotel_test_repo
+  | main *
+  | Review
+  | Files
+  | Unstaged (5)
+  | Staged (1)
+  | CHANGED FILES
+  | Loading commit files...
+  | COMMIT HISTORY
+  | main
+  | Add contributing guidelines
+  | HEAD
+  | 1d
+  | Add unit tests for utils
+  | 1d
+  | Iteration 53: update app logic
+  | 1d
+  | Iteration 52: update app logic
+  | 1d
+  | Iteration 51: update app logic
+  | 1d
+  | Iteration 50: update app logic
+  | 1d
+  | Iteration 49: update app logic
+  | 1d
+  | Iteration 48: update app logic
+  | 1d
+  | Iteration 47: update app logic
+  | 1d
+  | Iteration 46: update app logic
+  | 1d
+  | Iteration 45: update app logic
+  | 1d
+  | Iteration 44: update app logic
+  | 1d
+  | Unstaged changes
+  | ×
+  | Add contributing guidelines
+  | ×
+  | MD
+  | CONTRIBUTING.md
+  | 81699ee
+  | ×
+  | MD
+  | README.md
+  | 81699ee
+  | ×
+  | ‹
+  | ›
+  | Add contributing guidelines
+  | 81699ee
+  | Test User
+  | · 1d ago
+  | · 81699ee
+  | HEAD
+  | Details
+  | Loading commit details...
+  | Filter files...
+  | main
+  | 1 staged, 5 unstaged
+  | 100%
+  | floatinghotel_test_repo (main)
+  | +
+  | -
+  | +
+[INFO] git: 127 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 81699ee2c1c329efe76dce04632a0ae309409639
+[INFO] git: 96 ms (waited 0 ms for lock): git rev-parse
+[WARN] [TIMEOUT] expect_text (line 26): Text not found: 'README.md @ working tree'. Visible (66):
+  | floatinghotel_test_repo
+  | main *
+  | Review
+  | Files
+  | Unstaged (5)
+  | Staged (1)
+  | CHANGED FILES  1
+  | 0 / 1
+  | MD
+  | CONTRIBUTING.md
+  | +4
+  | COMMIT HISTORY
+  | main
+  | Add contributing guidelines
+  | HEAD
+  | 1d
+  | Add unit tests for utils
+  | 1d
+  | Iteration 53: update app logic
+  | 1d
+  | Iteration 52: update app logic
+  | 1d
+  | Iteration 51: update app logic
+  | 1d
+  | Iteration 50: update app logic
+  | 1d
+  | Iteration 49: update app logic
+  | 1d
+  | Iteration 48: update app logic
+  | 1d
+  | Iteration 47: update app logic
+  | 1d
+  | Iteration 46: update app logic
+  | 1d
+  | Iteration 45: update app logic
+  | 1d
+  | Iteration 44: update app logic
+  | 1d
+  | Unstaged changes
+  | ×
+  | Add contributing guidelines
+  | ×
+  | MD
+  | CONTRIBUTING.md
+  | 81699ee
+  | ×
+  | ‹
+  | ›
+  | Back to diff
+  | CONTRIBUTING.md @ 81699ee2c1c329efe76dce04632a0ae309409639
+  | History
+  | Auto: UTF-8
+  | Previous page
+  | Next page
+  | Reload from start
+  | Loading bounded file page...
+  | Bookmark line 1
+  | Loading file...
+  | Filter files...
+  | main
+  | 1 staged, 5 unstaged
+  | 100%
+  | floatinghotel_test_repo (main)
+  | +
+  | -
+  | +
+[INFO] git: 120 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 137 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 112 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 100 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 91 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 104 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 113 ms (waited 0 ms for lock): git ls-tree
+[INFO] git: 118 ms (waited 0 ms for lock): git cat-file
+[WARN] [TIMEOUT] expect_text (line 34): Text not found: 'README.md @ working tree'. Visible (65):
+  | floatinghotel_test_repo
+  | main *
+  | Review
+  | Files
+  | Unstaged (5)
+  | Staged (1)
+  | CHANGED FILES
+  | Loading commit files...
+  | COMMIT HISTORY
+  | main
+  | Add contributing guidelines
+  | HEAD
+  | 1d
+  | Add unit tests for utils
+  | 1d
+  | Iteration 53: update app logic
+  | 1d
+  | Iteration 52: update app logic
+  | 1d
+  | Iteration 51: update app logic
+  | 1d
+  | Iteration 50: update app logic
+  | 1d
+  | Iteration 49: update app logic
+  | 1d
+  | Iteration 48: update app logic
+  | 1d
+  | Iteration 47: update app logic
+  | 1d
+  | Iteration 46: update app logic
+  | 1d
+  | Iteration 45: update app logic
+  | 1d
+  | Iteration 44: update app logic
+  | 1d
+  | Unstaged changes
+  | ×
+  | Add contributing guidelines
+  | ×
+  | MD
+  | CONTRIBUTING.md
+  | 81699ee
+  | ×
+  | MD
+  | Preview · README.md
+  | 81699ee
+  | ×
+  | ‹
+  | ›
+  | Compare commit series
+  | Base revision
+  | Target revision
+  | Merge base: off
+  | Compare
+  | Close
+  | Choose revisions to compare
+  | Filter files...
+  | HEAD~1
+  | main
+  | 1 staged, 5 unstaged
+  | 100%
+  | floatinghotel_test_repo (main)
+  | +
+  | -
+  | +
+[INFO] git: 105 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 129 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 127 ms (waited 0 ms for lock): git diff
+[INFO] git: 105 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 106 ms (waited 0 ms for lock): git cat-file
+[INFO] git: 114 ms (waited 0 ms for lock): git ls-tree
+[INFO] blob page cache hit for dd0cbda26fa5c78bb43b27bd2b0f707353ec41a1
+[INFO] git: 104 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 112 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 116 ms (waited 0 ms for lock): git diff
+[INFO] git: 109 ms (waited 0 ms for lock): git rev-parse
+[INFO] commit patch cache hit for 81699ee2c1c329efe76dce04632a0ae309409639
+[INFO] git: 98 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 101 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 107 ms (waited 0 ms for lock): git diff
+[INFO] E2E finished in 1.07 seconds

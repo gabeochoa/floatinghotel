@@ -1,0 +1,53 @@
+[INFO] Process start to main: 46 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 13 ms
+[INFO]   Window+GPU init: 113 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 1 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 114 ms (from graphics::run to app_init done)
+[INFO] git: 225 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 382 ms (waited 0 ms for lock): git log
+[INFO] git: 505 ms (waited 0 ms for lock): git status
+[INFO] git: 150 ms (waited 0 ms for lock): git diff
+[INFO] git: 508 ms (waited 0 ms for lock): git diff
+[INFO] git: 454 ms (waited 0 ms for lock): git branch
+[INFO] make_test_repo: switching from '/Users/gabeochoa/p/wm_afterhours/.' to '/tmp/floatinghotel_test_repo'
+[INFO] git: 153 ms (waited 0 ms for lock): git status
+[INFO] git: 113 ms (waited 0 ms for lock): git log
+[INFO] git: 91 ms (waited 0 ms for lock): git diff
+[INFO] git: 116 ms (waited 0 ms for lock): git diff
+[INFO] git: 141 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 117 ms (waited 0 ms for lock): git branch
+[INFO] git: 107 ms (waited 0 ms for lock): git rev-parse
+[INFO] make_test_repo: done, path=/tmp/floatinghotel_test_repo
+[WARN] Layout wrap: 'empty_icon' in parent 'empty_state' - NoWrap set but would overflow (child_size=50.7, offset=0.0, container=0.0)
+[WARN] Layout overflow: 'empty_icon' extends outside parent 'empty_state' bounds (child_rel=[-3.5,0.0], child_size=[7.0,50.7], child_end=[3.5,50.7], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_1' in parent 'empty_state' - NoWrap set but would overflow (child_size=23.0, offset=50.7, container=0.0)
+[WARN] Layout overflow: 'empty_hint_1' extends outside parent 'empty_state' bounds (child_rel=[-73.2,50.7], child_size=[146.4,23.0], child_end=[73.2,73.7], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_hint_2' in parent 'empty_state' - NoWrap set but would overflow (child_size=18.7, offset=73.7, container=0.0)
+[WARN] Layout overflow: 'empty_hint_2' extends outside parent 'empty_state' bounds (child_rel=[-50.2,73.7], child_size=[100.4,18.7], child_end=[50.2,92.4], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[WARN] Layout wrap: 'empty_shortcuts' in parent 'empty_state' - NoWrap set but would overflow (child_size=32.7, offset=92.4, container=0.0)
+[WARN] Layout overflow: 'empty_shortcuts' extends outside parent 'empty_state' bounds (child_rel=[-118.2,92.4], child_size=[236.4,32.7], child_end=[118.2,125.1], parent_size=[0.0,0.0], gap=0.0, start_offset=0.0)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 116 ms (waited 0 ms for lock): git log
+[INFO] git: 127 ms (waited 0 ms for lock): git rev-parse
+[INFO] git: 115 ms (waited 0 ms for lock): git show
+[INFO] git: 155 ms (waited 0 ms for lock): git show
+[INFO] E2E finished in 0.47 seconds
+[INFO] git: 99 ms (waited 0 ms for lock): git rev-parse
