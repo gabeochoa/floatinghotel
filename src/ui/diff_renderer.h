@@ -1569,7 +1569,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             if (step != 0) layout->diffFindNavigate = 3;
             sess.findNavigate = layout->diffFindNavigate > 0;
             if (layout->diffFindNavigate > 0) --layout->diffFindNavigate;
-            if (review) {
+            if (review && sess.findNavigate) {
                 for (const auto& file : diffs) {
                     if (file.filePath != sess.findMatch->file) continue;
                     for (const auto& hunk : file.hunks) {
@@ -1738,8 +1738,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
         std::string fileLabel = diff_detail::file_header_label(fileDiff);
         if (review) fileLabel += ecs::unresolved_file_badge(*review, reviewScope, fileDiff.filePath, fileDiff.oldPath);
         std::string fileFoldKey = reviewScope + "\n" + fileDiff.filePath;
-        if (review && ((filterRepo && filterRepo->diffTargetFrames > 0 && filterRepo->diffTargetFile() == fileDiff.filePath) ||
-            (sess.findMatch && sess.findMatch->file == fileDiff.filePath))) review->foldedFiles.erase(fileFoldKey);
+        if (review && sess.findNavigate && sess.findMatch && sess.findMatch->file == fileDiff.filePath)
+            review->foldedFiles.erase(fileFoldKey);
         bool fileFolded = review && review->foldedFiles.contains(fileFoldKey);
         const bool narrowFile = contentWidth < 600.f;
         const float actionsHeight = !fileDiff.isFullContent && narrowFile ? 64.f : 32.f;

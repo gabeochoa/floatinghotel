@@ -712,21 +712,7 @@ private:
                         .with_custom_text_color(theme::TEXT_PRIMARY).with_alignment(TextAlignment::Left)
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path));
-                if (row) {
-                    selectedPath = file.filePath;
-                    if (review) {
-                        review->foldedFiles.erase(scope + "\n" + file.filePath);
-                        for (const auto& hunk : file.hunks)
-                            review->foldedHunks.erase(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
-                        if (source_tab_active(*repo)) {
-                            const auto* origin = repo->workspace().retained_review();
-                            if (origin && origin->files)
-                                for (const auto& summary : *origin->files)
-                                    if (summary.path == file.filePath)
-                                        for (const auto& key : summary.hunkKeys) review->foldedHunks.erase(scope + "\n" + key);
-                        }
-                    }
-                }
+                if (row) selectedPath = file.filePath;
                 if (review) {
                     bool reviewed = file_reviewed(*review, scope, file);
                     if (source_tab_active(*repo)) {

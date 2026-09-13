@@ -1,0 +1,40 @@
+[
+  {
+    "command": [
+      "python3",
+      "tests/anchor_layout.py",
+      "--output",
+      "output/step21-anchor-layout"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "tests/source_origin.py",
+      "--output",
+      "output/step21-source-origin"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "python3",
+      "tests/navigation_regressions.py",
+      "--scripts",
+      "improvement_35_comment_jump",
+      "reading_navigation_boundary",
+      "--output",
+      "output/step21-navigation"
+    ],
+    "exit_code": 0
+  },
+  {
+    "command": [
+      "bash",
+      "tests/run_unit_tests.sh",
+      "test_review_store"
+    ],
+    "exit_code": 0
+  }
+]
