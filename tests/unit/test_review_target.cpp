@@ -1165,4 +1165,45 @@ TEST(fold_changes_invalidate_layout_acknowledgements_without_adding_history) {
     ASSERT_TRUE(repo.workspace().document(id)->sourceFolds.closed({1, 40}));
 }
 
+TEST(repeated_source_selection_preserves_pending_reads_caret_and_selection) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::source("file.cpp", "", 42));
+    const auto id = repo.workspace().active_id();
+    const auto request = navigation::stamp(repo, "source");
+    navigation::set_selection(repo, reading::CodeSelection{{"file.cpp", reading::DiffSide::After, 42, 2},
+        {"file.cpp", reading::DiffSide::After, 42, 8}, {"file.cpp", reading::WorkingTree{}}});
+    auto selected = repo.workspace().document(id)->selection;
+    repo.fullFileCacheKey = "loaded-key";
+    const auto history = repo.workspace().history().size();
+    navigation::click(repo, reading::source("file.cpp"));
+    navigation::activate(repo, id);
+    ASSERT_EQ(repo.workspace().active_id(), id);
+    ASSERT_EQ(repo.workspace().history().size(), history);
+    ASSERT_EQ(repo.workspace().document(id)->selection, selected);
+    ASSERT_EQ(repo.workspace().document(id)->caret->line, 42);
+    ASSERT_EQ(repo.fullFileCacheKey, "loaded-key");
+    ASSERT_TRUE(navigation::accepts(repo, request, "source"));
+    navigation::open(repo, reading::source("file.cpp", "", 70));
+    ASSERT_FALSE(navigation::accepts(repo, request, "source"));
+    ASSERT_EQ(repo.workspace().document(id)->caret->line, 70);
+}
+
+TEST(reselecting_a_review_preserves_its_selected_file_and_pending_patch) {
+    ecs::RepoComponent repo;
+    const auto hash = std::string(40, 'a');
+    navigation::open(repo, reading::review(hash, "file.cpp"));
+    auto point = reading::ReadingAnchor{"file.cpp", hash, reading::DiffSide::After, 42, 8, .25f};
+    navigation::remember_anchor(repo, point);
+    const auto request = navigation::stamp(repo, "patch");
+    const auto history = repo.workspace().history().size();
+    navigation::click(repo, reading::review(hash), false, reading::ClickRegion::History);
+    ASSERT_EQ(repo.selectedFilePath(), "file.cpp");
+    ASSERT_EQ(repo.workspace().history().size(), history);
+    ASSERT_EQ(repo.workspace().document(repo.workspace().active_id())->anchor, std::optional{point});
+    ASSERT_TRUE(navigation::accepts(repo, request, "patch"));
+    navigation::open(repo, reading::review(hash, "other.cpp"));
+    ASSERT_EQ(repo.selectedFilePath(), "other.cpp");
+    ASSERT_EQ(repo.workspace().history().size(), history + 1);
+}
+
 int main() { RUN_ALL_TESTS(); }

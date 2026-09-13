@@ -265,6 +265,12 @@ struct navigation {
                      reading::OpenMode mode = reading::OpenMode::Preview, std::optional<reading::ReadingAnchor> anchor = {}) {
         repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
+        if (!anchor && reading::same_document(before, location)) {
+            if (const auto* source = std::get_if<reading::SourceLocation>(&location); source && source->line == 0)
+                location = before;
+            else if (const auto* review = std::get_if<reading::ReviewLocation>(&location); review && review->file.empty())
+                location = before;
+        }
         if (auto* source = std::get_if<reading::SourceLocation>(&location)) {
             if (!source->origin) source->origin = repo.workspace_.review();
             if (!source->originAnchor) {
@@ -277,7 +283,7 @@ struct navigation {
         }
         bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode, anchor);
-        if (const auto* source = repo.workspace_.source(); source && source->line > 0) {
+        if (const auto* source = repo.workspace_.source(); changed && source && source->line > 0) {
             set_selection(repo, {});
             set_caret(repo, {source->destination.path, reading::DiffSide::After, source->line, std::max(1, source->column)});
         }

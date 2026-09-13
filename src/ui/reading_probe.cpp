@@ -72,9 +72,9 @@ void rendered() {
             (probe.path.empty() || repo->diffTargetFile() == probe.path || repo->selectedFilePath() == probe.path);
     if (!selected) return;
     auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
-    const std::string headingName = probe.kind == "source" ? "full_file_revision" : "commit_detail_subject";
+    const std::string headingName = probe.kind == "source" ? "full_file_path" : "commit_detail_subject";
     const std::string headingText = probe.kind == "source"
-        ? probe.path + " @ " + (probe.revision.empty() ? "working tree" : probe.revision)
+        ? probe.path
         : detail ? detail->entry.subject : "";
     bool headingVisible = false;
     for (afterhours::Entity& entity : afterhours::EntityQuery<>(afterhours::ui::UICollectionHolder::get().collection,
