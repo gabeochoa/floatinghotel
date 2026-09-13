@@ -1,0 +1,21 @@
+RUN grouped_search
+PASS 100%: 5000 matches grouped by full path/revision, collapse and retained state, virtual rows, source navigation, highlighted long-line excerpt
+PASS 140%: 5000 matches grouped by full path/revision, collapse and retained state, virtual rows, source navigation, highlighted long-line excerpt
+PASS 200%: 5000 matches grouped by full path/revision, collapse and retained state, virtual rows, source navigation, highlighted long-line excerpt
+RUN search_debounce
+PASS 100%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+PASS 140%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+PASS 200%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/tests/search_debounce.py", line 110, in <module>
+    assert started_cancellations > 0
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/output/run_step33_final.py", line 7, in <module>
+    subprocess.run([sys.executable, 'tests/' + name + '.py', '--output', 'output/step33-final-' + name], check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/opt/homebrew/opt/python@3.14/bin/python3.14', 'tests/search_debounce.py', '--output', 'output/step33-final-search_debounce']' returned non-zero exit status 1.

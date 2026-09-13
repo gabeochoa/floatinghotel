@@ -1,0 +1,6 @@
+{"event": "start", "query": "NEEDLE", "time": 841673.960109291, "pid": 74091}
+{"event": "start", "query": "OLD", "time": 841674.491878583, "pid": 74163}
+{"event": "start", "query": "NEW", "time": 841675.296467958, "pid": 74169}
+{"event": "start", "query": "NEW", "time": 841676.524624583, "pid": 74254}
+{"event": "start", "query": "LIMIT", "time": 841677.007773166, "pid": 74305}
+{"event": "start", "query": "NEEDLE", "time": 841678.075170541, "pid": 74459}

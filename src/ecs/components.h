@@ -19,6 +19,7 @@
 #include "../git/path_list.h"
 #include "../git/source_position.h"
 #include "../util/file_query.h"
+#include "../util/search_results.h"
 #include "../util/codeowners.h"
 #include "../util/code_bookmark.h"
 #include "../util/hex_view.h"
@@ -34,47 +35,6 @@
 #include "../util/refresh_scope.h"
 
 namespace ecs {
-
-struct SearchMatch {
-    std::string file;
-    int line = 0;
-    std::string text;
-    std::string revision;
-};
-
-struct SearchMatching {
-    bool regularExpression = false;
-    bool caseSensitive = true;
-    bool wholeWord = false;
-};
-
-struct SearchQuery {
-    std::string repoPath;
-    std::string revision;
-    std::string text;
-    bool changedOnly = false;
-    std::vector<std::string> paths;
-    std::vector<std::string> removedPaths;
-    std::string beforeRevision;
-    SearchMatching matching;
-    std::string includeGlob;
-    std::string excludeGlob;
-};
-
-struct SearchResult {
-    std::string revision;
-    std::vector<SearchMatch> matches;
-    std::string error;
-    bool truncated = false;
-    size_t capturedBytes = 0;
-};
-
-struct SearchPreview {
-    SearchMatch match;
-    std::vector<std::pair<int, std::string>> lines;
-    std::string error;
-    bool changedSinceSearch = false;
-};
 
 struct BlameLine {
     std::string hash;
@@ -402,6 +362,9 @@ public:
     std::string repoSearchIncludeGlob;
     std::string repoSearchExcludeGlob;
     std::vector<SearchMatch> repoSearchResults;
+    std::vector<SearchFileGroup> repoSearchGroups;
+    std::vector<SearchResultRow> repoSearchRows;
+    bool repoSearchRebuildRows = false;
     bool repoSearchPreviewOpen = false;
     async_work::Task<SearchPreview> repoSearchPreviewFuture;
     SearchPreview repoSearchPreview;

@@ -699,7 +699,10 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
         // Wait for deferred screenshot to be captured before advancing
         if (!s_readyScreenshotName.empty()) break;
         if (e2e_bench::requested > 0) break;
-        if (reading_probe::checkpoint_pending()) break;
+        if (reading_probe::checkpoint_pending()) {
+            afterhours::testing::test_input::reset_frame();
+            break;
+        }
         if (e2e_idle_bench::requested > 0) break;
         if (e2e_paced_input::requested) break;
 

@@ -10,7 +10,8 @@ click_ui repo_search_submit
 wait_for_refresh
 wait_frames 10
 screenshot improvement_22_results
-expect_text "tests/test_utils.cpp:5"
+expect_text "test_utils.cpp"
+expect_text "Alice"
 click_ui repo_search_result
 wait_for_refresh
 wait_frames 10

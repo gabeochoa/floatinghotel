@@ -1,0 +1,47 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+key CMD+SHIFT+F
+wait_frames 3
+click_ui repo_search_input
+type "NEEDLE"
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 1 grouped
+screenshot grouped
+bench_frames 120
+expect_p99_below 20
+click_ui repo_search_file
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 1 collapsed
+screenshot collapsed
+click_ui repo_search_result
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 source
+screenshot source
+click_ui repo_search_close
+key CMD+SHIFT+F
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 retained
+screenshot retained
+click_ui repo_search_file
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 expanded
+screenshot expanded
+click_ui repo_search_input
+key CMD+A
+type "needle"
+wait_for_refresh
+wait_frames 15
+workspace_checkpoint 2 long_match
+screenshot long_match
+bench_frames 120
+expect_p99_below 20

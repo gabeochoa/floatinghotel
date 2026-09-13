@@ -14,6 +14,7 @@ repo = out / 'fixture'
 repo.mkdir()
 for name in ['a.cpp', 'b.cpp', 'gone.cpp']:
     (repo / name).write_text(''.join(f'int NEEDLE_{i:02d} = {i};\n' for i in range(1, 81)))
+(repo / 'gone.cpp').write_text((repo / 'gone.cpp').read_text().replace('NEEDLE_05', 'NEEDLE_05_GONE'))
 for args in [('init', '-q', '-b', 'main'), ('config', 'user.name', 'Search fixture'),
              ('config', 'user.email', 'search@example.invalid'), ('config', 'commit.gpgsign', 'false'),
              ('add', '.'), ('commit', '-qm', 'Original search files')]:
@@ -43,7 +44,7 @@ for zoom in [100, 140, 200]:
     script += 'key CMD+SHIFT+F\n' + capture('reopened')
     script += 'click_ui open_tabs_menu\nwait_frames 3\nclick_ui "context_menu_item_Unstaged changes"\n' + capture('working_tab')
     script += 'click_ui repo_search_input\nkey CMD+A\ntype "NEEDLE_05"\nkey ENTER\n' + capture('scoped_results')
-    script += 'click_text "gone.cpp:5"\n' + capture('historical_source')
+    script += 'click_text "NEEDLE_05_GONE"\n' + capture('historical_source')
     script += 'click_ui full_file_back\n' + capture('origin')
     script += 'key ESCAPE\n' + capture('escaped')
     script += 'key CMD+SHIFT+F\n' + capture('again')

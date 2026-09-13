@@ -8,11 +8,13 @@ click_ui repo_search_input
 type needle
 click_ui repo_search_submit
 wait_for_refresh
-expect_text "changed needle"
-expect_text "deleted needle"
-expect_no_text "unchanged needle"
+expect_text "changed.txt"
+expect_text "removed.txt"
+expect_no_text "stable.txt"
 screenshot item_37_changed_search
-click_text "removed.txt:1"
+click_text "deleted needle"
 wait_for_refresh
-expect_text "deleted needle"
+expect_text "removed.txt @"
+validate source_line=1
+assert_ui diff_find_match hidden=false
 screenshot item_37_deleted_result

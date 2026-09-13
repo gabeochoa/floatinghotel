@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/tests/grouped_search.py", line 69, in <module>
+    assert n['visible_rect']['width'] > 0 and n['visible_rect']['height'] > 0
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

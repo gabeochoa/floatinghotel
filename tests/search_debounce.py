@@ -31,7 +31,9 @@ real_git = shutil.which('git')
     + "    def record(event):\n"
     + "        with open(os.environ['FH_SEARCH_LOG'], 'a') as log: log.write(json.dumps(dict(event=event, query=query, time=time.monotonic(), pid=os.getpid())) + '\\n')\n"
     + "    record('start')\n"
-    + "    if query == 'OLD': time.sleep(2); record('delay_finished')\n"
+    + "    if query == 'OLD':\n"
+    + "        open(os.environ['FH_SEARCH_LOG'] + '.started', 'w').close()\n"
+    + "        time.sleep(2); record('delay_finished')\n"
     + f"os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])\n")
 (wrapper / 'git').chmod(0o755)
 binary = ROOT / 'output/floatinghotel.exe'
@@ -48,7 +50,7 @@ for zoom in [100, 140, 200]:
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     script += 'key CMD+SHIFT+F\nwait_frames 3\nclick_ui repo_search_input\n'
     script += ''.join(f'type "{letter}"\n' for letter in 'NEEDLE') + capture('automatic')
-    script += query('OLD') + 'key ENTER\nwait_frames 80\n' + capture('older_loading', False)
+    script += query('OLD') + 'key ENTER\nwait_for_path searches.jsonl.started\n' + capture('older_loading', False)
     script += query('NEW') + capture('newer')
     script += 'wait_frames 700\n' + capture('after_old')
     script += 'click_ui repo_search_options\nclick_ui repo_search_include\ntype "*.cpp"\n' + capture('filtered')

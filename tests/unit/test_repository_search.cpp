@@ -160,4 +160,58 @@ TEST(repository_search_shares_the_byte_budget_with_deleted_file_queries) {
     ASSERT_EQ(result.matches.back().text, text);
 }
 
+TEST(search_groups_keep_revision_identity_and_flatten_only_expanded_matches) {
+    std::vector<ecs::SearchMatch> matches{{"src/a.cpp", 1, "one", "before"},
+        {"test/a.cpp", 2, "two", "before"}, {"src/a.cpp", 3, "three", "before"},
+        {"src/a.cpp", 4, "four", "after"}};
+    auto groups = search_results::group(matches);
+    ASSERT_EQ(groups.size(), 3u);
+    ASSERT_EQ(groups[0].matches.size(), 2u);
+    ASSERT_EQ(groups[0].matches[1], 2u);
+    auto rows = search_results::visible_rows(groups);
+    ASSERT_EQ(rows.size(), 7u);
+    ASSERT_FALSE(rows[0].match.has_value());
+    groups[0].collapsed = true;
+    rows = search_results::visible_rows(groups);
+    ASSERT_EQ(rows.size(), 5u);
+    ASSERT_FALSE(rows[0].match.has_value());
+    ASSERT_EQ(*rows[2].match, 1u);
+    ASSERT_EQ(*rows[4].match, 3u);
+}
+
+TEST(search_highlights_use_query_semantics_and_bounded_unicode_excerpts) {
+    char pattern[] = "/tmp/fh-search-spans.XXXXXX";
+    auto* directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    ASSERT_TRUE(git::git_run(directory, {"init", "-q"}).success());
+    { std::ofstream file(std::filesystem::path(directory) / "source.cpp");
+      file << "needle needle_suffix NEEDLE\n" << "prefix .* exact\n"
+           << std::string(900, 'x') << "needle far\n"
+           << "before 日本 日本 after\nneedle_42 tail\ncafé cafétéria café\n\n"; }
+    auto search = [&](std::string text, ecs::SearchMatching matching = {}) {
+        ecs::SearchQuery query{directory, "", std::move(text)};
+        query.matching = matching;
+        auto result = git::search_repository_async(query).get();
+        ASSERT_TRUE(result.error.empty());
+        return result.matches;
+    };
+    auto literal = search("needle");
+    ASSERT_EQ(literal.size(), 3u);
+    ASSERT_EQ(literal[0].highlighted.count(), 12u);
+    ASSERT_EQ(literal[1].excerptStart, 892u);
+    ASSERT_EQ(literal[1].highlighted.count(), 6u);
+    ASSERT_TRUE(literal[1].highlighted.test(8));
+    ASSERT_EQ(search("needle", {false, false, false})[0].highlighted.count(), 18u);
+    auto words = search("needle", {false, true, true});
+    ASSERT_EQ(words.size(), 1u);
+    ASSERT_EQ(words[0].highlighted.count(), 6u);
+    ASSERT_EQ(search(".*")[0].highlighted.count(), 2u);
+    ASSERT_EQ(search("needle_[0-9]+", {true, true, false})[0].highlighted.count(), 9u);
+    ASSERT_EQ(search("日本")[0].highlighted.count(), 12u);
+    ASSERT_EQ(search("café", {false, true, true})[0].highlighted.count(), 10u);
+    for (const auto& match : search("^", {true, true, false})) ASSERT_TRUE(match.highlighted.none());
+    ASSERT_EQ(sizeof(std::bitset<512>), 64u);
+    std::filesystem::remove_all(directory);
+}
+
 int main() { RUN_ALL_TESTS(); }

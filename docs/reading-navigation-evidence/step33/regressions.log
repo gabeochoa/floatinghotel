@@ -1,0 +1,34 @@
+RUN grouped_search
+PASS 100%: 5000 matches grouped by full path/revision, collapse and retained state, virtual rows, source navigation, highlighted long-line excerpt
+PASS 140%: 5000 matches grouped by full path/revision, collapse and retained state, virtual rows, source navigation, highlighted long-line excerpt
+PASS 200%: 5000 matches grouped by full path/revision, collapse and retained state, virtual rows, source navigation, highlighted long-line excerpt
+RUN search_debounce
+PASS 100%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+PASS 140%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+PASS 200%: rapid edits coalesce after 150 ms, Enter immediate, old worker cancelled, filters debounce, 5000-result cap, empty/closed queries
+RUN retained_search
+PASS 100%: reader retained, scoped results/selection/scroll retained, no resubmission on reopen, deleted historical file, explicit working scope, narrow geometry and repository isolation
+PASS 140%: reader retained, scoped results/selection/scroll retained, no resubmission on reopen, deleted historical file, explicit working scope, narrow geometry and repository isolation
+PASS 200%: reader retained, scoped results/selection/scroll retained, no resubmission on reopen, deleted historical file, explicit working scope, narrow geometry and repository isolation
+RUN search_comparison_origin
+PASS 100%: search from comparison source keeps actual base, deleted revision, origin and retained results
+PASS 140%: search from comparison source keeps actual base, deleted revision, origin and retained results
+PASS 200%: search from comparison source keeps actual base, deleted revision, origin and retained results
+RUN navigation_regressions
+PASS improvement_21_file_picker
+PASS improvement_22_repo_search
+PASS improvement_24_all_files
+PASS improvement_27_commit_search
+PASS improvement_35_comment_jump
+PASS improvement_44_navigation
+Verified reader headings, tab geometry, and screenshots for 12 checkpoints
+PASS reading_navigation_boundary
+RUN item_37
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/output/run_step33_complete.py", line 15, in <module>
+    subprocess.run(['bash', 'tests/review_50/' + name + '.sh'], env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/subprocess.py", line 578, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['bash', 'tests/review_50/item_37.sh']' returned non-zero exit status 1.

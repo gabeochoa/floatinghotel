@@ -7,6 +7,8 @@
 #include "tooltip.h"
 #include "focus.h"
 #include "virtual_list.h"
+#include "chrome_icons.h"
+#include "../util/code_wrap.h"
 
 namespace ecs {
 
@@ -66,6 +68,9 @@ inline void clear_repo_search(RepoComponent& repo) {
     repo.repoSearchPreviewFuture = {};
     repo.repoSearchPreviewOpen = false;
     repo.repoSearchResults.clear();
+    repo.repoSearchGroups.clear();
+    repo.repoSearchRows.clear();
+    repo.repoSearchRebuildRows = false;
     repo.repoSearchSelected.reset();
     repo.repoSearchScroll = 0.f;
     repo.repoSearchRestoreScroll = true;
@@ -92,6 +97,25 @@ inline void start_repo_search(RepoComponent& repo) {
     query.changedOnly = repo.repoSearchChangedOnly;
     if (!query.changedOnly) { query.paths.clear(); query.removedPaths.clear(); }
     if (!query.text.empty()) repo.repoSearchFuture = git::search_repository_async(std::move(query));
+}
+
+inline std::vector<afterhours::ui::TextSpan> repo_search_match_label(const SearchMatch& match) {
+    std::vector<afterhours::ui::TextSpan> spans{{std::to_string(match.line) + "  ", theme::TEXT_SECONDARY}};
+    if (match.excerptStart) spans.push_back({"…", theme::TEXT_SECONDARY});
+    const auto end = std::min(match.text.size(), match.excerptStart + match.highlighted.size());
+    int previous = -1;
+    for (auto at = match.excerptStart; at < end;) {
+        const auto next = code_wrap::next_codepoint(match.text, at);
+        if (next > end) break;
+        const bool highlighted = match.highlighted.test(at - match.excerptStart);
+        const auto color = highlighted ? afterhours::Color{190, 215, 255, 255} : theme::TEXT_PRIMARY;
+        if (previous == static_cast<int>(highlighted)) spans.back().text += match.text.substr(at, next - at);
+        else spans.push_back({match.text.substr(at, next - at), color});
+        previous = static_cast<int>(highlighted);
+        at = next;
+    }
+    if (end < match.text.size()) spans.push_back({"…", theme::TEXT_SECONDARY});
+    return spans;
 }
 
 struct RepoSearchScrollOwner : afterhours::BaseComponent { int repository = -1; float zoom = 1.f; };
@@ -200,6 +224,8 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             repo.repoSearchError = std::move(result.error);
             repo.repoSearchScope.revision = std::move(result.revision);
             repo.repoSearchResults = std::move(result.matches);
+            repo.repoSearchGroups = search_results::group(repo.repoSearchResults);
+            repo.repoSearchRebuildRows = true;
             repo.repoSearchTruncated = result.truncated;
             repo.repoSearchCapturedBytes = result.capturedBytes;
         }
@@ -229,14 +255,51 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     }
     scrollOwner.repository = repository;
     scrollOwner.zoom = ui::zoom::get();
-    ui::virtual_list(ctx, listParent, repo.repoSearchResults.size(), 32.f,
-        [&](size_t i, Entity& item) {
+    if (repo.repoSearchRebuildRows) {
+        repo.repoSearchRows = search_results::visible_rows(repo.repoSearchGroups);
+        repo.repoSearchRebuildRows = false;
+    }
+    ui::virtual_list(ctx, listParent, repo.repoSearchRows.size(), 32.f,
+        [&](size_t rowIndex, Entity& item) {
+            const auto& row = repo.repoSearchRows[rowIndex];
+            auto& group = repo.repoSearchGroups[row.group];
+            if (!row.match) {
+                const auto slash = group.file.find_last_of('/');
+                const auto filename = slash == std::string::npos ? group.file : group.file.substr(slash + 1);
+                const auto directory = slash == std::string::npos ? std::string{} : group.file.substr(0, slash);
+                std::vector<afterhours::ui::TextSpan> spans{
+                    {filename, theme::TEXT_PRIMARY},
+                    {"  " + std::to_string(group.matches.size()), theme::TEXT_SECONDARY}};
+                if (!directory.empty()) spans.push_back({"  " + directory, theme::TEXT_SECONDARY});
+                if (group.revision != repo.repoSearchScope.revision)
+                    spans.push_back({"  @" + group.revision.substr(0, 7), theme::TEXT_SECONDARY});
+                auto header = button(ctx, mk(item, 11), preset::Button("")
+                    .with_size(ComponentSize{percent(1.f), pixels(32)})
+                    .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+                    .with_padding(Padding{.right = pixels(8), .left = pixels(4)})
+                    .with_custom_background(theme::PANEL_BG).with_debug_name("repo_search_file"));
+                ui::chrome_icon(ctx, mk(header.ent(), 0), group.collapsed ? ui::ChromeIcon::ChevronRight : ui::ChromeIcon::ChevronDown,
+                    theme::TEXT_SECONDARY, "repo_search_file_chevron");
+                div(ctx, mk(header.ent(), 1), ComponentConfig{}.with_styled_label(spans)
+                    .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
+                    .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("repo_search_file_label"));
+                ui::bind_focus(header.ent(), repo, reading::focus::Region::Search, group.file + "@" + group.revision);
+                ui::set_tooltip(header.ent(), group.file + " · " + (group.revision.empty() ? "Working tree" : group.revision));
+                if (header) {
+                    group.collapsed = !group.collapsed;
+                    repo.repoSearchRebuildRows = true;
+                }
+                return;
+            }
+            const auto i = *row.match;
             const auto& match = repo.repoSearchResults[i];
             auto resultRow = div(ctx, mk(item, 10), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
             ui::bind_focus(resultRow.ent(), repo, reading::focus::Region::Search, match.file + ":" + std::to_string(match.line));
             const auto label = match.file + ":" + std::to_string(match.line) + "  " + match.text.substr(0, 512);
             auto result = button(ctx, mk(resultRow.ent(), 0), preset::Button(label)
+                .with_styled_label(repo_search_match_label(match))
                 .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_font_size(pixels(12))
                 .with_custom_background(repo.repoSearchSelected == i ? theme::SELECTED_BG : theme::SIDEBAR_BG)

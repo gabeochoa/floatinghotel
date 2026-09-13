@@ -27,8 +27,9 @@ struct Probe {
 
 static Probe probe;
 static bool checkpointPending = false;
+static std::optional<Clock::time_point> pathWaitStart;
 
-bool checkpoint_pending() { return checkpointPending; }
+bool checkpoint_pending() { return checkpointPending || pathWaitStart.has_value(); }
 
 void input_dispatched() {
     if (!probe.label.empty() && !probe.dispatched) probe.dispatched = Clock::now();
@@ -93,6 +94,23 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
 
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed()) return;
+        if (cmd.is("wait_for_path")) {
+            if (!cmd.has_args(1) || cmd.arg(0).empty()) { cmd.fail("wait_for_path requires a path"); return; }
+            const auto now = Clock::now();
+            if (!pathWaitStart) pathWaitStart = now;
+            std::error_code error;
+            if (std::filesystem::exists(directory / cmd.arg(0), error)) {
+                pathWaitStart.reset();
+                cmd.consume();
+            } else if (error || now - *pathWaitStart > std::chrono::seconds(10)) {
+                pathWaitStart.reset();
+                cmd.fail(error ? error.message() : "Timed out waiting for " + cmd.arg(0));
+            } else {
+                cmd.frames_alive = 0;
+                cmd.retry();
+            }
+            return;
+        }
         if (cmd.is("workspace_checkpoint")) {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
@@ -169,6 +187,15 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         {"pending", repo->repoSearchDue.has_value()}, {"loading", repo->repoSearchFuture.valid()},
                         {"submitted_query", repo->repoSearchSubmittedQuery}, {"captured_bytes", repo->repoSearchCapturedBytes},
                         {"truncated", repo->repoSearchTruncated},
+                        {"visible_rows", repo->repoSearchRows.size()},
+                        {"highlight_bytes", repo->repoSearchResults.size() * sizeof(std::bitset<512>)},
+                        {"row_metadata_bytes", repo->repoSearchRows.capacity() * sizeof(ecs::SearchResultRow)},
+                        {"groups", [&] {
+                            auto groups = nlohmann::json::array();
+                            for (const auto& group : repo->repoSearchGroups) groups.push_back({{"file", group.file},
+                                {"revision", group.revision}, {"matches", group.matches.size()}, {"collapsed", group.collapsed}});
+                            return groups;
+                        }()},
                         {"selected", repo->repoSearchSelected ? nlohmann::json(*repo->repoSearchSelected) : nlohmann::json{}},
                         {"include", repo->repoSearchIncludeGlob}, {"exclude", repo->repoSearchExcludeGlob},
                         {"changed_only", repo->repoSearchChangedOnly}}}, {"commit_log", {{"count", repo->commitLog.size()}, {"has_more", repo->commitLogHasMore},

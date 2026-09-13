@@ -2098,3 +2098,50 @@ values and identify their repository, document, or scene owner so stale actions
 can be discarded. Current button handling returns activation during the
 caller's render pass; the app keeps navigation explicit and ends that pass
 after a model-replacing action. No additional content retention is needed.
+
+### Search disclosure controls need drawn chevrons
+
+The step 33 native search capture contained `▸`/`▾` in layout text but no visible
+triangle in the default font. Floatinghotel uses its existing `chrome_icon`
+chevrons instead. This is another concrete use for a framework-owned disclosure
+icon/control with reliable sizing, hit targeting, focus, and expanded state.
+File trees, inspector sections, inventory categories, and scene outliners need
+the same control. Evidence: `docs/reading-navigation-evidence/step33/failures`.
+
+### Search snippets expose missing font fallback and styled-label padding
+
+The step 33 `long_match` capture preserves `日本` in layout text and correctly
+highlights the surrounding ASCII matches, but the bundled Roboto face does not
+draw those Japanese glyphs. `src/preload.cpp` loads Roboto and JetBrains Mono;
+`TextSpan` owns text, color, and weight without a font fallback field. Search
+highlight unit tests verify UTF-8 offsets; they do not establish glyph coverage.
+A backend font fallback chain with consistent measurement, selection geometry,
+and bounded glyph caching would help multilingual app labels and game dialogue.
+This remains an open visual limitation; no replacement framework was introduced.
+
+Adding left padding to a styled search-header button did not reserve the intended
+space before its text in the captured native output. An absolutely placed
+chevron overlapped the label. The app now uses a row with separate icon and label
+children and checks that their rectangles do not overlap. Upstream styled-label
+padding/measurement parity would remove this workaround.
+
+### Worker tests need wall-clock condition waits
+
+A fixed `wait_frames 80` in the cancellation replay could finish before a Git
+worker started. `PendingE2ECommand` also times custom commands out after 30 ticks,
+which is much shorter than 0.5 seconds under the accelerated runner. The app's
+`wait_for_path` probe retries until a worker-owned marker exists, with a ten-second
+steady-clock deadline, resetting the framework tick counter while pending.
+The app also pauses command dispatch through its existing checkpoint gate:
+`retry()` alone leaves a command pending but does not stop subsequent commands.
+A generic deadline-based condition wait would help asynchronous asset-loading,
+networking, and document tests without fixed frame guesses or blocking sleeps.
+
+### Styled labels split the native text assertion registry
+
+The search-filter replay's `expect_text "changed needle"` stopped matching after
+highlighting split the label into `changed ` and `needle` spans. The full joined
+label is present in the layout dump and remains clickable, but the native visible
+text registry records spans separately. The app tests now assert file-group
+identities and the opened source line. Upstream text assertions should also expose
+the joined visible label, so adding color does not change its text identity.

@@ -5,8 +5,87 @@
 #include "../util/grep_capture.h"
 #include <charconv>
 #include <filesystem>
+#include <cwchar>
+#include <cwctype>
+#include <locale.h>
+#include <regex.h>
+#include "../util/code_wrap.h"
 
 namespace git {
+
+namespace {
+
+class SearchHighlighter {
+    regex_t expression_{};
+    locale_t locale_ = nullptr;
+    locale_t previous_ = nullptr;
+    bool valid_ = false;
+    bool wholeWord_ = false;
+
+public:
+    explicit SearchHighlighter(const ecs::SearchQuery& query) : wholeWord_(query.matching.wholeWord) {
+        locale_ = newlocale(LC_ALL_MASK, "", nullptr);
+        if (locale_) previous_ = uselocale(locale_);
+        std::string expression;
+        for (char c : query.text) {
+            if (!query.matching.regularExpression && std::string_view(".[]\\*^$()+?{}|").find(c) != std::string_view::npos)
+                expression += '\\';
+            expression += c;
+        }
+        valid_ = regcomp(&expression_, expression.c_str(), REG_EXTENDED | (query.matching.caseSensitive ? 0 : REG_ICASE)) == 0;
+    }
+
+    SearchHighlighter(const SearchHighlighter&) = delete;
+    SearchHighlighter& operator=(const SearchHighlighter&) = delete;
+
+    ~SearchHighlighter() {
+        if (valid_) regfree(&expression_);
+        if (locale_) { uselocale(previous_); freelocale(locale_); }
+    }
+
+    void apply(ecs::SearchMatch& match, std::stop_token stop) const {
+        if (!valid_) return;
+        const auto& text = match.text;
+        auto word = [&](size_t at) {
+            if (at >= text.size()) return false;
+            wchar_t value = 0;
+            std::mbstate_t state{};
+            const auto count = std::mbrtowc(&value, text.data() + at, text.size() - at, &state);
+            return count != static_cast<size_t>(-1) && count != static_cast<size_t>(-2) &&
+                (value == L'_' || std::iswalnum(value));
+        };
+        bool first = true;
+        for (size_t at = 0; at <= text.size() && !stop.stop_requested();) {
+            regmatch_t range{static_cast<regoff_t>(at), static_cast<regoff_t>(text.size())};
+            if (regexec(&expression_, text.c_str(), 1, &range, REG_STARTEND | (at ? REG_NOTBOL : 0)) != 0) break;
+            const auto start = static_cast<size_t>(range.rm_so);
+            const auto end = static_cast<size_t>(range.rm_eo);
+            size_t before = start;
+            if (before) {
+                --before;
+                while (before && (static_cast<unsigned char>(text[before]) & 0xc0) == 0x80) --before;
+            }
+            if (wholeWord_ && ((start && word(before)) || word(end))) {
+                at = code_wrap::next_codepoint(text, start);
+                continue;
+            }
+            if (end > start) {
+                if (first) {
+                    match.excerptStart = start > 8 ? start - 8 : 0;
+                    while (match.excerptStart && (static_cast<unsigned char>(text[match.excerptStart]) & 0xc0) == 0x80)
+                        --match.excerptStart;
+                    first = false;
+                }
+                if (start >= match.excerptStart + match.highlighted.size()) break;
+                for (size_t byte = start; byte < std::min(end, match.excerptStart + match.highlighted.size()); ++byte)
+                    match.highlighted.set(byte - match.excerptStart);
+            }
+            at = end > start ? end : code_wrap::next_codepoint(text, start);
+        }
+    }
+};
+
+}
 
 std::vector<std::string> repository_search_args(const ecs::SearchQuery& query) {
     std::vector<std::string> args{"grep", "--no-color", "-n", "-I", "-z", "--full-name"};
@@ -40,6 +119,7 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
     ecs::SearchResult rejected{query.revision, {}, "Background queue is full; search again to retry"};
     return async_work::launch([query = std::move(query)](std::stop_token stop) mutable {
         ecs::SearchResult out;
+        SearchHighlighter highlighter(query);
         if (query.changedOnly) {
             auto excluded = [&](const std::string& path) {
                 return (!query.includeGlob.empty() && !path_glob_matches(query.includeGlob, path)) ||
@@ -76,6 +156,10 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
             query.revision = query.beforeRevision;
             query.paths = std::move(query.removedPaths);
             append(std::move(query), false);
+        }
+        for (auto& match : out.matches) {
+            if (stop.stop_requested()) break;
+            highlighter.apply(match, stop);
         }
         return out;
     }, async_work::Priority::Foreground, std::move(rejected));

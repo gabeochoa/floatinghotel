@@ -1,0 +1,71 @@
+resize 1600 1000
+wait_for_refresh
+native_menu_action "Reset Zoom"
+key CMD+SHIFT+F
+wait_frames 3
+click_ui repo_search_input
+type "N"
+type "E"
+type "E"
+type "D"
+type "L"
+type "E"
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 1 automatic
+screenshot automatic
+click_ui repo_search_input
+key CMD+A
+type "OLD"
+key ENTER
+wait_frames 80
+workspace_checkpoint 1 older_loading
+screenshot older_loading
+click_ui repo_search_input
+key CMD+A
+type "NEW"
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 1 newer
+screenshot newer
+wait_frames 700
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 1 after_old
+screenshot after_old
+click_ui repo_search_options
+click_ui repo_search_include
+type "*.cpp"
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 1 filtered
+screenshot filtered
+click_ui repo_search_options
+click_ui repo_search_input
+key CMD+A
+type "LIMIT"
+key ENTER
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 1 limited
+screenshot limited
+click_ui repo_search_input
+key CMD+A
+key BACKSPACE
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 1 empty
+screenshot empty
+click_ui repo_search_input
+key CMD+A
+type "NEEDLE"
+click_ui repo_search_close
+workspace_checkpoint 1 closed
+screenshot closed
+key CMD+SHIFT+F
+wait_for_refresh
+wait_frames 10
+workspace_checkpoint 1 reopened
+screenshot reopened
+bench_frames 120
+expect_p99_below 20

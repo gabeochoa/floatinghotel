@@ -9,8 +9,8 @@ click_ui repo_search_include
 type "**/*.cpp"
 click_ui repo_search_submit
 wait_for_refresh
-expect_text "cpp needle"
-expect_no_text "text needle"
+expect_text "app.cpp"
+expect_no_text "notes.txt"
 screenshot item_39_include
 click_ui repo_search_exclude
 type "**/*.cpp"
@@ -25,6 +25,6 @@ key CMD+A
 type "**/*.txt"
 click_ui repo_search_submit
 wait_for_refresh
-expect_text "cpp needle"
-expect_no_text "text needle"
+expect_text "app.cpp"
+expect_no_text "notes.txt"
 screenshot item_39_exclude
