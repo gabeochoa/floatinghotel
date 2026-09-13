@@ -108,4 +108,35 @@ TEST(typing_uses_unicode_bytes_and_folder_names_without_opening_them) {
     ASSERT_FALSE(type_select({}, "", state, "a", now).has_value());
 }
 
+TEST(explicit_navigation_expands_only_destination_ancestors_once) {
+    NavigationState state;
+    std::set<std::string> collapsed{"src/", "src/deep/", "other/"};
+    const std::vector<std::string> paths{"src/deep/a.cpp", "other/a.cpp"};
+    ASSERT_TRUE(reveal_navigation(state, "repo/review", 1, paths[0], paths, collapsed));
+    ASSERT_EQ(collapsed, (std::set<std::string>{"other/"}));
+    ASSERT_EQ(state.revealPath, paths[0]);
+    ASSERT_TRUE(state.pendingReveal);
+    ASSERT_FALSE(state.pendingFocus);
+    state.pendingReveal = false;
+    collapsed.insert("src/");
+    ASSERT_FALSE(reveal_navigation(state, "repo/review", 1, paths[0], paths, collapsed));
+    ASSERT_TRUE(collapsed.contains("src/"));
+    ASSERT_FALSE(state.pendingReveal);
+    ASSERT_TRUE(reveal_navigation(state, "repo/review", 2, paths[1], paths, collapsed));
+    ASSERT_TRUE(collapsed.contains("src/"));
+    ASSERT_EQ(state.revealPath, paths[1]);
+}
+
+TEST(missing_destinations_cancel_old_reveals_without_expanding_anything) {
+    NavigationState state;
+    state.path = state.revealPath = "old.cpp";
+    state.pendingFocus = state.pendingReveal = true;
+    std::set<std::string> collapsed{"src/"};
+    ASSERT_FALSE(reveal_navigation(state, "repo", 1, "src/missing.cpp", {"src/a.cpp"}, collapsed));
+    ASSERT_FALSE(state.pendingReveal);
+    ASSERT_FALSE(state.pendingFocus);
+    ASSERT_TRUE(collapsed.contains("src/"));
+}
+
+
 int main() { RUN_ALL_TESTS(); }

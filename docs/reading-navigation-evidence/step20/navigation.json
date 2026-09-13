@@ -1,0 +1,55 @@
+{
+  "binary_sha256": "61da0306cc061b48a0b9635285733f3fa46c551db59d262f1c124b95ee65118b",
+  "binary_unchanged": true,
+  "results": [
+    {
+      "script": "improvement_21_file_picker",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_22_repo_search",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_24_all_files",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_27_commit_search",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_35_comment_jump",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "improvement_44_navigation",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    },
+    {
+      "script": "reading_navigation_boundary",
+      "passed": true,
+      "exit_code": 0,
+      "geometry_exit_code": 0,
+      "errors": []
+    }
+  ]
+}

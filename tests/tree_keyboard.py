@@ -61,8 +61,8 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'native_menu_action "Changed Files View"\nwait_frames 8\nclick_ui file_row\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey DOWN\nkey DOWN\nkey DOWN\n' + capture('files_flat', 'tail/f000.cpp')
     script += 'native_menu_action "All Files View"\nwait_for_refresh\nclick_ui file_row\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey DOWN\n' + capture('files_all', 'src/lib/b.cpp', 3)
     script += 'key ENTER\n' + capture('source_kept', 'src/lib/b.cpp', 3)
-    script += 'click_ui content_document_2\nclick_ui sidebar_review\nwait_for_refresh\nwait_frames 30\nclick_text "Open file"\nwait_for_refresh\nwait_frames 8\nclick_ui commit_file_filter\nkey TAB\n' + capture('source_origin_entry', 'src/', 4)
-    script += 'key DOWN\nkey RIGHT\nwait_for_refresh\nwait_frames 8\nkey DOWN\nwait_frames 8\n' + capture('source_origin_tree', 'tail/f001.cpp', 4)
+    script += 'click_ui content_document_2\nclick_ui sidebar_review\nwait_for_refresh\nwait_frames 30\nclick_text "Open file"\nwait_for_refresh\nwait_frames 8\nclick_ui commit_file_filter\nkey TAB\n' + capture('source_origin_entry', 'tail/f000.cpp', 4)
+    script += 'key DOWN\nwait_for_refresh\nwait_frames 8\n' + capture('source_origin_tree', 'tail/f001.cpp', 4)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)
@@ -74,6 +74,11 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     geometry = {}
     def checkpoint(name):
         return json.loads((directory / f'{name}.workspace.json').read_text())
+    origin = checkpoint('source_origin_entry')
+    source = next(tab for tab in origin['tabs'] if tab['id'] == origin['active'])
+    assert source['path'].startswith('tail/f') and source['path'].endswith('.cpp'), source
+    checks['source_origin_entry'] = source['path']
+    checks['source_origin_tree'] = f"tail/f{int(source['path'][6:9]) + 1:03}.cpp"
     for name, expected in checks.items():
         layout = json.loads((directory / f'{name}.json').read_text())
         focused = [n for n in layout['nodes'] if n['focused'] and n['rendered'] and not n['hidden']]

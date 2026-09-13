@@ -1,4 +1,5 @@
 #include "test_framework.h"
+#include "../../src/util/tree_destination.h"
 #include "../../src/util/navigation.h"
 #include "../../src/util/document_cycle.h"
 #include "../../src/ecs/components.h"
@@ -976,6 +977,37 @@ TEST(keyboard_previews_preserve_caller_focus_and_do_not_become_double_clicks) {
     ASSERT_EQ(repo.navigationEffect->focus, reading::FocusPolicy::Caller);
     navigation::activate(repo, reading::Slot::Review);
     ASSERT_EQ(repo.navigationEffect->focus, reading::FocusPolicy::Document);
+}
+
+TEST(historical_source_reveals_renamed_review_row_without_using_working_tree) {
+    ecs::RepoComponent repo;
+    const auto origin = reading::review(std::string(40, 'a'), "new/file.cpp");
+    navigation::open(repo, origin);
+    ecs::FileDiff file;
+    file.filePath = "new/file.cpp";
+    file.oldPath = "old/file.cpp";
+    file.isRenamed = true;
+    navigation::remember_review_files(repo, {file});
+    navigation::open(repo, reading::source("old/file.cpp", std::string(40, 'b'), 4, origin));
+    ASSERT_EQ(file_tree::destination_path(repo.workspace(), file_tree::Scope::Review), std::string("new/file.cpp"));
+    ASSERT_EQ(file_tree::destination_path(repo.workspace(), file_tree::Scope::Working), std::string{});
+}
+
+TEST(working_and_index_trees_exclude_historical_destinations) {
+    ecs::RepoComponent repo;
+    const auto& workspace = repo.workspace();
+    navigation::open(repo, reading::source("old.cpp", std::string(40, 'a')));
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Working), std::string{});
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Index), std::string{});
+    navigation::open(repo, reading::source("index.cpp", "INDEX"));
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Index), std::string("index.cpp"));
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Working), std::string{});
+    navigation::open(repo, reading::review("wt", "working.cpp"));
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Working), std::string("working.cpp"));
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Index), std::string{});
+    navigation::open(repo, reading::review(std::string(40, 'a'), "historical.cpp"));
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Review), std::string("historical.cpp"));
+    ASSERT_EQ(file_tree::destination_path(workspace, file_tree::Scope::Working), std::string{});
 }
 
 int main() { RUN_ALL_TESTS(); }

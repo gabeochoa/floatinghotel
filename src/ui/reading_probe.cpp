@@ -154,6 +154,15 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                             {"approve_pending", review->cursorApprove}, {"comment_pending", review->cursorComment},
                             {"approved", review->approvedHunks.size()}, {"composing", review->composingKey},
                             {"draft", review->composingText}, {"comments", review->comments.size()}} : nlohmann::json{};
+                    }()}, {"trees", [&] {
+                        auto value = [](const file_tree::NavigationState& state) {
+                            return nlohmann::json{{"path", state.path}, {"reveal_path", state.revealPath},
+                                {"pending_focus", state.pendingFocus}, {"pending_reveal", state.pendingReveal},
+                                {"entity", state.revealEntity}, {"generation", state.navigationGeneration.value_or(0)},
+                                {"context", state.context}};
+                        };
+                        return nlohmann::json{{"review", value(repo->reviewTreeNavigation)}, {"files", value(repo->filesTreeNavigation)},
+                            {"generation", repo->workspace().generation()}};
                     }()}, {"inactive_payloads_empty", true}}.dump(2) << '\n';
                 cmd.consume();
             } catch (const std::exception& error) { cmd.fail(error.what()); }

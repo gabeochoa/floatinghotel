@@ -1,0 +1,275 @@
+{
+  "active": 3,
+  "history": [
+    {
+      "location": {
+        "review": {
+          "file": "",
+          "kind": "working",
+          "staged": false
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.21976743638515472,
+        "line": 1,
+        "path": "a/f000.cpp",
+        "revision": "18a574e507147e784c9356cd6fd7467086323730",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "18a574e507147e784c9356cd6fd7467086323730"
+          },
+          "file": "",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.16551171243190765,
+        "line": 1,
+        "path": "z/deep/target.cpp",
+        "revision": "18a574e507147e784c9356cd6fd7467086323730",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "18a574e507147e784c9356cd6fd7467086323730"
+          },
+          "file": "z/deep/target.cpp",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.09972251206636429,
+        "line": 2,
+        "path": "z/deep/target.cpp",
+        "revision": "18a574e507147e784c9356cd6fd7467086323730",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 1,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "18a574e507147e784c9356cd6fd7467086323730"
+            },
+            "file": "z/deep/target.cpp",
+            "kind": "commit"
+          },
+          "origin_anchor": {
+            "column": 1,
+            "fraction": 0.16551171243190765,
+            "line": 1,
+            "path": "z/deep/target.cpp",
+            "revision": "18a574e507147e784c9356cd6fd7467086323730",
+            "side": "after",
+            "sign": "+"
+          },
+          "path": "z/deep/target.cpp",
+          "revision": {
+            "kind": "object",
+            "value": "18a574e507147e784c9356cd6fd7467086323730"
+          }
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.16551171243190765,
+        "line": 1,
+        "path": "z/deep/target.cpp",
+        "revision": "18a574e507147e784c9356cd6fd7467086323730",
+        "side": "after",
+        "sign": "+"
+      },
+      "location": {
+        "review": {
+          "commit": {
+            "kind": "object",
+            "value": "18a574e507147e784c9356cd6fd7467086323730"
+          },
+          "file": "z/deep/target.cpp",
+          "kind": "commit"
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.10619796812534332,
+        "line": 1,
+        "path": "a/f000.cpp",
+        "revision": "",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 0,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "18a574e507147e784c9356cd6fd7467086323730"
+            },
+            "file": "z/deep/target.cpp",
+            "kind": "commit"
+          },
+          "origin_anchor": {
+            "column": 1,
+            "fraction": 0.16551171243190765,
+            "line": 1,
+            "path": "z/deep/target.cpp",
+            "revision": "18a574e507147e784c9356cd6fd7467086323730",
+            "side": "after",
+            "sign": "+"
+          },
+          "path": "a/f000.cpp",
+          "revision": {
+            "kind": "working"
+          }
+        }
+      },
+      "reviewing": false
+    },
+    {
+      "anchor": {
+        "column": 1,
+        "fraction": 0.09972251206636429,
+        "line": 2,
+        "path": "z/deep/target.cpp",
+        "revision": "18a574e507147e784c9356cd6fd7467086323730",
+        "side": "after",
+        "sign": " "
+      },
+      "location": {
+        "source": {
+          "column": 1,
+          "line": 1,
+          "origin": {
+            "commit": {
+              "kind": "object",
+              "value": "18a574e507147e784c9356cd6fd7467086323730"
+            },
+            "file": "z/deep/target.cpp",
+            "kind": "commit"
+          },
+          "origin_anchor": {
+            "column": 1,
+            "fraction": 0.16551171243190765,
+            "line": 1,
+            "path": "z/deep/target.cpp",
+            "revision": "18a574e507147e784c9356cd6fd7467086323730",
+            "side": "after",
+            "sign": "+"
+          },
+          "path": "z/deep/target.cpp",
+          "revision": {
+            "kind": "object",
+            "value": "18a574e507147e784c9356cd6fd7467086323730"
+          }
+        }
+      },
+      "reviewing": false
+    }
+  ],
+  "history_index": 6,
+  "inactive_payloads_empty": true,
+  "review": {
+    "approve_pending": false,
+    "approved": 0,
+    "comment_pending": false,
+    "comments": 0,
+    "composing": "",
+    "cursor": 0,
+    "draft": "",
+    "hunks": 0
+  },
+  "tabs": [
+    {
+      "badge": "",
+      "id": 1,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "review",
+      "path": "z/deep/target.cpp",
+      "preview": false,
+      "revision": "18a574e507147e784c9356cd6fd7467086323730",
+      "title": "Historical tree",
+      "tooltip": "Historical tree\nCommit 18a574e507147e784c9356cd6fd7467086323730\nFirst parent"
+    },
+    {
+      "badge": "18a574e",
+      "id": 3,
+      "kind": "source",
+      "path": "z/deep/target.cpp",
+      "preview": false,
+      "revision": "18a574e507147e784c9356cd6fd7467086323730",
+      "title": "target.cpp",
+      "tooltip": "z/deep/target.cpp @ 18a574e507147e784c9356cd6fd7467086323730"
+    },
+    {
+      "badge": "",
+      "id": 4,
+      "kind": "source",
+      "path": "a/f000.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "f000.cpp",
+      "tooltip": "a/f000.cpp @ working tree"
+    }
+  ],
+  "trees": {
+    "files": {
+      "context": "",
+      "entity": -1,
+      "generation": 0,
+      "path": "",
+      "pending_focus": false,
+      "pending_reveal": false,
+      "reveal_path": ""
+    },
+    "generation": 6,
+    "review": {
+      "context": "/Users/gabeochoa/p/floatinghotel/output/step20-reveal-complete/fixture\n18a574e507147e784c9356cd6fd7467086323730",
+      "entity": -1,
+      "generation": 6,
+      "path": "z/deep/target.cpp",
+      "pending_focus": false,
+      "pending_reveal": false,
+      "reveal_path": "z/deep/target.cpp"
+    }
+  }
+}

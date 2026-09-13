@@ -3,6 +3,7 @@
 #include "focus.h"
 #include "zoom.h"
 #include "../util/text_decode.h"
+#include "../util/tree_destination.h"
 
 namespace ui {
 
@@ -25,6 +26,7 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
             (void)ctx.pressed(InputAction::WidgetNext);
             if (std::none_of(rows.begin(), rows.end(), [&](const auto& row) { return row.path == state.path; })) state.path = rows.front().path;
             state.pendingFocus = state.pendingReveal = true;
+            state.revealPath = state.path;
         }
         return {};
     }
@@ -53,18 +55,19 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
         }
     }
     if (move) {
-        state.path = move->path;
+        state.path = state.revealPath = move->path;
         state.pendingFocus = state.pendingReveal = true;
     }
     return move;
 }
 
-inline void reveal_tree_row(afterhours::ui::imm::EntityParent parent, const file_tree::NavigationState& state,
+inline void reveal_tree_row(afterhours::ui::imm::EntityParent parent, file_tree::NavigationState& state,
                              const std::vector<file_tree::Row>& rows) {
-    if (!state.pendingFocus) return;
+    state.revealEntity = -1;
+    if (!state.pendingFocus && !state.pendingReveal) return;
     auto [entity, owner] = afterhours::ui::imm::deref(parent);
     if (!entity.has<afterhours::ui::HasScrollView>()) return;
-    auto row = std::find_if(rows.begin(), rows.end(), [&](const auto& item) { return item.path == state.path; });
+    auto row = std::find_if(rows.begin(), rows.end(), [&](const auto& item) { return item.path == state.revealPath; });
     if (row == rows.end()) return;
     auto& scroll = entity.get<afterhours::ui::HasScrollView>();
     const float height = scroll.viewport_or_zero().y;
@@ -80,6 +83,7 @@ inline void reveal_tree_row(afterhours::ui::imm::EntityParent parent, const file
 inline void bind_tree_row(UIContext<InputAction>& ctx, Entity& row, const ecs::RepoComponent& repo,
                            file_tree::NavigationState& state, const std::string& path) {
     bind_focus(row, repo, reading::focus::Region::Tree, path);
+    if (state.pendingReveal && state.revealPath == path) state.revealEntity = row.id;
     if (state.pendingFocus && state.path == path) {
         ctx.set_focus(row.id);
         state.pendingFocus = false;

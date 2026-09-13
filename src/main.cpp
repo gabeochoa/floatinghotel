@@ -544,7 +544,7 @@ static void app_init() {
         ui_imm::registerUIPostLayoutSystems(sm);
         sm.register_update_system(std::make_unique<ecs::ReadingLayoutSystem>());
         sm.register_update_system(std::make_unique<ecs::RestoreFocusSystem>());
-        sm.register_update_system(std::make_unique<ecs::RevealTreeFocusSystem>());
+        sm.register_update_system(std::make_unique<ecs::RevealTreeRowSystem>());
 
         // Update systems
         auto fileWatcherPtr = std::make_unique<ecs::FileWatcherSystem>();

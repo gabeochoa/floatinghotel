@@ -361,12 +361,17 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             auto filesPanel = preset::ScrollPanel()
                 .with_size(ComponentSize{pixels(sidebarW), pixels(filesH)})
                 .with_debug_name("sidebar_files");
+            const auto fileList = mk(controlsBody.ent(), 2100);
             if (repoPtr) update_file_tree(*repoPtr, layout);
             if (repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Changes) {
                 auto& state = repoPtr->filesTreeNavigation;
                 auto& collapsed = layout.collapsedDirectories[repoPtr->repoPath];
                 const std::string scope = active_review_tab() == LayoutComponent::ReviewTab::Staged ? "index" : "wt";
                 const auto context = repoPtr->repoPath + "\nfiles:" + scope + ":" + std::to_string(static_cast<int>(layout.fileViewMode));
+                if (!repoPtr->isRefreshing && !repoPtr->refreshRequested && file_tree::reveal_navigation(state, context,
+                        repoPtr->workspace().generation(), file_tree::destination_path(repoPtr->workspace(),
+                            allFilesMode_ || scope == "wt" ? file_tree::Scope::Working : file_tree::Scope::Index),
+                        allFilesMode_ ? repoPtr->allFilePaths : treePaths_, collapsed)) update_file_tree(*repoPtr, layout);
                 if (auto move = ui::tree_keys(ctx, *repoPtr, layout, state, context, treeRows_, collapsed)) {
                     if (move->toggle) {
                         if (collapsed.contains(*move->toggle)) collapsed.erase(*move->toggle); else collapsed.insert(*move->toggle);
@@ -379,7 +384,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                         else navigation::preview(*repoPtr, std::move(destination));
                     }
                 }
-                ui::reveal_tree_row(mk(controlsBody.ent(), 2100), state, treeRows_);
+                ui::reveal_tree_row(fileList, state, treeRows_);
             }
             const bool windowedFiles =
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
@@ -387,7 +392,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             const float fileRowPx = 28.f;
             auto filesBg = windowedFiles
                 ? ui::virtual_list(
-                      ctx, mk(controlsBody.ent(), 2100), active_file_count(*repoPtr),
+                      ctx, fileList, active_file_count(*repoPtr),
                       fileRowPx,
                       [&](size_t i, Entity& row) {
                           render_active_file_row(ctx, row, i, *repoPtr);
@@ -656,6 +661,11 @@ private:
             commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
         }
         auto& treeState = repo->reviewTreeNavigation;
+        const auto activeTreePath = file_tree::destination_path(repo->workspace(), file_tree::Scope::Review);
+        if (file_tree::reveal_navigation(treeState, collapseKey, repo->workspace().generation(), activeTreePath, commitTreePaths_, collapsed)) {
+            commitTreeRows_ = file_tree::flatten(commitTreePaths_, collapsed);
+            commitTreeKey_.clear();
+        }
         const auto move = ui::tree_keys(ctx, *repo, *layout, treeState, collapseKey, commitTreeRows_, collapsed);
         if (move) {
             if (move->toggle) {
@@ -666,6 +676,7 @@ private:
         }
         auto config = preset::ScrollPanel().with_size(ComponentSize{percent(1.f), pixels(std::max(0.f, height - 70.f))})
             .with_debug_name("commit_files_scroll");
+        const auto fileList = mk(section.ent(), 3);
         if (commitTreeRows_.empty()) {
             auto emptyPanel = div(ctx, mk(section.ent(), 3), config);
             div(ctx, mk(emptyPanel.ent(), 0), preset::BodyText(files->empty() ? empty : "No matching files")
@@ -675,8 +686,8 @@ private:
             return;
         }
         std::optional<std::string> selectedPath;
-        ui::reveal_tree_row(mk(section.ent(), 3), treeState, commitTreeRows_);
-        ui::virtual_list(ctx, mk(section.ent(), 3), commitTreeRows_.size(), 28.f,
+        ui::reveal_tree_row(fileList, treeState, commitTreeRows_);
+        ui::virtual_list(ctx, fileList, commitTreeRows_.size(), 28.f,
             [&](size_t index, Entity& wrapper) {
                 const auto& node = commitTreeRows_[index];
                 if (node.directory) {
@@ -689,7 +700,7 @@ private:
                 }
                 const auto& file = (*files)[commitFileIndices_[node.sourceIndex]];
                 auto row = button(ctx, mk(wrapper, 0), ui::file_tree_style::row_config(sidebarPixelWidth_, node.depth,
-                    repo->diffTargetFile() == node.path)
+                    activeTreePath == node.path)
                     .with_debug_name("commit_changed_file"));
                 ui::bind_tree_row(ctx, row.ent(), *repo, treeState, node.path);
                 ui::set_tooltip(row.ent(), node.path);

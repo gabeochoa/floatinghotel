@@ -1,0 +1,32 @@
+[
+  {
+    "suite": "tree_keyboard",
+    "exit_code": 0,
+    "evidence": "output/step20-final-tree_keyboard"
+  },
+  {
+    "suite": "tree_type_select",
+    "exit_code": 0,
+    "evidence": "output/step20-final-tree_type_select"
+  },
+  {
+    "suite": "focus_return",
+    "exit_code": 0,
+    "evidence": "output/step20-final-focus_return"
+  },
+  {
+    "suite": "source_origin",
+    "exit_code": 0,
+    "evidence": "output/step20-final-source_origin"
+  },
+  {
+    "suite": "history_visits",
+    "exit_code": 0,
+    "evidence": "output/step20-final-history_visits"
+  },
+  {
+    "suite": "navigation_regressions",
+    "exit_code": 0,
+    "evidence": "output/step20-final-navigation_regressions"
+  }
+]

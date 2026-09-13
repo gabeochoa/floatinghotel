@@ -2,6 +2,7 @@
 
 #include "file_tree.h"
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <string_view>
 
@@ -27,7 +28,26 @@ struct NavigationState {
     bool pendingFocus = false;
     bool pendingReveal = false;
     TypeSelectState typing;
+    std::optional<std::uint64_t> navigationGeneration;
+    std::string revealPath;
+    int revealEntity = -1;
 };
+
+inline bool reveal_navigation(NavigationState& state, const std::string& context, std::uint64_t generation,
+        const std::string& path, const std::vector<std::string>& paths, std::set<std::string>& collapsed) {
+    if (state.context != context) state = {context};
+    if (state.navigationGeneration == generation) return false;
+    state.navigationGeneration = generation;
+    state.pendingReveal = false;
+    if (state.path != path) state.pendingFocus = false;
+    if (path.empty() || std::find(paths.begin(), paths.end(), path) == paths.end()) return false;
+    state.path = state.revealPath = path;
+    state.pendingReveal = true;
+    bool expanded = false;
+    for (size_t slash = path.find('/'); slash != std::string::npos; slash = path.find('/', slash + 1))
+        expanded |= collapsed.erase(path.substr(0, slash + 1)) != 0;
+    return expanded;
+}
 
 inline std::optional<Move> navigate(const std::vector<Row>& rows, const std::set<std::string>& collapsed,
                                     const std::string& path, Key key) {

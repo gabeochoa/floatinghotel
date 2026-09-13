@@ -1,0 +1,33 @@
+{
+  "100": [
+    "bench_frames: 120 frames, 697 entities: avg 6.19 ms  p50 6.29  p99 8.80  max 11.71"
+  ],
+  "140": [
+    "bench_frames: 120 frames, 586 entities: avg 5.43 ms  p50 5.24  p99 8.40  max 9.86"
+  ],
+  "200": [
+    "bench_frames: 120 frames, 488 entities: avg 2.81 ms  p50 2.41  p99 5.11  max 6.34"
+  ],
+  "tree_keyboard": {
+    "100": [
+      "bench_frames: 120 frames, 923 entities: avg 6.25 ms  p50 6.08  p99 9.92  max 10.49"
+    ],
+    "140": [
+      "bench_frames: 120 frames, 790 entities: avg 6.90 ms  p50 6.83  p99 11.26  max 13.21"
+    ],
+    "200": [
+      "bench_frames: 120 frames, 620 entities: avg 4.36 ms  p50 4.12  p99 8.68  max 12.28"
+    ]
+  },
+  "tree_type_select": {
+    "100": [
+      "bench_frames: 120 frames, 150 entities: avg 1.73 ms  p50 1.60  p99 3.82  max 6.05"
+    ],
+    "140": [
+      "bench_frames: 120 frames, 150 entities: avg 1.70 ms  p50 1.56  p99 3.80  max 4.27"
+    ],
+    "200": [
+      "bench_frames: 120 frames, 150 entities: avg 2.90 ms  p50 2.48  p99 9.01  max 17.06"
+    ]
+  }
+}

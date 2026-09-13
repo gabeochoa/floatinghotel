@@ -60,19 +60,19 @@ struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
     }
 };
 
-struct RevealTreeFocusSystem : afterhours::System<UIContext<InputAction>> {
-    void for_each_with(Entity&, UIContext<InputAction>& ctx, float) override {
+struct RevealTreeRowSystem : afterhours::System<UIContext<InputAction>> {
+    void for_each_with(Entity&, UIContext<InputAction>&, float) override {
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
         const auto* layout = find_singleton<LayoutComponent>();
         if (!repo || !layout) return;
         auto& state = layout->sidebarNavigation == LayoutComponent::SidebarNavigation::Review ?
             repo->reviewTreeNavigation : repo->filesTreeNavigation;
         if (!state.pendingReveal || state.pendingFocus) return;
-        auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
+        auto focused = afterhours::ui::UICollectionHolder::getEntityForID(state.revealEntity);
         if (!focused.valid()) return;
         const auto target = ui::focus_target(**focused);
         if (!target || target->repository != repo->repoPath || target->document != repo->workspace().active_id()) return;
-        if (target->region != reading::focus::Region::Tree || target->item != state.path) { state.pendingReveal = false; return; }
+        if (target->region != reading::focus::Region::Tree || target->item != state.revealPath) { state.pendingReveal = false; return; }
         if (!focused->get<afterhours::ui::UIComponent>().was_rendered_to_screen) return;
         const auto wheel = afterhours::input::get_mouse_wheel_move_v();
         if (wheel.x != 0.f || wheel.y != 0.f) { state.pendingReveal = false; return; }

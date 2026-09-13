@@ -1930,3 +1930,23 @@ ASCII prefix to select a filename containing Unicode. A code-point E2E
 queue would let apps and games test international text input using the same
 contract as the native backend. Unicode prefix injection remains unverified
 in the current native runner.
+
+### Virtual-list reveal needs the actual list handle
+
+`imm::mk(parent, index)` includes its source location in widget identity. Two
+calls with the same parent and index on different lines create different
+widgets. A pre-layout reveal helper was therefore looking at a new entity
+without `HasScrollView`, while the real list stayed at its old offset.
+Incremental arrows could succeed through overscan; a direct jump to a distant
+row exposed the error in `output/step20-reveal-probe`.
+
+The app now creates one `EntityParent` handle and passes it to both reveal and
+virtual-list construction. A framework `scroll_to_item` operation that applies
+before windowing would spare inventory, file-browser, and editor callers this
+coordination and make offscreen keyboard destinations easier to test.
+
+Reusing the virtual list's entity for a plain empty panel also preserves
+`unbuilt_content_size`, leaving a phantom scrollbar. The app keeps a separate
+empty-panel identity. A framework virtual-list empty state should reset this
+size while preserving the logical list's position for returning results.
+The reproduction is `output/step20-reveal-handle/100/empty_filter.json`.
