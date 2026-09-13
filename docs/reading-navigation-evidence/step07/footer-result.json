@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "binary_sha256": "077c8a9674f68f500e2afc9a68e5e6635fe9e733032b9315ea39cdf681872a20",
+  "states": [
+    "clean",
+    "changed"
+  ],
+  "zooms": [
+    100,
+    140,
+    200
+  ]
+}

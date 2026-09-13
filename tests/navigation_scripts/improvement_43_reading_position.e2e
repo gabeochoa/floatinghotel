@@ -16,8 +16,8 @@ expect_text "short working file"
 click_text first.txt
 wait_frames 10
 screenshot improvement_43_file_restored
-expect_text "working line 901"
-expect_no_text "working line 1"
+assert_ui file_header_label hidden=false
+expect_text "committed line 1"
 click_text "Long commit"
 wait_for_refresh
 key CMD+F

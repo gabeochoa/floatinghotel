@@ -284,6 +284,8 @@ private:
         if (documents_.empty()) documents_.push_back({DocumentId{nextId_++}});
         active_ = documents_[std::min(index, documents_.size() - 1)].id;
         auto next = location();
+        if (const auto* review = std::get_if<ReviewLocation>(&next);
+            review && std::holds_alternative<WorkingChanges>(review->destination)) reviewing = true;
         ++generation_;
         open(std::move(next), reviewing);
         return true;
@@ -298,7 +300,10 @@ private:
             return same_document(tab.location, next);
         });
         if (existing == documents_.end()) documents_.push_back(std::move(restored));
-        else if (!existing->files && restored.files) existing->files = std::move(restored.files);
+        else {
+            if (!existing->files && restored.files) existing->files = std::move(restored.files);
+            if (existing->subject.empty()) existing->subject = std::move(restored.subject);
+        }
         return open(std::move(next), reviewing, OpenMode::Keep);
     }
     bool step(int direction) {

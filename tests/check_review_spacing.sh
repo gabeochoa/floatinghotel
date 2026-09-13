@@ -35,7 +35,7 @@ nice -n 10 output/floatinghotel.exe . --test-mode --headless \
     --screenshot-dir="$capture_dir/binary" --e2e-timeout=60 \
     > "$capture_dir/binary.log" 2>&1
 nice -n 10 python3 tests/check_binary_layout_dump.py "$capture_dir/binary/binary_layout.json"
-run_case commit_splitter
+nice -n 10 python3 tests/sidebar_splitter.py --output "$capture_dir/commit_splitter"
 
 if [[ $(uname -s) == Darwin ]]; then
     nice -n 10 bash tests/check_native_menu.sh

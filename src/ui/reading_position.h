@@ -10,11 +10,6 @@ inline void remember_reading_position(ecs::RepoComponent& repo, Entity& entity,
     std::string key = repo.repoPath + "\n" + view;
     if (state.key != key) {
         if (!state.key.empty() && state.restoreFrames == 0) {
-            auto previous = EntityHelper::getEntityForID(state.entity);
-            if (previous.valid() && previous->has<afterhours::ui::HasScrollView>()) {
-                const auto& offset = previous->get<afterhours::ui::HasScrollView>().scroll_offset;
-                state.lastOffset = {offset.x, offset.y};
-            }
             state.offsets[state.key] = state.lastOffset;
         }
         state.key = key;

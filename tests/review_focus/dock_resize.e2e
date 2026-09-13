@@ -8,17 +8,26 @@ screenshot dock_480
 resize 300 600
 wait_frames 5
 screenshot dock_300
-key CMD+EQUAL
-key CMD+EQUAL
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+
 wait_frames 5
 screenshot dock_zoom
 validate footer_fixed=true
-key CMD+0
+native_menu_action "Reset Zoom"
 resize 1280 800
 click_ui commit_row
 wait_for_refresh
 screenshot expanded
-click_ui commit_back_btn
+key CMD+W
+wait_frames 5
+click_ui sidebar_working_files
+wait_frames 3
+click_ui working_review_toggle
+wait_frames 3
+click_ui sidebar_review
 resize 352 800
 wait_frames 5
 screenshot dock_return

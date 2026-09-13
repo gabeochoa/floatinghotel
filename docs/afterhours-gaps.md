@@ -1752,3 +1752,14 @@ so the native replay now checks icon pixels. The app uses its existing vector
 chevron and a textual Current label. Also, a button's default hover background
 can override a manually chosen menu-selection background; the menu now sets
 both explicitly so keyboard selection has one visible highlight.
+
+### Reading positions and reused UI entities
+
+A scroll entity from the previous frame may already represent the next document
+when the app saves the old document's reading position. The close/reopen replay
+caught a saved offset being replaced with zero through that reused entity. The
+app now saves the last observed offset associated with the old destination.
+A framework scroll snapshot keyed by stable content identity, with a layout-ready
+restore operation, would help readers, inspectors, inventory lists, and game
+menus preserve position across immediate-mode rebuilds. Logical-anchor restore
+is still pending in step 13; this fix does not claim to provide it.

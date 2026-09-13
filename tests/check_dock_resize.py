@@ -8,10 +8,11 @@ for name in ("dock_352", "dock_480", "dock_300", "dock_zoom", "dock_return"):
     snapshot = json.loads((directory / f"{name}.json").read_text())
     nodes = {node["name"]: node for node in snapshot["nodes"] if node.get("name") and node["rendered"]}
     viewport = snapshot["viewport"]
-    for label in ("sidebar_bg", "sidebar_log", "sidebar_worktree_status"):
+    for label in ("sidebar_bg", "sidebar_log", "status_bar_bg"):
         rect = nodes[label]["rect"]
         assert abs(rect["x"]) < 0.1, (name, label, rect)
         assert abs(rect["width"] - viewport["width"]) < 1, (name, label, rect, viewport)
+    assert "sidebar_worktree_status" not in nodes
     assert "commit_detail_subject" not in nodes
     print(f"PASS {name}: dock sidebar fills all {viewport['width']} pixels")
 

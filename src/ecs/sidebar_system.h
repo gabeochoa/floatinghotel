@@ -393,7 +393,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
             commitsH = layout.sidebarLog.height;
         } else {
-            splitAvailable = std::max(0.f, splitAvailable - repoHeaderH - 32.f);
+            splitAvailable = std::max(0.f, splitAvailable - repoHeaderH);
             commitsH = splitAvailable * layout.commitLogRatio;
             render_commit_files(ctx, sidebarRoot.ent(), repoPtr, splitAvailable - commitsH);
         }
@@ -411,7 +411,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             .with_debug_name("sidebar_h_divider_line"));
         if (divider && splitAvailable > 0.f) {
             layout.commitLogRatio = std::clamp(
-                layout.commitLogRatio - divider.as<float>() / (zoom * splitAvailable), 0.2f, 0.8f);
+                layout.commitLogRatio - divider.as<float>() / (zoom * splitAvailable), 0.2f,
+                filesNavigation ? std::clamp(1.f - repoHeaderH / splitAvailable, 0.2f, 0.8f) : 0.8f);
         }
         auto logBg = div(ctx, mk(sidebarRoot.ent(), 2300),
             ComponentConfig{}
@@ -486,17 +487,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             render_no_repo(ctx, logScroll.ent(), 0, "no_repo_log");
         }
 
-        if (!filesNavigation) {
-            std::string state = !repoPtr || repoPtr->repoPath.empty() ? "No repository open" :
-                !repoPtr->filesError.empty() ? "Repository unavailable" :
-                !repoPtr->hasLoadedOnce ? "Loading repository" :
-                treeClean ? "Working tree clean" : "Working tree has changes";
-            div(ctx, mk(sidebarRoot.ent(), 2390), ComponentConfig{}
-                .with_label(state).with_size(ComponentSize{percent(1.f), pixels(32)})
-                .with_padding(Padding{.left = pixels(14), .right = pixels(10)})
-                .with_font_size(pixels(11)).with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_border_top(theme::BORDER).with_debug_name("sidebar_worktree_status"));
-        }
 
         // === Commit workflow + Unstaged Changes Dialog (T030) ===
         if (repoPtr && repoPtr->reviewWorkspace) {

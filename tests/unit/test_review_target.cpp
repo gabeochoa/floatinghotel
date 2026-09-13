@@ -608,4 +608,54 @@ TEST(commit_subject_is_seeded_and_survives_switching_closing_and_alias_resolutio
     ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->subject.empty());
 }
 
+TEST(closing_into_working_changes_keeps_the_review_visible) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("a.cpp"), false);
+    navigation::close(repo, repo.workspace().active_id());
+    ASSERT_EQ(repo.workspace().documents().size(), 1u);
+    ASSERT_EQ(repo.workspace().location(), reading::Location{reading::ReviewLocation{}});
+    ASSERT_TRUE(repo.workspace().history()[repo.workspace().history_index()].reviewing);
+    ASSERT_TRUE(repo.navigationEffect->reviewing.value_or(false));
+    open_kept(repo, reading::review("commit"), false);
+    const auto review = repo.workspace().active_id();
+    navigation::close(repo, repo.workspace().documents().front().id);
+    navigation::close(repo, review);
+    ASSERT_EQ(repo.workspace().documents().size(), 1u);
+    ASSERT_TRUE(repo.workspace().history()[repo.workspace().history_index()].reviewing);
+}
+
+TEST(closing_inactive_documents_preserves_the_active_read_and_selects_nearest_neighbors) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::source("a.cpp"));
+    auto a = repo.workspace().active_id();
+    open_kept(repo, reading::source("b.cpp"));
+    auto b = repo.workspace().active_id();
+    open_kept(repo, reading::source("c.cpp"));
+    auto c = repo.workspace().active_id();
+    repo.fullFileCacheKey = "c.cpp loaded";
+    auto stamp = navigation::stamp(repo, "c.cpp read");
+    navigation::close(repo, b);
+    ASSERT_EQ(repo.workspace().active_id(), c);
+    ASSERT_STREQ(repo.fullFileCacheKey, "c.cpp loaded");
+    ASSERT_TRUE(navigation::accepts(repo, stamp, "c.cpp read"));
+    navigation::activate(repo, a);
+    navigation::close(repo, a);
+    ASSERT_EQ(repo.workspace().active_id(), c);
+    navigation::close(repo, c);
+    ASSERT_EQ(repo.workspace().active_id(), repo.workspace().documents().front().id);
+}
+
+TEST(reopening_a_recreated_review_restores_its_retained_subject) {
+    ecs::RepoComponent repo;
+    open_kept(repo, reading::review("commit"));
+    navigation::remember_commit_subject(repo, "Retained subject");
+    navigation::close(repo, repo.workspace().active_id());
+    navigation::open(repo, reading::review("commit"));
+    auto recreated = repo.workspace().active_id();
+    ASSERT_TRUE(repo.workspace().document(recreated)->subject.empty());
+    navigation::reopen_closed(repo);
+    ASSERT_EQ(repo.workspace().active_id(), recreated);
+    ASSERT_STREQ(repo.workspace().document(recreated)->subject, "Retained subject");
+}
+
 int main() { RUN_ALL_TESTS(); }

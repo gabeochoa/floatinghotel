@@ -1,0 +1,10 @@
+PASS review 100%: divider follows rendered pointer, holds steady, reverses at both limits, footer stays fixed
+PASS files 100%: divider follows rendered pointer, holds steady, reverses at both limits, footer stays fixed
+PASS review 140%: divider follows rendered pointer, holds steady, reverses at both limits, footer stays fixed
+PASS files 140%: divider follows rendered pointer, holds steady, reverses at both limits, footer stays fixed
+PASS review 200%: divider follows rendered pointer, holds steady, reverses at both limits, footer stays fixed
+Traceback (most recent call last):
+  File "/Users/gabeochoa/p/floatinghotel/tests/sidebar_splitter.py", line 52, in <module>
+    assert abs(rect("low_reverse")["y"] - rect("low_limit")["y"] - 20) < 2
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

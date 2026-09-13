@@ -1,0 +1,26 @@
+{
+  "active": 2,
+  "inactive_payloads_empty": true,
+  "tabs": [
+    {
+      "badge": "",
+      "id": 5,
+      "kind": "review",
+      "path": "",
+      "preview": false,
+      "revision": "wt",
+      "title": "Unstaged changes",
+      "tooltip": "Unstaged changes"
+    },
+    {
+      "badge": "",
+      "id": 2,
+      "kind": "source",
+      "path": "a.cpp",
+      "preview": false,
+      "revision": "",
+      "title": "a.cpp",
+      "tooltip": "a.cpp @ working tree"
+    }
+  ]
+}

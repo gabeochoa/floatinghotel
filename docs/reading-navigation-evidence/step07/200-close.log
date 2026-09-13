@@ -1,0 +1,46 @@
+[INFO] Process start to main: 27 ms
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel/settings.json
+[INFO] Pre-graphics init: 3 ms
+[INFO]   Window+GPU init: 90 ms
+[INFO] Registered singleton 1 for afterhours::input::InputCollector (1)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesMaxGamepadID (2)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputMapping (3)
+[INFO] Registered singleton 1 for afterhours::input::ProvidesInputConfig (4)
+[WARN] try_load_gamepad_mappings: no backend configured
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesTargetFPS (5)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (6)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesAvailableWindowResolutions (7)
+[INFO] Registered singleton 2 for afterhours::ui::UIContext<InputAction> (8)
+[INFO] Registered singleton 2 for afterhours::ui::FontManager (9)
+[INFO] Registered singleton 2 for afterhours::ui::TextMeasureCache (10)
+[INFO] Registered singleton 2 for afterhours::ui::UIEntityMappingCache (11)
+[INFO] Registered singleton 2 for afterhours::ui::DragGroupState (12)
+[INFO]   Preload+fonts: 0 ms
+[INFO] Registered singleton 6 for afterhours::modal::ModalRoot (28)
+[INFO] Registered singleton 7 for afterhours::ui::TooltipState (29)
+[INFO]   Systems registration: 0 ms
+[INFO] Startup time: 90 ms (from graphics::run to app_init done)
+[INFO] [Validation] No UI violations detected
+[INFO] git: 69 ms (waited 0 ms for lock): git ls-files
+[INFO] git: 71 ms (waited 0 ms for lock): git status
+[INFO] git: 71 ms (waited 0 ms for lock): git log
+[INFO] refresh: status ready at 71 ms
+[INFO] commits loaded: 1 commits, 71 ms after refresh requested, 199 ms since process start
+[INFO] git: 160 ms (waited 0 ms for lock): git diff
+[INFO] refresh: diff ready at 230 ms
+[INFO] git: 171 ms (waited 0 ms for lock): git branch
+[INFO] refresh: branches ready at 243 ms
+[INFO] git: 171 ms (waited 0 ms for lock): git diff
+[INFO] refresh: done in 243 ms
+[INFO] bench_frames: 120 frames, 150 entities: avg 1.03 ms  p50 0.96  p99 1.36  max 4.34
+[INFO]     0.36 ms/frame  ecs::MainContentSystem
+[INFO]     0.22 ms/frame  afterhours::ui::UIPluginRenderBridge<InputAction>
+[INFO]     0.08 ms/frame  afterhours::ui::UIPluginPostUpdateBridge<InputAction>
+[INFO]     0.07 ms/frame  ecs::SidebarSystem
+[INFO]     0.02 ms/frame  ecs::TabSyncSystem
+[INFO]     0.01 ms/frame  afterhours::ui::validation::ValidateComponentContrast
+[INFO]     0.01 ms/frame  ecs::StatusBarSystem
+[INFO]     0.01 ms/frame  ecs::MenuBarSystem
+[INFO] expect_p99_below: 1.36ms <= 20.00ms (PASS)
+[INFO] E2E finished in 1.42 seconds
