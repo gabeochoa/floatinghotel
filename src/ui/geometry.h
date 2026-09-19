@@ -21,4 +21,17 @@ inline RectangleType visible_rect(afterhours::Entity& entity) {
         static_cast<float>(afterhours::graphics::get_screen_height())});
 }
 
+struct ReadingViewport : afterhours::BaseComponent {
+    float topInset = 0.f;
+};
+
+inline RectangleType reading_rect(afterhours::Entity& entity) {
+    auto rect = visible_rect(entity);
+    const float inset = entity.has<ReadingViewport>() ?
+        std::clamp(entity.get<ReadingViewport>().topInset, 0.f, rect.height) : 0.f;
+    rect.y += inset;
+    rect.height -= inset;
+    return rect;
+}
+
 }

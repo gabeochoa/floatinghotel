@@ -21,6 +21,7 @@ inline void remember_window_size(const LayoutComponent& layout, int width, int h
     if (metal_window_resize_pending()) width = static_cast<int>(std::round(review_layout::window_width(
         layout.sidebarWidth, layout.reviewPanelWidth, layout.shelfCollapsed) * ui::zoom::get()));
     Settings::get().set_commit_log_ratio(layout.commitLogRatio);
+    Settings::get().set_command_log_height(layout.commandLogHeight);
     const int expanded = layout.shelfCollapsed ? static_cast<int>(std::round(
         (layout.sidebarWidth + layout.reviewPanelWidth) * ui::zoom::get())) : width;
     Settings::get().remember_window_size(width, height, layout.shelfCollapsed, expanded, layout.sidebarWidth);

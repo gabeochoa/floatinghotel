@@ -14,6 +14,7 @@ ecs::BlameLine parse_blame_line(const std::string& output);
 // ---- Status Parser (T012) ----
 
 struct StatusResult {
+    std::string headHash;
     std::string branchName;
     std::string upstreamBranch;
     int aheadCount = 0;

@@ -10,6 +10,8 @@ namespace ecs { struct ReviewComponent; }
 // = fresh review. Callers must gate these off in test mode.
 namespace review_store {
 
+std::string copy_repository_reviews(const std::string& oldPath, const std::string& newPath);
+
 // Path to the review JSON for a repo (under afterhours save dir / reviews/).
 std::string review_path(const std::string& repoPath, const std::string& scope = "");
 

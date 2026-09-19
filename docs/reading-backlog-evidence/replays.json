@@ -1,0 +1,57 @@
+[
+  {
+    "test": "sticky",
+    "exit_code": 0,
+    "log": "output/backlog-verified-sticky.log"
+  },
+  {
+    "test": "keyboard200",
+    "exit_code": 0,
+    "log": "output/backlog-verified-keyboard200.log"
+  },
+  {
+    "test": "keyboard_offset",
+    "exit_code": 0,
+    "log": "output/backlog-verified-keyboard_offset.log"
+  },
+  {
+    "test": "caret",
+    "exit_code": 0,
+    "log": "output/backlog-verified-caret.log"
+  },
+  {
+    "test": "gestures",
+    "exit_code": 0,
+    "log": "output/backlog-verified-gestures.log"
+  },
+  {
+    "test": "extent",
+    "exit_code": 0,
+    "log": "output/backlog-verified-extent.log"
+  },
+  {
+    "test": "anchors",
+    "exit_code": 0,
+    "log": "output/backlog-verified-anchors.log"
+  },
+  {
+    "test": "split",
+    "exit_code": 0,
+    "log": "output/backlog-verified-split.log"
+  },
+  {
+    "test": "reading",
+    "exit_code": 0,
+    "log": "output/backlog-verified-reading.log"
+  },
+  {
+    "test": "tooltips",
+    "exit_code": 0,
+    "log": "output/backlog-verified-tooltips.log"
+  },
+  {
+    "test": "metadata",
+    "exit_code": 0,
+    "log": "output/backlog-verified-metadata.log"
+  }
+]

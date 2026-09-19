@@ -325,12 +325,12 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                     .with_custom_background(theme::PANEL_BG).with_debug_name("repo_search_file"));
                 ui::chrome_icon(ctx, mk(header.ent(), 0), group.collapsed ? ui::ChromeIcon::ChevronRight : ui::ChromeIcon::ChevronDown,
                     theme::TEXT_SECONDARY, "repo_search_file_chevron");
-                div(ctx, mk(header.ent(), 1), ComponentConfig{}.with_styled_label(spans)
+                auto fileLabel = div(ctx, mk(header.ent(), 1), ComponentConfig{}.with_styled_label(spans)
                     .with_size(ComponentSize{expand(), pixels(32)}).with_alignment(TextAlignment::Left)
                     .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("repo_search_file_label"));
                 ui::bind_focus(header.ent(), repo, reading::focus::Region::Search, group.file + "@" + group.revision);
-                ui::set_tooltip(header.ent(), group.file + " · " + (group.revision.empty() ? "Working tree" : group.revision));
+                ui::set_truncated_tooltip(header.ent(), group.file + " · " + (group.revision.empty() ? "Working tree" : group.revision), fileLabel.ent());
                 if (header) {
                     group.collapsed = !group.collapsed;
                     repo.repoSearchRebuildRows = true;
@@ -349,7 +349,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_font_size(pixels(12))
                 .with_custom_background(repo.repoSearchSelected == i ? theme::SELECTED_BG : theme::SIDEBAR_BG)
                 .with_debug_name("repo_search_result"));
-            ui::set_tooltip(result.ent(), label);
+            ui::set_truncated_tooltip(result.ent(), label, result.ent());
             if (result) {
                 repo.repoSearchSelected = i;
                 navigation::click(repo, repo_search_location(repo, match), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);

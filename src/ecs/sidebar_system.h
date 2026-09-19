@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../ui/repository_actions.h"
+
 #include "../git/commit_patch.h"
 
 #include <algorithm>
@@ -248,6 +250,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
         const float zoom = ui::zoom::get();
         const bool filesNavigation = layout.sidebarNavigation == LayoutComponent::SidebarNavigation::Files;
+        const bool historyCollapsed = repoPtr && Settings::get().section_collapsed(repoPtr->repoPath, "history");
+        const bool changesCollapsed = repoPtr && Settings::get().section_collapsed(repoPtr->repoPath, "changes");
         float filesH = 0.f;
         float commitsH = 0.f;
         float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
@@ -301,7 +305,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_debug_name("working_review_views"));
             for (bool staged : {false, true}) {
                 const auto count = staged ? repoPtr->stagedFiles.size() : repoPtr->unstagedFiles.size() + repoPtr->untrackedFiles.size();
-                const auto label = std::string(staged ? "Staged" : "Unstaged") + " (" + std::to_string(count) + ")";
+                const auto label = std::string(staged ? "Staged" : "Unstaged") + " (" + (repoPtr->statusKnown ? std::to_string(count) : "?") + ")";
                 const bool active = std::holds_alternative<reading::WorkingChanges>(repoPtr->workspace().review().destination) &&
                     repoPtr->selectedFileStaged() == staged;
                 if (button(ctx, mk(views.ent(), staged ? 1 : 0), preset::Button(label)
@@ -445,9 +449,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             commitsH = layout.sidebarLog.height;
         } else {
             splitAvailable = std::max(0.f, splitAvailable - repoHeaderH);
-            commitsH = splitAvailable * layout.commitLogRatio;
+            commitsH = historyCollapsed ? 32.f : changesCollapsed ? std::max(32.f, splitAvailable - 32.f) : splitAvailable * layout.commitLogRatio;
             render_commit_files(ctx, sidebarRoot.ent(), repoPtr, splitAvailable - commitsH);
         }
+        if (historyCollapsed) commitsH = 32.f;
         auto divider = afterhours::ui::imm::divider(ctx, mk(sidebarRoot.ent(), 2200), Axis::Y,
             ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(LayoutComponent::kCommitSplitterHeight)})
@@ -487,13 +492,32 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_flex_direction(FlexDirection::Row).with_no_wrap()
                     .with_padding(Padding{.left = pixels(14), .right = pixels(12)})
                     .with_debug_name("log_header"));
-            div(ctx, mk(heading.ent(), 0), preset::BodyText("COMMIT HISTORY")
-                .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11))
-                .with_custom_text_color(theme::TEXT_TERTIARY));
-            div(ctx, mk(heading.ent(), 1), preset::BodyText(branch)
-                .with_size(ComponentSize{pixels(72), pixels(32)}).with_font_size(pixels(11))
+            if (button(ctx, mk(heading.ent(), 0), preset::Button(std::string(historyCollapsed ? "▸ " : "▾ ") + "COMMIT HISTORY")
+                .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11)).with_transparent_bg()
+                .with_custom_text_color(theme::TEXT_TERTIARY).with_debug_name("history_section_toggle")) && repoPtr)
+                Settings::get().set_section_collapsed(repoPtr->repoPath, "history", !historyCollapsed);
+            if (repoPtr && repoPtr->historyScope.mode == git::HistoryScope::Mode::All) branch = "All refs";
+            else if (repoPtr && repoPtr->historyScope.mode == git::HistoryScope::Mode::Branch) branch = repoPtr->historyScope.branch;
+            if (button(ctx, mk(heading.ent(), 1), preset::Button(branch.empty() ? "Scope" : branch)
+                .with_size(ComponentSize{pixels(92), pixels(32)}).with_font_size(pixels(11))
                 .with_custom_text_color(theme::TEXT_SECONDARY).with_alignment(TextAlignment::Right)
-                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("history_branch"));
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("history_branch")) && repoPtr) {
+                std::vector<ui::ContextMenuItem> items;
+                auto add = [&](const std::string& label, git::HistoryScope scope) {
+                    items.push_back(ui::ContextMenuItem::item(label, [scope] {
+                        if (auto* active = find_singleton<RepoComponent, ActiveTab>()) change_history_scope(*active, scope);
+                    }));
+                };
+                add("Current branch", {});
+                add("All refs", {git::HistoryScope::Mode::All, "", repoPtr->historyScope.remotes});
+                auto remoteScope = repoPtr->historyScope;
+                remoteScope.remotes = !remoteScope.remotes;
+                add(remoteScope.remotes ? "Include remote refs" : "Hide remote refs", remoteScope);
+                items.push_back(ui::ContextMenuItem::separator());
+                for (const auto& branchInfo : repoPtr->branches) if (branchInfo.isLocal)
+                    add(branchInfo.name, {git::HistoryScope::Mode::Branch, "refs/heads/" + branchInfo.name, repoPtr->historyScope.remotes});
+                ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+            }
         }
 
         // === Scrollable commit log entries ===
@@ -507,13 +531,13 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         auto logPanel = preset::ScrollPanel()
             .with_size(ComponentSize{logW, pixels(logScrollH)})
             .with_debug_name("commit_log_scroll");
-        const size_t logRows = repoPtr ? repoPtr->commitLog.size() : 0;
+        const size_t logRows = repoPtr && !historyCollapsed ? repoPtr->commitLog.size() : 0;
         const bool windowedLog = repoPtr && logRows > 0;
         const bool logHasMore = windowedLog && repoPtr->commitLogHasMore;
         constexpr float commitRowPx = theme::layout::COMMIT_ROW_HEIGHT;
         constexpr float lazyRowPx = 24.f;
         if (repoPtr) {
-            auto key = repoPtr->repoPath + ":" + std::to_string(repoPtr->dataGeneration) + ":" + std::to_string(repoPtr->commitLog.size());
+            auto key = repoPtr->repoPath + ":" + repoPtr->historyScope.key() + ":" + std::to_string(repoPtr->dataGeneration) + ":" + std::to_string(repoPtr->commitLog.size());
             if (!repoPtr->commitLog.empty()) key += repoPtr->commitLog.front().hash;
             if (key != graphKey_) { graphKey_ = key; graph_ = commit_graph::build(repoPtr->commitLog); }
         }
@@ -527,7 +551,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             auto [listEntity, listOwner] = afterhours::ui::imm::deref(logList);
             ctx.set_focus(listEntity.id);
         }
-        const auto historyMove = repoPtr ? history_keys(ctx, *repoPtr, layout, logList) : std::nullopt;
+        const auto historyMove = repoPtr && !historyCollapsed ? history_keys(ctx, *repoPtr, layout, logList) : std::nullopt;
         auto logScroll = windowedLog
             ? ui::virtual_list(
                   ctx, logList, logRows + (logHasMore ? 1 : 0),
@@ -546,7 +570,27 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
         if (repoPtr) {
             ui::bind_focus_region(logScroll.ent(), *repoPtr, reading::focus::Region::History);
-            if (!windowedLog) render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
+            if (logScroll.ent().has<afterhours::ui::HasScrollView>() && !repoPtr->commitLog.empty()) {
+                auto& scroll = logScroll.ent().get<afterhours::ui::HasScrollView>();
+                auto& position = repoPtr->historyPositions[repoPtr->historyScope.key()];
+                const auto rowHeight = theme::layout::COMMIT_ROW_HEIGHT * ui::zoom::get();
+                if (repoPtr->historyRestorePosition) {
+                    auto found = std::find_if(repoPtr->commitLog.begin(), repoPtr->commitLog.end(), [&](const auto& commit) { return commit.hash == position.top; });
+                    const float offset = found == repoPtr->commitLog.end() ? 0.f : (static_cast<float>(found - repoPtr->commitLog.begin()) + position.fraction) * rowHeight;
+                    if (found == repoPtr->commitLog.end() && !position.top.empty() && repoPtr->commitLogHasMore && repoPtr->commitLog.size() < 5000) {
+                        repoPtr->commitLogPage.requested = true;
+                    } else {
+                        scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = offset;
+                        scroll.anchor_child = -1;
+                        repoPtr->historyRestorePosition = false;
+                    }
+                } else {
+                    const auto index = std::min(repoPtr->commitLog.size() - 1, static_cast<size_t>(std::max(0.f, scroll.scroll_offset.y) / rowHeight));
+                    position.top = repoPtr->commitLog[index].hash;
+                    position.fraction = scroll.scroll_offset.y / rowHeight - static_cast<float>(index);
+                }
+            }
+            if (!windowedLog && !historyCollapsed) render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
             if (historyMove) {
                 navigation::preview(*repoPtr, reading::review(repoPtr->commitLog[*historyMove].hash));
                 if (afterhours::input::is_key_pressed(257)) navigation::keep(*repoPtr, repoPtr->workspace().active_id());
@@ -712,14 +756,16 @@ private:
             .with_size(ComponentSize{percent(1.f), pixels(32)})
             .with_flex_direction(FlexDirection::Row).with_no_wrap()
             .with_padding(Padding{.left = pixels(14), .right = pixels(12)}).with_debug_name("changed_files_header"));
-        div(ctx, mk(heading.ent(), 0), preset::BodyText("CHANGED FILES" +
+        const bool sectionCollapsed = repo && Settings::get().section_collapsed(repo->repoPath, "changes");
+        if (button(ctx, mk(heading.ent(), 0), preset::Button(std::string(sectionCollapsed ? "▸ " : "▾ ") + "CHANGED FILES" +
             (files ? "  " + std::to_string(files->size()) : ""))
-            .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11))
-            .with_custom_text_color(theme::TEXT_TERTIARY));
+            .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11)).with_transparent_bg()
+            .with_custom_text_color(theme::TEXT_TERTIARY).with_debug_name("changes_section_toggle")) && repo)
+            Settings::get().set_section_collapsed(repo->repoPath, "changes", !sectionCollapsed);
         if (files && review) {
             const auto* origin = repo && source_tab_active(*repo) ? repo->workspace().retained_review() : nullptr;
-            const auto progress = origin && origin->files ? review_progress(*review, scope, *origin->files) :
-                review_progress(*review, scope, *files);
+            const auto progress = origin && origin->files ? ui::cached_review_progress(*review, scope, *origin->files) :
+                ui::cached_review_progress(*review, scope, *files);
             if (layout && layout->shelfCollapsed && progress.reviewed < progress.total) {
                 const auto remaining = progress.total - progress.reviewed;
                 if (button(ctx, mk(heading.ent(), 1), preset::Button(std::to_string(remaining) + " left")
@@ -728,13 +774,13 @@ private:
                     auto destination = repo->workspace().review();
                     if (origin && origin->files) {
                         for (const auto& file : *origin->files) {
-                            if (file_reviewed(*review, scope, file)) continue;
+                            if (ui::reviewed_file(*review, scope, file)) continue;
                             destination.file = file.path;
                             break;
                         }
                     } else {
                         for (const auto& file : *files) {
-                            if (file_reviewed(*review, scope, file)) continue;
+                            if (ui::reviewed_file(*review, scope, file)) continue;
                             destination.file = file.filePath;
                             break;
                         }
@@ -748,7 +794,7 @@ private:
                     .with_debug_name("tree_review_progress"));
             }
         }
-        if (height <= 32.f || (layout && layout->shelfCollapsed && files && files->empty())) return;
+        if (sectionCollapsed || height <= 32.f || (layout && layout->shelfCollapsed && files && files->empty())) return;
         auto search = div(ctx, mk(section.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(38)})
             .with_padding(Padding{.left = pixels(16), .right = pixels(16), .bottom = pixels(8)})
@@ -838,27 +884,27 @@ private:
                     activeTreePath == node.path)
                     .with_debug_name("commit_changed_file"));
                 ui::bind_tree_row(ctx, row.ent(), *repo, treeState, node.path);
-                ui::set_tooltip(row.ent(), node.path);
                 div(ctx, mk(row.ent(), 3), ComponentConfig{}.with_label(ui::file_tree_style::type_marker(node.path))
                     .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(11))
                     .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("tree_file_type"));
-                div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(sidebar_detail::basename_from_path(node.path))
+                auto fileLabel = div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(sidebar_detail::basename_from_path(node.path))
                         .with_size(ComponentSize{expand(), pixels(28)}).with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY).with_alignment(TextAlignment::Left)
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path));
+                ui::set_truncated_tooltip(row.ent(), node.path, fileLabel.ent());
                 if (row) selectedPath = file.filePath;
                 if (ctx.is_right_click(row.ent().id)) {
                     ui::remember_focus_origin(ctx, row.ent());
                     open_review_file_menu(ctx, *repo, file);
                 }
                 if (review) {
-                    bool reviewed = file_reviewed(*review, scope, file);
+                    bool reviewed = ui::reviewed_file(*review, scope, file);
                     if (source_tab_active(*repo)) {
                         const auto* origin = repo->workspace().retained_review();
                         if (origin && origin->files)
                             for (const auto& summary : *origin->files)
-                                if (summary.path == file.filePath) { reviewed = file_reviewed(*review, scope, summary); break; }
+                                if (summary.path == file.filePath) { reviewed = ui::reviewed_file(*review, scope, summary); break; }
                     }
                     bool changed = false;
                     if (scope == "wt") {
@@ -1024,10 +1070,27 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("repo_header_label"));
         div(ctx, mk(text.ent(), 1), ComponentConfig{}
-            .with_label(branch.empty() ? "Open a repository" : branch + (dirty ? " *" : ""))
+            .with_label(branch.empty() ? (repo && !repo->repoPath.empty() ? "Reading branch..." : "Open a repository") : branch + (dirty ? " *" : ""))
             .with_size(ComponentSize{percent(1.f), pixels(19)})
             .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("repo_branch_label"));
+        if (repo && !repo->repoPath.empty() && button(ctx, mk(row.ent(), 3), preset::Button("…")
+            .with_size(ComponentSize{pixels(28), pixels(28)}).with_tooltip("Repository navigation")
+            .with_debug_name("repository_navigation"))) {
+            std::vector<ui::ContextMenuItem> items;
+            for (auto kind : {git::catalog::Kind::Worktree, git::catalog::Kind::Submodule, git::catalog::Kind::Reflog, git::catalog::Kind::Stash})
+                items.push_back(ui::ContextMenuItem::item(git::catalog::label(kind), [kind] {
+                    auto* active = find_singleton<RepoComponent, ActiveTab>();
+                    auto* layout = find_singleton<LayoutComponent>();
+                    if (active && layout) navigation::open_catalog(*active, *layout, kind);
+                }));
+            const auto& pins = Settings::get().get_pinned_repos();
+            const bool pinned = std::find(pins.begin(), pins.end(), repo->repoPath) != pins.end();
+            items.push_back(ui::ContextMenuItem::item(pinned ? "Unpin repository" : "Pin repository", [path = repo->repoPath, pinned] {
+                Settings::get().set_repo_pinned(path, !pinned);
+            }));
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+        }
     }
 
     // Sync actions (Push / Pull / Stash) grouped under the repo header so they
@@ -1089,7 +1152,7 @@ private:
             pullLabel += " (" + std::to_string(repo->behindCount) + ")";
 
         if (syncBtn(2087, pushLabel, hasRepo))
-            enqueue_network_op("Push", git::git_run_async(repo->repoPath, {"push"}));
+            open_push_dialog(*repo);
         if (syncBtn(2088, pullLabel, hasRepo))
             enqueue_network_op("Pull", git::git_run_async(repo->repoPath, {"pull"}));
         if (syncBtn(2089, "Stash", hasRepo)) {
@@ -2061,7 +2124,6 @@ private:
                 depth, selected)
                 .with_debug_name("file_row"));
         ui::bind_tree_row(ctx, row.ent(), repo, repo.filesTreeNavigation, path);
-        ui::set_tooltip(row.ent(), path);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 
@@ -2090,18 +2152,19 @@ private:
                 .with_alignment(TextAlignment::Center)
                 .with_debug_name("file_status"));
 
-        div(ctx, mk(row.ent(), 1),
+        auto fileLabel = div(ctx, mk(row.ent(), 1),
             preset::BodyText(fname)
                 .with_size(ComponentSize{afterhours::ui::expand(), pixels(28)})
                 .with_font_size(pixels(13))
                 .with_custom_text_color(textCol)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("file_name"));
+        ui::set_truncated_tooltip(row.ent(), path, fileLabel.ent());
 
         // Directory hint sits right after the filename (not floated far-right).
         if (!dir.empty()) {
             auto dirCol = theme::TEXT_SECONDARY;
-            div(ctx, mk(row.ent(), 2),
+            auto directoryLabel = div(ctx, mk(row.ent(), 2),
                 preset::MetaText(dir)
                     .with_size(ComponentSize{pixels(dirW), children()})
                     .with_custom_text_color(dirCol)
@@ -2109,6 +2172,7 @@ private:
                     .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("file_dir"));
+            row.ent().get<ui::TruncatedTooltip>().labels.push_back(directoryLabel.ent().id);
         }
 
         if (auto* rowReview = find_singleton<ReviewComponent, ActiveTab>(); rowReview && !allFilesMode_) {
@@ -2120,7 +2184,7 @@ private:
                 changed = seen != rowReview->seenSig.end() && ui::diff_metrics().signature(*rowDiff) != seen->second;
             }
             ui::file_tree_style::review_indicator(ctx, row.ent(), rowDiff != rowDiffs.end() &&
-                file_reviewed(*rowReview, staged ? "index" : "wt", *rowDiff),
+                ui::reviewed_file(*rowReview, staged ? "index" : "wt", *rowDiff),
                 unresolved_file_count(*rowReview, staged ? "index" : "wt", path, oldPath), changed);
         }
 
@@ -2202,9 +2266,7 @@ private:
             // On a loaded machine the log can trail the diff by seconds;
             // "No commits yet" during that window reads as a broken sidebar.
             div(ctx, mk(scrollParent, 0),
-                preset::EmptyStateText(repo.commitLogLoading
-                                           ? "Loading commits\xe2\x80\xa6"
-                                           : "No commits yet")
+                preset::EmptyStateText(repo.commitLogLoading ? "Loading commits..." : !repo.historyError.empty() ? repo.historyError : "No commits yet")
                     .with_size(ComponentSize{percent(1.0f), h720(32)})
                     .with_padding(Padding{
                         .top = h720(16), .right = pixels(8),
@@ -2255,7 +2317,7 @@ private:
         const auto owner = ui::shortcut_owner(ctx, repo);
         if (owner.region != reading::focus::Region::History || owner.text || repo.commitLog.empty() ||
             ui::shortcuts_blocked(layout) || layout.filePickerOpen) return {};
-        for (const int key : {340, 344, 341, 345, 342, 346, 343, 347})
+        for (const int key : {341, 345, 342, 346, 343, 347})
             if (afterhours::input::is_key_down(key)) return {};
         const bool up = afterhours::input::is_key_pressed(265);
         const bool down = afterhours::input::is_key_pressed(264);
@@ -2290,6 +2352,7 @@ private:
             scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = offset;
             scroll.anchor_child = -1;
         }
+        select_history(repo, repo.commitLog[index].hash);
         return index;
     }
 
@@ -2297,7 +2360,7 @@ private:
                            Entity& parent, int index,
                            const CommitEntry& commit,
                            RepoComponent& repo, bool focus = false, bool acceptClick = true) {
-        bool selected = (commit.hash == repo.selectedCommitHash());
+        bool selected = repo.historySelection.hashes.empty() ? commit.hash == repo.selectedCommitHash() : repo.historySelection.hashes.contains(commit.hash);
         constexpr float ROW_H = theme::layout::COMMIT_ROW_HEIGHT;
 
         int baseId = index * 2 + 10;
@@ -2424,9 +2487,58 @@ private:
         if (acceptClick && row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
+                select_history(*r, commit.hash);
                 navigation::click(*r, reading::review(commit.hash), afterhours::input::is_key_pressed(257), reading::ClickRegion::History);
             }
         }
+        if (ctx.is_right_click(row.ent().id)) {
+            ui::remember_focus_origin(ctx, row.ent());
+            if (!repo.historySelection.hashes.contains(commit.hash)) {
+                repo.historySelection.hashes = {commit.hash};
+                repo.historySelection.anchor = commit.hash;
+            }
+            const auto selectedCommits = repo.historySelection.visible(repo.commitLog);
+            std::string hashes, subjects;
+            for (const auto& selectedCommit : selectedCommits) {
+                if (!hashes.empty()) { hashes += "\n"; subjects += "\n"; }
+                hashes += selectedCommit.hash;
+                subjects += selectedCommit.subject;
+            }
+            std::vector<ui::ContextMenuItem> items;
+            items.push_back(ui::ContextMenuItem::item("Copy selected hashes", [hashes] { afterhours::clipboard::set_text(hashes); }));
+            items.push_back(ui::ContextMenuItem::item("Copy selected subjects", [subjects] { afterhours::clipboard::set_text(subjects); }));
+            const bool contiguous = repo.historySelection.contiguous(repo.commitLog);
+            const auto target = selectedCommits.empty() ? "" : selectedCommits.front().hash;
+            const auto parents = selectedCommits.empty() ? "" : selectedCommits.back().parentHashes;
+            const auto base = parents.empty() ? "empty" : parents.substr(0, parents.find(' '));
+            items.push_back(ui::ContextMenuItem::item("Review selected range", [base, target] {
+                if (auto* active = find_singleton<RepoComponent, ActiveTab>())
+                    navigation::open(*active, reading::review("compare:" + base + ":" + target), true, reading::OpenMode::Keep);
+            }, contiguous));
+            items.push_back(ui::ContextMenuItem::item("Open commit", [hash = commit.hash] {
+                if (auto* active = find_singleton<RepoComponent, ActiveTab>())
+                    navigation::open(*active, reading::review(hash), {}, reading::OpenMode::Keep);
+            }));
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+        }
+    }
+
+    static void change_history_scope(RepoComponent& repo, git::HistoryScope scope) {
+        if (scope == repo.historyScope) return;
+        repo.historyPositions[repo.historyScope.key()].selection = repo.historySelection;
+        if (repo.historyPositions.size() > 64) repo.historyPositions.erase(repo.historyPositions.begin());
+        repo.historyScope = std::move(scope);
+        repo.historySelection = repo.historyPositions[repo.historyScope.key()].selection;
+        repo.historyScopeRequested = true;
+        repo.historyRestorePosition = true;
+    }
+
+    static void select_history(RepoComponent& repo, const std::string& hash) {
+        std::vector<std::string> visible;
+        for (const auto& entry : repo.commitLog) visible.push_back(entry.hash);
+        repo.historySelection.select(visible, hash,
+            afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344),
+            afterhours::input::is_key_down(343) || afterhours::input::is_key_down(347));
     }
 
     // ---- Unstaged Changes Dialog (T030) ----

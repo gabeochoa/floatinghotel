@@ -1,5 +1,6 @@
 #include "git_runner.h"
 #include "repository_lock.h"
+#include "log_redaction.h"
 
 #include "../../vendor/afterhours/src/logging.h"
 
@@ -22,9 +23,11 @@ static bool is_read_only(const std::vector<std::string>& args) {
     if (verb == "status" || verb == "log" || verb == "diff" || verb == "grep" || verb == "blame" ||
         verb == "rev-parse" || verb == "show" || verb == "for-each-ref" || verb == "merge-base" ||
         verb == "ls-files" || verb == "ls-tree" || verb == "cat-file" || verb == "rev-list" ||
-        verb == "range-diff" || verb == "ls-remote")
+        verb == "version" || (verb == "help" && args.size() == 2 && args[1] == "-a") || verb == "range-diff" || verb == "ls-remote" || verb == "check-ref-format" ||
+        (verb == "symbolic-ref" && args.size() > 1 && args[1] == "--quiet"))
         return true;
-    if (verb == "remote") return args.size() == 1 ||
+    if (verb == "config") return args.size() > 1 && (args[1] == "--get" || args[1] == "--get-all" || args[1] == "--list");
+    if (verb == "remote") return (args.size() > 1 && args[1] == "get-url") || args.size() == 1 ||
         (args.size() == 2 && (args[1] == "-v" || args[1] == "--verbose"));
     if (verb == "branch") {
         for (size_t i = 1; i < args.size(); ++i) {
@@ -36,6 +39,8 @@ static bool is_read_only(const std::vector<std::string>& args) {
         }
         return true;
     }
+    if (verb == "worktree") return args.size() > 1 && args[1] == "list";
+    if (verb == "hash-object") return args == std::vector<std::string>{"hash-object", "-t", "tree", "--stdin"};
     if (verb == "stash") return args.size() > 1 && args[1] == "list";
     return false;
 }
@@ -60,16 +65,6 @@ void set_log_callback(LogCallback cb) {
 
 namespace {
 
-std::string build_command_string(
-    const std::vector<std::string>& cmd) {
-    std::string result;
-    for (size_t i = 0; i < cmd.size(); ++i) {
-        if (i > 0) result += ' ';
-        result += cmd[i];
-    }
-    return result;
-}
-
 template <class Fn, class... Args>
 async_work::Task<GitResult> spawn(Fn fn, Args... args) {
     return async_work::launch([=](std::stop_token stop) { return fn(args..., stop); },
@@ -84,7 +79,13 @@ async_work::Task<RevisionComparison> git_compare_async(const std::string& repo,
     return async_work::launch([=](std::stop_token stop) {
         RevisionComparison out;
         auto resolve = [&](const std::string& revision, std::string& hash) {
-            out.patch = git_run(repo, {"rev-parse", "--verify", "--end-of-options", revision + "^{commit}"}, stop);
+            if (revision == "empty") {
+                out.patch = git_run(repo, {"hash-object", "-t", "tree", "--stdin"}, stop);
+            } else {
+                out.patch = git_run(repo, {"rev-parse", "--verify", "--end-of-options", revision + "^{commit}"}, stop);
+                if (!out.patch.success() && revision == base)
+                    out.patch = git_run(repo, {"rev-parse", "--verify", "--end-of-options", revision + "^{tree}"}, stop);
+            }
             if (!out.patch.success()) return false;
             hash = out.patch.stdout_str();
             while (!hash.empty() && (hash.back() == '\n' || hash.back() == '\r')) hash.pop_back();
@@ -142,6 +143,8 @@ GitResult git_run(const std::string& repo_path,
         result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
     }
     const auto t2 = clock::now();
+    result.lockMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
+    result.processMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
     auto ms = [](auto d) {
         return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
     };
@@ -151,13 +154,14 @@ GitResult git_run(const std::string& repo_path,
     {
         std::lock_guard lock(g_log_mutex);
         if (g_log_callback) {
+            auto safe = redact_git_log(cmd, bounded_log_output(result.stdout_str()), bounded_log_output(result.stderr_str()));
             if (result.raw.outputStopped && !result.raw.cancelled)
-                g_log_callback(build_command_string(cmd),
+                g_log_callback(safe.command,
                                "Output capture stopped at the requested output limit",
-                               result.stderr_str(), true);
+                               safe.error, true);
             else
-                g_log_callback(build_command_string(cmd), result.stdout_str(),
-                               result.stderr_str(), result.success());
+                g_log_callback(safe.command, safe.output,
+                               safe.error, result.success());
         }
     }
 

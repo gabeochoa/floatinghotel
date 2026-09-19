@@ -10,5 +10,5 @@ screenshot improvement_46_found
 assert_ui diff_find_match hidden=false
 click_ui diff_find_close
 screenshot improvement_46_sticky
-assert_ui sticky_diff_context hidden=false
+assert_ui file_header_row hidden=false
 expect_text "changed 901"

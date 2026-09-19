@@ -252,4 +252,40 @@ TEST(closing_a_queued_prefetch_does_not_admit_another_until_the_job_drains) {
     ASSERT_TRUE(closedRejected);
 }
 
+TEST(simultaneous_patch_requests_share_git_and_cancellation_preserves_the_other_reader) {
+    char pattern[] = "/tmp/fh-commit-share.XXXXXX";
+    const auto directory = mkdtemp(pattern);
+    ASSERT_TRUE(directory != nullptr);
+    const std::filesystem::path path(directory);
+    ASSERT_TRUE(git::git_run(directory, {"init", "-q"}).success());
+    { std::ofstream file(path / ".gitattributes"); file << "slow.txt diff=slow\n"; }
+    { std::ofstream file(path / "slow.txt"); file << "content\n"; }
+    ASSERT_TRUE(git::git_run(directory, {"add", "."}).success());
+    ASSERT_TRUE(git::git_run(directory, {"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "-qm", "shared read"}).success());
+    const auto script = path / "read.sh";
+    { std::ofstream file(script); file << "#!/bin/sh\ntouch '" << (path / "started").string() << "'\nwhile [ ! -e '" << (path / "release").string() << "' ]; do sleep 0.01; done\ncat \"$1\"\n"; }
+    std::filesystem::permissions(script, std::filesystem::perms::owner_all);
+    ASSERT_TRUE(git::git_run(directory, {"config", "diff.slow.textconv", script.string()}).success());
+    std::atomic<int> shows = 0;
+    git::set_log_callback([&](const auto& command, const auto&, const auto&, bool) { if (command.find(" show ") != std::string::npos) ++shows; });
+    const auto shared = git::commit_patch_shared_reads();
+    auto first = git::load_commit_patch_async({directory, "HEAD"});
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (!std::filesystem::exists(path / "started") && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+    auto second = git::load_commit_patch_async({directory, "HEAD"});
+    while (git::commit_patch_shared_reads() == shared && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+    const bool joined = git::commit_patch_shared_reads() > shared;
+    first.cancel();
+    { std::ofstream release(path / "release"); release << "ready"; }
+    auto cancelled = first.get();
+    auto loaded = second.get();
+    git::set_log_callback({});
+    ASSERT_TRUE(joined);
+    ASSERT_FALSE(cancelled.error.empty());
+    ASSERT_TRUE(loaded.error.empty());
+    ASSERT_EQ(shows.load(), 2);
+    printf("  shared patch: two readers, one patch command and one metadata command\n");
+    std::filesystem::remove_all(path);
+}
+
 int main() { RUN_ALL_TESTS(); }

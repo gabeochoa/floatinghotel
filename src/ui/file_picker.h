@@ -5,6 +5,7 @@
 #include "focus.h"
 #include "diff_renderer.h"
 #include "virtual_list.h"
+#include "../ecs/tab_bar_system.h"
 #include <afterhours/src/plugins/modal.h>
 
 namespace ecs {
@@ -29,6 +30,22 @@ inline void update_file_picker_paths(RepoComponent& repo, LayoutComponent& layou
         layout.filePickerCacheKey.clear();
         if (!std::holds_alternative<reading::WorkingTree>(revision))
             scope.future = git::load_paths_async(repo.repoPath, revision);
+        scope.changesFuture = {};
+        scope.changes = {};
+        if (std::holds_alternative<reading::ObjectId>(revision)) {
+            std::string before;
+            if (const auto* review = std::get_if<reading::ReviewLocation>(&repo.workspace().location())) {
+                if (const auto* comparison = std::get_if<reading::ComparisonReview>(&review->destination)) before = reading::revision_text(comparison->before);
+                if (const auto* commit = std::get_if<reading::CommitReview>(&review->destination); commit && commit->parent) before = reading::revision_text(*commit->parent);
+            }
+            scope.changesFuture = async_work::launch([path = repo.repoPath, oid = reading::revision_text(revision), before](std::stop_token stop) {
+                return git::catalog::changes(path, oid, before, stop);
+            }, async_work::Priority::Background, git::catalog::Changes{{}, "", "Change status unavailable"});
+        }
+    }
+    if (scope.changesFuture.valid() && scope.changesFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto result = scope.changesFuture.get();
+        if (navigation::accepts(repo, scope.request, key)) { scope.changes = std::move(result); ++scope.catalogVersion; }
     }
     if (scope.future.valid() && scope.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto result = scope.future.get();
@@ -180,6 +197,86 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
     }
 }
 
+inline void update_picker_catalog(RepoComponent& repo, LayoutComponent& layout) {
+    auto& scope = layout.filePickerScope;
+    const auto path = repo.repoPath;
+    if (!scope.catalogStarted) {
+        scope.catalogStarted = true;
+        scope.localFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, false, stop); },
+            async_work::Priority::Foreground, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
+        scope.remoteFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, true, stop); },
+            async_work::Priority::Background, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
+        scope.catalogQuery = layout.filePickerQuery;
+        scope.catalogDue = std::chrono::steady_clock::now();
+    }
+    if (scope.catalogQuery != layout.filePickerQuery) {
+        scope.commitsFuture = {};
+        scope.commits = {};
+        scope.catalogQuery = layout.filePickerQuery;
+        scope.catalogDue = std::chrono::steady_clock::now() + std::chrono::milliseconds(150);
+        ++scope.catalogVersion;
+    }
+    if (scope.catalogDue && std::chrono::steady_clock::now() >= *scope.catalogDue) {
+        scope.catalogDue.reset();
+        scope.commitsFuture = async_work::launch([path, query = scope.catalogQuery](std::stop_token stop) {
+            return git::catalog::commits(path, query, stop);
+        }, async_work::Priority::Foreground, git::catalog::Page{{}, "Reader queue is full; change the query to retry"});
+    }
+    const bool extraCategory = scope.category == git::catalog::Kind::Reflog || scope.category == git::catalog::Kind::Stash || (scope.category == git::catalog::Kind::Worktree || scope.category == git::catalog::Kind::Submodule || scope.category == git::catalog::Kind::Diagnostic);
+    if (!extraCategory) {
+        scope.extraFuture = {};
+        scope.statusFuture = {};
+        scope.extraKey.clear();
+    }
+    if (extraCategory) {
+        const auto key = std::to_string(static_cast<int>(scope.category)) + ":" + (scope.category == git::catalog::Kind::Reflog ? layout.filePickerQuery : "");
+        if (key != scope.extraKey || scope.moreRequested) {
+            const bool append = key == scope.extraKey;
+            scope.extraOffset = append ? scope.extra.entries.size() : 0;
+            if (!append) scope.extra = {};
+            scope.extraKey = key;
+            scope.moreRequested = false;
+            scope.extraFuture = async_work::launch([path, kind = scope.category, query = layout.filePickerQuery, offset = scope.extraOffset](std::stop_token stop) {
+                if (kind == git::catalog::Kind::Reflog) return git::catalog::reflog(path, offset, query, stop);
+                if (kind == git::catalog::Kind::Stash) return git::catalog::stashes(path, stop, offset);
+                if (kind == git::catalog::Kind::Diagnostic) return git::catalog::diagnostics(path, stop);
+                if (kind == git::catalog::Kind::Submodule) return git::catalog::submodules(path, stop);
+                return git::catalog::worktrees(path, stop);
+            }, async_work::Priority::Foreground, git::catalog::Page{{}, "Reader queue is full; retry"});
+        }
+        if (scope.extraFuture.valid() && scope.extraFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            auto result = scope.extraFuture.get();
+            scope.extra.error = std::move(result.error);
+            scope.extra.more = result.more;
+            scope.extra.entries.insert(scope.extra.entries.end(), std::make_move_iterator(result.entries.begin()), std::make_move_iterator(result.entries.end()));
+            ++scope.catalogVersion;
+        }
+        if ((scope.category == git::catalog::Kind::Worktree || scope.category == git::catalog::Kind::Submodule)) {
+            if (scope.statusFuture.valid() && scope.statusFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                scope.worktreeStatus[scope.statusPath] = scope.statusFuture.get();
+                ++scope.catalogVersion;
+            }
+            if (!scope.statusFuture.valid()) for (const auto& entry : scope.extra.entries) {
+                if (scope.worktreeStatus.contains(entry.identity)) continue;
+                scope.statusPath = entry.identity;
+                scope.statusFuture = async_work::launch([path = entry.identity, kind = entry.kind](std::stop_token stop) { return kind == git::catalog::Kind::Submodule ? git::catalog::submodule_status(path, stop) : git::catalog::worktree_status(path, stop); },
+                    async_work::Priority::Background, std::string("Status unavailable: reader queue full"));
+                break;
+            }
+        }
+    }
+    auto poll = [&](auto& future, auto& page) {
+        if (!future.valid() || future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+        auto result = future.get();
+        if (!scope.owner || !navigation::accepts(repo, *scope.owner, scope.owner->key)) return;
+        page = std::move(result);
+        ++scope.catalogVersion;
+    };
+    poll(scope.localFuture, scope.localRefs);
+    poll(scope.remoteFuture, scope.remoteRefs);
+    poll(scope.commitsFuture, scope.commits);
+}
+
 inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                                 RepoComponent& repo, LayoutComponent& layout, float height) {
     bool revealSelection = layout.filePickerFocus;
@@ -188,7 +285,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     auto& position = layout.filePickerPosition;
     auto heading = div(ctx, mk(parent, 586000), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row).with_gap(pixels(6)));
-    div(ctx, mk(heading.ent(), 0), ComponentConfig{}.with_label("Go to file")
+    div(ctx, mk(heading.ent(), 0), ComponentConfig{}.with_label("Quick Open")
         .with_size(ComponentSize{children(), pixels(30)}).with_font_size(pixels(14)));
     if (button(ctx, mk(heading.ent(), 1), preset::Button(file_picker_revision_label(scope.documentRevision))
             .with_size(ComponentSize{children(), pixels(28)})
@@ -211,6 +308,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         layout.filePickerFocus = true;
     }
     update_file_picker_paths(repo, layout);
+    update_picker_catalog(repo, layout);
     const bool working = std::holds_alternative<reading::WorkingTree>(scope.listing.revision);
     const auto& paths = working ? repo.allFilePaths : scope.listing.paths;
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 586001), layout.filePickerQuery,
@@ -219,48 +317,161 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         ui::focus_control(ctx, input.ent());
         layout.filePickerFocus = false;
     }
+    auto categories = div(ctx, mk(parent, 586004), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_flex_direction(FlexDirection::Row).with_gap(pixels(4)));
+    const std::array kinds{git::catalog::Kind::All, git::catalog::Kind::File, git::catalog::Kind::Commit,
+        git::catalog::Kind::Branch, git::catalog::Kind::Tag};
+    for (size_t i = 0; i < kinds.size(); ++i) {
+        if (button(ctx, mk(categories.ent(), static_cast<int>(i)), preset::Button(git::catalog::label(kinds[i]))
+            .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+            .with_custom_background(scope.category == kinds[i] ? theme::SELECTED_BG : theme::PANEL_BG)
+            .with_debug_name("quick_open_category_" + git::catalog::label(kinds[i])))) {
+            scope.category = kinds[i];
+            layout.filePickerCacheKey.clear();
+            layout.filePickerFocus = true;
+        }
+    }
+    if (button(ctx, mk(categories.ent(), 10), preset::Button("More")
+        .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12)).with_debug_name("quick_open_more"))) {
+        std::vector<ui::ContextMenuItem> items;
+        for (const auto kind : {git::catalog::Kind::Reflog, git::catalog::Kind::Stash, git::catalog::Kind::Worktree, git::catalog::Kind::Submodule, git::catalog::Kind::Diagnostic})
+            items.push_back(ui::ContextMenuItem::item(git::catalog::label(kind), [kind] {
+                if (auto* active = find_singleton<LayoutComponent>()) {
+                    active->filePickerScope.category = kind;
+                    active->filePickerCacheKey.clear();
+                    active->filePickerFocus = true;
+                }
+            }));
+        ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+    }
     const auto selectionKey = repo.repoPath + "\n" + reading::revision_text(scope.listing.revision) + "\n" + layout.filePickerQuery;
     if (layout.filePickerSelectionKey != selectionKey) {
         layout.filePickerSelectedPath.clear();
         layout.filePickerSelectionKey = selectionKey;
     }
     std::string key = repo.repoPath + ":" + std::to_string(repo.dataGeneration) + ":" +
-                      std::to_string(repo.repoVersion) + "\n" + scope.request.key + "\n" + layout.filePickerQuery;
+                      std::to_string(repo.repoVersion) + "\n" + scope.request.key + "\n" + layout.filePickerQuery + ":" + std::to_string(scope.catalogVersion) + ":" + std::to_string(static_cast<int>(scope.category));
     if (key != layout.filePickerCacheKey) {
         position.parsed = file_query::parse(layout.filePickerQuery, paths);
-        layout.filePickerResults = position.parsed.error.empty()
-            ? fuzzy::rank(paths, position.parsed.path, repo.workspace().recent_source_paths(scope.listing.revision)) : std::vector<std::string>{};
+        scope.results.clear();
+        if ((scope.category == git::catalog::Kind::All || scope.category == git::catalog::Kind::File) && position.parsed.error.empty()) {
+            auto searchable = paths;
+            auto changes = scope.changes;
+            if (working || std::holds_alternative<reading::Index>(scope.listing.revision)) {
+                changes.before = working ? "INDEX" : repo.headCommitHash;
+                const auto& files = working ? repo.unstagedFiles : repo.stagedFiles;
+                for (const auto& file : files) {
+                    const char status = working ? file.workTreeStatus : file.indexStatus;
+                    changes.paths[file.path] = status == 'A' ? "Added" : status == 'D' ? "Deleted" : status == 'R' ? "Renamed from " + file.origPath : "Modified";
+                }
+                if (working) for (const auto& path : repo.untrackedFiles) changes.paths[path] = "Untracked";
+            }
+            for (const auto& [path, status] : changes.paths)
+                if (status == "Deleted" && std::find(searchable.begin(), searchable.end(), path) == searchable.end()) searchable.push_back(path);
+            const auto ranked = fuzzy::rank(searchable, position.parsed.path, repo.workspace().recent_source_paths(scope.listing.revision));
+            for (const auto& path : ranked) {
+                const auto found = changes.paths.find(path);
+                const auto status = found == changes.paths.end() ? "" : found->second;
+                scope.results.push_back({git::catalog::Kind::File, path, path, status, status == "Deleted" ? changes.before : ""});
+            }
+        }
+        if (!position.parsed.position) {
+            std::vector<git::catalog::Entry> entries;
+            entries.insert(entries.end(), scope.localRefs.entries.begin(), scope.localRefs.entries.end());
+            entries.insert(entries.end(), scope.remoteRefs.entries.begin(), scope.remoteRefs.entries.end());
+            entries.insert(entries.end(), scope.commits.entries.begin(), scope.commits.entries.end());
+            auto matches = git::catalog::filter(entries, scope.category, layout.filePickerQuery);
+            if (git::catalog::hash_query(layout.filePickerQuery))
+                scope.results.insert(scope.results.begin(), matches.begin(), matches.end());
+            else scope.results.insert(scope.results.end(), matches.begin(), matches.end());
+        }
+        if (scope.category == git::catalog::Kind::Reflog || scope.category == git::catalog::Kind::Stash || (scope.category == git::catalog::Kind::Worktree || scope.category == git::catalog::Kind::Submodule || scope.category == git::catalog::Kind::Diagnostic)) {
+            scope.results = git::catalog::filter(scope.extra.entries, scope.category,
+                scope.category == git::catalog::Kind::Reflog ? "" : layout.filePickerQuery);
+            if (scope.category == git::catalog::Kind::Worktree || scope.category == git::catalog::Kind::Submodule)
+                for (auto& entry : scope.results) entry.detail = (scope.worktreeStatus.contains(entry.identity) ? scope.worktreeStatus.at(entry.identity) : "Checking status...") + " · " + entry.detail;
+        }
         layout.filePickerCacheKey = key;
         layout.filePickerIndex = 0;
-        const auto selected = std::find(layout.filePickerResults.begin(), layout.filePickerResults.end(), layout.filePickerSelectedPath);
-        if (selected != layout.filePickerResults.end()) layout.filePickerIndex = static_cast<int>(selected - layout.filePickerResults.begin());
+        for (size_t i = 0; i < scope.results.size(); ++i)
+            if (scope.results[i].key() == layout.filePickerSelectedPath) layout.filePickerIndex = static_cast<int>(i);
         revealSelection = true;
     }
     if (poll_file_picker_position(repo, layout, key)) return;
-    auto open = [&](const std::string& path, bool keep) {
-        auto target = reading::SourceLocation{{path, scope.listing.revision}};
+    auto open = [&](const git::catalog::Entry& entry, bool keep) {
+        if (entry.kind == git::catalog::Kind::Diagnostic) { afterhours::clipboard::set_text(entry.title + ": " + entry.detail); return; }
+        if (entry.kind == git::catalog::Kind::Submodule) {
+            auto status = scope.worktreeStatus.find(entry.identity);
+            if (status != scope.worktreeStatus.end() && status->second.starts_with("Checkout ")) TabBarSystem::open_repository(entry.identity, layout);
+            return;
+        }
+        if (entry.kind == git::catalog::Kind::Worktree) {
+            TabBarSystem::open_repository(entry.identity, layout);
+            return;
+        }
+        if (entry.kind == git::catalog::Kind::Stash) {
+            std::vector<ui::ContextMenuItem> items;
+            for (const auto& portion : {std::string("Staged"), std::string("Working"), std::string("Untracked")}) {
+                const auto before = portion == "Staged" ? entry.object + "^1" : portion == "Working" ? entry.object + "^2" : "empty";
+                const auto after = portion == "Staged" ? entry.object + "^2" : portion == "Working" ? entry.object : entry.object + "^3";
+                items.push_back(ui::ContextMenuItem::item("Review " + portion + " portion", [before, after, title = "Stash " + entry.object.substr(0, 7) + " · " + portion] {
+                    if (auto* active = find_singleton<RepoComponent, ActiveTab>()) {
+                        navigation::open(*active, reading::review("compare:" + before + ":" + after), true, reading::OpenMode::Keep);
+                        navigation::remember_document_subject(*active, title);
+                    }
+                }, portion != "Untracked" || git::catalog::fields(entry.parents, ' ').size() > 2));
+            }
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+            return;
+        }
+        if (entry.kind != git::catalog::Kind::File) {
+            navigation::click(repo, reading::review(entry.object), keep, reading::ClickRegion::Picker);
+            return;
+        }
+        auto target = reading::SourceLocation{{entry.identity, entry.object.empty() ? scope.listing.revision : reading::source_revision(entry.object)}};
         if (position.parsed.position) {
             target.line = position.parsed.position->line;
             target.column = position.parsed.position->column;
             request_file_picker_position(repo, layout, std::move(target), keep ? reading::OpenMode::Keep : reading::OpenMode::Preview);
         } else navigation::click(repo, std::move(target), keep, reading::ClickRegion::Picker);
     };
-    auto& results = layout.filePickerResults;
+    auto& results = scope.results;
     const bool pickerKeys = !ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker);
     if (pickerKeys && !results.empty()) {
         if (afterhours::input::is_key_pressed(264)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
         if (afterhours::input::is_key_pressed(265)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
         if (afterhours::input::is_key_pressed(257)) open(results[layout.filePickerIndex], true);
     }
-    if (!results.empty()) layout.filePickerSelectedPath = results[layout.filePickerIndex];
-    const auto& error = working ? repo.filesError : scope.listing.error;
+    if (!results.empty()) layout.filePickerSelectedPath = results[layout.filePickerIndex].key();
+    const bool includesFiles = scope.category == git::catalog::Kind::All || scope.category == git::catalog::Kind::File;
+    const bool includesCommits = scope.category == git::catalog::Kind::All || scope.category == git::catalog::Kind::Commit;
+    const bool includesRefs = scope.category == git::catalog::Kind::All || scope.category == git::catalog::Kind::Branch || scope.category == git::catalog::Kind::Tag;
+    std::string error = includesFiles ? (working ? repo.filesError : scope.listing.error) : "";
+    if (includesCommits && !scope.commits.error.empty()) error = scope.commits.error;
+    if (includesRefs && !scope.localRefs.error.empty()) error = scope.localRefs.error;
+    if (includesRefs && !scope.remoteRefs.error.empty() && scope.category != git::catalog::Kind::Tag) error = scope.remoteRefs.error;
+    const bool searching = (includesCommits && (scope.commitsFuture.valid() || scope.catalogDue)) ||
+        (includesRefs && (scope.localFuture.valid() || (scope.category != git::catalog::Kind::Tag && scope.remoteFuture.valid())));
     const std::string status = position.future.valid() ? "Checking line..." : !position.error.empty() ? position.error :
-        !position.parsed.error.empty() ? position.parsed.error : scope.future.valid() ? "Loading files..." : !error.empty() ? error :
-        std::to_string(results.size()) + (scope.listing.truncated ? " matches · file list limit reached" : (layout.filePickerQuery.empty() ? " files · recent first · Enter open · Esc close" : " matches · arrows to choose · Enter open · Esc close"));
+        !position.parsed.error.empty() && includesFiles ? position.parsed.error : !error.empty() ? error :
+        includesFiles && scope.future.valid() ? "Loading files..." : searching ? std::to_string(results.size()) + " results · searching..." :
+        std::to_string(results.size()) + (includesFiles && scope.listing.truncated ? " matches · file list limit reached" :
+            includesRefs && (scope.localRefs.more || scope.remoteRefs.more) ? " matches · ref list limit reached" :
+            includesCommits && scope.commits.more ? " matches · commit result limit reached" :
+            layout.filePickerQuery.empty() && includesFiles ? " results · recent files first · Enter open · Esc close" :
+            " matches · arrows to choose · Enter open · Esc close");
     div(ctx, mk(parent, 586002), ComponentConfig{}
         .with_label(status).with_debug_name("file_picker_status")
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
+    const bool extraCategory = scope.category == git::catalog::Kind::Reflog || scope.category == git::catalog::Kind::Stash || (scope.category == git::catalog::Kind::Worktree || scope.category == git::catalog::Kind::Submodule || scope.category == git::catalog::Kind::Diagnostic);
+    if (extraCategory && (scope.extraFuture.valid() || !scope.extra.error.empty() || scope.extra.more)) {
+        const bool canLoadMore = scope.extra.entries.size() < 2000 && (scope.category == git::catalog::Kind::Stash || scope.category == git::catalog::Kind::Reflog);
+        const auto text = scope.extraFuture.valid() ? "Loading " + git::catalog::label(scope.category) + "..." : !scope.extra.error.empty() ? scope.extra.error : canLoadMore ? "Load older entries" : "Result limit reached";
+        if (button(ctx, mk(parent, 586005), preset::Button(text, !scope.extraFuture.valid() && (canLoadMore || !scope.extra.error.empty()))
+            .with_size(ComponentSize{percent(1.f), pixels(26)}).with_font_size(pixels(12)).with_debug_name("quick_open_load_more"))) scope.moreRequested = true;
+        height -= 26.f;
+    }
     const auto listParent = mk(parent, 586003);
     const bool moving = pickerKeys && (afterhours::input::is_key_pressed(264) || afterhours::input::is_key_pressed(265));
     if (revealSelection || moving) {
@@ -269,7 +480,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
             auto& scroll = entity.get<afterhours::ui::HasScrollView>();
             const float rowHeight = 28.f * ui::zoom::get();
             const float top = static_cast<float>(layout.filePickerIndex) * rowHeight;
-            const float viewport = std::max(28.f, height - 90.f) * ui::zoom::get();
+            const float viewport = std::max(28.f, height - 118.f) * ui::zoom::get();
             float target = scroll.scroll_offset.y;
             if (top < target) target = top;
             else if (top + rowHeight > target + viewport) target = top + rowHeight - viewport;
@@ -280,16 +491,32 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     }
     ui::virtual_list(ctx, listParent, results.size(), 28.f,
         [&](size_t i, Entity& row) {
-            auto result = button(ctx, mk(row, 0), preset::Button(results[i])
-                    .with_styled_label(file_picker_label(results[i], position.parsed.path, static_cast<int>(i) == layout.filePickerIndex))
-                    .with_tooltip(results[i])
+            auto spans = results[i].kind == git::catalog::Kind::File
+                ? file_picker_label(results[i].title, position.parsed.path, static_cast<int>(i) == layout.filePickerIndex)
+                : std::vector<afterhours::ui::TextSpan>{{git::catalog::label(results[i].kind) + " · ", theme::TEXT_SECONDARY},
+                    {results[i].title + "  " + results[i].object.substr(0, 7), theme::TEXT_PRIMARY}};
+            if (!results[i].detail.empty()) spans.push_back({"  · " + results[i].detail, theme::TEXT_SECONDARY});
+            auto result = button(ctx, mk(row, 0), preset::Button(results[i].title)
+                    .with_styled_label(spans)
                     .with_size(ComponentSize{percent(1.f), pixels(28)})
                     .with_alignment(TextAlignment::Left)
                     .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_font_size(pixels(14)).with_debug_name("file_picker_result"));
-            ui::bind_focus(result.ent(), repo, reading::focus::Region::Picker, results[i]);
+            if (results[i].kind == git::catalog::Kind::File)
+                ui::set_truncated_tooltip(result.ent(), results[i].identity + "\n" + results[i].detail, result.ent());
+            else ui::set_tooltip(result.ent(), results[i].identity + "\n" + results[i].detail);
+            ui::bind_focus(result.ent(), repo, reading::focus::Region::Picker, results[i].kind == git::catalog::Kind::File ? results[i].identity : results[i].key());
             if (result) open(results[i], false);
-        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(28.f, height - 90.f))})
+            if (results[i].kind == git::catalog::Kind::Tag && ctx.is_right_click(result.ent().id)) {
+                const auto targetRevision = reading::revision_text(reading::source_revision_for(repo.workspace().location()));
+                const bool historical = std::holds_alternative<reading::ObjectId>(reading::source_revision_for(repo.workspace().location()));
+                ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {ui::ContextMenuItem::item("Compare tag with current review", [base = results[i].object, targetRevision] {
+                    if (auto* active = find_singleton<RepoComponent, ActiveTab>())
+                        navigation::open(*active, reading::review("compare:" + base + ":" + targetRevision), true, reading::OpenMode::Keep);
+                }, historical)});
+            }
+        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(28.f, height - 118.f))})
             .with_debug_name("file_picker_list"));
 }
 
@@ -303,6 +530,7 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
             auto& scope = layout->filePickerScope;
             if (!scope.owner || scope.owner->repository != repo->repoPath ||
                     scope.owner->generation != repo->workspace().generation() ||
+                    scope.owner->dataGeneration != repo->dataGeneration ||
                     !reading::same_document(scope.owner->document, repo->workspace().location())) {
                 scope = {};
                 scope.owner = navigation::stamp(*repo, {});

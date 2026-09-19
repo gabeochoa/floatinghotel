@@ -1294,8 +1294,8 @@ checks, not an exhaustive runtime test of every app feature or graphics backend.
 
 These requests extend existing Afterhours components or propose optional
 utilities. Git revision resolution, review progress, comments, document identity,
-and navigation policy remain app-owned. The persistence proposal already lives
-in `docs/afterhours-persistence-proposal.md`; it is not duplicated here.
+and navigation policy remain app-owned. The atomic-save helper has since landed. Remaining durability and adoption work
+is recorded below and in [the active triage list](../triage.md#afterhours-work).
 
 The first upstream fixes to prioritize are already documented above: nested-scroll
 coordinates and wheel input, styled-label ellipsis, mixed-height virtualization,
@@ -2521,3 +2521,120 @@ scroll-anchor API should let a temporary child editor claim viewport ownership;
 inspectors, annotation tools, and game dialogue editors need the same handoff.
 The failing native layout and the repaired button geometry are retained with
 step 59 evidence.
+
+## Consolidated persistence and historical UI reports
+
+The old persistence proposal, UI footguns list, and framework-issues document were
+reconciled against the current checkout on September 13, 2026. Open implementation
+work is tracked in [triage.md](../triage.md#afterhours-work). This section preserves
+the remaining contracts and the limits of that source inspection.
+
+### Atomic writes are adopted; durability remains
+
+`afterhours::files::write_string_atomic` and `read_string` are implemented in
+`vendor/afterhours/src/plugins/files.h`. Review JSON and snapshots already use
+the writer. Settings also use it in `src/settings.cpp`; that adoption is complete.
+Settings now coalesce changed values for 250 ms and flush on shutdown. This is
+app-owned scheduling around the existing helper, not a missing filesystem API.
+
+The current helper writes a fixed sibling temporary path and renames it. It does
+not fsync the file or containing directory, and concurrent writers to the same
+path can share the temporary name. Upstream durability work should define writer
+ownership or use distinct temporary files, handle partial writes and interruption,
+and verify disk-full and rename failures. Keep serialization outside Afterhours.
+Do not describe atomic replacement as guaranteed power-loss durability.
+
+### Historical UI reports that need current reproductions
+
+The older nested-scroll report described rows disappearing when a nested panel's
+content height resolved to zero. The app worked around it with rows directly in
+the outer scroll container. Reproduce the case against current layout code before
+proposing an upstream fix; current navigation tests are not a reproduction.
+
+The old `to_ent` report used an unordered-map implementation. Current autolayout
+uses an indexed mapping; `to_ent` logs invalid or null entries and then dereferences
+the mapping. Test the caller's mapping invariant with a minimal invalid-entity
+fixture before treating the older startup crash as a current reachable defect.
+
+Several old claims are obsolete: `ComponentConfig` defaults to `FlexWrap::NoWrap`,
+ECS iteration uses indices with a captured entity count, simulated clicks support
+auto-release, pixel corner radii and measured text exist, and native offscreen
+rendering works. They are not new TODOs. Current font-fallback, styled-text, scroll,
+input, and headless limitations remain in their detailed entries above.
+
+
+## CP-006: Configurable overscan and reusable row metrics — prepared upstream, not adopted
+
+The implementation is in `/Users/gabeochoa/p/afterhours-reading-overscan`, a separate
+worktree at the application's `b385dc9` dependency revision. `vendor/afterhours` is
+unchanged. The [reviewable patch](triage-evidence/afterhours-overscan.patch) exposes
+`VirtualListMetrics`, `VirtualListOptions`, and `virtual_list_window`, accepts
+precomputed row metrics, and caches the minimum row height. Callers can choose row
+or pixel overscan without implementing their own scroll arithmetic.
+
+The existing range calculation favors a distant easing target and can omit rows
+at the actual viewport. The replacement bounds lookahead around the actual
+viewport, preserving every currently visible row. The optimized deterministic
+[geometry benchmark](triage-evidence/afterhours-overscan.log) exercises 90,000
+large jumps with 100,000 variable-height rows at 100%, 140%, and 200% scaling,
+comparing zero, 24, and 96 pixels of extra overscan. This measures range coverage
+and computation, not native presentation or GPU blank frames. The default remains
+four overscan rows: these measurements do not justify increasing every app's
+entity count. Native adoption and end-to-end frame measurements remain separate.
+
+### Persistence composition encountered during triage
+
+Afterhours components deliberately cannot be copy-assigned. A review component
+also owns a cancellable task. Decoding settings/reviews transactionally therefore
+uses a temporary data value and publishes the persistent fields only after the
+whole document validates; it does not attempt to copy ECS ownership or worker
+state. A reusable versioned storage adapter with explicit decode/error results
+would benefit editors and games. Existing atomic file writes are reused; no
+second file-writing primitive was added to the app.
+
+The triage replay exposed a modal lifecycle constraint: the open-to-closed
+transition must run through the same `mk` call site, even when the owning document
+or repository changes. `mk` includes source location in identity; repeating a
+numeric ID at another call site creates a different entity and leaves the original
+modal's input gate active. The app uses one shared dialog-parent helper and explicit
+closing transitions. Commit details, Push, and Relink also participate in the app's
+semantic Escape/focus restoration. Automatic removal of unrendered modal owners
+would make this safer for other applications. Context menus must render above modal
+content; the app now gives them a higher layer.
+
+The native modal backdrop pass also dims modal contents after the UI draw. These
+reading dialogs use a transparent framework backdrop and an explicit ECS backdrop
+below their panel, matching the existing Quick Open workaround. The framework's
+backdrop dimensions also scale twice under UI zoom; the explicit backdrop uses
+logical dimensions. The native renderer should own one correctly ordered backdrop.
+
+### Tooltips for truncated labels
+
+`HasTooltip` has no condition tied to the label's resolved overflow. The app filters
+file tooltips after layout using the displayed label's font, inset, and scaled
+width. It measures only the hovered tooltip's labels, including filename and
+directory columns, so resizing or zooming can dismiss a tooltip immediately.
+A renderer-owned truncation result or conditional-tooltip policy would avoid
+consumer apps repeating text measurement rules.
+Tooltip anchors also need lookup through `UICollectionHolder`: looking up a UI
+entity ID in the default ECS collection can leave valid tooltip state without a
+visible tooltip. The app's wrapped-tooltip renderer now uses the UI collection.
+
+### Pinning an interactive header
+
+The UI plugin has no sticky-child layout primitive. A translation modifier moves
+only the entity that owns it, so applying it to a file header leaves child labels,
+buttons, clips, and hit targets behind. The reader keeps the original header in
+normal flow and, after scroll measurement, adjusts the computed positions of its
+whole subtree. Its next sibling bounds the pinned position. The same adjustment
+runs after scroll input so drawing uses the current scroll offset; layout resets
+it on the next frame. Header controls retain their entity IDs and render above
+code, below temporary overlays. A framework sticky-child policy that preserves
+flow geometry, clipping, descendants, and input would also help sectioned lists,
+inspectors, and game inventories.
+
+Sticky controls also need to publish their occupied reading area. At 200% zoom,
+a full header can cover a Find result placed at the old fixed viewport fraction.
+The app exposes a reading viewport inset and uses it consistently for anchors,
+Find/caret destinations, source origins, and selection hit tests, while retaining
+the full scroll viewport for layout and scroll extents.

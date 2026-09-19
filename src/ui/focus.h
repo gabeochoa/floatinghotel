@@ -7,6 +7,18 @@
 
 namespace ui {
 
+inline auto dialog_parent(int slot) {
+    return afterhours::ui::imm::mk(ui_imm::getUIRootEntity(), slot);
+}
+
+
+inline void dialog_backdrop(UIContext<InputAction>& ctx, int slot) {
+    div(ctx, mk(ui_imm::getUIRootEntity(), slot), ComponentConfig{}
+        .with_size(ComponentSize{pixels(ctx.screen_width / ui::zoom::get()), pixels(ctx.screen_height / ui::zoom::get())})
+        .with_absolute_position().with_custom_background(afterhours::Color{0, 0, 0, 96})
+        .with_roundness(0.f).with_render_layer(998).with_debug_name("reading_dialog_backdrop"));
+}
+
 struct FocusIdentity : afterhours::BaseComponent {
     reading::focus::Target target;
 };
@@ -71,7 +83,9 @@ inline reading::focus::ShortcutOwner shortcut_owner(UIContext<InputAction>& ctx,
 
 inline bool shortcuts_blocked(const ecs::LayoutComponent& layout) {
     const auto* menu = ecs::find_singleton<ecs::MenuComponent>();
-    return layout.shortcutsOpen || is_context_menu_open() || (menu && menu->activeMenuIndex >= 0);
+    const auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    const bool details = repo && repo->workspace().document(repo->workspace().active_id())->detailsExpanded;
+    return layout.shortcutsOpen || layout.relinkOpen || details || (repo && repo->pushDialogOpen) || is_context_menu_open() || (menu && menu->activeMenuIndex >= 0);
 }
 
 inline bool reader_visible(const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
@@ -107,6 +121,9 @@ inline std::vector<reading::focus::Popup> open_popups(const ecs::RepoComponent& 
     if (repo.comparisonEditorOpen) visible.push_back(Popup::ComparisonEditor);
     if (repo.commitSearchOpen) visible.push_back(Popup::CommitSearch);
     if (repo.fileHistoryOpen) visible.push_back(Popup::FileHistory);
+    if (repo.workspace().document(repo.workspace().active_id())->detailsExpanded) visible.push_back(Popup::CommitDetails);
+    if (repo.pushDialogOpen) visible.push_back(Popup::PushDialog);
+    if (layout.relinkOpen) visible.push_back(Popup::RelinkDialog);
     if (layout.diffOptionsOpen) visible.push_back(Popup::Options);
     return visible;
 }

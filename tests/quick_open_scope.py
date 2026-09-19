@@ -86,7 +86,8 @@ for zoom in [100, 140, 200]:
     def state(name):
         return json.loads((directory / f'{name}.workspace.json').read_text())
     def results(name):
-        return [n['text'] for n in layout(name)['nodes'] if n['rendered'] and n.get('name') == 'file_picker_result']
+        return [n['focus_target']['item'] for n in layout(name)['nodes'] if n['rendered'] and n.get('name') == 'file_picker_result'
+            and n.get('focus_target', {}).get('item') in {'a.cpp', 'gone.cpp', 'old_name.cpp', 'new_name.cpp'}]
     for name in ['pending_scope_focus', 'loaded_scope_focus']:
         focused = [n for n in layout(name)['nodes'] if n['rendered'] and n['focused']]
         assert len(focused) == 1 and focused[0].get('name') == 'file_picker_working_scope', (zoom, name, focused)

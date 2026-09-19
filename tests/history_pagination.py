@@ -43,7 +43,7 @@ wrapper.write_text(f'''#!{sys.executable}
 import json, os, pathlib, sys, time
 args = sys.argv[1:]
 skip = next((a for a in args if a.startswith('--skip=')), None)
-if skip:
+if skip and skip != '--skip=0':
     directory = pathlib.Path(os.environ['FH_PAGE_TEST'])
     with (directory / 'requests.jsonl').open('a') as log:
         log.write(json.dumps(args) + '\\n')

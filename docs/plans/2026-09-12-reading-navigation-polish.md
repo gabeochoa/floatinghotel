@@ -127,6 +127,6 @@ margin outside the scrollbar. Step 60 removes that margin while retaining the
 left inset. Unified, split, and source reading passed wide/narrow geometry and
 hidden native checks at 100%, 140%, and 200%; see `docs/reading-navigation-step60.md`.
 
-The user-requested px0 comparison is recorded in `docs/px0-read-only-ide-research.md`.
-It identifies reader parity gaps and a matched performance protocol. No competitor
+The user-requested px0 findings are tracked in [triage.md](../../triage.md#px0-follow-up).
+They cover reader parity gaps, performance experiments, and a matched benchmark. No competitor
 benchmark ran, and no performance win over px0 is claimed.

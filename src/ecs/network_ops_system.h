@@ -36,7 +36,7 @@ inline void enqueue_network_op(const std::string& label,
     auto* ent = find_singleton_entity<RepoComponent, ActiveTab>();
     afterhours::EntityID tabId = ent ? ent->id : 0;
 
-    ops->pending.push_back({label, std::move(fut), tabId});
+    ops->pending.push_back({label, std::move(fut), tabId, ent ? ent->get<RepoComponent>().repoPath : ""});
 }
 
 struct NetworkOpsPollingSystem : afterhours::System<NetworkOpsComponent> {
@@ -51,7 +51,8 @@ struct NetworkOpsPollingSystem : afterhours::System<NetworkOpsComponent> {
                 afterhours::EntityID tabId = it->tabId;
 
                 std::string toastMsg;
-                if (result.success()) {
+                if (result.raw.cancelled) toastMsg = label + " cancelled";
+                else if (result.success()) {
                     toastMsg = label + " succeeded";
                 } else {
                     toastMsg = label + " failed";
@@ -69,7 +70,7 @@ struct NetworkOpsPollingSystem : afterhours::System<NetworkOpsComponent> {
                     ? MenuComponent::Notice::Kind::Success : MenuComponent::Notice::Kind::Error});
 
                 auto opt = afterhours::EntityHelper::getEntityForID(tabId);
-                if (opt.valid() && opt->has<RepoComponent>()) {
+                if (opt.valid() && !opt->cleanup && opt->has<RepoComponent>() && opt->get<RepoComponent>().repoPath == it->repository) {
                     opt->get<RepoComponent>().refreshRequested = true;
                 }
 

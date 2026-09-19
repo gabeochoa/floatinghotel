@@ -278,6 +278,8 @@ $(TEST_DIR)/test_review_snapshot: tests/unit/test_review_snapshot.cpp src/review
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
 TEST_EXES := $(TEST_DIR)/test_diff_tools \
+    $(TEST_DIR)/test_triage \
+    $(TEST_DIR)/test_reading_catalog \
     $(TEST_DIR)/test_git_parser \
     $(TEST_DIR)/test_error_humanizer \
     $(TEST_DIR)/test_process \
@@ -300,6 +302,12 @@ test: $(TEST_EXES)
 	[ "$$FAIL" -eq 0 ]
 
 .PHONY: test
+
+$(TEST_DIR)/test_reading_catalog: tests/unit/test_reading_catalog.cpp src/git/git_runner.cpp src/util/process.cpp src/git/reading_catalog.h | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $(filter %.cpp,$^) -o $@
+
+$(TEST_DIR)/test_triage: tests/unit/test_triage.cpp src/git/log_redaction.h src/util/shared_read.h | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $< -o $@
 
 # ==============================================================================
 # VALIDATION

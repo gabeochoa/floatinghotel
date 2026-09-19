@@ -6,15 +6,29 @@ A review-first Git client for reading, reviewing, and sending feedback on agent-
 
 ## Features
 
-- **Ballroom review mode** — *Embark* to start a review pass: it snapshots a baseline (so reworked files show as "new since you last looked"), then walk each hunk and **Approve** (stages it, `git add -p` style) or **Comment**.
-- **Feedback basket** — comments queue up grouped by scope (working tree vs. each commit), then **Send all** (or `⌘⏎`) writes `/tmp/floatinghotel-review.md` and copies it to the clipboard, ready to paste to your agent.
-- **Commit stack + detail** — browse the branch's commits with a graph rail; open any commit for its full message, metadata, changed-file list, and diff.
-- **Diffs** — inline and side-by-side views, per-hunk actions, and drag-select-to-copy that includes the `file:line` location.
-- **Working tree** — stage / unstage by hunk or file, commit, and Push / Pull / Stash from the sidebar.
-- **Branches** — the *Refs* tab lists branches; checkout, create, and delete inline.
-- **Multi-repo tabs** and a **command log** that shows every underlying `git` command it runs.
-- **Keyboard-driven** — `j`/`k`/`n` move between hunks, `a` approve, `c` comment, `⌘⏎` send all, `Esc` collapse the diff shelf.
-- **Headless rendering** (sokol/Metal) — render the full UI to a PNG with no window, for screenshots and CI.
+- Review unstaged changes like a commit, with staged changes in a separate view.
+- Collect comments in a feedback basket and export a Markdown review for your agent.
+  Marking reviewed and saving feedback do not implicitly stage files.
+- Browse commits, historical files, and comparisons in independent preview or kept
+  tabs, with close/reopen, Back/Forward, and saved reading positions.
+- Read unified or split diffs with wrapping, selection, folding, Find, and source
+  navigation. Cmd+C copies plain code; Cmd+Shift+C adds its location.
+- Search files, commits, branches, and tags together in revision-aware Quick Open.
+  Browse stashes, reflog, worktrees, and submodules from the repository's `…` menu.
+- Shift-select a commit range and right-click to review it as one comparison.
+  Cmd-click separate changed lines to attach one feedback item to those ranges.
+- Pin repositories, filter the repository picker, and relink moved repositories
+  while retaining reading state and feedback.
+- Resume from a saved review baseline and follow changed files and unresolved comments.
+- Keep a compact dock, a fixed footer, and remembered window size. Escape dismisses
+  temporary UI; the dock has an explicit collapse action.
+- Explicit Git actions support staging, commits, branches, and remote operations.
+- Multi-repository tabs, native menus, command logging, and headless rendering.
+
+Open work is tracked in [triage.md](triage.md). The
+[final reading replay](docs/reading-navigation-step60.md) records verification and
+known performance limits. The [triage implementation report](docs/triage-implementation.md)
+records the September 19 additions and their evidence.
 
 ## Screenshots
 
@@ -41,7 +55,7 @@ make
 | Key | Action |
 | --- | --- |
 | `j` / `k` / `n` | Move between hunks |
-| `a` | Approve the current hunk (stage it) |
+| `a` | Mark the current hunk reviewed |
 | `c` | Comment on the current hunk |
 | `⌘⏎` | Send all feedback |
-| `Esc` | Collapse the diff shelf |
+| `Esc` | Dismiss the topmost temporary UI |

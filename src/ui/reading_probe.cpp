@@ -27,6 +27,9 @@ struct Probe {
     std::optional<Clock::time_point> dispatched;
     std::optional<double> selectionMs;
     std::optional<double> readyMs;
+    double layoutBefore = reading_load::totalLayoutMs;
+    double layoutMs = 0;
+    reading_load::Frame completionFrame;
     std::pair<size_t, size_t> blobBefore;
     std::pair<size_t, size_t> patchBefore;
 };
@@ -104,7 +107,11 @@ void rendered() {
     else if (detail)
         ready = detail->cachedCommitHash == probe.revision && !detail->patchFuture.valid() &&
             !detail->commitDetailDiff.empty() && detail->commitDetailError.empty();
-    if (ready) probe.readyMs = elapsed;
+    if (ready) {
+        probe.readyMs = elapsed;
+        probe.layoutMs = reading_load::totalLayoutMs - probe.layoutBefore;
+        probe.completionFrame = reading_load::frame;
+    }
 }
 
 struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
@@ -364,10 +371,24 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 {"source_revision", repo->fullFileRevision()}, {"diff_target", repo->diffTargetFile()},
                 {"selection_ms", *probe.selectionMs}, {"ready_ms", *probe.readyMs},
                 {"owned_content_bytes", bytes},
+                {"layout_total_ms", probe.layoutMs}, {"matching_frame_layout_ms", probe.completionFrame.layoutMs},
                 {"blob_cache", {{"bytes", git::blob_page_cache().bytes()}, {"hits", blob.first}, {"misses", blob.second},
                     {"hit_delta", blob.first - probe.blobBefore.first}, {"miss_delta", blob.second - probe.blobBefore.second}}},
                 {"patch_cache", {{"bytes", git::commit_patch_cache().bytes()}, {"hits", patch.first}, {"misses", patch.second},
                     {"hit_delta", patch.first - probe.patchBefore.first}, {"miss_delta", patch.second - probe.patchBefore.second}}}};
+            const auto* load = probe.kind == "source" ? &repo->fullFileTrace : detail ? &detail->trace : nullptr;
+            if (load && load->submitted >= *probe.dispatched && load->published >= load->finished && load->finished >= load->started) {
+                auto ms = reading_load::milliseconds;
+                snapshot["load_stages"] = {{"dispatch_to_submit_ms", ms(load->submitted - *probe.dispatched)},
+                    {"worker_queue_ms", ms(load->started - load->submitted)}, {"validation_ms", load->validationMs},
+                    {"cache_ms", load->cacheMs}, {"read_ms", load->readMs}, {"decode_ms", load->decodeMs},
+                    {"shared_wait_and_copy_ms", load->sharedWaitMs}, {"git_lock_ms", load->gitLockMs},
+                    {"git_process_ms", load->gitProcessMs}, {"git_commands", load->gitCommands},
+                    {"cache_hit", load->cacheHit}, {"worker_total_ms", ms(load->finished - load->started)},
+                    {"ready_to_publication_ms", std::max(0., ms(load->published - load->finished) - load->publicationMs)},
+                    {"publication_ms", load->publicationMs},
+                    {"publication_to_matching_frame_ms", std::max(0., *probe.readyMs - ms(load->published - *probe.dispatched))}};
+            }
             try {
                 std::filesystem::create_directories(directory);
                 std::ofstream output(directory / (probe.label + ".reading.json"));

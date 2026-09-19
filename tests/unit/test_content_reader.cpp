@@ -616,4 +616,78 @@ TEST(diff_parser_keeps_side_states_independent_across_context_lines) {
     ASSERT_EQ(hunk_syntax::at(hunk, 2, false).mode, code_lexer::Mode::Code);
 }
 
+TEST(historical_metadata_lookup_is_literal_bounded_and_rejects_missing_objects) {
+    char directory[] = "/tmp/fh-tree-metadata.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    for (const auto& args : std::vector<std::vector<std::string>>{{"init", "-q"},
+            {"config", "user.name", "Metadata"}, {"config", "user.email", "metadata@example.invalid"},
+            {"config", "commit.gpgsign", "false"}}) ASSERT_TRUE(git::git_run(path, args).success());
+    const std::vector<std::string> names{"plain.cpp", "colon:name.cpp", "-dash.cpp", "space tab\tline\nλ.cpp", "[glob]*.cpp", "empty"};
+    for (const auto& name : names) {
+        std::ofstream file(std::filesystem::path(path) / name);
+        if (name != "empty") file << "int metadata_unique = 42;\n";
+    }
+    std::filesystem::create_symlink("plain.cpp", std::filesystem::path(path) / "link");
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    ASSERT_TRUE(git::git_run(path, {"commit", "-qm", "metadata"}).success());
+    auto oid = git::git_run(path, {"rev-parse", "HEAD"}).stdout_str();
+    oid.pop_back();
+    for (const auto& name : names) {
+        auto cold = git::read_file({path, name, oid});
+        ASSERT_TRUE(cold.error.empty());
+        ASSERT_EQ(cold.diff.newMode, "100644");
+        ASSERT_EQ(cold.page.totalBytes, cold.raw.size());
+        auto warm = git::read_file({path, name, oid});
+        ASSERT_TRUE(warm.error.empty());
+        ASSERT_EQ(warm.raw, cold.raw);
+        ASSERT_TRUE(warm.trace.cacheHit);
+        ASSERT_EQ(warm.trace.gitCommands, 1u);
+        ASSERT_TRUE(warm.trace.validationMs >= 0.);
+        ASSERT_TRUE(warm.trace.finished >= warm.trace.started);
+    }
+    auto link = git::read_file({path, "link", oid});
+    ASSERT_TRUE(link.error.empty());
+    ASSERT_EQ(link.diff.newMode, "120000");
+    ASSERT_EQ(link.raw, "plain.cpp");
+    ASSERT_FALSE(git::read_file({path, "absent", oid}).error.empty());
+    ASSERT_TRUE(git::git_run(path, {"update-index", "--add", "--cacheinfo", "160000", oid, "module"}).success());
+    ASSERT_TRUE(git::git_run(path, {"commit", "-qm", "gitlink"}).success());
+    ASSERT_FALSE(git::read_file({path, "module", "HEAD"}).error.empty());
+    auto cached = git::read_file({path, "plain.cpp", oid});
+    const auto object = std::filesystem::path(path) / ".git/objects" / cached.page.blob.substr(0, 2) / cached.page.blob.substr(2);
+    ASSERT_TRUE(std::filesystem::remove(object));
+    ASSERT_FALSE(git::read_file({path, "plain.cpp", oid}).error.empty());
+    std::filesystem::remove_all(path);
+}
+
+TEST(historical_source_reads_in_a_shallow_clone_without_parent_objects) {
+    char directory[] = "/tmp/fh-shallow-source.XXXXXX";
+    auto* root = mkdtemp(directory);
+    ASSERT_TRUE(root != nullptr);
+    const auto origin = std::filesystem::path(root) / "origin";
+    const auto shallow = std::filesystem::path(root) / "shallow";
+    std::filesystem::create_directory(origin);
+    for (const auto& args : std::vector<std::vector<std::string>>{{"init", "-q"},
+            {"config", "user.name", "Shallow"}, {"config", "user.email", "shallow@example.invalid"},
+            {"config", "commit.gpgsign", "false"}}) ASSERT_TRUE(git::git_run(origin.string(), args).success());
+    for (int revision = 0; revision < 2; ++revision) {
+        std::ofstream(origin / "source.cpp") << "int shallow = " << revision << ";\n";
+        ASSERT_TRUE(git::git_run(origin.string(), {"add", "."}).success());
+        ASSERT_TRUE(git::git_run(origin.string(), {"commit", "-qm", "source"}).success());
+    }
+    ASSERT_TRUE(git::git_run(root, {"clone", "-q", "--depth=1", "file://" + origin.string(), shallow.string()}).success());
+    ASSERT_EQ(git::git_run(shallow.string(), {"rev-parse", "--is-shallow-repository"}).stdout_str(), "true\n");
+    auto oid = git::git_run(shallow.string(), {"rev-parse", "HEAD"}).stdout_str();
+    oid.pop_back();
+    for (int read = 0; read < 2; ++read) {
+        auto result = git::read_file({shallow.string(), "source.cpp", oid});
+        ASSERT_TRUE(result.error.empty());
+        ASSERT_EQ(result.raw, "int shallow = 1;\n");
+        if (read) ASSERT_EQ(result.trace.gitCommands, 1u);
+    }
+    ASSERT_FALSE(git::read_file({shallow.string(), "source.cpp", "HEAD^"}).error.empty());
+    std::filesystem::remove_all(root);
+}
+
 int main() { RUN_ALL_TESTS(); }

@@ -20,6 +20,7 @@
 #include "file_picker.h"
 #include "repo_search.h"
 #include "review_snapshot.h"
+#include "repository_actions.h"
 
 namespace menu_setup {
 
@@ -258,7 +259,7 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::separator(),
         MenuItem::item("Push", "Cmd+Shift+P", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r) ecs::enqueue_network_op("Push", git::git_run_async(r->repoPath, {"push"}));
+            if (r) ecs::open_push_dialog(*r);
         }),
         MenuItem::item("Pull", "", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();

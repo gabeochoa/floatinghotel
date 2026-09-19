@@ -33,6 +33,7 @@ namespace menu_colors {
 struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
     std::vector<menu_setup::Menu> menus_;
     bool initialized_ = false;
+    std::string menuOwner_;
 
     std::vector<menu_setup::Menu> current_menus() const {
         auto menus = menus_;
@@ -70,7 +71,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     if (item.label == "Side-by-Side Diff") checked = layout->diffViewMode == LayoutComponent::DiffViewMode::SideBySide;
                 }
                 menu.items.push_back({static_cast<native_menu::CommandId>(1 + m * 256 + i), item.label,
-                    item.shortcut, item.enabled, checked, item.isSeparator});
+                    item.shortcut, item.enabled, checked, item.isSeparator, ui::current_menu_owner()});
             }
             if (!menu.items.empty()) result.push_back(std::move(menu));
         }
@@ -105,6 +106,10 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         auto& layout = *layoutPtr;
 
         if (!initialized_) {
+            ui::set_menu_owner_provider([] {
+                auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
+                return owner ? std::to_string(owner->id) + ":" + owner->get<RepoComponent>().repoPath : std::string{};
+            });
             menus_ = menu_setup::createMenuBar();
             initialized_ = true;
             if (!app_state::testModeEnabled || std::getenv("FH_NATIVE_MENUS"))
@@ -115,8 +120,9 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         if (native_menu::is_installed()) {
             for (auto command : native_menu::drain_commands()) {
                 const auto available = current_menus();
-                const auto id = static_cast<std::uint32_t>(command);
+                const auto id = static_cast<std::uint32_t>(command.command);
                 if (id == 0) { afterhours::graphics::request_quit(); continue; }
+                if (command.owner != ui::current_menu_owner()) continue;
                 const auto menuIndex = (id - 1) / 256;
                 const auto itemIndex = (id - 1) % 256;
                 if (menuIndex < available.size() && itemIndex < available[menuIndex].items.size()) {
@@ -130,6 +136,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             ui::render_context_menu(ctx, uiRoot);
             return;
         }
+        if (menu.activeMenuIndex >= 0 && menuOwner_ != ui::current_menu_owner()) menu.activeMenuIndex = -1;
         float barW = layout.menuBar.width;   // sidebar-width column for item/overflow math
         float barH = layout.menuBar.height;
         float barY = layout.menuBar.y;
@@ -265,6 +272,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 if (isActive) {
                     menu.activeMenuIndex = -1;
                 } else {
+                    menuOwner_ = ui::current_menu_owner();
                     menu.activeMenuIndex = i;
                 }
                 headerInteracted = true;

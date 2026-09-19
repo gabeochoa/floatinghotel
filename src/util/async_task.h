@@ -115,6 +115,8 @@ public:
     Task& operator=(const Task&) = delete;
     ~Task() { cancel(); }
     bool valid() const { return future_.valid(); }
+    bool can_cancel() const { return valid() && stop_.stop_possible(); }
+    bool cancellation_requested() const { return stop_.stop_requested(); }
     void cancel() { stop_.request_stop(); }
     T get() { return future_.get(); }
     template<class Rep, class Period>
@@ -137,7 +139,7 @@ auto launch_on(Executor& pool, Fn fn, Priority priority = Priority::Foreground,
     };
     if (!pool.submit(std::move(run), stop, priority, cancellable))
         promise->set_value(std::move(rejected));
-    return Task<Result>(std::move(future), std::move(stop));
+    return Task<Result>(std::move(future), cancellable ? std::move(stop) : std::stop_source{std::nostopstate});
 }
 
 template<class Fn>

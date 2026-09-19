@@ -73,7 +73,7 @@ def error(before, after):
     saved = anchor(before)
     data = json.loads((out / f'{after}.json').read_text())
     view = next(n for n in data['nodes'] if n.get('name') in ('diff_scroll', 'commit_detail_scroll', 'markdown_preview') and n['rendered'])
-    viewport = view['rect']
+    viewport = view.get('reading_rect', view['rect'])
     original = (repo / saved['path']).read_text().splitlines()[saved['line'] - 1]
     byte = len(original[:saved['column'] - 1].encode())
     rows = [r for r in (data['reading_rows'] if view['name'] != 'markdown_preview' else []) if r['path'] == saved['path'] and r['line'] == saved['line']

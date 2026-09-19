@@ -28,7 +28,7 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         .with_label(repo.fullFilePath()).with_size(ComponentSize{expand(), pixels(28)})
         .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
         .with_debug_name("full_file_path"));
-    ui::set_tooltip(path.ent(), repo.fullFilePath());
+    ui::set_truncated_tooltip(path.ent(), repo.fullFilePath(), path.ent());
     const auto& revision = repo.fullFileRevision();
     const auto badge = revision.empty() ? (compact ? "WT" : "Working tree") :
         revision == "INDEX" ? "Index" : revision.substr(0, 7);

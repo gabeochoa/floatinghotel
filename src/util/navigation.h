@@ -15,8 +15,24 @@ struct navigation {
         current.selection = std::move(selection);
     }
 
+    static bool toggle_feedback_line(ecs::RepoComponent& repo, reading::CodePosition point) {
+        auto& document = repo.workspace_.current();
+        if (document.feedbackGeneration != repo.dataGeneration || (!document.feedbackLines.empty() && document.feedbackLines.front().path != point.path)) document.feedbackLines.clear();
+        document.feedbackGeneration = repo.dataGeneration;
+        point.column = 1;
+        auto found = std::find(document.feedbackLines.begin(), document.feedbackLines.end(), point);
+        if (found != document.feedbackLines.end()) document.feedbackLines.erase(found);
+        else {
+            if (document.feedbackLines.size() >= 512) return false;
+            document.feedbackLines.push_back(std::move(point));
+        }
+        return true;
+    }
+
+    static void clear_feedback_lines(ecs::RepoComponent& repo) { repo.workspace_.current().feedbackLines.clear(); }
+
     static void set_caret(ecs::RepoComponent& repo, reading::CodePosition position, bool focus = false) {
-        if (repo.workspace_.source()) repo.workspace_.current().sourceFolds.reveal(position.line);
+        if (repo.workspace_.active_source()) repo.workspace_.current().sourceFolds.reveal(position.line);
         repo.workspace_.current().caret = std::move(position);
         if (focus) focus_document(repo, reading::focus::Region::Code);
     }
@@ -71,7 +87,7 @@ struct navigation {
 
     static void toggle_source_fold(ecs::RepoComponent& repo, source_folding::Range range) {
         auto& document = repo.workspace_.current();
-        if (!repo.workspace_.source() || !document.sourceFolds.toggle(range)) return;
+        if (!repo.workspace_.active_source() || !document.sourceFolds.toggle(range)) return;
         if (document.sourceFolds.closed(range)) {
             if (document.anchor && range.contains(document.anchor->line)) { document.anchor->line = range.first; document.anchor->column = 1; }
             if (document.caret && range.contains(document.caret->line)) { document.caret->line = range.first; document.caret->column = 1; }
@@ -102,7 +118,6 @@ struct navigation {
     static void toggle_commit_details(ecs::RepoComponent& repo) {
         auto& document = repo.workspace_.current();
         document.detailsExpanded = !document.detailsExpanded;
-        cancel_anchor(repo);
     }
 
     static reading::FindState& find(ecs::RepoComponent& repo) { return repo.workspace_.current().find; }
@@ -138,10 +153,20 @@ struct navigation {
         return {repo.repoPath, repo.workspace_.location(), std::move(key), repo.workspace_.generation(), repo.dataGeneration};
     }
 
+    static void open_catalog(ecs::RepoComponent& repo, ecs::LayoutComponent& layout, git::catalog::Kind category) {
+        layout.filePickerScope = {};
+        layout.filePickerScope.owner = stamp(repo, {});
+        layout.filePickerScope.documentRevision = reading::source_revision_for(repo.workspace().location());
+        layout.filePickerScope.category = category;
+        layout.filePickerQuery.clear();
+        layout.filePickerCacheKey.clear();
+        layout.filePickerPosition = {};
+        layout.filePickerOpen = layout.filePickerFocus = true;
+    }
+
     static bool accepts(const ecs::RepoComponent& repo, const reading::RequestStamp& request, const std::string& key) {
-        const auto current = stamp(repo, key);
-        return request.repository == current.repository && reading::same_document(request.document, current.document) &&
-            request.key == current.key && request.generation == current.generation && request.dataGeneration == current.dataGeneration;
+        return request.repository == repo.repoPath && reading::same_document(request.document, repo.workspace_.location()) &&
+            request.key == key && request.generation == repo.workspace_.generation() && request.dataGeneration == repo.dataGeneration;
     }
 
     static bool resolve_source(ecs::RepoComponent& repo, const reading::RequestStamp& request, const std::string& oid) {
@@ -151,6 +176,10 @@ struct navigation {
     static bool resolve_review(ecs::RepoComponent& repo, const reading::RequestStamp& request,
                                const std::string& commit, const std::string& parent) {
         return accepts(repo, request, request.key) && repo.workspace_.resolve_review(request.generation, commit, parent);
+    }
+
+    static void remember_document_subject(ecs::RepoComponent& repo, std::string subject) {
+        repo.workspace_.current().subject = std::move(subject);
     }
 
     static void remember_commit_subject(ecs::RepoComponent& repo, std::string subject) {
@@ -295,7 +324,7 @@ struct navigation {
         }
         bool reviewingMode = reviewing.value_or(repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
         bool changed = repo.workspace_.open(std::move(location), reviewingMode, mode, anchor);
-        if (const auto* source = repo.workspace_.source(); changed && source && source->line > 0) {
+        if (const auto* source = repo.workspace_.active_source(); changed && source && source->line > 0) {
             set_selection(repo, {});
             set_caret(repo, {source->destination.path, reading::DiffSide::After, source->line, std::max(1, source->column)});
         }
@@ -499,14 +528,14 @@ struct navigation {
         repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
         if (repo.workspace_.step(direction)) {
-            if (const auto* source = repo.workspace_.source(); source && source->line > 0)
+            if (const auto* source = repo.workspace_.active_source(); source && source->line > 0)
                 set_caret(repo, {source->destination.path, reading::DiffSide::After, source->line, std::max(1, source->column)});
             finish(repo, before, true);
         }
     }
 
     static void return_to_review(ecs::RepoComponent& repo) {
-        const auto* source = repo.workspace_.source();
+        const auto* source = repo.workspace_.active_source();
         const auto origin = source && source->origin ? *source->origin : repo.workspace_.review();
         const auto anchor = source ? source->originAnchor : std::nullopt;
         open(repo, origin);

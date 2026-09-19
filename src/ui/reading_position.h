@@ -2,11 +2,13 @@
 
 #include "../ecs/ui_imports.h"
 #include "focus.h"
+#include "geometry.h"
 
 namespace ui {
 
 inline void bind_reading_view(ecs::RepoComponent& repo, Entity& entity,
                              const std::string& view, bool ready = true) {
+    entity.addComponentIfMissing<ReadingViewport>().topInset = 0.f;
     bind_focus_region(entity, repo, reading::focus::Region::Code);
     entity.get<FocusIdentity>().target.item = "viewport";
     auto& state = repo.reading;

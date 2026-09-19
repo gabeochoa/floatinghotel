@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "binary_sha256": "054a75f1803334579309a70d576b75e859c664c9e7a1c66287e8f704df6f6fbb",
+  "results": [
+    {
+      "zoom": 100,
+      "header_id": 142,
+      "fold_id": 232,
+      "passed": true
+    },
+    {
+      "zoom": 140,
+      "header_id": 142,
+      "fold_id": 208,
+      "passed": true
+    },
+    {
+      "zoom": 200,
+      "header_id": 140,
+      "fold_id": 182,
+      "passed": true
+    }
+  ]
+}

@@ -4,6 +4,8 @@
 
 namespace git {
 
+std::uint64_t commit_patch_shared_reads();
+
 struct CommitPatchRequest {
     std::string repoPath;
     std::string commit;

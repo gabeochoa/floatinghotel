@@ -1,20 +1,95 @@
-resize 1280 800
+resize 1600 1100
 wait_for_refresh
-click_text long-file-name.txt
-screenshot improvement_47_file
+native_menu_action "Reset Zoom"
+hover_ui jump_to_diff:short.cpp
 wait_frames 45
-screenshot improvement_47_path_tooltip
-validate tooltip_showing=true
-validate tooltip_text=src/a-very-long-directory-name/nested-path-for-tooltip-verification/long-file-name.txt
-click_text "A long commit subject"
+validate tooltip_showing=false
+screenshot short_file
+hover_ui jump_to_diff:a-very-long-filename-that-is-truncated-in-the-sidebar-but-fits-in-a-wide-source-header.cpp
+wait_frames 45
+validate tooltip_showing=false
+screenshot wide_file
+click_ui jump_to_diff:a-very-long-filename-that-is-truncated-in-the-sidebar-but-fits-in-a-wide-source-header.cpp
 wait_for_refresh
+hover_ui jump_to_diff:a-very-long-filename-that-is-truncated-in-the-sidebar-but-fits-in-a-wide-source-header.cpp
 wait_frames 45
-screenshot improvement_47_subject_tooltip
 validate tooltip_showing=true
-click_button Refs
-screenshot improvement_47_refs
-click_ui branch_row
+validate tooltip_text=a-very-long-filename-that-is-truncated-in-the-sidebar-but-fits-in-a-wide-source-header.cpp
+screenshot truncated_file
+hover_ui jump_to_diff:short.cpp
 wait_frames 45
-screenshot improvement_47_branch_tooltip
+validate tooltip_showing=false
+screenshot short_expanded
+click_ui open_full_file
+wait_for_refresh
+hover_ui content_source_tab
+wait_frames 45
 validate tooltip_showing=true
-validate tooltip_text=feature/a-long-branch-name-that-must-remain-readable-in-a-tooltip
+screenshot source_tab
+key CMD+P
+wait_frames 5
+type "a-very-long-filename"
+wait_frames 20
+hover_ui file_picker_result
+wait_frames 45
+validate tooltip_showing=false
+screenshot wide_picker
+resize 450 850
+wait_frames 15
+hover_ui file_picker_result
+wait_frames 45
+validate tooltip_showing=true
+screenshot narrow_picker
+resize 1600 1100
+wait_frames 15
+hover_ui file_picker_result
+wait_frames 45
+validate tooltip_showing=false
+screenshot widened_picker
+key ESCAPE
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 15
+hover_ui jump_to_diff:a-very-long-filename-that-is-truncated-in-the-sidebar-but-fits-in-a-wide-source-header.cpp
+wait_frames 45
+validate tooltip_showing=true
+screenshot zoom140_file
+hover_ui jump_to_diff:short.cpp
+wait_frames 45
+validate tooltip_showing=false
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+native_menu_action "Zoom In"
+wait_frames 15
+hover_ui jump_to_diff:a-very-long-filename-that-is-truncated-in-the-sidebar-but-fits-in-a-wide-source-header.cpp
+wait_frames 45
+validate tooltip_showing=true
+screenshot zoom200_file
+hover_ui jump_to_diff:short.cpp
+wait_frames 45
+validate tooltip_showing=false
+hover_ui full_file_back
+wait_frames 45
+validate tooltip_showing=true
+validate tooltip_text=Return to review
+screenshot action_tooltip
+native_menu_action "Reset Zoom"
+key CMD+P
+wait_frames 5
+type "short.cpp"
+wait_frames 20
+key ENTER
+wait_for_refresh
+hover_ui content_source_tab
+wait_frames 45
+validate tooltip_showing=false
+screenshot short_source_tab
+hover_ui commit_row
+wait_frames 45
+validate tooltip_showing=true
+screenshot commit_tooltip

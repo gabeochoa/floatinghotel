@@ -11,11 +11,13 @@ struct SavedDocument {
     std::string subject;
     std::uint64_t lastActivated = 0;
     std::optional<ReadingAnchor> anchor;
+    bool operator==(const SavedDocument&) const = default;
 };
 
 struct ReadingSession {
     std::vector<SavedDocument> documents;
     size_t active = 0;
+    bool operator==(const ReadingSession&) const = default;
 };
 
 inline std::string anchor_revision(const Location& location) {

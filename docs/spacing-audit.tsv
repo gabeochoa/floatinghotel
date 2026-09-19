@@ -1,5 +1,5 @@
 ts	phase	decision	why	evidence	result
-2026-09-12T08:01:57Z	frame	Measure current UI before changing spacing	Screenshots need actual bounds to distinguish nested padding from renderer behavior	docs/spacing-audit-plan.md	open
+2026-09-12T08:01:57Z	frame	Measure current UI before changing spacing	Screenshots need actual bounds to distinguish nested padding from renderer behavior	docs/spacing-audit-results.md	open
 2026-09-12T08:09:57Z	verification	Add JSON layout dumps and paired native captures	XML rounds bounds and omits computed spacing; native screenshots also use a deferred capture path	tests/check_layout_dump.py; output/spacing-audit/baseline-paired	VERIFIED: 11 screenshot sidecars and standalone geometry match
 2026-09-12T08:09:57Z	design	Prefer a stacked Review workspace over a single-change queue	Keep direct browsing and retained tabs; combine duplicate local export actions	output/spacing-audit/annotations/review_workspace_options.png	chosen for implementation
 2026-09-12T08:13:22Z	sidebar	Reduce row insets and align timestamps after badges	The baseline had a 60-pixel age offset on decorated rows	output/spacing-audit/sidebar-before.log; tests/check_sidebar_spacing.py; output/spacing-audit/sidebar	VERIFIED at 100% and 140%

@@ -5,7 +5,7 @@
 namespace reading::focus {
 
 enum class Region { Tree, History, DocumentTabs, Code, Picker, Find, Search, SearchPreview, Feedback, Menu };
-enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory, Composer, Options, Snapshot, ComparisonEditor };
+enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory, Composer, Options, Snapshot, ComparisonEditor, CommitDetails, PushDialog, RelinkDialog };
 
 struct Target {
     std::string repository;

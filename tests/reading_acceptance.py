@@ -24,6 +24,7 @@ JOURNEYS = [
     'continuous_source', 'continuous_fragments', 'syntax_state', 'syntax_diff', 'source_folding', 'source_folding_large',
     'repeated_selection', 'loading_feedback', 'commit_prefetch',
     'dock_reading', 'dock_inbox', 'saved_review_return', 'follow_up_review', 'feedback_return',
+    'triage_reading', 'triage_feedback', 'triage_repositories', 'triage_split_profile',
     'zoom_hover', 'container_hover', 'code_wrap', 'reading_width', 'window_restore', 'sidebar_footer', 'navigation_regressions',
 ]
 
@@ -46,6 +47,7 @@ def main():
         commands.append((name, command))
     commands += [(name, [sys.executable, f'tests/{name}.py', '--output', str(out / name)]) for name in JOURNEYS]
     commands += [
+        ('cancel_buttons', [sys.executable, 'tests/loading_feedback.py', '--output', str(out / 'cancel_buttons'), '--cancel-buttons', '--zooms', '100']),
         ('navigation_boundary', [sys.executable, 'tests/check_navigation_boundary.py']),
         ('startup', ['bash', 'tests/check_startup_ready.sh', '--headless-timing']),
         ('native_window', ['bash', 'tests/check_native_window_resize.sh']),

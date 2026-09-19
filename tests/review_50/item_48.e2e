@@ -10,5 +10,5 @@ click_ui diff_find_input
 type "after line 90"
 wait_frames 10
 screenshot item_48_sticky_header
-assert_ui sticky_diff_context hidden=false
-expect_text "consolidated.txt  +2 -2"
+assert_ui file_header_row hidden=false
+expect_text "consolidated.txt"

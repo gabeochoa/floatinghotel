@@ -284,6 +284,33 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         layout.sidebarVisible = true;
     }
 
+    static void open_repository(const std::string& path, LayoutComponent& layout) {
+        auto* strip = find_singleton<TabStripComponent>();
+        if (!strip || path.empty()) return;
+        std::error_code error;
+        const auto canonical = std::filesystem::weakly_canonical(path, error);
+        if (error) return;
+        for (const auto id : strip->tabOrder) {
+            auto tab = EntityHelper::getEntityForID(id);
+            if (!tab.valid() || tab->cleanup || !tab->has<RepoComponent>()) continue;
+            const auto& existing = tab->get<RepoComponent>().repoPath;
+            if (!existing.empty() && std::filesystem::weakly_canonical(existing, error) == canonical && !error) {
+                switch_to_tab(tab.asE(), layout);
+                return;
+            }
+        }
+        auto* active = find_singleton<RepoComponent, ActiveTab>();
+        if (!active || !active->repoPath.empty()) create_new_tab(*strip, layout);
+        active = find_singleton<RepoComponent, ActiveTab>();
+        if (!active) return;
+        active->repoPath = canonical.string();
+        active->refreshRequested = true;
+        layout.filePickerOpen = false;
+        Settings::get().add_recent_repo(active->repoPath);
+        Settings::get().add_open_repo(active->repoPath);
+        Settings::get().set_last_active_repo(active->repoPath);
+    }
+
     static void close_tab(TabStripComponent& tabStrip, afterhours::EntityID tabId,
                            size_t index, bool wasActive, LayoutComponent& layout) {
         tabStrip.tabOrder.erase(tabStrip.tabOrder.begin() + static_cast<long>(index));
@@ -332,6 +359,7 @@ struct TabSyncSystem : afterhours::System<> {
         // Update tab label from repo if available
         if (activeEnt->has<RepoComponent>()) {
             auto& repo = activeEnt->get<RepoComponent>();
+            if (!app_state::testModeEnabled) Settings::get().remember_repository_identity(repo.repoPath, repo.headCommitHash);
             if (!repo.repoPath.empty()) {
                 std::string base = repo_display_name(repo.repoPath);
                 if (!repo.currentBranch.empty()) {

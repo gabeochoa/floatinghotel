@@ -41,9 +41,13 @@ struct ContextMenuState {
     std::vector<ContextMenuItem> items;
     int hoveredIndex = -1;
     float scrollOffset = 0.f;
+    std::string owner;
 };
 
 // Show a context menu at the given position
+void set_menu_owner_provider(std::function<std::string()> provider);
+std::string current_menu_owner();
+
 void show_context_menu(float x, float y, std::vector<ContextMenuItem> items);
 
 // Close the current context menu

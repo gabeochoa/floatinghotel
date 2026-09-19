@@ -1,0 +1,24 @@
+=== virtual_list ===
+
+  Running: uniform_rows_build_only_the_window
+[INFO] Registered singleton 0 for afterhours::ui::TextMeasureCache (0)
+[INFO] Registered singleton 1 for afterhours::window_manager::ProvidesCurrentResolution (1)
+  uniform: built 15 of 2000
+  Running: measured_rows_build_only_the_window
+  measured: built 13 of 2000
+  Running: measured_rows_get_their_own_heights
+  heights: 12 rows, short=1 tall=1
+  Running: distant_scroll_targets_never_evict_the_visible_rows
+  zoom=1.0 overscan_px=0 baseline_missing_visible=9998/10000 missing_visible=0 max_rows=65 p95_us=0.625 p99_us=0.875
+  zoom=1.0 overscan_px=24 baseline_missing_visible=9998/10000 missing_visible=0 max_rows=67 p95_us=0.542 p99_us=0.625
+  zoom=1.0 overscan_px=96 baseline_missing_visible=9998/10000 missing_visible=0 max_rows=72 p95_us=0.500 p99_us=0.583
+  zoom=1.4 overscan_px=0 baseline_missing_visible=9996/10000 missing_visible=0 max_rows=65 p95_us=0.541 p99_us=0.958
+  zoom=1.4 overscan_px=24 baseline_missing_visible=9996/10000 missing_visible=0 max_rows=67 p95_us=0.542 p99_us=0.625
+  zoom=1.4 overscan_px=96 baseline_missing_visible=9996/10000 missing_visible=0 max_rows=72 p95_us=0.625 p99_us=1.250
+  zoom=2.0 overscan_px=0 baseline_missing_visible=9994/10000 missing_visible=0 max_rows=65 p95_us=0.500 p99_us=0.625
+  zoom=2.0 overscan_px=24 baseline_missing_visible=9994/10000 missing_visible=0 max_rows=67 p95_us=0.458 p99_us=0.583
+  zoom=2.0 overscan_px=96 baseline_missing_visible=9994/10000 missing_visible=0 max_rows=72 p95_us=0.458 p99_us=0.542
+  Running: window_handles_empty_unknown_and_nonfinite_geometry
+
+270020/270020 checks passed
+All checks passed!

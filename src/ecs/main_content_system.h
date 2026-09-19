@@ -439,6 +439,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                                 navigation::return_to_feedback(*repoPtr, comment);
                             }
                             break;
+                        case Popup::CommitDetails: navigation::toggle_commit_details(*repoPtr); break;
+                        case Popup::PushDialog: repoPtr->pushDialogOpen = false; repoPtr->pushDestinationFuture = {}; break;
+                        case Popup::RelinkDialog: layout.relinkOpen = false; layout.relinkFuture = {}; break;
                         case Popup::Options: layout.diffOptionsOpen = false; break;
                         case Popup::Snapshot:
                             if (review) review->sinceReviewOpen = false;
@@ -457,6 +460,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
+        if (!repoPtr || !repoPtr->workspace().document(repoPtr->workspace().active_id())->detailsExpanded) {
+            bool closed = false;
+            afterhours::modal::detail::modal_impl(ctx, ui::dialog_parent(593021), closed, afterhours::ModalConfig{});
+        }
 
         bool activeDocumentFocused = false;
         if (repoPtr && layout.contentTabs.height > 0.f) {
@@ -571,7 +578,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 std::string alias;
                 if (recentReview && document.id == recentReview->id) alias = "content_review_tab";
                 if (recentSource && document.id == recentSource->id) alias = "content_source_tab";
-                div(ctx, mk(tab.ent(), 11), ComponentConfig{}.with_label(title)
+                auto tabLabel = div(ctx, mk(tab.ent(), 11), ComponentConfig{}.with_label(title)
                     .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14)).with_text_inset(0.f)
                     .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name(alias));
@@ -586,7 +593,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_absolute_position(10.f, layout.contentTabs.height - 2.f)
                     .with_custom_background(theme::SELECTED_ACCENT).with_debug_name("content_tab_indicator"));
                 ui::bind_focus(tab.ent(), *repoPtr, reading::focus::Region::DocumentTabs, {}, document.id);
-                ui::set_tooltip(tab.ent(), suppressTabActions ? "" : label.tooltip);
+                if (source) ui::set_truncated_tooltip(tab.ent(), suppressTabActions ? "" : label.tooltip, tabLabel.ent());
+                else ui::set_tooltip(tab.ent(), suppressTabActions ? "" : label.tooltip);
                 activeDocumentFocused |= active && ctx.has_focus(tab.ent().id);
                 if (tab && !suppressTabActions) activate = document.id;
                 auto close = button(ctx, mk(tab.ent(), 20), preset::Button("")
@@ -1356,39 +1364,31 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_roundness(0.0f)
                 .with_debug_name("welcome_subtitle"));
 
-        auto canonicalize = [](const std::string& p) -> std::string {
-            std::error_code ec;
-            auto cp = std::filesystem::canonical(p, ec);
-            return ec ? p : cp.string();
-        };
-
-        std::vector<std::string> openPaths;
-        afterhours::EntityQuery({.force_merge = true})
-            .whereHasComponent<Tab, RepoComponent>()
-            .for_each_stream([&](afterhours::Entity& t) {
-                auto& r = t.get<RepoComponent>();
-                if (!r.repoPath.empty()) {
-                    openPaths.push_back(canonicalize(r.repoPath));
-                }
+        auto* pickerLayout = find_singleton<LayoutComponent>();
+        const auto& pinned = Settings::get().get_pinned_repos();
+        auto recentRepos = pinned;
+        for (const auto& path : Settings::get().get_recent_repos())
+            if (std::find(recentRepos.begin(), recentRepos.end(), path) == recentRepos.end()) recentRepos.push_back(path);
+        if (pickerLayout) {
+            afterhours::text_input::text_input(ctx, mk(container.ent(), 7), pickerLayout->repositoryPickerQuery,
+                ComponentConfig{}.with_size(ComponentSize{w1280(400), pixels(30)}).with_debug_name("repository_picker_query"));
+            if (button(ctx, mk(container.ent(), 8), preset::Button(pickerLayout->repositoryPickerAlphabetical ? "Sort: name" : "Sort: recent")
+                .with_size(ComponentSize{w1280(400), pixels(26)}).with_debug_name("repository_picker_sort")))
+                pickerLayout->repositoryPickerAlphabetical = !pickerLayout->repositoryPickerAlphabetical;
+            if (!pickerLayout->repositoryPickerQuery.empty())
+                std::erase_if(recentRepos, [&](const auto& path) { return !fuzzy::score(pickerLayout->repositoryPickerQuery, path); });
+            std::stable_sort(recentRepos.begin(), recentRepos.end(), [&](const auto& a, const auto& b) {
+                const bool ap = std::find(pinned.begin(), pinned.end(), a) != pinned.end();
+                const bool bp = std::find(pinned.begin(), pinned.end(), b) != pinned.end();
+                if (ap != bp) return ap;
+                return pickerLayout->repositoryPickerAlphabetical && std::filesystem::path(a).filename() < std::filesystem::path(b).filename();
             });
-
-        std::vector<std::string> recentRepos;
-        auto savedRecent = Settings::get().get_recent_repos();
-        for (auto& path : savedRecent) {
-            std::string norm = canonicalize(path);
-            bool alreadyOpen = false;
-            for (auto& op : openPaths) {
-                if (op == norm) { alreadyOpen = true; break; }
-            }
-            if (!alreadyOpen) {
-                recentRepos.push_back(path);
-            }
         }
 
         if (!recentRepos.empty()) {
             div(ctx, mk(container.ent(), 10),
                 ComponentConfig{}
-                    .with_label("Recently Opened")
+                    .with_label("Pinned and recent repositories")
                     .with_size(ComponentSize{w1280(400), children()})
                     .with_font_size(pixels(14))
                     .with_padding(Padding{.bottom = h720(8)})
@@ -1403,16 +1403,18 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             const char* home = std::getenv("HOME");
             size_t homeLen = home ? std::strlen(home) : 0;
 
-            for (int ri = 0; ri < static_cast<int>(recentRepos.size()); ++ri) {
+            ui::virtual_list(ctx, mk(container.ent(), 11), recentRepos.size(), 40.f, [&](size_t index, Entity& rowHost) {
+                const int ri = static_cast<int>(index);
                 std::filesystem::path p(recentRepos[ri]);
                 std::string basename = p.filename().string();
+                const bool isPinned = std::find(pinned.begin(), pinned.end(), recentRepos[ri]) != pinned.end();
                 std::string dirPath = p.parent_path().string();
 
                 if (home && dirPath.starts_with(home)) {
                     dirPath = "~" + dirPath.substr(homeLen);
                 }
 
-                auto row = button(ctx, mk(container.ent(), 100 + ri),
+                auto row = button(ctx, mk(rowHost, 100 + ri),
                     ComponentConfig{}
                         .with_size(ComponentSize{w1280(400), h720(36)})
                         .with_flex_direction(FlexDirection::Column)
@@ -1429,7 +1431,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
                 div(ctx, mk(row.ent(), 1),
                     ComponentConfig{}
-                        .with_label(basename)
+                        .with_label((isPinned ? "★ " : "") + basename)
                         .with_size(ComponentSize{percent(1.0f), children()})
                         .with_font_size(pixels(14))
                         .with_transparent_bg()
@@ -1450,15 +1452,25 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_roundness(0.0f)
                         .with_debug_name("recent_path"));
 
-                if (row) {
-                    auto* activeRepo = find_singleton<RepoComponent, ActiveTab>();
-                    if (activeRepo) {
-                        activeRepo->repoPath = recentRepos[ri];
-                        activeRepo->refreshRequested = true;
-                        Settings::get().add_recent_repo(recentRepos[ri]);
-                    }
+                if (row && pickerLayout) TabBarSystem::open_repository(recentRepos[ri], *pickerLayout);
+                if (ctx.is_right_click(row.ent().id)) {
+                    const auto path = recentRepos[ri];
+                    ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+                        ui::ContextMenuItem::item(isPinned ? "Unpin repository" : "Pin repository", [path, isPinned] {
+                            Settings::get().set_repo_pinned(path, !isPinned);
+                        }),
+                        ui::ContextMenuItem::item("Relink moved repository", [path] {
+                            if (auto* layout = find_singleton<LayoutComponent>()) {
+                                layout->relinkOpen = true;
+                                layout->relinkOld = path;
+                                layout->relinkNew.clear();
+                                layout->relinkError.clear();
+                            }
+                        })});
                 }
-            }
+            }, ComponentConfig{}.with_size(ComponentSize{w1280(400), pixels(std::min(360.f, std::max(80.f, ctx.screen_height / ui::zoom::get() - 280.f)))})
+                .with_debug_name("repository_picker_list"));
+
         } else {
             div(ctx, mk(container.ent(), 10),
                 ComponentConfig{}

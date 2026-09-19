@@ -1,0 +1,276 @@
+diff --git a/src/plugins/ui/imm_components.h b/src/plugins/ui/imm_components.h
+index 60e6aac..471b4d6 100644
+--- a/src/plugins/ui/imm_components.h
++++ b/src/plugins/ui/imm_components.h
+@@ -148,10 +148,11 @@ struct RowMetrics {
+   float uniform = 0.f;      // used when prefix is empty
+   std::vector<float> prefix; // prefix[i] = height of rows [0, i)
+   size_t count = 0;
++  float minimum_height = 1.f;
+ 
+   static RowMetrics uniform_rows(size_t n, float h) {
+     RowMetrics m;
+-    m.uniform = h > 0.f ? h : 1.f;
++    m.uniform = std::isfinite(h) && h > 0.f ? h : 1.f;
+     m.count = n;
+     return m;
+   }
+@@ -162,8 +163,10 @@ struct RowMetrics {
+     m.count = n;
+     m.prefix.resize(n + 1, 0.f);
+     for (size_t i = 0; i < n; i++) {
+-      const float h = height_of(i);
+-      m.prefix[i + 1] = m.prefix[i] + (h > 0.f ? h : 1.f);
++      const float measured = height_of(i);
++      const float h = std::isfinite(measured) && measured > 0.f ? measured : 1.f;
++      m.minimum_height = i == 0 ? h : std::min(m.minimum_height, h);
++      m.prefix[i + 1] = m.prefix[i] + h;
+     }
+     return m;
+   }
+@@ -187,16 +190,44 @@ struct RowMetrics {
+   }
+   // Shortest row, for sizing the recycle pool against the worst case.
+   [[nodiscard]] float shortest() const {
+-    if (is_uniform())
+-      return uniform;
+-    float m = 0.f;
+-    for (size_t i = 0; i < count; i++)
+-      m = (i == 0) ? height_of(i) : std::min(m, height_of(i));
+-    return m > 0.f ? m : 1.f;
++    return is_uniform() ? uniform : minimum_height;
+   }
+ };
+ } // namespace detail
+ 
++using VirtualListMetrics = detail::RowMetrics;
++
++struct VirtualListOptions {
++  size_t overscan_rows = 4;
++  float overscan_pixels = 0.f;
++  float maximum_viewports = 3.f;
++};
++
++struct VirtualListWindow {
++  size_t first = 0, last = 0;
++  size_t visible_first = 0, visible_last = 0;
++};
++
++inline VirtualListWindow virtual_list_window(const VirtualListMetrics &rows,
++                                             float offset, float target,
++                                             float viewport,
++                                             VirtualListOptions options = {}) {
++  if (rows.count == 0) return {};
++  if (!std::isfinite(viewport) || viewport <= 0.f) return {0, 1, 0, 1};
++  const float end = std::max(0.f, rows.total() - viewport);
++  offset = std::clamp(std::isfinite(offset) ? offset : 0.f, 0.f, end);
++  target = std::clamp(std::isfinite(target) ? target : offset, 0.f, end);
++  const float viewports = std::clamp(std::isfinite(options.maximum_viewports) ? options.maximum_viewports : 3.f, 1.f, 8.f);
++  target = std::clamp(target, offset - viewport * (viewports - 1.f), offset + viewport * (viewports - 1.f));
++  const float buffer = std::clamp(std::isfinite(options.overscan_pixels) ? options.overscan_pixels : 0.f, 0.f, viewport * 2.f);
++  auto index = [&](float y) { return std::min(rows.count, static_cast<size_t>(std::max(0L, rows.index_at(y)))); };
++  const auto first = index(std::min(offset, target) - buffer);
++  const auto last = std::min(rows.count, index(std::max(offset, target) + viewport + buffer) + 1);
++  const auto overscan = std::min(options.overscan_rows, size_t{256});
++  return {first > overscan ? first - overscan : 0, last + std::min(overscan, rows.count - last),
++          index(offset), std::min(rows.count, index(offset + viewport) + 1)};
++}
++
+ /// Windowed (virtualized) list. Builds only the rows that are on screen, while
+ /// the scroll bar still spans the whole list.
+ ///
+@@ -214,7 +245,8 @@ template <typename RenderRow>
+ ElementResult virtual_list_impl(HasUIContext auto &ctx, EntityParent ep_pair,
+                                 const detail::RowMetrics &rows,
+                                 RenderRow &&render_row,
+-                                ComponentConfig config = ComponentConfig()) {
++                                ComponentConfig config = ComponentConfig(),
++                                VirtualListOptions options = {}) {
+   auto [entity, parent] = deref(ep_pair);
+   const size_t count = rows.count;
+   if (config.size.is_default)
+@@ -226,66 +258,35 @@ ElementResult virtual_list_impl(HasUIContext auto &ctx, EntityParent ep_pair,
+   if (count == 0)
+     return {true, entity};
+ 
+-  const long n = static_cast<long>(count);
+-  constexpr long OVERSCAN = 4;
+-  float lo = 0.f, hi = 0.f;
+-
++  float offset = 0.f, target = 0.f, viewport = 0.f;
+   if (entity.template has<HasScrollView>()) {
+-    auto &sv = entity.template get<HasScrollView>();
+-    float view_h = 0.f;
+-    if (sv.viewport_size.has_value()) {
+-      view_h = sv.viewport_size->y;
+-    } else {
+-      // Nothing has measured this view yet. Ask what it was configured to be
+-      // rather than guessing a row count: a wrong guess on frame one used to
+-      // be permanent, and is still a frame of wasted work.
+-      float parent_h = 0.f;
+-      if (parent.template has<UIComponent>())
+-        parent_h = parent.template get<UIComponent>().computed[Axis::Y];
+-      view_h = measure_config(config, 0.f, parent_h).size.y;
+-    }
+-
+-    // Cover where the view is AND where it is easing to. Windowing on the
+-    // settled offset alone shows a strip of nothing for a frame on every
+-    // fling, which is never seen in development and gets reported as
+-    // "flickers when I scroll fast".
+-    lo = std::min(sv.scroll_offset.y, sv.scroll_target.y);
+-    hi = std::max(sv.scroll_offset.y, sv.scroll_target.y) + view_h;
+-    // Bounded, because dragging the scroll bar throws the target the length of
+-    // the list, and building every row in between is the whole list, which is
+-    // the cost this exists to avoid. Rows travelled past that fast cannot be
+-    // read anyway, so favour the end being moved toward.
+-    const float max_span = std::max(view_h * 3.f, 1.f);
+-    if (hi - lo > max_span) {
+-      if (sv.scroll_target.y >= sv.scroll_offset.y)
+-        lo = hi - max_span;
+-      else
+-        hi = lo + max_span;
++    auto &scroll = entity.template get<HasScrollView>();
++    offset = scroll.scroll_offset.y;
++    target = scroll.scroll_target.y;
++    if (scroll.viewport_size) viewport = scroll.viewport_size->y;
++    else {
++      const float parent_height = parent.template has<UIComponent>() ? parent.template get<UIComponent>().computed[Axis::Y] : 0.f;
++      viewport = measure_config(config, 0.f, parent_height).size.y;
+     }
+   }
+-
+-  size_t first = 0, last = static_cast<size_t>(std::min<long>(n, 1));
+-  if (hi > lo) {
+-    long f = rows.index_at(lo) - OVERSCAN;
+-    long l = rows.index_at(hi) + OVERSCAN + 1;
+-    first = static_cast<size_t>(std::clamp<long>(f, 0, n));
+-    last = static_cast<size_t>(std::clamp<long>(l, 0, n));
+-  }
+-  const size_t window = (last > first) ? (last - first) : 0;
++  const auto range = virtual_list_window(rows, offset, target, viewport, options);
++  const size_t first = range.first, last = range.last;
++  const size_t window = last - first;
++  const size_t overscan = std::min(options.overscan_rows, size_t{256});
+ 
+   // How many row entities get recycled. Derived from the viewport rather than
+   // from this frame's window, and rounded up to a block, because a modulus
+   // that changes moves every recycled row onto a different item at once: a
+   // press is stranded and the list cannot settle. Rounding keeps it still
+   // while the window breathes by a row.
+-  size_t capacity = window + 2 * (size_t)OVERSCAN + 8;
++  size_t capacity = window + 2 * overscan + 8;
+   if (entity.template has<HasScrollView>()) {
+     auto &sv = entity.template get<HasScrollView>();
+     if (sv.viewport_size.has_value()) {
+       // Has to cover the widest window the span bound above can ask for, or
+       // two items would land on the same row entity.
+-      const float widest = (3.f * sv.viewport_size->y) / rows.shortest();
+-      capacity = static_cast<size_t>(widest) + 2 * (size_t)OVERSCAN + 8;
++      const float widest = ((std::clamp(std::isfinite(options.maximum_viewports) ? options.maximum_viewports : 3.f, 1.f, 8.f) + 4.f) * sv.viewport_size->y) / rows.shortest();
++      capacity = static_cast<size_t>(widest) + 2 * overscan + 8;
+     }
+     constexpr size_t BLOCK = 32;
+     capacity = ((capacity + BLOCK - 1) / BLOCK) * BLOCK;
+@@ -339,15 +340,24 @@ ElementResult virtual_list_impl(HasUIContext auto &ctx, EntityParent ep_pair,
+   return {true, entity};
+ }
+ 
++template <typename RenderRow>
++ElementResult virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
++                           const VirtualListMetrics &rows, RenderRow &&render_row,
++                           ComponentConfig config = ComponentConfig(),
++                           VirtualListOptions options = {}) {
++  return virtual_list_impl(ctx, ep_pair, rows, std::forward<RenderRow>(render_row), config, options);
++}
++
+ /// Every row the same height.
+ template <typename RenderRow>
+ ElementResult virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
+                            size_t count, float row_height,
+                            RenderRow &&render_row,
+-                           ComponentConfig config = ComponentConfig()) {
++                           ComponentConfig config = ComponentConfig(),
++                           VirtualListOptions options = {}) {
+   return virtual_list_impl(ctx, ep_pair,
+                            detail::RowMetrics::uniform_rows(count, row_height),
+-                           std::forward<RenderRow>(render_row), config);
++                           std::forward<RenderRow>(render_row), config, options);
+ }
+ 
+ /// Rows of differing heights: `height_of(index)` is asked once per row per
+@@ -362,13 +372,14 @@ template <typename HeightFn, typename RenderRow>
+ ElementResult virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
+                            size_t count, HeightFn &&height_of,
+                            RenderRow &&render_row,
+-                           ComponentConfig config = ComponentConfig())
++                           ComponentConfig config = ComponentConfig(),
++                           VirtualListOptions options = {})
+   requires std::invocable<HeightFn, size_t>
+ {
+   return virtual_list_impl(
+       ctx, ep_pair,
+       detail::RowMetrics::measured_rows(count, std::forward<HeightFn>(height_of)),
+-      std::forward<RenderRow>(render_row), config);
++      std::forward<RenderRow>(render_row), config, options);
+ }
+ 
+ /// Horizontal stack — a div with FlexDirection::Row preset.
+diff --git a/tests/virtual_list_test.cpp b/tests/virtual_list_test.cpp
+index c073c57..fd7f4ed 100644
+--- a/tests/virtual_list_test.cpp
++++ b/tests/virtual_list_test.cpp
+@@ -7,6 +7,8 @@
+ // so that is what these assert: how many rows got built, not how they look.
+ 
+ #include "ui_test_harness.h"
++#include <chrono>
++#include <limits>
+ 
+ using namespace afterhours;
+ using namespace afterhours::ui;
+@@ -79,4 +81,45 @@ TEST(measured_rows_get_their_own_heights) {
+   CHECK(saw_tall);
+ }
+ 
++TEST(distant_scroll_targets_never_evict_the_visible_rows) {
++  for (const float zoom : {1.f, 1.4f, 2.f}) {
++    auto metrics = VirtualListMetrics::measured_rows(100000, [zoom](size_t row) { return zoom * (row % 7 == 0 ? 120.f : 18.f); });
++    for (const float pixels : {0.f, 24.f, 96.f}) {
++      size_t maximum = 0, baseline_blank_windows = 0;
++      std::vector<double> durations;
++      for (size_t frame = 0; frame < 10000; ++frame) {
++        const float offset = static_cast<float>((frame * 7919) % 2000000);
++        const auto start = std::chrono::steady_clock::now();
++        const auto range = virtual_list_window(metrics, offset, frame % 2 ? 0.f : metrics.total(), 600.f * zoom,
++            VirtualListOptions{4, pixels * zoom, 3.f});
++        durations.push_back(std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - start).count());
++        float baseline_lo = std::min(offset, frame % 2 ? 0.f : metrics.total());
++        float baseline_hi = std::max(offset, frame % 2 ? 0.f : metrics.total()) + 600.f * zoom;
++        if (baseline_hi - baseline_lo > 1800.f * zoom) {
++          if (frame % 2) baseline_hi = baseline_lo + 1800.f * zoom;
++          else baseline_lo = baseline_hi - 1800.f * zoom;
++        }
++        if (metrics.index_at(baseline_lo) - 4 > static_cast<long>(range.visible_first) ||
++            metrics.index_at(baseline_hi) + 5 < static_cast<long>(range.visible_last)) ++baseline_blank_windows;
++        CHECK(range.first <= range.visible_first);
++        CHECK(range.last >= range.visible_last);
++        CHECK(range.last <= metrics.count);
++        maximum = std::max(maximum, range.last - range.first);
++      }
++      std::sort(durations.begin(), durations.end());
++      printf("  zoom=%.1f overscan_px=%.0f baseline_missing_visible=%zu/10000 missing_visible=0 max_rows=%zu p95_us=%.3f p99_us=%.3f\n", zoom, pixels, baseline_blank_windows, maximum, durations[9500], durations[9900]);
++      CHECK(maximum < 130);
++    }
++  }
++}
++
++TEST(window_handles_empty_unknown_and_nonfinite_geometry) {
++  CHECK(virtual_list_window(VirtualListMetrics::uniform_rows(0, 10.f), 0, 0, 100).last == 0);
++  auto metrics = VirtualListMetrics::uniform_rows(100, 10.f);
++  CHECK(virtual_list_window(metrics, 0, 0, 0).last == 1);
++  auto range = virtual_list_window(metrics, std::numeric_limits<float>::quiet_NaN(), 0, 100);
++  CHECK(range.first == 0);
++  CHECK(range.last < 20);
++}
++
+ int main() { return ui_test::run_registered_tests("virtual_list"); }

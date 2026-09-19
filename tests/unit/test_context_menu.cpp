@@ -139,6 +139,27 @@ TEST(disabled_item) {
 
 // ===========================================================================
 
+TEST(menu_actions_remain_bound_to_the_invoking_repository) {
+    std::string owner = "repo-a:1";
+    ui::set_menu_owner_provider([&] { return owner; });
+    int invoked = 0;
+    ui::show_context_menu(0, 0, {ui::ContextMenuItem::item("Action", [&] { ++invoked; })});
+    auto action = ui::get_context_menu_state().items[0].action;
+    ui::close_context_menu();
+    action();
+    ASSERT_EQ(invoked, 1);
+    owner = "repo-b:2";
+    action();
+    ASSERT_EQ(invoked, 1);
+    ui::show_context_menu(0, 0, {ui::ContextMenuItem::item("Action", [&] { ++invoked; })});
+    owner = "repo-a:1";
+    ASSERT_FALSE(ui::is_context_menu_open());
+    owner = "";
+    action();
+    ASSERT_EQ(invoked, 1);
+    ui::set_menu_owner_provider({});
+}
+
 int main() {
     printf("=== context_menu tests ===\n");
     RUN_ALL_TESTS();

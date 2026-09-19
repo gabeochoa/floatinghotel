@@ -131,4 +131,65 @@ TEST(source_row_extents_share_the_existing_budget_and_invalidate_with_layout) {
     ASSERT_EQ(builds, 106u);
 }
 
+TEST(shared_metric_views_remain_valid_after_eviction_and_count_pinned_bytes) {
+    ui::DiffMetricsCache cache;
+    auto build = [] { return std::vector<size_t>(64000, 7); };
+    const auto first = cache.source_rows_view(1, 800.f, 18.f, false, build);
+    const auto same = cache.source_rows_view(1, 800.f, 18.f, false, build);
+    ASSERT_TRUE(first.values == same.values);
+    for (std::uint64_t i = 2; i < 30; ++i) {
+        auto other = cache.source_rows_view(i, 800.f, 18.f, false, build);
+        ASSERT_EQ(other.back(), 7u);
+        ASSERT_EQ(first.back(), 7u);
+        ASSERT_TRUE(cache.bytes() <= 5 * 1024 * 1024u);
+    }
+    ASSERT_EQ(first.size(), 64000u);
+    ASSERT_TRUE(cache.bytes() >= 64000 * sizeof(size_t));
+}
+
+TEST(shared_cache_rejects_admission_while_evicted_values_are_still_pinned) {
+    SharedByteCache<std::vector<size_t>> cache(2048);
+    auto retained = cache.put("held", std::vector<size_t>(150, 42), 150 * sizeof(size_t));
+    ASSERT_TRUE(retained != nullptr);
+    ASSERT_TRUE(cache.put("cannot-fit", std::vector<size_t>(150, 8), 150 * sizeof(size_t)) == nullptr);
+    ASSERT_EQ(retained->back(), 42u);
+    ASSERT_TRUE(cache.bytes() >= 150 * sizeof(size_t));
+    retained.reset();
+    ASSERT_TRUE(cache.put("fits-now", std::vector<size_t>(150, 8), 150 * sizeof(size_t)) != nullptr);
+    ASSERT_TRUE(cache.bytes() <= 2048u);
+}
+
+TEST(cached_review_identity_preserves_keys_and_tracks_review_mutations) {
+    ecs::FileDiff file;
+    file.filePath = "folder/file.cpp";
+    file.oldMode = "100644";
+    file.newMode = "100755";
+    file.hunks.push_back({1, 2, 1, 2, "@@ -1,2 +1,2 @@", {"-old", "+new", " unchanged"}});
+    file.hunks.back().noNewline.insert(2);
+    ui::DiffMetricsCache cache;
+    ecs::ReviewComponent review;
+    const auto key = ecs::ReviewComponent::hunk_key(file.filePath, file.hunks.front());
+    for (int pass = 0; pass < 100; ++pass) {
+        ASSERT_EQ(cache.hunk_key(file, file.hunks.front()), key);
+        ASSERT_EQ(cache.reviewed(review, "wt", file), ecs::file_reviewed(review, "wt", file));
+    }
+    ASSERT_EQ(cache.hunk_scans(), 1u);
+    review.approvedHunks.insert("wt\n" + key);
+    ASSERT_FALSE(cache.reviewed(review, "wt", file));
+    review.reviewedFiles["wt\n" + file.filePath] = ecs::diff_signature(file);
+    ASSERT_TRUE(cache.reviewed(review, "wt", file));
+    review.approvedHunks.clear();
+    ASSERT_FALSE(cache.reviewed(review, "wt", file));
+    auto replacement = file;
+    replacement.renderIdentity = ecs::next_render_identity();
+    replacement.hunks.front().lines.front() = "-changed";
+    ASSERT_NE(cache.hunk_key(replacement, replacement.hunks.front()), key);
+    ASSERT_FALSE(cache.reviewed(review, "wt", replacement));
+    ASSERT_EQ(cache.hunk_scans(), 2u);
+    auto incomplete = file;
+    incomplete.isPartialContent = true;
+    ASSERT_FALSE(cache.reviewed(review, "wt", incomplete));
+    ASSERT_TRUE(cache.bytes() <= 5u * 1024u * 1024u);
+}
+
 int main() { RUN_ALL_TESTS(); }

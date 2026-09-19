@@ -60,6 +60,18 @@ run_test() {
 
 FILTER="${1:-}"
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_request_allocations" ]; then
+    run_test "test_request_allocations" "tests/unit/test_request_allocations.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_triage" ]; then
+    run_test "test_triage" "tests/unit/test_triage.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_reading_catalog" ]; then
+    run_test "test_reading_catalog" "tests/unit/test_reading_catalog.cpp" "src/git/git_runner.cpp" "src/util/process.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_commit_prefetch" ]; then
     run_test "test_commit_prefetch" "tests/unit/test_commit_prefetch.cpp"
 fi

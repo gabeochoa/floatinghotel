@@ -169,11 +169,11 @@ character selection remain documented limitations in [the complete upstream-gap
 ledger](afterhours-gaps.md)
 and the corresponding step reports.
 
-The user-requested [px0 research](px0-read-only-ide-research.md) compares the shared
-reader capabilities, identifies useful additions, and specifies a matched
-benchmark. Its published HTTP minima and server-only memory numbers are not
-comparable to these frame-completion measurements. No px0 benchmark ran and no
-competitive performance win is claimed.
+The user-requested px0 findings are now actionable items in the
+[px0 triage](../triage.md#px0-follow-up), including reader gaps and a matched benchmark.
+Published HTTP minima and server-only memory numbers are not comparable to these
+frame-completion measurements. No px0 benchmark ran and no competitive performance
+win is claimed.
 
 ## Retained evidence
 

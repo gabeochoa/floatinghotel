@@ -390,12 +390,12 @@ TEST(resolving_reviews_updates_retained_source_origins_and_history) {
         else ASSERT_TRUE(navigation::resolve_review(repo, request, oid, parent));
         auto resolved = repo.workspace().review().destination;
         navigation::step(repo, -1);
-        ASSERT_EQ(repo.workspace().source()->origin->destination, resolved);
-        ASSERT_EQ(repo.workspace().source()->origin->file, "original.cpp");
+        ASSERT_EQ(repo.workspace().active_source()->origin->destination, resolved);
+        ASSERT_EQ(repo.workspace().active_source()->origin->file, "original.cpp");
         navigation::return_to_review(repo);
         ASSERT_EQ(repo.workspace().active_id(), review);
         navigation::activate(repo, source);
-        ASSERT_EQ(repo.workspace().source()->origin->destination, resolved);
+        ASSERT_EQ(repo.workspace().active_source()->origin->destination, resolved);
         navigation::return_to_review(repo);
         ASSERT_EQ(repo.workspace().documents().size(), 3u);
     }
@@ -455,7 +455,7 @@ TEST(closed_source_origins_resolve_with_their_review) {
     auto stamp = navigation::stamp(repo, "request");
     ASSERT_TRUE(navigation::resolve_review(repo, stamp, oid, ""));
     navigation::reopen_closed(repo);
-    ASSERT_EQ(repo.workspace().source()->origin->destination, reading::review(oid).destination);
+    ASSERT_EQ(repo.workspace().active_source()->origin->destination, reading::review(oid).destination);
 }
 
 TEST(previews_replace_in_place_without_closing_kept_documents) {
@@ -769,7 +769,7 @@ TEST(restored_active_source_wins_over_saved_recency) {
     navigation::restore_session(repo, session, false);
     ASSERT_EQ(repo.fullFilePath(), std::string("missing.cpp"));
     ASSERT_EQ(repo.fullFileRevision(), std::string(40, 'f'));
-    ASSERT_EQ(repo.workspace().source()->destination.path, std::string("missing.cpp"));
+    ASSERT_EQ(repo.workspace().active_source()->destination.path, std::string("missing.cpp"));
 }
 
 TEST(restoring_tabs_preserves_the_window_review_mode) {
@@ -827,7 +827,7 @@ TEST(history_reopens_closed_sources_with_the_visit_origin_and_requested_line) {
     navigation::step(repo, -1);
     ASSERT_EQ(repo.fullFilePath(), std::string("old.cpp"));
     ASSERT_EQ(repo.fullFileTargetLine(), 298);
-    ASSERT_TRUE(repo.workspace().source()->origin == origin);
+    ASSERT_TRUE(repo.workspace().active_source()->origin == origin);
     ASSERT_TRUE(repo.workspace().document(repo.workspace().active_id())->anchor == anchor);
 }
 
@@ -863,8 +863,8 @@ TEST(opening_a_deleted_diff_line_uses_the_before_revision_and_old_path) {
     ASSERT_EQ(repo.fullFilePath(), std::string("old.cpp"));
     ASSERT_EQ(repo.fullFileRevision(), before);
     ASSERT_EQ(repo.fullFileTargetLine(), 40);
-    ASSERT_EQ(repo.workspace().source()->column, 7);
-    ASSERT_TRUE(repo.workspace().source()->originAnchor == origin);
+    ASSERT_EQ(repo.workspace().active_source()->column, 7);
+    ASSERT_TRUE(repo.workspace().active_source()->originAnchor == origin);
     ASSERT_FALSE(repo.workspace().documents()[1].preview);
     navigation::return_to_review(repo);
     ASSERT_EQ(repo.selectedFilePath(), std::string("renamed.cpp"));
@@ -904,7 +904,7 @@ TEST(source_origin_position_survives_other_files_and_later_review_visits) {
     open_kept(repo, reading::source("a.cpp", oid));
     const auto source = repo.workspace().active_id();
     open_kept(repo, reading::source("other.cpp"));
-    ASSERT_TRUE(repo.workspace().source()->originAnchor == original);
+    ASSERT_TRUE(repo.workspace().active_source()->originAnchor == original);
     open_kept(repo, reading::review(oid, "b.cpp"));
     navigation::remember_anchor(repo, {"b.cpp", oid, reading::DiffSide::After, 100, 1, .5f, '+'});
     navigation::activate(repo, source);
@@ -919,7 +919,7 @@ TEST(source_column_navigation_survives_history_and_is_consumed_with_the_line) {
     source.column = 20;
     open_kept(repo, source);
     navigation::clear_source_reveal(repo);
-    ASSERT_EQ(repo.workspace().source()->column, 1);
+    ASSERT_EQ(repo.workspace().active_source()->column, 1);
     ASSERT_EQ(std::get<reading::SourceLocation>(repo.workspace().history().back().location).column, 20);
     navigation::activate(repo, repo.workspace().active_id());
     ASSERT_EQ(repo.workspace().history().size(), size_t{2});
@@ -928,7 +928,7 @@ TEST(source_column_navigation_survives_history_and_is_consumed_with_the_line) {
     open_kept(repo, source);
     ASSERT_TRUE(repo.fullFileNavigateFrames > 0);
     navigation::step(repo, -1);
-    ASSERT_EQ(repo.workspace().source()->column, 20);
+    ASSERT_EQ(repo.workspace().active_source()->column, 20);
 }
 
 TEST(activation_restores_the_saved_source_page_and_scroll_cancels_the_pending_anchor) {
@@ -941,7 +941,7 @@ TEST(activation_restores_the_saved_source_page_and_scroll_cancels_the_pending_an
     navigation::activate(repo, source);
     ASSERT_TRUE(repo.workspace().document(source)->restoreAnchor);
     ASSERT_EQ(repo.fullFileTargetLine(), 7000);
-    ASSERT_EQ(repo.workspace().source()->column, 12);
+    ASSERT_EQ(repo.workspace().active_source()->column, 12);
     const auto request = navigation::stamp(repo, "page");
     navigation::cancel_anchor(repo);
     ASSERT_FALSE(repo.workspace().document(source)->restoreAnchor);
@@ -1204,6 +1204,16 @@ TEST(reselecting_a_review_preserves_its_selected_file_and_pending_patch) {
     navigation::open(repo, reading::review(hash, "other.cpp"));
     ASSERT_EQ(repo.selectedFilePath(), "other.cpp");
     ASSERT_EQ(repo.workspace().history().size(), history + 1);
+}
+
+TEST(active_source_is_distinct_from_retained_source_after_returning_to_review) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::source("kept.cpp"), true, reading::OpenMode::Keep);
+    ASSERT_TRUE(repo.workspace().active_source() != nullptr);
+    navigation::open(repo, reading::review("wt"));
+    ASSERT_TRUE(repo.workspace().active_source() == nullptr);
+    ASSERT_TRUE(repo.workspace().recent_source() != nullptr);
+    ASSERT_EQ(repo.workspace().recent_source()->destination.path, "kept.cpp");
 }
 
 int main() { RUN_ALL_TESTS(); }

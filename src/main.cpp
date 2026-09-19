@@ -410,6 +410,7 @@ static void app_init() {
         restoredLayout.sidebarWidth = Settings::get().get_window_collapsed() ?
             static_cast<float>(Settings::get().get_window_width()) : Settings::get().get_sidebar_width();
         restoredLayout.commitLogRatio = Settings::get().get_commit_log_ratio();
+        restoredLayout.commandLogHeight = Settings::get().get_command_log_height();
         restoredLayout.reviewPanelWidth = std::max(368.f,
             static_cast<float>(Settings::get().get_expanded_window_width()) - restoredLayout.sidebarWidth);
         restoredLayout.lastShelfCollapsed = Settings::get().get_window_collapsed();
@@ -537,6 +538,7 @@ static void app_init() {
         sm.register_update_system(std::make_unique<ecs::MainContentSystem>());
         sm.register_update_system(std::make_unique<ecs::StatusBarSystem>());
         sm.register_update_system(std::make_unique<ecs::FilePickerSystem>());
+        sm.register_update_system(std::make_unique<ecs::RepositoryActionsSystem>());
         // MenuBarSystem runs last so dropdown elements draw on top of
         // toolbar/sidebar when a menu is open
         sm.register_update_system(std::make_unique<ecs::MenuBarSystem>());
@@ -657,10 +659,6 @@ static void app_init() {
         }
     }
 
-    // Init-time mutations (recent repos, open tabs) reach disk through the
-    // cleanup write and the auto-save that follows any later change; a write
-    // here cost a synchronous file write on every launch, which the endpoint
-    // security stack on this machine turns into tens of milliseconds.
     Settings::get().auto_save_enabled = !app_state::testModeEnabled;
 
     auto t2 = std::chrono::high_resolution_clock::now();
@@ -721,8 +719,15 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             // git status over a few thousand files outlasts.
             constexpr auto MAX_REFRESH_WAIT = std::chrono::seconds(30);
             bool refreshDone = !ui::image_diff::pending();
-            if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
-                refreshDone = refreshDone && !layout->filePickerScope.future.valid() && !layout->filePickerPosition.future.valid();
+            if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
+                const auto& scope = layout->filePickerScope;
+                refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.future.valid();
+                if (layout->filePickerOpen && !layout->filePickerPosition.lineMode)
+                    refreshDone = refreshDone && scope.catalogStarted && !scope.catalogDue &&
+                        !scope.localFuture.valid() && !scope.remoteFuture.valid() && !scope.commitsFuture.valid() &&
+                        !scope.extraFuture.valid() && !scope.statusFuture.valid() && !scope.changesFuture.valid();
+                refreshDone = refreshDone && !layout->relinkFuture.valid();
+            }
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
                 refreshDone = refreshDone && !repo->refreshRequested && !repo->isRefreshing;
@@ -758,6 +763,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                     repo->reviewQueueFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && !repo->rangeDiff.future.valid();
                 refreshDone = refreshDone && !repo->commitLogPage.requested && !repo->commitLogPage.future.valid();
+                refreshDone = refreshDone && !repo->historyScopeRequested && !repo->historyScopeFuture.valid();
+                refreshDone = refreshDone && !repo->pushDestinationFuture.valid();
             }
             const auto waited =
                 std::chrono::steady_clock::now() - app_state::refreshWaitStart;
@@ -1022,6 +1029,11 @@ static void app_update_and_maybe_draw(float dt, bool forceRender) {
         app_draw(dt);
     } else if (!app_state::testModeEnabled && decision.sleep) {
         std::this_thread::sleep_for(std::chrono::milliseconds(8));
+    }
+    if (!app_state::testModeEnabled) {
+        if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
+            ecs::remember_window_size(*layout, afterhours::graphics::get_screen_width(), afterhours::graphics::get_screen_height());
+        Settings::get().flush_pending_save();
     }
 }
 

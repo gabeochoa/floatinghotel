@@ -16,8 +16,8 @@ namespace {
 
 // Above the menu bar's dropdowns (100-102): a context menu opened while a
 // dropdown is up still has to win.
-constexpr int LAYER_PANEL = 110;
-constexpr int LAYER_ITEM = 111;
+constexpr int LAYER_PANEL = 2000;
+constexpr int LAYER_ITEM = 2001;
 
 constexpr afterhours::Color PANEL_BG = {45, 45, 45, 255};
 constexpr afterhours::Color PANEL_BORDER = {58, 58, 58, 255};

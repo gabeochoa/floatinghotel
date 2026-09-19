@@ -68,7 +68,6 @@ inline bool directory(afterhours::ui::UIContext<InputAction>& ctx, afterhours::E
     auto row = button(ctx, mk(parent, 0), row_config(width, node.depth, false)
         .with_label("").with_debug_name(name));
     bind_tree_row(ctx, row.ent(), repo, state, node.path);
-    set_tooltip(row.ent(), node.path);
     auto disclosure = div(ctx, mk(row.ent(), 0), ComponentConfig{}
         .with_size(ComponentSize{pixels(16), pixels(28)})
         .with_debug_name("tree_disclosure"));
@@ -86,11 +85,12 @@ inline bool directory(afterhours::ui::UIContext<InputAction>& ctx, afterhours::E
         .with_size(ComponentSize{pixels(6), pixels(3)}).with_absolute_position(1.f, 3.f)
         .with_border_top(theme::TEXT_SECONDARY, pixels(1))
         .with_border_left(theme::TEXT_SECONDARY, pixels(1)));
-    div(ctx, mk(row.ent(), 2), ComponentConfig{}
+    auto label = div(ctx, mk(row.ent(), 2), ComponentConfig{}
         .with_label(node.label)
         .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(13))
         .with_custom_text_color(theme::TEXT_SECONDARY)
         .with_text_overflow(TextOverflow::Ellipsis).with_debug_name("tree_directory_name"));
+    set_truncated_tooltip(row.ent(), node.path, label.ent());
     return static_cast<bool>(row);
 }
 

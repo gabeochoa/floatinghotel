@@ -16,11 +16,12 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
         auto entity = afterhours::ui::UICollectionHolder::getEntityForID(state.entity);
         if (!entity.valid() || !entity->has<afterhours::ui::HasScrollView>()) return;
         auto& scroll = entity->get<afterhours::ui::HasScrollView>();
-        const auto viewport = ui::visible_rect(**entity);
+        const float positionedOffset = scroll.scroll_offset.y;
+        const auto viewport = ui::reading_rect(**entity);
         if (viewport.width <= 0.f || viewport.height <= 0.f || !scroll.viewport_size) return;
         const auto wheel = afterhours::input::get_mouse_wheel_move_v();
         const bool userScroll = scroll.dragging_scrollbar ||
-            ((wheel.x != 0.f || wheel.y != 0.f) && afterhours::ui::is_mouse_inside(ctx.mouse.pos, viewport));
+            ((wheel.x != 0.f || wheel.y != 0.f) && afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(**entity)));
         if (userScroll) navigation::cancel_anchor(*repo);
         if (!state.ready || !repo->hasLoadedOnce || repo->isRefreshing || repo->refreshRequested ||
             (source_tab_active(*repo) && repo->fullFileFuture.valid() && !repo->fullFileExtendRequest)) return;
@@ -88,7 +89,7 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
         const bool applyingAnchor = !composing && document->restoreAnchor && document->anchor && targetY;
         if (applyingAnchor) {
             const float target = std::clamp(*targetY - document->anchor->viewportFraction * viewport.height,
-                0.f, std::max(0.f, scroll.content_size.y - viewport.height));
+                0.f, std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
             scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = target;
             scroll.anchor_child = -1;
             if (std::getenv("FH_TRACE_READING")) log_info("Reading restore {} line {} column {} fraction {} target {} viewport {} content {}", document->anchor->path, document->anchor->line, document->anchor->column, document->anchor->viewportFraction, target, viewport.height, scroll.content_size.y);
@@ -105,9 +106,18 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
                 else if (rect.y + rect.height > viewport.y + viewport.height)
                     delta = rect.y + rect.height - viewport.y - viewport.height;
                 const auto offset = std::clamp(scroll.scroll_offset.y + delta, 0.f,
-                    std::max(0.f, scroll.content_size.y - viewport.height));
+                    std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
                 scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = offset;
                 scroll.anchor_child = -1;
+            }
+        }
+        if (positionedOffset != scroll.scroll_offset.y) {
+            ui::PinFileHeaders pin;
+            for (const auto id : entity->get<afterhours::ui::UIComponent>().children) {
+                auto header = afterhours::ui::UICollectionHolder::getEntityForID(id);
+                if (header.valid() && header->has<ui::StickyFileHeader>())
+                    pin.for_each_with(header.asE(), header->get<ui::StickyFileHeader>(),
+                        header->get<afterhours::ui::UIComponent>(), 0.f);
             }
         }
         state.wasRevealing = revealing && !applyingAnchor;

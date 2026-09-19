@@ -2,6 +2,8 @@
 
 #include <afterhours/src/singleton.h>
 
+#include <chrono>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -23,6 +25,8 @@ struct Settings {
 
     bool load_save_file();
     void write_save_file();
+    void flush_pending_save(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
+    size_t save_write_count() const { return saveWriteCount_; }
 
     // Window geometry
     int get_window_width() const;
@@ -40,6 +44,9 @@ struct Settings {
 
     float get_commit_log_ratio() const;
     void set_commit_log_ratio(float r);
+
+    float get_command_log_height() const;
+    void set_command_log_height(float height);
 
     float get_code_font_size() const;
     void set_code_font_size(float size);
@@ -76,10 +83,21 @@ struct Settings {
     std::string get_settings_path() const;
 
     // Auto-save support
+    std::string loadError;
+    std::string saveError;
+    const std::vector<std::string>& get_pinned_repos() const;
+    void set_repo_pinned(const std::string& path, bool pinned);
+    bool section_collapsed(const std::string& repo, const std::string& section) const;
+    void set_section_collapsed(const std::string& repo, const std::string& section, bool collapsed);
+    std::string repository_identity(const std::string& path) const;
+    void remember_repository_identity(const std::string& path, const std::string& head);
+    bool relink_repository(const std::string& oldPath, const std::string& newPath);
     bool auto_save_enabled = true;
     void save_if_auto();
 
 private:
     struct Data;
     Data* data_;
+    std::optional<std::chrono::steady_clock::time_point> pendingSave_;
+    size_t saveWriteCount_ = 0;
 };

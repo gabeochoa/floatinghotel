@@ -1,0 +1,378 @@
+{
+  "base_revision": "1a2fcf3",
+  "final_binary_sha256": "9cf3f45b5456a4bf1153b46a1c155e43c79b3a5e8e9b33651afd1c50afd2b3f4",
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "unit_suites": {
+    "passed": 49,
+    "full_run": "output/triage-all-units.log",
+    "refresh_rerun": "output/triage-unit-final.log",
+    "updated_storage_and_focus": "output/triage-review-final.log",
+    "updated_catalogue": "output/triage-catalog-final.log",
+    "settings": "output/triage-storage-final.log"
+  },
+  "journeys": {
+    "triage-reading17": {
+      "passed": true,
+      "binary_sha256": "9cf3f45b5456a4bf1153b46a1c155e43c79b3a5e8e9b33651afd1c50afd2b3f4"
+    },
+    "triage-repositories16": {
+      "passed": true,
+      "binary_sha256": "cc38f9768a077052047d992615e29f05fe23836c0120cdf6acee97acb7e70874"
+    },
+    "triage-metadata16": {
+      "passed": true,
+      "baseline": false,
+      "binary_sha256": "cc38f9768a077052047d992615e29f05fe23836c0120cdf6acee97acb7e70874"
+    },
+    "triage-cancellation16": {
+      "passed": true,
+      "binary_sha256": "cc38f9768a077052047d992615e29f05fe23836c0120cdf6acee97acb7e70874",
+      "results": [
+        {
+          "zoom": 100,
+          "cancelled": [
+            "commit",
+            "source",
+            "comparison"
+          ]
+        }
+      ]
+    },
+    "triage-split17": {
+      "passed": true,
+      "binary_sha256": "9cf3f45b5456a4bf1153b46a1c155e43c79b3a5e8e9b33651afd1c50afd2b3f4",
+      "results": [
+        {
+          "zoom": 100,
+          "position": "top",
+          "emitted_paired_lines": 75,
+          "legacy_eager_comparisons_per_frame": 3000,
+          "comparison_calls_from_current_emit_control_flow": 75
+        },
+        {
+          "zoom": 100,
+          "position": "bottom",
+          "emitted_paired_lines": 76,
+          "legacy_eager_comparisons_per_frame": 3000,
+          "comparison_calls_from_current_emit_control_flow": 76
+        },
+        {
+          "zoom": 140,
+          "position": "top",
+          "emitted_paired_lines": 48,
+          "legacy_eager_comparisons_per_frame": 3000,
+          "comparison_calls_from_current_emit_control_flow": 48
+        },
+        {
+          "zoom": 140,
+          "position": "bottom",
+          "emitted_paired_lines": 49,
+          "legacy_eager_comparisons_per_frame": 3000,
+          "comparison_calls_from_current_emit_control_flow": 49
+        },
+        {
+          "zoom": 200,
+          "position": "top",
+          "emitted_paired_lines": 23,
+          "legacy_eager_comparisons_per_frame": 3000,
+          "comparison_calls_from_current_emit_control_flow": 23
+        },
+        {
+          "zoom": 200,
+          "position": "bottom",
+          "emitted_paired_lines": 27,
+          "legacy_eager_comparisons_per_frame": 3000,
+          "comparison_calls_from_current_emit_control_flow": 27
+        }
+      ],
+      "method": "In this unwrapped replacement hunk, each emitted pair enters changed_ranges once. The prior code entered it for all 3000 pairs before culling. Counts are derived from emitted reading rows, not an instrumentation counter."
+    },
+    "triage-feedback15-retry": {
+      "passed": true,
+      "binary_sha256": "e3cdf9b3eddb3ca1f1b9a5e457fbf0e7711f7f8ec96610e7e0f29e5e0be3df55"
+    }
+  },
+  "regressions": {
+    "restore_tabs": {
+      "stage": "restore_tabs",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/restore_tabs.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/restore_tabs"
+      ],
+      "exit_code": 0,
+      "seconds": 31.62178770895116,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/restore_tabs.log"
+    },
+    "history_visits": {
+      "stage": "history_visits",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/history_visits.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/history_visits"
+      ],
+      "exit_code": 0,
+      "seconds": 22.185966917080805,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/history_visits.log"
+    },
+    "focus_return": {
+      "stage": "focus_return",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/focus_return.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/focus_return"
+      ],
+      "exit_code": 0,
+      "seconds": 15.019130707951263,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/focus_return.log"
+    },
+    "shortcut_focus": {
+      "stage": "shortcut_focus",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/shortcut_focus.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/shortcut_focus"
+      ],
+      "exit_code": 0,
+      "seconds": 14.554967625066638,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/shortcut_focus.log"
+    },
+    "escape_dismissal": {
+      "stage": "escape_dismissal",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/escape_dismissal.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/escape_dismissal"
+      ],
+      "exit_code": 0,
+      "seconds": 24.636840833118185,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/escape_dismissal.log"
+    },
+    "commit_keyboard": {
+      "stage": "commit_keyboard",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/commit_keyboard.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/commit_keyboard"
+      ],
+      "exit_code": 0,
+      "seconds": 31.879085917025805,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/commit_keyboard.log"
+    },
+    "history_pagination": {
+      "stage": "history_pagination",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/history_pagination.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions16/history_pagination"
+      ],
+      "exit_code": 0,
+      "seconds": 22.2336325829383,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions16/history_pagination.log"
+    },
+    "quick_open_overlay": {
+      "stage": "quick_open_overlay",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/quick_open_overlay.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/quick_open_overlay"
+      ],
+      "exit_code": 0,
+      "seconds": 19.686311083845794,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/quick_open_overlay.log"
+    },
+    "quick_open_scope": {
+      "stage": "quick_open_scope",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/quick_open_scope.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions16/quick_open_scope"
+      ],
+      "exit_code": 0,
+      "seconds": 36.269855707883835,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions16/quick_open_scope.log"
+    },
+    "quick_open_ranking": {
+      "stage": "quick_open_ranking",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/quick_open_ranking.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/quick_open_ranking"
+      ],
+      "exit_code": 0,
+      "seconds": 20.363835541997105,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/quick_open_ranking.log"
+    },
+    "syntax_diff": {
+      "stage": "syntax_diff",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/syntax_diff.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/syntax_diff"
+      ],
+      "exit_code": 0,
+      "seconds": 12.305335249984637,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/syntax_diff.log"
+    },
+    "repeated_selection": {
+      "stage": "repeated_selection",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/repeated_selection.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/repeated_selection"
+      ],
+      "exit_code": 0,
+      "seconds": 14.527104791020975,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/repeated_selection.log"
+    },
+    "feedback_return": {
+      "stage": "feedback_return",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/feedback_return.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/feedback_return"
+      ],
+      "exit_code": 0,
+      "seconds": 10.244931417051703,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/feedback_return.log"
+    },
+    "zoom_hover": {
+      "stage": "zoom_hover",
+      "command": [
+        "/opt/homebrew/opt/python@3.14/bin/python3.14",
+        "tests/zoom_hover.py",
+        "--output",
+        "/Users/gabeochoa/p/floatinghotel/output/triage-regressions15/zoom_hover"
+      ],
+      "exit_code": 0,
+      "seconds": 22.103404291905463,
+      "binary_unchanged": true,
+      "passed": true,
+      "evidence": "output/triage-regressions15/zoom_hover.log"
+    }
+  },
+  "feedback_zooms": {
+    "100": "output/triage-feedback15/100",
+    "140": "output/triage-feedback15/140",
+    "200": "output/triage-feedback15-retry/200"
+  },
+  "retained_performance_failure": {
+    "log": "output/triage-feedback15/200/feedback.log",
+    "p99_ms": 24.69,
+    "passing_rerun_p99_ms": 4.83
+  },
+  "narrow_geometry": "output/triage-narrow15/narrow_repositories.json",
+  "dialog_pixel_checks": "Modal background pixels match declared colors at 100%, 140%, and 200% after replacing the framework backdrop pass.",
+  "upstream": {
+    "path": "/Users/gabeochoa/p/afterhours-reading-overscan",
+    "patch": "docs/triage-evidence/afterhours-overscan.patch",
+    "native_presentation_benchmarked": false,
+    "adopted_in_app": false
+  },
+  "notes": [
+    "The fourteen regressions passed across build 15 plus two expectation-corrected reruns on build 16.",
+    "Final build 17 changes only catalogue status labels relative to build 16; typed navigation and the large split profile passed on build 17.",
+    "Feedback 100/140% passed on build 15, with a passing isolated 200% rerun after a frame-time outlier."
+  ],
+  "file_sha256": {
+    "makefile": "ed6f07de126559c05eb5d504e8a39927d37c2edaa9fad2192afa8e1a0223a48c",
+    "src/ecs/async_git_refresh_system.h": "05ba0ec60cd8b7ba1fc5e1a1561bdeb66e382163ef87184b2dc0d79653455134",
+    "src/ecs/components.h": "156c98a77b0fb96b2098ab34c6039aa6bd1e0891b7c864eb23a85bb83395f7e9",
+    "src/ecs/main_content_system.h": "b89b7a87d34dda5136529e022e7cc074ed1d81b4cd7e4504407df3bb5868f781",
+    "src/ecs/menu_bar_system.h": "d3b03342aa141cef6e1f4c2aaa0e0c1214c40eb1ebbfe56b36ba53f583e2980a",
+    "src/ecs/network_ops_system.h": "f8cfee9df4e82ab63ee41f44a8ec3b48a6773f69db51852b04fe606ea4452d00",
+    "src/ecs/sidebar_system.h": "cfbd712c3eaa35d6431512b7fda6d339f8019ce1b93f350306235c2233004e7a",
+    "src/ecs/status_bar_system.h": "2346a70358a304814949d6a2befcf3f4fc2ab64bd7c33423bfdc3ff515666021",
+    "src/ecs/tab_bar_system.h": "e0d4944c60407e55983ff3afbc67f9f7484155db1311235f4a358d7747f51fcb",
+    "src/git/commit_patch.cpp": "7fc52d4108a292d38b29fca603ddfce39a98510a244e745fa6c4fca0e159511f",
+    "src/git/commit_patch.h": "3a7cec8cff6fe40d4fd056eca8a4634f4f199c7db5560afd28bbda70d551174c",
+    "src/git/git_parser.cpp": "bcfbd762c96740ad6da49b551d5b2df8f8255b6f608907d99bf56bceefd77522",
+    "src/git/git_parser.h": "bd5ba8798ca041b14792cc2155ea45c65f54cc01faa6e8a25399086e3ae3e04d",
+    "src/git/git_runner.cpp": "e20b55fdc4b39325b5062e132634a19e3cfb2e5ca7adcbee849cb8348c273e4f",
+    "src/git/history_scope.h": "5054178c830dac7c5726c1b68acd6cc02694627839be091b7cdec96a6c12ea4e",
+    "src/git/log_redaction.h": "67dacd3813e2908b448bbeb4454786df649ba4353fbc6479d3a950eff4d07903",
+    "src/git/push_destination.h": "1be21440dd249e1c21833325a6658729c3964f497bb3c51b035ae24523402458",
+    "src/git/reading_catalog.h": "48ffb376b234e0c9025f11de8ae9a6f9fed3166ae4a0fbc7764097b9cdd10f81",
+    "src/main.cpp": "20566772a5b563d527914e3836ff1277cb90b149f805835c2736cba922b3f86c",
+    "src/platform/native_menu.h": "df6c0b13ed0ce1feb31c4f1f717e9f2b29b6f0d71eefb8c05e426ab18fded98f",
+    "src/platform/native_menu.mm": "88c12fbfd14db7d6576a911e5b5f3cf5da8f25283a0567a1c8645507b58f991a",
+    "src/review_store.cpp": "7ed3ec46c184ebac25eaa49f323c34fa1699fd1544d73d3de3a97e66e8edb1ba",
+    "src/review_store.h": "d62d4c35354b3de958d59c3ed11deaebb63ad7402800cb7bf42698eaa5713643",
+    "src/settings.cpp": "89d2dc1957a70aed52b71be9b240d46010ddcfba168625bdb54271c0bb6953e3",
+    "src/settings.h": "c4fd433e3c7654b94ad83fbdb9a935a48c1d66dc874915d87a315a43e5d53e12",
+    "src/ui/commit_detail.h": "18312ad39065b4262ab5a7ac54c366212e3e9f8894e4ca15a5a24db38ed226a0",
+    "src/ui/context_menu.cpp": "fdd2abec7a644f0ee41ce9fa05afec591a9b31c00a4186fa4e59b28eef17d482",
+    "src/ui/context_menu.h": "d5ee0e2326b9d6bf1ec0e5560cd709b28126142cc8d1708e8788e9b05fd0b845",
+    "src/ui/context_menu_render.h": "e35139f6a6348cfcc9fa8005f06bb8a5c0d05ba9b478e1183a8fbabd6f47c9e8",
+    "src/ui/diff_renderer.h": "2ad8414e5521f322349244c675486b4b2281975d23555f28facbf48270f81074",
+    "src/ui/file_picker.h": "92a754e5b7045d1b221efb1ed8d0bf98dbf23b4f2ec819c66135224bb661f54f",
+    "src/ui/focus.h": "b3f698e99ea10b28cf31bc43cf61e3826c7f7383fddadae3c4158d1520e8199f",
+    "src/ui/menu_setup.h": "af493aae871208e950664d2aad42201fdaf9e225261baa1af1b7276dde589b5d",
+    "src/ui/repository_actions.h": "7597256a920e6811e45ede16c1d798877c6a533af920b7867ffc84a6e593e60f",
+    "src/util/async_task.h": "71be4d20726b14d4a4c954e09301f1db3f2e3fca4a58da70b6b2bae4ab276056",
+    "src/util/document_titles.h": "06ca59792564b3928b0f136f5c97415ddf1511277ef64b2812780e7d124f7d99",
+    "src/util/focus_target.h": "48625a0ef8e1bf50746b73f8b9c130b67ea24f5490a3a61ac52cbc3de1bf2723",
+    "src/util/history_selection.h": "ab1e09f190705968421e80389b939aac8e6f515679158d3ff6af08de12ea6227",
+    "src/util/navigation.h": "e348feed82f041ca30f3ff0321db955ffa471c7373299f1563db10eff9eb3904",
+    "src/util/reading_workspace.h": "a7359f8774726749a938dc5b4c3d8580c0407b355d47aad8f5576763f87b6033",
+    "src/util/shared_read.h": "b89ae3cc2d256a503f7f2476396e723db90e18f1cf7817e4336a638f610d2168",
+    "src/util/storage_key.h": "53c4e7ed2ae3dcf5b7dc3ec6769b34831ba14801c9fdcf2b20ba01eb87d607e4",
+    "tests/commit_metadata.py": "184fd927db23a0bbd243974fe826fd61da2fd394e1634ed9c8ac895e7ecba00b",
+    "tests/e2e_scripts/portfolio_shots.e2e": "08f505069f215ced9b9beb599a85de0bf7611e5b52302469bec249273fede06b",
+    "tests/history_pagination.py": "aeb4aeb572b5eca97a0d5e30ef5df49c2e43736e838a04cf29866d6e468a3b13",
+    "tests/loading_feedback.py": "f56828dffdc69587e96ef34d71b1fae8ecd9cb6efa7064f68d348cb9f64b7692",
+    "tests/quick_open_scope.py": "b0ed7ae59f48978c0adbc1ad5b78834fda6b018960e8be39726552e8e4c1db11",
+    "tests/reading_acceptance.py": "2e8d26d28044dc270ee05fda062a101827b7a36c6d0289232cdf6c3ee13ee5a6",
+    "tests/run_unit_tests.sh": "64ed4029c9dcc777a4bc68eecab953e8d840dc83a0e3d88dc5ef6bdaeac4f3bb",
+    "tests/test_native_menu.mm": "2ebf6bf028a27206621a02f69f1ea89e7208643ad3fbfcbb725fbf94afebacfd",
+    "tests/triage_feedback.py": "5342e260e6bd4026b5110e7b267a0c81f7e700224615a38e4a0c887af0c52626",
+    "tests/triage_reading.py": "d597478141039080dffca8dfdfbf13ce2c0eaff5ce39b2eac8df6ad66c83e5d2",
+    "tests/triage_repositories.py": "98468897527a0a794f3228254685455ab09a19ba4d87bae41c1bd57614bbae8e",
+    "tests/triage_split_profile.py": "1e3ab520e4ea61d5e8e7dc4566d3e42fa82fa03d0cbb8a360d149e3a28468e49",
+    "tests/unit/test_commit_patch.cpp": "912cad7317ce376a031051c4c9709155e6891d3ecf159af4391d1b5fa7daa914",
+    "tests/unit/test_context_menu.cpp": "8b866e69862f496d3271546f1c6c187c6433bce18714526f1382ae359b6870a7",
+    "tests/unit/test_reading_catalog.cpp": "23278aa7bebef40cefaa392bcc5e1131352bb02261dedab6e35005c6752fb2b8",
+    "tests/unit/test_review_store.cpp": "159c1df0980a1210a9ffc787e2d76c2f4253c08e6f0b21b6fafe225a093454a0",
+    "tests/unit/test_settings.cpp": "e7959841645b50278dd951abe86bcb7b0e16b54b4625bfa15483b911b53ac9b3",
+    "tests/unit/test_triage.cpp": "caf9bdcc84dbf01a6f18ad8b2b7c104171baca123500c0196c2f307f0e22004f"
+  }
+}

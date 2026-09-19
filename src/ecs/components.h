@@ -1,4 +1,6 @@
 #pragma once
+
+#include "../util/reading_load.h"
 #include <atomic>
 
 #include <algorithm>
@@ -16,6 +18,9 @@
 #include "../../vendor/afterhours/src/core/entity_helper.h"
 #include "../git/git_runner.h"
 #include "../git/history_query.h"
+#include "../git/history_scope.h"
+#include "../git/reading_catalog.h"
+#include "../git/push_destination.h"
 #include "../git/path_list.h"
 #include "../git/source_position.h"
 #include "../util/file_query.h"
@@ -38,6 +43,7 @@
 #include "../util/review_verdict.h"
 #include "../util/async_task.h"
 #include "../util/refresh_scope.h"
+#include "../util/history_selection.h"
 
 namespace ecs {
 
@@ -73,6 +79,11 @@ struct CommitEntry {
     std::string parentHashes;  // Space-separated parent hashes from %P
 };
 
+inline std::uint64_t next_render_identity() {
+    static std::atomic<std::uint64_t> next{1};
+    return next.fetch_add(1, std::memory_order_relaxed);
+}
+
 struct DiffHunk {
     int oldStart = 0, oldCount = 0;
     int newStart = 0, newCount = 0;
@@ -81,6 +92,7 @@ struct DiffHunk {
     std::set<size_t> noNewline;
     std::set<size_t> movedLines;
     std::vector<code_lexer::State> syntaxBefore, syntaxAfter;
+    std::uint64_t renderIdentity = next_render_identity();
 };
 
 struct CommitReviewQueue {
@@ -100,10 +112,6 @@ inline CommitReviewQueue refreshed_review_queue(const CommitReviewQueue& previou
     return result;
 }
 
-inline std::uint64_t next_render_identity() {
-    static std::atomic<std::uint64_t> next{1};
-    return next.fetch_add(1, std::memory_order_relaxed);
-}
 
 struct FileDiff {
     std::string filePath;
@@ -166,6 +174,7 @@ struct FullFileContent {
     std::string encodingLabel;
     std::string decodedText;
     std::string resolvedRevision;
+    reading_load::Trace trace;
 };
 
 struct SourcePageWindow {
@@ -194,6 +203,7 @@ struct CommitPatch {
     std::string error;
     std::string resolvedCommit;
     std::string resolvedParent;
+    reading_load::Trace trace;
 };
 
 struct UntrackedReviewFiles {
@@ -342,6 +352,10 @@ struct DiffSyntaxRuntime {
 };
 
 struct RepoComponent : public afterhours::BaseComponent {
+    bool pushDialogOpen = false;
+    std::string pushRepository;
+    git::PushDestination pushDestination;
+    async_work::Task<git::PushDestination> pushDestinationFuture;
     RangeDiffState rangeDiff;
     commit_prefetch::State commitPrefetch;
     bool reviewWorkspace = false;
@@ -365,11 +379,23 @@ public:
     std::string headCommitHash;
     int aheadCount = 0;
     int behindCount = 0;
+    bool statusKnown = false;
+    bool branchKnown = false;
+    std::string statusError;
 
     std::vector<FileStatus> stagedFiles;
     std::vector<FileStatus> unstagedFiles;
     std::vector<std::string> untrackedFiles;
     std::vector<CommitEntry> commitLog;
+    reading::HistorySelection historySelection;
+    git::HistoryScope historyScope;
+    struct HistoryPosition { reading::HistorySelection selection; std::string top; float fraction = 0.f; };
+    std::map<std::string, HistoryPosition> historyPositions;
+    bool historyScopeRequested = false;
+    bool historyRestorePosition = false;
+    async_work::Task<git::GitResult> historyScopeFuture;
+    std::string historyScopeRequestKey;
+    std::string historyError;
     CommitLogPage commitLogPage;
     int commitLogLoaded = 0;
     bool commitLogHasMore = true;
@@ -414,6 +440,7 @@ public:
     DiffSyntaxRuntime diffSyntax;
     async_work::Task<FullFileContent> fullFileFuture;
     loading_feedback::Delay fullFileLoading;
+    reading_load::Trace fullFileTrace;
     reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;
     FilePageRequest fullFilePageRequest;
@@ -520,14 +547,14 @@ public:
         const auto* changes = std::get_if<reading::WorkingChanges>(&workspace_.review().destination);
         return changes && changes->staged;
     }
-    int fullFileTargetLine() const { return workspace_.source() ? workspace_.source()->line : 0; }
+    int fullFileTargetLine() const { return workspace_.recent_source() ? workspace_.recent_source()->line : 0; }
     const std::string& fullFilePath() const {
         static const std::string empty;
-        return workspace_.source() ? workspace_.source()->destination.path : empty;
+        return workspace_.recent_source() ? workspace_.recent_source()->destination.path : empty;
     }
     const std::string& fullFileRevision() const {
         static const std::string empty;
-        return workspace_.source() ? reading::revision_text(workspace_.source()->destination.revision) : empty;
+        return workspace_.recent_source() ? reading::revision_text(workspace_.recent_source()->destination.revision) : empty;
     }
     const std::string comparisonScope() const {
         return std::holds_alternative<reading::ComparisonReview>(workspace_.review().destination)
@@ -566,6 +593,7 @@ struct CommitDetailRuntime {
     CommitEntry entry;
     async_work::Task<CommitPatch> patchFuture;
     loading_feedback::Delay loading;
+    reading_load::Trace trace;
     int cachedContext = -1;
     bool cachedIgnoreWhitespace = false;
     std::vector<FileDiff> commitDetailDiff;
@@ -584,6 +612,12 @@ struct CommitDetailCache : public afterhours::BaseComponent, CommitDetailRuntime
 
 // Per-tab "Ballroom" review state (see docs/mocks/ballroom.html).
 struct ReviewComponent : public afterhours::BaseComponent {
+    std::string loadError;
+    struct FeedbackRange {
+        int first = 0, last = 0;
+        bool oldSide = false;
+        bool operator==(const FeedbackRange&) const = default;
+    };
     struct Comment {
         std::string scope;  // "wt" for working tree, or a commit SHA
         std::string file;
@@ -595,6 +629,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
         std::string revision;
         std::string codeContext;
         ReviewCommentKind kind = ReviewCommentKind::Comment;
+        std::vector<FeedbackRange> ranges;
     };
     bool reviewing = false;
     bool basketOpen = true;   // feedback basket panel shown (toggle in diff header)
@@ -619,6 +654,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::string composingScope;  // "wt" or a commit SHA
     int composingLine = 0;       // line the comment targets
     int composingEndLine = 0;
+    std::vector<FeedbackRange> composingRanges;
     bool composingOldSide = false;
     std::string composingRevision;
     std::string composingCodeContext;
@@ -657,6 +693,7 @@ struct ReviewComponent : public afterhours::BaseComponent {
 };
 
 inline void reset_review(ReviewComponent& review) {
+    review.loadError.clear();
     review.reviewing = false;
     review.basketOpen = true;
     review.showApproved = false;
@@ -683,6 +720,7 @@ inline void reset_review(ReviewComponent& review) {
     review.composingScope.clear();
     review.composingLine = 0;
     review.composingEndLine = 0;
+    review.composingRanges.clear();
     review.composingOldSide = false;
     review.composingRevision.clear();
     review.composingCodeContext.clear();
@@ -727,16 +765,22 @@ inline std::string diff_signature(const FileDiff& f) {
     return s;
 }
 
-inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const FileDiff& file) {
+template<class Signature, class HunkKey>
+inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const FileDiff& file, Signature signature, HunkKey hunkKey) {
     if (file.isPartialContent) return false;
     auto record = review.reviewedFiles.find(scope + "\n" + file.filePath);
     if ((file.oldMode != file.newMode || !file.oldPath.empty()) &&
-        (record == review.reviewedFiles.end() || record->second != diff_signature(file))) return false;
+        (record == review.reviewedFiles.end() || record->second != signature(file))) return false;
     if (!file.hunks.empty())
         return std::all_of(file.hunks.begin(), file.hunks.end(), [&](const auto& hunk) {
-            return review.approvedHunks.contains(scope + "\n" + ReviewComponent::hunk_key(file.filePath, hunk));
+            return review.approvedHunks.contains(scope + "\n" + hunkKey(file, hunk));
         });
-    return record != review.reviewedFiles.end() && record->second == diff_signature(file);
+    return record != review.reviewedFiles.end() && record->second == signature(file);
+}
+
+inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const FileDiff& file) {
+    return file_reviewed(review, scope, file, diff_signature,
+        [](const FileDiff& value, const DiffHunk& hunk) { return ReviewComponent::hunk_key(value.filePath, hunk); });
 }
 
 inline bool file_reviewed(const ReviewComponent& review, const std::string& scope, const reading::FileSummary& file) {
@@ -765,6 +809,16 @@ inline std::optional<size_t> next_unreviewed_file(const ReviewComponent& review,
 }
 
 inline std::string comment_location(const ReviewComponent::Comment& comment) {
+    if (!comment.ranges.empty()) {
+        std::string location = comment.file + ": ";
+        for (const auto& range : comment.ranges) {
+            if (location.back() != ' ') location += ", ";
+            location += std::string(range.oldSide ? "before " : "after ") + std::to_string(range.first);
+            if (range.last > range.first) location += "-" + std::to_string(range.last);
+        }
+        return location;
+    }
+
     auto out = comment.file + ":" + std::to_string(comment.line);
     if (comment.endLine > comment.line) out += "-" + std::to_string(comment.endLine);
     if (comment.oldSide) out += " (old)";
@@ -835,26 +889,23 @@ struct ReviewProgress {
     bool can_approve() const { return reviewed == total && unresolved == 0; }
 };
 
+template<class File, class Reviewed>
 inline ReviewProgress review_progress(const ReviewComponent& review, const std::string& scope,
-        const std::vector<FileDiff>& files) {
+        const std::vector<File>& files, Reviewed reviewed) {
     ReviewProgress progress;
     progress.total = files.size();
     progress.reviewed = static_cast<size_t>(std::count_if(files.begin(), files.end(),
-        [&](const auto& file) { return file_reviewed(review, scope, file); }));
+        [&](const auto& file) { return reviewed(review, scope, file); }));
     progress.unresolved = static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(),
         [&](const auto& comment) { return comment.scope == scope && !comment.resolved; }));
     return progress;
 }
 
+template<class File>
 inline ReviewProgress review_progress(const ReviewComponent& review, const std::string& scope,
-        const std::vector<reading::FileSummary>& files) {
-    ReviewProgress progress;
-    progress.total = files.size();
-    progress.reviewed = static_cast<size_t>(std::count_if(files.begin(), files.end(),
-        [&](const auto& file) { return file_reviewed(review, scope, file); }));
-    progress.unresolved = static_cast<size_t>(std::count_if(review.comments.begin(), review.comments.end(),
-        [&](const auto& comment) { return comment.scope == scope && !comment.resolved; }));
-    return progress;
+        const std::vector<File>& files) {
+    return review_progress(review, scope, files,
+        [](const auto& value, const auto& key, const auto& file) { return file_reviewed(value, key, file); });
 }
 
 inline std::string review_target_signature(const std::vector<FileDiff>& files) {
@@ -883,7 +934,7 @@ inline bool review_queue_completion_is_stale(const ReviewComponent& review, cons
 inline ReviewComponent::Comment pending_comment(const ReviewComponent& review) {
     return {review.composingScope, review.composingFile, review.composingLine,
         review.composingText, review.composingEndLine, review.composingOldSide, false,
-        review.composingRevision, review.composingCodeContext, review.composingKind};
+        review.composingRevision, review.composingCodeContext, review.composingKind, review.composingRanges};
 }
 
 inline ReviewComponent::Comment comment_with_context(ReviewComponent::Comment comment,
@@ -937,6 +988,7 @@ inline void begin_comment(ReviewComponent& review, const std::string& key,
     review.composingFile = location.file;
     review.composingLine = location.line;
     review.composingEndLine = location.endLine;
+    review.composingRanges = std::move(location.ranges);
     review.composingOldSide = location.oldSide;
     review.composingText = std::move(location.text);
     review.composingRevision = std::move(location.revision);
@@ -960,6 +1012,7 @@ inline void commit_pending_comment(ReviewComponent& r) {
     r.composingScope.clear();
     r.composingLine = 0;
     r.composingEndLine = 0;
+    r.composingRanges.clear();
     r.composingOldSide = false;
     r.composingRevision.clear();
     r.composingCodeContext.clear();
@@ -1044,6 +1097,24 @@ struct FilePickerScope {
     reading::RequestStamp request;
     git::PathList listing;
     async_work::Task<git::PathList> future;
+    git::catalog::Kind category = git::catalog::Kind::All;
+    bool catalogStarted = false;
+    git::catalog::Page localRefs, remoteRefs, commits;
+    git::catalog::Changes changes;
+    async_work::Task<git::catalog::Changes> changesFuture;
+    async_work::Task<git::catalog::Page> localFuture, remoteFuture, commitsFuture;
+    std::string catalogQuery;
+    std::optional<std::chrono::steady_clock::time_point> catalogDue;
+    std::uint64_t catalogVersion = 0;
+    std::vector<git::catalog::Entry> results;
+    git::catalog::Page extra;
+    async_work::Task<git::catalog::Page> extraFuture;
+    std::string extraKey;
+    size_t extraOffset = 0;
+    bool moreRequested = false;
+    std::string statusPath;
+    async_work::Task<std::string> statusFuture;
+    std::map<std::string, std::string> worktreeStatus;
 };
 
 struct FilePickerPosition {
@@ -1063,6 +1134,11 @@ struct LayoutComponent : public afterhours::BaseComponent {
     int focusRepositoryOwner = -1;
     FilePickerScope filePickerScope;
     FilePickerPosition filePickerPosition;
+    std::string repositoryPickerQuery;
+    bool repositoryPickerAlphabetical = false;
+    bool relinkOpen = false;
+    std::string relinkOld, relinkNew, relinkError, relinkRequest;
+    async_work::Task<git::GitResult> relinkFuture;
     bool filePickerOpen = false;
     bool filePickerFocus = false;
     std::string filePickerQuery;
@@ -1191,6 +1267,7 @@ struct PendingNetworkOp {
     std::string label;
     async_work::Task<git::GitResult> future;
     afterhours::EntityID tabId{0};
+    std::string repository;
 };
 
 struct NetworkOpsComponent : public afterhours::BaseComponent {

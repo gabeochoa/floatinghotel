@@ -1,0 +1,168 @@
+--- Compiling test_settings ---
+In file included from vendor/afterhours/src/plugins/files.cpp:7:
+In file included from vendor/afterhours/src/plugins/files.h:14:
+vendor/afterhours/src/plugins/../core/system.h:429:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  429 |     void for_each(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:506:25: note: in instantiation of template class 'afterhours::System<>' requested here
+  506 | struct CallbackSystem : System<> {
+      |                         ^
+vendor/afterhours/src/plugins/../core/system.h:147:18: note: overridden virtual function is here
+  147 |     virtual void for_each(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:437:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  437 |     void for_each_derived(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:153:18: note: overridden virtual function is here
+  153 |     virtual void for_each_derived(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:444:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  444 |     void for_each_derived(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:154:18: note: overridden virtual function is here
+  154 |     virtual void for_each_derived(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:451:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  451 |     virtual void for_each_with_derived(Entity &, Components &..., const float) {
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:179:18: note: overridden virtual function is here
+  179 |     virtual void for_each_with_derived(Entity &, const float) {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:453:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  453 |     virtual void for_each_with_derived(const Entity &, const Components &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:180:18: note: overridden virtual function is here
+  180 |     virtual void for_each_with_derived(const Entity &, const float) const {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:456:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  456 |     void for_each(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:148:18: note: overridden virtual function is here
+  148 |     virtual void for_each(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:429:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  429 |     void for_each(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../developer.h:208:57: note: in instantiation of template class 'afterhours::System<afterhours::files::ProvidesResourcePaths>' requested here
+  208 | template <typename Component> struct EnforceSingleton : System<Component> {
+      |                                                         ^
+/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__memory/unique_ptr.h:759:30: note: in instantiation of template class 'afterhours::developer::EnforceSingleton<afterhours::files::ProvidesResourcePaths>' requested here
+  759 |   return unique_ptr<_Tp>(new _Tp(std::forward<_Args>(__args)...));
+      |                              ^
+vendor/afterhours/src/plugins/files.cpp:199:12: note: in instantiation of function template specialization 'std::make_unique<afterhours::developer::EnforceSingleton<afterhours::files::ProvidesResourcePaths>, 0>' requested here
+  199 |       std::make_unique<developer::EnforceSingleton<ProvidesResourcePaths>>());
+      |            ^
+vendor/afterhours/src/plugins/../core/system.h:147:18: note: overridden virtual function is here
+  147 |     virtual void for_each(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:437:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  437 |     void for_each_derived(Entity &entity, const float dt) {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:153:18: note: overridden virtual function is here
+  153 |     virtual void for_each_derived(Entity &, const float) = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:444:10: warning: 'for_each_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  444 |     void for_each_derived(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:154:18: note: overridden virtual function is here
+  154 |     virtual void for_each_derived(const Entity &, const float) const = 0;
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:451:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  451 |     virtual void for_each_with_derived(Entity &, Components &..., const float) {
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:170:18: note: overridden virtual function is here
+  170 |     virtual void for_each_with_derived(Entity &, Cs &..., const float) {}
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:453:18: warning: 'for_each_with_derived' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  453 |     virtual void for_each_with_derived(const Entity &, const Components &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:171:18: note: overridden virtual function is here
+  171 |     virtual void for_each_with_derived(const Entity &, const Cs &...,
+      |                  ^
+vendor/afterhours/src/plugins/../core/system.h:456:10: warning: 'for_each' overrides a member function but is not marked 'override' [-Winconsistent-missing-override]
+  456 |     void for_each(const Entity &entity, const float dt) const {
+      |          ^
+vendor/afterhours/src/plugins/../core/system.h:148:18: note: overridden virtual function is here
+  148 |     virtual void for_each(const Entity &, const float) const = 0;
+      |                  ^
+12 warnings generated.
+--- Running test_settings ---
+[INFO] Registered singleton 0 for afterhours::files::ProvidesResourcePaths (0)
+=== settings tests ===
+  settings_default_values                                      OK
+  settings_window_geometry                                     OK
+  settings_sidebar_width                                       OK
+  settings_commit_log_ratio_clamped                            OK
+  settings_open_repos                                          OK
+  settings_open_repos_no_duplicates                            OK
+  settings_open_repos_remove                                   OK
+  settings_add_empty_repo_ignored                              OK
+  settings_last_active_repo                                    OK
+  settings_unstaged_policy_valid                               OK
+  settings_unstaged_policy_invalid_resets_to_ask               OK
+  settings_code_font_size                                      [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_write_and_load_roundtrip                            [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_load_missing_file_returns_false                     [INFO] No settings file found at /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json, using defaults
+OK
+  settings_load_malformed_json                                 [WARN] Failed to parse settings file /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json: [json.exception.parse_error.101] parse error at line 1, column 2: syntax error while parsing object key - unexpected '{'; expected string literal (preserving existing settings)
+OK
+  settings_load_partial_json_uses_defaults                     [INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_code_bookmarks_roundtrip                            [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_bookmarks_have_one_authoritative_repository_value   OK
+  settings_ignore_malformed_bookmarks_without_losing_valid_entries [INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_remembers_expanded_and_collapsed_window_sizes       [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_reading_sessions_round_trip_per_repository          [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_rejects_future_and_partial_files_without_overwriting [WARN] Failed to parse settings file /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json: Settings were written by a newer version (preserving existing settings)
+[WARN] Failed to parse settings file /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json: [json.exception.type_error.302] type must be number, but is string (preserving existing settings)
+[INFO] No settings file found at /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json, using defaults
+[INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_pins_sections_and_relink_preserve_reading_state     [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_coalesces_resize_font_and_navigation_saves          [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+60 resize/font/navigation updates: 1 write; 60 unchanged updates: 0 writes
+OK
+  settings_shutdown_flushes_before_debounce_and_reload_cancels_pending [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_unchanged_collections_do_not_schedule_writes        [INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_command_log_height_migrates_and_clamps              [INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+  settings_failed_relink_preserves_pending_save                [ERROR] Failed to save settings: /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[WARN] write_string_atomic: rename to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json failed
+[INFO] Settings saved to /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+[INFO] Settings loaded from /Users/gabeochoa/Library/Application Support/floatinghotel_test/settings.json
+OK
+
+28/28 tests passed.
+
+========================================
+Results: 1/1 passed, 0 failed, 0 skipped
+========================================

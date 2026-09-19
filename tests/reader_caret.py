@@ -118,6 +118,9 @@ for zoom in [100, 140, 200]:
             assert colored['background'] != nodes[target['id']]['background']
         assert not visible('find', 'code_caret'), (zoom, mode, 'Find must own focus')
         assert visible('find_closed', 'code_caret'), (zoom, mode, 'Find return')
+        found = active('find')['find']['position']
+        assert active('find_closed')['caret'] == {'path': found['path'], 'line': found['line'], 'column': found['column'],
+            'side': 'before' if found['sign'] == '-' else 'after'}, (zoom, mode, 'Find caret differs from match')
         if mode == 'source':
             assert active('returned')['caret'] == active('find_closed')['caret']
             assert active('other')['caret']['path'] == 'b.cpp' and active('other')['caret']['line'] == 1

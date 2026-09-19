@@ -7,13 +7,14 @@
 #include <utility>
 
 namespace {
-std::vector<native_menu::CommandId> pending_commands;
+std::vector<native_menu::Invocation> pending_commands;
 std::unordered_map<native_menu::CommandId, NSMenuItem*> command_items;
 std::vector<native_menu::Menu> displayed_menus;
 NSMenu* installed_menu = nil;
 NSMenu* previous_menu = nil;
 
 void apply_item(NSMenuItem* target, const native_menu::Item& item) {
+    target.representedObject = [NSString stringWithUTF8String:item.owner.c_str()];
     target.title = [NSString stringWithUTF8String:item.title.c_str()];
     target.enabled = item.enabled;
     target.state = item.checked ? NSControlStateValueOn : NSControlStateValueOff;
@@ -44,7 +45,8 @@ void apply_item(NSMenuItem* target, const native_menu::Item& item) {
 - (void)enqueue:(NSMenuItem*)sender {
     assert(NSThread.isMainThread);
     if (sender.enabled)
-        pending_commands.push_back(static_cast<native_menu::CommandId>(sender.tag));
+        pending_commands.push_back({static_cast<native_menu::CommandId>(sender.tag),
+            sender.representedObject ? [(NSString*)sender.representedObject UTF8String] : ""});
 }
 @end
 
@@ -151,7 +153,7 @@ void refresh(const std::vector<Menu>& menus) {
     displayed_menus = menus;
 }
 
-std::vector<CommandId> drain_commands() {
+std::vector<Invocation> drain_commands() {
     assert(NSThread.isMainThread);
     return std::exchange(pending_commands, {});
 }

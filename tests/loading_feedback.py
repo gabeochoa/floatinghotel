@@ -11,6 +11,7 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--binary', type=Path, default=ROOT / 'output/floatinghotel.exe')
 parser.add_argument('--snapshots', action='store_true')
+parser.add_argument('--cancel-buttons', action='store_true')
 parser.add_argument('--zooms', nargs='+', type=int, default=[100, 140, 200])
 args = parser.parse_args()
 out = args.output.resolve()
@@ -34,7 +35,7 @@ wrapper.mkdir()
 real_git = shutil.which('git')
 (wrapper / 'git').write_text('#!/usr/bin/env python3\nimport os, sys, time\nfrom pathlib import Path\n'
     + f"slow = {slow!r}\nhead = {head!r}\n"
-    + "kind = 'commit' if '--git-common-dir' in sys.argv and any(a.startswith(slow) for a in sys.argv) else 'source' if 'ls-tree' in sys.argv and ':(literal)b.cpp' in sys.argv else 'comparison' if 'diff' in sys.argv and slow in sys.argv and head in sys.argv else ''\n"
+    + "kind = 'commit' if '--git-common-dir' in sys.argv and any(a.startswith(slow) for a in sys.argv) else 'source' if 'ls-tree' in sys.argv and ':(literal)b.cpp' in sys.argv else 'comparison' if 'diff' in sys.argv and '--no-ext-diff' in sys.argv and slow in sys.argv and head in sys.argv else ''\n"
     + "if kind:\n    folder = Path(os.environ['FH_LOADING_EVENTS'])\n    (folder / (kind + '.started')).touch()\n    time.sleep(.2)\n    (folder / (kind + '.busy')).touch()\n    time.sleep(8)\n    (folder / (kind + '.finished')).touch()\n"
     + f"os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])\n")
 (wrapper / 'git').chmod(0o755)
@@ -55,13 +56,16 @@ for zoom in args.zooms:
     script += picker('c.cpp') + capture('warm_source', 3) + 'click_ui content_document_2\n' + capture('warm_review', 3)
     script += 'click_text "Slow review"\n' + capture('commit_pending', 4, False)
     script += 'wait_for_path commit.busy\n' + capture('commit_busy', 4, False)
+    if args.cancel_buttons: script += 'click_ui cancel_active_read\nwait_for_refresh\n' + capture('commit_cancelled', 4)
     script += 'click_text "Fast review"\n' + capture('commit_return', 4)
     script += picker('b.cpp') + capture('source_pending', 5, False)
     script += 'wait_for_path source.busy\n' + capture('source_busy', 5, False)
+    if args.cancel_buttons: script += 'click_ui cancel_active_read\nwait_for_refresh\n' + capture('source_cancelled', 5)
     script += 'click_ui content_document_3\n' + capture('source_return', 5)
     script += 'native_menu_action "Compare Revisions..."\nwait_frames 3\nscreenshot comparison_form\n'
     script += f'click_ui compare_base\nkey CMD+A\ntype "{slow}"\nclick_ui compare_target\nkey CMD+A\ntype "{head}"\nclick_ui compare_submit\n'
     script += capture('comparison_pending', 5, False) + 'wait_for_path comparison.busy\n' + capture('comparison_busy', 5, False)
+    if args.cancel_buttons: script += 'click_ui cancel_active_read\nwait_for_refresh\n' + capture('comparison_cancelled', 5)
     script += 'click_ui content_document_3\n' + capture('comparison_return', 5)
     script += 'wait_frames 700\n' + capture('settled', 5)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
@@ -92,7 +96,7 @@ for zoom in args.zooms:
         assert not any(n.get('name') == 'full_file_loading' for n in nodes(name))
     for name in ['comparison_pending', 'comparison_busy']:
         assert not layout(name)['reading_rows'], (zoom, name, 'old comparison contents')
-    assert any(n.get('text') == 'Comparing revisions...' for n in nodes('comparison_busy'))
+    assert any(n.get('text') == 'Comparing revisions...' or (args.cancel_buttons and n.get('text') == 'Loading comparison...') for n in nodes('comparison_busy'))
     for name, control in [('commit_busy', 'commit_detail_loading'), ('source_busy', 'full_file_loading'), ('comparison_busy', 'comparison_loading_status')]:
         rendered = nodes(name)
         main = next(n['rect'] for n in rendered if n.get('name') == 'main_content')
@@ -106,6 +110,10 @@ for zoom in args.zooms:
     assert not (directory / 'comparison.finished').exists(), 'superseded comparison was not cancelled'
     assert not (directory / 'commit.finished').exists(), 'superseded commit read was not cancelled'
     assert not (directory / 'source.finished').exists(), 'superseded source read was not cancelled'
+    if args.cancel_buttons:
+        for kind in ['commit', 'source', 'comparison']:
+            assert any(n.get('name') == 'cancel_active_read' for n in nodes(kind + '_busy'))
+            assert not any(n.get('name') == 'cancel_active_read' for n in nodes(kind + '_cancelled'))
     if not args.snapshots: assert 'Native test window hidden=1 key=0' in (directory / 'run.log').read_text()
     results.append(dict(zoom=zoom, cancelled=['commit', 'source', 'comparison']))
     print(f'PASS {zoom}% immediate destination headings, delayed reads, clean loading surfaces and cancellation', flush=True)

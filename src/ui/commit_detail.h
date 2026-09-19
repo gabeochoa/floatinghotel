@@ -108,6 +108,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         try {
             auto patch = detailCache.patchFuture.get();
             if (!navigation::accepts(repo, detailCache.requestStamp, requestKey())) return;
+            reading_load::Publishing publication(detailCache.trace, patch.trace);
             navigation::resolve_review(repo, detailCache.requestStamp, patch.resolvedCommit, patch.resolvedParent);
             detailCache.cachedCommitHash = repo.selectedCommitHash();
             detailCache.cachedParentHash = selected_commit_parent(repo);
@@ -278,11 +279,27 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         }
     }
 
+    const float popupWidth = std::max(260.f, std::min(680.f, ctx.screen_width / ui::zoom::get() - 40.f));
+    const float popupHeight = std::max(200.f, std::min(540.f, ctx.screen_height / ui::zoom::get() - 60.f));
+    bool popupOpen = detailsExpanded;
+    auto popup = afterhours::modal::detail::modal_impl(ctx, ui::dialog_parent(593021), popupOpen,
+        afterhours::ModalConfig{}.with_size(pixels(popupWidth), pixels(popupHeight)).with_title("Commit details").with_backdrop_color({0, 0, 0, 0}));
+    popup.ent().get<afterhours::modal::Modal>().previously_focused_element = -1;
+    if (popup) {
+        ui::dialog_backdrop(ctx, 593021);
+        popup.cmp().absolute_pos_x = (ctx.screen_width - popupWidth * ui::zoom::get()) * .5f;
+        popup.cmp().absolute_pos_y = (ctx.screen_height - popupHeight * ui::zoom::get()) * .5f;
+    }
+    if (popupOpen != detailsExpanded) { navigation::toggle_commit_details(repo); detailsExpanded = popupOpen; }
+    detailCache.messageVisibleRows = 0;
+    if (popup && detailsExpanded) {
+        auto detailsScroll = div(ctx, mk(popup.ent(), 593022), preset::ScrollPanel()
+            .with_size(ComponentSize{percent(1.f), expand()}).with_render_layer(1001).with_debug_name("commit_details_scroll"));
     detailCache.messageVisibleRows = 0;
     if (detailsExpanded) {
-        const bool stacked = contentW < 520.f;
-        auto metadata = div(ctx, mk(scrollContainer.ent(), 593020), ComponentConfig{}.with_skip_grid_snap()
-            .with_size(ComponentSize{pixels(std::max(1.f, std::min(contentW - PAD * 2.f, 680.f))), children()})
+        const bool stacked = popupWidth < 520.f;
+        auto metadata = div(ctx, mk(detailsScroll.ent(), 593020), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{pixels(std::max(1.f, std::min(popupWidth - PAD * 2.f, 680.f))), children()})
             .with_flex_direction(FlexDirection::Column).with_no_wrap().with_gap(pixels(6))
             .with_padding(Padding{.top = pixels(10), .right = pixels(PAD), .bottom = pixels(10), .left = pixels(PAD)})
             .with_margin(Margin{.top = pixels(8), .bottom = pixels(8), .left = pixels(PAD)})
@@ -313,7 +330,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         if (!selectedCommit->decorations.empty()) metadataRow(4, "Refs:", selectedCommit->decorations);
     }
     if (detailsExpanded) {
-        float bodyWidth = std::max(80.f, contentW - PAD * 2.f - 16.f) * ui::zoom::get();
+        float bodyWidth = std::max(80.f, popupWidth - PAD * 2.f - 16.f) * ui::zoom::get();
         float fontSize = 14.f * ui::zoom::get();
         if (detailCache.messageLines.empty() || detailCache.messageWrapWidth != bodyWidth || detailCache.messageFontSize != fontSize) {
             auto& fonts = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::FontManager>();
@@ -326,18 +343,18 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         }
         const auto& bodyLines = detailCache.messageLines;
         size_t count = bodyLines.size();
-        auto origin = div(ctx, mk(scrollContainer.ent(), 596000), ComponentConfig{}.with_skip_grid_snap()
+        auto origin = div(ctx, mk(detailsScroll.ent(), 596000), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), children()})
             .with_flex_direction(FlexDirection::Column).with_no_wrap());
         float rowHeight = 18.f * ui::zoom::get();
         float scrollY = 0.f, viewport = layout.mainContent.height * ui::zoom::get();
-        if (scrollContainer.ent().has<afterhours::ui::HasScrollView>()) {
-            const auto& scroll = scrollContainer.ent().get<afterhours::ui::HasScrollView>();
+        if (detailsScroll.ent().has<afterhours::ui::HasScrollView>()) {
+            const auto& scroll = detailsScroll.ent().get<afterhours::ui::HasScrollView>();
             scrollY = scroll.scroll_offset.y;
             if (scroll.viewport_or_zero().y > 0.f) viewport = scroll.viewport_or_zero().y;
         }
         auto rect = afterhours::ui::detail::apply_scroll_offset(origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
-        float bodyY = std::max(0.f, rect.y + scrollY - scrollContainer.ent().get<afterhours::ui::UIComponent>().rect().y);
+        float bodyY = std::max(0.f, rect.y + scrollY - detailsScroll.ent().get<afterhours::ui::UIComponent>().rect().y);
         auto [first, last] = visible_rows(count, rowHeight, bodyY, scrollY, viewport);
         div(ctx, mk(origin.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.f), pixels(static_cast<float>(first) * 18.f)}));
@@ -363,7 +380,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_size(ComponentSize{percent(1.f), pixels(static_cast<float>(count - last) * 18.f)}));
     }
 
-    if (detailsExpanded) div(ctx, mk(scrollContainer.ent(), nextId++),
+    if (detailsExpanded) div(ctx, mk(detailsScroll.ent(), nextId++),
         ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{percent(1.0f), pixels(1)})
             .with_custom_background(theme::BORDER)
@@ -371,6 +388,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .top = pixels(8), .bottom = pixels(8)})
             .with_roundness(0.0f)
             .with_debug_name("commit_sep"));
+
+    }
 
     if (detailCache.patchFuture.valid()) {
         if (detailCache.loading.visible(true)) div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("Loading commit details...")
@@ -488,7 +507,6 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_custom_background(theme::WINDOW_BG)
                     .with_roundness(0.0f)
                     .with_debug_name("file_summary_row"));
-            ui::set_tooltip(fileRow.ent(), fd.isRenamed ? fd.oldPath + " -> " + fd.filePath : fd.filePath);
             fileRow.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
             if (fileRow.ent().get<HasClickListener>().down) {
                 navigation::open(repo, reading::review(reviewScope, fd.filePath));
@@ -528,6 +546,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_roundness(0.0f)
                     .with_debug_name("jump_to_diff:" + fd.filePath));
+            ui::set_truncated_tooltip(fileRow.ent(), fname, fileName.ent());
             if (fileName) {
                 navigation::open(repo, reading::review(reviewScope, fd.filePath));
             }

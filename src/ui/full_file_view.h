@@ -24,7 +24,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.fullFilePageRequest = {};
         repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
     }
-    const int targetColumn = repo.workspace().source()->column;
+    const int targetColumn = repo.workspace().active_source()->column;
     if (repo.fullFileTargetLine() > 0 && (repo.fullFileRequestedTargetLine != repo.fullFileTargetLine() || repo.fullFileRequestedTargetColumn != targetColumn)) {
         repo.fullFileRequestedTargetLine = repo.fullFileTargetLine();
         repo.fullFileRequestedTargetColumn = targetColumn;
@@ -83,6 +83,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             repo.fullFileCacheKey.clear();
             return;
         }
+        reading_load::Publishing publication(repo.fullFileTrace, content.trace);
         if (navigation::resolve_source(repo, repo.fullFileRequestStamp, content.resolvedRevision)) {
             auto resolvedKey = repo.repoPath + "\n" + repo.fullFileRevision() + "\n" + repo.fullFilePath();
             repo.fullFileCacheKey.replace(0, sourceKey.size(), resolvedKey);

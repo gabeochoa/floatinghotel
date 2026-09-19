@@ -58,6 +58,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
             const std::string path = repo.repoPath;
             auto& pf = pending_[id];
+            pf.repository = path;
+            pf.historyKey = repo.historyScope.key();
             std::vector<std::string> diffArgs{"diff"};
             diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
             if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
@@ -69,20 +71,20 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 git::PrefetchedReads pre;
                 if (git::take_prefetched(path, pre)) {
                     pf.status   = std::move(pre.status);
-                    pf.log      = std::move(pre.log);
+                    pf.log      = repo.historyScope == git::HistoryScope{} ? std::move(pre.log) : git::git_run_async(path, git::history_scope_args(repo.historyScope));
                     pf.diff     = repo.ignoreWhitespace || repo.diffContext != 3
                                       ? git::git_run_async(path, diffArgs, async_work::Priority::Background) : std::move(pre.diff);
                     pf.branches = std::move(pre.branches);
                     log_info("refresh: adopted prefetched reads");
                 } else {
                     if (plan.status) pf.status = git::git_status_async(path);
-                    if (plan.log) pf.log = git::git_log_async(path, 100, 0);
+                    if (plan.log) pf.log = git::git_run_async(path, git::history_scope_args(repo.historyScope));
                     if (plan.diff) pf.diff = git::git_run_async(path, diffArgs, async_work::Priority::Background);
                     if (plan.branches) pf.branches = git::git_branch_list_async(path);
                 }
             } else {
                 if (plan.status) pf.status = git::git_status_async(path);
-                if (plan.log) pf.log = git::git_log_async(path, 100, 0);
+                if (plan.log) pf.log = git::git_run_async(path, git::history_scope_args(repo.historyScope));
                 if (plan.diff) pf.diff = git::git_run_async(path, diffArgs, async_work::Priority::Background);
                 if (plan.branches) pf.branches = git::git_branch_list_async(path);
             }
@@ -92,6 +94,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             // subprocess is one more spawn on the startup path.
         }
 
+        update_history_scope(repo);
         update_history_page(repo);
         if (!repo.isRefreshing) {
             if (repo.untrackedReviewFuture.valid() &&
@@ -126,6 +129,13 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             return;
         }
         auto& pf = it->second;
+        if (pf.repository != repo.repoPath) {
+            pending_.erase(it);
+            repo.isRefreshing = false;
+            repo.statusKnown = repo.branchKnown = false;
+            repo.refreshRequested = true;
+            return;
+        }
 
         // Phase 2: poll each future (non-blocking)
         using namespace std::chrono_literals;
@@ -137,6 +147,9 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             log_info("refresh: status ready at {} ms", ms_since(id));
             if (result.success()) {
                 auto parsed = git::parse_status(result.stdout_str());
+                repo.headCommitHash = parsed.headHash;
+                repo.statusKnown = repo.branchKnown = true;
+                repo.statusError.clear();
                 repo.currentBranch  = parsed.branchName;
                 repo.isDetachedHead = parsed.isDetachedHead;
                 repo.aheadCount     = parsed.aheadCount;
@@ -148,6 +161,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                                !repo.unstagedFiles.empty() ||
                                !repo.untrackedFiles.empty();
             }
+            if (!result.success()) { repo.statusKnown = false; repo.statusError = result.stderr_str().empty() ? "Unable to read working changes" : result.stderr_str(); }
             // The file list is what the spinner stands in for; the log and
             // branches fill in behind it rather than holding the whole UI.
             repo.hasLoadedOnce = true;
@@ -158,15 +172,17 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.log->wait_for(0s) == std::future_status::ready) {
             auto result = pf.log->get();
             pf.log.reset();
-            repo.commitLogLoading = false;
-            if (result.success()) {
+            if (!repo.historyScopeFuture.valid()) repo.commitLogLoading = false;
+            if (result.success() && pf.historyKey == repo.historyScope.key() && !repo.historyScopeFuture.valid()) {
+                repo.historyError.clear();
                 repo.commitLog = git::parse_log(result.stdout_str());
                 repo.commitLogLoaded =
                     static_cast<int>(repo.commitLog.size());
                 repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
-                repo.headCommitHash =
-                    repo.commitLog.empty() ? std::string() : repo.commitLog.front().hash;
+                if (repo.historyScope.mode == git::HistoryScope::Mode::Current && !repo.historyScope.remotes)
+                    repo.headCommitHash = repo.commitLog.empty() ? std::string() : repo.commitLog.front().hash;
             }
+            if (!result.success() && pf.historyKey == repo.historyScope.key()) repo.historyError = result.stderr_str();
             log_info("commits loaded: {} commits, {} ms after refresh "
                      "requested, {} ms since process start",
                      repo.commitLog.size(), ms_since(id),
@@ -201,6 +217,10 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             if (result.success()) {
                 repo.branches =
                     git::parse_branch_list(result.stdout_str());
+                for (const auto& branch : repo.branches) if (branch.isCurrent) {
+                    repo.currentBranch = branch.name;
+                    repo.branchKnown = true;
+                }
             }
         }
 
@@ -221,6 +241,29 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
     }
 
 private:
+    static void update_history_scope(RepoComponent& repo) {
+        const auto key = repo.repoPath + ":" + repo.historyScope.key();
+        if (repo.historyScopeRequested) {
+            repo.historyScopeRequested = false;
+            repo.historyScopeRequestKey = key;
+            repo.historyScopeFuture = git::git_run_async(repo.repoPath, git::history_scope_args(repo.historyScope));
+            repo.commitLogPage = {};
+            repo.commitLog.clear();
+            repo.commitLogLoading = true;
+            repo.historyError.clear();
+        }
+        if (repo.historyScopeFuture.valid() && repo.historyScopeFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            auto result = repo.historyScopeFuture.get();
+            if (key != repo.historyScopeRequestKey) return;
+            repo.commitLogLoading = false;
+            if (!result.success()) { repo.historyError = result.stderr_str(); return; }
+            repo.commitLog = git::parse_log(result.stdout_str());
+            repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
+            repo.commitLogHasMore = repo.commitLog.size() == 100;
+            repo.historyRestorePosition = true;
+        }
+    }
+
     static void update_history_page(RepoComponent& repo) {
         auto& page = repo.commitLogPage;
         if (page.future.valid() && (page.repository != repo.repoPath || page.head != repo.headCommitHash ||
@@ -242,9 +285,10 @@ private:
         page.head = repo.headCommitHash;
         page.offset = repo.commitLog.size();
         page.error.clear();
-        page.future = git::git_run_async(page.repository, {"log", "--topo-order", "-100",
-            "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P", "--skip=" + std::to_string(page.offset), page.head, "--"},
-            async_work::Priority::Background);
+        auto args = git::history_scope_args(repo.historyScope, page.offset);
+        if (repo.historyScope.mode == git::HistoryScope::Mode::Current && !repo.historyScope.remotes)
+            for (auto& arg : args) if (arg == "HEAD" && !page.head.empty()) arg = page.head;
+        page.future = git::git_run_async(page.repository, args, async_work::Priority::Background);
     }
 
     // Wall time since the process was exec'd, so the number lines up with what
@@ -270,6 +314,8 @@ private:
     std::unordered_map<afterhours::EntityID, std::chrono::steady_clock::time_point> refreshStart_;
 
     struct PendingFutures {
+        std::string repository;
+        std::string historyKey;
         std::optional<async_work::Task<git::GitResult>> files;
         std::optional<async_work::Task<git::GitResult>> status;
         std::optional<async_work::Task<git::GitResult>> log;

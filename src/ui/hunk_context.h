@@ -2,11 +2,12 @@
 
 #include "../git/hunk_context.h"
 #include "../util/navigation.h"
+#include "diff_metrics.h"
 
 namespace ui::hunk_context {
 
 inline std::string key(const ecs::FileDiff& file, const ecs::DiffHunk& hunk, bool above) {
-    return ecs::ReviewComponent::hunk_key(file.filePath, hunk) + (above ? "\nabove" : "\nbelow");
+    return diff_metrics().hunk_key(file, hunk) + (above ? "\nabove" : "\nbelow");
 }
 
 inline int requested(const ecs::RepoComponent& repo, const std::string& key) {

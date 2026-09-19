@@ -1,0 +1,24 @@
+{
+  "passed": true,
+  "binary_sha256": "054a75f1803334579309a70d576b75e859c664c9e7a1c66287e8f704df6f6fbb",
+  "results": [
+    {
+      "zoom": 100,
+      "remembered_logical_height": 239.0,
+      "rendered_height": 239.0,
+      "passed": true
+    },
+    {
+      "zoom": 140,
+      "remembered_logical_height": 227.5714111328125,
+      "rendered_height": 318.6000061035156,
+      "passed": true
+    },
+    {
+      "zoom": 200,
+      "remembered_logical_height": 219.0,
+      "rendered_height": 438.00006103515625,
+      "passed": true
+    }
+  ]
+}

@@ -132,7 +132,9 @@ StatusResult parse_status(const std::string& output) {
     while (std::getline(stream, line, nulTerminated ? '\0' : '\n')) {
         if (line.empty()) continue;
 
-        if (line.starts_with("# branch.head ")) {
+        if (line.starts_with("# branch.oid ")) {
+            if (line.substr(13) != "(initial)") result.headHash = line.substr(13);
+        } else if (line.starts_with("# branch.head ")) {
             result.branchName = line.substr(14);
             if (result.branchName == "(detached)") {
                 result.isDetachedHead = true;

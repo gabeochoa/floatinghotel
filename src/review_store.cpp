@@ -11,13 +11,16 @@
 #include <afterhours/src/logging.h>
 
 #include "ecs/components.h"
+#include "util/storage_key.h"
 
 namespace review_store {
 
 namespace {
 
 nlohmann::json encode_comment(const ecs::ReviewComponent::Comment& c) {
-    return {{"scope", c.scope}, {"file", c.file}, {"line", c.line},
+    nlohmann::json ranges = nlohmann::json::array();
+    for (const auto& range : c.ranges) ranges.push_back({{"first", range.first}, {"last", range.last}, {"old_side", range.oldSide}});
+    return {{"ranges", ranges}, {"scope", c.scope}, {"file", c.file}, {"line", c.line},
         {"end_line", c.endLine}, {"old_side", c.oldSide}, {"resolved", c.resolved}, {"text", c.text},
         {"revision", c.revision}, {"code_context", c.codeContext}, {"kind", review_comment_kind_label(c.kind)}};
 }
@@ -34,6 +37,12 @@ ecs::ReviewComponent::Comment decode_comment(const nlohmann::json& value) {
     comment.revision = value.value("revision", std::string{});
     comment.codeContext = value.value("code_context", std::string{});
     comment.kind = parse_review_comment_kind(value.value("kind", std::string{}));
+    if (value.contains("ranges")) for (const auto& range : value.at("ranges")) {
+        const int first = range.at("first").get<int>();
+        const int last = range.at("last").get<int>();
+        if (first <= 0 || last < first || comment.ranges.size() >= 512) throw std::runtime_error("Invalid feedback range");
+        comment.ranges.push_back({first, last, range.value("old_side", false)});
+    }
     return comment;
 }
 
@@ -49,7 +58,7 @@ std::filesystem::path reviews_dir() {
 
 // Filesystem-safe per-repo key (repo paths contain slashes).
 std::string repo_key(const std::string& repoPath) {
-    return std::to_string(std::hash<std::string>{}(repoPath));
+    return storage::key(repoPath);
 }
 
 }  // namespace
@@ -68,10 +77,53 @@ std::string markdown_path(const std::string& repoPath,
     return (reviews_dir() / (repo_key(repoPath) + "-" + b + ".md")).string();
 }
 
+std::string copy_repository_reviews(const std::string& oldPath, const std::string& newPath) {
+    std::vector<std::pair<std::string, std::string>> copies;
+    std::error_code error;
+    const auto prefix = repo_key(oldPath);
+    const auto legacy = std::to_string(std::hash<std::string>{}(oldPath));
+    for (const auto& entry : std::filesystem::directory_iterator(reviews_dir(), error)) {
+        const auto name = entry.path().filename().string();
+        if (entry.path().extension() != ".json" || (name != prefix + ".json" && !name.starts_with(prefix + "-") && name != legacy + ".json" && !name.starts_with(legacy + "-"))) continue;
+        try {
+            auto contents = afterhours::files::read_string(entry.path().string());
+            if (!contents) return "Unable to read saved review";
+            auto json = nlohmann::json::parse(*contents);
+            if (json.value("repo_path", std::string{}) != oldPath || json.value("schema_version", 0) > 2)
+                return "Saved review identity or version does not match";
+            if ((name == legacy + ".json" || name.starts_with(legacy + "-")) &&
+                std::filesystem::exists(review_path(oldPath, json.value("review_scope", std::string{})))) continue;
+            json["repo_path"] = newPath;
+            const auto destination = review_path(newPath, json.value("review_scope", std::string{}));
+            const auto encoded = json.dump(2);
+            if (std::filesystem::exists(destination)) {
+                auto existing = afterhours::files::read_string(destination);
+                if (!existing || nlohmann::json::parse(*existing) != json) return "The new location already has different saved reviews";
+            } else copies.emplace_back(destination, encoded);
+        } catch (const std::exception& failure) { return failure.what(); }
+    }
+    if (error) return error.message();
+    for (const auto& [path, contents] : copies)
+        if (!afterhours::files::write_string_atomic(path, contents)) return "Unable to copy saved review";
+    return {};
+}
+
 bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review) {
-    if (repoPath.empty()) return false;
+    if (repoPath.empty() || !review.loadError.empty()) return false;
+    const auto path = review_path(repoPath, review.storageScope);
+    const auto existing = afterhours::files::read_string(path);
+    std::error_code readError;
+    if (!existing && (std::filesystem::exists(path, readError) || readError)) return false;
+    if (existing) {
+        try {
+            const auto identity = nlohmann::json::parse(*existing);
+            if (identity.value("schema_version", 0) > 2 || identity.value("repo_path", repoPath) != repoPath ||
+                identity.value("review_scope", std::string{}) != review.storageScope) return false;
+        } catch (...) { return false; }
+    }
 
     nlohmann::json j;
+    j["schema_version"] = 2;
     j["repo_path"] = repoPath;  // for debuggability (filename is a hash)
     j["reviewing"] = review.reviewing;
     j["basket_open"] = review.basketOpen;
@@ -108,7 +160,6 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["baseline_snapshot"] = review.baselineSnapshot;
     j["baseline_captured_at"] = review.baselineCapturedAt;
 
-    std::string path = review_path(repoPath, review.storageScope);
     if (!afterhours::files::write_string_atomic(path, j.dump(2))) {
         log_warn("Failed to save review to {}", path);
         return false;
@@ -123,15 +174,34 @@ bool persist_review(const std::string& repoPath, ecs::ReviewComponent& review) {
     return true;
 }
 
-void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
+void load_review(const std::string& repoPath, ecs::ReviewComponent& target) {
     if (repoPath.empty()) return;
+    target.loadError.clear();
+    ecs::ReviewComponent review;
+    review.storageScope = target.storageScope;
+    review.storageRepoPath = target.storageRepoPath;
     std::string path = review_path(repoPath, review.storageScope);
+    const auto destination = path;
+    std::error_code pathError;
+    if (!std::filesystem::exists(path, pathError) && !pathError) {
+        const auto legacy = std::to_string(std::hash<std::string>{}(repoPath));
+        const auto suffix = review.storageScope.empty() ? "" : "-" + std::to_string(std::hash<std::string>{}(review.storageScope));
+        const auto candidate = (reviews_dir() / (legacy + suffix + ".json")).string();
+        if (std::filesystem::exists(candidate, pathError) && !pathError) path = candidate;
+    }
     std::optional<std::string> contents = afterhours::files::read_string(path);
-    if (!contents) return;  // missing/unreadable -> fresh review
+    if (!contents) {
+        std::error_code error;
+        if (std::filesystem::exists(path, error) || error) target.loadError = "Review file is unreadable: " + path;
+        return;
+    }
 
     try {
         nlohmann::json j = nlohmann::json::parse(*contents);
-        if (j.value("review_scope", std::string{}) != review.storageScope) return;
+        if (!j.is_object()) throw std::runtime_error("Review must be an object");
+        if (j.value("schema_version", 0) > 2) throw std::runtime_error("Review was written by a newer version");
+        if (j.value("repo_path", repoPath) != repoPath || j.value("review_scope", std::string{}) != review.storageScope)
+            throw std::runtime_error("Review identity does not match this repository and scope");
 
         review.reviewing = j.value("reviewing", false);
         review.basketOpen = j.value("basket_open", true);
@@ -191,8 +261,40 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& review) {
         review.baselineSnapshot = j.value("baseline_snapshot", std::string{});
         review.baselineCapturedAt = j.value("baseline_captured_at", int64_t{0});
 
+        target.reviewing = std::move(review.reviewing);
+        target.basketOpen = std::move(review.basketOpen);
+        target.comments = std::move(review.comments);
+        target.drafts = std::move(review.drafts);
+        target.composingKey = std::move(review.composingKey);
+        target.composingText = std::move(review.composingText);
+        target.composingFocus = std::move(review.composingFocus);
+        target.composingFile = std::move(review.composingFile);
+        target.composingScope = std::move(review.composingScope);
+        target.composingLine = std::move(review.composingLine);
+        target.composingEndLine = std::move(review.composingEndLine);
+        target.composingRanges = std::move(review.composingRanges);
+        target.composingOldSide = std::move(review.composingOldSide);
+        target.composingRevision = std::move(review.composingRevision);
+        target.composingCodeContext = std::move(review.composingCodeContext);
+        target.composingKind = std::move(review.composingKind);
+        target.editingComment = std::move(review.editingComment);
+        target.editingCommentText = std::move(review.editingCommentText);
+        target.editingCommentKind = std::move(review.editingCommentKind);
+        target.dirty = std::move(review.dirty);
+        target.approvedHunks = std::move(review.approvedHunks);
+        target.reviewedFiles = std::move(review.reviewedFiles);
+        target.verdicts = std::move(review.verdicts);
+        target.queue = std::move(review.queue);
+        target.foldedHunks = std::move(review.foldedHunks);
+        target.seenSig = std::move(review.seenSig);
+        target.baselineHead = std::move(review.baselineHead);
+        target.baselineDiffSig = std::move(review.baselineDiffSig);
+        target.baselineSnapshot = std::move(review.baselineSnapshot);
+        target.baselineCapturedAt = std::move(review.baselineCapturedAt);
+        if (path != destination && !save_review(repoPath, target)) target.loadError = "Legacy review loaded, but migration could not be saved";
         log_info("Review loaded from {}", path);
     } catch (const std::exception& e) {
+        target.loadError = std::string("Review could not be loaded: ") + e.what();
         log_warn("Failed to parse review file {}: {} (ignoring)", path, e.what());
     }
 }

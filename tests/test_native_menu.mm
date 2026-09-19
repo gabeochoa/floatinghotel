@@ -34,7 +34,7 @@ int main() {
         assert([view itemAtIndex:1].separatorItem);
         assert([view itemAtIndex:2].state == NSControlStateValueOn);
         [edit performActionForItemAtIndex:0];
-        assert(native_menu::drain_commands() == std::vector<CommandId>{copy});
+        assert((native_menu::drain_commands() == std::vector<native_menu::Invocation>{{copy, ""}}));
         assert(native_menu::drain_commands().empty());
         menus[0].items[0].enabled = false;
         menus[1].items[2].checked = false;
@@ -65,15 +65,23 @@ int main() {
             modifierFlags:NSEventModifierFlagCommand timestamp:0 windowNumber:0 context:nil
             characters:@"q" charactersIgnoringModifiers:@"q" isARepeat:NO keyCode:12];
         assert([root performKeyEquivalent:quit_event]);
-        assert(native_menu::drain_commands() == std::vector<CommandId>{quit});
+        assert((native_menu::drain_commands() == std::vector<native_menu::Invocation>{{quit, ""}}));
         assert(native_menu::drain_commands().empty());
         [[root itemAtIndex:0].submenu performActionForItemAtIndex:0];
-        assert(native_menu::drain_commands() == std::vector<CommandId>{quit});
+        assert((native_menu::drain_commands() == std::vector<native_menu::Invocation>{{quit, ""}}));
         [edit performActionForItemAtIndex:0];
         [view performActionForItemAtIndex:0];
         [edit performActionForItemAtIndex:0];
-        const std::vector<CommandId> expected_order{copy, zoom, copy};
+        const std::vector<native_menu::Invocation> expected_order{{copy, ""}, {zoom, ""}, {copy, ""}};
         assert(native_menu::drain_commands() == expected_order);
+        menus[0].items[0].owner = "repo-a:1";
+        native_menu::refresh(menus);
+        [edit performActionForItemAtIndex:0];
+        menus[0].items[0].owner = "repo-b:2";
+        native_menu::refresh(menus);
+        auto queued = native_menu::drain_commands();
+        assert(queued.size() == 1 && queued[0].owner == "repo-a:1");
+        assert(queued[0].owner != menus[0].items[0].owner);
         assert(NSApp.windows.count == 0);
         assert(NSApp.activationPolicy == NSApplicationActivationPolicyProhibited);
         native_menu::shutdown();

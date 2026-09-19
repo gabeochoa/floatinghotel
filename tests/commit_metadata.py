@@ -56,12 +56,14 @@ for zoom in [100, 140, 200]:
         if zoom == 100:
             script += 'expect_text SUBJECT_END\n'
         script += 'bench_frames 120\nexpect_p99_below 20\n'
-        script += 'hover_ui commit_detail_scroll\nscroll_wheel 0 -20000\nwait_frames 30\n' + capture('end')
+        script += 'hover_ui commit_details_scroll\nscroll_wheel 0 -20000\nwait_frames 30\n' + capture('end')
         script += 'expect_text FULL_MESSAGE_END\nvalidate message_rows_bounded=true\n'
         script += 'scroll_wheel 0 20000\nwait_frames 30\n' + capture('top')
+        script += 'key ESCAPE\nwait_frames 10\n' + capture('dismissed')
         script += 'click_text "Short root"\nwait_for_refresh\nkey ENTER\n' + capture('root', 3)
         script += 'click_text "Long metadata subject"\nwait_for_refresh\nwait_frames 10\nhover_ui commit_detail_scroll\nscroll_wheel 0 20000\nwait_frames 30\n' + capture('retained', 3)
-        script += 'click_ui commit_meta_toggle\n' + capture('collapsed', 3)
+        script += 'click_ui commit_meta_toggle\n' + capture('reopened', 3)
+        script += 'key ESCAPE\nwait_frames 10\n' + capture('collapsed', 3)
         script += 'click_text "Merge metadata fixture"\n' + capture('merge', 4)
         script += 'click_ui merge_parent_select\nwait_frames 3\nclick_ui "context_menu_item_Parent 2 · ' + other[:12] + '"\n' + capture('parent2', 4)
         script += 'bench_frames 120\nexpect_p99_below 20\n'
@@ -95,12 +97,14 @@ for zoom in [100, 140, 200]:
                 assert rect['x'] >= row['x'] and rect['x'] + rect['width'] <= row['x'] + row['width'] + 1, (zoom, name, debug, row, rect)
             assert not nodes(name, 'commit_message_toggle')
     if not args.baseline:
-        assert active('details')['details_expanded'] and active('retained')['details_expanded']
+        assert active('details')['details_expanded'] and active('reopened')['details_expanded']
+        assert not active('retained')['details_expanded'] and not active('dismissed')['details_expanded']
         assert not active('root')['details_expanded'] and not active('collapsed')['details_expanded']
         assert not active('merge')['details_expanded'] and nodes('merge', 'merge_parent_select')
         assert other in json.dumps(active('parent2')), active('parent2')
         assert node('end', 'commit_heading')['rect'] == node('details', 'commit_heading')['rect']
-        assert node('end', 'commit_meta_compact')['visible_rect']['height'] == 0
+        assert node('end', 'commit_meta_compact')['rect'] == node('details', 'commit_meta_compact')['rect']
+        assert node('dismissed', 'commit_detail_scroll')['scroll'] == node('top', 'commit_detail_scroll')['scroll']
         for name in ['details_narrow', 'details']:
             box = node(name, 'commit_meta_box')['rect']
             for value in nodes(name, 'meta_value'):

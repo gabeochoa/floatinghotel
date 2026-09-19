@@ -7,6 +7,8 @@
 #include "rl.h"
 #include "input_mapping.h"
 #include "ui/tooltip.h"
+#include "ui/sticky_file_header.h"
+#include "util/reading_load.h"
 #include "ui/context_menu.h"
 
 namespace ui_imm {
@@ -40,6 +42,7 @@ inline afterhours::Entity& getUIRootEntity() {
 struct ClearPendingUIDraws : afterhours::System<UIContextType> {
     void for_each_with(afterhours::Entity&, UIContextType& context, float) override {
         context.render_cmds.clear();
+        reading_load::frame = {};
     }
 };
 
@@ -110,14 +113,39 @@ struct HandleAllowedScrollbarDrag : afterhours::ui::HandleScrollbarDrag<InputAct
     }
 };
 
+struct TimedAutoLayout : afterhours::ui::RunAutoLayout {
+    void for_each_with(afterhours::Entity& entity, afterhours::ui::AutoLayoutRoot& root,
+                       afterhours::ui::UIComponent& component, float dt) override {
+        const auto start = reading_load::Clock::now();
+        afterhours::ui::RunAutoLayout::for_each_with(entity, root, component, dt);
+        const auto ms = reading_load::milliseconds(reading_load::Clock::now() - start);
+        reading_load::frame.layoutMs += ms;
+        reading_load::totalLayoutMs += ms;
+    }
+};
+
 inline void registerUIPostLayoutSystems(
     afterhours::SystemManager& manager) {
     afterhours::ui::register_after_ui_updates<InputAction>(manager);
+    manager.register_update_system(std::make_unique<::ui::FilterTruncatedTooltips<InputAction>>());
     for (auto& system : manager.update_systems_) {
         auto* bridge = dynamic_cast<afterhours::ui::UIPluginPostUpdateBridge<InputAction>*>(system.get());
         if (!bridge) continue;
+        for (size_t i = 0; i < bridge->systems.size(); ++i) {
+            if (dynamic_cast<afterhours::ui::RunAutoLayout*>(bridge->systems[i].get())) {
+                bridge->systems.insert(bridge->systems.begin() + static_cast<std::ptrdiff_t>(i),
+                    std::make_unique<::ui::ResetStickyFileHeaders>());
+                ++i;
+            } else if (dynamic_cast<afterhours::ui::MeasureScrollViews*>(bridge->systems[i].get()) ||
+                       dynamic_cast<afterhours::ui::SyncScrollViews*>(bridge->systems[i].get())) {
+                bridge->systems.insert(bridge->systems.begin() + static_cast<std::ptrdiff_t>(++i),
+                    std::make_unique<::ui::PinFileHeaders>());
+            }
+        }
         for (auto& child : bridge->systems)
-            if (dynamic_cast<afterhours::ui::HandleScrollInput<InputAction>*>(child.get()))
+            if (dynamic_cast<afterhours::ui::RunAutoLayout*>(child.get()))
+                child = std::make_unique<TimedAutoLayout>();
+            else if (dynamic_cast<afterhours::ui::HandleScrollInput<InputAction>*>(child.get()))
                 child = std::make_unique<HandleVisibleScrollInput>();
             else if (dynamic_cast<afterhours::ui::HandleScrollbarDrag<InputAction>*>(child.get()))
                 child = std::make_unique<HandleAllowedScrollbarDrag>();

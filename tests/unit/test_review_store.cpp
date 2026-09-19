@@ -505,6 +505,86 @@ TEST(dismissed_range_draft_reopens_and_saves_without_folding_code) {
     ASSERT_TRUE(review.drafts.empty());
 }
 
+TEST(review_load_failure_preserves_memory_and_disk) {
+    const std::string repo = "/fixture/failure-aware-review";
+    ecs::ReviewComponent review;
+    review.comments.push_back({"wt", "keep.cpp", 4, "keep this"});
+    for (const std::string& contents : {std::string(R"({"schema_version":99})"),
+            std::string(R"({"comments":[{"text":"new"}],"approved_hunks":5})"),
+            std::string(R"({"repo_path":"/another/repository"})")}) {
+        ASSERT_TRUE(afterhours::files::write_string_atomic(review_store::review_path(repo), contents));
+        review_store::load_review(repo, review);
+        ASSERT_FALSE(review.loadError.empty());
+        ASSERT_EQ(review.comments.size(), 1u);
+        ASSERT_EQ(review.comments[0].text, std::string("keep this"));
+        ASSERT_FALSE(review_store::save_review(repo, review));
+        ASSERT_EQ(afterhours::files::read_string(review_store::review_path(repo)).value(), contents);
+    }
+    std::filesystem::remove(review_store::review_path(repo));
+    review_store::load_review(repo, review);
+    ASSERT_TRUE(review.loadError.empty());
+    ASSERT_TRUE(review_store::save_review(repo, review));
+    std::filesystem::remove(review_store::review_path(repo));
+}
+
+TEST(disjoint_feedback_roundtrips_without_including_gaps) {
+    const std::string path = "/tmp/review-disjoint-fixture";
+    ecs::ReviewComponent review;
+    ecs::ReviewComponent::Comment comment{"wt", "file.cpp", 2, "Update these together", 2, false};
+    comment.ranges = {{2, 3, false}, {20, 20, false}, {7, 7, true}};
+    ecs::begin_comment(review, "wt\nfile.cpp", comment);
+    ecs::commit_pending_comment(review);
+    ASSERT_TRUE(review_store::save_review(path, review));
+    ecs::ReviewComponent loaded;
+    review_store::load_review(path, loaded);
+    ASSERT_EQ(loaded.comments[0].ranges, comment.ranges);
+    const auto location = ecs::comment_location(loaded.comments[0]);
+    ASSERT_TRUE(location.find("after 2-3, after 20, before 7") != std::string::npos);
+    ASSERT_TRUE(ecs::build_review_markdown(loaded, "main").find(location) != std::string::npos);
+    const auto moved = path + "-moved";
+    std::filesystem::remove(review_store::review_path(moved));
+    ASSERT_TRUE(review_store::copy_repository_reviews(path, moved).empty());
+    ecs::ReviewComponent migrated;
+    review_store::load_review(moved, migrated);
+    ASSERT_EQ(migrated.comments[0].ranges, comment.ranges);
+    ASSERT_TRUE(std::filesystem::exists(review_store::review_path(path)));
+    std::filesystem::remove(review_store::review_path(path));
+    std::filesystem::remove(review_store::review_path(moved));
+}
+
+TEST(review_store_migrates_legacy_keys_without_deleting_original) {
+    const std::string repo = "/tmp/legacy-review-identity";
+    const auto current = std::filesystem::path(review_store::review_path(repo));
+    std::filesystem::remove(current);
+    const auto legacy = current.parent_path() / (std::to_string(std::hash<std::string>{}(repo)) + ".json");
+    ASSERT_TRUE(afterhours::files::write_string_atomic(legacy, R"({"repo_path":"/tmp/legacy-review-identity","comments":[{"file":"a.cpp","line":1,"text":"Keep me"}]})"));
+    ecs::ReviewComponent loaded;
+    review_store::load_review(repo, loaded);
+    ASSERT_TRUE(loaded.loadError.empty());
+    ASSERT_EQ(loaded.comments.size(), 1u);
+    ASSERT_TRUE(std::filesystem::exists(legacy));
+    ASSERT_TRUE(std::filesystem::exists(current));
+    std::filesystem::remove(legacy);
+    std::filesystem::remove(current);
+}
+
+TEST(disjoint_feedback_does_not_change_plain_selection_and_expires_on_refresh) {
+    ecs::RepoComponent repo;
+    navigation::set_selection(repo, reading::CodeSelection{{"a.cpp", reading::DiffSide::After, 1, 1}, {"a.cpp", reading::DiffSide::After, 1, 3}});
+    const auto original = repo.workspace().document(repo.workspace().active_id())->selection;
+    ASSERT_TRUE(navigation::toggle_feedback_line(repo, {"a.cpp", reading::DiffSide::After, 2, 6}));
+    ASSERT_TRUE(navigation::toggle_feedback_line(repo, {"a.cpp", reading::DiffSide::After, 12, 2}));
+    auto* document = repo.workspace().document(repo.workspace().active_id());
+    ASSERT_EQ(document->feedbackLines.size(), 2u);
+    ASSERT_EQ(document->selection, original);
+    ASSERT_TRUE(navigation::toggle_feedback_line(repo, {"a.cpp", reading::DiffSide::After, 2, 1}));
+    ASSERT_EQ(document->feedbackLines.size(), 1u);
+    ++repo.dataGeneration;
+    ASSERT_TRUE(navigation::toggle_feedback_line(repo, {"a.cpp", reading::DiffSide::Before, 3, 1}));
+    ASSERT_EQ(document->feedbackLines.size(), 1u);
+    ASSERT_EQ(document->feedbackLines[0].line, 3);
+}
+
 int main() {
     afterhours::files::init("floatinghotel_test", "resources");
     printf("=== review_store tests ===\n");

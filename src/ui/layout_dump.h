@@ -41,6 +41,8 @@ inline nlohmann::json layout_snapshot() {
             {"align", std::string(magic_enum::enum_name(cmp.align_items))},
             {"font_size", {{"value", cmp.font_size.value}, {"unit", std::string(magic_enum::enum_name(cmp.font_size.dim))}}}
         };
+        if (entity.has<ReadingViewport>()) node["reading_rect"] = rect_json(reading_rect(entity));
+        if (entity.has<StickyFileHeader>()) node["sticky_offset"] = entity.get<StickyFileHeader>().offset;
         node["opacity"] = afterhours::ui::detail::compute_effective_opacity(entity);
         if (const auto target = focus_target(entity)) node["focus_target"] = {
             {"repository", target->repository}, {"document", target->document.value},
@@ -98,7 +100,10 @@ inline nlohmann::json layout_snapshot() {
                 {"column", row.column}, {"end_column", row.endColumn}, {"folded", row.folded}, {"rect", rect_json(screen_rect(**entity))}});
         }
     }
-    return {{"reading_projections", std::move(projections)}, {"reading_rows", std::move(reading)}, {"selection_text", diff_sel::build_copy_text(diff_sel::state(), false)},
+    return {{"reading_performance", {{"layout_ms", reading_load::frame.layoutMs}, {"split_ms", reading_load::frame.splitMs},
+                {"prepared_pairs", reading_load::frame.splitPreparedPairs}, {"emitted_pairs", reading_load::frame.splitEmittedPairs},
+                {"intraline_comparisons", reading_load::frame.splitComparisons}, {"metrics_bytes", diff_metrics().bytes()}, {"hunk_hash_scans", diff_metrics().hunk_scans()}, {"file_hash_scans", diff_metrics().signature_scans()}}},
+            {"reading_projections", std::move(projections)}, {"reading_rows", std::move(reading)}, {"selection_text", diff_sel::build_copy_text(diff_sel::state(), false)},
             {"selection_location", diff_sel::build_copy_text(diff_sel::state(), true)}, {"schema_version", 1}, {"units", "physical_pixels"}, {"ui_scale", zoom::get()},
             {"viewport", {{"width", graphics::get_screen_width()}, {"height", graphics::get_screen_height()}}},
             {"pointer", {{"x", context ? context->mouse.pos.x : 0.f}, {"y", context ? context->mouse.pos.y : 0.f}}},

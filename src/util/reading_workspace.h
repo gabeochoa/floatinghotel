@@ -237,6 +237,8 @@ struct Document {
     source_folding::State sourceFolds;
     std::optional<CodePosition> caret;
     std::optional<CodeSelection> selection;
+    std::vector<CodePosition> feedbackLines;
+    unsigned feedbackGeneration = 0;
 };
 
 class ReadingWorkspace {
@@ -329,8 +331,9 @@ public:
         static const ReviewLocation working;
         return working;
     }
-    const SourceLocation* source() const {
-        if (const auto* source = std::get_if<SourceLocation>(&location())) return source;
+    const SourceLocation* active_source() const { return std::get_if<SourceLocation>(&location()); }
+    const SourceLocation* recent_source() const {
+        if (const auto* source = active_source()) return source;
         const auto* tab = recent(Slot::Source);
         return tab ? &std::get<SourceLocation>(tab->location) : nullptr;
     }

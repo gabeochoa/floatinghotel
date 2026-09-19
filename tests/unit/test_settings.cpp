@@ -351,6 +351,170 @@ TEST(settings_reading_sessions_round_trip_per_repository) {
     fs::remove(settings.get_settings_path());
 }
 
+TEST(settings_rejects_future_and_partial_files_without_overwriting) {
+    auto& s = Settings::get();
+    s.auto_save_enabled = false;
+    s.set_window_geometry(12, 13, 1400, 900);
+    for (const std::string& content : {std::string(R"({"schema_version": 99})"), std::string(R"({"window_height": 777,"window_x": "bad"})")}) {
+        { std::ofstream out(s.get_settings_path()); out << content; }
+        ASSERT_FALSE(s.load_save_file());
+        ASSERT_FALSE(s.loadError.empty());
+        ASSERT_EQ(s.get_window_height(), 900);
+        ASSERT_EQ(s.get_window_x(), 12);
+        s.write_save_file();
+        ASSERT_EQ(afterhours::files::read_string(s.get_settings_path()).value(), content);
+        ASSERT_FALSE(s.saveError.empty());
+    }
+    fs::remove(s.get_settings_path());
+    ASSERT_FALSE(s.load_save_file());
+    ASSERT_TRUE(s.loadError.empty());
+    s.write_save_file();
+    ASSERT_TRUE(s.saveError.empty());
+    ASSERT_TRUE(s.load_save_file());
+}
+
+TEST(settings_pins_sections_and_relink_preserve_reading_state) {
+    auto& s = Settings::get();
+    s.auto_save_enabled = false;
+    s.set_repo_pinned("/old", true);
+    s.set_section_collapsed("/old", "worktrees", true);
+    s.set_code_bookmarks("/old", {{"code.cpp", "HEAD", 8, "note"}});
+    s.set_last_active_repo("/old");
+    ASSERT_TRUE(s.relink_repository("/old", "/new"));
+    ASSERT_EQ(s.get_last_active_repo(), std::string("/new"));
+    ASSERT_TRUE(s.section_collapsed("/new", "worktrees"));
+    ASSERT_EQ(s.get_code_bookmarks("/new").size(), 1u);
+    ASSERT_EQ(s.get_pinned_repos().back(), std::string("/new"));
+    s.write_save_file();
+    s.set_repo_pinned("/new", false);
+    ASSERT_TRUE(s.load_save_file());
+    ASSERT_EQ(s.get_pinned_repos().back(), std::string("/new"));
+    ASSERT_FALSE(s.relink_repository("/another", "/new"));
+}
+
+TEST(settings_coalesces_resize_font_and_navigation_saves) {
+    Settings s;
+    s.auto_save_enabled = true;
+    const auto before = std::chrono::steady_clock::now();
+    for (int i = 0; i < 60; ++i) {
+        s.remember_window_size(1200 + i, 800 + i, false, 1200 + i, 280.f);
+        s.set_code_font_size(17.f + static_cast<float>(i % 6));
+        s.set_last_active_repo("/repo/" + std::to_string(i));
+    }
+    const auto after = std::chrono::steady_clock::now();
+    ASSERT_EQ(s.save_write_count(), 0u);
+    s.flush_pending_save(before + std::chrono::milliseconds(249));
+    ASSERT_EQ(s.save_write_count(), 0u);
+    s.flush_pending_save(after + std::chrono::milliseconds(250));
+    ASSERT_EQ(s.save_write_count(), 1u);
+    Settings restored;
+    restored.auto_save_enabled = false;
+    ASSERT_TRUE(restored.load_save_file());
+    ASSERT_EQ(restored.get_window_width(), 1259);
+    ASSERT_EQ(restored.get_window_height(), 859);
+    ASSERT_EQ(restored.get_code_font_size(), 22.f);
+    ASSERT_EQ(restored.get_last_active_repo(), "/repo/59");
+    for (int i = 0; i < 60; ++i) {
+        s.remember_window_size(1259, 859, false, 1259, 280.f);
+        s.set_code_font_size(22.f);
+        s.set_last_active_repo("/repo/59");
+        s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    }
+    ASSERT_EQ(s.save_write_count(), 1u);
+    printf("60 resize/font/navigation updates: 1 write; 60 unchanged updates: 0 writes\n");
+}
+
+TEST(settings_shutdown_flushes_before_debounce_and_reload_cancels_pending) {
+    Settings s;
+    s.set_command_log_height(333.f);
+    s.auto_save_enabled = false;
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_EQ(s.save_write_count(), 0u);
+    s.write_save_file();
+    ASSERT_EQ(s.save_write_count(), 1u);
+    Settings restored;
+    ASSERT_TRUE(restored.load_save_file());
+    ASSERT_EQ(restored.get_command_log_height(), 333.f);
+    s.auto_save_enabled = true;
+    s.set_command_log_height(444.f);
+    ASSERT_TRUE(s.load_save_file());
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_EQ(s.save_write_count(), 1u);
+    ASSERT_EQ(s.get_command_log_height(), 333.f);
+}
+
+TEST(settings_unchanged_collections_do_not_schedule_writes) {
+    Settings s;
+    s.add_open_repo("/repo");
+    s.add_recent_repo("/repo");
+    s.set_repo_pinned("/repo", true);
+    s.set_section_collapsed("/repo", "branches", true);
+    s.set_code_bookmarks("/repo", {{"a.cpp", "HEAD", 3, "note"}});
+    s.set_reading_session("/repo", {{{reading::source("a.cpp")}}, 0});
+    s.set_review_display_mode("/repo", review_files::DisplayMode::AllFiles);
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_EQ(s.save_write_count(), 1u);
+    s.add_open_repo("/repo");
+    s.set_open_repos({"/repo"});
+    s.remove_open_repo("/missing");
+    s.add_recent_repo("/repo");
+    s.set_repo_pinned("/repo", true);
+    s.set_section_collapsed("/repo", "branches", true);
+    s.set_code_bookmarks("/repo", {{"a.cpp", "HEAD", 3, "note"}});
+    s.set_reading_session("/repo", {{{reading::source("a.cpp")}}, 0});
+    s.set_review_display_mode("/repo", review_files::DisplayMode::AllFiles);
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_EQ(s.save_write_count(), 1u);
+}
+
+TEST(settings_command_log_height_migrates_and_clamps) {
+    Settings s;
+    s.auto_save_enabled = false;
+    ASSERT_EQ(s.get_command_log_height(), 200.f);
+    s.set_command_log_height(1.f);
+    ASSERT_EQ(s.get_command_log_height(), 80.f);
+    s.set_command_log_height(std::numeric_limits<float>::infinity());
+    ASSERT_EQ(s.get_command_log_height(), 200.f);
+    for (const auto& value : {std::pair{"{}", 200.f},
+                              std::pair{R"({"command_log_height":-1})", 80.f},
+                              std::pair{R"({"command_log_height":99999})", 16384.f}}) {
+        { std::ofstream out(s.get_settings_path()); out << value.first; }
+        ASSERT_TRUE(s.load_save_file());
+        ASSERT_EQ(s.get_command_log_height(), value.second);
+    }
+    s.set_command_log_height(347.f);
+    s.remember_window_size(280, 800, true, 1200, 280.f);
+    s.write_save_file();
+    Settings restored;
+    ASSERT_TRUE(restored.load_save_file());
+    ASSERT_EQ(restored.get_command_log_height(), 347.f);
+    ASSERT_TRUE(restored.get_window_collapsed());
+}
+
+TEST(settings_failed_relink_preserves_pending_save) {
+    Settings s;
+    s.add_open_repo("/old");
+    s.set_last_active_repo("/old");
+    s.write_save_file();
+    const auto path = s.get_settings_path();
+    const auto backup = path + ".relink-test";
+    fs::rename(path, backup);
+    fs::create_directory(path);
+    s.set_sidebar_width(399.f);
+    ASSERT_FALSE(s.relink_repository("/old", "/new"));
+    ASSERT_FALSE(s.saveError.empty());
+    ASSERT_EQ(s.get_last_active_repo(), "/old");
+    fs::remove(path);
+    fs::rename(backup, path);
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_TRUE(s.saveError.empty());
+    ASSERT_EQ(s.save_write_count(), 2u);
+    Settings restored;
+    ASSERT_TRUE(restored.load_save_file());
+    ASSERT_EQ(restored.get_sidebar_width(), 399.f);
+    ASSERT_EQ(restored.get_last_active_repo(), "/old");
+}
+
 int main() {
     // Initialize the files plugin with a temp directory so settings writes
     // go to an isolated location.

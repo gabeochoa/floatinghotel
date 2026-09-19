@@ -1,5 +1,11 @@
 # floatinghotel — Requirements Document
 
+Historical product specification. Current open work is in [triage.md](triage.md);
+current reading behavior and constraints are in the
+[completed reading/navigation plan](docs/plans/2026-09-12-reading-navigation-polish.md).
+The early layout values, synchronous-loading suggestions, API examples, and MVP
+status below describe the original design, not implementation instructions.
+
 A personal version control GUI application for managing git repositories, built with C++23, the afterhours ECS framework, and Sokol for cross-platform rendering.
 
 ## Project Overview
@@ -1237,18 +1243,7 @@ For async operations: use `std::future<ProcessResult>` returned by `run_process_
 
 ---
 
-## Open Questions / Follow-ups
+## Follow-up work
 
-1. **Visual design:** Generate concept art to finalize the visual direction before building the theme
-2. **Scrolling behavior:** Verify afterhours smooth scrolling matches native macOS feel; file upstream issue if not
-3. ~~**Code editor features:**~~ DEFERRED to P3. Not needed for MVP.
-4. ~~**Minimap/scrollbar:**~~ DEFERRED to P3.
-5. **Staging dialog UX:** "Commit only staged changes?" dialog with "remember" checkbox needs design mockup
-6. **Image diff modes:** Slider reveal and onion skin need custom rendering — investigate afterhours capabilities. DEFERRED to P1.
-7. **~~Afterhours primitives availability~~** — RESOLVED: Documented above. 6 primitives need building for P0/P1 (Draggable Divider, Split Pane, Tree Node, Context Menu, Dropdown Menu, Anchored Popup)
-8. ~~**git status refresh performance:**~~ RESOLVED: Run synchronously on main thread for MVP. If >100ms on large repos, move to background thread and show stale indicator. Benchmark during Phase 2.
-9. ~~**Hunk staging via git apply:**~~ RESOLVED: `git apply --cached` with extracted hunks is the correct approach (used by VS Code, GitKraken, etc.). Test edge cases during Phase 3 implementation.
-10. ~~**Commit editor placement:**~~ RESOLVED: Bottom-of-sidebar for MVP. Can revisit if UX testing reveals issues.
-11. ~~**Afterhours primitives — build upstream or app-local?**~~ RESOLVED: Start app-local in `src/ui/`, extract to afterhours when stable.
-12. **Diff viewer virtualization:** Large diffs (>10k lines) need virtualized rendering. Use `scroll_view()` with only-render-visible-lines optimization. Spec the approach during Phase 2.
-13. **Clipboard shortcuts in text_input:** Afterhours `text_input()` doesn't wire Ctrl+C/V/X. Need to wire manually via ActionMap (same issue wordproc has). Handle in InputSystem.
+Open work and unresolved decisions have moved to [triage.md](triage.md). Completed
+MVP tasks and superseded visual/interaction choices are omitted from that backlog.

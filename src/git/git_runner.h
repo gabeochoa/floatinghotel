@@ -14,6 +14,7 @@ namespace git {
 
 struct GitResult {
     ProcessResult raw;
+    double lockMs = 0, processMs = 0;
     bool success() const { return raw.success(); }
     const std::string& stdout_str() const { return raw.stdout_str; }
     const std::string& stderr_str() const { return raw.stderr_str; }

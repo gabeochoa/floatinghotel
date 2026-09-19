@@ -1,0 +1,109 @@
+{
+  "passed": true,
+  "binary_sha256": "042400d5a3c3ae6398896862c0e6a3979f4d35b66e85554e0bf7f20be88c40b9",
+  "results": [
+    {
+      "measured": {
+        "emitted_pairs": 75,
+        "file_hash_scans": 1,
+        "hunk_hash_scans": 1,
+        "intraline_comparisons": 75,
+        "layout_ms": 0.147958,
+        "metrics_bytes": 2742552,
+        "prepared_pairs": 0,
+        "split_ms": 1.011125
+      },
+      "zoom": 100,
+      "position": "top",
+      "emitted_paired_lines": 75,
+      "legacy_eager_comparisons_per_frame": 3000,
+      "comparison_calls": 75
+    },
+    {
+      "measured": {
+        "emitted_pairs": 76,
+        "file_hash_scans": 1,
+        "hunk_hash_scans": 1,
+        "intraline_comparisons": 76,
+        "layout_ms": 0.100834,
+        "metrics_bytes": 2742552,
+        "prepared_pairs": 0,
+        "split_ms": 1.589417
+      },
+      "zoom": 100,
+      "position": "bottom",
+      "emitted_paired_lines": 76,
+      "legacy_eager_comparisons_per_frame": 3000,
+      "comparison_calls": 76
+    },
+    {
+      "measured": {
+        "emitted_pairs": 48,
+        "file_hash_scans": 1,
+        "hunk_hash_scans": 1,
+        "intraline_comparisons": 48,
+        "layout_ms": 0.058417,
+        "metrics_bytes": 2742552,
+        "prepared_pairs": 0,
+        "split_ms": 0.47125
+      },
+      "zoom": 140,
+      "position": "top",
+      "emitted_paired_lines": 48,
+      "legacy_eager_comparisons_per_frame": 3000,
+      "comparison_calls": 48
+    },
+    {
+      "measured": {
+        "emitted_pairs": 49,
+        "file_hash_scans": 1,
+        "hunk_hash_scans": 1,
+        "intraline_comparisons": 49,
+        "layout_ms": 0.051583,
+        "metrics_bytes": 2742552,
+        "prepared_pairs": 0,
+        "split_ms": 0.406791
+      },
+      "zoom": 140,
+      "position": "bottom",
+      "emitted_paired_lines": 49,
+      "legacy_eager_comparisons_per_frame": 3000,
+      "comparison_calls": 49
+    },
+    {
+      "measured": {
+        "emitted_pairs": 23,
+        "file_hash_scans": 1,
+        "hunk_hash_scans": 1,
+        "intraline_comparisons": 23,
+        "layout_ms": 0.035375,
+        "metrics_bytes": 2742552,
+        "prepared_pairs": 0,
+        "split_ms": 0.20525
+      },
+      "zoom": 200,
+      "position": "top",
+      "emitted_paired_lines": 23,
+      "legacy_eager_comparisons_per_frame": 3000,
+      "comparison_calls": 23
+    },
+    {
+      "measured": {
+        "emitted_pairs": 27,
+        "file_hash_scans": 1,
+        "hunk_hash_scans": 1,
+        "intraline_comparisons": 27,
+        "layout_ms": 0.037667,
+        "metrics_bytes": 2742552,
+        "prepared_pairs": 0,
+        "split_ms": 0.237958
+      },
+      "zoom": 200,
+      "position": "bottom",
+      "emitted_paired_lines": 27,
+      "legacy_eager_comparisons_per_frame": 3000,
+      "comparison_calls": 27
+    }
+  ],
+  "method": "Frame counters record preparation, emitted pairs, and intraline comparisons; rendered rows independently verify endpoints and counts."
+}

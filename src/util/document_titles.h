@@ -102,7 +102,7 @@ inline std::vector<DocumentTitle> document_titles(const std::vector<Document>& d
                 title.tooltip = title.label + "\nCommit " + revision + "\n" +
                     (review.parent ? "Parent " + revision_text(*review.parent) : "First parent");
             } else {
-                title.label = compact(revision_text(review.before)) + " → " + compact(revision_text(review.after));
+                title.label = document.subject.empty() ? compact(revision_text(review.before)) + " → " + compact(revision_text(review.after)) : document.subject;
                 title.tooltip = "Compare " + revision_text(review.before) + " → " + revision_text(review.after);
             }
         }, std::get<ReviewLocation>(document.location).destination);

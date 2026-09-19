@@ -1,0 +1,3512 @@
+{
+  "summary": {
+    "before": {
+      "n": 120,
+      "p50_ms": 178.0973,
+      "p95_ms": 203.3647,
+      "max_ms": 236.2393,
+      "command_counts": [
+        {
+          "rev_parse": 1,
+          "cat_file": 1,
+          "ls_tree": 1,
+          "ls_files": 0
+        }
+      ]
+    },
+    "after": {
+      "n": 120,
+      "p50_ms": 59.4284,
+      "p95_ms": 80.1802,
+      "max_ms": 117.7948,
+      "command_counts": [
+        {
+          "rev_parse": 0,
+          "cat_file": 0,
+          "ls_tree": 1,
+          "ls_files": 0
+        }
+      ]
+    }
+  },
+  "samples": [
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 0,
+      "ms": 244.0447,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 2,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 1,
+      "ms": 196.0171,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 2,
+      "ms": 188.559,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 3,
+      "ms": 194.3798,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 4,
+      "ms": 188.364,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 5,
+      "ms": 205.7086,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 6,
+      "ms": 185.327,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 7,
+      "ms": 170.5481,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 8,
+      "ms": 166.2286,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 9,
+      "ms": 182.4488,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 10,
+      "ms": 172.5788,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 11,
+      "ms": 174.442,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 12,
+      "ms": 171.7011,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 13,
+      "ms": 175.6496,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 14,
+      "ms": 184.0153,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 15,
+      "ms": 204.9443,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 16,
+      "ms": 177.5687,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 17,
+      "ms": 174.4759,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 18,
+      "ms": 171.2518,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 19,
+      "ms": 177.1789,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 20,
+      "ms": 174.5135,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 21,
+      "ms": 175.8124,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 22,
+      "ms": 173.5077,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 23,
+      "ms": 174.443,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 24,
+      "ms": 173.5674,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 25,
+      "ms": 170.2969,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 26,
+      "ms": 171.5443,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 27,
+      "ms": 175.4374,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 28,
+      "ms": 171.9222,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 29,
+      "ms": 174.6471,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "before",
+      "block_start_unix": 1789853889.740984,
+      "iteration": 30,
+      "ms": 173.3594,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 0,
+      "ms": 128.4349,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 1,
+      "ms": 66.0942,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 2,
+      "ms": 66.1132,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 3,
+      "ms": 65.6247,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 4,
+      "ms": 60.2743,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 5,
+      "ms": 73.1703,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 6,
+      "ms": 82.1395,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 7,
+      "ms": 75.1888,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 8,
+      "ms": 58.1515,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 9,
+      "ms": 64.8889,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 10,
+      "ms": 63.7393,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 11,
+      "ms": 57.6919,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 12,
+      "ms": 40.5441,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 13,
+      "ms": 69.3259,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 14,
+      "ms": 62.6283,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 15,
+      "ms": 77.3374,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 16,
+      "ms": 69.1767,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 17,
+      "ms": 64.6933,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 18,
+      "ms": 59.6563,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 19,
+      "ms": 59.0991,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 20,
+      "ms": 62.2982,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 21,
+      "ms": 59.6743,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 22,
+      "ms": 61.1662,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 23,
+      "ms": 63.321,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 24,
+      "ms": 61.748,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 25,
+      "ms": 55.4725,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 26,
+      "ms": 49.1,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 27,
+      "ms": 93.8317,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 28,
+      "ms": 117.7948,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 29,
+      "ms": 75.4792,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 0,
+      "variant": "after",
+      "block_start_unix": 1789853895.3828428,
+      "iteration": 30,
+      "ms": 65.743,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 0,
+      "ms": 118.9322,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 1,
+      "ms": 63.258,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 2,
+      "ms": 67.2882,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 3,
+      "ms": 74.5774,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 4,
+      "ms": 73.2611,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 5,
+      "ms": 71.764,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 6,
+      "ms": 61.9078,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 7,
+      "ms": 59.3098,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 8,
+      "ms": 57.7719,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 9,
+      "ms": 49.5753,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 10,
+      "ms": 73.6421,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 11,
+      "ms": 66.6645,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 12,
+      "ms": 62.7062,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 13,
+      "ms": 59.7869,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 14,
+      "ms": 57.2448,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 15,
+      "ms": 57.6342,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 16,
+      "ms": 57.1737,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 17,
+      "ms": 56.7261,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 18,
+      "ms": 58.5697,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 19,
+      "ms": 58.5583,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 20,
+      "ms": 55.6181,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 21,
+      "ms": 58.5718,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 22,
+      "ms": 62.212,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 23,
+      "ms": 57.6138,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 24,
+      "ms": 58.1135,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 25,
+      "ms": 58.7132,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 26,
+      "ms": 58.934,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 27,
+      "ms": 59.5872,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 28,
+      "ms": 62.4229,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 29,
+      "ms": 57.8745,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "after",
+      "block_start_unix": 1789853897.537268,
+      "iteration": 30,
+      "ms": 58.4352,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 0,
+      "ms": 228.4992,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 2,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 1,
+      "ms": 150.4155,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 2,
+      "ms": 176.383,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 3,
+      "ms": 172.9493,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 4,
+      "ms": 173.0103,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 5,
+      "ms": 180.7268,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 6,
+      "ms": 174.1562,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 7,
+      "ms": 173.3785,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 8,
+      "ms": 173.1171,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 9,
+      "ms": 171.3503,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 10,
+      "ms": 174.0659,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 11,
+      "ms": 171.4004,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 12,
+      "ms": 176.6169,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 13,
+      "ms": 168.9169,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 14,
+      "ms": 174.7548,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 15,
+      "ms": 180.375,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 16,
+      "ms": 184.6239,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 17,
+      "ms": 203.3647,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 18,
+      "ms": 203.0555,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 19,
+      "ms": 207.3614,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 20,
+      "ms": 179.6591,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 21,
+      "ms": 168.2161,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 22,
+      "ms": 184.3922,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 23,
+      "ms": 171.3295,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 24,
+      "ms": 172.0041,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 25,
+      "ms": 173.043,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 26,
+      "ms": 174.1764,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 27,
+      "ms": 176.811,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 28,
+      "ms": 175.7535,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 29,
+      "ms": 177.6519,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 1,
+      "variant": "before",
+      "block_start_unix": 1789853899.5076668,
+      "iteration": 30,
+      "ms": 178.306,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 0,
+      "ms": 232.1332,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 2,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 1,
+      "ms": 178.868,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 2,
+      "ms": 176.4766,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 3,
+      "ms": 173.0363,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 4,
+      "ms": 235.998,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 5,
+      "ms": 174.8928,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 6,
+      "ms": 178.1729,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 7,
+      "ms": 178.8303,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 8,
+      "ms": 175.8617,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 9,
+      "ms": 177.988,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 10,
+      "ms": 178.2558,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 11,
+      "ms": 201.595,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 12,
+      "ms": 203.102,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 13,
+      "ms": 190.649,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 14,
+      "ms": 179.3803,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 15,
+      "ms": 180.2779,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 16,
+      "ms": 168.1158,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 17,
+      "ms": 173.0596,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 18,
+      "ms": 178.0973,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 19,
+      "ms": 172.2192,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 20,
+      "ms": 177.0288,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 21,
+      "ms": 181.7574,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 22,
+      "ms": 236.2393,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 23,
+      "ms": 173.268,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 24,
+      "ms": 181.7517,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 25,
+      "ms": 180.6658,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 26,
+      "ms": 193.1906,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 27,
+      "ms": 162.8775,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 28,
+      "ms": 156.7512,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 29,
+      "ms": 146.2288,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "before",
+      "block_start_unix": 1789853905.072683,
+      "iteration": 30,
+      "ms": 174.8916,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 0,
+      "ms": 114.6391,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 1,
+      "ms": 55.7027,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 2,
+      "ms": 55.7188,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 3,
+      "ms": 56.5399,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 4,
+      "ms": 58.4282,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 5,
+      "ms": 57.074,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 6,
+      "ms": 61.9232,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 7,
+      "ms": 72.909,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 8,
+      "ms": 89.7381,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 9,
+      "ms": 82.4144,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 10,
+      "ms": 84.0925,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 11,
+      "ms": 61.6196,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 12,
+      "ms": 60.4649,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 13,
+      "ms": 56.4883,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 14,
+      "ms": 58.0884,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 15,
+      "ms": 57.2881,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 16,
+      "ms": 58.437,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 17,
+      "ms": 60.7576,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 18,
+      "ms": 59.0939,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 19,
+      "ms": 61.149,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 20,
+      "ms": 55.9585,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 21,
+      "ms": 58.0223,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 22,
+      "ms": 56.7345,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 23,
+      "ms": 80.1802,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 24,
+      "ms": 56.941,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 25,
+      "ms": 61.6061,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 26,
+      "ms": 57.6828,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 27,
+      "ms": 60.0478,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 28,
+      "ms": 59.4284,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 29,
+      "ms": 56.3979,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 2,
+      "variant": "after",
+      "block_start_unix": 1789853910.761494,
+      "iteration": 30,
+      "ms": 58.8827,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 0,
+      "ms": 113.7627,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 1,
+      "ms": 59.4768,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 2,
+      "ms": 58.2095,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 3,
+      "ms": 58.1037,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 4,
+      "ms": 57.304,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 5,
+      "ms": 59.7453,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 6,
+      "ms": 58.327,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 7,
+      "ms": 59.0302,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 8,
+      "ms": 58.9356,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 9,
+      "ms": 63.2768,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 10,
+      "ms": 59.8348,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 11,
+      "ms": 58.741,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 12,
+      "ms": 58.6674,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 13,
+      "ms": 58.1485,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 14,
+      "ms": 58.064,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 15,
+      "ms": 58.4323,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 16,
+      "ms": 58.056,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 17,
+      "ms": 58.2537,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 18,
+      "ms": 61.6027,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 19,
+      "ms": 57.7933,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 20,
+      "ms": 57.1028,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 21,
+      "ms": 59.6763,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 22,
+      "ms": 61.6399,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 23,
+      "ms": 56.2286,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 24,
+      "ms": 57.4736,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 25,
+      "ms": 59.9388,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 26,
+      "ms": 58.0013,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 27,
+      "ms": 61.6245,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 28,
+      "ms": 60.4275,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 29,
+      "ms": 58.264,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "after",
+      "block_start_unix": 1789853912.7565281,
+      "iteration": 30,
+      "ms": 72.1453,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 0,
+        "cat_file": 0,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 0,
+      "ms": 260.6228,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 2,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 1,
+      "ms": 189.6928,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 2,
+      "ms": 195.7486,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 3,
+      "ms": 190.8619,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 4,
+      "ms": 192.857,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 5,
+      "ms": 197.313,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 6,
+      "ms": 198.2695,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 7,
+      "ms": 191.1844,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 8,
+      "ms": 197.6151,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 9,
+      "ms": 180.2875,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 10,
+      "ms": 186.7349,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 11,
+      "ms": 194.0781,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 12,
+      "ms": 190.2006,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 13,
+      "ms": 192.499,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 14,
+      "ms": 196.0875,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 15,
+      "ms": 179.884,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 16,
+      "ms": 175.1107,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 17,
+      "ms": 181.5729,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 18,
+      "ms": 195.6346,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 19,
+      "ms": 186.0939,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 20,
+      "ms": 189.607,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 21,
+      "ms": 193.171,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 22,
+      "ms": 194.6757,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 23,
+      "ms": 177.1758,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 24,
+      "ms": 176.1883,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 25,
+      "ms": 185.0387,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 26,
+      "ms": 214.3093,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 27,
+      "ms": 188.0667,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 28,
+      "ms": 194.8398,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 29,
+      "ms": 194.7922,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    },
+    {
+      "block": 3,
+      "variant": "before",
+      "block_start_unix": 1789853914.668878,
+      "iteration": 30,
+      "ms": 186.933,
+      "size": 3565,
+      "commands": {
+        "rev_parse": 1,
+        "cat_file": 1,
+        "ls_tree": 1,
+        "ls_files": 0
+      }
+    }
+  ],
+  "binary_sha256": {
+    "before": "5b46d9dbb78e9476e32838e5baf2c1af8053f2a893b80f0f0ca1826ba2256a5b",
+    "after": "df78e20106695bde60734df06aa6c117140a9850d0ce533e5801f42863b085a1"
+  },
+  "machine": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "method": "Four alternating before/after blocks, same fixture and reader build optimization. First read in each process kept separately; OS caches not flushed. Timings include metadata freshness checks. Host activity is uncontrolled."
+}
