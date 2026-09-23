@@ -76,7 +76,7 @@ for zoom in [100, 140, 200]:
     script += f'click_ui compare_base\nkey CMD+A\ntype "{base}"\nclick_ui compare_target\nkey CMD+A\ntype "{target}"\nclick_ui compare_submit\nwait_for_refresh\nwait_frames 20\n'
     script += 'click_ui jump_to_diff:a.cpp\n' + capture('comparison', 3)
     script += expand('below') + capture('comparison_below', 3)
-    script += 'resize 1800 3000\nwait_frames 10\nhover_ui diff_scroll\nscroll_wheel 0 20000\nwait_frames 15\nscreenshot before_overlap\nright_click_text "@@ -57,7"\nwait_frames 3\nclick_ui "context_menu_item_Show all lines above"\n' + capture('overlap', 3)
+    script += 'resize 1800 3000\nwait_frames 10\nhover_ui diff_scroll\nscroll_wheel 0 20000\nwait_frames 15\nright_click_text "@@ -57,7"\nwait_frames 3\nclick_ui "context_menu_item_Show all lines above"\n' + capture('overlap', 3)
     script += 'click_ui jump_to_diff:c.cpp\n' + settle() + expand('below') + capture('limited', 3)
     script += 'right_click_text "@@ -57,7"\nwait_frames 3\nclick_ui "context_menu_item_Show all lines above"\n' + capture('after_limit', 3)
     script += 'bench_frames 120\nexpect_p99_below 20\n'

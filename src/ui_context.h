@@ -4,8 +4,6 @@
 #include "../vendor/afterhours/src/plugins/window_manager.h"
 #include "../vendor/afterhours/src/plugins/toast.h"
 #include "../vendor/afterhours/src/plugins/modal.h"
-#include "../vendor/afterhours/src/plugins/ui_motion.h"
-#include "../vendor/afterhours/src/plugins/animation_presets.h"
 #include "rl.h"
 #include "input_mapping.h"
 #include "ui/tooltip.h"
@@ -91,7 +89,7 @@ struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction>
             scroll.scroll_offset = scroll.scroll_target = {0, 0};
             return;
         }
-        const auto rect = afterhours::ui::detail::apply_ancestor_transform(entity, cmp.rect());
+        const auto rect = afterhours::ui::detail::apply_scroll_offset(entity, cmp.rect());
         const auto [clipped, clip] = afterhours::ui::detail::compute_intersected_clip_rect(entity);
         if (rect.width <= 0 || rect.height <= 0 || !is_mouse_inside(context->mouse.pos, rect) ||
             (clipped && !is_mouse_inside(context->mouse.pos, clip))) return;
@@ -180,16 +178,22 @@ struct RenderFloatingUI : afterhours::ui::RenderImm<InputAction> {
     }
 };
 
+struct RenderFloatingScrollbars : afterhours::ui::RenderScrollbars<InputAction> {
+    void for_each_with(afterhours::Entity& entity, afterhours::ui::UIComponent& component,
+            afterhours::ui::HasScrollView& scroll, float dt) override {
+        if (component.render_layer >= 100)
+            afterhours::ui::RenderScrollbars<InputAction>::for_each_with(entity, component, scroll, dt);
+    }
+};
+
 inline void registerUIRenderSystems(
     afterhours::SystemManager& manager) {
-    afterhours::ui_motion::register_bridge<UIContextType>();
     auto bridge = std::make_unique<afterhours::ui::UIPluginRenderBridge<InputAction>>(InputAction::None, false);
     auto held = std::make_unique<HoldFloatingUIDraws>();
     auto floating = std::make_unique<RenderFloatingUI>(*held);
     bridge->systems.insert(bridge->systems.begin(), std::move(held));
-    // Scrollbars are drawn by RenderImm itself now; the floating replay
-    // through RenderFloatingUI therefore paints them for layer >= 100 too.
-    bridge->systems.push_back(std::move(floating));
+    bridge->systems.insert(bridge->systems.begin() + 3, std::move(floating));
+    bridge->systems.insert(bridge->systems.begin() + 4, std::make_unique<RenderFloatingScrollbars>());
     manager.register_render_system(std::move(bridge));
     manager.register_render_system(std::make_unique<ui::RenderWrappedTooltip<InputAction>>());
 }

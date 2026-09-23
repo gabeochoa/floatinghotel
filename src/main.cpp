@@ -601,9 +601,11 @@ static void app_init() {
                 p.get_p99_ms = []() { return e2e_bench::percentile_ms(0.99); };
                 p.top_entries = [](int count) {
                     std::vector<perf::PerfEntry> out;
-                    for (const auto& sample : afterhours::profiling::default_collector().snapshot().systems)
+                    for (const auto& [name, acc] : perf::builtin_profile::totals())
                         out.push_back(perf::PerfEntry{
-                            sample.name, static_cast<float>(sample.mean_ms()), std::nullopt});
+                            name,
+                            acc.calls ? static_cast<float>(acc.total_ms / acc.calls) : 0.f,
+                            std::nullopt});
                     std::sort(out.begin(), out.end(),
                               [](const auto& a, const auto& b) { return a.ms > b.ms; });
                     if (count > 0 && static_cast<int>(out.size()) > count)
@@ -865,8 +867,8 @@ static void run_bench_frames(float dt) {
              *e2e_bench::percentile_ms(0.99), *e2e_bench::percentile_ms(1.0));
 
     std::vector<std::pair<std::string, double>> top;
-    for (const auto& sample : afterhours::profiling::default_collector().snapshot().systems)
-        top.emplace_back(sample.name, sample.total_ms / static_cast<double>(n));
+    for (const auto& [name, acc] : perf::builtin_profile::totals())
+        top.emplace_back(name, acc.total_ms / static_cast<double>(n));
     std::sort(top.begin(), top.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
     if (top.size() > 8) top.resize(8);
@@ -1288,7 +1290,7 @@ int main(int argc, char* argv[]) {
                     const auto& cmp = entity.get<afterhours::ui::UIComponent>();
                     if (debug.name_value != name || !cmp.was_rendered_to_screen) return;
                     found = true;
-                    auto rect = afterhours::ui::detail::apply_ancestor_transform(entity, cmp.rect());
+                    auto rect = afterhours::ui::detail::apply_scroll_offset(entity, cmp.rect());
                     float width = afterhours::graphics::get_screen_width();
                     float height = afterhours::graphics::get_screen_height();
                     inside = inside && rect.x >= -2.f && rect.y >= -2.f &&

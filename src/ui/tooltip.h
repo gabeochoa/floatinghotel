@@ -72,7 +72,7 @@ struct RenderWrappedTooltip : afterhours::System<afterhours::ui::UIContext<Input
         if (!state || !state->is_showing() || !fonts) return;
         auto owner = afterhours::ui::UICollectionHolder::getEntityForID(state->showing);
         if (!owner.valid() || !owner->has<afterhours::ui::UIComponent>()) return;
-        auto anchor = afterhours::ui::detail::apply_ancestor_transform(
+        auto anchor = afterhours::ui::detail::apply_scroll_offset(
             owner.asE(), owner->get<afterhours::ui::UIComponent>().rect());
         const auto font = fonts->get_active_font();
         auto measure = [&](const std::string& text) { return measure_text(font, text.c_str(), 14.f, 1.f).x; };
