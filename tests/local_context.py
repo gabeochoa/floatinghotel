@@ -51,7 +51,7 @@ def capture(name, count):
     return settle() + f'workspace_checkpoint {count} {name}\nscreenshot {name}\n'
 
 def expand(direction):
-    return f'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Show 20 lines {direction}"\n' + settle()
+    return f'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Show all lines {direction}"\n' + settle()
 
 for zoom in [100, 140, 200]:
     directory = out / str(zoom)
@@ -69,16 +69,16 @@ for zoom in [100, 140, 200]:
     script += 'right_click_ui jump_to_diff:a.cpp\nwait_frames 3\nclick_ui "context_menu_item_Open source"\n' + capture('source', 2)
     script += 'click_ui full_file_back\n' + capture('returned', 2)
     script += 'click_ui jump_to_diff:b.cpp\nexpect_text "Folded hunk · click to expand"\nclick_ui jump_to_diff:a.cpp\n' + settle()
-    script += 'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Show 20 lines below"\nwait_frames 1\n'
+    script += 'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Show all lines below"\nwait_frames 1\n'
     script += 'click_text "Local context fixture"\nwait_for_refresh\nkey ENTER\nclick_ui jump_to_diff:a.cpp\n' + capture('commit', 2)
     script += expand('below') + capture('commit_below', 2)
     script += 'native_menu_action "Compare Revisions..."\nwait_frames 3\n'
     script += f'click_ui compare_base\nkey CMD+A\ntype "{base}"\nclick_ui compare_target\nkey CMD+A\ntype "{target}"\nclick_ui compare_submit\nwait_for_refresh\nwait_frames 20\n'
     script += 'click_ui jump_to_diff:a.cpp\n' + capture('comparison', 3)
     script += expand('below') + capture('comparison_below', 3)
-    script += 'resize 1800 3000\nwait_frames 10\nhover_ui diff_scroll\nscroll_wheel 0 20000\nwait_frames 15\nright_click_text "@@ -57,7"\nwait_frames 3\nclick_ui "context_menu_item_Show 20 lines above"\n' + capture('overlap', 3)
+    script += 'resize 1800 3000\nwait_frames 10\nhover_ui diff_scroll\nscroll_wheel 0 20000\nwait_frames 15\nright_click_text "@@ -57,7"\nwait_frames 3\nclick_ui "context_menu_item_Show all lines above"\n' + capture('overlap', 3)
     script += 'click_ui jump_to_diff:c.cpp\n' + settle() + expand('below') + capture('limited', 3)
-    script += 'right_click_text "@@ -57,7"\nwait_frames 3\nclick_ui "context_menu_item_Show 20 lines above"\n' + capture('after_limit', 3)
+    script += 'right_click_text "@@ -57,7"\nwait_frames 3\nclick_ui "context_menu_item_Show all lines above"\n' + capture('after_limit', 3)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)
@@ -98,11 +98,11 @@ for zoom in [100, 140, 200]:
         return [r for r in layout(name)['reading_rows'] if r['path'] == 'a.cpp']
     for initial, expanded in [('initial', 'below'), ('commit', 'commit_below'), ('comparison', 'comparison_below')]:
         assert not active(initial)['context_lines']
-        assert list(active(expanded)['context_lines'].values()) == [20]
+        assert list(active(expanded)['context_lines'].values()) == [4096]
         lines = {r['line'] for r in rows(expanded)}
-        assert 34 in lines and 54 not in lines, (zoom, expanded, lines)
+        assert 34 in lines, (zoom, expanded, lines)
         ranges = state(expanded)['hunk_context']['ranges']
-        assert [(r['new_start'], r['count'], r['error']) for r in ranges] == [(34, 20, '')], (zoom, expanded, ranges)
+        assert [(r['new_start'], r['count'], r['error']) for r in ranges] == [(34, 23, '')], (zoom, expanded, ranges)
         assert all('a_' in r['text'] for r in rows(expanded))
         assert not any(n.get('name') == 'hunk_context_notice' for n in layout(expanded)['nodes'])
         assert active(initial)['revision'] == active(expanded)['revision']
@@ -116,11 +116,11 @@ for zoom in [100, 140, 200]:
     jump = state('after_jump')
     assert jump['history'][jump['history_index']]['anchor']['line'] == 60, (zoom, jump['history'])
     assert active('above')['context_lines'] == active('returned')['context_lines']
-    assert sorted(active('above')['context_lines'].values()) == [20, 20]
+    assert sorted(active('above')['context_lines'].values()) == [4096, 4096]
     assert 7 in {r['line'] for r in rows('expanded_top')}, (zoom, rows('expanded_top'))
     assert {r['side'] for r in rows('split') if r['line'] == 7} == {1, 2}
     assert state('source')['hunk_context']['bytes'] == 0
-    assert state('returned')['hunk_context']['lines'] == 40
+    assert state('returned')['hunk_context']['lines'] == 49
     for name in ['below', 'above', 'returned']:
         assert state(name)['hunk_context']['bytes'] <= 256 * 1024
     for name in ['below', 'above', 'returned']:
@@ -128,14 +128,14 @@ for zoom in [100, 140, 200]:
         assert len(lines) == len(set(lines)), (zoom, name)
     overlap = state('overlap')['hunk_context']
     assert overlap['lines'] == 23, (zoom, overlap)
-    assert sorted((r['new_start'], r['count']) for r in overlap['ranges']) == [(34, 20), (54, 3)]
+    assert sorted((r['new_start'], r['count']) for r in overlap['ranges']) == [(34, 23), (57, 0)]
     overlap_rows = [(r['line'], r['sign'], r['offset']) for r in rows('overlap')]
     assert len(overlap_rows) == len(set(overlap_rows)), (zoom, overlap_rows)
     limited = [r for r in state('limited')['hunk_context']['ranges'] if r['key'].startswith('c.cpp') ]
     assert len(limited) == 1 and limited[0]['error'] and limited[0]['count'] == 0, (zoom, limited)
     after_limit = [r for r in state('after_limit')['hunk_context']['ranges'] if r['key'].startswith('c.cpp') and not r['error']]
-    assert [(r['new_start'], r['count']) for r in after_limit] == [(37, 20)], (zoom, after_limit)
+    assert after_limit == [], (zoom, after_limit)
     assert git('diff') == before and git('diff', '--cached') == ''
-    print(f'PASS {zoom}% local context, working/commit/comparison, 20-line ranges and source return', flush=True)
+    print(f'PASS {zoom}% local context, working/commit/comparison, all-line ranges and source return', flush=True)
 assert hashlib.sha256(binary.read_bytes()).hexdigest() == digest
 (out / 'result.json').write_text(json.dumps(dict(passed=True, binary_sha256=digest), indent=2) + '\n')

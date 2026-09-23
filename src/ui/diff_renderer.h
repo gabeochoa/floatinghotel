@@ -1290,10 +1290,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             for (bool above : {true, false}) {
                 auto key = hunk_context::key(fileDiff, hunk, above);
                 auto stamp = navigation::stamp(owner->get<ecs::RepoComponent>(), key);
-                items.push_back(ContextMenuItem::item(above ? "Show 20 lines above" : "Show 20 lines below", [currentTab, key, stamp] {
+                items.push_back(ContextMenuItem::item(above ? "Show all lines above" : "Show all lines below", [currentTab, key, stamp] {
                     if (auto* tab = currentTab()) {
                         auto& repo = tab->get<ecs::RepoComponent>();
-                        if (navigation::accepts(repo, stamp, key)) navigation::expand_hunk_context(repo, key);
+                        if (navigation::accepts(repo, stamp, key)) navigation::expand_hunk_context_all(repo, key);
                     }
                 }));
             }
@@ -1393,25 +1393,23 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_debug_name("hunk_header_btns"));
 
     if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent && !fileDiff.isNew && !fileDiff.isDeleted && sel->reviewScope != "snapshot") {
-        auto context = button(ctx, mk(hunkBtns.ent(), 4), preset::Button(compactActions ? "+" : "Expand context")
-            .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
-            .with_padding(Padding{}).with_font_size(pixels(12))
-            .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("expand_diff_context"));
-        set_tooltip(context.ent(), "Show 20 more unchanged lines above or below this hunk");
-        if (context) {
-            remember_focus_origin(ctx, context.ent());
-            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            std::vector<ContextMenuItem> items;
-            for (bool above : {true, false}) {
-                auto key = hunk_context::key(fileDiff, hunk, above);
-                auto stamp = navigation::stamp(*repo, key);
-                items.push_back(ContextMenuItem::item(above ? "Show 20 lines above" : "Show 20 lines below", [key, stamp] {
-                    auto* active = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-                    if (active && navigation::accepts(*active, stamp, key)) navigation::expand_hunk_context(*active, key);
-                }));
+        // Two direct buttons, one click each: no menu to pick a direction from.
+        auto* contextRepoPtr = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        for (bool above : {true, false}) {
+            if (!contextRepoPtr) break;
+            auto key = hunk_context::key(fileDiff, hunk, above);
+            auto stamp = navigation::stamp(*contextRepoPtr, key);
+            auto contextBtn = button(ctx, mk(hunkBtns.ent(), above ? 4 : 5),
+                preset::Button(compactActions ? (above ? "↑" : "↓") : (above ? "Expand all above" : "Expand all below"))
+                    .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
+                    .with_padding(Padding{}).with_font_size(pixels(12))
+                    .with_custom_background(theme::BUTTON_SECONDARY)
+                    .with_debug_name(above ? "expand_context_above" : "expand_context_below"));
+            if (contextBtn) {
+                remember_focus_origin(ctx, contextBtn.ent());
+                auto* active = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+                if (active && navigation::accepts(*active, stamp, key)) navigation::expand_hunk_context_all(*active, key);
             }
-            auto rect = visible_rect(context.ent());
-            show_context_menu(rect.x, rect.y + rect.height, std::move(items));
         }
     }
 

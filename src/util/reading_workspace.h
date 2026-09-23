@@ -337,6 +337,34 @@ public:
         const auto* tab = recent(Slot::Source);
         return tab ? &std::get<SourceLocation>(tab->location) : nullptr;
     }
+    // Follow a rewritten tip (amend/rebase/reset of HEAD): documents, history
+    // and source origins pinned to `from` move to `to` in place, without a new
+    // history visit, so reading position and folds survive the refresh.
+    bool retarget_commit(const std::string& from, const std::string& to) {
+        if (from.empty() || from == to || !is_object_id(to)) return false;
+        bool changed = false;
+        auto destination = [&](ReviewDestination& value) {
+            if (auto* commit = std::get_if<CommitReview>(&value); commit && revision_text(commit->commit) == from) {
+                commit->commit = ObjectId{to};
+                changed = true;
+            }
+        };
+        auto location = [&](Location& value) {
+            if (auto* review = std::get_if<ReviewLocation>(&value)) destination(review->destination);
+            if (auto* source = std::get_if<SourceLocation>(&value)) {
+                if (std::holds_alternative<ObjectId>(source->destination.revision) &&
+                    revision_text(source->destination.revision) == from) {
+                    source->destination.revision = ObjectId{to};
+                    changed = true;
+                }
+                if (source->origin) destination(source->origin->destination);
+            }
+        };
+        for (auto& document : documents_) location(document.location);
+        for (auto& document : closed_) location(document.location);
+        for (auto& visit : history_) location(visit.location);
+        return changed;
+    }
     Slot active() const { return std::holds_alternative<SourceLocation>(location()) ? Slot::Source : Slot::Review; }
     std::uint64_t generation() const { return generation_; }
     const std::vector<Visit>& history() const { return history_; }

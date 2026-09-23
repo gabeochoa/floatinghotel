@@ -48,12 +48,13 @@ for zoom in [100, 140, 200]:
     script += 'click_ui hunk_header_label\nmouse_move 1 1\n' + capture('focused')
     script += 'key TAB\n' + capture('keyboard')
     script += 'right_click_ui hunk_header_row\n' + capture('menu')
-    script += 'expect_text "Copy hunk"\nexpect_text "Show 20 lines above"\nexpect_text "Approve hunk"\nexpect_text "Comment on hunk"\nkey ESCAPE\n'
+    script += 'expect_text "Copy hunk"\nexpect_text "Show all lines above"\nexpect_text "Approve hunk"\nexpect_text "Comment on hunk"\nkey ESCAPE\n'
     script += 'resize 1150 850\nwait_frames 10\nclick_ui jump_to_diff:sample.cpp\nhover_ui diff_scroll\nscroll_wheel 0 20000\nwait_frames 15\nmouse_move 1 1\n' + capture('narrow_idle')
     script += 'hover_ui hunk_header_row\n' + capture('narrow_hover')
     if not args.baseline:
         script += 'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Comment on hunk"\nwait_frames 3\nscreenshot composer\nclick_ui comment_input\ntype "Hunk feedback"\nclick_ui comment_add_btn\n' + capture('commented')
         script += 'expect_no_text "Folded hunk · click to expand"\nbench_frames 120\nexpect_p99_below 20\n'
+        script += 'click_ui expand_context_below\nwait_frames 3\nwait_for_refresh\nwait_frames 15\nworkspace_checkpoint 1 expanded_all\nscreenshot expanded_all\n'
         script += 'resize 1600 1100\nclick_text "Two commit hunks"\nwait_for_refresh\nwait_frames 12\nmouse_move 1 1\n' + capture('commit_idle')
         script += 'hover_ui hunk_header_row\n' + capture('commit_hover')
         script += 'click_ui hunk_header_label\nmouse_move 1 1\n' + capture('commit_focus')
@@ -78,8 +79,12 @@ for zoom in [100, 140, 200]:
             assert before_nodes[0]['rect'] == after_nodes[0]['rect']
             caption = nodes(hover, 'hunk_header_label')[0]['rect']
             assert caption['width'] >= 140 * zoom / 100, (zoom, hover, caption)
+        expanded_state = json.loads((directory / 'expanded_all.workspace.json').read_text())
+        expanded_tab = next(t for t in expanded_state['tabs'] if t['id'] == expanded_state['active'])
+        assert list(expanded_tab['context_lines'].values()) == [4096], expanded_tab
+        assert [(r['new_start'], r['count']) for r in expanded_state['hunk_context']['ranges']] == [(14, 63)], expanded_state['hunk_context']
         for name in ['hover', 'narrow_hover']:
-            for debug in ['expand_diff_context', 'approve_hunk_btn', 'comment_hunk_btn']:
+            for debug in ['expand_context_above', 'expand_context_below', 'approve_hunk_btn', 'comment_hunk_btn']:
                 action = nodes(name, debug)[0]
                 assert abs(action['rect']['width'] - action['visible_rect']['width']) < .1, (zoom, name, debug)
                 assert abs(action['rect']['height'] - action['visible_rect']['height']) < .1, (zoom, name, debug)

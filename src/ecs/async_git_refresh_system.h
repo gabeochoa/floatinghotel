@@ -13,6 +13,8 @@
 #include "../git/git_parser.h"
 #include "../git/content_reader.h"
 #include "../git/git_runner.h"
+#include "../util/diff_reconcile.h"
+#include "../util/navigation.h"
 #include "components.h"
 
 namespace ecs {
@@ -60,6 +62,9 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             auto& pf = pending_[id];
             pf.repository = path;
             pf.historyKey = repo.historyScope.key();
+            pf.headBefore = repo.headCommitHash;
+            pf.selectedBefore = repo.selectedCommitHash();
+            pf.scope = scope;
             std::vector<std::string> diffArgs{"diff"};
             diffArgs.push_back("--unified=" + std::to_string(repo.diffContext));
             if (repo.ignoreWhitespace) diffArgs.push_back("--ignore-all-space");
@@ -103,12 +108,15 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             if (repo.untrackedReviewFuture.valid() && repo.untrackedReviewFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
                 auto result = repo.untrackedReviewFuture.get();
                 repo.untrackedReviewNotice = std::move(result.notice);
+                bool appended = false;
                 for (auto& file : result.files) {
-                    if (std::none_of(repo.currentDiff.begin(), repo.currentDiff.end(), [&](const auto& existing) {
-                        return existing.filePath == file.filePath;
-                    })) repo.currentDiff.push_back(std::move(file));
+                    auto existing = std::find_if(repo.currentDiff.begin(), repo.currentDiff.end(), [&](const auto& value) {
+                        return value.filePath == file.filePath;
+                    });
+                    if (existing == repo.currentDiff.end()) { repo.currentDiff.push_back(std::move(file)); appended = true; }
+                    else if (!diff_reconcile::file_equal(*existing, file)) { *existing = std::move(file); appended = true; }
                 }
-                ++repo.patchGeneration;
+                if (appended) ++repo.patchGeneration;
             }
             if (repo.hasLoadedOnce && (repo.untrackedReviewGeneration != repo.dataGeneration ||
                                       repo.untrackedReviewRepository != repo.repoPath)) {
@@ -145,27 +153,34 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             auto result = pf.status->get();
             pf.status.reset();
             log_info("refresh: status ready at {} ms", ms_since(id));
+            bool statusChanged = !repo.hasLoadedOnce;
             if (result.success()) {
                 auto parsed = git::parse_status(result.stdout_str());
-                repo.headCommitHash = parsed.headHash;
+                statusChanged = statusChanged || repo.headCommitHash != parsed.headHash ||
+                    repo.currentBranch != parsed.branchName || repo.isDetachedHead != parsed.isDetachedHead ||
+                    repo.aheadCount != parsed.aheadCount || repo.behindCount != parsed.behindCount ||
+                    !diff_reconcile::status_files_equal(repo.stagedFiles, parsed.stagedFiles) ||
+                    !diff_reconcile::status_files_equal(repo.unstagedFiles, parsed.unstagedFiles) ||
+                    repo.untrackedFiles != parsed.untrackedFiles;
+                if (statusChanged) {
+                    repo.headCommitHash = parsed.headHash;
+                    repo.currentBranch  = parsed.branchName;
+                    repo.isDetachedHead = parsed.isDetachedHead;
+                    repo.aheadCount     = parsed.aheadCount;
+                    repo.behindCount    = parsed.behindCount;
+                    repo.stagedFiles    = std::move(parsed.stagedFiles);
+                    repo.unstagedFiles  = std::move(parsed.unstagedFiles);
+                    repo.untrackedFiles = std::move(parsed.untrackedFiles);
+                }
                 repo.statusKnown = repo.branchKnown = true;
                 repo.statusError.clear();
-                repo.currentBranch  = parsed.branchName;
-                repo.isDetachedHead = parsed.isDetachedHead;
-                repo.aheadCount     = parsed.aheadCount;
-                repo.behindCount    = parsed.behindCount;
-                repo.stagedFiles    = std::move(parsed.stagedFiles);
-                repo.unstagedFiles  = std::move(parsed.unstagedFiles);
-                repo.untrackedFiles = std::move(parsed.untrackedFiles);
                 repo.isDirty = !repo.stagedFiles.empty() ||
                                !repo.unstagedFiles.empty() ||
                                !repo.untrackedFiles.empty();
             }
             if (!result.success()) { repo.statusKnown = false; repo.statusError = result.stderr_str().empty() ? "Unable to read working changes" : result.stderr_str(); }
-            // The file list is what the spinner stands in for; the log and
-            // branches fill in behind it rather than holding the whole UI.
             repo.hasLoadedOnce = true;
-            ++repo.dataGeneration;
+            if (statusChanged) ++repo.dataGeneration;
         }
 
         if (pf.log &&
@@ -175,7 +190,17 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             if (!repo.historyScopeFuture.valid()) repo.commitLogLoading = false;
             if (result.success() && pf.historyKey == repo.historyScope.key() && !repo.historyScopeFuture.valid()) {
                 repo.historyError.clear();
-                repo.commitLog = git::parse_log(result.stdout_str());
+                auto parsedLog = git::parse_log(result.stdout_str());
+                if (!diff_reconcile::commit_log_equal(repo.commitLog, parsedLog)) {
+                    repo.commitLog = std::move(parsedLog);
+                    // Amended/rebased tip: a view pinned to the old HEAD hash
+                    // would keep showing the dangling pre-amend commit forever.
+                    if (repo.historyScope.mode == git::HistoryScope::Mode::Current && !repo.historyScope.remotes &&
+                        !pf.headBefore.empty() && pf.selectedBefore == pf.headBefore &&
+                        repo.selectedCommitHash() == pf.headBefore && !repo.commitLog.empty() &&
+                        repo.commitLog.front().hash != pf.headBefore)
+                        navigation::follow_rewritten_tip(repo, pf.headBefore, repo.commitLog.front().hash);
+                }
                 repo.commitLogLoaded =
                     static_cast<int>(repo.commitLog.size());
                 repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
@@ -195,8 +220,12 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.diff.reset();
             log_info("refresh: diff ready at {} ms", ms_since(id));
             if (result.success()) {
-                repo.currentDiff = git::parse_diff(result.stdout_str());
-                ++repo.patchGeneration;
+                if (diff_reconcile::reconcile(repo.currentDiff, git::parse_diff(result.stdout_str())))
+                    ++repo.patchGeneration;
+                // Untracked previews are appended to currentDiff, not in git diff:
+                // a worktree refresh must re-read them even if status is unchanged.
+                if (!repo.untrackedFiles.empty() && refresh_scope::has(pf.scope, refresh_scope::Scope::Worktree))
+                    repo.untrackedReviewGeneration.reset();
             }
         }
 
@@ -204,8 +233,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             auto result = pf.stagedDiff->get();
             pf.stagedDiff.reset();
             if (result.success()) {
-                repo.stagedDiff = git::parse_diff(result.stdout_str());
-                ++repo.patchGeneration;
+                if (diff_reconcile::reconcile(repo.stagedDiff, git::parse_diff(result.stdout_str())))
+                    ++repo.patchGeneration;
             }
         }
 
@@ -215,8 +244,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.branches.reset();
             log_info("refresh: branches ready at {} ms", ms_since(id));
             if (result.success()) {
-                repo.branches =
-                    git::parse_branch_list(result.stdout_str());
+                auto parsedBranches = git::parse_branch_list(result.stdout_str());
+                if (!diff_reconcile::branches_equal(repo.branches, parsedBranches)) repo.branches = std::move(parsedBranches);
                 for (const auto& branch : repo.branches) if (branch.isCurrent) {
                     repo.currentBranch = branch.name;
                     repo.branchKnown = true;
@@ -228,8 +257,11 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             auto result = pf.files->get();
             pf.files.reset();
             repo.filesError = result.success() ? "" : result.stderr_str();
-            repo.allFilePaths = result.success() ? git::parse_null_paths(result.stdout_str()) : std::vector<std::string>{};
-            ++repo.allFilePathsGeneration;
+            auto parsedPaths = result.success() ? git::parse_null_paths(result.stdout_str()) : std::vector<std::string>{};
+            if (repo.allFilePaths != parsedPaths) {
+                repo.allFilePaths = std::move(parsedPaths);
+                ++repo.allFilePathsGeneration;
+            }
         }
         if (!pf.status && !pf.log && !pf.diff && !pf.stagedDiff && !pf.branches && !pf.files) {
             repo.isRefreshing = false;
@@ -316,6 +348,9 @@ private:
     struct PendingFutures {
         std::string repository;
         std::string historyKey;
+        std::string headBefore;
+        std::string selectedBefore;
+        refresh_scope::Scope scope = refresh_scope::Scope::Full;
         std::optional<async_work::Task<git::GitResult>> files;
         std::optional<async_work::Task<git::GitResult>> status;
         std::optional<async_work::Task<git::GitResult>> log;

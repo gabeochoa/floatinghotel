@@ -6,7 +6,7 @@ screenshot improvement_17_before
 expect_text "Show surrounding lines"
 expect_no_text "Context +"
 expect_no_text "context line 30"
-click_ui expand_diff_context
+click_ui expand_context_above
 wait_for_refresh
 wait_frames 10
 screenshot improvement_17_expanded

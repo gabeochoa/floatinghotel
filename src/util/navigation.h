@@ -108,11 +108,29 @@ struct navigation {
         restore_anchor(repo);
     }
 
-    static void expand_hunk_context(ecs::RepoComponent& repo, const std::string& key) {
+    static constexpr int kContextStep = 20;
+    static constexpr int kContextAll = 4096;
+
+    static void expand_hunk_context(ecs::RepoComponent& repo, const std::string& key, int amount = kContextStep) {
         auto& counts = repo.workspace_.current().contextLines;
         if (!counts.contains(key) && counts.size() >= 256) return;
-        counts[key] = std::min(4096, counts[key] + 20);
+        counts[key] = std::min(kContextAll, counts[key] + amount);
         repo.hunkContext.future = {};
+    }
+
+    // One click reveals the whole folded gap; git::context_range clamps the
+    // request to the lines actually between the neighbouring hunks.
+    static void expand_hunk_context_all(ecs::RepoComponent& repo, const std::string& key) {
+        auto& counts = repo.workspace_.current().contextLines;
+        if (!counts.contains(key) && counts.size() >= 256) return;
+        counts[key] = kContextAll;
+        repo.hunkContext.future = {};
+    }
+
+    static bool follow_rewritten_tip(ecs::RepoComponent& repo, const std::string& from, const std::string& to) {
+        if (!repo.workspace_.retarget_commit(from, to)) return false;
+        repo.hunkContext = {};
+        return true;
     }
 
     static void toggle_commit_details(ecs::RepoComponent& repo) {

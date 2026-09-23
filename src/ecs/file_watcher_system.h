@@ -37,27 +37,31 @@ struct FileWatcherSystem : afterhours::System<RepoComponent> {
             watcher_.watch_many(watchPaths);
             watched_path_ = repo.repoPath;
             watched_version_ = repo.repoVersion;
+            pending_ = false;
+            pending_scope_ = refresh_scope::Scope::None;
             cooldown_until_ = clock::now() + COOLDOWN;
         }
 
+        // Drain every frame, even while a refresh is running or cooling down.
+        // Events left in the watcher queue could be cleared by a re-watch
+        // (tab/repo switch) and an amend landing mid-refresh was then lost.
+        for (const auto& event : watcher_.poll_events()) {
+            pending_scope_ = refresh_scope::merge(pending_scope_,
+                refresh_scope::classify(resolved_root_, common_git_dir_, event.path, event.mustRescan));
+            pending_ = true;
+        }
+        if (!pending_) return;
         if (repo.refreshRequested || repo.isRefreshing) {
             cooldown_until_ = clock::now() + COOLDOWN;
             return;
         }
-
         if (clock::now() < cooldown_until_) return;
-
-        auto events = watcher_.poll_events();
-        if (!events.empty()) {
-            auto scope = refresh_scope::Scope::None;
-            for (const auto& event : events) {
-                scope = refresh_scope::merge(scope, refresh_scope::classify(resolved_root_, common_git_dir_, event.path, event.mustRescan));
-            }
-            ++fired;
-            repo.refreshScope = refresh_scope::merge(repo.refreshScope, scope);
-            repo.refreshRequested = true;
-            cooldown_until_ = clock::now() + COOLDOWN;
-        }
+        ++fired;
+        repo.refreshScope = refresh_scope::merge(repo.refreshScope, pending_scope_);
+        repo.refreshRequested = true;
+        pending_ = false;
+        pending_scope_ = refresh_scope::Scope::None;
+        cooldown_until_ = clock::now() + COOLDOWN;
     }
 
 private:
@@ -69,6 +73,8 @@ private:
     std::string resolved_root_;
     std::filesystem::path common_git_dir_;
     unsigned watched_version_ = 0;
+    refresh_scope::Scope pending_scope_ = refresh_scope::Scope::None;
+    bool pending_ = false;
     clock::time_point cooldown_until_{};
 };
 

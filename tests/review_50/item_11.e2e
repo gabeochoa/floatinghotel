@@ -11,7 +11,7 @@ screenshot item_11_expanded_setup
 click_ui commit_files_toggle
 screenshot item_11_collapsed
 expect_text "Show files"
-click_ui expand_diff_context
+click_ui expand_context_above
 wait_for_refresh
 screenshot item_11_context_reload
 expect_text "Show files"

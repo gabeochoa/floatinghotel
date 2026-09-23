@@ -2,6 +2,7 @@
 #include "../../src/ecs/async_git_refresh_system.h"
 #include "../../src/git/repository_lock.h"
 #include <filesystem>
+#include <fstream>
 #include <unistd.h>
 
 TEST(closing_a_tab_cancels_its_refresh_reads_without_waiting_for_the_repository_lock) {
@@ -62,6 +63,50 @@ TEST(refresh_cleanup_preserves_live_tabs_and_their_results) {
     afterhours::EntityHelper::set_default_collection(nullptr);
     std::filesystem::remove_all(path);
     ASSERT_TRUE(completed);
+}
+
+TEST(refresh_after_amend_retargets_a_view_of_the_old_tip) {
+    char directory[] = "/tmp/fh-refresh-amend.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    auto run = [&](std::vector<std::string> args) { return git::git_run(path, args); };
+    ASSERT_TRUE(run({"init", "-q", "-b", "main"}).success());
+    ASSERT_TRUE(run({"config", "user.name", "Amend fixture"}).success());
+    ASSERT_TRUE(run({"config", "user.email", "amend@example.invalid"}).success());
+    ASSERT_TRUE(run({"config", "commit.gpgsign", "false"}).success());
+    std::ofstream(std::filesystem::path(path) / "a.cpp") << "one\ntwo\n";
+    ASSERT_TRUE(run({"add", "."}).success());
+    ASSERT_TRUE(run({"commit", "-qm", "Before amend"}).success());
+    auto before = run({"rev-parse", "HEAD"}).stdout_str();
+    before.erase(before.find_last_not_of("\r\n") + 1);
+    afterhours::EntityCollection collection;
+    afterhours::EntityHelper::set_default_collection(&collection);
+    ecs::AsyncGitDataRefreshSystem refresh;
+    auto& tab = afterhours::EntityHelper::createEntity();
+    tab.addComponent<ecs::ActiveTab>();
+    auto& repo = tab.addComponent<ecs::RepoComponent>();
+    repo.repoPath = path;
+    repo.headCommitHash = before;
+    navigation::open(repo, reading::review(before, "a.cpp"), {}, reading::OpenMode::Keep);
+    std::ofstream(std::filesystem::path(path) / "a.cpp", std::ios::app) << "three\n";
+    ASSERT_TRUE(run({"add", "."}).success());
+    ASSERT_TRUE(run({"commit", "-q", "--amend", "-m", "After amend"}).success());
+    auto after = run({"rev-parse", "HEAD"}).stdout_str();
+    after.erase(after.find_last_not_of("\r\n") + 1);
+    ASSERT_TRUE(before != after);
+    repo.refreshRequested = true;
+    refresh.for_each_with(tab, repo, 0);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (repo.isRefreshing && std::chrono::steady_clock::now() < deadline) {
+        refresh.once(0);
+        refresh.for_each_with(tab, repo, 0);
+        std::this_thread::yield();
+    }
+    bool followed = !repo.isRefreshing && repo.selectedCommitHash() == after && repo.headCommitHash == after &&
+                    repo.commitLog.size() == 1 && repo.commitLog.front().subject == "After amend";
+    afterhours::EntityHelper::set_default_collection(nullptr);
+    std::filesystem::remove_all(path);
+    ASSERT_TRUE(followed);
 }
 
 int main() { RUN_ALL_TESTS(); }

@@ -20,7 +20,7 @@ click_text "Ignore Whitespace (toggle)"
 wait_for_refresh
 expect_text "spacing.cpp"
 screenshot item_03_before_context
-click_ui expand_diff_context
+click_ui expand_context_above
 wait_for_refresh
 expect_text "faraway context"
 screenshot item_03_context_key
