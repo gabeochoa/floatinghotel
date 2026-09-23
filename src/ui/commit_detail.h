@@ -353,7 +353,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             scrollY = scroll.scroll_offset.y;
             if (scroll.viewport_or_zero().y > 0.f) viewport = scroll.viewport_or_zero().y;
         }
-        auto rect = afterhours::ui::detail::apply_scroll_offset(origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
+        auto rect = afterhours::ui::detail::apply_ancestor_transform(origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
         float bodyY = std::max(0.f, rect.y + scrollY - detailsScroll.ent().get<afterhours::ui::UIComponent>().rect().y);
         auto [first, last] = visible_rows(count, rowHeight, bodyY, scrollY, viewport);
         div(ctx, mk(origin.ent(), 0), ComponentConfig{}.with_skip_grid_snap()

@@ -1,0 +1,13 @@
+# Draw-capture assertions (afterhours capture::): prove what was painted
+# instead of inferring it from screenshots. On the sokol backend capture
+# records primitive shapes (triangle/circle/line/quad); text and rectangle
+# ops are not recorded yet, so assert on glyph triangles for now.
+make_test_repo
+resize 1280 720
+wait_frames 5
+expect_drawn triangle min_count=100
+expect_not_drawn quad
+expect_draw_calls_below 20000
+expect_text_i readme.md
+dump_focus
+screenshot draw_assertions

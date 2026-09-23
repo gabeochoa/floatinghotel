@@ -65,15 +65,23 @@ struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECom
     }
 };
 
+// The e2e runner tokenizes quoted arguments itself (afterhours 197d54e), so
+// handlers receive the unquoted text; only re-parse quotes when they survive.
+inline std::string e2e_joined_text(const std::string& joined) {
+    if (!joined.starts_with('"')) return joined;
+    std::istringstream input(joined);
+    std::string value;
+    input >> std::quoted(value);
+    return value;
+}
+
 struct HandleShowToast : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("show_toast")) return;
         if (!cmd.has_args(2)) { cmd.fail("show_toast requires a level and message"); return; }
         std::string joined;
         for (size_t i = 1; i < cmd.args.size(); ++i) { if (!joined.empty()) joined += ' '; joined += cmd.args[i]; }
-        std::istringstream input(joined);
-        std::string message;
-        input >> std::quoted(message);
+        std::string message = e2e_joined_text(joined);
         auto& ctx = afterhours::EntityHelper::get_singleton_cmp_enforce<ui_imm::UIContextType>();
         if (cmd.args[0] == "info") afterhours::toast::send_info(ctx, message);
         else if (cmd.args[0] == "success") afterhours::toast::send_success(ctx, message);
@@ -89,9 +97,7 @@ struct HandleNativeMenuAction : afterhours::System<afterhours::testing::PendingE
         if (cmd.is_consumed() || !cmd.is("native_menu_action")) return;
         std::string joined;
         for (const auto& part : cmd.args) { if (!joined.empty()) joined += ' '; joined += part; }
-        std::istringstream input(joined);
-        std::string title;
-        input >> std::quoted(title);
+        std::string title = e2e_joined_text(joined);
         if (!native_menu::activate_for_test(title)) cmd.fail("Native menu item is unavailable: " + title);
         else cmd.consume();
     }
@@ -124,9 +130,7 @@ struct HandleExpectReviewExport : afterhours::System<afterhours::testing::Pendin
         if (!cmd.has_args(1)) { cmd.fail("expect_review_export requires text"); return; }
         std::string joined;
         for (const auto& arg : cmd.args) { if (!joined.empty()) joined += ' '; joined += arg; }
-        std::istringstream input(joined);
-        std::string expected;
-        input >> std::quoted(expected);
+        std::string expected = e2e_joined_text(joined);
         if (expected.empty()) { cmd.fail("expect_review_export requires nonempty text"); return; }
         auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if (!repo) { cmd.fail("No active repository"); return; }

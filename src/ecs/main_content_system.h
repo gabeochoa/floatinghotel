@@ -604,7 +604,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_transparent_bg().with_custom_hover_bg({0, 0, 0, 0})
                     .with_roundness(0.f).with_corner_radius(0.f)
                     .with_debug_name("close_document_" + std::to_string(document.id.value)));
-                auto closeRect = afterhours::ui::detail::apply_scroll_offset(close.ent(), close.ent().get<afterhours::ui::UIComponent>().rect());
+                auto closeRect = afterhours::ui::detail::apply_ancestor_transform(close.ent(), close.ent().get<afterhours::ui::UIComponent>().rect());
                 const float highlightSize = 20.f * ui::zoom::get();
                 Rectangle highlightRect{closeRect.x + (closeRect.width - highlightSize) * .5f,
                     closeRect.y + (closeRect.height - highlightSize) * .5f, highlightSize, highlightSize};
@@ -1403,7 +1403,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             const char* home = std::getenv("HOME");
             size_t homeLen = home ? std::strlen(home) : 0;
 
-            ui::virtual_list(ctx, mk(container.ent(), 11), recentRepos.size(), 40.f, [&](size_t index, Entity& rowHost) {
+            auto recentList = ui::virtual_list(ctx, mk(container.ent(), 11), recentRepos.size(), 40.f, [&](size_t index, Entity& rowHost) {
                 const int ri = static_cast<int>(index);
                 std::filesystem::path p(recentRepos[ri]);
                 std::string basename = p.filename().string();
@@ -1424,6 +1424,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .bottom = h720(4), .left = w1280(12)})
                         .with_custom_background(REPO_ROW_BG)
                         .with_custom_hover_bg(REPO_ROW_HOVER)
+                        .with(afterhours::ui_motion::MotionExt{afterhours::presets::hover_lift(2.f, 1.02f)})
                         .with_corner_radius(4.0f)
                         .with_margin(Margin{.bottom = h720(2)})
                         .with_cursor(afterhours::ui::CursorType::Pointer)
@@ -1470,6 +1471,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }, ComponentConfig{}.with_size(ComponentSize{w1280(400), pixels(std::min(360.f, std::max(80.f, ctx.screen_height / ui::zoom::get() - 280.f)))})
                 .with_debug_name("repository_picker_list"));
+            // No custom scroll anchor owns this list: let the scroll view hold
+            // its top row when repositories are added/removed above the fold.
+            if (recentList.ent().has<afterhours::ui::HasScrollView>())
+                recentList.ent().get<afterhours::ui::HasScrollView>().anchor_scroll = true;
 
         } else {
             div(ctx, mk(container.ent(), 10),
