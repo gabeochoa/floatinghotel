@@ -10,6 +10,8 @@ namespace git {
 
 std::optional<ecs::DiffHunk> selected_lines_hunk(const ecs::DiffHunk& hunk,
                                                 const std::set<size_t>& selected);
+GitResult unstage_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
+                                  const std::vector<std::set<size_t>>& selected);
 GitResult stage_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
                                 const std::vector<std::set<size_t>>& selected);
 

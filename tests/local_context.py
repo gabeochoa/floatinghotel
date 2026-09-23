@@ -51,14 +51,14 @@ def capture(name, count):
     return settle() + f'workspace_checkpoint {count} {name}\nscreenshot {name}\n'
 
 def expand(direction):
-    return f'right_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Show all lines {direction}"\n' + settle()
+    return 'right_click_ui hunk_header_row\nwait_frames 15\ndump_ui_json menu_barrier\nexpect_text "Show all lines"\n' + f'click_ui "context_menu_item_Show all lines {direction}"\n' + settle()
 
 for zoom in [100, 140, 200]:
     directory = out / str(zoom)
     directory.mkdir()
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'click_ui review_unstaged_changes\nwait_for_refresh\nclick_ui jump_to_diff:b.cpp\nright_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Comment on hunk"\nwait_frames 3\nclick_ui comment_input\ntype "Keep this folded"\nclick_ui comment_add_btn\nwait_frames 8\nright_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Fold hunk"\nclick_ui jump_to_diff:a.cpp\n' + capture('initial', 1)
+    script += 'click_ui review_unstaged_changes\nwait_for_refresh\nclick_ui jump_to_diff:b.cpp\nright_click_ui hunk_header_row\nwait_frames 3\nclick_ui "context_menu_item_Comment on hunk"\nwait_frames 3\nclick_ui comment_input\ntype "Keep this folded"\nclick_ui comment_add_btn\nwait_frames 8\nright_click_ui hunk_header_row\nwait_frames 15\ndump_ui_json menu_barrier\n' + 'expect_text "Fold hunk"\nclick_ui "context_menu_item_Fold hunk"\nclick_ui jump_to_diff:a.cpp\n' + capture('initial', 1)
     script += expand('below') + capture('below', 1)
     script += expand('above') + capture('above', 1)
     script += 'key J\n' + capture('after_jump', 1)

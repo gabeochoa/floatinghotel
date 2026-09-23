@@ -862,26 +862,28 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             render_revision_comparison(ctx, mainBg.ent(), repo, layout, reviewPtr);
             return;
         }
-        if (std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination))
-            ui::diff_syntax::update(repo, repo.selectedFileStaged() ? repo.stagedDiff : repo.currentDiff,
-                repo.selectedFileStaged() ? "index" : "wt");
+        if (std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination)) {
+            ui::diff_syntax::update(repo, repo.stagedDiff, "index");
+            ui::diff_syntax::update(repo, repo.currentDiff, "wt");
+        }
         bool hasSelectedFile = std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination) &&
             !repo.selectedFilePath().empty();
         bool hasSelectedCommit = !repo.selectedCommitHash().empty();
 
         if (reviewPtr && reviewPtr->reviewing && std::holds_alternative<reading::WorkingChanges>(repo.workspace().review().destination)) {
-            const bool staged = repo.selectedFileStaged();
-            const auto& files = staged ? repo.stagedDiff : repo.currentDiff;
-            const std::string scope = staged ? "index" : "wt";
+            // One page: staged section above unstaged, no view switching.
+            const auto& stagedFiles = repo.stagedDiff;
+            const auto& unstagedFiles = repo.currentDiff;
+            const bool bothEmpty = stagedFiles.empty() && unstagedFiles.empty();
             float diffW = layout.mainContent.width;
             div(ctx, mk(mainBg.ent(), 592009), ComponentConfig{}
-                .with_label(std::string(staged ? "Staged changes" : "Unstaged changes") + " · " + std::to_string(files.size()) + (files.size() == 1 ? " file" : " files"))
+                .with_label("Working changes · " + std::to_string(stagedFiles.size() + unstagedFiles.size()) + " files")
                 .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font("ui-bold", pixels(20))
                 .with_debug_name("working_review_heading"));
             auto baselineActions = div(ctx, mk(mainBg.ent(), 592010), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
                 .with_gap(pixels(4)));
-            if (!staged && !reviewPtr->snapshotFuture.valid()) {
+            if (!reviewPtr->snapshotFuture.valid()) {
                 if (reviewPtr->baselineSnapshot.empty()) {
                     if (button(ctx, mk(baselineActions.ent(), 0), preset::Button("Save review baseline")
                         .with_size(ComponentSize{pixels(165), pixels(28)}).with_debug_name("save_review_baseline")))
@@ -909,11 +911,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
             const std::string snapshotNotice = reviewPtr->snapshotFuture.valid() ? "Saving contents..." :
                 !reviewPtr->snapshotError.empty() ? reviewPtr->snapshotError :
-                staged ? "" : repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading new files..." : "") : repo.untrackedReviewNotice;
+                repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading new files..." : "") : repo.untrackedReviewNotice;
             if (!snapshotNotice.empty())
                 div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}.with_label(snapshotNotice)
                     .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12)));
-            if (files.empty()) {
+            if (bothEmpty) {
                 auto done = div(ctx, mk(mainBg.ent(), 3080),
                     ComponentConfig{}
                         .with_size(ComponentSize{percent(1.0f), pixels(layout.mainContent.height - 62.f)})
@@ -925,7 +927,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("ballroom_done"));
                 div(ctx, mk(done.ent(), 1),
                     ComponentConfig{}
-                        .with_label(staged ? "No staged changes" : repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading unstaged changes..." : "") : "No unstaged changes")
+                        .with_label(repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading working changes..." : "") : "No working changes")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::STATUS_ADDED)
                         .with_font_size(pixels(16))
@@ -933,9 +935,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("ballroom_done_msg"));
                 div(ctx, mk(done.ent(), 2),
                     ComponentConfig{}
-                        .with_label(std::to_string(
-                            static_cast<int>(reviewPtr->approvedHunks.size())) +
-                            " review approvals saved")
+                        .with_label(std::to_string(stagedFiles.size()) +
+                            (stagedFiles.size() == 1 ? " file staged" : " files staged"))
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_font_size(pixels(14))
@@ -946,10 +947,28 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 constexpr float keyhintH = 24.f;
                 float diffH = layout.mainContent.height - keyhintH - 62.f;
                 if (diffH < 40.0f) diffH = layout.mainContent.height;
-                ui::render_diff(ctx, mainBg.ent(), files,
-                                       diffW, diffH, staged, false,
-                                       layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
-                                       repo.repoPath, reviewPtr, scope);
+                auto pageScroll = div(ctx, mk(mainBg.ent(), 592020), ComponentConfig{}.with_skip_grid_snap()
+                    .with_size(ComponentSize{percent(1.f), pixels(diffH)})
+                    .with_overflow(Overflow::Scroll).with_flex_direction(FlexDirection::Column).with_no_wrap()
+                    .with_custom_background(theme::PANEL_BG).with_roundness(0.0f).with_debug_name("diff_scroll"));
+                ui::bind_reading_view(repo, pageScroll.ent(), "working-combined");
+                int sectionId = 592030;
+                for (int section = 0; section < 2; ++section) {
+                    const bool isStaged = section == 0;
+                    const auto& sectionFiles = isStaged ? stagedFiles : unstagedFiles;
+                    div(ctx, mk(pageScroll.ent(), sectionId++), ComponentConfig{}.with_skip_grid_snap()
+                        .with_label(std::string(isStaged ? "Staged" : "Unstaged") + " · " + std::to_string(sectionFiles.size()) + (sectionFiles.size() == 1 ? " file" : " files"))
+                        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font("ui-bold", pixels(14))
+                        .with_debug_name(isStaged ? "staged_section_heading" : "unstaged_section_heading"));
+                    if (sectionFiles.empty()) continue;
+                    auto sectionBody = div(ctx, mk(pageScroll.ent(), sectionId++), ComponentConfig{}.with_skip_grid_snap()
+                        .with_size(ComponentSize{percent(1.f), children()}).with_flex_direction(FlexDirection::Column).with_no_wrap()
+                        .with_debug_name(isStaged ? "staged_section" : "unstaged_section"));
+                    ui::render_diff(ctx, sectionBody.ent(), sectionFiles,
+                                           diffW, diffH, true, false,
+                                           layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
+                                           repo.repoPath, reviewPtr, isStaged ? "index" : "wt");
+                }
                 div(ctx, mk(mainBg.ent(), 3090),
                     ComponentConfig{}
                         .with_label("j/k move    a approve    c comment    "

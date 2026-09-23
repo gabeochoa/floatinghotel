@@ -230,7 +230,7 @@ struct navigation {
     static void release_source(ecs::RepoComponent& repo) {
         repo.sourceFoldIdentity = 0;
         std::vector<source_folding::Range>{}.swap(repo.sourceFoldRanges);
-        repo.diffSyntax = {};
+        repo.diffSyntax.clear();
         repo.sourceFind = {};
         repo.selectionCopy = {};
         repo.pendingCaret.reset();

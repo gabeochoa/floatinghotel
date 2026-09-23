@@ -218,19 +218,13 @@ inline std::vector<Menu> createMenuBar() {
     menus.push_back({"Repository", {
         MenuItem::item("Stage File", "Cmd+Shift+S", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r && !r->selectedFilePath().empty()) {
-                auto res = git::stage_file(r->repoPath, r->selectedFilePath());
-                ecs::toast_on_git_failure(res, "Stage");
-                r->refreshRequested = true;
-            }
+            if (r && !r->selectedFilePath().empty())
+                ecs::enqueue_network_op("Stage file", git::git_run_async(r->repoPath, {"add", "--", r->selectedFilePath()}));
         }),
         MenuItem::item("Unstage File", "Cmd+Shift+U", [] {
             auto* r = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-            if (r && !r->selectedFilePath().empty()) {
-                auto res = git::unstage_file(r->repoPath, r->selectedFilePath());
-                ecs::toast_on_git_failure(res, "Unstage");
-                r->refreshRequested = true;
-            }
+            if (r && !r->selectedFilePath().empty())
+                ecs::enqueue_network_op("Unstage file", git::git_run_async(r->repoPath, {"restore", "--staged", "--", r->selectedFilePath()}));
         }),
         MenuItem::separator(),
         MenuItem::item("Commit...", "Cmd+Enter", [] {

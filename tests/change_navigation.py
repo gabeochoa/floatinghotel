@@ -74,8 +74,8 @@ for zoom in [100, 140, 200]:
         script += 'key J\n' + capture('comparison_deleted', 3)
         script += 'right_click_ui jump_to_diff:b.cpp\nwait_frames 3\nclick_ui "context_menu_item_Open source"\nwait_for_refresh\n' + capture('deleted_source', 4)
         script += 'click_ui full_file_back\nwait_for_refresh\nnative_menu_action "Next Change"\n' + capture('comparison_binary', 4)
-        script += 'native_menu_action "Previous Change"\nwait_frames 15\nbench_frames 120\nexpect_p99_below 20\nclick_ui review_staged_changes\nwait_for_refresh\nclick_ui working_review_heading\nkey A\nkey C\nnative_menu_action "Next Change"\n' + capture('empty', 4)
-        script += 'expect_text "No changes to navigate"\nbench_frames 120\nexpect_p99_below 20\n'
+        script += 'native_menu_action "Previous Change"\nwait_frames 15\nbench_frames 120\nexpect_p99_below 20\nclick_ui review_staged_changes\nwait_for_refresh\n' + capture('empty', 4)
+        script += 'expect_text "Staged"\nexpect_text "Unstaged"\nbench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)
     with (directory / 'run.log').open('w') as log:
@@ -108,7 +108,6 @@ for zoom in [100, 140, 200]:
         assert current('find')['anchor'] == current('commit_previous')['anchor']
         assert state('last')['history'] == state('working_binary')['history']
         assert state('first')['history'] == state('working_first')['history']
-        assert not state('empty')['review']['approve_pending'] and not state('empty')['review']['comment_pending']
         source = next(t for t in state('deleted_source')['tabs'] if t['id'] == state('deleted_source')['active'])
         assert source['path'] == 'b.cpp' and source['revision'] == base
     assert git('diff') == before and git('diff', '--cached') == ''

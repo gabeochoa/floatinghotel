@@ -437,7 +437,7 @@ public:
     std::vector<source_folding::Range> sourceFoldRanges;
     SelectionCopyRuntime selectionCopy;
     HunkContextRuntime hunkContext;
-    DiffSyntaxRuntime diffSyntax;
+    std::map<std::string, DiffSyntaxRuntime> diffSyntax;
     async_work::Task<FullFileContent> fullFileFuture;
     loading_feedback::Delay fullFileLoading;
     reading_load::Trace fullFileTrace;
@@ -461,6 +461,8 @@ public:
     std::string codeownersKey;
     async_work::Task<codeowners::Document> codeownersFuture;
     codeowners::Document codeownersDocument;
+    std::unordered_map<std::string, codeowners::Document> codeownersCache;
+    std::string codeownersFutureKey;
     std::unordered_map<std::string, std::string> codeownersByPath;
     bool repoSearchOpen = false;
     bool repoSearchFocus = false;

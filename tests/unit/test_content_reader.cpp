@@ -588,7 +588,7 @@ TEST(diff_syntax_publication_rejects_stale_document_generation_and_file_identity
         file.hunks.emplace_back();
         file.hunks.back().lines = {" body"};
         std::vector<ecs::FileDiff> files{file};
-        auto& runtime = repo.diffSyntax;
+        auto& runtime = repo.diffSyntax["wt"];
         runtime.identity = file.renderIdentity;
         runtime.request = navigation::stamp(repo, "syntax:" + std::to_string(file.renderIdentity));
         std::promise<ecs::DiffSyntaxResult> promise;

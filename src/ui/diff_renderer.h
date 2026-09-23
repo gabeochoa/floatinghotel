@@ -15,6 +15,7 @@
 #include "review_comment_kind.h"
 
 #include "../ecs/ui_imports.h"
+#include "../ecs/network_ops_system.h"
 #include "../git/git_commands.h"
 #include "../settings.h"
 #include "code_highlight.h"
@@ -739,6 +740,99 @@ inline std::optional<reading::ReadingAnchor> source_point(const ecs::FileDiff& f
 
 } // namespace diff_sel
 
+// Capture the top visible diff row before content grows above it, so the
+// reading layout can restore scroll position after a context expansion.
+inline void remember_diff_anchor(ecs::RepoComponent& repo) {
+    const auto* document = repo.workspace().document(repo.workspace().active_id());
+    if (!document || document->anchor) return;
+    auto viewportEntity = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
+    if (!viewportEntity.valid()) return;
+    const auto viewport = reading_rect(**viewportEntity);
+    for (const auto& row : diff_sel::state().lastLines) {
+        auto entity = afterhours::ui::UICollectionHolder::getEntityForID(row.ent);
+        if (!entity.valid() || !entity->has<afterhours::ui::UIComponent>()) continue;
+        const auto rect = screen_rect(**entity);
+        if (rect.height <= 0.f || rect.y < viewport.y + 36.f * zoom::get() || rect.y >= viewport.y + viewport.height) continue;
+        const bool before = row.sign == '-' || row.side == 1;
+        const int line = before ? row.oldLine : row.newLine;
+        if (line <= 0) continue;
+        navigation::remember_anchor(repo, {row.filePath, reading::anchor_revision(document->location),
+            before ? reading::DiffSide::Before : reading::DiffSide::After, line, row.logicalColumn,
+            (rect.y - viewport.y) / std::max(1.f, viewport.height), row.sign});
+        return;
+    }
+}
+
+// Approve means stage (git add --patch): the whole hunk, or just the
+// selected lines of it when a line selection covers this file. Everything
+// runs async via the ops queue so the UI never waits on the repository lock.
+inline std::vector<std::set<size_t>> selected_line_indices(const ecs::FileDiff& file) {
+    std::vector<std::set<size_t>> selected(file.hunks.size());
+    const auto& state = diff_sel::state();
+    if (!state.hasSel) return selected;
+    for (size_t h = 0; h < file.hunks.size(); ++h) {
+        const auto& hunk = file.hunks[h];
+        int oldLine = hunk.oldStart, newLine = hunk.newStart;
+        for (size_t i = 0; i < hunk.lines.size(); ++i) {
+            char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i].front();
+            int number = sign == '-' ? oldLine : newLine;
+            for (const auto& record : state.lastLines)
+                if (record.filePath == file.filePath && record.sign == sign &&
+                    record.lineNo == number && state.hl.contains(record.ent))
+                    selected[h].insert(i);
+            if (sign != '+') ++oldLine;
+            if (sign != '-') ++newLine;
+        }
+    }
+    return selected;
+}
+
+inline void enqueue_index_op(std::string label, std::function<git::GitResult()> op) {
+    ecs::enqueue_network_op(label, async_work::launch(
+        [op = std::move(op)](std::stop_token) { return op(); },
+        async_work::Priority::Foreground,
+        git::GitResult{{"", "Background queue is full; retry the action", -1}}));
+}
+
+inline void approve_hunk(const std::string& repoPath, const ecs::FileDiff& file,
+                         const ecs::DiffHunk& hunk, const std::string& scope) {
+    const bool staged = scope == "index";
+    if (file.isSubmodule) {
+        enqueue_index_op(staged ? "Unstage file" : "Stage file",
+            [repoPath, path = file.filePath, staged] {
+                return staged ? git::unstage_file(repoPath, path) : git::stage_file(repoPath, path);
+            });
+        return;
+    }
+    auto selected = selected_line_indices(file);
+    bool anySelected = false, inThisHunk = false;
+    for (size_t h = 0; h < file.hunks.size(); ++h) {
+        anySelected = anySelected || !selected[h].empty();
+        if (&file.hunks[h] == &hunk) inThisHunk = !selected[h].empty();
+    }
+    if (anySelected) {
+        enqueue_index_op(staged ? "Unstage selected lines" : "Approve selected lines",
+            [repoPath, file, selected, staged] {
+                return staged ? git::unstage_selected_lines(repoPath, file, selected)
+                              : git::stage_selected_lines(repoPath, file, selected);
+            });
+        if (inThisHunk) diff_sel::reset();
+        return;
+    }
+    enqueue_index_op(staged ? "Unstage hunk" : "Approve hunk",
+        [repoPath, file, hunk, staged] {
+            return staged ? git::unstage_hunk(repoPath, file, hunk) : git::stage_hunk(repoPath, file, hunk);
+        });
+}
+
+inline void approve_file(const std::string& repoPath, const std::string& path, const std::string& scope) {
+    const bool staged = scope == "index";
+    enqueue_index_op(staged ? "Unstage file" : "Stage file",
+        [repoPath, path, staged] {
+            return staged ? git::unstage_file(repoPath, path) : git::stage_file(repoPath, path);
+        });
+}
+
 namespace diff_detail {
 
 // Diff colors — all defined in theme.h, aliased here for brevity
@@ -1242,9 +1336,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
         if (isCursor && sel->review->cursorApprove) {
             sel->review->cursorApprove = false;
-            sel->review->approvedHunks.insert(hkey);
-            sel->review->dirty = true;
-            if (!sel->review->showApproved) return;
+            approve_hunk(sel->repoPath, fileDiff, hunk, sel->reviewScope);
         }
         if (isCursor && sel->review->cursorComment) {
             sel->review->cursorComment = false;
@@ -1293,7 +1385,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 items.push_back(ContextMenuItem::item(above ? "Show all lines above" : "Show all lines below", [currentTab, key, stamp] {
                     if (auto* tab = currentTab()) {
                         auto& repo = tab->get<ecs::RepoComponent>();
-                        if (navigation::accepts(repo, stamp, key)) navigation::expand_hunk_context_all(repo, key);
+                        if (navigation::accepts(repo, stamp, key)) { remember_diff_anchor(repo); navigation::expand_hunk_context_all(repo, key); }
                     }
                 }));
             }
@@ -1317,25 +1409,12 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     review->dirty = true;
                 }
             }));
-            bool approved = sel->review->approvedHunks.contains(key);
-            items.push_back(ContextMenuItem::item(approved ? "Unapprove hunk" : "Approve hunk", [currentReview, key, approved] {
-                auto* reviewPtr = currentReview();
-                if (!reviewPtr) return;
-                if (approved) reviewPtr->approvedHunks.erase(key);
-                else reviewPtr->approvedHunks.insert(key);
-                reviewPtr->dirty = true;
-            }));
-            if (sel->reviewScope == "wt" && owner && !owner->get<ecs::RepoComponent>().reviewWorkspace) {
+            if ((sel->reviewScope == "wt" || sel->reviewScope == "index") && owner && !owner->get<ecs::RepoComponent>().reviewWorkspace) {
                 auto fd = fileDiff;
                 auto repoPath = sel->repoPath;
-                items.push_back(ContextMenuItem::item("Stage hunk", [currentTab, currentReview, repoPath, fd, hunk] {
-                    auto* tab = currentTab();
-                    if (!tab || !currentReview() || tab->get<ecs::RepoComponent>().reviewWorkspace) return;
-                    auto res = fd.isSubmodule ? git::stage_file(repoPath, fd.filePath)
-                                              : git::stage_hunk(repoPath, fd, hunk);
-                    if (res.success()) {
-                        tab->get<ecs::RepoComponent>().refreshRequested = true;
-                    }
+                auto scope = sel->reviewScope;
+                items.push_back(ContextMenuItem::item(scope == "index" ? "Unstage hunk" : "Approve hunk", [repoPath, fd, hunk, scope] {
+                    approve_hunk(repoPath, fd, hunk, scope);
                 }));
             }
             int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
@@ -1408,7 +1487,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             if (contextBtn) {
                 remember_focus_origin(ctx, contextBtn.ent());
                 auto* active = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-                if (active && navigation::accepts(*active, stamp, key)) navigation::expand_hunk_context_all(*active, key);
+                if (active && navigation::accepts(*active, stamp, key)) { remember_diff_anchor(*active); navigation::expand_hunk_context_all(*active, key); }
             }
         }
     }
@@ -1436,42 +1515,26 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     if (reviewOn) {
         {
-            bool approved = sel->review->approvedHunks.contains(hkey);
-            auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
-                preset::Button(compactActions ? "" : approved ? "Unapprove" : "Approve")
-                    .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
-                    .with_padding(Padding{
-                        .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
-                        .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
-                    .with_custom_background(theme::BUTTON_SECONDARY)
-                    .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font_size(pixels(12))
-                    .with_align_items(AlignItems::Center).with_justify_content(JustifyContent::Center)
-                    .with_debug_name("approve_hunk_btn"));
-            set_tooltip(approveBtn.ent(), approved ? "Remove hunk approval" : "Approve hunk for review");
-            if (compactActions) chrome_icon(ctx, mk(approveBtn.ent(), 0), ChromeIcon::Check,
-                approved ? theme::DIFF_ADD_TEXT : theme::TEXT_PRIMARY, "hunk_approve_icon");
-            if (approveBtn) {
-                if (approved) sel->review->approvedHunks.erase(hkey);
-                else sel->review->approvedHunks.insert(hkey);
-                sel->review->dirty = true;
-                afterhours::toast::send_info(ctx, approved ? "Approval removed" : "Approved for review; index unchanged", 1.5f);
-            }
-        }
-        auto* hunkRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-        if (sel->reviewScope == "wt" && (!hunkRepo || !hunkRepo->reviewWorkspace)) {
-            if (button(ctx, mk(hunkBtns.ent(), 5), preset::Button("Stage")
-                    .with_size(ComponentSize{compactActions ? pixels(40) : children(), pixels(compactActions ? 22 : 18)})
-                    .with_padding(Padding{})
-                    .with_font_size(pixels(12)).with_custom_background(theme::BUTTON_SECONDARY)
-                    .with_debug_name("stage_hunk_btn"))) {
-                auto res = fileDiff.isSubmodule
-                    ? git::stage_file(sel->repoPath, fileDiff.filePath)
-                    : git::stage_hunk(sel->repoPath, fileDiff, hunk);
-                if (res.success()) {
-                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
-                    afterhours::toast::send_info(ctx, "Hunk staged; review approval unchanged", 1.5f);
-                } else afterhours::toast::send_info(ctx, "Stage failed: " + diff_detail::git_err(res), 2.5f);
+            auto* hunkRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            const bool canStage = (sel->reviewScope == "wt" || sel->reviewScope == "index") &&
+                                  (!hunkRepo || !hunkRepo->reviewWorkspace);
+            if (canStage) {
+                const bool stagedScope = sel->reviewScope == "index";
+                auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
+                    preset::Button(compactActions ? "" : stagedScope ? "Unstage" : "Approve")
+                        .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
+                        .with_padding(Padding{
+                            .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
+                            .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
+                        .with_custom_background(theme::BUTTON_SECONDARY)
+                        .with_custom_text_color(theme::TEXT_PRIMARY)
+                        .with_font_size(pixels(12))
+                        .with_align_items(AlignItems::Center).with_justify_content(JustifyContent::Center)
+                        .with_debug_name("approve_hunk_btn"));
+                set_tooltip(approveBtn.ent(), stagedScope ? "Unstage this hunk (or selected lines)" : "Stage this hunk (or selected lines)");
+                if (compactActions) chrome_icon(ctx, mk(approveBtn.ent(), 0), ChromeIcon::Check,
+                    theme::TEXT_PRIMARY, "hunk_approve_icon");
+                if (approveBtn) approve_hunk(sel->repoPath, fileDiff, hunk, sel->reviewScope);
             }
         }
         auto commentBtn = button(ctx, mk(hunkBtns.ent(), 3),
@@ -2094,29 +2157,11 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
             .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_transparent_bg()
             .with_debug_name("stage_selected_lines"));
         if (stage) {
-            std::vector<std::set<size_t>> selected(fileDiff.hunks.size());
-            const auto& state = diff_sel::state();
-            for (size_t h = 0; h < fileDiff.hunks.size(); ++h) {
-                const auto& hunk = fileDiff.hunks[h];
-                int oldLine = hunk.oldStart, newLine = hunk.newStart;
-                for (size_t i = 0; i < hunk.lines.size(); ++i) {
-                    char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i].front();
-                    int number = sign == '-' ? oldLine : newLine;
-                    for (const auto& record : state.lastLines) {
-                        if (record.filePath == fileDiff.filePath && record.sign == sign &&
-                            record.lineNo == number && state.hl.contains(record.ent))
-                            selected[h].insert(i);
-                    }
-                    if (sign != '+') ++oldLine;
-                    if (sign != '-') ++newLine;
-                }
-            }
-            auto result = git::stage_selected_lines(repoPath, fileDiff, selected);
-            if (result.success()) {
-                diff_sel::reset();
-                if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
-                afterhours::toast::send_info(ctx, "Selected lines staged", 1.5f);
-            } else afterhours::toast::send_info(ctx, "Stage selection failed: " + result.stderr_str(), 3.f);
+            auto selected = selected_line_indices(fileDiff);
+            enqueue_index_op("Approve selected lines", [repoPath, file = fileDiff, selected] {
+                return git::stage_selected_lines(repoPath, file, selected);
+            });
+            diff_sel::reset();
         }
     }
 
@@ -2170,15 +2215,11 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
             review->dirty = true;
         }
     }
-    if (reviewScope == "wt" && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
-        if (button(ctx, mk(fileBtns.ent(), 4), preset::Button("Stage file")
+    if ((reviewScope == "wt" || reviewScope == "index") && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
+        if (button(ctx, mk(fileBtns.ent(), 4), preset::Button(reviewScope == "index" ? "Unstage file" : "Stage file")
                 .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
-                .with_transparent_bg().with_debug_name("stage_file_btn"))) {
-            auto result = git::stage_file(repoPath, fileDiff.filePath);
-            if (result.success()) {
-                if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) repo->refreshRequested = true;
-            } else afterhours::toast::send_info(ctx, "Stage failed: " + diff_detail::git_err(result), 2.5f);
-        }
+                .with_transparent_bg().with_debug_name("stage_file_btn")))
+            approve_file(repoPath, fileDiff.filePath, reviewScope);
     }
 
     {
@@ -2238,14 +2279,30 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (revision.empty() || revision == "INDEX") key += "\n" + std::to_string(ownerRepo->dataGeneration);
         if (ownerRepo->codeownersKey != key) {
             ownerRepo->codeownersKey = key;
-            ownerRepo->codeownersDocument = {};
             ownerRepo->codeownersByPath.clear();
-            ownerRepo->codeownersFuture = codeowners::load_async(repoPath, revision);
+            // Several scopes render in the same frame (combined staged +
+            // unstaged page): cache per key so they don't fight over the
+            // single future/document slots in a rev-parse loop.
+            auto cached = ownerRepo->codeownersCache.find(key);
+            if (cached != ownerRepo->codeownersCache.end()) {
+                ownerRepo->codeownersDocument = cached->second;
+            } else {
+                ownerRepo->codeownersDocument = {};
+                if (!ownerRepo->codeownersFuture.valid()) {
+                    ownerRepo->codeownersFuture = codeowners::load_async(repoPath, revision);
+                    ownerRepo->codeownersFutureKey = key;
+                }
+            }
         }
         if (ownerRepo->codeownersFuture.valid() && ownerRepo->codeownersFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            ownerRepo->codeownersDocument = ownerRepo->codeownersFuture.get();
-            ownerRepo->codeownersByPath.clear();
+            auto loaded = ownerRepo->codeownersFuture.get();
             ownerRepo->codeownersFuture = {};
+            if (ownerRepo->codeownersCache.size() >= 8) ownerRepo->codeownersCache.clear();
+            ownerRepo->codeownersCache[ownerRepo->codeownersFutureKey] = loaded;
+            if (ownerRepo->codeownersKey == ownerRepo->codeownersFutureKey) {
+                ownerRepo->codeownersDocument = std::move(loaded);
+                ownerRepo->codeownersByPath.clear();
+            }
         }
     }
 

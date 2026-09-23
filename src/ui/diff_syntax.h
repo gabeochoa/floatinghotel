@@ -7,7 +7,9 @@
 namespace ui::diff_syntax {
 
 inline void update(ecs::RepoComponent& repo, std::vector<ecs::FileDiff>& files, const std::string& scope) {
-    auto& runtime = repo.diffSyntax;
+    // One runtime per scope: the combined staged+unstaged page updates both
+    // in the same frame, and a shared slot made them discard each other.
+    auto& runtime = repo.diffSyntax[scope];
     auto pending = std::find_if(files.begin(), files.end(), [&](const auto& file) { return file.renderIdentity == runtime.identity; });
     if (runtime.future.valid() && (pending == files.end() || !navigation::accepts(repo, runtime.request, runtime.request.key))) runtime = {};
     if (runtime.future.valid() && runtime.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {

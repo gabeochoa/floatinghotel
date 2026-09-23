@@ -999,15 +999,9 @@ private:
         using SM = LayoutComponent::SidebarMode;
         using RT = LayoutComponent::ReviewTab;
         bool inChanges = (layout.sidebarMode == SM::Changes);
-        makeTab(2091, "Changes " + std::to_string(nReview),
-                inChanges && layout.reviewTab == RT::ToReview,
+        makeTab(2091, "Changes " + std::to_string(nReview + nStaged + nUntracked),
+                inChanges,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::ToReview; });
-        makeTab(2092, "Staged " + std::to_string(nStaged),
-                inChanges && layout.reviewTab == RT::Staged,
-                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Staged; });
-        makeTab(2093, "Untracked " + std::to_string(nUntracked),
-                inChanges && layout.reviewTab == RT::Untracked,
-                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::Untracked; });
         makeTab(2094, "Refs " + std::to_string(nRefs), layout.sidebarMode == SM::Refs,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
     }
@@ -1825,9 +1819,10 @@ private:
     // Which review tab the sidebar is showing, and that tab's rows. The
     // windowed list above asks for a count and a row builder; render_file_list
     // below keeps the empty states.
+    // One combined Changes list (staged, then unstaged, then untracked);
+    // ReviewTab survives only as stored layout state.
     static LayoutComponent::ReviewTab active_review_tab() {
-        auto* lc = find_singleton<LayoutComponent>();
-        return lc ? lc->reviewTab : LayoutComponent::ReviewTab::ToReview;
+        return LayoutComponent::ReviewTab::ToReview;
     }
 
     std::vector<file_tree::Row> treeRows_;
@@ -1836,6 +1831,7 @@ private:
     bool treeMode_ = false;
     bool allFilesMode_ = false;
     std::vector<size_t> fileIndices_;
+    std::vector<char> treeKinds_;
     struct FileRowsKey {
         std::string repo;
         unsigned generation;
@@ -1894,27 +1890,29 @@ private:
                 fileIndices_.push_back(index);
             }
         };
-        if (tab == LayoutComponent::ReviewTab::ToReview) {
-            for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) append(repo.unstagedFiles[i].path, i, repo.unstagedFiles[i].workTreeStatus, repo.unstagedFiles[i].origPath);
-        } else if (tab == LayoutComponent::ReviewTab::Staged) {
-            for (size_t i = 0; i < repo.stagedFiles.size(); ++i) append(repo.stagedFiles[i].path, i, repo.stagedFiles[i].indexStatus, repo.stagedFiles[i].origPath);
-        } else for (size_t i = 0; i < repo.untrackedFiles.size(); ++i) append(repo.untrackedFiles[i], i, 'A');
-        std::map<std::string, int> changes;
-        for (const auto& file : tab == LayoutComponent::ReviewTab::Staged ? repo.stagedDiff : repo.currentDiff)
-            changes[file.filePath] = file.additions + file.deletions;
+        // Combined: staged first, then unstaged, then untracked (a path can
+        // appear twice, once per section, when partially staged).
+        treeKinds_.clear();
+        auto appendKind = [&](const std::string& path, size_t i, char change, char kind, const std::string& oldPath = "") {
+            size_t before = paths.size();
+            append(path, i, change, oldPath);
+            if (paths.size() > before) treeKinds_.push_back(kind);
+        };
+        for (size_t i = 0; i < repo.stagedFiles.size(); ++i) appendKind(repo.stagedFiles[i].path, i, repo.stagedFiles[i].indexStatus, 'S', repo.stagedFiles[i].origPath);
+        for (size_t i = 0; i < repo.unstagedFiles.size(); ++i) appendKind(repo.unstagedFiles[i].path, i, repo.unstagedFiles[i].workTreeStatus, 'U', repo.unstagedFiles[i].origPath);
+        for (size_t i = 0; i < repo.untrackedFiles.size(); ++i) appendKind(repo.untrackedFiles[i], i, 'A', '?');
         std::vector<size_t> order(paths.size());
         std::iota(order.begin(), order.end(), size_t{0});
-        auto churn = [&](const std::string& path) { auto found = changes.find(path); return found == changes.end() ? 0 : found->second; };
-        std::sort(order.begin(), order.end(), [&](size_t a, size_t b) {
-            return review_files::precedes(repo.fileFilter.sort, paths[a], churn(paths[a]), paths[b], churn(paths[b]));
-        });
         std::vector<size_t> indices;
+        std::vector<char> kinds;
         treePaths_.clear();
         for (size_t index : order) {
             indices.push_back(fileIndices_[index]);
+            kinds.push_back(treeKinds_[index]);
             treePaths_.push_back(std::move(paths[index]));
         }
         fileIndices_ = std::move(indices);
+        treeKinds_ = std::move(kinds);
         treeCollapsed_ = collapsed;
         std::vector<file_tree::Row> rows;
         if (treeMode_) rows = file_tree::flatten(treePaths_, treeCollapsed_);
@@ -1953,15 +1951,11 @@ private:
             }
             i = node.sourceIndex;
         }
+        char kind = i < treeKinds_.size() ? treeKinds_[i] : 'U';
         i = fileIndices_[i];
-        auto tab = active_review_tab();
-        if (tab == LayoutComponent::ReviewTab::ToReview) {
-            render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false, depth);
-        } else if (tab == LayoutComponent::ReviewTab::Staged) {
-            render_file_row(ctx, row, 0, repo.stagedFiles[i], repo, true, depth);
-        } else {
-            render_untracked_row(ctx, row, 0, repo.untrackedFiles[i], repo, depth);
-        }
+        if (kind == 'S') render_file_row(ctx, row, 0, repo.stagedFiles[i], repo, true, depth);
+        else if (kind == '?') render_untracked_row(ctx, row, 0, repo.untrackedFiles[i], repo, depth);
+        else render_file_row(ctx, row, 0, repo.unstagedFiles[i], repo, false, depth);
     }
 
     void render_file_list(UIContext<InputAction>& ctx,
@@ -2045,30 +2039,18 @@ private:
             return;
         }
 
-        auto* lc = find_singleton<LayoutComponent>();
-        auto tab = lc ? lc->reviewTab : LayoutComponent::ReviewTab::ToReview;
         int nextId = 2600;
         size_t shown = 0;
-        const char* emptyMsg = "";
-        if (tab == LayoutComponent::ReviewTab::ToReview) {
-            for (int i = 0; i < static_cast<int>(repo.unstagedFiles.size()); ++i)
-                render_file_row(ctx, scrollParent, nextId++,
-                                repo.unstagedFiles[i], repo, false);
-            shown = repo.unstagedFiles.size();
-            emptyMsg = "Nothing to review";
-        } else if (tab == LayoutComponent::ReviewTab::Staged) {
-            for (int i = 0; i < static_cast<int>(repo.stagedFiles.size()); ++i)
-                render_file_row(ctx, scrollParent, nextId++,
-                                repo.stagedFiles[i], repo, true);
-            shown = repo.stagedFiles.size();
-            emptyMsg = "Nothing staged yet";
-        } else {
-            for (int i = 0; i < static_cast<int>(repo.untrackedFiles.size()); ++i)
-                render_untracked_row(ctx, scrollParent, nextId++,
-                                     repo.untrackedFiles[i], repo);
-            shown = repo.untrackedFiles.size();
-            emptyMsg = "No untracked files";
-        }
+        const char* emptyMsg = "Nothing to review";
+        for (int i = 0; i < static_cast<int>(repo.stagedFiles.size()); ++i)
+            render_file_row(ctx, scrollParent, nextId++, repo.stagedFiles[i], repo, true);
+        shown += repo.stagedFiles.size();
+        for (int i = 0; i < static_cast<int>(repo.unstagedFiles.size()); ++i)
+            render_file_row(ctx, scrollParent, nextId++, repo.unstagedFiles[i], repo, false);
+        shown += repo.unstagedFiles.size();
+        for (int i = 0; i < static_cast<int>(repo.untrackedFiles.size()); ++i)
+            render_untracked_row(ctx, scrollParent, nextId++, repo.untrackedFiles[i], repo);
+        shown += repo.untrackedFiles.size();
         if (shown == 0) {
             div(ctx, mk(scrollParent, 2599),
                 ComponentConfig{}
@@ -2220,14 +2202,13 @@ private:
             items.push_back(ui::ContextMenuItem::item(
                 "Unstage", [repoPath, path, canMutate] {
                     if (!canMutate()) return;
-                    run_file_git_op(git::unstage_file(repoPath, path),
-                                    "Unstage");
+                    enqueue_network_op("Unstage file", git::git_run_async(repoPath, {"restore", "--staged", "--", path}));
                 }));
         } else if (!repo.reviewWorkspace) {
             items.push_back(ui::ContextMenuItem::item(
                 "Stage", [repoPath, path, canMutate] {
                     if (!canMutate()) return;
-                    run_file_git_op(git::stage_file(repoPath, path), "Stage");
+                    enqueue_network_op("Stage file", git::git_run_async(repoPath, {"add", "--", path}));
                 }));
         }
         items.push_back(ui::ContextMenuItem::separator());
@@ -2245,13 +2226,6 @@ private:
 
     // Toast the failure, then refresh either way -- a partial failure still
     // moved the index.
-    static void run_file_git_op(const git::GitResult& result,
-                                const std::string& what) {
-        if (!result.success()) toast_on_git_failure(result, what);
-        auto* r = find_singleton<RepoComponent, ActiveTab>();
-        if (r) r->refreshRequested = true;
-    }
-
     // ---- Commit log rendering (T021) ----
 
     // Render all commit log entries in a scrollable list

@@ -118,8 +118,23 @@ GitResult discard_hunk(const std::string& repo_path,
     return apply_patch_text(repo_path, build_patch(file_diff, hunk), {"--reverse"});
 }
 
+static GitResult apply_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
+                                      const std::vector<std::set<size_t>>& selected,
+                                      const std::vector<std::string>& flags);
+
 GitResult stage_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
                                 const std::vector<std::set<size_t>>& selected) {
+    return apply_selected_lines(repo_path, file, selected, {"--cached"});
+}
+
+GitResult unstage_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
+                                  const std::vector<std::set<size_t>>& selected) {
+    return apply_selected_lines(repo_path, file, selected, {"--cached", "--reverse"});
+}
+
+static GitResult apply_selected_lines_impl(const std::string& repo_path, const ecs::FileDiff& file,
+                                const std::vector<std::set<size_t>>& selected,
+                                const std::vector<std::string>& flags) {
     if (selected.size() != file.hunks.size() || file.isBinary || file.isSubmodule || file.isRenamed)
         return GitResult{{.stderr_str = "This selection cannot be staged as lines", .exit_code = -1}};
     std::vector<ecs::DiffHunk> hunks;
@@ -142,7 +157,13 @@ GitResult stage_selected_lines(const std::string& repo_path, const ecs::FileDiff
         patch += patch.empty() ? part : part.substr(part.find("@@"));
     }
     if (patch.empty()) return GitResult{{.stderr_str = "Select added or removed lines first", .exit_code = -1}};
-    return apply_patch_text(repo_path, patch, {"--cached"});
+    return apply_patch_text(repo_path, patch, flags);
+}
+
+static GitResult apply_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
+                                      const std::vector<std::set<size_t>>& selected,
+                                      const std::vector<std::string>& flags) {
+    return apply_selected_lines_impl(repo_path, file, selected, flags);
 }
 
 GitResult stage_file(const std::string& repo_path,
