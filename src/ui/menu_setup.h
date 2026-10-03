@@ -95,6 +95,11 @@ inline std::vector<Menu> createMenuBar() {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (layout && repo) ecs::open_line_picker(*repo, *layout);
         }),
+        MenuItem::item("Go to Symbol in File...", "Cmd+R", [] {
+            auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (layout && repo) ecs::open_symbol_picker(*repo, *layout);
+        }),
         MenuItem::item("Search Repository...", "Cmd+Shift+F", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
                 ecs::open_repo_search(*repo);

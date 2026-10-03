@@ -723,7 +723,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             bool refreshDone = !ui::image_diff::pending();
             if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
                 const auto& scope = layout->filePickerScope;
-                refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.future.valid();
+                refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.future.valid() &&
+                    !layout->filePickerPosition.symbols.valid();
                 if (layout->filePickerOpen && !layout->filePickerPosition.lineMode && !layout->filePickerPosition.commandMode)
                     refreshDone = refreshDone && scope.catalogStarted && !scope.catalogDue &&
                         !scope.localFuture.valid() && !scope.remoteFuture.valid() && !scope.commitsFuture.valid() &&

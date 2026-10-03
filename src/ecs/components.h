@@ -37,6 +37,7 @@
 #include "../util/loading_feedback.h"
 #include "../util/commit_prefetch.h"
 #include "../util/code_lexer.h"
+#include "../util/outline.h"
 #include "../util/reading_anchor.h"
 #include "../util/review_files.h"
 #include "../util/review_comment_kind.h"
@@ -314,6 +315,11 @@ struct SourceFindResult {
     bool limited = false;
     uint64_t scannedBytes = 0;
     size_t maxPageBytes = 0;
+};
+
+struct OutlineResult {
+    std::vector<symbol_outline::Symbol> symbols;
+    std::string error;
 };
 
 struct SourceFindRuntime {
@@ -1136,6 +1142,9 @@ struct FilePickerPosition {
     };
     bool commandMode = false;
     std::vector<Command> commands;
+    // Go to Symbol reuses the palette; its commands arrive with the scan.
+    bool symbolMode = false;
+    async_work::Task<OutlineResult> symbols;
     std::string input;
     std::optional<reading::ReadingAnchor> point;
     file_query::Query parsed;

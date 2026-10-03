@@ -1,0 +1,48 @@
+# Flow: Cmd+R lists the symbols of the open file (text-based, no language
+# server), filters them like the palette, and Enter jumps to the symbol.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+wait_for_refresh
+wait_frames 10
+click 700 400
+wait_frames 3
+
+key CMD+R
+wait_for_refresh
+wait_frames 3
+expect_text "Go to symbol"
+expect_text "1 symbols · approximate, text-based"
+expect_text "function · line 3"
+screenshot symbol_picker_main
+key ESCAPE
+wait_frames 5
+expect_no_text "Go to symbol"
+
+click_text README.md
+wait_for_refresh
+wait_frames 10
+click 700 400
+wait_frames 3
+key CMD+R
+wait_for_refresh
+wait_frames 3
+expect_text "# Test Project"
+expect_text "heading · line 4"
+type "develop"
+wait_frames 5
+expect_no_text "heading · line 1"
+key ENTER
+wait_frames 10
+expect_no_text "Go to symbol"
+
+click_text .gitignore
+wait_for_refresh
+wait_frames 10
+click 700 300
+wait_frames 3
+key CMD+R
+wait_for_refresh
+wait_frames 3
+expect_text "No outline for this file type"

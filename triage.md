@@ -87,11 +87,15 @@ caches. No px0 application or benchmark has run yet.
 
 ### P1: navigation without a language server
 
-- [ ] Add a document outline and searchable symbol picker through Quick Open.
+- [x] Add a document outline and searchable symbol picker through Quick Open.
       Scan supported C-family, Python, JavaScript, TypeScript, and Markdown forms
       asynchronously, keyed by content identity. Label approximate results,
       suppress comments/strings, and verify multiline declarations, duplicates,
       cancellation, historical revisions, and symbols beyond the first page.
+      Go to Symbol in File (Cmd+R, palette-style picker rather than a Quick Open
+      tab). Rescans the whole file at the document's revision on every open, so
+      no cache to go stale; closing drops the scan. Also handles Go, Rust,
+      Kotlin, Java, Swift. `test_outline`, `flow_symbol_picker`.
 - [x] Highlight occurrences of the selected identifier without replacing Find's
       query or the reading selection. Use decoded word boundaries; test Unicode,
       comments, shadowed names, historical content, and stale results.

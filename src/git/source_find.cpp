@@ -72,4 +72,37 @@ async_work::Task<ecs::SourceFindResult> find_source_async(FileRequest request, s
     }, async_work::Priority::Background, ecs::SourceFindResult{.error = "Find is busy. Try again."});
 }
 
+
+async_work::Task<ecs::OutlineResult> outline_source_async(FileRequest request) {
+    return async_work::launch([request = std::move(request)](std::stop_token stop) mutable {
+        ecs::OutlineResult result;
+        std::string text;
+        request.page = {};
+        while (!stop.stop_requested()) {
+            auto content = read_file(request, stop);
+            if (!content.error.empty()) { result.error = std::move(content.error); return result; }
+            if (content.diff.isBinary) { result.error = "Binary files have no symbols"; return result; }
+            if (!content.resolvedRevision.empty()) request.revision = content.resolvedRevision;
+            for (const auto& hunk : content.diff.hunks)
+                for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                    text.append(std::string_view(hunk.lines[i]).substr(1));
+                    // A line split across pages continues on the next one.
+                    const bool split = i + 1 == hunk.lines.size() && content.page.next.continuation &&
+                        content.page.next.offset < content.page.totalBytes;
+                    if (!split) text += '\n';
+                }
+            if (text.size() > (64u << 20)) { result.error = "File is too large to outline (over 64 MiB)"; return result; }
+            if (content.page.next.offset >= content.page.totalBytes) {
+                result.symbols = symbol_outline::scan(request.path, text);
+                return result;
+            }
+            if (content.page.next.offset <= content.page.begin.offset) { result.error = "Could not read through the file"; return result; }
+            request.page = {ecs::FilePageRequest::Action::Next, content.page.next, 0, content.page.sourceIdentity};
+            request.detectedEncoding = content.page.encoding;
+        }
+        result.error = "Symbol scan cancelled";
+        return result;
+    }, async_work::Priority::Background, ecs::OutlineResult{.error = "Reader queue is full; reopen Go to Symbol"});
+}
+
 }

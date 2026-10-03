@@ -95,10 +95,9 @@ inline const std::vector<FileDiff>* line_picker_diffs(const RepoComponent& repo)
         ? &cache->commitDetailDiff : nullptr;
 }
 
-inline void open_line_picker(RepoComponent& repo, LayoutComponent& layout) {
-    layout.filePickerPosition = {};
-    auto& position = layout.filePickerPosition;
-    position.lineMode = true;
+// The file a line or symbol picker targets: the source being read, or the
+// focused file of a review.
+inline std::optional<reading::ReadingAnchor> picker_file(RepoComponent& repo) {
     const auto* document = repo.workspace().document(repo.workspace().active_id());
     auto point = document->anchor.value_or(reading::ReadingAnchor{});
     point.revision = reading::anchor_revision(document->location);
@@ -116,9 +115,49 @@ inline void open_line_picker(RepoComponent& repo, LayoutComponent& layout) {
         if (const auto* files = line_picker_diffs(repo)) for (const auto& file : *files)
             if (file.filePath == point.path && file.isDeleted) point.side = reading::DiffSide::Before;
     }
-    if (!point.path.empty()) position.point = std::move(point);
+    if (point.path.empty()) return std::nullopt;
+    return point;
+}
+
+inline void open_line_picker(RepoComponent& repo, LayoutComponent& layout) {
+    layout.filePickerPosition = {};
+    layout.filePickerPosition.lineMode = true;
+    layout.filePickerPosition.point = picker_file(repo);
     layout.filePickerScope = {};
     layout.filePickerOpen = layout.filePickerFocus = true;
+}
+
+inline void open_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
+    layout.filePickerPosition = {};
+    auto& position = layout.filePickerPosition;
+    position.commandMode = position.symbolMode = true;
+    position.point = picker_file(repo);
+    if (!position.point) position.error = "Open a file to list its symbols";
+    else if (position.point->side == reading::DiffSide::Before) position.error = "Deleted files have no symbols";
+    else if (!symbol_outline::supported(position.point->path)) position.error = "No outline for this file type";
+    else position.symbols = git::outline_source_async({repo.repoPath, position.point->path,
+        reading::revision_text(reading::source_revision_for(repo.workspace().location())), {}, repo.fullFileEncodingOverride});
+    layout.filePickerScope = {};
+    layout.filePickerCacheKey.clear();
+    layout.filePickerIndex = 0;
+    layout.filePickerOpen = layout.filePickerFocus = true;
+}
+
+inline void go_to_symbol(RepoComponent& repo, reading::ReadingAnchor point, int line) {
+    point.line = line;
+    point.column = 1;
+    if (std::holds_alternative<reading::ReviewLocation>(repo.workspace().location())) {
+        const auto* files = line_picker_diffs(repo);
+        auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        if (files && review) for (const auto& file : *files)
+            if (file.filePath == point.path)
+                if (const auto found = reading::position_in_diff(file, point))
+                    return navigation::go_to_review_line(repo, *review, file, *found);
+    }
+    // Outside the diff (or already reading source): open the source there.
+    auto target = reading::SourceLocation{{point.path, reading::source_revision_for(repo.workspace().location())}, line};
+    point.revision = reading::anchor_revision(target);
+    navigation::open(repo, target, {}, reading::OpenMode::Keep, point);
 }
 
 inline bool poll_file_picker_position(RepoComponent& repo, LayoutComponent& layout, const std::string& key) {
@@ -200,7 +239,16 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
 inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo, LayoutComponent& layout, float height) {
     auto& position = layout.filePickerPosition;
     ui::bind_focus(parent, repo, reading::focus::Region::Picker);
-    div(ctx, mk(parent, 588000), ComponentConfig{}.with_label("Commands")
+    if (position.symbols.valid() && position.symbols.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto result = position.symbols.get();
+        position.error = std::move(result.error);
+        for (const auto& symbol : result.symbols)
+            position.commands.push_back({symbol.name, symbol.kind + " · line " + std::to_string(symbol.line),
+                [point = *position.point, line = symbol.line] {
+                    if (auto* active = find_singleton<RepoComponent, ActiveTab>()) go_to_symbol(*active, point, line);
+                }});
+    }
+    div(ctx, mk(parent, 588000), ComponentConfig{}.with_label(position.symbolMode ? "Go to symbol" : "Commands")
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(14)));
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 588001), position.input,
         ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)}).with_debug_name("command_palette_input"));
@@ -216,8 +264,16 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
     for (const auto& command : position.commands) labels.push_back(command.label);
     std::vector<size_t> results;
     if (position.input.empty()) for (size_t i = 0; i < labels.size(); ++i) results.push_back(i);  // menu order
-    else for (const auto& label : fuzzy::rank(labels, position.input))
-        results.push_back(static_cast<size_t>(std::find(labels.begin(), labels.end(), label) - labels.begin()));
+    else {
+        // Overloads share a label; hand out each label's indices in order.
+        std::unordered_map<std::string, std::vector<size_t>> indices;
+        for (size_t i = labels.size(); i-- > 0;) indices[labels[i]].push_back(i);
+        for (const auto& label : fuzzy::rank(labels, position.input)) {
+            auto& left = indices[label];
+            results.push_back(left.back());
+            left.pop_back();
+        }
+    }
     layout.filePickerIndex = std::clamp(layout.filePickerIndex, 0, std::max(0, static_cast<int>(results.size()) - 1));
     // Close first: the command may open a picker of its own.
     auto run = [&](size_t index) {
@@ -231,7 +287,10 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
         if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) return run(results[layout.filePickerIndex]);
     }
     div(ctx, mk(parent, 588002), ComponentConfig{}
-        .with_label(std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close")
+        .with_label(!position.symbolMode ? std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close"
+            : position.symbols.valid() ? std::string("Scanning symbols...")
+            : !position.error.empty() ? position.error
+            : std::to_string(results.size()) + " symbols · approximate, text-based · Enter go · Esc close")
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)).with_debug_name("command_palette_status"));
     std::optional<size_t> clicked;
     ui::virtual_list(ctx, mk(parent, 588003), results.size(), 28.f, [&](size_t i, Entity& row) {

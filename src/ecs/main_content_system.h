@@ -815,6 +815,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         const bool readingKeys = repoPtr && !shortcutsActive && ui::reader_shortcuts(ctx, *repoPtr, layout);
         if (readingKeys && (afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL)) && afterhours::input::is_key_pressed(afterhours::keys::G))
             open_line_picker(*repoPtr, layout);
+        if (readingKeys && superDown && afterhours::input::is_key_pressed(afterhours::keys::R))
+            open_symbol_picker(*repoPtr, layout);
         if (readingKeys && !superDown && (!reviewPtr || reviewPtr->composingKey.empty()) &&
             activeDocumentFocused && afterhours::input::is_key_pressed(afterhours::keys::ENTER))
             navigation::keep(*repoPtr, repoPtr->workspace().active_id());
