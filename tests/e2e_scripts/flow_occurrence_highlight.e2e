@@ -1,0 +1,23 @@
+# Flow: the identifier under the caret is highlighted wherever it appears as a
+# whole word, without touching Find or the selection.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+wait_for_refresh
+wait_frames 10
+validate ui_count:occurrence_highlight=0
+# Caret in "std" on the added line: std::cout and std::endl on both sides.
+click 440 328
+wait_frames 3
+screenshot occurrence_std
+validate ui_count:occurrence_highlight=4
+validate ui_count:diff_find_match=0
+# "cout" appears once per side.
+click 470 328
+wait_frames 3
+validate ui_count:occurrence_highlight=2
+# Punctuation highlights nothing.
+click_text "int main() {"
+wait_frames 3
+validate ui_count:occurrence_highlight=0

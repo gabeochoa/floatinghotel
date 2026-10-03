@@ -1330,9 +1330,10 @@ int main(int argc, char* argv[]) {
             return ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         };
 
-        if (key.starts_with("ui_present:") || key.starts_with("ui_height:")) {
+        if (key.starts_with("ui_present:") || key.starts_with("ui_height:") || key.starts_with("ui_count:")) {
             auto name = key.substr(key.find(':') + 1);
             bool found = false;
+            int count = 0;
             float height = 0.f;
             afterhours::EntityQuery({.force_merge = true}).whereHasComponent<afterhours::ui::UIComponentDebug>()
                 .whereHasComponent<afterhours::ui::UIComponent>()
@@ -1341,8 +1342,10 @@ int main(int argc, char* argv[]) {
                     const auto& cmp = entity.get<afterhours::ui::UIComponent>();
                     if (debug.name_value != name || !cmp.was_rendered_to_screen) return;
                     found = true;
+                    ++count;
                     height = cmp.rect().height;
                 });
+            if (key.starts_with("ui_count:")) return std::to_string(count);
             return key.starts_with("ui_present:") ? (found ? "true" : "false") : std::format("{:.1f}", height);
         } else if (key.starts_with("ui_in_viewport:") || key == "footer_fixed") {
             auto name = key == "footer_fixed" ? "status_bar_bg" : key.substr(15);

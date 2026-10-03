@@ -179,6 +179,7 @@ struct Session {
     bool visibleWhitespace = false;
     std::optional<ecs::DiffMatch> findMatch;
     std::string findQuery;
+    std::string occurrence; // identifier under the caret or selection, highlighted wherever it appears
     bool findNavigate = false;
     bool enabled = false;
     afterhours::ui::TextMeasureCache* tmc = nullptr;
@@ -255,6 +256,30 @@ inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
         .with_custom_background(afterhours::Color{230, 180, 30, 100})
         .with_roundness(0.f)
         .with_debug_name("diff_find_match"));
+}
+
+inline bool word_byte(char c) {
+    const auto u = static_cast<unsigned char>(c);
+    return std::isalnum(u) || u == '_' || u >= 128;
+}
+
+// Whole-word matches of the identifier under the caret or selection. Matches
+// inside this row fragment only; ponytail: a word split by soft wrap is missed.
+inline void render_occurrences(UIContext<InputAction>& ctx, Entity& lineEntity, const Session& s,
+                               const std::string& content, float prefix) {
+    const auto& word = s.occurrence;
+    if (word.empty()) return;
+    int index = 0;
+    for (size_t at = content.find(word); at != std::string::npos && index < 32; at = content.find(word, at + 1)) {
+        const size_t end = at + word.size();
+        if ((at > 0 && word_byte(content[at - 1])) || (end < content.size() && word_byte(content[end]))) continue;
+        div(ctx, mk(lineEntity, 90010 + index++), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{pixels(code_mw(s, word) / zoom::get()), percent(1.f)})
+            .with_absolute_position((prefix + code_mw(s, content.substr(0, at))) / zoom::get(), 0.f)
+            .with_custom_background(afterhours::Color{120, 160, 230, 60})
+            .with_roundness(0.f)
+            .with_debug_name("occurrence_highlight"));
+    }
 }
 
 inline reading::CodePosition code_position(const Rec& row, int byte, std::optional<reading::DiffSide> requestedSide = {}) {
@@ -1266,6 +1291,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                  (lno == sel->sourceStartLine ? sel->sourceStartColumn - 1 : 0)), finalFragment});
         if (diff_sel::found_line(sel, filePath, lno, prefix))
             diff_sel::render_find_match(ctx, lineDiv.ent(), *sel, content, prefixW, sourceOffset);
+        diff_sel::render_occurrences(ctx, lineDiv.ent(), *sel, content, prefixW);
 
         // Draw the selection highlight for the covered column range, if any.
         auto it = diff_sel::state().hl.find(lineDiv.ent().id);
@@ -1880,6 +1906,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
         if (diff_sel::found_line(sel, filePath, num.empty() ? 0 : std::stoi(num), sign) &&
             (kind != SbsKind::Context || !leftBorder))
             diff_sel::render_find_match(ctx, cell.ent(), *sel, content, prefix, sourceOffset);
+        diff_sel::render_occurrences(ctx, cell.ent(), *sel, content, prefix);
         auto it = diff_sel::state().hl.find(cell.ent().id);
         if (it != diff_sel::state().hl.end()) {
             auto a = std::min(static_cast<size_t>(it->second.first), content.size());
@@ -2145,8 +2172,7 @@ inline std::string selected_identifier(const ecs::RepoComponent& repo) {
     if (!row || row->content.empty()) return {};
     const auto byte = reading::byte_at_column(row->content, caret->column - row->logicalColumn + 1);
     auto [from, to] = reading::word_at(row->content, byte);
-    const auto c = static_cast<unsigned char>(row->content[from]);
-    return std::isalnum(c) || c == '_' || c >= 128 ? row->content.substr(from, to - from) : std::string{};
+    return diff_sel::word_byte(row->content[from]) ? row->content.substr(from, to - from) : std::string{};
 }
 
 inline float diff_controls_height(float width, bool optionsOpen,
@@ -2945,6 +2971,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 navigation::set_caret(*filterRepo, {point.path, point.side, point.line, point.column});
             }
             sess.caret = filterRepo->workspace().document(filterRepo->workspace().active_id())->caret;
+            sess.occurrence = selected_identifier(*filterRepo);
+            if (!std::all_of(sess.occurrence.begin(), sess.occurrence.end(), diff_sel::word_byte))
+                sess.occurrence.clear();
             const auto focusOwner = shortcut_owner(ctx, *filterRepo);
             sess.codeFocused = focusOwner.region == reading::focus::Region::Code && !focusOwner.text;
         }

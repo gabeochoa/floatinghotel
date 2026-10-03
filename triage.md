@@ -92,9 +92,11 @@ caches. No px0 application or benchmark has run yet.
       asynchronously, keyed by content identity. Label approximate results,
       suppress comments/strings, and verify multiline declarations, duplicates,
       cancellation, historical revisions, and symbols beyond the first page.
-- [ ] Highlight occurrences of the selected identifier without replacing Find's
+- [x] Highlight occurrences of the selected identifier without replacing Find's
       query or the reading selection. Use decoded word boundaries; test Unicode,
       comments, shadowed names, historical content, and stale results.
+      Caret word or one-word selection, recomputed each frame from the rendered
+      rows (textual, so shadowed names match too). `flow_occurrence_highlight`.
 - [x] Add "Search this identifier" from the selection or caret to the retained
       search pane. Use whole-word matching and the active revision; label results
       as textual matches rather than semantic references.
