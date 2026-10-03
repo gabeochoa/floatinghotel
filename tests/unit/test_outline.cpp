@@ -137,6 +137,19 @@ TEST(unsupported_languages_have_no_outline) {
     ASSERT_FALSE(symbol_outline::supported("data.json"));
 }
 
+TEST(declaration_guess_for_one_search_result_line) {
+    ASSERT_TRUE(symbol_outline::declares("u.h", "inline std::string greet(const std::string& name) {", "greet"));
+    ASSERT_TRUE(symbol_outline::declares("a.cpp", "void Widget::draw() const", "draw"));
+    ASSERT_TRUE(symbol_outline::declares("a.py", "    def greet(self):", "greet"));
+    ASSERT_TRUE(symbol_outline::declares("a.ts", "export const greet = (name: string) =>", "greet"));
+    ASSERT_TRUE(symbol_outline::declares("a.cpp", "class Greeter : public Base {", "Greeter"));
+    ASSERT_FALSE(symbol_outline::declares("a.cpp", "    std::cout << greet(\"world\") << std::endl;", "greet"));
+    ASSERT_FALSE(symbol_outline::declares("a.cpp", "    assert(greet(\"Alice\") == \"Hello\");", "greet"));
+    ASSERT_FALSE(symbol_outline::declares("a.cpp", "void greet(int);", "greet"));
+    ASSERT_FALSE(symbol_outline::declares("a.cpp", "void greeter() {", "greet"));
+    ASSERT_FALSE(symbol_outline::declares("a.cpp", "// greet() {", "greet"));
+}
+
 int main() {
     RUN_ALL_TESTS();
 }

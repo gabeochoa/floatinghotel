@@ -17,6 +17,7 @@ struct SearchMatch {
     std::string revision;
     size_t excerptStart = 0;
     std::bitset<512> highlighted;
+    bool declaration = false;  // textual guess, set for whole-word searches
 };
 
 struct SearchMatching {

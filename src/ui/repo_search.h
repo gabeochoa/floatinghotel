@@ -108,6 +108,7 @@ inline reading::SourceLocation repo_search_location(const RepoComponent& repo, c
 
 inline std::vector<afterhours::ui::TextSpan> repo_search_match_label(const SearchMatch& match) {
     std::vector<afterhours::ui::TextSpan> spans{{std::to_string(match.line) + "  ", theme::TEXT_SECONDARY}};
+    if (match.declaration) spans.push_back({"likely declaration  ", theme::TEXT_ACCENT});
     if (match.excerptStart) spans.push_back({"…", theme::TEXT_SECONDARY});
     const auto end = std::min(match.text.size(), match.excerptStart + match.highlighted.size());
     int previous = -1;
@@ -238,6 +239,15 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             repo.repoSearchScope.revision = std::move(result.revision);
             repo.repoSearchResults = std::move(result.matches);
             repo.repoSearchGroups = search_results::group(repo.repoSearchResults);
+            // Identifier searches list files that seem to declare the name first.
+            const auto& query = repo.repoSearchSubmittedQuery;
+            if (repo.repoSearchMatching.wholeWord && !repo.repoSearchMatching.regularExpression &&
+                !query.empty() && std::all_of(query.begin(), query.end(), symbol_outline::detail::ident)) {
+                for (auto& match : repo.repoSearchResults) match.declaration = symbol_outline::declares(match.file, match.text, query);
+                std::stable_partition(repo.repoSearchGroups.begin(), repo.repoSearchGroups.end(), [&](const auto& group) {
+                    return std::any_of(group.matches.begin(), group.matches.end(), [&](size_t i) { return repo.repoSearchResults[i].declaration; });
+                });
+            }
             repo.repoSearchRebuildRows = true;
             repo.repoSearchTruncated = result.truncated;
             repo.repoSearchCapturedBytes = result.capturedBytes;

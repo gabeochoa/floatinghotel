@@ -251,4 +251,17 @@ inline std::vector<Symbol> scan(std::string_view path, std::string_view text, si
     return out;
 }
 
+// Whether `line` on its own reads as a declaration of `name`. Approximate: a
+// line inside a block comment is read as code.
+inline bool declares(std::string_view path, std::string_view line, std::string_view name) {
+    std::string text(line);
+    text += "\n{";  // a definition's body opens here or on the next line
+    for (const auto& symbol : scan(path, text)) {
+        std::string_view last = symbol.name;
+        if (const auto cut = last.find_last_of(":."); cut != std::string_view::npos) last.remove_prefix(cut + 1);
+        if (last == name && symbol.kind != "heading") return true;
+    }
+    return false;
+}
+
 }  // namespace symbol_outline

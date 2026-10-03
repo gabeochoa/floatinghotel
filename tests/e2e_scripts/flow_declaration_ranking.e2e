@@ -1,0 +1,27 @@
+# Flow: a whole-word repository search lists files that seem to declare the
+# word first and tags those lines, without claiming semantic definitions.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+hold_key 343
+hold_key 340
+key F
+release_key 340
+release_key 343
+wait_frames 5
+click_ui repo_search_input
+type "greet"
+wait_for_refresh
+wait_frames 5
+expect_text "4 matches"
+validate search_first_file=src/app.cpp
+expect_no_text "likely declaration"
+click_ui repo_search_options
+wait_frames 3
+click_ui repo_search_word
+wait_for_refresh
+wait_frames 5
+screenshot declaration_ranking
+expect_text "4 matches · whole-word text, not references"
+validate search_first_file=utils.h
+expect_text "likely declaration"

@@ -1502,6 +1502,8 @@ int main(int argc, char* argv[]) {
                 ui::image_diff::cache().bytes <= image_content::totalDecodedLimit ? "true" : "false";
         } else if (key == "search_result_count") {
             if (auto* r = repo()) return std::to_string(r->repoSearchResults.size());
+        } else if (key == "search_first_file") {
+            if (auto* r = repo(); r && !r->repoSearchGroups.empty()) return r->repoSearchGroups.front().file;
         } else if (key == "search_captured_bytes") {
             if (auto* r = repo()) return std::to_string(r->repoSearchCapturedBytes);
         } else if (key == "search_truncated") {

@@ -105,8 +105,11 @@ caches. No px0 application or benchmark has run yet.
       search pane. Use whole-word matching and the active revision; label results
       as textual matches rather than semantic references.
       Edit > Search This Identifier (also in the palette); `flow_search_identifier`.
-- [ ] Add approximate declaration ranking for textual navigation. Keep it visibly
+- [x] Add approximate declaration ranking for textual navigation. Keep it visibly
       distinct from semantic go-to-definition and test ambiguous or duplicate names.
+      Whole-word repository searches move files whose matching line reads as a
+      definition of the word to the top and tag it "likely declaration" (status
+      still says "text, not references"). `flow_declaration_ranking`, `test_outline`.
 - [ ] Make Markdown relative links and heading anchors navigate through typed
       revision-aware destinations. Preserve source/preview position and Back/Forward.
 
