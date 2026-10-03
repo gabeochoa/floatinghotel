@@ -1,0 +1,38 @@
+# Flow: View > Line Numbers hides the number columns without moving the
+# reading position (line 150 stays on screen), and toggling back restores
+# them. Row labels carry only the code text, so the columns are checked by
+# screenshot.
+make_test_repo
+resize 1000 725
+enable_file_watcher
+wait_for_refresh
+touch_file src/app.cpp 400
+wait_for_file_change
+disable_file_watcher
+wait_frames 10
+click_text "app.cpp"
+wait_for_refresh
+wait_frames 10
+hover_ui diff_scroll
+scroll_wheel 0 -100
+wait_frames 30
+expect_text "e2e_line_90"
+validate visible_source_line:150=true
+screenshot line_numbers_on
+
+click_text "View"
+wait_frames 5
+click_text "Line Numbers (toggle)"
+wait_frames 20
+screenshot line_numbers_off
+# The menu item sits over the code; its click must not place a caret.
+validate caret_line=0
+expect_text "e2e_line_90"
+validate visible_source_line:150=true
+
+click_text "View"
+wait_frames 5
+click_text "Line Numbers (toggle)"
+wait_frames 20
+expect_text "e2e_line_90"
+validate visible_source_line:150=true

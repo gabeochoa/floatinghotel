@@ -187,6 +187,10 @@ inline std::vector<Menu> createMenuBar() {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
                 l->visibleWhitespace = !l->visibleWhitespace;
         }),
+        MenuItem::item("Line Numbers (toggle)", "", [] {
+            if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
+                l->showLineNumbers = !l->showLineNumbers;
+        }),
         MenuItem::item("Vim Mode (toggle)", "", [] {
             Settings::get().set_vim_mode(!Settings::get().get_vim_mode());
         }),

@@ -442,10 +442,14 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
         return nn;
     };
 
+    // Menus draw over the code; a click on a menu item must not also land
+    // on the row underneath it.
+    const auto* menu = ecs::find_singleton<ecs::MenuComponent>();
+    const bool overlayOpen = is_context_menu_open() || (menu && menu->activeMenuIndex >= 0);
     if (mouse.just_pressed) {
         st.extending = false;
         st.preferredX.reset();
-        const int li = lineUnder();
+        const int li = overlayOpen ? -1 : lineUnder();
         if (li >= 0) {
             const auto& row = st.lastLines[li];
             const Pos hit{row.ent, colAt(row)};
@@ -2443,6 +2447,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     sess.reviewScope = reviewScope;
     auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
     sess.visibleWhitespace = layout && layout->visibleWhitespace;
+    code_gutter::showNumbers = !layout || layout->showLineNumbers;
     if (ownerRepo && !diffs.empty() && diffs.front().isFullContent) {
         sess.sourceStartLine = ownerRepo->fullFilePage.begin.line;
         sess.sourceStartColumn = ownerRepo->fullFilePage.begin.column;
@@ -2875,7 +2880,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     if (selEnabled) {
         std::string context = repoPath + "\n" + (filterRepo ? std::to_string(filterRepo->workspace().active_id().value) : "") + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline") +
             std::to_string(contentWidth) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(Settings::get().get_code_font_size()) +
-            (sess.visibleWhitespace ? ":spaces" : ":plain");
+            (sess.visibleWhitespace ? ":spaces" : ":plain") + (code_gutter::showNumbers ? ":numbers" : ":bare");
         for (const auto& diff : diffs) if (fileVisible(diff)) context += "\n" + diff.filePath + diff_metrics().signature(diff);
         if (diff_sel::state().context != context) {
             diff_sel::reset();
@@ -3017,7 +3022,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         auto& state = filterRepo->reading;
         state.key += "\n" + std::to_string(contentWidth) + ":" + std::to_string(contentHeight) + ":" +
             std::to_string(sess.fontSize) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(sideBySide) +
-            (sess.visibleWhitespace ? ":spaces" : ":plain");
+            (sess.visibleWhitespace ? ":spaces" : ":plain") + (code_gutter::showNumbers ? ":numbers" : ":bare");
         for (const auto& file : diffs) state.key += ":" + std::to_string(file.renderIdentity);
         if (review) {
             for (const auto& fold : review->foldedFiles) state.key += "\nfile:" + fold;

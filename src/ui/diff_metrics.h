@@ -6,6 +6,7 @@
 #include <bit>
 #include <array>
 #include "../util/code_wrap.h"
+#include "../util/code_gutter.h"
 
 namespace ui {
 
@@ -26,10 +27,11 @@ class DiffMetricsCache {
         const auto widthBytes = std::bit_cast<std::array<char, sizeof(float)>>(width);
         const auto fontBytes = std::bit_cast<std::array<char, sizeof(float)>>(fontSize);
         std::string key;
-        key.reserve(widthBytes.size() + fontBytes.size() + 2 + content.size());
+        key.reserve(widthBytes.size() + fontBytes.size() + 3 + content.size());
         key.append(widthBytes.data(), widthBytes.size());
         key.append(fontBytes.data(), fontBytes.size());
         key.push_back(whitespace ? '1' : '0');
+        key.push_back(code_gutter::showNumbers ? 'n' : '-');
         key.push_back(kind);
         key.append(content);
         return key;

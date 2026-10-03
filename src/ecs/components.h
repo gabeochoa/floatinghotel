@@ -1156,6 +1156,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     std::vector<std::string> filePickerResults;
     int filePickerIndex = 0;
     bool visibleWhitespace = false;
+    bool showLineNumbers = true;
     static constexpr float kDefaultSidebarWidth = 280.0f;
     static constexpr float kCommitSplitterHeight = 16.f;
     float sidebarWidth = kDefaultSidebarWidth;

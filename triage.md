@@ -112,7 +112,8 @@ caches. No px0 application or benchmark has run yet.
       ownership. Restore focus and the reading anchor on dismissal.
 - [ ] Add source-snippet copy with a revision-aware location and fenced code for
       agent prompts. Preserve plain copy and existing copy-size limits.
-- [ ] Add a line-number visibility toggle without moving the logical reading anchor.
+- [x] Add a line-number visibility toggle without moving the logical reading anchor.
+      View > Line Numbers (toggle); `flow_line_numbers_toggle` checks the anchor.
 - [ ] Expand syntax-language support based on real repositories. Define a data-driven
       extension/language configuration where it avoids code changes for new mappings.
       Verify multiline state, distant pages, and independent before/after diff states.
