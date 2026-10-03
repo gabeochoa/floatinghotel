@@ -95,9 +95,10 @@ caches. No px0 application or benchmark has run yet.
 - [ ] Highlight occurrences of the selected identifier without replacing Find's
       query or the reading selection. Use decoded word boundaries; test Unicode,
       comments, shadowed names, historical content, and stale results.
-- [ ] Add "Search this identifier" from the selection or caret to the retained
+- [x] Add "Search this identifier" from the selection or caret to the retained
       search pane. Use whole-word matching and the active revision; label results
       as textual matches rather than semantic references.
+      Edit > Search This Identifier (also in the palette); `flow_search_identifier`.
 - [ ] Add approximate declaration ranking for textual navigation. Keep it visibly
       distinct from semantic go-to-definition and test ambiguous or duplicate names.
 - [ ] Make Markdown relative links and heading anchors navigate through typed

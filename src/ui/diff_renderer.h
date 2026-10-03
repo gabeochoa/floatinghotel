@@ -2126,6 +2126,29 @@ inline void open_find(ecs::RepoComponent& repo) {
     navigation::open_find(repo, std::move(seed), std::move(position));
 }
 
+// The one-line selection, else the identifier under the caret; empty when the
+// caret is on punctuation or off the visible rows.
+inline std::string selected_identifier(const ecs::RepoComponent& repo) {
+    auto& selection = diff_sel::state();
+    int first, begin, last, end;
+    if (selection.hasSel && diff_sel::ordered_span(selection.lastLines, selection.anchor, selection.head, first, begin, last, end)) {
+        auto text = diff_sel::build_copy_text(selection, false);
+        return text.find_first_of("\r\n") == std::string::npos ? text : std::string{};
+    }
+    const auto& caret = repo.workspace().document(repo.workspace().active_id())->caret;
+    if (!caret) return {};
+    const diff_sel::Rec* row = nullptr;
+    for (const auto& line : selection.lastLines) {
+        if (line.filePath == caret->path && diff_sel::number_on_side(line, caret->side) == caret->line && line.logicalColumn <= caret->column &&
+            (!row || line.logicalColumn > row->logicalColumn)) row = &line;
+    }
+    if (!row || row->content.empty()) return {};
+    const auto byte = reading::byte_at_column(row->content, caret->column - row->logicalColumn + 1);
+    auto [from, to] = reading::word_at(row->content, byte);
+    const auto c = static_cast<unsigned char>(row->content[from]);
+    return std::isalnum(c) || c == '_' || c >= 128 ? row->content.substr(from, to - from) : std::string{};
+}
+
 inline float diff_controls_height(float width, bool optionsOpen,
                                   bool filterable, bool hasDiffs) {
     return (filterable ? (width < 680.f ? 72.f : 36.f) + (optionsOpen ? 90.f : 0.f) : 0.f) +

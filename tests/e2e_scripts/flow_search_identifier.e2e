@@ -1,0 +1,29 @@
+# Flow: Edit > Search This Identifier takes the word under the caret into the
+# repository search as a whole-word query at the revision being read, and
+# labels the results as text matches rather than references.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+wait_for_refresh
+wait_frames 10
+# Caret after "{" is punctuation: nothing to search.
+click_text "int main() {"
+wait_frames 3
+validate caret_line=3
+click_text "Edit"
+wait_frames 3
+click_text "Search This Identifier"
+wait_frames 10
+expect_no_text "whole-word text"
+# Caret inside "main".
+click 445 284
+wait_frames 3
+validate caret_line=3
+click_text "Edit"
+wait_frames 3
+click_text "Search This Identifier"
+wait_for_refresh
+wait_frames 10
+screenshot search_identifier
+expect_text "3 matches · whole-word text, not references"

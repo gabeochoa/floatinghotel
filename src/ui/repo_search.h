@@ -266,7 +266,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     }
     if (keepSelected) navigation::click(repo, repo_search_location(repo, repo.repoSearchResults[*repo.repoSearchSelected]), true, reading::ClickRegion::Search);
     std::string status = repo.repoSearchDue ? "Waiting for typing..." : repo.repoSearchFuture.valid() ? "Searching..." : repo.repoSearchQuery.empty() ? "Search repository contents" : repo.repoSearchResults.empty() ? "No matches" :
-        std::to_string(repo.repoSearchResults.size()) + " matches";
+        std::to_string(repo.repoSearchResults.size()) + (repo.repoSearchMatching.wholeWord ? " matches · whole-word text, not references" : " matches");
     if (!repo.repoSearchFuture.valid() && repo.repoSearchTruncated) status += " · limit reached";
     if (!repo.repoSearchError.empty()) status = repo.repoSearchError;
     auto statusNode = div(ctx, mk(parent, 587002), ComponentConfig{}.with_label(status)

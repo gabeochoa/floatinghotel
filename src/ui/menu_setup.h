@@ -100,6 +100,20 @@ inline std::vector<Menu> createMenuBar() {
                 ecs::open_repo_search(*repo);
             }
         }),
+        MenuItem::item("Search This Identifier", "", [] {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (!repo) return;
+            auto word = ui::selected_identifier(*repo);
+            if (word.empty()) return;
+            // Whole-word text matches at the revision being read.
+            repo->repoSearchQuery = std::move(word);
+            repo->repoSearchMatching = {.regularExpression = false, .caseSensitive = true, .wholeWord = true};
+            ecs::capture_repo_search_scope(*repo);
+            ecs::open_repo_search(*repo);
+            // An explicit command: search now rather than after the typing pause.
+            repo->repoSearchObservedText = {repo->repoSearchQuery, repo->repoSearchIncludeGlob, repo->repoSearchExcludeGlob};
+            ecs::start_repo_search(*repo);
+        }),
         MenuItem::item("Search Commits...", "", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
                 repo->commitSearchOpen = true;
