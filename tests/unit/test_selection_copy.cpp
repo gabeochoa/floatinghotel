@@ -95,4 +95,20 @@ TEST(copy_retains_historical_and_index_source_contents) {
     ASSERT_TRUE(index.error.empty()); ASSERT_EQ(index.text, "staged");
 }
 
+TEST(snippet_wraps_copy_with_revision_location_and_a_long_enough_fence) {
+    CopyFixture fixture;
+    fixture.write("one\nx = ```y```\nthree\n");
+    auto selection = fixture.range(3, 1, 2, 1);
+    auto result = git::copy_source_selection(fixture.request(), selection, false);
+    git::make_snippet(result, selection);
+    ASSERT_TRUE(result.error.empty());
+    ASSERT_EQ(result.text, "a.txt:L2-3 (working tree)\n````txt\nx = ```y```\n````\n");
+    ecs::SelectionCopyResult pinned{"int a;", {}, std::string(40, 'f')};
+    git::make_snippet(pinned, {{"src/m.CPP", reading::DiffSide::After, 4, 1}, {"src/m.CPP", reading::DiffSide::After, 4, 7}});
+    ASSERT_EQ(pinned.text, "src/m.CPP:L4 @ ffffffffffff\n```cpp\nint a;\n```\n");
+    ecs::SelectionCopyResult full{std::string(git::selection_copy_limit - 4, 'x'), {}, {}};
+    git::make_snippet(full, selection);
+    ASSERT_TRUE(full.text.empty()); ASSERT_EQ(full.error, "Selection exceeds the 8 MiB copy limit");
+}
+
 int main() { RUN_ALL_TESTS(); }

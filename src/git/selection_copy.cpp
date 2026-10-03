@@ -1,5 +1,7 @@
 #include "selection_copy.h"
 #include "../util/reading_anchor.h"
+#include <algorithm>
+#include <cctype>
 #include <tuple>
 
 namespace git {
@@ -37,6 +39,7 @@ ecs::SelectionCopyResult copy_source_selection(FileRequest request, reading::Cod
         if (!content.error.empty()) { result.error = std::move(content.error); break; }
         if (content.diff.isBinary) { result.error = "Cannot copy a text selection from a binary file"; break; }
         if (!content.resolvedRevision.empty()) request.revision = content.resolvedRevision;
+        result.revision = request.revision;
         bool complete = false;
         for (const auto& hunk : content.diff.hunks) {
             int line = hunk.newStart;
@@ -70,6 +73,34 @@ ecs::SelectionCopyResult copy_source_selection(FileRequest request, reading::Cod
     if (stop.stop_requested()) result.error = "Copy cancelled";
     result.text.clear();
     return result;
+}
+
+void make_snippet(ecs::SelectionCopyResult& result, const reading::CodeSelection& selection) {
+    if (!result.error.empty()) return;
+    auto first = selection.anchor.line, last = selection.head.line;
+    if (first > last) std::swap(first, last);
+    const auto& path = selection.anchor.path;
+    std::string header = path + ":L" + std::to_string(first);
+    if (last != first) header += "-" + std::to_string(last);
+    header += result.revision.empty() ? " (working tree)" : result.revision == "INDEX" ? " (index)"
+        : " @ " + result.revision.substr(0, 12);
+    // The fence must outlast any backtick run inside the code.
+    size_t run = 0, longest = 0;
+    for (char c : result.text) longest = std::max(longest, run = c == '`' ? run + 1 : 0);
+    const std::string fence(std::max<size_t>(3, longest + 1), '`');
+    const auto name = path.substr(path.find_last_of('/') + 1);
+    const auto dot = name.find_last_of('.');
+    std::string language = dot == std::string::npos || dot == 0 ? "" : name.substr(dot + 1);
+    for (auto& c : language) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    std::string out = header + "\n" + fence + language + "\n" + result.text;
+    if (!result.text.empty() && result.text.back() != '\n') out += "\n";
+    out += fence + "\n";
+    if (out.size() > selection_copy_limit) {
+        result.text.clear();
+        result.error = "Selection exceeds the 8 MiB copy limit";
+        return;
+    }
+    result.text = std::move(out);
 }
 
 async_work::Task<ecs::SelectionCopyResult> copy_source_selection_async(FileRequest request,

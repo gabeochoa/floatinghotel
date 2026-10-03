@@ -75,6 +75,10 @@ inline std::vector<Menu> createMenuBar() {
             auto message = ui::diff_sel::copy_selection(true);
             if (!message.empty()) set_pending_toast(message);
         }),
+        MenuItem::item("Copy as snippet", "Cmd+Alt+C", [] {
+            auto message = ui::diff_sel::copy_selection(true, true);
+            if (!message.empty()) set_pending_toast(message);
+        }),
         MenuItem::separator(),
         MenuItem::item("Find...", "Cmd+F", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ui::open_find(*repo);

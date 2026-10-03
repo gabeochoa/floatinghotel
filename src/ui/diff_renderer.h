@@ -338,7 +338,7 @@ inline std::string build_copy_text(State& st, bool withLocation) {
     return out;
 }
 
-inline std::string copy_selection(bool withLocation) {
+inline std::string copy_selection(bool withLocation, bool snippet = false) {
     auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     if (!repo) return "No selection to copy";
     const auto& document = *repo->workspace().document(repo->workspace().active_id());
@@ -351,9 +351,10 @@ inline std::string copy_selection(bool withLocation) {
     runtime = {};
     runtime.selection = selection;
     runtime.withLocation = withLocation;
+    runtime.snippet = snippet;
     runtime.request = navigation::stamp(*repo, "selection-copy");
     runtime.future = git::copy_source_selection_async({repo->repoPath, selection.source.path,
-        reading::revision_text(selection.source.revision), {}, repo->workspace().active_source() ? repo->fullFileEncodingOverride : "auto"}, selection, withLocation);
+        reading::revision_text(selection.source.revision), {}, repo->workspace().active_source() ? repo->fullFileEncodingOverride : "auto"}, selection, withLocation && !snippet);
     return {};
 }
 
@@ -363,10 +364,11 @@ inline void poll_copy(UIContext<InputAction>& ctx, ecs::RepoComponent& repo) {
     auto result = runtime.future.get();
     const auto& selection = repo.workspace().document(repo.workspace().active_id())->selection;
     if (!navigation::accepts(repo, runtime.request, "selection-copy") || !selection || *selection != runtime.selection) return;
+    if (runtime.snippet) git::make_snippet(result, runtime.selection);
     if (!result.error.empty()) afterhours::toast::send_info(ctx, result.error, 4.f);
     else {
         afterhours::clipboard::set_text(result.text);
-        afterhours::toast::send_info(ctx, runtime.withLocation ? "Copied selection with location" : "Copied selection", 1.5f);
+        afterhours::toast::send_info(ctx, runtime.snippet ? "Copied snippet" : runtime.withLocation ? "Copied selection with location" : "Copied selection", 1.5f);
     }
 }
 
@@ -2933,7 +2935,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (filterRepo && layout && reader_shortcuts(ctx, *filterRepo, *layout) && superDown && afterhours::input::is_key_pressed(afterhours::keys::C) &&
             diff_sel::state().hasSel) {
             const bool withLocation = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
-            auto message = diff_sel::copy_selection(withLocation);
+            const bool snippet = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
+            auto message = diff_sel::copy_selection(withLocation, snippet);
             if (!message.empty()) afterhours::toast::send_info(ctx, message, 4.f);
         }
         diff_sel::state().curLines.clear();

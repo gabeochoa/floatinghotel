@@ -1,0 +1,18 @@
+# Flow: Edit > Copy as snippet copies the selection as a fenced
+# snippet (format covered by test_selection_copy) and reports it.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+wait_for_refresh
+mouse_down 454 288
+mouse_move 600 312
+mouse_up
+wait_frames 5
+expect_no_text "Copied snippet"
+click_text "Edit"
+wait_frames 5
+click_text "Copy as snippet"
+wait_frames 30
+expect_text "Copied snippet"
+screenshot copy_snippet_menu

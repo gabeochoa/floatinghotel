@@ -295,6 +295,7 @@ struct SourceFindMatch {
 struct SelectionCopyResult {
     std::string text;
     std::string error;
+    std::string revision;  // resolved commit, "INDEX", or empty for the working tree
     size_t maxPageBytes = 0;
 };
 
@@ -303,6 +304,7 @@ struct SelectionCopyRuntime {
     reading::CodeSelection selection;
     async_work::Task<SelectionCopyResult> future;
     bool withLocation = false;
+    bool snippet = false;
 };
 
 struct SourceFindResult {

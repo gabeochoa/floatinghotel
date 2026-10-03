@@ -1,0 +1,15 @@
+# Flow: Cmd+Alt+C copies the selection as a fenced
+# snippet (format covered by test_selection_copy) and reports it.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text README.md
+wait_for_refresh
+mouse_down 454 288
+mouse_move 600 312
+mouse_up
+wait_frames 5
+key CMD+ALT+C
+wait_frames 30
+expect_text "Copied snippet"
+screenshot copy_snippet_key
