@@ -1,9 +1,10 @@
 # Flow: Browse changed files and view diffs
 # User opens the app, sees file list, clicks files to view diffs
 make_test_repo
-resize 1280 720
+# Tall window: at 720 the file list viewport fits under two rows, which
+# is not what this flow is about.
+resize 1280 900
 wait_frames 5
-click_ui sidebar_working_files
 mouse_move 190 180
 scroll_wheel 0 -1000
 wait_frames 10
@@ -28,8 +29,11 @@ click_text ".gitignore"
 wait_frames 5
 screenshot flow_browse_04_staged_diff
 
-# Click an untracked file (untracked files live under the "Untracked" tab)
-click_text "Untracked"
+# Click an untracked file. There is no Untracked tab anymore: untracked
+# files are rows in the same tree, below the fold — scroll the file list
+# itself to reveal TODO.md, then click it.
+mouse_move 140 480
+scroll_wheel 0 -1000
 wait_frames 5
 click_text "TODO.md"
 wait_frames 5

@@ -83,7 +83,7 @@ inline void render_range_diff(UIContext<InputAction>& ctx, Entity& parent, RepoC
         auto row = div(ctx, mk(parent, id), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
         div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(label)
-            .with_size(ComponentSize{pixels(100), pixels(32)}).with_font_size(FontSize::Small));
+            .with_size(ComponentSize{pixels(100), pixels(32)}).with_font_size(pixels(12)));
         afterhours::text_input::text_input(ctx, mk(row.ent(), 1), text, ComponentConfig{}
             .with_size(ComponentSize{expand(), pixels(32)}).with_debug_name(name));
     };
@@ -104,7 +104,7 @@ inline void render_range_diff(UIContext<InputAction>& ctx, Entity& parent, RepoC
     else if (!state.display.empty()) status = "Resolved series: " + state.resolved[0].substr(0, 12) + ".." + state.resolved[1].substr(0, 12) +
         " vs " + state.resolved[2].substr(0, 12) + ".." + state.resolved[3].substr(0, 12);
     div(ctx, mk(parent, 598004), ComponentConfig{}.with_label(status)
-        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Small)
+        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(12))
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("range_diff_status"));
     if (!state.display.empty())
         ui::render_diff(ctx, parent, state.display, layout.mainContent.width, layout.mainContent.height - 162.f,

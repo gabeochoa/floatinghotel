@@ -86,8 +86,8 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
     if (afterhours::ui::is_mouse_inside(mouse, RectangleType{x, y, panelW, height}))
         state.scrollOffset -= wheel.y * itemH;
     if (pointerMoved) state.hoveredIndex = -1;
-    const int direction = afterhours::input::is_key_pressed(264) ? 1 :
-        afterhours::input::is_key_pressed(265) ? -1 : 0;
+    const int direction = afterhours::input::is_key_pressed(afterhours::keys::DOWN) ? 1 :
+        afterhours::input::is_key_pressed(afterhours::keys::UP) ? -1 : 0;
     if (direction) {
         const int count = static_cast<int>(state.items.size());
         int index = state.hoveredIndex;
@@ -106,7 +106,7 @@ inline void render_context_menu(UIContext<InputAction>& ctx,
         }
     }
     state.scrollOffset = std::clamp(state.scrollOffset, 0.f, std::max(0.f, contentHeight - height));
-    if (afterhours::input::is_key_pressed(257) && state.hoveredIndex >= 0) {
+    if (afterhours::input::is_key_pressed(afterhours::keys::ENTER) && state.hoveredIndex >= 0) {
         const auto& item = state.items[static_cast<size_t>(state.hoveredIndex)];
         if (item.enabled && !item.isSeparator) {
             auto action = item.action;

@@ -20,8 +20,8 @@ inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx
     auto& root = ui_imm::getUIRootEntity();
     auto& state = root.addComponentIfMissing<RecentTabSwitcher>();
     auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
-    const bool ctrl = afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345);
-    const bool step = ctrl && afterhours::input::is_key_pressed(258);
+    const bool ctrl = afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL);
+    const bool step = ctrl && afterhours::input::is_key_pressed(afterhours::keys::TAB);
     const bool wasOpen = state.cycle.has_value();
     ctx.remove_input_gate("document-switcher");
     if (wasOpen) ctx.add_input_gate("document-switcher", [](int) { return false; });
@@ -40,7 +40,7 @@ inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx
         if (!state.cycle) state.cycle = reading::DocumentCycle{reading::recent_documents(repo->workspace())};
         state.repository = owner->id;
         if (state.cycle->order.size() < 2) { state.cycle.reset(); return true; }
-        const bool shift = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
+        const bool shift = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
         state.cycle->advance(shift ? -1 : 1);
     }
     if (!state.cycle) return false;
@@ -66,7 +66,7 @@ inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx
         .with_render_layer(1000).with_debug_name("recent_tabs"));
     div(ctx, mk(panel.ent(), 0), ComponentConfig{}
         .with_label("Recent tabs · " + std::to_string(cycle.index + 1) + " of " + std::to_string(cycle.order.size()))
-        .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(pixels(13))
+        .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(pixels(14))
         .with_custom_text_color(theme::TEXT_SECONDARY).with_roundness(0.f).with_render_layer(1001).with_debug_name("recent_tabs_position"));
     const auto titles = reading::document_titles(repo->workspace().documents());
     const size_t start = std::min(cycle.index > rows / 2 ? cycle.index - rows / 2 : 0, cycle.order.size() - rows);

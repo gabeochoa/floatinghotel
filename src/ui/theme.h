@@ -261,9 +261,9 @@ constexpr int SPACE_4 = 16;
 constexpr int SPACE_6 = 24;
 constexpr float BORDER_WIDTH = 1.0f;    // hairline border width (h720)
 // Typography: 3 tiers only, set in preload.cpp as FontSize:
-//   Small/Caption = 12, Medium/Body = 14, Large/Heading = 18 (XL == Large).
-// All UI text uses the FontSize enum tiers. The one exception is monospace
-// diff code, which needs a fixed size decoupled from the UI tiers:
+//   Small/Caption = 12, Medium/Body = 14, Large/Heading = 16 (XL == Large).
+// All UI text uses the FontSize enum tiers, and the code-font setting
+// snaps to the same tiers, so code text is on-scale too.
 constexpr float FONT_CODE = 14.0f;     // Diff code text (mono), == body size
 
 // Rounded corners (enable all four corners)

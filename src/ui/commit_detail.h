@@ -129,6 +129,16 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             }
         } catch (const std::exception& error) { detailCache.commitDetailError = error.what(); }
     }
+    // Seed default folds once per loaded commit (the runtime resets when
+    // the commit changes): files matching this repo's fold rules start
+    // folded. Manual fold/unfold afterwards is never overridden.
+    if (review && !detailCache.foldDefaultsApplied && !detailCache.commitDetailDiff.empty()) {
+        detailCache.foldDefaultsApplied = true;
+        const auto rules = Settings::get().get_fold_rules(repo.repoPath);
+        for (const auto& file : detailCache.commitDetailDiff)
+            if (fold_defaults::matches(rules, file.filePath, file.additions + file.deletions))
+                review->foldedFiles.insert(reviewScope + "\n" + file.filePath);
+    }
     ui::diff_syntax::update(repo, detailCache.commitDetailDiff, commit_review_scope(repo));
     const auto* selectedCommit = &detailCache.entry;
 
@@ -185,7 +195,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_size(ComponentSize{expand(), pixels(titleHeight)})
             .with_padding(Padding{.top = pixels(0), .right = pixels(0), .bottom = pixels(0), .left = pixels(0)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font("ui-bold", pixels(20))
+            .with_font("ui-bold", pixels(16))
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_roundness(0.0f)
@@ -193,7 +203,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     ui::set_tooltip(subjectLabel.ent(), selectedCommit->subject);
     auto revision = div(ctx, mk(heading.ent(), 593014), ComponentConfig{}
         .with_label(selectedCommit->shortHash).with_size(ComponentSize{pixels(88), pixels(titleHeight)})
-        .with_font("mono", pixels(13)).with_custom_text_color(theme::TEXT_SECONDARY)
+        .with_font("mono", pixels(14)).with_custom_text_color(theme::TEXT_SECONDARY)
         .with_debug_name("commit_sticky_revision"));
     ui::set_tooltip(revision.ent(), selectedCommit->hash);
 
@@ -225,12 +235,36 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             .with_transparent_bg().with_border(theme::BORDER, pixels(1)).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_compact_badge"));
+    // Review state lives in this header now (it used to require the
+    // sidebar's Review mode): how much of this commit has been reviewed,
+    // and how much feedback on it is still open.
+    if (review && contentW >= 680.f && !detailCache.commitDetailDiff.empty()) {
+        const auto progress = ui::cached_review_progress(*review, reviewScope, detailCache.commitDetailDiff);
+        const bool complete = progress.total > 0 && progress.reviewed >= progress.total;
+        div(ctx, mk(metadataHeader.ent(), 6), ComponentConfig{}
+            .with_label(complete ? "All " + std::to_string(progress.total) + " files reviewed"
+                                 : "Reviewed " + std::to_string(progress.reviewed) + " of " +
+                                       std::to_string(progress.total))
+            .with_size(ComponentSize{children(), pixels(28)})
+            .with_font_size(pixels(12))
+            .with_custom_text_color(complete ? theme::DIFF_ADD_TEXT : theme::TEXT_SECONDARY)
+            .with_debug_name("commit_review_progress"));
+        size_t unresolved = 0;
+        for (const auto& comment : review->comments)
+            if (comment.scope == reviewScope && !comment.resolved) ++unresolved;
+        if (unresolved > 0) div(ctx, mk(metadataHeader.ent(), 7), ComponentConfig{}
+            .with_label(std::to_string(unresolved) + " unresolved")
+            .with_size(ComponentSize{children(), pixels(28)})
+            .with_font_size(pixels(12))
+            .with_custom_text_color(theme::STATUS_MODIFIED)
+            .with_debug_name("commit_review_unresolved"));
+    }
     if (contentW >= 680.f) div(ctx, mk(metadataHeader.ent(), 5), ComponentConfig{}
         .with_size(ComponentSize{expand(), pixels(28)}));
     bool detailsExpanded = repo.workspace().document(repo.workspace().active_id())->detailsExpanded;
     if (button(ctx, mk(metadataHeader.ent(), 1), preset::Button(detailsExpanded ? "Less detail" : "Details")
         .with_size(ComponentSize{pixels(80), pixels(28)}).with_transparent_bg()
-        .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(13)).with_debug_name("commit_meta_toggle")))
+        .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(14)).with_debug_name("commit_meta_toggle")))
     {
         navigation::toggle_commit_details(repo);
         detailsExpanded = !detailsExpanded;
@@ -647,9 +681,26 @@ inline std::optional<FileDiff> build_new_file_diff(
     namespace fs = std::filesystem;
     fs::path fullPath = fs::path(repoPath) / relPath;
 
-    auto source = file_content::read_working_file(fullPath, {}, 1024 * 1024);
-    if (!source.error.empty()) return std::nullopt;
-    std::string contents = std::move(source.bytes);
+    constexpr size_t maxBytes = 4 * 1024 * 1024;
+    auto source = file_content::read_working_file(fullPath, {}, maxBytes);
+    bool partial = false;
+    std::string contents;
+    if (!source.error.empty()) {
+        if (source.totalBytes <= maxBytes) return std::nullopt;
+        // Past the whole-file cap: show a bounded prefix flagged partial
+        // instead of an empty pane.
+        std::string prefix;
+        auto capped = file_content::read_working_file(fullPath, {}, source.totalBytes,
+            [&prefix](std::string_view chunk) {
+                size_t room = file_page::byteLimit - std::min(prefix.size(), file_page::byteLimit);
+                prefix.append(chunk.substr(0, room));
+                return prefix.size() < file_page::byteLimit;
+            });
+        if (!capped.error.empty()) return std::nullopt;
+        source.mode = std::move(capped.mode);
+        contents = std::move(prefix);
+        partial = true;
+    } else contents = std::move(source.bytes);
 
     bool isBinary = false;
     {
@@ -662,6 +713,7 @@ inline std::optional<FileDiff> build_new_file_diff(
     FileDiff diff;
     diff.filePath = relPath;
     diff.isNew = true;
+    diff.isPartialContent = partial;
     diff.newMode = std::move(source.mode);
 
     if (isBinary) {

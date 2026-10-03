@@ -44,6 +44,15 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             bool nothingSelected = hasRepoForShelf && shelfRepo->workspace().documents().size() == 1 && !source_tab_active(*shelfRepo) &&
                                    shelfRepo->selectedFilePath().empty() &&
                                    shelfRepo->selectedCommitHash().empty() && !layout.filePickerOpen && !shelfRepo->repoSearchOpen && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen && !shelfRepo->comparisonOpen();
+            // The lone document is the untouched blank one only until the
+            // user navigates: explicitly opening the changes document
+            // (no file picked — it shows the whole section) counts as a
+            // selection, so keep the shelf open for it. A fresh workspace
+            // (never activated) still collapses to the sidebar.
+            if (nothingSelected) {
+                const auto* activeDoc = shelfRepo->workspace().document(shelfRepo->workspace().active_id());
+                if (activeDoc && activeDoc->lastActivated > 0) nothingSelected = false;
+            }
             // While reviewing (in the ballroom) the diff pane shows every
             // working-tree file, so keep the shelf open even with no selection.
             auto* shelfReview = find_singleton<ReviewComponent, ActiveTab>();
@@ -107,7 +116,17 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         layout.sidebar = sidebarW > 0.f ? LayoutComponent::Rect{0, topY, sidebarW, bodyH} : LayoutComponent::Rect{};
         const float sidebarDividerH = std::min(LayoutComponent::kCommitSplitterHeight, bodyH);
         const float usableSidebarH = bodyH - sidebarDividerH;
-        const float commitsH = usableSidebarH * std::clamp(layout.commitLogRatio, 0.f, 1.f);
+        // File Explorer mode is a pure local file browser: the history pane
+        // collapses to zero and the tree takes the whole sidebar height.
+        float commitsH = layout.fileViewMode == LayoutComponent::FileViewMode::All
+            ? 0.f : usableSidebarH * std::clamp(layout.commitLogRatio, 0.f, 1.f);
+        // The files pane has a floor (header + chrome + a usable list).
+        // When the ratio share would squeeze it below the floor, history
+        // yields — but never below 96px, and never when space is so tight
+        // that the floor plus a minimal history cannot both fit.
+        if (commitsH > 0.f && layout.sidebarFilesFloor > 0.f &&
+            usableSidebarH > layout.sidebarFilesFloor + 96.f)
+            commitsH = std::min(commitsH, usableSidebarH - layout.sidebarFilesFloor);
         const float filesH = usableSidebarH - commitsH;
         layout.sidebarFiles = {0, topY, sidebarW, filesH};
         layout.sidebarLog = {0, topY + filesH + sidebarDividerH, sidebarW, commitsH};

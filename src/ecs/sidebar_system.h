@@ -249,9 +249,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
         float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
         const float zoom = ui::zoom::get();
-        const bool filesNavigation = layout.sidebarNavigation == LayoutComponent::SidebarNavigation::Files;
         const bool historyCollapsed = repoPtr && Settings::get().section_collapsed(repoPtr->repoPath, "history");
-        const bool changesCollapsed = repoPtr && Settings::get().section_collapsed(repoPtr->repoPath, "changes");
         float filesH = 0.f;
         float commitsH = 0.f;
         float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
@@ -266,68 +264,54 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 std::max(0.f, layout.sidebar.width - 16.f), std::max(0.f, layout.sidebar.height - 78.f));
             return;
         }
-        auto navigation = div(ctx, mk(sidebarRoot.ent(), 2080), ComponentConfig{}
-            .with_size(ComponentSize{percent(1.f), pixels(42)})
-            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(6), .left = pixels(12)})
-            .with_gap(pixels(4)).with_flex_direction(FlexDirection::Row)
-            .with_debug_name("sidebar_navigation"));
-        auto segments = div(ctx, mk(navigation.ent(), 10), ComponentConfig{}
-            .with_size(ComponentSize{percent(1.f), pixels(32)})
-            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
-            .with_padding(Padding{.top = pixels(3), .right = pixels(3), .bottom = pixels(3), .left = pixels(3)})
-            .with_border(theme::BORDER, pixels(1)).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-            .with_corner_radius(7.f).with_debug_name("sidebar_navigation_segments"));
-        for (int index = 0; index < 2; ++index) {
-            const bool selected = filesNavigation == (index == 1);
-            auto segment = button(ctx, mk(segments.ent(), index), preset::Button("")
-                    .with_size(ComponentSize{expand(), pixels(26)})
-                    .with_padding(Padding{.left = pixels(0), .right = pixels(0)})
-                    .with_flex_direction(FlexDirection::Row).with_justify_content(JustifyContent::Center)
-                    .with_align_items(AlignItems::Center).with_gap(pixels(6)).with_no_wrap()
-                    .with_custom_background(selected ? ui::segment_selected_color() : theme::SIDEBAR_BG)
-                    .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
-                    .with_debug_name(index == 0 ? "sidebar_review" : "sidebar_working_files"));
-            ui::chrome_icon(ctx, mk(segment.ent(), 0), index == 0 ? ui::ChromeIcon::Commit : ui::ChromeIcon::Files,
-                selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY, "navigation_icon");
-            div(ctx, mk(segment.ent(), 1), ComponentConfig{}.with_label(index == 0 ? "Review" : "Files")
-                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(14))
-                .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY));
-            if (segment) {
-                layout.sidebarNavigation = index == 0 ? LayoutComponent::SidebarNavigation::Review : LayoutComponent::SidebarNavigation::Files;
-                if (index == 0 && repoPtr) navigation::activate(*repoPtr, reading::Slot::Review);
-            }
-        }
-        if (!filesNavigation && repoPtr) {
-            auto views = div(ctx, mk(sidebarRoot.ent(), 2081), ComponentConfig{}
-                .with_size(ComponentSize{percent(1.f), pixels(36)})
-                .with_padding(Padding{.left = pixels(12), .right = pixels(12), .bottom = pixels(4)})
-                .with_flex_direction(FlexDirection::Row).with_gap(pixels(4)).with_no_wrap()
-                .with_debug_name("working_review_views"));
-            for (bool staged : {false, true}) {
-                const auto count = staged ? repoPtr->stagedFiles.size() : repoPtr->unstagedFiles.size() + repoPtr->untrackedFiles.size();
-                const auto label = std::string(staged ? "Staged" : "Unstaged") + " (" + (repoPtr->statusKnown ? std::to_string(count) : "?") + ")";
-                const bool active = std::holds_alternative<reading::WorkingChanges>(repoPtr->workspace().review().destination) &&
-                    repoPtr->selectedFileStaged() == staged;
-                if (button(ctx, mk(views.ent(), staged ? 1 : 0), preset::Button(label)
-                        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(13))
-                        .with_custom_background(active ? ui::segment_selected_color() : theme::SIDEBAR_BG)
-                        .with_debug_name(staged ? "review_staged_changes" : "review_unstaged_changes")))
-                    navigation::open(*repoPtr, reading::review(staged ? "index" : "wt"), true);
-            }
-        }
-        const float repoHeaderH = filesNavigation ? 104.f : 140.f;
-        if (filesNavigation) {
+        // One sidebar view (the Review/Files toggle is gone): the Files
+        // frame below hosts git controls, the Unstaged/Staged track, and
+        // the review tree. 62 = repo header alone; the removed navigation
+        // row used to add 42 (Review branch added the views track for 140).
+        const float repoHeaderH = 62.f;
+        {
             auto* editor = find_singleton<CommitEditorComponent, ActiveTab>();
-            const bool showGit = repoPtr && !repoPtr->repoPath.empty() && !repoPtr->reviewWorkspace;
-            const bool showCommit = showGit && !treeClean && editor &&
+            // While a commit/comparison document is open the upper pane is
+            // the review tree; the working-tree controls (sync, commit box,
+            // progress strip) are hidden so the tree gets the space — they
+            // return when a working document is active again.
+            const bool reviewingDoc = repoPtr &&
+                layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
+                layout.fileViewMode != LayoutComponent::FileViewMode::All &&
+                (!repoPtr->selectedCommitHash().empty() || !repoPtr->comparisonScope().empty());
+            const bool showViewsTrack = repoPtr &&
+                layout.fileViewMode != LayoutComponent::FileViewMode::All &&
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
-            const bool showProgress = repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
+            const bool showGit = repoPtr && !repoPtr->repoPath.empty();
+            const bool showCommit = showGit && !treeClean && editor && !reviewingDoc &&
+                layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
+            const bool showProgress = repoPtr && !reviewingDoc && layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
+                layout.fileViewMode != LayoutComponent::FileViewMode::All;
             const float viewportH = std::max(0.f, layout.sidebarFiles.height - repoHeaderH);
-            const float minimumControlsH = resolve_to_pixels(h720(
-                (repoPtr ? 28.f : 0.f) + (showGit ? 34.f : 0.f) +
-                (showCommit ? 54.f + COMMIT_INPUT_H_720 : 0.f) + 28.f), sh_for_tab) / zoom +
-                (showProgress ? 60.f : 0.f);
-            const float bodyH = std::max(viewportH, minimumControlsH + 80.f);
+            // The fixed chrome above the file list, at exactly the heights
+            // the sections below subtract from bodyH. The controls body is
+            // the viewport height whenever that chrome plus a minimal list
+            // fits: any extra height hands the outer scroll panel a range,
+            // and it then clips the bottom of the file list's viewport and
+            // competes with the list for the wheel and the scrollbar.
+            const bool renderCommitArea = showCommit &&
+                layout.fileViewMode != LayoutComponent::FileViewMode::All;
+            const float fixedControlsH =
+                (showGit && !reviewingDoc && layout.fileViewMode != LayoutComponent::FileViewMode::All
+                     ? resolve_to_pixels(h720(34.0f), sh_for_tab) / zoom : 0.f) +
+                (renderCommitArea ? resolve_to_pixels(h720(54.0f + COMMIT_INPUT_H_720), sh_for_tab) / zoom : 0.f) +
+                resolve_to_pixels(h720(28.0f), sh_for_tab) / zoom +
+                (showProgress ? 60.f : 0.f) + (showViewsTrack ? 36.f : 0.f);
+            const float bodyH = std::max(viewportH, fixedControlsH + 20.f);
+            // Ask layout to keep this pane tall enough for the header,
+            // the fixed chrome, and a five-row file list; the history
+            // pane below yields when the window is short (see
+            // LayoutUpdateSystem). Applies from the next layout pass.
+            layout.sidebarFilesFloor =
+                repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
+                        layout.fileViewMode != LayoutComponent::FileViewMode::All
+                    ? repoHeaderH + fixedControlsH + 5.f * 28.f
+                    : 0.f;
             auto controlsScroll = div(ctx, mk(sidebarRoot.ent(), 2090), preset::ScrollPanel()
                 .with_size(ComponentSize{pixels(sidebarW), pixels(viewportH)})
                 .with_debug_name("files_controls_scroll"));
@@ -337,18 +321,11 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_flex_direction(FlexDirection::Column).with_no_wrap()
                 .with_debug_name("files_controls_body"));
             float controlsH = 0.f;
-            if (repoPtr) {
-                if (button(ctx, mk(controlsBody.ent(), 2099), preset::Button(repoPtr->reviewWorkspace ? "Git controls hidden · Show" : "Hide Git controls")
-                        .with_size(ComponentSize{percent(1.f), h720(28)})
-                        .with_font_size(FontSize::Small).with_debug_name("review_workspace_toggle"))) {
-                    repoPtr->reviewWorkspace = !repoPtr->reviewWorkspace;
-                }
-                controlsH += resolve_to_pixels(h720(28.f), sh_for_tab) / zoom;
-            }
 
             // === Sync row (Push / Pull / Stash), grouped under the repo header ===
             float syncRowH = 0.0f;
-            if (repoPtr && !repoPtr->repoPath.empty() && !repoPtr->reviewWorkspace) {
+            if (repoPtr && !repoPtr->repoPath.empty() && !reviewingDoc &&
+                layout.fileViewMode != LayoutComponent::FileViewMode::All) {
                 render_sync_row(ctx, controlsBody.ent(), repoPtr);
                 syncRowH = resolve_to_pixels(h720(34.0f), sh_for_tab) / zoom;
             }
@@ -360,7 +337,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             float commitAreaH = 0.0f;
             // Hide the commit input + button when there is nothing to commit (#24).
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
-                !treeClean && !repoPtr->reviewWorkspace) {
+                !treeClean && !reviewingDoc &&
+                layout.fileViewMode != LayoutComponent::FileViewMode::All) {
                 if (editor) {
                     render_commit_area(ctx, controlsBody.ent(), *repoPtr, *editor);
                     commitAreaH = resolve_to_pixels(h720(COMMIT_AREA_H_720), sh_for_tab) / zoom;
@@ -372,16 +350,65 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
             // === Review-progress strip ("In the ballroom") ===
             float progressH = 0.0f;
-            if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr) {
+            if (showProgress) {
                 auto* rv = find_singleton<ReviewComponent, ActiveTab>();
                 render_review_progress(ctx, controlsBody.ent(), *repoPtr, rv);
                 progressH = 60.f;
             }
 
+            // === Unstaged/Staged track (moved from the removed Review
+            // view): switches the active document between working-tree and
+            // index scopes. Shown in Changes mode; clicking it also returns
+            // from a commit document to the working changes. ===
+            // The review tree replaces the Files tree only while a commit or
+            // comparison document is open (selectedCommitHash derives from
+            // the active document, so this switches itself back when a
+            // working document becomes active). Working state keeps the
+            // Files tree — its sections and staging menus are the primary
+            // working surface.
+            const bool useReviewTree = reviewingDoc;
+            float viewsH = 0.f;
+            if (showViewsTrack) {
+                auto views = div(ctx, mk(controlsBody.ent(), 2081), ComponentConfig{}
+                    .with_size(ComponentSize{percent(1.f), pixels(36)})
+                    .with_padding(Padding{.left = pixels(12), .right = pixels(12), .bottom = pixels(6)})
+                    .with_flex_direction(FlexDirection::Row).with_no_wrap()
+                    .with_debug_name("working_review_views"));
+                auto viewsTrack = div(ctx, mk(views.ent(), 5), ComponentConfig{}
+                    .with_size(ComponentSize{expand(), pixels(30)})
+                    .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(2))
+                    .with_padding(Padding{.top = pixels(3), .right = pixels(3), .bottom = pixels(3), .left = pixels(3)})
+                    .with_custom_background(theme::BUTTON_SECONDARY)
+                    .with_border(theme::BORDER, pixels(1))
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(8.f)
+                    .with_debug_name("working_review_views_track"));
+                for (bool staged : {false, true}) {
+                    const auto count = staged ? repoPtr->stagedFiles.size() : repoPtr->unstagedFiles.size() + repoPtr->untrackedFiles.size();
+                    const auto label = std::string(staged ? "Staged" : "Unstaged") + " (" + (repoPtr->statusKnown ? std::to_string(count) : "?") + ")";
+                    const bool active = std::holds_alternative<reading::WorkingChanges>(repoPtr->workspace().review().destination) &&
+                        repoPtr->selectedFileStaged() == staged;
+                    auto segment = preset::Button(label)
+                        .with_size(ComponentSize{expand(), pixels(24)}).with_font_size(pixels(14))
+                        .with_corner_radius(5.f)
+                        .with_debug_name(staged ? "review_staged_changes" : "review_unstaged_changes");
+                    if (active) segment = segment.with_custom_background(ui::segment_selected_color());
+                    else segment = segment.with_transparent_bg();
+                    if (button(ctx, mk(viewsTrack.ent(), staged ? 1 : 0), segment))
+                        navigation::open(*repoPtr, reading::review(staged ? "index" : "wt"), true);
+                }
+                viewsH = 36.f;
+            }
+
             // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
             filesH = bodyH - tabH - commitAreaH - progressH -
-                           controlsH - syncRowH;
+                           controlsH - syncRowH - viewsH;
             if (filesH < 20.0f) filesH = 20.0f;
+            if (useReviewTree) {
+                // The review tree in the Files view: the open commit's or
+                // comparison's files, with reviewed/comment indicators.
+                render_commit_files(ctx, controlsBody.ent(), repoPtr, filesH);
+                commitsH = layout.sidebarLog.height;
+            } else {
             // The file list is windowed: only the rows inside the viewport (plus a
             // few of overscan) are built each frame, so a 5000-file status costs
             // the same as a 30-file one. Empty tabs and the spinner keep the plain
@@ -447,10 +474,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             commitsH = layout.sidebarLog.height;
-        } else {
-            splitAvailable = std::max(0.f, splitAvailable - repoHeaderH);
-            commitsH = historyCollapsed ? 32.f : changesCollapsed ? std::max(32.f, splitAvailable - 32.f) : splitAvailable * layout.commitLogRatio;
-            render_commit_files(ctx, sidebarRoot.ent(), repoPtr, splitAvailable - commitsH);
+            }
         }
         if (historyCollapsed) commitsH = 32.f;
         auto divider = afterhours::ui::imm::divider(ctx, mk(sidebarRoot.ent(), 2200), Axis::Y,
@@ -468,7 +492,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         if (divider && splitAvailable > 0.f) {
             layout.commitLogRatio = std::clamp(
                 layout.commitLogRatio - divider.as<float>() / (zoom * splitAvailable), 0.2f,
-                filesNavigation ? std::clamp(1.f - repoHeaderH / splitAvailable, 0.2f, 0.8f) : 0.8f);
+                std::clamp(1.f - repoHeaderH / splitAvailable, 0.2f, 0.8f));
         }
         auto logBg = div(ctx, mk(sidebarRoot.ent(), 2300),
             ComponentConfig{}
@@ -492,16 +516,42 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                     .with_flex_direction(FlexDirection::Row).with_no_wrap()
                     .with_padding(Padding{.left = pixels(14), .right = pixels(12)})
                     .with_debug_name("log_header"));
-            if (button(ctx, mk(heading.ent(), 0), preset::Button(std::string(historyCollapsed ? "▸ " : "▾ ") + "COMMIT HISTORY")
-                .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11)).with_transparent_bg()
-                .with_custom_text_color(theme::TEXT_TERTIARY).with_debug_name("history_section_toggle")) && repoPtr)
+            auto historyToggle = button(ctx, mk(heading.ent(), 0), preset::Button("")
+                .with_size(ComponentSize{expand(), pixels(32)}).with_transparent_bg()
+                .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+                .with_justify_content(JustifyContent::FlexStart).with_gap(pixels(2)).with_no_wrap()
+                .with_debug_name("history_section_toggle"));
+            ui::chrome_icon(ctx, mk(historyToggle.ent(), 0),
+                historyCollapsed ? ui::ChromeIcon::ChevronRight : ui::ChromeIcon::ChevronDown,
+                theme::TEXT_TERTIARY, "history_section_chevron");
+            div(ctx, mk(historyToggle.ent(), 1), ComponentConfig{}
+                .with_label("COMMIT HISTORY")
+                .with_size(ComponentSize{children(), children()}).with_font("ui-bold", pixels(12))
+                .with_custom_text_color(theme::TEXT_TERTIARY)
+                .with_debug_name("history_section_label"));
+            if (historyToggle && repoPtr)
                 Settings::get().set_section_collapsed(repoPtr->repoPath, "history", !historyCollapsed);
             if (repoPtr && repoPtr->historyScope.mode == git::HistoryScope::Mode::All) branch = "All refs";
             else if (repoPtr && repoPtr->historyScope.mode == git::HistoryScope::Mode::Branch) branch = repoPtr->historyScope.branch;
-            if (button(ctx, mk(heading.ent(), 1), preset::Button(branch.empty() ? "Scope" : branch)
-                .with_size(ComponentSize{pixels(92), pixels(32)}).with_font_size(pixels(11))
-                .with_custom_text_color(theme::TEXT_SECONDARY).with_alignment(TextAlignment::Right)
-                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("history_branch")) && repoPtr) {
+            // Fit-to-content pill with a drawn chevron: the old version was
+            // a fixed 92px right-aligned box, so "main" sat alone at the
+            // right edge of an empty rectangle and nothing said it opens a
+            // menu. (A "▾" suffix would be invisible — the UI font has no
+            // such glyph; it renders as a tofu box, cf. the section toggle.)
+            auto branchBtn = button(ctx, mk(heading.ent(), 1), preset::Button("")
+                .with_size(ComponentSize{children(), pixels(24)})
+                .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+                .with_gap(pixels(4)).with_no_wrap()
+                .with_debug_name("history_branch"));
+            div(ctx, mk(branchBtn.ent(), 0), ComponentConfig{}
+                .with_label(branch.empty() ? "Scope" : branch)
+                .with_size(ComponentSize{children(), children()}).with_font_size(pixels(12))
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_debug_name("history_branch_label"));
+            ui::chrome_icon(ctx, mk(branchBtn.ent(), 1), ui::ChromeIcon::ChevronDown,
+                            theme::TEXT_SECONDARY, "history_branch_chevron");
+            if (branchBtn && repoPtr) {
                 std::vector<ui::ContextMenuItem> items;
                 auto add = [&](const std::string& label, git::HistoryScope scope) {
                     items.push_back(ui::ContextMenuItem::item(label, [scope] {
@@ -593,7 +643,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (!windowedLog && !historyCollapsed) render_commit_log_entries(ctx, logScroll.ent(), *repoPtr);
             if (historyMove) {
                 navigation::preview(*repoPtr, reading::review(repoPtr->commitLog[*historyMove].hash));
-                if (afterhours::input::is_key_pressed(257)) navigation::keep(*repoPtr, repoPtr->workspace().active_id());
+                if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) navigation::keep(*repoPtr, repoPtr->workspace().active_id());
             }
         } else {
             render_no_repo(ctx, logScroll.ent(), 0, "no_repo_log");
@@ -656,6 +706,39 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 private:
     std::string hoveredCommit_;
     std::string focusedCommit_;
+    // Per-commit display text (badges, tooltip, age) is identical every
+    // frame, but computing it allocates: decoration parsing, tooltip
+    // concatenation, and a mktime-based relative age. Cache it per log
+    // generation; the age bucket is one minute, matching its granularity.
+    struct CommitRowText {
+        std::vector<commit_log_detail::Decoration> badges;
+        std::string tooltip;
+        std::string age;
+    };
+    std::unordered_map<std::string, CommitRowText> commitRowText_;
+    std::string commitRowTextRepo_;
+    unsigned commitRowTextGeneration_ = 0;
+    long commitRowTextMinute_ = -1;
+
+    const CommitRowText& commit_row_text(const CommitEntry& commit, const RepoComponent& repo) {
+        const long minute = static_cast<long>(std::time(nullptr) / 60);
+        if (repo.repoPath != commitRowTextRepo_ || repo.dataGeneration != commitRowTextGeneration_ ||
+            minute != commitRowTextMinute_) {
+            commitRowText_.clear();
+            commitRowTextRepo_ = repo.repoPath;
+            commitRowTextGeneration_ = repo.dataGeneration;
+            commitRowTextMinute_ = minute;
+        }
+        auto [it, inserted] = commitRowText_.try_emplace(commit.hash);
+        if (inserted) {
+            it->second.badges = commit_log_detail::parse_decorations(commit.decorations);
+            it->second.tooltip = commit.subject + "\n" + commit.hash + "\n" + commit.decorations;
+            it->second.age = relative_time(commit.authorDate);
+        }
+        return it->second;
+    }
+    std::string histDragAnchor_;
+    bool histDragMoved_ = false;
     vec2 lastPrefetchMouse_{};
     bool hoverPrefetch_ = true;
     std::string commitFileQuery_;
@@ -713,6 +796,26 @@ private:
         ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
     }
 
+    // The document a commit-tree row opens: the file itself, as a source
+    // document at the open review's revision (the commit for a commit
+    // review, INDEX or working tree for working changes, the after side
+    // for a comparison), with the review kept as its origin. Clicking a
+    // file used to navigate inside the review (filtering the open commit
+    // view to that file); opening the file is what the click should do.
+    reading::SourceLocation commit_file_source(RepoComponent& repo, const std::string& path) {
+        const auto origin = repo.workspace().review();
+        return std::visit([&](const auto& destination) -> reading::SourceLocation {
+            using T = std::decay_t<decltype(destination)>;
+            if constexpr (std::is_same_v<T, reading::WorkingChanges>)
+                return destination.staged ? reading::source(path, "INDEX", 0, origin)
+                                           : reading::source(path, {}, 0, origin);
+            else if constexpr (std::is_same_v<T, reading::CommitReview>)
+                return reading::source(path, reading::revision_text(destination.commit), 0, origin);
+            else
+                return reading::source(path, reading::revision_text(destination.after), 0, origin);
+        }, origin.destination);
+    }
+
     void render_commit_files(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent* repo, float height) {
         auto* layout = find_singleton<LayoutComponent>();
@@ -757,10 +860,20 @@ private:
             .with_flex_direction(FlexDirection::Row).with_no_wrap()
             .with_padding(Padding{.left = pixels(14), .right = pixels(12)}).with_debug_name("changed_files_header"));
         const bool sectionCollapsed = repo && Settings::get().section_collapsed(repo->repoPath, "changes");
-        if (button(ctx, mk(heading.ent(), 0), preset::Button(std::string(sectionCollapsed ? "▸ " : "▾ ") + "CHANGED FILES" +
-            (files ? "  " + std::to_string(files->size()) : ""))
-            .with_size(ComponentSize{expand(), pixels(32)}).with_font("ui-bold", pixels(11)).with_transparent_bg()
-            .with_custom_text_color(theme::TEXT_TERTIARY).with_debug_name("changes_section_toggle")) && repo)
+        auto changesToggle = button(ctx, mk(heading.ent(), 0), preset::Button("")
+            .with_size(ComponentSize{expand(), pixels(32)}).with_transparent_bg()
+            .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
+            .with_justify_content(JustifyContent::FlexStart).with_gap(pixels(2)).with_no_wrap()
+            .with_debug_name("changes_section_toggle"));
+        ui::chrome_icon(ctx, mk(changesToggle.ent(), 0),
+            sectionCollapsed ? ui::ChromeIcon::ChevronRight : ui::ChromeIcon::ChevronDown,
+            theme::TEXT_TERTIARY, "changes_section_chevron");
+        div(ctx, mk(changesToggle.ent(), 1), ComponentConfig{}
+            .with_label("CHANGED FILES" + (files ? "  " + std::to_string(files->size()) : ""))
+            .with_size(ComponentSize{children(), children()}).with_font("ui-bold", pixels(12))
+            .with_custom_text_color(theme::TEXT_TERTIARY)
+            .with_debug_name("changes_section_label"));
+        if (changesToggle && repo)
             Settings::get().set_section_collapsed(repo->repoPath, "changes", !sectionCollapsed);
         if (files && review) {
             const auto* origin = repo && source_tab_active(*repo) ? repo->workspace().retained_review() : nullptr;
@@ -789,7 +902,7 @@ private:
                 }
             } else {
                 div(ctx, mk(heading.ent(), 1), preset::BodyText(std::to_string(progress.reviewed) + " / " + std::to_string(progress.total))
-                    .with_size(ComponentSize{pixels(64), pixels(32)}).with_font("mono", pixels(11))
+                    .with_size(ComponentSize{pixels(64), pixels(32)}).with_font("mono", pixels(12))
                     .with_alignment(TextAlignment::Right).with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_debug_name("tree_review_progress"));
             }
@@ -885,13 +998,13 @@ private:
                     .with_debug_name("commit_changed_file"));
                 ui::bind_tree_row(ctx, row.ent(), *repo, treeState, node.path);
                 div(ctx, mk(row.ent(), 3), ComponentConfig{}.with_label(ui::file_tree_style::type_marker(node.path))
-                    .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(11))
+                    .with_size(ComponentSize{pixels(24), pixels(28)}).with_font("mono", pixels(12))
                     .with_custom_text_color(theme::TEXT_ACCENT).with_debug_name("tree_file_type"));
                 auto fileLabel = div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(sidebar_detail::basename_from_path(node.path))
                         .with_size(ComponentSize{expand(), pixels(28)}).with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY).with_alignment(TextAlignment::Left)
                         .with_padding(Padding{.left = pixels(0)}).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                        .with_font_size(pixels(13)).with_debug_name("jump_to_diff:" + node.path));
+                        .with_font_size(pixels(14)).with_debug_name("jump_to_diff:" + node.path));
                 ui::set_truncated_tooltip(row.ent(), node.path, fileLabel.ent());
                 if (row) selectedPath = file.filePath;
                 if (ctx.is_right_click(row.ent().id)) {
@@ -914,22 +1027,26 @@ private:
                     ui::file_tree_style::review_indicator(ctx, row.ent(), reviewed,
                         unresolved_file_count(*review, scope, file.filePath, file.oldPath), changed);
                 }
+                // Natural-width counts: each used to own a fixed 32px
+                // right-aligned column, so "+3" and "-1" floated in 68px of
+                // mostly-empty space. Sized to their text they sit one row
+                // gap (4px) apart and the filename gets the room back.
                 if (file.additions > 0) div(ctx, mk(row.ent(), 1), ComponentConfig{}
                     .with_label("+" + std::to_string(file.additions))
-                    .with_size(ComponentSize{pixels(32), pixels(28)}).with_font("mono", pixels(11))
+                    .with_size(ComponentSize{children(), pixels(28)}).with_font("mono", pixels(12))
                     .with_custom_text_color(theme::DIFF_ADD_TEXT).with_alignment(TextAlignment::Right)
                     .with_debug_name("tree_additions"));
                 if (file.deletions > 0) div(ctx, mk(row.ent(), 2), ComponentConfig{}
                     .with_label("-" + std::to_string(file.deletions))
-                    .with_size(ComponentSize{pixels(32), pixels(28)}).with_font("mono", pixels(11))
+                    .with_size(ComponentSize{children(), pixels(28)}).with_font("mono", pixels(12))
                     .with_custom_text_color(theme::DIFF_DEL_TEXT).with_alignment(TextAlignment::Right)
                     .with_debug_name("tree_deletions"));
             }, config);
         if (move && move->open) {
-            if (move->keep) navigation::click(*repo, reading::review(scope, move->path), true);
-            else navigation::preview(*repo, reading::review(scope, move->path));
+            if (move->keep) navigation::click(*repo, commit_file_source(*repo, move->path), true);
+            else navigation::preview(*repo, commit_file_source(*repo, move->path));
             treeState.pendingFocus = true;
-        } else if (selectedPath) navigation::click(*repo, reading::review(scope, *selectedPath), afterhours::input::is_key_pressed(257));
+        } else if (selectedPath) navigation::click(*repo, commit_file_source(*repo, *selectedPath), afterhours::input::is_key_pressed(afterhours::keys::ENTER));
     }
 
     // ---- Sidebar mode toggle (T031) ----
@@ -980,7 +1097,7 @@ private:
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = pixels(3)})
-                .with_font_size(FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_transparent_bg()
                 .with_roundness(0.0f)
                 .with_debug_name("tab_" + label);
@@ -1106,18 +1223,6 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("sync_row"));
 
-        div(ctx, mk(row.ent(), 2086),
-            ComponentConfig{}
-                .with_label("Sync")
-                // Match the button-row height so the caption text sits on the
-                // same vertical center as the Push/Pull/Stash buttons (#23).
-                .with_size(ComponentSize{children(), h720(22)})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(FontSize::Small)
-                .with_transparent_bg()
-                .with_roundness(0.0f)
-                .with_debug_name("sync_caption"));
-
         auto syncBtn = [&](int id, const std::string& label, bool enabled) -> bool {
             // Compact, not expand(): stretching these across the row loses the
             // mock's look. Tighter side padding is what makes all three fit a
@@ -1127,7 +1232,7 @@ private:
                 .with_padding(Padding{
                     .top = pixels(3), .right = pixels(6),
                     .bottom = pixels(3), .left = pixels(6)})
-                .with_font_size(FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("sync_btn");
             if (enabled)
@@ -1260,14 +1365,14 @@ private:
                 .with_label(txt)
                 .with_size(ComponentSize{expand(), pixels(20)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(11))
+                .with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("prog_text"));
     }
 
     // Height of the multi-line commit message box (720-space). Kept in sync
     // with COMMIT_AREA_H_720, which reserves the whole commit area's space.
-    static constexpr float COMMIT_INPUT_H_720 = 60.0f;
+    static constexpr float COMMIT_INPUT_H_720 = 44.0f;
 
     // ---- Commit area (VS Code parity: always-visible input + button) ----
     void render_commit_area(UIContext<InputAction>& ctx,
@@ -1305,7 +1410,7 @@ private:
                     .with_label(hint)
                     .with_size(ComponentSize{childW, h720(16)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(FontSize::Small)
+                    .with_font_size(pixels(12))
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("commit_hint"));
@@ -1340,7 +1445,7 @@ private:
         auto commitBtn = button(ctx, mk(commitArea.ent(), 2),
             preset::Button("Commit", hasStaged)
                 .with_size(ComponentSize{childW, h720(24)})
-                .with_font_size(FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_debug_name("commit_btn_inline"));
 
         if (commitBtn && hasStaged) {
@@ -1384,7 +1489,7 @@ private:
                     .with_padding(Padding{
                         .top = h720(2), .right = pixels(8),
                         .bottom = h720(2), .left = pixels(8)})
-                    .with_font_size(FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_debug_name("new_branch_btn"));
 
             if (newBranchBtn) {
@@ -1491,7 +1596,7 @@ private:
                 .with_label(branch.name)
                 .with_size(ComponentSize{afterhours::ui::expand(), h720(ROW_H)})
                 .with_custom_text_color(nameColor)
-                .with_font_size(FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
@@ -1507,7 +1612,7 @@ private:
                         .top = h720(0), .right = pixels(4),
                         .bottom = h720(0), .left = pixels(4)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_alignment(TextAlignment::Right)
                     .with_roundness(0.0f)
                     .with_debug_name("branch_tracking"));
@@ -1810,7 +1915,7 @@ private:
 
         makeTab(2121, "Changed", LayoutComponent::FileViewMode::Flat);
         makeTab(2122, "Tree", LayoutComponent::FileViewMode::Tree);
-        makeTab(2123, "All", LayoutComponent::FileViewMode::All);
+        makeTab(2123, "Explorer", LayoutComponent::FileViewMode::All);
     }
 
     // Render the file list with Staged, Changes, and Untracked sections
@@ -1830,6 +1935,7 @@ private:
     std::set<std::string> treeCollapsed_;
     bool treeMode_ = false;
     bool allFilesMode_ = false;
+    std::set<std::string> explorerCollapsed_;
     std::vector<size_t> fileIndices_;
     std::vector<char> treeKinds_;
     struct FileRowsKey {
@@ -1840,8 +1946,6 @@ private:
         unsigned paths;
         LayoutComponent::ReviewTab tab;
         LayoutComponent::FileViewMode mode;
-        review_files::Filter filter;
-        std::set<std::pair<std::string, bool>> unresolved;
         bool operator==(const FileRowsKey&) const = default;
     };
     std::optional<FileRowsKey> fileRowsKey_;
@@ -1854,22 +1958,21 @@ private:
         allFilesMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::All;
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
         auto tab = active_review_tab();
-        FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, repo.allFilePathsGeneration, tab, layout.fileViewMode, repo.fileFilter};
+        FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, repo.allFilePathsGeneration, tab, layout.fileViewMode};
         if (allFilesMode_) {
-            if (!fileRowsKey_ || *fileRowsKey_ != key) {
-                std::vector<file_tree::Row> rows;
-                rows.reserve(repo.allFilePaths.size());
-                for (size_t i = 0; i < repo.allFilePaths.size(); ++i) rows.push_back({repo.allFilePaths[i], i, 0, false});
-                publish(std::move(rows));
+            // Explorer: every file in the repo (tracked + untracked,
+            // gitignore-respecting) as a collapsible directory tree, so the
+            // whole codebase can be browsed like a local file explorer.
+            auto collapsedIt = layout.collapsedDirectories.find(repo.repoPath);
+            const std::set<std::string> noCollapsed;
+            const auto& collapsed = collapsedIt == layout.collapsedDirectories.end() ? noCollapsed : collapsedIt->second;
+            if (!fileRowsKey_ || *fileRowsKey_ != key || collapsed != explorerCollapsed_) {
+                explorerCollapsed_ = collapsed;
+                publish(file_tree::flatten(repo.allFilePaths, explorerCollapsed_));
                 fileRowsKey_ = std::move(key);
             }
             return;
         }
-        auto* review = find_singleton<ReviewComponent, ActiveTab>();
-        std::string scope = tab == LayoutComponent::ReviewTab::Staged ? "index" : "wt";
-        if (repo.fileFilter.onlyUnresolved && review)
-            for (const auto& comment : review->comments)
-                if (!comment.resolved && comment.scope == scope) key.unresolved.emplace(comment.file, comment.oldSide);
         auto it = layout.collapsedDirectories.find(repo.repoPath);
         const std::set<std::string> noCollapsedDirectories;
         const auto& collapsed = it == layout.collapsedDirectories.end() ? noCollapsedDirectories : it->second;
@@ -1883,12 +1986,12 @@ private:
         fileRowsKey_ = std::move(key);
         std::vector<std::string> paths;
         fileIndices_.clear();
-        auto append = [&](const std::string& path, size_t index, char change, const std::string& oldPath = "") {
-            if (review_files::matches(repo.fileFilter, path, change) &&
-                (!repo.fileFilter.onlyUnresolved || (review && unresolved_file_count(*review, scope, path, oldPath) > 0))) {
-                paths.push_back(path);
-                fileIndices_.push_back(index);
-            }
+        // The working-changes list always shows every changed file. The
+        // review filters (repo.fileFilter) belong to the diff pane's
+        // review views; they never cut this list down.
+        auto append = [&](const std::string& path, size_t index, char /*change*/, const std::string& /*oldPath*/ = "") {
+            paths.push_back(path);
+            fileIndices_.push_back(index);
         };
         // Combined: staged first, then unstaged, then untracked (a path can
         // appear twice, once per section, when partially staged).
@@ -1921,7 +2024,7 @@ private:
     }
 
     size_t active_file_count(const RepoComponent& repo) const {
-        if (allFilesMode_) return repo.allFilePaths.size();
+        if (allFilesMode_) return treeRows_.size();
         if (treeMode_) return treeRows_.size();
         return fileIndices_.size();
     }
@@ -1929,12 +2032,21 @@ private:
     void render_active_file_row(UIContext<InputAction>& ctx, Entity& row,
                                 size_t i, RepoComponent& repo) {
         if (allFilesMode_) {
-            const auto& path = repo.allFilePaths[i];
+            const auto& node = treeRows_[i];
+            if (node.directory) {
+                if (ui::file_tree_style::directory(ctx, row, node, sidebarPixelWidth_,
+                        file_tree::directory_collapsed(node, explorerCollapsed_), "explorer_directory:" + node.path, repo, repo.filesTreeNavigation)) {
+                    auto& collapsed = find_singleton<LayoutComponent>()->collapsedDirectories[repo.repoPath];
+                    file_tree::toggle_directory(node, collapsed);
+                }
+                return;
+            }
+            const auto& path = repo.allFilePaths[node.sourceIndex];
             char status = ' ';
             for (const auto& file : repo.stagedFiles) if (file.path == path) status = file.indexStatus;
             for (const auto& file : repo.unstagedFiles) if (file.path == path) status = file.workTreeStatus;
             if (std::find(repo.untrackedFiles.begin(), repo.untrackedFiles.end(), path) != repo.untrackedFiles.end()) status = 'U';
-            render_file_row_impl(ctx, row, 0, path, status, repo, false, false);
+            render_file_row_impl(ctx, row, 0, path, status, repo, false, false, {}, node.depth);
             return;
         }
         size_t depth = 0;
@@ -1979,11 +2091,12 @@ private:
                 .with_debug_name("repository_read_error"));
             return;
         }
-        if (!allFilesMode_ && (!repo.stagedFiles.empty() || !repo.unstagedFiles.empty() || !repo.untrackedFiles.empty()) &&
-            (repo.fileFilter.hideGenerated || repo.fileFilter.hideVendor || repo.fileFilter.hideLockfiles ||
-             repo.fileFilter.onlyUnresolved || !repo.fileFilter.language.empty() || repo.fileFilter.change != ' ') && fileIndices_.empty()) {
-            div(ctx, mk(scrollParent, 2598), preset::EmptyStateText("No files match the review filters")
-                .with_size(ComponentSize{percent(1.f), h720(28)}).with_debug_name("filtered_files_empty"));
+        if (allFilesMode_) {
+            // Only reached when the explorer tree is empty (the windowed
+            // list handles the non-empty case).
+            div(ctx, mk(scrollParent, 2500), preset::EmptyStateText(repo.hasLoadedOnce ? "No files in this repository" : "Loading files...")
+                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_debug_name("explorer_empty"));
             return;
         }
         bool empty = repo.stagedFiles.empty() &&
@@ -2095,7 +2208,7 @@ private:
 
         std::string fname = sidebar_detail::basename_from_path(path);
         std::string dir = sidebar_detail::dir_from_path(path);
-        if (treeMode_) {
+        if (treeMode_ || allFilesMode_) {
             dir.clear();
         }
         // Submodules show "S" (gitlink pointer change) rather than the raw M/A.
@@ -2129,7 +2242,7 @@ private:
         div(ctx, mk(row.ent(), 3),
             preset::MetaText(statusStr)
                 .with_size(ComponentSize{pixels(STATUS_W), pixels(28)})
-                .with_font("mono", pixels(11))
+                .with_font("mono", pixels(12))
                 .with_custom_text_color(statusCol)
                 .with_alignment(TextAlignment::Center)
                 .with_debug_name("file_status"));
@@ -2137,7 +2250,7 @@ private:
         auto fileLabel = div(ctx, mk(row.ent(), 1),
             preset::BodyText(fname)
                 .with_size(ComponentSize{afterhours::ui::expand(), pixels(28)})
-                .with_font_size(pixels(13))
+                .with_font_size(pixels(14))
                 .with_custom_text_color(textCol)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("file_name"));
@@ -2150,7 +2263,7 @@ private:
                 preset::MetaText(dir)
                     .with_size(ComponentSize{pixels(dirW), children()})
                     .with_custom_text_color(dirCol)
-                    .with_font_size(FontSize::Small)
+                    .with_font_size(pixels(12))
                     .with_alignment(TextAlignment::Left)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("file_dir"));
@@ -2173,8 +2286,8 @@ private:
         if (row.ent().get<HasClickListener>().down) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
-                if (allFilesMode_) navigation::click(*r, reading::source(path), afterhours::input::is_key_pressed(257));
-                else navigation::click(*r, reading::review(staged ? "index" : "wt", path), afterhours::input::is_key_pressed(257));
+                if (allFilesMode_) navigation::click(*r, reading::source(path), afterhours::input::is_key_pressed(afterhours::keys::ENTER));
+                else navigation::click(*r, reading::review(staged ? "index" : "wt", path), afterhours::input::is_key_pressed(afterhours::keys::ENTER));
             }
         }
 
@@ -2291,11 +2404,10 @@ private:
         const auto owner = ui::shortcut_owner(ctx, repo);
         if (owner.region != reading::focus::Region::History || owner.text || repo.commitLog.empty() ||
             ui::shortcuts_blocked(layout) || layout.filePickerOpen) return {};
-        for (const int key : {341, 345, 342, 346, 343, 347})
-            if (afterhours::input::is_key_down(key)) return {};
-        const bool up = afterhours::input::is_key_pressed(265);
-        const bool down = afterhours::input::is_key_pressed(264);
-        const bool enter = afterhours::input::is_key_pressed(257);
+        if (any_modifier_down()) return {};
+        const bool up = afterhours::input::is_key_pressed(afterhours::keys::UP);
+        const bool down = afterhours::input::is_key_pressed(afterhours::keys::DOWN);
+        const bool enter = afterhours::input::is_key_pressed(afterhours::keys::ENTER);
         if (!up && !down && !enter) return {};
         auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
         const auto target = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
@@ -2340,7 +2452,8 @@ private:
         int baseId = index * 2 + 10;
         float sidebarW = sidebarPixelWidth_ > 0 ? sidebarPixelWidth_ : 300.0f;
 
-        auto badges = commit_log_detail::parse_decorations(commit.decorations);
+        const auto& rowText = commit_row_text(commit, repo);
+        const auto& badges = rowText.badges;
 
         constexpr float DOT_SIZE = 8.0f;
         constexpr float LINE_W = 1.0f;
@@ -2367,7 +2480,7 @@ private:
                 .with_gap(pixels(2))
                 .with_debug_name("commit_row"));
         ui::bind_focus(row.ent(), repo, reading::focus::Region::History, commit.hash);
-        ui::set_tooltip(row.ent(), commit.subject + "\n" + commit.hash + "\n" + commit.decorations);
+        ui::set_tooltip(row.ent(), rowText.tooltip);
 
         row.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
         if (focus) ctx.set_focus(row.ent().id);
@@ -2421,7 +2534,14 @@ private:
             dotCfg = dotCfg.with_custom_background(theme::SIDEBAR_BG)
                            .with_border(theme::TEXT_SECONDARY, pixels(1.f));
         }
-        div(ctx, mk(graphWrap.ent(), 2), dotCfg);
+        // The dot is the commit's node in the history graph (the vertical
+        // line is its branch lane) — filled accent = HEAD or the selected
+        // commit, hollow = any other commit. Nothing on screen said that,
+        // so say it on hover.
+        auto dot = div(ctx, mk(graphWrap.ent(), 2), dotCfg);
+        ui::set_tooltip(dot.ent(), isHead ? "HEAD \xe2\x80\x94 the commit your working tree is on"
+                                          : selected ? "Selected commit"
+                                                     : "Commit in the history graph");
 
         auto text = div(ctx, mk(row.ent(), 2), ComponentConfig{}
             .with_size(ComponentSize{expand(), pixels(ROW_H)})
@@ -2431,7 +2551,7 @@ private:
         div(ctx, mk(text.ent(), 0), preset::BodyText(commit.subject)
             .with_size(ComponentSize{expand(), pixels(22)})
             .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
-            .with_font_size(pixels(13)).with_text_inset(0.f).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_font_size(pixels(14)).with_text_inset(0.f).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("commit_subject"));
         auto metadata = div(ctx, mk(text.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{children(), pixels(20)})
@@ -2442,7 +2562,7 @@ private:
             for (const auto& value : badges)
                 if (value.type == commit_log_detail::DecorationType::Head) badge = &value;
             div(ctx, mk(metadata.ent(), 2), preset::Badge(badge->label, theme::BUTTON_SECONDARY, theme::TEXT_SECONDARY)
-                .with_size(ComponentSize{pixels(54), pixels(18)}).with_font_size(pixels(11))
+                .with_size(ComponentSize{pixels(54), pixels(18)}).with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_badge"));
         }
         int commentCount = 0;
@@ -2451,19 +2571,58 @@ private:
                 if (comment.scope == commit.hash && !comment.resolved) ++commentCount;
         if (commentCount > 0)
             div(ctx, mk(metadata.ent(), 3), preset::Badge(std::to_string(commentCount), theme::BUTTON_SECONDARY, theme::STATUS_MODIFIED)
-                .with_size(ComponentSize{pixels(22), pixels(18)}).with_font_size(pixels(11))
+                .with_size(ComponentSize{pixels(22), pixels(18)}).with_font_size(pixels(12))
                 .with_debug_name("commit_comment_badge"));
-        div(ctx, mk(metadata.ent(), 1), preset::MetaText(relative_time(commit.authorDate))
-            .with_size(ComponentSize{pixels(34), pixels(20)}).with_font_size(pixels(11))
+        div(ctx, mk(metadata.ent(), 1), preset::MetaText(rowText.age)
+            .with_size(ComponentSize{pixels(34), pixels(20)}).with_font_size(pixels(12))
             .with_alignment(TextAlignment::Right).with_text_inset(0.f).with_debug_name("commit_age"));
 
-        // Click -> select this commit
-        if (acceptClick && row.ent().get<HasClickListener>().down) {
+        // Arm drag range-select from the frame-level press state, not from
+        // HasClickListener.down: that flag lives for one frame between two
+        // systems, and a tight press->move->release sequence (e2e drag_to,
+        // fast real drags) can slip past the render that would read it.
+        // just_pressed + hit test is visible identically to every system.
+        if (acceptClick && ctx.mouse.just_pressed &&
+            afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(row.ent()))) {
+            histDragAnchor_ = any_modifier_down() ? std::string{} : commit.hash;
+            histDragMoved_ = false;
+            if (!any_modifier_down()) {
+                if (auto* r = find_singleton<RepoComponent, ActiveTab>()) select_history(*r, commit.hash);
+            }
+        }
+        // Click -> select this commit. Skipped for the pressed row when the
+        // press turned into a drag: the click latch can land on the release
+        // frame (after the range already formed), and a plain select here
+        // would collapse the range back to the single pressed commit.
+        if (acceptClick && row.ent().get<HasClickListener>().down &&
+            !(histDragMoved_ && commit.hash == histDragAnchor_)) {
             auto* r = find_singleton<RepoComponent, ActiveTab>();
             if (r) {
                 select_history(*r, commit.hash);
-                navigation::click(*r, reading::review(commit.hash), afterhours::input::is_key_pressed(257), reading::ClickRegion::History);
+                navigation::click(*r, reading::review(commit.hash), afterhours::input::is_key_pressed(afterhours::keys::ENTER), reading::ClickRegion::History);
             }
+        }
+        // Drag range-select: holding the button and moving onto other rows
+        // extends the selection from the pressed row (whose hash the plain
+        // select above left in HistorySelection::anchor).
+        if (!histDragAnchor_.empty()) {
+            // press_moved is reset on the release frame, so latch it, and on
+            // release also derive it from the press->release distance: a fast
+            // drag can land and let go with no held frame ever rendering.
+            const float pressDx = ctx.mouse.pos.x - ctx.mouse.press_pos.x;
+            const float pressDy = ctx.mouse.pos.y - ctx.mouse.press_pos.y;
+            const float threshold = afterhours::ui::MousePointerState::press_drag_threshold_px;
+            if (ctx.mouse.press_moved ||
+                (pressDx * pressDx + pressDy * pressDy) > threshold * threshold)
+                histDragMoved_ = true;
+            const bool overRow = histDragMoved_ && commit.hash != histDragAnchor_ &&
+                afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(row.ent()));
+            if (overRow && (ctx.mouse.left_down || ctx.mouse.just_released)) {
+                std::vector<std::string> visible;
+                for (const CommitEntry& entry : repo.commitLog) visible.push_back(entry.hash);
+                repo.historySelection.select(visible, commit.hash, true, false);
+            }
+            if (!ctx.mouse.left_down) { histDragAnchor_.clear(); histDragMoved_ = false; }
         }
         if (ctx.is_right_click(row.ent().id)) {
             ui::remember_focus_origin(ctx, row.ent());
@@ -2507,12 +2666,27 @@ private:
         repo.historyRestorePosition = true;
     }
 
+    // Modifier state by name — never raw key codes at call sites.
+    static bool shift_down() {
+        return afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) ||
+               afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
+    }
+    static bool cmd_down() {
+        return afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
+               afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
+               afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) ||
+               afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL);
+    }
+    static bool alt_down() {
+        return afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) ||
+               afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
+    }
+    static bool any_modifier_down() { return shift_down() || cmd_down() || alt_down(); }
+
     static void select_history(RepoComponent& repo, const std::string& hash) {
         std::vector<std::string> visible;
         for (const auto& entry : repo.commitLog) visible.push_back(entry.hash);
-        repo.historySelection.select(visible, hash,
-            afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344),
-            afterhours::input::is_key_down(343) || afterhours::input::is_key_down(347));
+        repo.historySelection.select(visible, hash, shift_down(), cmd_down());
     }
 
     // ---- Unstaged Changes Dialog (T030) ----

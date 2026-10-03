@@ -2,7 +2,6 @@ resize 1280 720
 make_test_repo
 wait_for_refresh
 wait_frames 15
-click_ui sidebar_working_files
 click_ui working_review_toggle
 wait_frames 10
 # Click a file -> shelf expands, diff renders

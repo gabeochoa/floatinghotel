@@ -25,6 +25,7 @@
 #include "../ui/file_tree_style.h"
 #include "../ui/chrome_icons.h"
 #include "../ui/text_area.h"
+#include "../ui/welcome.h"
 #include "../util/navigation.h"
 #include "../util/document_titles.h"
 #include "../util/tab_strip.h"
@@ -40,7 +41,26 @@ struct DocumentStripState : afterhours::BaseComponent {
     float viewport = 0;
     float content = 0;
     float scale = 1;
+    // document_titles() is O(tabs^2) with path allocations; its inputs
+    // change rarely, so cache the result under a cheap content key.
+    std::vector<reading::DocumentTitle> titles;
+    std::size_t titlesKey = 0;
+    bool titlesCached = false;
 };
+
+inline std::size_t document_titles_key(const reading::ReadingWorkspace& workspace) {
+    std::size_t key = workspace.generation() * 1315423911u + workspace.documents().size();
+    for (const auto& document : workspace.documents()) {
+        std::size_t h = std::hash<std::string>{}(document.subject);
+        h = h * 31 + document.id.value;
+        h = h * 31 + (document.editDirty ? 1u : 0u);
+        h = h * 31 + document.location.index();
+        if (const auto* source = std::get_if<reading::SourceLocation>(&document.location))
+            h = h * 31 + std::hash<std::string>{}(source->destination.path);
+        key = key * 131 + h;
+    }
+    return key;
+}
 
 inline bool review_persistence_enabled() {
     return !app_state::testModeEnabled ||
@@ -374,9 +394,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         }
         if (repoPtr) cancel_hidden_file_read(*repoPtr);
         if (repoPtr && repoPtr->hasLoadedOnce) {
-            bool alt = afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346);
-            if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(263)) navigation::step(*repoPtr, -1);
-            if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(262)) navigation::step(*repoPtr, 1);
+            bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
+            if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(afterhours::keys::LEFT)) navigation::step(*repoPtr, -1);
+            if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(afterhours::keys::RIGHT)) navigation::step(*repoPtr, 1);
             if (repoPtr->navigationEffect) {
                 revealActiveDocument = true;
                 layout.readingPanelCollapsed.reset();
@@ -487,7 +507,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             const auto* recentSource = workspace.recent(reading::Slot::Source);
             std::optional<reading::DocumentId> activate;
             std::optional<reading::DocumentId> closeDocument;
-            const auto titles = reading::document_titles(workspace.documents());
+            const std::size_t titlesKey = document_titles_key(workspace) ^
+                (std::hash<std::string>{}(repoPtr->repoPath) * 2654435761u);
+            if (!stripState.titlesCached || stripState.titlesKey != titlesKey) {
+                stripState.titles = reading::document_titles(workspace.documents());
+                stripState.titlesKey = titlesKey;
+                stripState.titlesCached = true;
+            }
+            const auto& titles = stripState.titles;
             auto measure = [&](const std::string& text, float size) {
                 return afterhours::ui::measure_text_line(text, afterhours::ui::UIComponent::DEFAULT_FONT,
                     size * ui::zoom::get()).x / ui::zoom::get();
@@ -552,6 +579,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 scroll.scroll_target.x = scroll.scroll_offset.x;
             }
             const auto insertion = reading::tab_insertion(widths, pointerX + scroll.scroll_offset.x / scale);
+            const bool middlePressed = afterhours::input::is_mouse_button_pressed(2);
             size_t titleIndex = 0;
             for (const auto& document : workspace.documents()) {
                 const auto* source = std::get_if<reading::SourceLocation>(&document.location);
@@ -584,7 +612,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name(alias));
                 if (!label.badge.empty()) div(ctx, mk(tab.ent(), 13), ComponentConfig{}.with_label(label.badge)
                     .with_size(ComponentSize{pixels(std::min(badgeWidth, width * .4f)), pixels(20)})
-                    .with_font_size(pixels(11)).with_text_inset(4.f)
+                    .with_font_size(pixels(12)).with_text_inset(4.f)
                     .with_custom_text_color(theme::TEXT_SECONDARY).with_custom_background(theme::BUTTON_SECONDARY)
                     .with_corner_radius(4.f).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("document_revision_badge"));
@@ -617,6 +645,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_custom_background(closeHovered ? theme::BUTTON_SECONDARY : afterhours::Color{0, 0, 0, 0})
                     .with_corner_radius(4.f).with_debug_name("document_close_glyph"));
                 if (close && !suppressTabActions) closeDocument = document.id;
+                if (middlePressed && !suppressTabActions && !ui::is_context_menu_open() &&
+                    afterhours::ui::is_mouse_inside(ctx.mouse.pos,
+                        afterhours::ui::detail::hit_rect(tab.ent(), tab.ent().get<afterhours::ui::UIComponent>())))
+                    closeDocument = document.id;
                 if (!tabDrag && ctx.mouse.just_pressed && !ui::is_context_menu_open() &&
                     ctx.is_input_allowed(tab.ent().id) &&
                     afterhours::ui::is_mouse_inside(ctx.mouse.pos,
@@ -687,7 +719,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (closeDocument) navigation::close(*repoPtr, *closeDocument);
             else if (activate) {
                 if (const auto* document = workspace.document(*activate))
-                    navigation::click(*repoPtr, document->location, afterhours::input::is_key_pressed(257), reading::ClickRegion::Tabs);
+                    navigation::click(*repoPtr, document->location, afterhours::input::is_key_pressed(afterhours::keys::ENTER), reading::ClickRegion::Tabs);
             }
         }
 
@@ -756,36 +788,41 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_size(ComponentSize{children(), pixels(30)}))) close_review_queue(*repoPtr);
             return;
         }
-        // Cmd/Super held? (GLFW 343/347 = L/R Super) — shared by the vim cursor
-        // gate and the ⌘⏎ send-all shortcut below.
-        bool superDown = afterhours::input::is_key_down(343) ||
-                         afterhours::input::is_key_down(347) ||
-                         afterhours::input::is_key_down(341);
-        if (!shortcutsActive && !ui::shortcuts_blocked(layout) && superDown && afterhours::input::is_key_pressed(70)) {
-            if (repoPtr && afterhours::input::is_key_down(340)) {
+        // Two modifier classes, kept distinct: window controls (Find,
+        // Go to File, ⌘⏎ send-all) require real Command/Super — Control
+        // belongs to vim motions (Ctrl+F/B page, Ctrl+D/U half page), so
+        // it must not trigger them. superDown (Super or Control) is only
+        // the "a command-ish modifier is held" gate that keeps plain
+        // keys (j/k/Enter below) from firing alongside a chord.
+        bool cmdDown = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
+                       afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER);
+        bool superDown = cmdDown ||
+                         afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL);
+        if (!shortcutsActive && !ui::shortcuts_blocked(layout) && cmdDown && afterhours::input::is_key_pressed(afterhours::keys::F)) {
+            if (repoPtr && afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT)) {
                 open_repo_search(*repoPtr);
                 layout.filePickerOpen = false;
             } else {
                 if (repoPtr) ui::open_find(*repoPtr);
             }
         }
-        if (!shortcutsActive && !ui::shortcuts_blocked(layout) && superDown && afterhours::input::is_key_pressed(80)) {
+        if (!shortcutsActive && !ui::shortcuts_blocked(layout) && cmdDown && afterhours::input::is_key_pressed(afterhours::keys::P)) {
             layout.filePickerPosition = {};
             layout.filePickerOpen = true;
             layout.filePickerFocus = true;
         }
         const bool readingKeys = repoPtr && !shortcutsActive && ui::reader_shortcuts(ctx, *repoPtr, layout);
-        if (readingKeys && (afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345)) && afterhours::input::is_key_pressed(71))
+        if (readingKeys && (afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL)) && afterhours::input::is_key_pressed(afterhours::keys::G))
             open_line_picker(*repoPtr, layout);
         if (readingKeys && !superDown && (!reviewPtr || reviewPtr->composingKey.empty()) &&
-            activeDocumentFocused && afterhours::input::is_key_pressed(257))
+            activeDocumentFocused && afterhours::input::is_key_pressed(afterhours::keys::ENTER))
             navigation::keep(*repoPtr, repoPtr->workspace().active_id());
         if (readingKeys && reviewPtr && !source_tab_active(*repoPtr) &&
             reviewPtr->composingKey.empty()) {
             if (!superDown) {
                 int direction = 0;
-                if (afterhours::input::is_key_pressed(74) || afterhours::input::is_key_pressed(78)) direction = 1;
-                if (afterhours::input::is_key_pressed(75)) direction = -1;
+                if (afterhours::input::is_key_pressed(afterhours::keys::J) || afterhours::input::is_key_pressed(afterhours::keys::N)) direction = 1;
+                if (afterhours::input::is_key_pressed(afterhours::keys::K)) direction = -1;
                 if (direction != 0) {
                     const auto notice = ui::navigate_change(*repoPtr, *reviewPtr, direction);
                     if (!notice.empty()) afterhours::toast::send_info(ctx, notice, 1.5f);
@@ -794,15 +831,15 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 const auto target = diff_target(scope);
                 const bool reviewActions = scope == "wt" || reviewPtr->reviewing ||
                     target.kind == DiffTarget::Kind::Comparison || target.kind == DiffTarget::Kind::ParentComparison;
-                if (reviewActions && reviewPtr->hunkCount > 0 && afterhours::input::is_key_pressed(65)) reviewPtr->cursorApprove = true;
-                if (reviewActions && reviewPtr->hunkCount > 0 && afterhours::input::is_key_pressed(67)) reviewPtr->cursorComment = true;
+                if (reviewActions && reviewPtr->hunkCount > 0 && afterhours::input::is_key_pressed(afterhours::keys::A)) reviewPtr->cursorApprove = true;
+                if (reviewActions && reviewPtr->hunkCount > 0 && afterhours::input::is_key_pressed(afterhours::keys::C)) reviewPtr->cursorComment = true;
             }
         }
 
         if (reviewPtr && !reviewPtr->comments.empty()) {
             if (!shortcutsActive && repoPtr && !ui::shortcuts_blocked(layout) && ui::reader_visible(*repoPtr, layout) &&
                 ui::shortcut_owner(ctx, *repoPtr).region == reading::focus::Region::Feedback &&
-                !ui::shortcut_owner(ctx, *repoPtr).text && superDown && afterhours::input::is_key_pressed(257))
+                !ui::shortcut_owner(ctx, *repoPtr).text && cmdDown && afterhours::input::is_key_pressed(afterhours::keys::ENTER))
                 send_review(ctx, *reviewPtr, repoPtr);
             if (reviewPtr->basketOpen && layout.feedback.width > 0)
                 render_basket(ctx, uiRoot, *reviewPtr, repoPtr, layout.feedback);
@@ -878,7 +915,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             float diffW = layout.mainContent.width;
             div(ctx, mk(mainBg.ent(), 592009), ComponentConfig{}
                 .with_label("Working changes · " + std::to_string(stagedFiles.size() + unstagedFiles.size()) + " files")
-                .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font("ui-bold", pixels(20))
+                .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font("ui-bold", pixels(16))
                 .with_debug_name("working_review_heading"));
             auto baselineActions = div(ctx, mk(mainBg.ent(), 592010), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
@@ -991,7 +1028,40 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             return;
         }
 
-        if (hasSelectedFile) {
+        if (const auto* working = std::get_if<reading::WorkingChanges>(&repo.workspace().review().destination);
+            working && !hasSelectedFile && !hasSelectedCommit) {
+            // Working-changes document with no file picked: show the whole
+            // section's changes stacked on one page instead of an empty
+            // prompt that makes the user click every file.
+            const auto& files = working->staged ? repo.stagedDiff : repo.currentDiff;
+            const std::string sectionName = working->staged ? "Staged changes" : "Unstaged changes";
+            float diffW = layout.mainContent.width;
+            div(ctx, mk(mainBg.ent(), 592100), ComponentConfig{}
+                .with_label(sectionName + " · " + std::to_string(files.size()) + (files.size() == 1 ? " file" : " files"))
+                .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font("ui-bold", pixels(16))
+                .with_debug_name("working_section_heading"));
+            if (files.empty()) {
+                div(ctx, mk(mainBg.ent(), 592101), ComponentConfig{}
+                    .with_label(working->staged ? "No staged changes" : "No unstaged changes")
+                    .with_size(ComponentSize{percent(1.f), pixels(28)})
+                    .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(14))
+                    .with_debug_name("working_section_empty"));
+            } else {
+                float diffH = layout.mainContent.height - 62.f;
+                auto pageScroll = div(ctx, mk(mainBg.ent(), 592102), ComponentConfig{}.with_skip_grid_snap()
+                    .with_size(ComponentSize{percent(1.f), pixels(diffH)})
+                    .with_overflow(Overflow::Scroll).with_flex_direction(FlexDirection::Column).with_no_wrap()
+                    .with_custom_background(theme::PANEL_BG).with_roundness(0.0f).with_debug_name("diff_scroll"));
+                ui::bind_reading_view(repo, pageScroll.ent(), working->staged ? "working-index" : "working-wt");
+                auto sectionBody = div(ctx, mk(pageScroll.ent(), 592103), ComponentConfig{}.with_skip_grid_snap()
+                    .with_size(ComponentSize{percent(1.f), children()}).with_flex_direction(FlexDirection::Column).with_no_wrap()
+                    .with_debug_name(working->staged ? "staged_section" : "unstaged_section"));
+                ui::render_diff(ctx, sectionBody.ent(), files,
+                                       diffW, diffH, true, false,
+                                       layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
+                                       repo.repoPath, nullptr, working->staged ? "index" : "wt");
+            }
+        } else if (hasSelectedFile) {
             bool fileJustChanged = (repo.cachedFilePath != repo.selectedFilePath());
             if (fileJustChanged) {
                 repo.cachedFilePath = repo.selectedFilePath();
@@ -1347,52 +1417,127 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_roundness(0.0f)
                 .with_debug_name("welcome_screen"));
 
-        div(ctx, mk(container.ent(), 1),
+        // One bounded card holds the whole screen: the old layout floated a
+        // title, two full-width bars and nine heavy slabs on the window
+        // background with no grouping, and the list pushed the footer off
+        // the bottom edge. Everything below is a child of this card.
+        auto card = div(ctx, mk(container.ent(), 1),
             ComponentConfig{}
-                .with_label("\xe2\x97\x87")
-                .with_size(ComponentSize{children(), children()})
-                .with_font_size(pixels(36))
-                .with_padding(Padding{.bottom = h720(12)})
+                .with_size(ComponentSize{w1280(560), children()})
+                .with_flex_direction(FlexDirection::Column)
+                .with_custom_background(theme::SIDEBAR_BG)
+                .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_corner_radius(14.0f)
+                .with_soft_shadow(0.0f, 8.0f, 24.0f, afterhours::Color{0, 0, 0, 90})
+                .with_padding(Padding{
+                    .top = h720(20), .right = w1280(24),
+                    .bottom = h720(16), .left = w1280(24)})
+                .with_debug_name("welcome_card"));
+        auto& cardEnt = card.ent();
+
+        // Header: accent monogram tile + wordmark, left-aligned with the
+        // list below it (the old centred title shared no edge with anything).
+        auto header = div(ctx, mk(cardEnt, 1),
+            ComponentConfig{}
+                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
                 .with_transparent_bg()
-                .with_custom_text_color(afterhours::Color{70, 130, 180, 255})
-                .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
+                .with_margin(Margin{.bottom = h720(20)})
+                .with_debug_name("welcome_header"));
+
+        div(ctx, mk(header.ent(), 1),
+            ComponentConfig{}
+                .with_label("fh")
+                .with_size(ComponentSize{pixels(40), pixels(40)})
+                .with_flex_direction(FlexDirection::Row)
+                .with_justify_content(JustifyContent::Center)
+                .with_align_items(AlignItems::Center)
+                .with_font_size(pixels(14))
+                .with_font_weight(afterhours::colors::FontWeight::Bold)
+                .with_custom_background(theme::BUTTON_PRIMARY)
+                .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
+                .with_alignment(TextAlignment::Center)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_corner_radius(10.0f)
                 .with_debug_name("welcome_icon"));
 
-        div(ctx, mk(container.ent(), 2),
+        auto headerText = div(ctx, mk(header.ent(), 2),
             ComponentConfig{}
-                .with_label("Welcome to floatinghotel")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(pixels(22))
-                .with_padding(Padding{.bottom = h720(6)})
+                .with_flex_direction(FlexDirection::Column)
+                .with_transparent_bg()
+                .with_roundness(0.0f)
+                .with_margin(Margin{.left = w1280(12)})
+                .with_debug_name("welcome_header_text"));
+
+        div(ctx, mk(headerText.ent(), 1),
+            ComponentConfig{}
+                .with_label("floatinghotel")
+                .with_size(ComponentSize{children(), children()})
+                .with_font_size(pixels(16))
+                .with_font_weight(afterhours::colors::FontWeight::Bold)
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_alignment(TextAlignment::Center)
+                .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("welcome_title"));
 
-        div(ctx, mk(container.ent(), 3),
+        div(ctx, mk(headerText.ent(), 2),
             ComponentConfig{}
                 .with_label("Open a repository to get started")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(pixels(14))
-                .with_padding(Padding{.bottom = h720(24)})
+                .with_font_size(pixels(12))
                 .with_transparent_bg()
                 .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_alignment(TextAlignment::Center)
+                .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("welcome_subtitle"));
 
         auto* pickerLayout = find_singleton<LayoutComponent>();
         const auto& pinned = Settings::get().get_pinned_repos();
+        // Dedupe on the normalised path: the same repo recorded as
+        // "/a/b" and "/a/b/." used to appear twice in this list.
         auto recentRepos = pinned;
-        for (const auto& path : Settings::get().get_recent_repos())
-            if (std::find(recentRepos.begin(), recentRepos.end(), path) == recentRepos.end()) recentRepos.push_back(path);
+        for (const auto& path : Settings::get().get_recent_repos()) {
+            const auto key = ui::welcome::normalized_repo_path(path).string();
+            const bool seen = std::any_of(recentRepos.begin(), recentRepos.end(),
+                [&](const std::string& kept) {
+                    return ui::welcome::normalized_repo_path(kept).string() == key;
+                });
+            if (!seen) recentRepos.push_back(path);
+        }
+        const size_t totalRepos = recentRepos.size();
         if (pickerLayout) {
-            afterhours::text_input::text_input(ctx, mk(container.ent(), 7), pickerLayout->repositoryPickerQuery,
-                ComponentConfig{}.with_size(ComponentSize{w1280(400), pixels(30)}).with_debug_name("repository_picker_query"));
-            if (button(ctx, mk(container.ent(), 8), preset::Button(pickerLayout->repositoryPickerAlphabetical ? "Sort: name" : "Sort: recent")
-                .with_size(ComponentSize{w1280(400), pixels(26)}).with_debug_name("repository_picker_sort")))
+            // Filter grows, sort shrinks to a compact control beside it. The
+            // old sort was a second full-width bar indistinguishable from
+            // the (placeholder-less) search field above it.
+            auto controls = div(ctx, mk(cardEnt, 2),
+                ComponentConfig{}
+                    .with_size(ComponentSize{percent(1.0f), children()})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_align_items(AlignItems::Center)
+                    .with_gap(pixels(8))
+                    .with_transparent_bg()
+                    .with_roundness(0.0f)
+                    .with_margin(Margin{.bottom = h720(16)})
+                    .with_debug_name("welcome_controls"));
+            afterhours::text_input::text_input(ctx, mk(controls.ent(), 7), pickerLayout->repositoryPickerQuery,
+                ComponentConfig{}
+                    .with_size(ComponentSize{expand(), pixels(36)})
+                    .with_font_size(pixels(14))
+                    .with_custom_background(theme::INPUT_BG)
+                    .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
+                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_corner_radius(10.0f)
+                    .with_placeholder("Filter repositories...")
+                    .with_debug_name("repository_picker_query"));
+            if (button(ctx, mk(controls.ent(), 8), preset::Button(pickerLayout->repositoryPickerAlphabetical ? "Sort: name" : "Sort: recent")
+                .with_size(ComponentSize{w1280(124), pixels(36)})
+                .with_corner_radius(10.0f)
+                .with_debug_name("repository_picker_sort")))
                 pickerLayout->repositoryPickerAlphabetical = !pickerLayout->repositoryPickerAlphabetical;
             if (!pickerLayout->repositoryPickerQuery.empty())
                 std::erase_if(recentRepos, [&](const auto& path) { return !fuzzy::score(pickerLayout->repositoryPickerQuery, path); });
@@ -1400,76 +1545,142 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 const bool ap = std::find(pinned.begin(), pinned.end(), a) != pinned.end();
                 const bool bp = std::find(pinned.begin(), pinned.end(), b) != pinned.end();
                 if (ap != bp) return ap;
-                return pickerLayout->repositoryPickerAlphabetical && std::filesystem::path(a).filename() < std::filesystem::path(b).filename();
+                return pickerLayout->repositoryPickerAlphabetical && ui::welcome::repo_display_name(a) < ui::welcome::repo_display_name(b);
             });
         }
 
         if (!recentRepos.empty()) {
-            div(ctx, mk(container.ent(), 10),
+            auto listHeader = div(ctx, mk(cardEnt, 10),
                 ComponentConfig{}
-                    .with_label("Pinned and recent repositories")
-                    .with_size(ComponentSize{w1280(400), children()})
-                    .with_font_size(pixels(14))
-                    .with_padding(Padding{.bottom = h720(8)})
+                    .with_size(ComponentSize{percent(1.0f), children()})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_align_items(AlignItems::Center)
+                    .with_transparent_bg()
+                    .with_roundness(0.0f)
+                    .with_margin(Margin{.bottom = h720(8)})
+                    .with_debug_name("recent_header_row"));
+            div(ctx, mk(listHeader.ent(), 1),
+                ComponentConfig{}
+                    .with_label("Pinned and recent")
+                    .with_size(ComponentSize{children(), children()})
+                    .with_font_size(pixels(12))
+                    .with_font_weight(afterhours::colors::FontWeight::SemiBold)
                     .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("recent_header"));
+            div(ctx, mk(listHeader.ent(), 2),
+                ComponentConfig{}
+                    .with_label(std::to_string(totalRepos) +
+                                (totalRepos == 1 ? " repository" : " repositories"))
+                    .with_size(ComponentSize{expand(), children()})
+                    .with_font_size(pixels(12))
+                    .with_transparent_bg()
+                    .with_custom_text_color(theme::TEXT_TERTIARY)
+                    .with_alignment(TextAlignment::Right)
+                    .with_roundness(0.0f)
+                    .with_debug_name("recent_count"));
 
-            constexpr afterhours::Color REPO_ROW_BG = {38, 38, 38, 255};
-            constexpr afterhours::Color REPO_ROW_HOVER = {50, 50, 50, 255};
-            const char* home = std::getenv("HOME");
-            size_t homeLen = home ? std::strlen(home) : 0;
+            const char* homeEnv = std::getenv("HOME");
+            const std::string home = homeEnv ? homeEnv : "";
 
-            ui::virtual_list(ctx, mk(container.ent(), 11), recentRepos.size(), 40.f, [&](size_t index, Entity& rowHost) {
+            ui::virtual_list(ctx, mk(cardEnt, 11), recentRepos.size(), 48.f, [&](size_t index, Entity& rowHost) {
                 const int ri = static_cast<int>(index);
-                std::filesystem::path p(recentRepos[ri]);
-                std::string basename = p.filename().string();
+                const std::string basename = ui::welcome::repo_display_name(recentRepos[ri]);
                 const bool isPinned = std::find(pinned.begin(), pinned.end(), recentRepos[ri]) != pinned.end();
-                std::string dirPath = p.parent_path().string();
+                const std::string dirPath = ui::welcome::repo_display_parent(recentRepos[ri], home);
 
-                if (home && dirPath.starts_with(home)) {
-                    dirPath = "~" + dirPath.substr(homeLen);
-                }
-
+                // Quiet rows, not slabs: transparent at rest (grouping comes
+                // from the card + 4px gaps), hover fills, 10px radius.
                 auto row = button(ctx, mk(rowHost, 100 + ri),
                     ComponentConfig{}
-                        .with_size(ComponentSize{w1280(400), h720(36)})
-                        .with_flex_direction(FlexDirection::Column)
-                        .with_justify_content(JustifyContent::Center)
+                        .with_size(ComponentSize{percent(1.0f), h720(44)})
+                        .with_flex_direction(FlexDirection::Row)
+                        .with_align_items(AlignItems::Center)
                         .with_padding(Padding{
-                            .top = h720(4), .right = w1280(12),
-                            .bottom = h720(4), .left = w1280(12)})
-                        .with_custom_background(REPO_ROW_BG)
-                        .with_custom_hover_bg(REPO_ROW_HOVER)
-                        .with_corner_radius(4.0f)
-                        .with_margin(Margin{.bottom = h720(2)})
+                            .top = pixels(0), .right = w1280(10),
+                            .bottom = pixels(0), .left = w1280(10)})
+                        .with_transparent_bg()
+                        .with_custom_hover_bg(theme::HOVER_BG)
+                        .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                        .with_corner_radius(10.0f)
+                        .with_margin(Margin{.bottom = h720(4)})
                         .with_cursor(afterhours::ui::CursorType::Pointer)
                         .with_debug_name("recent_repo_" + basename));
 
                 div(ctx, mk(row.ent(), 1),
                     ComponentConfig{}
-                        .with_label((isPinned ? "★ " : "") + basename)
+                        .with_label(ui::welcome::repo_initial(basename))
+                        .with_size(ComponentSize{pixels(28), pixels(28)})
+                        .with_flex_direction(FlexDirection::Row)
+                        .with_justify_content(JustifyContent::Center)
+                        .with_align_items(AlignItems::Center)
+                        .with_font_size(pixels(12))
+                        .with_font_weight(afterhours::colors::FontWeight::Bold)
+                        .with_custom_background(theme::SELECTED_BG)
+                        .with_custom_text_color(theme::TEXT_ACCENT)
+                        .with_alignment(TextAlignment::Center)
+                        .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                        .with_corner_radius(8.0f)
+                        .with_debug_name("recent_initial"));
+
+                auto rowText = div(ctx, mk(row.ent(), 2),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{expand(), children()})
+                        .with_flex_direction(FlexDirection::Column)
+                        .with_transparent_bg()
+                        .with_roundness(0.0f)
+                        .with_margin(Margin{.left = w1280(10)})
+                        .with_debug_name("recent_text"));
+
+                div(ctx, mk(rowText.ent(), 1),
+                    ComponentConfig{}
+                        .with_label(basename)
                         .with_size(ComponentSize{percent(1.0f), children()})
                         .with_font_size(pixels(14))
+                        .with_font_weight(afterhours::colors::FontWeight::SemiBold)
                         .with_transparent_bg()
                         .with_custom_text_color(theme::TEXT_PRIMARY)
                         .with_alignment(TextAlignment::Left)
+                        .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_roundness(0.0f)
                         .with_debug_name("recent_name"));
 
-                div(ctx, mk(row.ent(), 2),
+                div(ctx, mk(rowText.ent(), 2),
                     ComponentConfig{}
                         .with_label(dirPath)
                         .with_size(ComponentSize{percent(1.0f), children()})
                         .with_font_size(pixels(12))
                         .with_transparent_bg()
-                        .with_custom_text_color(afterhours::Color{100, 100, 100, 255})
+                        .with_custom_text_color(theme::TEXT_TERTIARY)
                         .with_alignment(TextAlignment::Left)
                         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_roundness(0.0f)
                         .with_debug_name("recent_path"));
+
+                if (isPinned) {
+                    // Text pill, not a star glyph: the UI font has no ★
+                    // (it measured 2.5px wide and rendered invisibly).
+                    div(ctx, mk(row.ent(), 3),
+                        ComponentConfig{}
+                            .with_label("Pinned")
+                            .with_size(ComponentSize{children(), children()})
+                            .with_font_size(pixels(12))
+                            .with_padding(Padding{
+                                .top = pixels(2), .right = pixels(6),
+                                .bottom = pixels(2), .left = pixels(6)})
+                            .with_custom_background(theme::SELECTED_BG)
+                            .with_custom_text_color(theme::TEXT_ACCENT)
+                            .with_alignment(TextAlignment::Center)
+                            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                            .with_corner_radius(6.0f)
+                            .with_margin(Margin{.left = w1280(8)})
+                            .with_debug_name("recent_pinned"));
+                }
+
+                ui::chrome_icon(ctx, mk(row.ent(), 4), ui::ChromeIcon::ChevronRight,
+                                theme::TEXT_TERTIARY, "recent_chevron");
 
                 if (row && pickerLayout) TabBarSystem::open_repository(recentRepos[ri], *pickerLayout);
                 if (ctx.is_right_click(row.ent().id)) {
@@ -1487,34 +1698,61 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             }
                         })});
                 }
-            }, ComponentConfig{}.with_size(ComponentSize{w1280(400), pixels(std::min(360.f, std::max(80.f, ctx.screen_height / ui::zoom::get() - 280.f)))})
+            }, ComponentConfig{}.with_size(ComponentSize{percent(1.0f), pixels(std::floor(std::min(384.f, std::max(96.f, ctx.screen_height / ui::zoom::get() - 360.f)) / 48.f) * 48.f)})
+                .with_transparent_bg()
+                .with_roundness(0.0f)
                 .with_debug_name("repository_picker_list"));
 
         } else {
-            div(ctx, mk(container.ent(), 10),
+            div(ctx, mk(cardEnt, 10),
                 ComponentConfig{}
-                    .with_label("No recent repositories")
-                    .with_size(ComponentSize{children(), children()})
+                    .with_label(totalRepos == 0 ? "No recent repositories yet"
+                                                : "No repositories match your filter")
+                    .with_size(ComponentSize{percent(1.0f), children()})
                     .with_font_size(pixels(14))
-                    .with_padding(Padding{.bottom = h720(8)})
+                    .with_padding(Padding{.top = h720(16), .bottom = h720(16)})
                     .with_transparent_bg()
-                    .with_custom_text_color(afterhours::Color{70, 70, 70, 255})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("no_recent"));
         }
 
-        div(ctx, mk(container.ent(), 20),
+        // Footer inside the card, so it can never be pushed off-screen:
+        // the Open Repository button (sets PendingDialog::OpenRepo, consumed
+        // by TabBarSystem) and its shortcut pill.
+        auto footer = div(ctx, mk(cardEnt, 20),
             ComponentConfig{}
-                .with_label("Cmd+O to open a repository")
-                .with_size(ComponentSize{children(), children()})
-                .with_font_size(pixels(14))
-                .with_padding(Padding{.top = h720(20)})
+                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center)
+                .with_gap(pixels(8))
                 .with_transparent_bg()
-                .with_custom_text_color(afterhours::Color{60, 60, 60, 255})
-                .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
-                .with_debug_name("welcome_hint"));
+                .with_margin(Margin{.top = h720(16)})
+                .with_debug_name("welcome_footer"));
+        if (button(ctx, mk(footer.ent(), 1), preset::Button("Open repository...")
+                .with_size(ComponentSize{children(), pixels(26)})
+                .with_font_size(pixels(12))
+                .with_debug_name("welcome_open_repository"))) {
+            if (auto* menu = find_singleton<MenuComponent>())
+                menu->pendingDialog = MenuComponent::PendingDialog::OpenRepo;
+        }
+        div(ctx, mk(footer.ent(), 2),
+            ComponentConfig{}
+                .with_label("Cmd+O")
+                .with_size(ComponentSize{children(), children()})
+                .with_font_size(pixels(12))
+                .with_padding(Padding{
+                    .top = pixels(2), .right = pixels(6),
+                    .bottom = pixels(2), .left = pixels(6)})
+                .with_custom_background(theme::BUTTON_SECONDARY)
+                .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_alignment(TextAlignment::Center)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_corner_radius(6.0f)
+                .with_debug_name("welcome_hint_key"));
     }
 };
 

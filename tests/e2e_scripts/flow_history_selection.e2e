@@ -1,0 +1,32 @@
+# Flow: history selection — plain click selects one, shift-click ranges,
+# and a plain click after a range collapses back to a single commit.
+make_test_repo
+resize 1280 720
+wait_frames 10
+wait_for_refresh
+wait_frames 10
+
+# Dragging from one row to another range-selects everything between.
+# (drag_to, not drag: drag clicks and teleports, the button is never held
+# while moving, so no range can form.) Rows are 24px from y=560: this
+# drag spans the first three commit rows.
+drag_to 140 620 140 572
+wait_frames 8
+validate selected_commit_count=3
+screenshot history_drag_selected
+
+click_text "Iteration 51: update app logic"
+wait_frames 8
+validate selected_commit_count=1
+
+hold_key 340
+click_text "Iteration 53: update app logic"
+release_key 340
+wait_frames 8
+validate selected_commit_count=3
+screenshot history_range_selected
+
+click_text "Add unit tests for utils"
+wait_frames 8
+validate selected_commit_count=1
+screenshot history_single_selected

@@ -31,9 +31,9 @@ struct ZoomSystem : afterhours::System<> {
         // parser maps "CMD+" onto Ctrl, so a script writing Cmd+0 lands here
         // as Control either way.
         if (input::is_key_pressed(afterhours::keys::EQUAL))
-            Settings::get().set_code_font_size(Settings::get().get_code_font_size() + 1.f);
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() + 2.f);
         if (input::is_key_pressed(afterhours::keys::MINUS))
-            Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 1.f);
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 2.f);
         if (input::is_key_pressed(afterhours::keys::ZERO))
             Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize);
     }

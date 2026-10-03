@@ -29,13 +29,13 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
     }
     div(ctx, mk(parent, 589000), ComponentConfig{}
         .with_label("Search commits · all refs · case-insensitive text · all filters combined")
-        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Medium));
+        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(14)));
     int id = 589001;
     auto field = [&](const std::string& label, std::string& value, const std::string& name) {
         auto row = div(ctx, mk(parent, id++), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
         div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(label)
-            .with_size(ComponentSize{pixels(160), pixels(32)}).with_font_size(FontSize::Small));
+            .with_size(ComponentSize{pixels(160), pixels(32)}).with_font_size(pixels(12)));
         afterhours::text_input::text_input(ctx, mk(row.ent(), 1), value, ComponentConfig{}
             .with_size(ComponentSize{pixels(std::max(80.f, layout.mainContent.width - 170.f)), pixels(32)}).with_debug_name(name));
     };
@@ -48,7 +48,7 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
         .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
     if (button(ctx, mk(actions.ent(), 0), preset::Button("Search commits")
             .with_size(ComponentSize{pixels(140), pixels(30)}).with_debug_name("commit_search_submit")) ||
-        (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(257))) {
+        (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(afterhours::keys::ENTER))) {
         repo.commitSearchLimit = 200;
         repo.commitSearchEntries.clear();
         load_commit_search(repo);
@@ -65,15 +65,15 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
     auto status = repo.commitSearchFuture.valid() ? "Searching..." : std::to_string(repo.commitSearchEntries.size()) + " matching commits";
     if (!repo.commitSearchError.empty()) status = repo.commitSearchError;
     div(ctx, mk(parent, id++), ComponentConfig{}.with_label(status)
-        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(FontSize::Small));
+        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)));
     afterhours::ui::imm::virtual_list(ctx, mk(parent, id++), repo.commitSearchEntries.size(), 34.f,
         [&](size_t i, Entity& row) {
             const auto& commit = repo.commitSearchEntries[i];
             if (button(ctx, mk(row, 0), preset::Button(commit.shortHash + "  " + commit.subject + " · " + commit.author + " · " + commit.authorDate.substr(0, 10))
                     .with_size(ComponentSize{percent(1.f), pixels(34)}).with_alignment(TextAlignment::Left)
-                    .with_custom_background(theme::PANEL_BG).with_font_size(FontSize::Medium)
+                    .with_custom_background(theme::PANEL_BG).with_font_size(pixels(14))
                     .with_debug_name("commit_search_result:" + std::to_string(i)))) {
-                navigation::click(repo, reading::review(commit.hash), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);
+                navigation::click(repo, reading::review(commit.hash), afterhours::input::is_key_pressed(afterhours::keys::ENTER), reading::ClickRegion::Search);
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 270.f))}));
 }

@@ -1,0 +1,24 @@
+# Test: Middle-clicking a tab closes it
+make_test_repo
+resize 1280 720
+wait_frames 5
+
+new_tab
+wait_frames 5
+new_tab
+wait_frames 5
+validate tab_count=3
+
+# First chip, under the test-mode menu bar
+middle_click 100 39
+wait_frames 5
+validate tab_count=2
+
+middle_click 100 39
+wait_frames 5
+validate tab_count=1
+
+# The last tab stays open
+middle_click 100 39
+wait_frames 5
+validate tab_count=1

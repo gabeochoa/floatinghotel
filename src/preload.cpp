@@ -136,7 +136,7 @@ Preload& Preload::make_singleton() {
         theme.font_sizing.small = 12.0f;
         theme.font_sizing.medium = 14.0f;
         theme.font_sizing.large = 16.0f;
-        theme.font_sizing.xl = 22.0f;
+        theme.font_sizing.xl = 16.0f;  // XL aliases Large: the scale has three tiers
         theme.focus_ring_thickness = 1.5f;
         theme.focus_ring_offset = 1.f;
         defaults.set_theme(theme);

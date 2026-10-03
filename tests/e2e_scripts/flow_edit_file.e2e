@@ -1,0 +1,57 @@
+# Flow: read-only vs editable source documents. A working-tree file
+# opens read-only, switches into an editable buffer via the header pill,
+# accepts typed text, and saves back to disk with the save shortcut.
+make_test_repo
+resize 1280 720
+wait_frames 10
+wait_for_refresh
+wait_frames 10
+
+# Open src/app.cpp from the Explorer.
+click_text "View"
+wait_frames 5
+click_text "File Explorer"
+wait_frames 8
+click_text "app.cpp"
+wait_frames 8
+validate active_content=Source
+validate edit_mode=false
+expect_text "Read-only"
+
+# Switch to editing.
+click_text "Read-only"
+wait_frames 5
+validate edit_mode=true
+validate edit_dirty=false
+expect_text "Editing"
+
+# Click into the code and type: the buffer changes, disk does not (yet).
+click_text "#include"
+wait_frames 3
+key HOME
+wait_frames 2
+type "QXZ"
+wait_frames 5
+validate edit_dirty=true
+expect_text "QXZ#include"
+screenshot edit_dirty
+
+# Save is Cmd+S only: Ctrl+S must not save (Control belongs to vim
+# motions, Command to app controls).
+key CTRL+S
+wait_frames 5
+validate edit_dirty=true
+
+# Cmd+S saves: dirty clears and the tab dot goes away.
+hold_key 343
+key S
+release_key 343
+wait_frames 5
+validate edit_dirty=false
+screenshot edit_saved
+
+# Back to read-only via the pill.
+click_text "Editing"
+wait_frames 5
+validate edit_mode=false
+expect_text "Read-only"

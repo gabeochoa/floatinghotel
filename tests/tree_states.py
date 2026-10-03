@@ -48,9 +48,9 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'click_ui approve_file_btn\nwait_frames 4\nmouse_move 1750 1050\n' + capture('reviewed', 1)
     script += 'click_ui commit_file_filter\nkey TAB\nhover_ui jump_to_diff:b.cpp\n' + capture('reviewed_focus', 1)
     script += 'click_ui approve_file_btn\nwait_frames 4\nclick_ui comment_hunk_btn\nwait_frames 3\nclick_ui comment_input\ntype "Tree feedback"\nclick_ui comment_add_btn\nwait_frames 8\nkey ESCAPE\n' + capture('unresolved', 1)
-    script += 'native_menu_action "Review Workspace (toggle)"\nclick_ui sidebar_working_files\nwait_frames 8\nclick_ui working_review_toggle\nwait_frames 6\nclick_text a.cpp\nwait_frames 6\nclick_text b.cpp\nwait_frames 6\nclick_text a.cpp\nwait_frames 6\n' + capture('legacy_seen', 1)
+    script += 'native_menu_action "Review Workspace (toggle)"\nwait_frames 8\nclick_ui working_review_toggle\nwait_frames 6\nclick_text a.cpp\nwait_frames 6\nclick_text b.cpp\nwait_frames 6\nclick_text a.cpp\nwait_frames 6\n' + capture('legacy_seen', 1)
     script += 'touch_file b.cpp\nnative_menu_action "Ignore Whitespace (toggle)"\nwait_for_refresh\nnative_menu_action "Ignore Whitespace (toggle)"\nwait_for_refresh\n' + capture('legacy_changed', 1)
-    script += 'native_menu_action "Review Workspace (toggle)"\nclick_ui sidebar_review\nwait_frames 6\n' + capture('changed', 1)
+    script += 'native_menu_action "Review Workspace (toggle)"\nwait_frames 6\n' + capture('changed', 1)
     script += 'click_text "Tree fixture"\nwait_for_refresh\nkey ENTER\nclick_ui approve_file_btn\nwait_frames 4\n' + capture('historical_reviewed', 2)
     script += 'click_text "Open file"\nwait_for_refresh\n' + capture('historical_source', 3)
     script += 'bench_frames 120\nexpect_p99_below 20\n'

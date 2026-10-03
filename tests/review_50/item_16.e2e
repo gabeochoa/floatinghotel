@@ -1,6 +1,5 @@
 resize 1280 800
 wait_for_refresh
-click_ui sidebar_working_files
 screenshot item_16_files_navigation
 expect_text "Push"
 click_ui review_workspace_toggle

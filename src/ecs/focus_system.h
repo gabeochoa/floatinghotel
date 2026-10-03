@@ -76,8 +76,10 @@ struct RevealTreeRowSystem : afterhours::System<UIContext<InputAction>> {
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
         const auto* layout = find_singleton<LayoutComponent>();
         if (!repo || !layout) return;
-        auto& state = layout->sidebarNavigation == LayoutComponent::SidebarNavigation::Review ?
-            repo->reviewTreeNavigation : repo->filesTreeNavigation;
+        // One sidebar tree now: the review tree, except in All-files mode
+        // where the plain files tree is shown.
+        auto& state = layout->fileViewMode == LayoutComponent::FileViewMode::All ?
+            repo->filesTreeNavigation : repo->reviewTreeNavigation;
         if (!state.pendingReveal || state.pendingFocus) return;
         auto focused = afterhours::ui::UICollectionHolder::getEntityForID(state.revealEntity);
         if (!focused.valid()) return;

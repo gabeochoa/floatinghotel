@@ -1,0 +1,21 @@
+# Flow: The sidebar working-changes list always shows every changed
+# file. The diff pane's review filters (Options -> Generated / Vendor /
+# Lockfiles / Unresolved / Language / Change) are a review tool for the
+# main pane; they must not cut down the Unstaged/Staged sidebar list.
+# "Unresolved: only" with no comments would previously empty the list
+# ("No files match the review filters").
+make_test_repo
+resize 1280 900
+wait_frames 5
+wait_for_refresh
+wait_frames 10
+click_text "README.md"
+wait_frames 8
+click_ui diff_options_toggle
+wait_frames 5
+click_ui filter_unresolved
+wait_frames 8
+expect_no_text "No files match the review filters"
+expect_text "main.cpp"
+expect_text ".gitignore"
+screenshot sidebar_ignores_review_filter

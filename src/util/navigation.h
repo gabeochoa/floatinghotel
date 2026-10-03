@@ -31,6 +31,13 @@ struct navigation {
 
     static void clear_feedback_lines(ecs::RepoComponent& repo) { repo.workspace_.current().feedbackLines.clear(); }
 
+    // Mutable access to the active document for the source editor; only
+    // source documents are editable, everything else returns nullptr.
+    static reading::Document* active_edit_document(ecs::RepoComponent& repo) {
+        auto& document = repo.workspace_.current();
+        return std::get_if<reading::SourceLocation>(&document.location) ? &document : nullptr;
+    }
+
     static void set_caret(ecs::RepoComponent& repo, reading::CodePosition position, bool focus = false) {
         if (repo.workspace_.active_source()) repo.workspace_.current().sourceFolds.reveal(position.line);
         repo.workspace_.current().caret = std::move(position);
@@ -325,9 +332,12 @@ struct navigation {
         repo.workspace_.lastClick_.reset();
         auto before = repo.workspace_.location();
         if (!anchor && reading::same_document(before, location)) {
+            // Re-opening the same source document without a line keeps the
+            // current position. A review location with no file, though, is
+            // an explicit "show the whole section" — it must clear any
+            // pinned file, or there is no way back from a drilled-in file
+            // to the all-files view.
             if (const auto* source = std::get_if<reading::SourceLocation>(&location); source && source->line == 0)
-                location = before;
-            else if (const auto* review = std::get_if<reading::ReviewLocation>(&location); review && review->file.empty())
                 location = before;
         }
         if (auto* source = std::get_if<reading::SourceLocation>(&location)) {

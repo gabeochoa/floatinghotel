@@ -7,7 +7,9 @@ key ENTER
 click_text "Add unit tests for utils"
 wait_for_refresh
 key ENTER
-key CMD+P
+hold_key 343
+key P
+release_key 343
 screenshot tabs_picker_a
 click_ui file_picker_working_scope
 wait_for_refresh
@@ -18,7 +20,9 @@ screenshot tabs_query_a
 key ENTER
 wait_for_refresh
 wait_frames 15
-key CMD+P
+hold_key 343
+key P
+release_key 343
 screenshot tabs_picker_b
 click_ui file_picker_input
 key CMD+A
@@ -27,7 +31,9 @@ screenshot tabs_query_b
 key ENTER
 wait_for_refresh
 wait_frames 15
-key CMD+P
+hold_key 343
+key P
+release_key 343
 screenshot tabs_picker_c
 click_ui file_picker_input
 key CMD+A

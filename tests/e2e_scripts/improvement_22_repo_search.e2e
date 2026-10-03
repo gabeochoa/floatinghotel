@@ -1,7 +1,11 @@
 make_test_repo
 resize 1280 800
 wait_for_refresh
-key CMD+SHIFT+F
+hold_key 343
+hold_key 340
+key F
+release_key 340
+release_key 343
 wait_frames 10
 screenshot improvement_22_search
 click_ui repo_search_input

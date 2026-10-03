@@ -53,24 +53,24 @@ inline void render_review_queue(UIContext<InputAction>& ctx, Entity& parent, int
     div(ctx, mk(row.ent(), 0), ComponentConfig{}
         .with_label(active ? "Queue " + std::to_string(queue.position + 1) + "/" + std::to_string(queue.commits.size()) +
             " · " + std::to_string(queue.completed.size()) + " reviewed" : "Browsing outside review queue")
-        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(FontSize::Small)
+        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("review_queue_position"));
     if (!active) {
         if (button(ctx, mk(row.ent(), 1), preset::Button("Resume queue")
                 .with_size(ComponentSize{children(), pixels(28)}).with_debug_name("review_queue_resume"))) select();
     } else {
         if (button(ctx, mk(row.ent(), 1), preset::Button("Previous")
-                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(FontSize::Small).with_debug_name("review_queue_previous")) && queue.position > 0) {
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_debug_name("review_queue_previous")) && queue.position > 0) {
             --queue.position;
             select();
         }
         if (button(ctx, mk(row.ent(), 2), preset::Button("Next")
-                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(FontSize::Small).with_debug_name("review_queue_next")) && queue.position + 1 < queue.commits.size()) {
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_debug_name("review_queue_next")) && queue.position + 1 < queue.commits.size()) {
             ++queue.position;
             select();
         }
         if (button(ctx, mk(row.ent(), 3), preset::Button("Reviewed and next")
-                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(FontSize::Small).with_debug_name("review_queue_complete"))) {
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_debug_name("review_queue_complete"))) {
             if (cache.cachedCommitHash != repo.selectedCommitHash() || cache.cachedParentHash != selected_commit_parent(repo) || cache.patchFuture.valid() ||
                 !cache.commitDetailError.empty() ||
                 current_review_verdict(review, commit_review_scope(repo), cache.commitDetailDiff) == ReviewVerdict::InProgress)
@@ -83,7 +83,7 @@ inline void render_review_queue(UIContext<InputAction>& ctx, Entity& parent, int
         }
     }
     if (button(ctx, mk(row.ent(), 4), preset::Button("Exit queue")
-            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(FontSize::Small).with_debug_name("review_queue_exit"))) close_review_queue(repo);
+            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_debug_name("review_queue_exit"))) close_review_queue(repo);
 }
 
 }

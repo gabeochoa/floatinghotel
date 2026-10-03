@@ -1,0 +1,179 @@
+# Flow: vim motions live behind Vim Mode (off by default). With the mode
+# off, j does nothing in a code file; after enabling it in the View menu,
+# j/k move the caret down/up, h/l move by column, and in edit mode the
+# same keys still type text instead of moving.
+make_test_repo
+resize 1280 720
+wait_frames 10
+wait_for_refresh
+wait_frames 10
+
+# Open src/app.cpp as a source document.
+click_text "View"
+wait_frames 5
+click_text "File Explorer"
+wait_frames 8
+click_text "app.cpp"
+wait_frames 8
+validate active_content=Source
+
+# Off by default: j leaves the caret where it is.
+validate vim_mode=false
+click_text "#include"
+wait_frames 3
+validate caret_line=1
+key j
+wait_frames 3
+validate caret_line=1
+
+# Enable Vim Mode from the View menu.
+click_text "View"
+wait_frames 5
+click_text "Vim Mode (toggle)"
+wait_frames 5
+validate vim_mode=true
+click_text "#include"
+wait_frames 3
+validate caret_line=1
+
+# Now j/k walk the caret.
+key j
+wait_frames 3
+validate caret_line=2
+key j
+wait_frames 3
+validate caret_line=3
+key k
+wait_frames 3
+validate caret_line=2
+
+# h/l move within the line.
+key HOME
+wait_frames 2
+validate caret_column=1
+key l
+wait_frames 2
+validate caret_column=2
+key h
+wait_frames 2
+validate caret_column=1
+screenshot vim_moved
+
+# Extended motions on main.cpp (exactly 6 lines; line 3 is
+# "int main() {"): G/gg, counted motions, 0/$, w/b/e, Ctrl+D/U/F/B.
+click_text "View"
+wait_frames 5
+click_text "File Explorer"
+wait_frames 8
+click_text "main.cpp"
+wait_frames 15
+wait_for_refresh
+wait_frames 5
+validate active_content=Source
+click_text "#include"
+wait_frames 3
+validate caret_line=1
+
+# G goes to the last line, gg back to the first.
+key SHIFT+G
+wait_frames 3
+validate caret_line=6
+key g
+wait_frames 2
+key g
+wait_frames 3
+validate caret_line=1
+
+# Counts repeat a motion; a count before G goes to that line.
+key 2
+wait_frames 2
+key j
+wait_frames 3
+validate caret_line=3
+key 2
+wait_frames 2
+key k
+wait_frames 3
+validate caret_line=1
+key 4
+wait_frames 2
+key SHIFT+G
+wait_frames 3
+validate caret_line=4
+key g
+wait_frames 2
+key g
+wait_frames 3
+validate caret_line=1
+key 2
+wait_frames 2
+key j
+wait_frames 3
+validate caret_line=3
+validate caret_column=1
+
+# 0/$ are line start/end; w/e step by word, b steps back.
+key SHIFT+4
+wait_frames 2
+validate caret_column=13
+key 0
+wait_frames 2
+validate caret_column=1
+key w
+wait_frames 2
+validate caret_column=4
+key w
+wait_frames 2
+validate caret_column=9
+key b
+wait_frames 2
+validate caret_column=5
+key b
+wait_frames 2
+validate caret_column=1
+key e
+wait_frames 2
+validate caret_column=4
+
+# Ctrl+D/U move half a page and Ctrl+F/B a full page (the whole
+# 6-line file is visible, so a page is 6 lines and half is 3).
+# Control is vim's modifier; Find / Go to File require real Command,
+# so Ctrl+F pages instead of opening the find bar (which would also
+# steal the caret from the code).
+key g
+wait_frames 2
+key g
+wait_frames 3
+validate caret_line=1
+key CTRL+D
+wait_frames 3
+validate caret_line=4
+key CTRL+D
+wait_frames 3
+validate caret_line=6
+key CTRL+U
+wait_frames 3
+validate caret_line=3
+key CTRL+U
+wait_frames 3
+validate caret_line=1
+key CTRL+F
+wait_frames 3
+validate caret_line=6
+key CTRL+B
+wait_frames 3
+validate caret_line=1
+key j
+wait_frames 3
+validate caret_line=2
+screenshot vim_extended
+
+# In edit mode, j inserts text instead of moving the caret.
+click_text "Read-only"
+wait_frames 5
+validate edit_mode=true
+type "j"
+wait_frames 3
+validate caret_line=2
+validate edit_dirty=true
+screenshot vim_edit_types

@@ -22,7 +22,6 @@ click 80 300
 wait_for_refresh
 validate selected_file=src/app.cpp
 screenshot review_app_selected
-click_ui sidebar_working_files
 native_menu_action "Tree View"
 click_ui review_workspace_toggle
 wait_frames 5

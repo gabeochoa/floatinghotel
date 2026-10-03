@@ -1,6 +1,5 @@
 resize 1440 900
 wait_for_refresh
-click_ui sidebar_review
 click_ui review_unstaged_changes
 screenshot item_02_files_navigation
 key CMD+P
@@ -66,7 +65,6 @@ click_ui repo_search_close
 screenshot item_02_search_closed
 click_ui full_file_back
 wait_frames 5
-click_ui sidebar_review
 screenshot item_02_history_ready
 click_text latest
 wait_for_refresh

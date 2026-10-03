@@ -184,36 +184,57 @@ ecs::UntrackedReviewFiles read_untracked_review_files(const std::string& repo, c
                                                      std::stop_token stop) {
     ecs::UntrackedReviewFiles result;
     size_t remaining = 8 * 1024 * 1024;
+    constexpr size_t perFileLimit = 4 * 1024 * 1024;
     for (const auto& path : paths) {
         if (stop.stop_requested()) return {};
         ecs::FileDiff file;
         file.filePath = path;
         file.isNew = true;
-        if (remaining >= 256 * 1024) {
+        bool haveContent = false;
+        // Review needs the whole file: the paged source reader stops at
+        // file_page::byteLimit/lineLimit, which made long new files look
+        // complete at the first page boundary. Read the file directly up
+        // to a generous per-file cap; only past that cap (or when the
+        // aggregate budget runs out) fall back to the bounded page.
+        auto whole = file_content::read_working_file(std::filesystem::path(repo) / path, stop,
+                                                     std::min(perFileLimit, remaining));
+        if (stop.stop_requested()) return {};
+        if (whole.error.empty()) {
+            remaining -= std::min(remaining, whole.bytes.size());
+            auto decoded = text_decode::decode(whole.bytes);
+            file = parse_complete_file(path, decoded.text);
+            file.isBinary = decoded.binary;
+            file.oldMode = file.newMode = std::move(whole.mode);
+            file.isPartialContent = false;
+            haveContent = true;
+        } else if (remaining >= file_page::byteLimit) {
             auto content = read_file({repo, path}, stop);
             if (stop.stop_requested()) return {};
             remaining -= std::min(remaining, content.raw.size());
             if (content.error.empty()) {
                 file = std::move(content.diff);
-                file.isNew = true;
-                file.isFullContent = false;
                 file.isPartialContent = content.page.next.offset < content.page.totalBytes;
-                file.additions = 0;
-                file.deletions = 0;
-                for (auto& hunk : file.hunks) {
-                    hunk.oldStart = hunk.oldCount = 0;
-                    for (auto& line : hunk.lines) {
-                        if (line.empty()) line = "+";
-                        else line[0] = '+';
-                    }
-                    hunk.header = "@@ -0,0 +" + std::to_string(hunk.newStart) + "," + std::to_string(hunk.newCount) + " @@ (new file)";
-                    file.additions += hunk.newCount;
-                }
+                haveContent = true;
             } else {
                 file.isPartialContent = true;
                 result.notice = "Some new files could not be read: " + content.error;
             }
         } else file.isPartialContent = true;
+        if (haveContent) {
+            file.isNew = true;
+            file.isFullContent = false;
+            file.additions = 0;
+            file.deletions = 0;
+            for (auto& hunk : file.hunks) {
+                hunk.oldStart = hunk.oldCount = 0;
+                for (auto& line : hunk.lines) {
+                    if (line.empty()) line = "+";
+                    else line[0] = '+';
+                }
+                hunk.header = "@@ -0,0 +" + std::to_string(hunk.newStart) + "," + std::to_string(hunk.newCount) + " @@ (new file)";
+                file.additions += hunk.newCount;
+            }
+        }
         if (file.isPartialContent && result.notice.empty())
             result.notice = "Large new files show a bounded preview. Open source to read more.";
         result.files.push_back(std::move(file));

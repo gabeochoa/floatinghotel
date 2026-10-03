@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "util/code_bookmark.h"
+#include "util/fold_defaults.h"
 #include "util/reading_session.h"
 #include "util/review_files.h"
 
@@ -15,7 +16,7 @@ SINGLETON_FWD(Settings)
 struct Settings {
     SINGLETON(Settings)
 
-    static constexpr float kDefaultCodeFontSize = 17.6f;
+    static constexpr float kDefaultCodeFontSize = 14.0f;
 
     Settings();
     ~Settings();
@@ -35,6 +36,8 @@ struct Settings {
     int get_window_y() const;
     void set_window_geometry(int x, int y, int w, int h);
     bool get_window_collapsed() const;
+    bool get_vim_mode() const;
+    void set_vim_mode(bool enabled);
     int get_expanded_window_width() const;
     void remember_window_size(int width, int height, bool collapsed, int expandedWidth, float sidebarWidth);
 
@@ -79,6 +82,11 @@ struct Settings {
 
     review_files::DisplayMode get_review_display_mode(const std::string& repoPath) const;
     void set_review_display_mode(const std::string& repoPath, review_files::DisplayMode mode);
+
+    // Per-repo default-fold rules for opening commits; repos without a
+    // stored entry get fold_defaults::default_rules().
+    fold_defaults::Rules get_fold_rules(const std::string& repoPath) const;
+    void set_fold_rules(const std::string& repoPath, fold_defaults::Rules rules);
 
     std::string get_settings_path() const;
 

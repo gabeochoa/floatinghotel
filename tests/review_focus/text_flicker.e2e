@@ -1,7 +1,6 @@
 make_test_repo
 resize 1280 800
 wait_for_refresh
-click_ui sidebar_working_files
 screenshot text_flicker_files
 click_text README.md
 wait_for_refresh

@@ -27,7 +27,6 @@ screenshot count_selected
 mouse_move 70 272
 wait_frames 2
 screenshot hover_folder
-click_ui sidebar_working_files
 native_menu_action "Tree View"
 click_ui review_workspace_toggle
 wait_frames 5

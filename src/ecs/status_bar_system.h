@@ -80,7 +80,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_absolute_position().with_translate(x, rect.y)
                 .with_padding(Padding{.left = pixels(10), .right = pixels(10)})
                 .with_transparent_bg().with_custom_text_color(theme::STATUS_BAR_TEXT)
-                .with_font_size(pixels(11)).with_alignment(alignment)
+                .with_font_size(pixels(12)).with_alignment(alignment)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.f).with_render_layer(5).with_debug_name(debugName));
         };
@@ -98,14 +98,14 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_padding(Padding{.left = pixels(0)})
                 .with_absolute_position().with_translate(x, rect.y)
                 .with_custom_background(background).with_custom_hover_bg(theme::PANEL_BG)
-                .with_custom_text_color(theme::STATUS_BAR_TEXT).with_font_size(pixels(13))
+                .with_custom_text_color(theme::STATUS_BAR_TEXT).with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Center).with_roundness(0.f)
                 .with_render_layer(6).with_debug_name(debugName));
         };
         if (cancelRead && width >= 200.f) {
             if (button(ctx, mk(root, 4033), preset::Button("Cancel")
                 .with_size(ComponentSize{pixels(65), pixels(height)}).with_absolute_position()
-                .with_translate(zoomX - 65.f, rect.y).with_font_size(pixels(11))
+                .with_translate(zoomX - 65.f, rect.y).with_font_size(pixels(12))
                 .with_render_layer(6).with_debug_name("cancel_active_read"))) cancelRead();
         }
         if (width >= 120.f) {

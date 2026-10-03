@@ -8,7 +8,9 @@ click_ui open_full_file
 wait_for_refresh
 screenshot boundary_first_source
 key ENTER
-key CMD+P
+hold_key 343
+key P
+release_key 343
 screenshot boundary_picker
 click_ui file_picker_working_scope
 wait_for_refresh

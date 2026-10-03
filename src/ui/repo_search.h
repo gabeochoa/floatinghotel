@@ -202,7 +202,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
     const auto focusTarget = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
     const bool queryFocused = focusTarget && focusTarget->control == "repo_search_input";
-    const bool enter = !ui::shortcuts_blocked(layout) && owner.input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(257);
+    const bool enter = !ui::shortcuts_blocked(layout) && owner.input(reading::focus::Region::Search) && afterhours::input::is_key_pressed(afterhours::keys::ENTER);
     const auto now = std::chrono::steady_clock::now();
     const std::array text{repo.repoSearchQuery, repo.repoSearchIncludeGlob, repo.repoSearchExcludeGlob};
     if (text != repo.repoSearchObservedText) {
@@ -249,9 +249,9 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     }
     bool revealSelected = false;
     bool modified = false;
-    for (int key = 340; key <= 347; ++key) modified |= afterhours::input::is_key_down(key);
+    for (int key = afterhours::keys::LEFT_SHIFT; key <= afterhours::keys::RIGHT_SUPER; ++key) modified |= afterhours::input::is_key_down(key);
     if (!ui::shortcuts_blocked(layout) && !modified && (queryFocused || (!owner.text && owner.region == reading::focus::Region::Search))) {
-        const int direction = afterhours::input::is_key_pressed(264) ? 1 : afterhours::input::is_key_pressed(265) ? -1 : 0;
+        const int direction = afterhours::input::is_key_pressed(afterhours::keys::DOWN) ? 1 : afterhours::input::is_key_pressed(afterhours::keys::UP) ? -1 : 0;
         if (direction) {
             const auto selected = search_results::adjacent_match(repo.repoSearchRows, repo.repoSearchSelected, direction);
             if (selected && selected != repo.repoSearchSelected) {
@@ -352,7 +352,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
             ui::set_truncated_tooltip(result.ent(), label, result.ent());
             if (result) {
                 repo.repoSearchSelected = i;
-                navigation::click(repo, repo_search_location(repo, match), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);
+                navigation::click(repo, repo_search_location(repo, match), afterhours::input::is_key_pressed(afterhours::keys::ENTER), reading::ClickRegion::Search);
             }
             if (button(ctx, mk(resultRow.ent(), 1), preset::Button("Preview")
                     .with_size(ComponentSize{pixels(60), pixels(30)}).with_font_size(pixels(12))

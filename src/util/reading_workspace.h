@@ -237,6 +237,16 @@ struct Document {
     source_folding::State sourceFolds;
     std::optional<CodePosition> caret;
     std::optional<CodeSelection> selection;
+    // Working-tree edit mode (source documents only): the buffer is the
+    // authoritative text while editMode is on; editGeneration bumps on
+    // every mutation so the view can rebuild its rendered lines.
+    bool editMode = false;
+    bool editSeeded = false;
+    bool editDirty = false;
+    bool editCrlf = false;
+    bool editTrailingNewline = true;
+    unsigned editGeneration = 0;
+    std::vector<std::string> editLines;
     std::vector<CodePosition> feedbackLines;
     unsigned feedbackGeneration = 0;
 };

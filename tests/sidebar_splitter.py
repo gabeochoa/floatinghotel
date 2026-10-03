@@ -17,7 +17,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         setup = 'make_test_repo\nresize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
         setup += 'native_menu_action "Zoom In"\n' * steps
         if view == "files":
-            setup += 'click_ui sidebar_working_files\nwait_frames 3\n'
+            setup += 'wait_frames 3\n'
         setup += 'screenshot before\n'
 
         def replay(name, script):

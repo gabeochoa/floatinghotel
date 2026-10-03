@@ -43,13 +43,24 @@ TEST(same_file_at_multiple_revisions_uses_badges_without_redundant_parents) {
     ASSERT_STREQ(titles[2].tooltip, "src/main.cpp @ " + oid);
 }
 
-TEST(short_hashes_extend_only_to_remove_collisions) {
+TEST(hash_badges_stay_at_seven_characters_even_on_collisions) {
     auto a = std::string(40, 'a');
     auto b = a; b[8] = 'b';
     auto titles = document_titles({file(1, "a.cpp", a), file(2, "a.cpp", b), file(3, "b.cpp", a)});
-    ASSERT_STREQ(titles[0].badge, "aaaaaaaaa");
-    ASSERT_STREQ(titles[1].badge, "aaaaaaaab");
-    ASSERT_STREQ(titles[2].badge, titles[0].badge);
+    // Never grow the badge past the short hash to chase uniqueness; the
+    // tooltip keeps the full identity.
+    ASSERT_STREQ(titles[0].badge, "aaaaaaa");
+    ASSERT_STREQ(titles[1].badge, "aaaaaaa");
+    // b.cpp is open at only one version: no badge at all.
+    ASSERT_TRUE(titles[2].badge.empty());
+}
+
+TEST(single_pinned_file_shows_no_hash_badge) {
+    auto oid = std::string(40, 'a');
+    auto title = document_titles({file(1, "src/main.cpp", oid)})[0];
+    ASSERT_STREQ(title.label, "main.cpp");
+    ASSERT_TRUE(title.badge.empty());
+    ASSERT_STREQ(title.tooltip, "src/main.cpp @ " + oid);
 }
 
 TEST(parent_disambiguation_ignores_duplicate_copies_of_the_same_path) {

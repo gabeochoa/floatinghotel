@@ -49,7 +49,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'type "c"\n' + capture('no_review_shortcut', 'src/echo-é.cpp')
     script += 'click_ui commit_file_filter\n' + capture('filter_before')
     script += 'type "alpha"\nkey ALT+LEFT\n' + capture('filter_after')
-    script += 'key CMD+A\nkey BACKSPACE\nnative_menu_action "Review Workspace (toggle)"\nnative_menu_action "All Files View"\nclick_ui sidebar_working_files\nwait_frames 6\nclick_ui file_row\ntype "by"\nwait_for_refresh\n' + capture('working_source', 'src/bytes.cpp', 3)
+    script += 'key CMD+A\nkey BACKSPACE\nnative_menu_action "Review Workspace (toggle)"\nnative_menu_action "All Files View"\nwait_frames 6\nclick_ui file_row\ntype "by"\nwait_for_refresh\n' + capture('working_source', 'src/bytes.cpp', 3)
     script += 'key ENTER\n' + capture('source_kept', 'src/bytes.cpp', 3)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

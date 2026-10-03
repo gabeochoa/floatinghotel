@@ -1,21 +1,13 @@
-#TDD not ready
-# Flow: Open a different repository
-# User opens File > Open Repository and switches to another repo
-make_test_repo
+# Flow: Open Repository via Cmd+O. set_open_path stands in for the native
+# folder panel (the test-mode consumer reads it instead of showing one).
+# Asserts only the end state, so it is safe in the shared flow process.
 resize 1280 720
-wait_frames 5
+wait_frames 10
 
-# Current repo loaded
-screenshot flow_openrepo_01_current
-
-# Open File menu to look for "Open Repository"
-click_text File
-wait_frames 5
-screenshot flow_openrepo_02_file_menu
-
-# Close menu
-click 640 400
-wait_frames 5
-
-# TODO: open repo dialog not yet implemented
-screenshot flow_openrepo_03_placeholder
+set_open_path tests/fixture_repo
+key CMD+O
+wait_frames 6
+wait_for_refresh
+wait_frames 10
+validate active_tab_label=fixture_repo (main)
+screenshot open_repo_shortcut

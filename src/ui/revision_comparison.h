@@ -48,7 +48,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         auto row = div(ctx, mk(parent, id), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(34)}).with_flex_direction(FlexDirection::Row));
         div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(label)
-            .with_size(ComponentSize{pixels(100), pixels(32)}).with_font_size(FontSize::Small));
+            .with_size(ComponentSize{pixels(100), pixels(32)}).with_font_size(pixels(12)));
         afterhours::text_input::text_input(ctx, mk(row.ent(), 1), text, ComponentConfig{}
             .with_size(ComponentSize{pixels(std::max(80.f, layout.mainContent.width - 110.f)), pixels(32)}).with_debug_name(name));
     };
@@ -94,7 +94,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         "Resolved revisions: " + diff_revisions(repo.comparisonScope()).first.substr(0, 12) + " → " + diff_revisions(repo.comparisonScope()).second.substr(0, 12);
     if (!repo.comparisonError.empty()) status = repo.comparisonError;
     div(ctx, mk(parent, 590003), ComponentConfig{}.with_label(status)
-        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(FontSize::Small)
+        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(12))
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_debug_name("comparison_loading_status"));
     if (!repo.comparisonScope().empty() && !repo.comparisonFuture.valid())
         ui::render_diff(ctx, parent, repo.comparisonDiff, layout.mainContent.width,

@@ -242,6 +242,41 @@ extern "C" void metal_wait_for_gpu(void) {
     [fence waitUntilCompleted];
 }
 
+// Native folder picker for Open Repository (Cmd+O). Runs the panel modal;
+// returns false on cancel, otherwise copies the chosen directory path.
+extern "C" bool metal_choose_folder(char* out, int out_size) {
+    @autoreleasepool {
+        NSOpenPanel* panel = [NSOpenPanel openPanel];
+        panel.canChooseFiles = NO;
+        panel.canChooseDirectories = YES;
+        panel.allowsMultipleSelection = NO;
+        panel.canCreateDirectories = NO;
+        panel.prompt = @"Open";
+        if ([panel runModal] != NSModalResponseOK || !panel.URL) return false;
+        const char* path = panel.URL.path.UTF8String;
+        if (!path) return false;
+        std::strncpy(out, path, static_cast<size_t>(out_size) - 1);
+        out[out_size - 1] = '\0';
+        return true;
+    }
+}
+
+// Live modifier state straight from the OS (bitmask: 1 shift, 2 control,
+// 4 option, 8 command). The sokol key_down latch is only cleared by a KEY_UP
+// delivered to this app; a modifier released while another app is frontmost
+// (Cmd+Shift+4 screenshots, app switching) never produces one, leaving the
+// latch stuck down — plain clicks then read as shift/cmd clicks forever.
+// The app reconciles the modifier latches against this every frame.
+extern "C" int metal_live_modifiers(void) {
+    const NSEventModifierFlags flags = [NSEvent modifierFlags];
+    int bits = 0;
+    if (flags & NSEventModifierFlagShift) bits |= 1;
+    if (flags & NSEventModifierFlagControl) bits |= 2;
+    if (flags & NSEventModifierFlagOption) bits |= 4;
+    if (flags & NSEventModifierFlagCommand) bits |= 8;
+    return bits;
+}
+
 static id _e2e_activity_token = nil;
 
 extern "C" void metal_activate_app(void) {

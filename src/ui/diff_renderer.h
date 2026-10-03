@@ -138,6 +138,8 @@ struct State {
     std::string sourceIdentity;
     unsigned sourceGeneration = 0;
     std::optional<float> preferredX;
+    int vimCount = 0;    // pending vim count prefix (e.g. 12 in 12j)
+    char vimPending = 0; // pending vim operator key ('g' in gg)
     std::string context;
     reading::CodePosition anchor, head;
     std::vector<Rec> lastLines; // prior frame (used for hit-test + copy)
@@ -449,12 +451,12 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
             const Pos hit{row.ent, colAt(row)};
             auto position = code_position(row, hit.col);
             if (sess.reviewActions && sess.owner && !sess.owner->workspace().active_source() && (row.sign == '+' || row.sign == '-') &&
-                (afterhours::input::is_key_down(343) || afterhours::input::is_key_down(347))) {
+                (afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER))) {
                 if (!navigation::toggle_feedback_line(*sess.owner, position)) afterhours::toast::send_info(ctx, "Feedback selection is limited to 512 lines", 3.f);
                 st.dragging = false;
                 return;
             }
-            const bool shift = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
+            const bool shift = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
             const double now = afterhours::graphics::get_time();
             const float tolerance = 4.f * zoom::get();
             const bool repeated = !shift && st.clickTime >= 0. && now - st.clickTime < .4 &&
@@ -586,26 +588,137 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     const auto owner = shortcut_owner(ctx, repo);
     if (owner.text || owner.region != reading::focus::Region::Code) return;
     using Motion = reading::CodeMotion;
-    const bool shift = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
-    const bool alt = afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346);
-    const bool command = afterhours::input::is_key_down(343) || afterhours::input::is_key_down(347) ||
-        afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345);
-    const bool control = afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345);
+    const bool shift = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
+    const bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
+    const bool command = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
+        afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL);
+    const bool super = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER);
+    const bool control = afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL);
     std::optional<Motion> motion;
     auto key = [&](int code, InputAction action, Motion plain, Motion word, Motion boundary) {
         if (!afterhours::input::is_key_pressed(code)) return;
         (void)ctx.pressed(action);
         motion = command ? boundary : alt || control ? word : plain;
     };
-    key(263, InputAction::WidgetLeft, Motion::Left, Motion::WordLeft, Motion::LineStart);
-    key(262, InputAction::WidgetRight, Motion::Right, Motion::WordRight, Motion::LineEnd);
-    key(265, InputAction::WidgetUp, Motion::Up, Motion::Up, Motion::DocumentStart);
-    key(264, InputAction::WidgetDown, Motion::Down, Motion::Down, Motion::DocumentEnd);
-    if (afterhours::input::is_key_pressed(268)) motion = control || command ? Motion::DocumentStart : Motion::LineStart;
-    if (afterhours::input::is_key_pressed(269)) motion = control || command ? Motion::DocumentEnd : Motion::LineEnd;
+    key(afterhours::keys::LEFT, InputAction::WidgetLeft, Motion::Left, Motion::WordLeft, Motion::LineStart);
+    key(afterhours::keys::RIGHT, InputAction::WidgetRight, Motion::Right, Motion::WordRight, Motion::LineEnd);
+    key(afterhours::keys::UP, InputAction::WidgetUp, Motion::Up, Motion::Up, Motion::DocumentStart);
+    key(afterhours::keys::DOWN, InputAction::WidgetDown, Motion::Down, Motion::Down, Motion::DocumentEnd);
+    if (afterhours::input::is_key_pressed(afterhours::keys::HOME)) motion = control || command ? Motion::DocumentStart : Motion::LineStart;
+    if (afterhours::input::is_key_pressed(afterhours::keys::END)) motion = control || command ? Motion::DocumentEnd : Motion::LineEnd;
     auto& st = state();
     const auto* document = repo.workspace().document(repo.workspace().active_id());
-    if (!motion || diffs.empty()) return;
+    // Vim motions in the code-file (source) view, behind the Vim Mode
+    // setting (off by default). Source documents only — review documents
+    // keep j/k for change navigation (MainContentSystem) — and never
+    // while editing, where the letters must type.
+    //   hjkl arrows · w/e/b word steps · 0/$ line ends · gg/G file
+    //   ends · {count} repeats a motion, {count}G / {count}gg goes to
+    //   that line · Ctrl+D/U half page, Ctrl+F/B full page (by visible
+    //   rows) · Esc cancels a pending count or g.
+    // Bare keys only for the letter motions: Cmd/Alt+letter belongs to
+    // shortcuts and word motions, not vim. Shift is allowed (G, $).
+    int vimRepeat = 1;
+    std::optional<int> vimGotoLine;
+    bool vimConsumed = false;
+    const bool vimActive = document && Settings::get().get_vim_mode() && !document->editMode &&
+        std::get_if<reading::SourceLocation>(&document->location);
+    if (vimActive && !command && !control && !alt) {
+        namespace keys = afterhours::keys;
+        auto pressed = [](int code) { return afterhours::input::is_key_pressed(code); };
+        bool consumed = false;
+        if (pressed(keys::ESCAPE)) {
+            st.vimCount = 0;
+            st.vimPending = 0;
+            consumed = true;
+        } else {
+            // Pending state (count, g) survives frames with no keypress;
+            // it resolves on the next key this handler understands.
+            auto understood = [&] {
+                if (pressed(keys::G) || pressed(keys::H) || pressed(keys::J) || pressed(keys::K) ||
+                    pressed(keys::L) || pressed(keys::W) || pressed(keys::E) || pressed(keys::B)) return true;
+                if (pressed(keys::FOUR) && shift) return true;
+                if (!shift) for (int d = 0; d <= 9; ++d) if (pressed(keys::ZERO + d)) return true;
+                return false;
+            };
+            if (understood()) {
+                if (st.vimPending == 'g') {
+                    st.vimPending = 0;
+                    if (pressed(keys::G) && !shift) {
+                        if (st.vimCount > 0) vimGotoLine = st.vimCount;
+                        motion = Motion::DocumentStart;
+                        st.vimCount = 0;
+                        consumed = true;
+                    }
+                }
+            }
+            if (!consumed && understood()) {
+                bool digit = false;
+                if (!shift) for (int d = 0; d <= 9 && !digit; ++d) {
+                    if (!pressed(keys::ZERO + d)) continue;
+                    digit = true;
+                    if (d == 0 && st.vimCount == 0) motion = Motion::LineStart;
+                    else st.vimCount = std::min(9999, st.vimCount * 10 + d);
+                }
+                if (digit) {
+                    consumed = true;
+                } else if (pressed(keys::G) && !shift) {
+                    st.vimPending = 'g';
+                    consumed = true;
+                } else {
+                    auto take = [&](Motion plain) {
+                        motion = plain;
+                        vimRepeat = std::max(1, st.vimCount);
+                        st.vimCount = 0;
+                        consumed = true;
+                        // Mark the nearest widget action consumed, as the
+                        // arrow-key path does, so the letter cannot also
+                        // fire a bound UI action this frame.
+                        (void)ctx.pressed(plain == Motion::Left || plain == Motion::WordLeft || plain == Motion::LineStart
+                            ? InputAction::WidgetLeft
+                            : plain == Motion::Up || plain == Motion::DocumentStart ? InputAction::WidgetUp
+                            : plain == Motion::Down || plain == Motion::DocumentEnd ? InputAction::WidgetDown
+                            : InputAction::WidgetRight);
+                    };
+                    if (pressed(keys::G) && shift) {
+                        if (st.vimCount > 0) { vimGotoLine = st.vimCount; motion = Motion::DocumentEnd; st.vimCount = 0; consumed = true; }
+                        else take(Motion::DocumentEnd);
+                    }
+                    else if (pressed(keys::FOUR) && shift) take(Motion::LineEnd);
+                    else if (pressed(keys::W) || pressed(keys::E)) take(Motion::WordRight);
+                    else if (pressed(keys::B)) take(Motion::WordLeft);
+                    else if (pressed(keys::H)) take(Motion::Left);
+                    else if (pressed(keys::J)) take(Motion::Down);
+                    else if (pressed(keys::K)) take(Motion::Up);
+                    else if (pressed(keys::L)) take(Motion::Right);
+                }
+            }
+        }
+        vimConsumed = consumed;
+    }
+    if (vimActive && control && !super && !alt && !diffs.empty()) {
+        // Page motions repeat Up/Down by the number of rows of this file
+        // currently rendered (last frame's line set).
+        const auto& caretPath = document->caret ? document->caret->path : diffs.front().filePath;
+        const auto caretSide = document->caret ? document->caret->side : reading::DiffSide::After;
+        std::set<int> visibleRows;
+        for (const auto& row : st.lastLines)
+            if (row.filePath == caretPath && number_on_side(row, caretSide) > 0)
+                visibleRows.insert(number_on_side(row, caretSide));
+        const int page = std::max(1, static_cast<int>(visibleRows.size()));
+        namespace keys = afterhours::keys;
+        // Control is vim's modifier: Ctrl+F/B page, Ctrl+D/U half page.
+        // The window controls those keys suggest (Find, Toggle Sidebar)
+        // live on Command (Cmd+F / Cmd+B) and never see Control.
+        if (afterhours::input::is_key_pressed(keys::D)) { motion = Motion::Down; vimRepeat = std::max(1, page / 2); vimConsumed = true; }
+        else if (afterhours::input::is_key_pressed(keys::U)) { motion = Motion::Up; vimRepeat = std::max(1, page / 2); vimConsumed = true; }
+        else if (afterhours::input::is_key_pressed(keys::F)) { motion = Motion::Down; vimRepeat = page; vimConsumed = true; }
+        else if (afterhours::input::is_key_pressed(keys::B)) { motion = Motion::Up; vimRepeat = page; vimConsumed = true; }
+    }
+    // Shift extends the selection for plain keyboard navigation, but a
+    // shifted vim key (G, $) is a motion, not a selection.
+    const bool extendSelection = shift && !vimConsumed;
+    if (!motion && !vimGotoLine || diffs.empty()) return;
     auto point = document->caret.value_or(reading::CodePosition{diffs.front().filePath});
     const auto file = std::find_if(diffs.begin(), diffs.end(), [&](const ecs::FileDiff& value) { return value.filePath == point.path; });
     if (file == diffs.end() || file->isBinary) return;
@@ -616,12 +729,12 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     lines.erase(std::unique(lines.begin(), lines.end(), [](const auto& a, const auto& b) { return a.number == b.number; }), lines.end());
     if (lines.empty()) return;
     std::optional<reading::CodePosition> collapsed;
-    if (!shift && st.hasSel && (*motion == Motion::Left || *motion == Motion::Right)) {
+    if (!extendSelection && st.hasSel && (*motion == Motion::Left || *motion == Motion::Right)) {
         auto first = st.anchor, last = st.head;
         if (std::tie(first.line, first.column) > std::tie(last.line, last.column)) std::swap(first, last);
         collapsed = *motion == Motion::Left ? first : last;
     }
-    if (shift) {
+    if (extendSelection) {
         if (!st.hasSel && !st.extending) { st.anchor = point; bind_selection_source(session); }
         st.extending = true;
     } else {
@@ -631,33 +744,47 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
         st.hl.clear();
     }
     remember_selection(session);
-    auto moved = collapsed.value_or(reading::move_code(point, *motion, lines));
     const bool backward = *motion == Motion::Left || *motion == Motion::WordLeft || *motion == Motion::Up ||
         *motion == Motion::LineStart || *motion == Motion::DocumentStart;
-    if (*motion == Motion::Up || *motion == Motion::Down) {
+    // One motion step: the logical move, refined to the visual (wrapped)
+    // row for Up/Down. Vim counts and page motions repeat the step.
+    auto step = [&](reading::CodePosition from) {
+        auto result = reading::move_code(from, *motion, lines);
+        if (*motion != Motion::Up && *motion != Motion::Down) return result;
         std::vector<const Rec*> rows;
-        for (const auto& row : st.lastLines) if (row.filePath == point.path && number_on_side(row, point.side) > 0) rows.push_back(&row);
+        for (const auto& row : st.lastLines) if (row.filePath == from.path && number_on_side(row, from.side) > 0) rows.push_back(&row);
         auto current = std::find_if(rows.begin(), rows.end(), [&](const Rec* row) {
-            return reading::caret_byte(point, row->filePath, point.side, number_on_side(*row, point.side), row->content, row->logicalColumn, row->finalFragment).has_value();
+            return reading::caret_byte(from, row->filePath, from.side, number_on_side(*row, from.side), row->content, row->logicalColumn, row->finalFragment).has_value();
         });
-        if (current != rows.end()) {
-            const auto& row = **current;
-            if (!st.preferredX) st.preferredX = code_mw(session, row.content.substr(0, reading::byte_at_column(row.content, point.column - row.logicalColumn + 1)));
-            auto next = current;
-            if (backward && current != rows.begin()) --next;
-            if (!backward && std::next(current) != rows.end()) ++next;
-            if (next != current) {
-                int byte = 0;
-                float distance = *st.preferredX;
-                for (size_t end : code_wrap::character_ends((*next)->content)) {
-                    const float candidate = std::abs(code_mw(session, (*next)->content.substr(0, end)) - *st.preferredX);
-                    if (candidate < distance) { distance = candidate; byte = static_cast<int>(end); }
-                }
-                moved = code_position(**next, byte, point.side);
-            }
+        if (current == rows.end()) return result;
+        const auto& row = **current;
+        if (!st.preferredX) st.preferredX = code_mw(session, row.content.substr(0, reading::byte_at_column(row.content, from.column - row.logicalColumn + 1)));
+        auto next = current;
+        if (backward && current != rows.begin()) --next;
+        if (!backward && std::next(current) != rows.end()) ++next;
+        if (next == current) return result;
+        int byte = 0;
+        float distance = *st.preferredX;
+        for (size_t end : code_wrap::character_ends((*next)->content)) {
+            const float candidate = std::abs(code_mw(session, (*next)->content.substr(0, end)) - *st.preferredX);
+            if (candidate < distance) { distance = candidate; byte = static_cast<int>(end); }
         }
-    } else st.preferredX.reset();
-    if (file->isFullContent) {
+        return code_position(**next, byte, from.side);
+    };
+    auto moved = collapsed.value_or(step(point));
+    vimRepeat = std::min(vimRepeat, static_cast<int>(lines.size()) + 1);
+    for (int i = 1; i < vimRepeat; ++i) moved = step(moved);
+    if (*motion != Motion::Up && *motion != Motion::Down) st.preferredX.reset();
+    if (vimGotoLine) {
+        // {count}G / {count}gg: land on the counted line (clamped to the
+        // lines this view has loaded), at its first column.
+        const auto target = std::find_if(lines.begin(), lines.end(),
+            [&](const reading::CodeLine& line) { return line.number >= *vimGotoLine; });
+        const auto& line = target == lines.end() ? lines.back() : *target;
+        moved.line = line.number;
+        moved.column = line.column;
+    }
+    if (file->isFullContent && !vimGotoLine) {
         const auto& page = repo.fullFilePage;
         std::optional<ecs::FilePageRequest> request;
         std::optional<Motion> afterLoad;
@@ -700,7 +827,7 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     }
     navigation::set_caret(repo, moved);
     session.caret = moved;
-    if (!shift) st.anchor = st.head = moved;
+    if (!extendSelection) st.anchor = st.head = moved;
     keyboard_selection(moved);
     remember_selection(session);
     auto viewportEntity = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
@@ -2046,7 +2173,7 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
             .with_styled_label(std::move(pathSpans))
             .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font("mono", pixels(15))
+            .with_font("mono", pixels(16))
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_padding(Padding{
@@ -2348,10 +2475,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(14))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("diff_stats_label"));
         div(ctx, mk(stats.ent(), 1), ComponentConfig{}.with_label("+" + std::to_string(additions))
-            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(13))
+            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(14))
             .with_custom_text_color(theme::DIFF_ADD_TEXT).with_debug_name("diff_additions"));
         div(ctx, mk(stats.ent(), 2), ComponentConfig{}.with_label("-" + std::to_string(deletions))
-            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(13))
+            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(14))
             .with_custom_text_color(theme::DIFF_DEL_TEXT).with_debug_name("diff_deletions"));
         const bool compact = contentWidth < 480.f;
         auto actions = div(ctx, mk(toolbar.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
@@ -2360,19 +2487,26 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_align_items(AlignItems::Center).with_debug_name("diff_mode_toggle"));
         auto modes = div(ctx, mk(actions.ent(), 10), ComponentConfig{}
             .with_size(ComponentSize{pixels(compact ? 108 : 124), pixels(32)})
-            .with_flex_direction(FlexDirection::Row).with_no_wrap()
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(2))
             .with_padding(Padding{.top = pixels(3), .right = pixels(3), .bottom = pixels(3), .left = pixels(3)})
             .with_custom_background(theme::BUTTON_SECONDARY).with_border(theme::BORDER, pixels(1))
-            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(5.f)
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(8.f)
             .with_debug_name("review_segments"));
         auto modeButton = [&](int id, const char* label, bool active) {
-            return button(ctx, mk(modes.ent(), id), preset::Button(label)
+            // One pill, not two blocks: the inactive segment used to paint
+            // the container's own bg as a filled block with mismatched
+            // corners where the two segments met. Inactive = transparent,
+            // only the active segment is filled, radius inside the track's.
+            auto config = preset::Button(label)
                 .with_size(ComponentSize{expand(), pixels(26)})
-                .with_custom_background(active ? segment_selected_color() : theme::BUTTON_SECONDARY)
                 .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
-                .with_font_size(pixels(13))
+                .with_font_size(pixels(14))
                 .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
-                .with_debug_name(active ? "diff_mode_active" : "diff_mode_inactive"));
+                .with_corner_radius(5.f)
+                .with_debug_name(active ? "diff_mode_active" : "diff_mode_inactive");
+            if (active) config = config.with_custom_background(segment_selected_color());
+            else config = config.with_transparent_bg();
+            return button(ctx, mk(modes.ent(), id), config);
         };
         if (modeButton(0, "Unified", !sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::Inline;
         if (modeButton(1, "Split", sideBySide)) layout->diffViewMode = ecs::LayoutComponent::DiffViewMode::SideBySide;
@@ -2386,7 +2520,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_debug_name("basket_toggle_btn"));
             chrome_icon(ctx, mk(feedback.ent(), 0), ChromeIcon::Message, theme::TEXT_SECONDARY, "feedback_icon");
             div(ctx, mk(feedback.ent(), 1), ComponentConfig{}.with_label("Feedback " + std::to_string(comments))
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(13))
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
                 .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
             if (feedback) review->basketOpen = !review->basketOpen;
         }
@@ -2403,7 +2537,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             chrome_icon(ctx, mk(finish.ent(), 0), ChromeIcon::Check, theme::WINDOW_BG, "finish_review_icon");
             div(ctx, mk(finish.ent(), 1), ComponentConfig{}
                 .with_label(verdict == ReviewVerdict::InProgress ? "Finish review" : review_verdict_label(verdict))
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font("ui-bold", pixels(13))
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font("ui-bold", pixels(14))
                 .with_custom_text_color(theme::WINDOW_BG).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
             if (finish) {
                 std::vector<ContextMenuItem> choices;
@@ -2421,7 +2555,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
         }
         auto options = button(ctx, mk(actions.ent(), 4), preset::Button(compact ? "..." : "Options")
-                .with_size(ComponentSize{pixels(compact ? 32 : 64), pixels(30)}).with_font_size(pixels(13))
+                .with_size(ComponentSize{pixels(compact ? 32 : 64), pixels(30)}).with_font_size(pixels(14))
                 .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
                 .with_transparent_bg().with_border(theme::BORDER, pixels(1))
                 .with_debug_name("diff_options_toggle"));
@@ -2489,6 +2623,50 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>(); repo && repo->repoPath == path)
                         repo->fileFilter.sort = value;
                 }));
+            show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
+        }
+        // Per-repo default folds for opening commits: pattern field +
+        // long-file threshold. Stored via Settings (debounced save); the
+        // patterns text is reloaded when the active repo changes.
+        auto foldRow = div(ctx, mk(findParent ? *findParent : parent, 597003), ComponentConfig{}.with_skip_grid_snap()
+            .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row)
+            .with_align_items(AlignItems::Center).with_no_wrap().with_gap(pixels(8))
+            .with_debug_name("fold_defaults_row"));
+        if (layout->foldPatternsRepo != filterRepo->repoPath) {
+            layout->foldPatternsRepo = filterRepo->repoPath;
+            layout->foldPatternsText = fold_defaults::format_patterns(
+                Settings::get().get_fold_rules(filterRepo->repoPath).patterns);
+        }
+        auto foldField = afterhours::text_input::text_input(ctx, mk(foldRow.ent(), 0), layout->foldPatternsText,
+            ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(pixels(12))
+                .with_custom_background(theme::INPUT_BG)
+                .with_placeholder("tests/**, *.generated.*")
+                .with_debug_name("fold_patterns"));
+        ui::set_tooltip(foldField.ent(), "Applies per repository when a commit is opened");
+        if (fold_defaults::parse_patterns(layout->foldPatternsText) !=
+            Settings::get().get_fold_rules(filterRepo->repoPath).patterns) {
+            auto rules = Settings::get().get_fold_rules(filterRepo->repoPath);
+            rules.patterns = fold_defaults::parse_patterns(layout->foldPatternsText);
+            Settings::get().set_fold_rules(filterRepo->repoPath, rules);
+        }
+        const auto foldRules = Settings::get().get_fold_rules(filterRepo->repoPath);
+        if (button(ctx, mk(foldRow.ent(), 1), preset::Button("Long files: " +
+                (foldRules.minChangedLines > 0 ? std::to_string(foldRules.minChangedLines) + "+" : std::string("Off")))
+                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+                .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("fold_threshold"))) {
+            std::vector<ContextMenuItem> choices;
+            for (int value : {0, 200, 500, 1000}) {
+                choices.push_back(ContextMenuItem::item(
+                    value > 0 ? "Fold at " + std::to_string(value) + "+ changed lines" : "Off",
+                    [path = filterRepo->repoPath, value] {
+                        if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>(); repo && repo->repoPath == path) {
+                            auto rules = Settings::get().get_fold_rules(path);
+                            rules.minChangedLines = value;
+                            Settings::get().set_fold_rules(path, rules);
+                        }
+                    }));
+            }
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
         auto progress = div(ctx, mk(findParent ? *findParent : parent, 597002), ComponentConfig{}.with_skip_grid_snap()
@@ -2613,7 +2791,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (button(ctx, mk(bar.ent(), 2), preset::Button(">")
                 .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_next"))) step = 1;
         if (!shortcuts_blocked(*layout) && shortcut_owner(ctx, *filterRepo).input(reading::focus::Region::Find) &&
-            afterhours::input::is_key_pressed(257)) step = afterhours::input::is_key_down(340) ? -1 : 1;
+            afterhours::input::is_key_pressed(afterhours::keys::ENTER)) step = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) ? -1 : 1;
         find.pendingStep += step;
         if (count > 0) {
             find.index = (static_cast<int>(find.index % count) + find.pendingStep % count + count) % count;
@@ -2743,13 +2921,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
 
 
         // Cmd+C copies the current selection (keyboard path; the header button
-        // is the mouse path). 343/347 = L/R Super, 67 = 'C' (GLFW keycodes).
-        bool superDown = afterhours::input::is_key_down(343) ||
-                         afterhours::input::is_key_down(347) ||
-                         afterhours::input::is_key_down(341);
-        if (filterRepo && layout && reader_shortcuts(ctx, *filterRepo, *layout) && superDown && afterhours::input::is_key_pressed(67) &&
+        // is the mouse path).
+        bool superDown = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
+                         afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
+                         afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL);
+        if (filterRepo && layout && reader_shortcuts(ctx, *filterRepo, *layout) && superDown && afterhours::input::is_key_pressed(afterhours::keys::C) &&
             diff_sel::state().hasSel) {
-            const bool withLocation = afterhours::input::is_key_down(340) || afterhours::input::is_key_down(344);
+            const bool withLocation = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
             auto message = diff_sel::copy_selection(withLocation);
             if (!message.empty()) afterhours::toast::send_info(ctx, message, 4.f);
         }
@@ -2802,8 +2980,19 @@ inline void render_diff(UIContext<InputAction>& ctx,
         vp.screenH = (float)afterhours::graphics::get_screen_height();
         vp.contentWidth = codeWidth;
         float scrollY = 0.f, viewportH = 0.f;
-        if (contentParent->has<afterhours::ui::HasScrollView>()) {
-            auto& sv = contentParent->get<afterhours::ui::HasScrollView>();
+        // An embedded diff may sit in a section div inside the scroll
+        // container (the combined Changes page), so cull against the
+        // nearest scrolling ancestor, not just the direct parent.
+        Entity* scrollEntity = contentParent;
+        while (embedInParentScroll && scrollEntity && !scrollEntity->has<afterhours::ui::HasScrollView>() &&
+               scrollEntity->has<afterhours::ui::UIComponent>()) {
+            const int parentId = scrollEntity->get<afterhours::ui::UIComponent>().parent;
+            if (parentId == scrollEntity->id) break;
+            auto next = afterhours::ui::UICollectionHolder::getEntityForID(parentId);
+            scrollEntity = next.valid() ? *next : nullptr;
+        }
+        if (scrollEntity && scrollEntity->has<afterhours::ui::HasScrollView>()) {
+            auto& sv = scrollEntity->get<afterhours::ui::HasScrollView>();
             vp.scroll = &sv;
             scrollY = sv.scroll_offset.y;
             viewportH = sv.viewport_or_zero().y;
@@ -2812,7 +3001,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     .with_size(ComponentSize{w, pixels(0)}).with_debug_name("embedded_diff_origin"));
                 auto rect = afterhours::ui::detail::apply_scroll_offset(
                     origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
-                vp.curY = std::max(0.f, rect.y + scrollY - contentParent->get<afterhours::ui::UIComponent>().rect().y);
+                vp.curY = std::max(0.f, rect.y + scrollY - scrollEntity->get<afterhours::ui::UIComponent>().rect().y);
             }
         }
         if (viewportH <= 0.f)

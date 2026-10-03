@@ -415,6 +415,19 @@ struct HandleTabCommands : afterhours::System<afterhours::testing::PendingE2ECom
             return;
         }
 
+        if (cmd.is("set_open_path")) {
+            // Feeds the Open Repository consumer (TabBarSystem) in test
+            // mode: the path Cmd+O / File > Open will open, standing in for
+            // the native folder panel.
+            if (!cmd.has_args(1)) {
+                cmd.fail("set_open_path requires a path argument");
+                return;
+            }
+            setenv("FH_TEST_OPEN_PATH", cmd.arg(0).c_str(), 1);
+            cmd.consume();
+            return;
+        }
+
         if (cmd.is("reset_tabs")) {
             auto* tabStrip = ecs::find_singleton<ecs::TabStripComponent>();
             auto* layout = ecs::find_singleton<ecs::LayoutComponent>();

@@ -23,11 +23,9 @@ wait_for_refresh
 screenshot expanded
 key CMD+W
 wait_frames 5
-click_ui sidebar_working_files
 wait_frames 3
 click_ui working_review_toggle
 wait_frames 3
-click_ui sidebar_review
 resize 352 800
 wait_frames 5
 screenshot dock_return

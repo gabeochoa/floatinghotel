@@ -18,13 +18,13 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
     const auto target = focused.valid() ? focus_target(**focused) : std::nullopt;
     const auto owner = shortcut_owner(ctx, repo);
     if (owner.region != reading::focus::Region::Tree) { state.typing = {}; return {}; }
-    if (afterhours::input::is_key_down(343) || afterhours::input::is_key_down(347) ||
-        afterhours::input::is_key_down(341) || afterhours::input::is_key_down(345) ||
-        afterhours::input::is_key_down(342) || afterhours::input::is_key_down(346)) return {};
+    if (afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
+        afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL) ||
+        afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT)) return {};
     if (owner.text) {
         state.typing = {};
-        if (target && target->control == "commit_file_filter" && afterhours::input::is_key_pressed(258) &&
-            !afterhours::input::is_key_down(340) && !afterhours::input::is_key_down(344)) {
+        if (target && target->control == "commit_file_filter" && afterhours::input::is_key_pressed(afterhours::keys::TAB) &&
+            !afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) && !afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT)) {
             (void)ctx.pressed(InputAction::WidgetNext);
             if (std::none_of(rows.begin(), rows.end(), [&](const auto& row) { return row.path == state.path; })) state.path = rows.front().path;
             state.pendingFocus = state.pendingReveal = true;
@@ -37,11 +37,11 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
         state.path = target->item;
     }
     std::optional<file_tree::Key> key;
-    if (afterhours::input::is_key_pressed(265)) { key = file_tree::Key::Up; (void)ctx.pressed(InputAction::WidgetUp); }
-    if (afterhours::input::is_key_pressed(264)) { key = file_tree::Key::Down; (void)ctx.pressed(InputAction::WidgetDown); }
-    if (afterhours::input::is_key_pressed(263)) { key = file_tree::Key::Left; (void)ctx.pressed(InputAction::WidgetLeft); }
-    if (afterhours::input::is_key_pressed(262)) { key = file_tree::Key::Right; (void)ctx.pressed(InputAction::WidgetRight); }
-    if (afterhours::input::is_key_pressed(257)) { key = file_tree::Key::Enter; (void)ctx.pressed(InputAction::WidgetPress); }
+    if (afterhours::input::is_key_pressed(afterhours::keys::UP)) { key = file_tree::Key::Up; (void)ctx.pressed(InputAction::WidgetUp); }
+    if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) { key = file_tree::Key::Down; (void)ctx.pressed(InputAction::WidgetDown); }
+    if (afterhours::input::is_key_pressed(afterhours::keys::LEFT)) { key = file_tree::Key::Left; (void)ctx.pressed(InputAction::WidgetLeft); }
+    if (afterhours::input::is_key_pressed(afterhours::keys::RIGHT)) { key = file_tree::Key::Right; (void)ctx.pressed(InputAction::WidgetRight); }
+    if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) { key = file_tree::Key::Enter; (void)ctx.pressed(InputAction::WidgetPress); }
     std::optional<file_tree::Move> move;
     if (key) {
         state.typing = {};

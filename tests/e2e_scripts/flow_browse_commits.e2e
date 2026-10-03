@@ -26,9 +26,14 @@ click_text "Initial commit"
 wait_frames 5
 screenshot flow_commits_04_initial
 
-# Go back to file view by clicking a file
-click_ui sidebar_working_files
+# Go back to file view by clicking a file. The commit patch loads async,
+# so wait for the file tree to populate, then click the tree row itself
+# (the diff header in the main pane has the same text).
+wait_frames 30
+wait_for_refresh
+wait_frames 10
 screenshot flow_commits_files_navigation
-click_text "README.md"
+expect_text "README.md"
+click_ui "jump_to_diff:README.md"
 wait_frames 5
 screenshot flow_commits_05_back_to_files

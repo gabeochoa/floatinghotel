@@ -56,6 +56,10 @@ inline std::vector<Menu> createMenuBar() {
 
     // File menu
     menus.push_back({"File", {
+        MenuItem::item("Open Repository...", "Cmd+O", [] {
+            if (auto* menu = ecs::find_singleton<ecs::MenuComponent>())
+                menu->pendingDialog = ecs::MenuComponent::PendingDialog::OpenRepo;
+        }),
         MenuItem::item("Quit", "Cmd+Q", [] {
             afterhours::graphics::request_quit();
         }),
@@ -183,6 +187,9 @@ inline std::vector<Menu> createMenuBar() {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
                 l->visibleWhitespace = !l->visibleWhitespace;
         }),
+        MenuItem::item("Vim Mode (toggle)", "", [] {
+            Settings::get().set_vim_mode(!Settings::get().get_vim_mode());
+        }),
         MenuItem::item("Side-by-Side Diff", "Cmd+Shift+D", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->diffViewMode = ecs::LayoutComponent::DiffViewMode::SideBySide;
@@ -196,7 +203,7 @@ inline std::vector<Menu> createMenuBar() {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::Tree;
         }),
-        MenuItem::item("All Files View", "", [] {
+        MenuItem::item("File Explorer", "", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::All;
         }),
@@ -206,10 +213,10 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("Reset Zoom", "", [] { ui::zoom::reset(); }),
         MenuItem::separator(),
         MenuItem::item("Larger Code Text", "Cmd+=", [] {
-            Settings::get().set_code_font_size(Settings::get().get_code_font_size() + 1.f);
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() + 2.f);
         }),
         MenuItem::item("Smaller Code Text", "Cmd+-", [] {
-            Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 1.f);
+            Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 2.f);
         }),
         MenuItem::item("Reset Code Text", "Cmd+0", [] { Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize); }),
     }});

@@ -22,6 +22,7 @@ inline size_t display_size(std::string_view raw, bool visible) {
 
 inline std::string display_text(std::string_view raw, bool visible, bool ending = false, bool hasNewline = true) {
     std::string out;
+    out.reserve(raw.size() + (visible && ending ? 16 : 0));
     for (char ch : raw) {
         if (ch == '\t') out += visible ? "→   " : "    ";
         else if (ch == ' ' && visible) out += "·";

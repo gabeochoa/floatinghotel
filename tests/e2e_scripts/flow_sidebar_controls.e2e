@@ -1,0 +1,16 @@
+# Flow: git controls are always shown — there is no hide/show toggle —
+# and the sync row is just its buttons (Push/Pull/Stash), with no
+# caption that looks like a button.
+make_test_repo
+resize 1280 720
+wait_frames 10
+wait_for_refresh
+wait_frames 10
+
+expect_no_text "Hide Git controls"
+expect_no_text "Git controls hidden"
+expect_text "Push"
+expect_text "Pull"
+expect_text "Stash"
+expect_no_text "Sync"
+screenshot sidebar_controls

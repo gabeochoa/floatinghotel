@@ -94,7 +94,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             // a full-width title left it no space and pushed it outside.
             .with_size(ComponentSize{afterhours::ui::expand(), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(afterhours::ui::FontSize::Medium)
+            .with_font_size(pixels(14))
             .with_alignment(TextAlignment::Left)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_title"));
@@ -105,7 +105,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
             .with_label(countLabel)
             .with_size(ComponentSize{children(), h720(HEADER_H)})
             .with_custom_text_color(theme::TEXT_SECONDARY)
-            .with_font_size(afterhours::ui::FontSize::Medium)
+            .with_font_size(pixels(14))
             .with_alignment(TextAlignment::Right)
             .with_roundness(0.0f)
             .with_debug_name("cmdlog_count"));
@@ -134,7 +134,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(8), .right = w1280(8),
                     .bottom = h720(8), .left = w1280(8)})
                 .with_custom_text_color(theme::TEXT_TERTIARY)
-                .with_font_size(afterhours::ui::FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name("cmdlog_empty"));
@@ -164,7 +164,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                     .top = h720(2), .right = w1280(8),
                     .bottom = h720(2), .left = w1280(8)})
                 .with_custom_text_color(cmdColor)
-                .with_font_size(afterhours::ui::FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Left)
                 .with_roundness(0.0f)
                 .with_debug_name("cmdlog_entry_" + std::to_string(entryId)));
@@ -187,7 +187,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("cmdlog_out_" + std::to_string(entryId)));
@@ -211,7 +211,7 @@ inline void render_command_log(afterhours::ui::UIContext<InputAction>& ctx,
                         .top = h720(0), .right = w1280(8),
                         .bottom = h720(2), .left = w1280(24)})
                     .with_custom_text_color(theme::STATUS_DELETED)
-                    .with_font_size(afterhours::ui::FontSize::Medium)
+                    .with_font_size(pixels(14))
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("cmdlog_err_" + std::to_string(entryId)));

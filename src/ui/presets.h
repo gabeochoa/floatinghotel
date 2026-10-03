@@ -180,6 +180,7 @@ inline ComponentConfig EmptyStateText(const std::string& label) {
     return ComponentConfig{}
         .with_label(label)
         .with_size(ComponentSize{percent(1.0f), children()})
+        .with_font_size(pixels(14))
         .with_custom_text_color(theme::EMPTY_STATE_TEXT)
         .with_alignment(TextAlignment::Center)
         .with_roundness(0.0f);
@@ -201,6 +202,7 @@ inline ComponentConfig CaptionText(const std::string& label) {
 inline ComponentConfig DialogMessage(const std::string& text) {
     return ComponentConfig{}
         .with_label(text)
+        .with_font_size(pixels(14))
         .with_size(ComponentSize{percent(1.0f), children()})
         .with_padding(Padding{
             .top = h720(8), .right = w1280(16),

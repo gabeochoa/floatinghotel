@@ -6,7 +6,6 @@ dump_ui_json spacing_dump
 click_text "Add contributing guidelines"
 wait_for_refresh
 screenshot spacing_commit
-click_ui sidebar_working_files
 screenshot spacing_files
 mouse_move 190 180
 scroll_wheel 0 -1000

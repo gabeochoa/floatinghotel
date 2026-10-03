@@ -39,7 +39,21 @@ TEST(settings_default_values) {
     ASSERT_TRUE(s.get_open_repos().empty());
     ASSERT_STREQ(s.get_last_active_repo(), "");
     ASSERT_STREQ(s.get_unstaged_policy(), "ask");
-    ASSERT_EQ(s.get_code_font_size(), 17.6f);
+    ASSERT_EQ(s.get_code_font_size(), 14.f);
+    ASSERT_EQ(s.get_vim_mode(), false);
+}
+
+TEST(settings_vim_mode) {
+    auto& s = Settings::get();
+    ASSERT_EQ(s.get_vim_mode(), false);
+    s.set_vim_mode(true);
+    ASSERT_EQ(s.get_vim_mode(), true);
+    s.write_save_file();
+    s.set_vim_mode(false);
+    ASSERT_TRUE(s.load_save_file());
+    ASSERT_EQ(s.get_vim_mode(), true);
+    s.set_vim_mode(false);
+    s.write_save_file();
 }
 
 TEST(settings_window_geometry) {
@@ -143,28 +157,35 @@ TEST(settings_unstaged_policy_invalid_resets_to_ask) {
 TEST(settings_code_font_size) {
     auto& s = Settings::get();
     s.set_code_font_size(100.f);
-    ASSERT_EQ(s.get_code_font_size(), 24.f);
+    ASSERT_EQ(s.get_code_font_size(), 16.f);
     s.set_code_font_size(-1.f);
-    ASSERT_EQ(s.get_code_font_size(), 10.f);
+    ASSERT_EQ(s.get_code_font_size(), 12.f);
     s.set_code_font_size(std::numeric_limits<float>::quiet_NaN());
-    ASSERT_EQ(s.get_code_font_size(), 17.6f);
+    ASSERT_EQ(s.get_code_font_size(), 14.f);
+    // Off-scale values snap to the nearest type-scale tier, ties up.
+    s.set_code_font_size(13.f);
+    ASSERT_EQ(s.get_code_font_size(), 14.f);
+    s.set_code_font_size(15.f);
+    ASSERT_EQ(s.get_code_font_size(), 16.f);
+    s.set_code_font_size(12.4f);
+    ASSERT_EQ(s.get_code_font_size(), 12.f);
     s.set_code_font_size(19.f);
     s.write_save_file();
     s.set_code_font_size(14.f);
     ASSERT_TRUE(s.load_save_file());
-    ASSERT_EQ(s.get_code_font_size(), 19.f);
+    ASSERT_EQ(s.get_code_font_size(), 16.f);
     {
         std::ofstream file(s.get_settings_path());
         file << R"({"code_font_size": 100})";
     }
     ASSERT_TRUE(s.load_save_file());
-    ASSERT_EQ(s.get_code_font_size(), 24.f);
+    ASSERT_EQ(s.get_code_font_size(), 16.f);
     {
         std::ofstream file(s.get_settings_path());
         file << R"({})";
     }
     ASSERT_TRUE(s.load_save_file());
-    ASSERT_EQ(s.get_code_font_size(), 17.6f);
+    ASSERT_EQ(s.get_code_font_size(), 14.f);
     {
         std::ofstream file(s.get_settings_path());
         file << R"({"code_font_size": 14})";
@@ -412,7 +433,7 @@ TEST(settings_coalesces_resize_font_and_navigation_saves) {
     ASSERT_TRUE(restored.load_save_file());
     ASSERT_EQ(restored.get_window_width(), 1259);
     ASSERT_EQ(restored.get_window_height(), 859);
-    ASSERT_EQ(restored.get_code_font_size(), 22.f);
+    ASSERT_EQ(restored.get_code_font_size(), 16.f);  // 22 snaps to the top tier
     ASSERT_EQ(restored.get_last_active_repo(), "/repo/59");
     for (int i = 0; i < 60; ++i) {
         s.remember_window_size(1259, 859, false, 1259, 280.f);

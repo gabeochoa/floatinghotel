@@ -23,7 +23,9 @@ click_ui shortcuts_close
 screenshot improvement_50_button_close
 expect_no_text "Open this reference"
 validate selected_file=main.cpp
-key CMD+F
+hold_key 343
+key F
+release_key 343
 screenshot improvement_50_find
 assert_ui diff_find_input hidden=false
 key ESCAPE
@@ -31,7 +33,9 @@ screenshot improvement_50_find_closed
 validate selected_file=main.cpp
 click_ui open_full_file
 screenshot improvement_50_full
-key CMD+F
+hold_key 343
+key F
+release_key 343
 screenshot improvement_50_full_find
 key ESCAPE
 screenshot improvement_50_full_preserved

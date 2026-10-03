@@ -429,6 +429,11 @@ public:
     markdown_preview::Cache fullFileMarkdownCache;
     bool fullFileMarkdownPreview = false;
     std::vector<FileDiff> fullFileDiff;
+    // Rendered form of the active document's edit buffer (see source_edit.h);
+    // rebuilt whenever Document::editGeneration moves past the rendered one.
+    std::vector<FileDiff> editDiff;
+    unsigned editRenderedGeneration = 0;
+    bool editRendered = false;
     std::string fullFileError;
     SourcePageWindow sourceWindow;
     bool fullFileExtendRequest = false;
@@ -608,6 +613,7 @@ struct CommitDetailRuntime {
     std::string commitDetailParents;
     std::string commitDetailError;
     bool fileOverviewExpanded = false;
+    bool foldDefaultsApplied = false;
 };
 
 struct CommitDetailCache : public afterhours::BaseComponent, CommitDetailRuntime {};
@@ -1155,11 +1161,18 @@ struct LayoutComponent : public afterhours::BaseComponent {
     float sidebarWidth = kDefaultSidebarWidth;
     float sidebarMinWidth = 200.0f;
     float commitLogRatio = 0.4f;
+    // Minimum height the sidebar system asks layout to reserve for the
+    // upper (files) pane — repo header + fixed chrome + a usable list —
+    // so a short window takes space from the history pane instead of
+    // squeezing the file list to a row or two. 0 = no floor requested.
+    float sidebarFilesFloor = 0.0f;
 
     enum class SidebarMode { Changes, Refs };
     SidebarMode sidebarMode = SidebarMode::Changes;
     enum class SidebarNavigation { Review, Files };
-    SidebarNavigation sidebarNavigation = SidebarNavigation::Review;
+    // Legacy state: the Review/Files toggle is gone (one unified sidebar),
+    // kept only so stored layouts and the reveal-in-tree menu still parse.
+    SidebarNavigation sidebarNavigation = SidebarNavigation::Files;
     // Review tabs within the Changes view (mock: To review / Approved / Untracked).
     enum class ReviewTab { ToReview, Staged, Untracked };
     ReviewTab reviewTab = ReviewTab::ToReview;
@@ -1172,6 +1185,8 @@ struct LayoutComponent : public afterhours::BaseComponent {
     DiffViewMode diffViewMode = DiffViewMode::Inline;
     bool diffOptionsOpen = false;
     bool shortcutsOpen = false;
+    std::string foldPatternsText;
+    std::string foldPatternsRepo;
 
     bool sidebarVisible = true;
     bool commandLogVisible = false;

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include "../settings.h"
 #include "diff_renderer.h"
+#include "source_edit.h"
 #include "source_header.h"
 #include "../git/content_reader.h"
 #include "../util/hex_view.h"
@@ -14,6 +15,29 @@ namespace ecs {
 
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
+    // Edit mode: the document's buffer is authoritative, so the paged
+    // read pipeline below is bypassed entirely and the same code renderer
+    // draws the buffer instead.
+    if (auto* editDoc = navigation::active_edit_document(repo);
+        editDoc && editDoc->editMode && source_edit_eligible(repo)) {
+        if (!editDoc->editSeeded && !seed_edit_buffer(repo, *editDoc)) editDoc->editMode = false;
+        if (editDoc->editMode) {
+            if (render_source_header(ctx, parent, repo, layout)) return;
+            bool rebuilt = false;
+            if (!repo.editRendered || repo.editRenderedGeneration != editDoc->editGeneration) {
+                repo.editDiff.clear();
+                repo.editDiff.push_back(git::parse_complete_file(repo.fullFilePath(), edit_buffer_text(*editDoc)));
+                repo.editRenderedGeneration = editDoc->editGeneration;
+                repo.editRendered = true;
+                rebuilt = true;
+            }
+            ui::render_diff(ctx, parent, repo.editDiff, layout.mainContent.width,
+                            layout.mainContent.height - 32.f, false, rebuilt, false,
+                            repo.repoPath, nullptr, "file:edit");
+            apply_edit_input(ctx, repo, layout);
+            return;
+        }
+    }
     if (repo.fullFileNavigateFrames > 0) repo.fullFileMarkdownPreview = false;
     std::string sourceKey = repo.repoPath + "\n" + repo.fullFileRevision() + "\n" + repo.fullFilePath();
     if (repo.fullFileRevision().empty() || repo.fullFileRevision() == "INDEX") sourceKey += ":" + std::to_string(repo.dataGeneration);

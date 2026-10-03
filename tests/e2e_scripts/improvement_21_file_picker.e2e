@@ -1,7 +1,9 @@
 make_test_repo
 resize 1280 800
 wait_for_refresh
-key CMD+P
+hold_key 343
+key P
+release_key 343
 wait_frames 10
 screenshot improvement_21_picker
 click_ui file_picker_input

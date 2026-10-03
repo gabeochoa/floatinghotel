@@ -112,7 +112,7 @@ private:
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = w1280(3)})
-                .with_font_size(afterhours::ui::FontSize::Medium)
+                .with_font_size(pixels(14))
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
             if (enabled) {
@@ -177,8 +177,10 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("toolbar_spacer"));
 
-        // Branch selector
-        std::string branchLabel = branchName + " \xe2\x96\xbe";
+        // Branch selector (opens the Refs sidebar — not a menu, so no
+        // chevron; the " ▾" suffix it used to carry rendered as a tofu box,
+        // the UI font has no such glyph)
+        std::string branchLabel = branchName;
         if (toolbarButton(branchLabel, hasRepo)) {
             auto* lc = ::ecs::find_singleton<LayoutComponent>();
             if (lc) {

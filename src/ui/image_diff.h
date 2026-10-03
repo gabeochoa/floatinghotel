@@ -54,7 +54,7 @@ inline void poll(Preview& preview) {
     catch (const std::exception& error) { preview.status = error.what(); return; }
     if (!decoded.error.empty()) { preview.status = std::move(decoded.error); return; }
     auto size = static_cast<size_t>(decoded.width) * static_cast<size_t>(decoded.height) * 4;
-    if (cache().bytes + size > 128 * 1024 * 1024) { preview.status = "Image exceeds preview memory limit"; return; }
+    if (cache().bytes + size > image_content::totalDecodedLimit) { preview.status = "Image exceeds preview memory limit"; return; }
     preview.texture = afterhours::metal_texture_detail::load_texture_from_pixels(decoded.pixels.get(), decoded.width, decoded.height);
     if (!preview.texture.img_id) { preview.status = "Unable to upload image"; return; }
     cache().bytes += size;

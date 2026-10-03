@@ -1,0 +1,55 @@
+# Portfolio screenshot pass: commit browsing, diff review, tabs, feedback/commit flow.
+# Not a regression test -- just walks the app through its main jobs for capture.
+
+make_test_repo
+resize 1280 800
+wait_for_refresh
+wait_frames 15
+
+# --- Commit browser ---
+click_ui sidebar_working_files
+wait_frames 5
+screenshot portfolio_01_working_files
+
+click_text "Add contributing guidelines"
+wait_frames 10
+screenshot portfolio_02_commit_detail
+
+# --- Diff review with side-by-side view ---
+click_text "Changes"
+wait_frames 5
+click_text "main.cpp"
+wait_frames 10
+click_text "View"
+wait_frames 5
+click_text "Side-by-Side Diff"
+wait_frames 10
+screenshot portfolio_03_side_by_side_diff
+
+# --- Feedback / review comments ---
+click_ui working_review_toggle
+wait_frames 10
+click_text "app.cpp"
+wait_frames 15
+click_ui comment_hunk_btn
+wait_frames 8
+click_ui comment_input
+type "please read from argv instead of hardcoding"
+wait_frames 4
+click_ui comment_add_btn
+wait_frames 10
+screenshot portfolio_04_review_feedback
+
+# --- Tabs open ---
+new_tab
+wait_frames 5
+click_text "README.md"
+wait_frames 10
+screenshot portfolio_05_tabs_open
+
+# --- Commit flow ---
+click_ui sidebar_working_files
+wait_frames 5
+click_button "Commit"
+wait_frames 5
+screenshot portfolio_06_commit_dialog

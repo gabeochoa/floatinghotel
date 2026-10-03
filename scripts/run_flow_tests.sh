@@ -1,6 +1,8 @@
 #!/bin/bash
 # Run all flow E2E tests in a single app session for speed.
-# Usage: ./scripts/run_flow_tests.sh [--no-resize]
+# Headless by default: windowless offscreen rendering (no window opens,
+# roughly 2x faster). Pass --visible to watch the run in a real window.
+# Usage: ./scripts/run_flow_tests.sh [--no-resize] [--visible]
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -10,10 +12,11 @@ TMPDIR=$(mktemp -d)
 trap "rm -rf $TMPDIR" EXIT
 cp tests/e2e_scripts/flow_*.e2e "$TMPDIR/"
 
-EXTRA_FLAGS=""
+EXTRA_FLAGS="--headless"
 for arg in "$@"; do
     case "$arg" in
         --no-resize) EXTRA_FLAGS="$EXTRA_FLAGS --e2e-no-resize" ;;
+        --visible) EXTRA_FLAGS="" ;;
     esac
 done
 

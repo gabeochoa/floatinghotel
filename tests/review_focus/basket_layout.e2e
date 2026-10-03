@@ -1,7 +1,6 @@
 make_test_repo
 resize 1440 900
 wait_for_refresh
-click_ui sidebar_working_files
 screenshot basket_files
 click_text main.cpp
 wait_for_refresh

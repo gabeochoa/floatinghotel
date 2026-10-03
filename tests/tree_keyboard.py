@@ -56,12 +56,12 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'key CMD+A\nkey BACKSPACE\nclick_ui review_unstaged_changes\nwait_for_refresh\nclick_ui commit_file_filter\nkey TAB\n'
     script += capture('working_entry', 'src/')
     script += 'key RIGHT\nkey RIGHT\n' + capture('working_file', 'src/lib/a.cpp')
-    script += 'native_menu_action "Review Workspace (toggle)"\nclick_ui sidebar_working_files\nwait_frames 8\nnative_menu_action "Tree View"\nwait_frames 8\nclick_ui file_row\nkey DOWN\n' + capture('files_tree', 'src/lib/b.cpp')
+    script += 'native_menu_action "Review Workspace (toggle)"\nwait_frames 8\nnative_menu_action "Tree View"\nwait_frames 8\nclick_ui file_row\nkey DOWN\n' + capture('files_tree', 'src/lib/b.cpp')
     script += 'key LEFT\nkey LEFT\nkey DOWN\n' + capture('files_skipped', 'src/z.cpp')
     script += 'native_menu_action "Changed Files View"\nwait_frames 8\nclick_ui file_row\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey DOWN\nkey DOWN\nkey DOWN\n' + capture('files_flat', 'tail/f000.cpp')
     script += 'native_menu_action "All Files View"\nwait_for_refresh\nclick_ui file_row\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey UP\nkey DOWN\n' + capture('files_all', 'src/lib/b.cpp', 3)
     script += 'key ENTER\n' + capture('source_kept', 'src/lib/b.cpp', 3)
-    script += 'click_ui content_document_2\nclick_ui sidebar_review\nwait_for_refresh\nwait_frames 30\nclick_text "Open file"\nwait_for_refresh\nwait_frames 8\nclick_ui commit_file_filter\nkey TAB\n' + capture('source_origin_entry', 'tail/f000.cpp', 4)
+    script += 'click_ui content_document_2\nwait_for_refresh\nwait_frames 30\nclick_text "Open file"\nwait_for_refresh\nwait_frames 8\nclick_ui commit_file_filter\nkey TAB\n' + capture('source_origin_entry', 'tail/f000.cpp', 4)
     script += 'key DOWN\nwait_for_refresh\nwait_frames 8\n' + capture('source_origin_tree', 'tail/f001.cpp', 4)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

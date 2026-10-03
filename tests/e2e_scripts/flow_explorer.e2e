@@ -1,0 +1,41 @@
+# Flow: File Explorer — the sidebar becomes a local file explorer tree
+# (every file in the repo, folders collapsible), git chrome and the
+# history pane step aside, and clicking a file opens it as source.
+make_test_repo
+resize 1280 720
+wait_frames 10
+wait_for_refresh
+wait_frames 10
+
+validate file_view_mode=Flat
+
+click_text "View"
+wait_frames 5
+click_text "File Explorer"
+wait_frames 8
+
+validate file_view_mode=All
+screenshot explorer_tree
+
+# Directory rows and nested files are visible in the tree.
+expect_text "src"
+expect_text "tests"
+expect_text "app.cpp"
+expect_text "test_utils.cpp"
+
+# Git chrome is gone in Explorer mode.
+expect_no_text "Message (Enter to commit on"
+
+# Clicking a file opens it as a source document.
+click_text "app.cpp"
+wait_frames 8
+validate active_content=Source
+expect_text "#include"
+screenshot explorer_source_open
+
+# Collapsing a folder hides its files again. (test_utils.cpp appears only
+# as a tree row, unlike app.cpp which also names the open preview tab.)
+click_text "tests"
+wait_frames 5
+expect_no_text "test_utils.cpp"
+screenshot explorer_collapsed

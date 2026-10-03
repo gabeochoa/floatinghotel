@@ -27,6 +27,7 @@ extern "C" bool metal_startup_presented(void);
 extern "C" void metal_wait_for_gpu(void);
 extern "C" void metal_headless_frame(void (*fn)(void));
 extern "C" void metal_hide_window(void);
+extern "C" int metal_live_modifiers(void);
 extern "C" void metal_wait_all_screenshots(void);
 #endif
 
@@ -215,6 +216,7 @@ bool idlePacingTestEnabled = false;
 int lastIdleBenchRendered = 0;
 int lastIdleBenchSkipped = 0;
 std::optional<UiActivitySnapshot> lastRenderedUiActivity;
+bool lastTickChangedUi = true;
 std::string pendingPacedText;
 std::optional<PacingWheelInput> pendingPacedWheel;
 
@@ -1015,9 +1017,66 @@ static void app_draw(float dt) {
     app_state::lastRenderedUiActivity = capture_ui_activity_snapshot();
 }
 
+// Reconcile the modifier latches with the live OS state. Sokol's key_down
+// is only cleared by a KEY_UP delivered to this app, so a modifier released
+// while another app is frontmost (system screenshot shortcuts, app
+// switching) stays latched forever — after which every plain click reads
+// as a shift-click (range select) or cmd-click (toggle select), and there
+// is no gesture that recovers. Modifiers are level-triggered, so writing
+// the live state over the latch each frame is exact. Test mode skips this:
+// the E2E injector owns key state there.
+static void resync_modifier_latches() {
+    if (app_state::testModeEnabled) return;
+#ifdef __APPLE__
+    const int live = metal_live_modifiers();
+    auto& state = afterhours::graphics::metal_detail::input_state();
+    auto apply = [&](int key, int bit) { state.key_down[key] = (live & bit) != 0; };
+    apply(afterhours::keys::LEFT_SHIFT, 1); apply(afterhours::keys::RIGHT_SHIFT, 1);
+    apply(afterhours::keys::LEFT_CONTROL, 2); apply(afterhours::keys::RIGHT_CONTROL, 2);
+    apply(afterhours::keys::LEFT_ALT, 4); apply(afterhours::keys::RIGHT_ALT, 4);
+    apply(afterhours::keys::LEFT_SUPER, 8); apply(afterhours::keys::RIGHT_SUPER, 8);
+#endif
+}
+
+// Platform input state is written by OS event callbacks, so it is fresh
+// even on frames where the ECS tick never runs; the UIContext copy is
+// rebuilt during the tick and would be stale. Used by the idle fast path.
+static bool raw_input_activity() {
+    static afterhours::vec2 lastMousePos{-1.f, -1.f};
+    const auto pos = afterhours::input::get_mouse_position();
+    const bool moved = pos.x != lastMousePos.x || pos.y != lastMousePos.y;
+    lastMousePos = pos;
+    if (moved) return true;
+    if (afterhours::input::is_mouse_button_down(0) || afterhours::input::is_mouse_button_down(1) ||
+        afterhours::input::is_mouse_button_down(2)) return true;
+    const auto wheel = afterhours::input::get_mouse_wheel_move_v();
+    if (wheel.x != 0.f || wheel.y != 0.f) return true;
+#ifdef __APPLE__
+    for (bool down : afterhours::graphics::metal_detail::input_state().key_down)
+        if (down) return true;
+#endif
+    return false;
+}
+
 static void app_update_and_maybe_draw(float dt, bool forceRender) {
+    resync_modifier_latches();
     bool pendingBefore = app_has_pending_work();
     bool injectedInput = app_inject_pending_paced_input();
+    // Idle fast path: in the pacer's skip window, with no pending work,
+    // no fresh platform input, and a UI snapshot that stopped changing
+    // (scroll easing and other tick-driven motion keep the snapshot
+    // moving until they settle), skip the whole ECS update — it rebuilds
+    // every UI tree even for frames that will not be drawn. The pacer's
+    // forced frame every maxIdleSkips bounds staleness. Test mode never
+    // skips: the E2E runner advances commands inside the tick.
+    if (!app_state::testModeEnabled && !forceRender && app_state::pacer.enabled &&
+        app_state::pacer.activeFrames == 0 && app_state::pacer.idleSkipStreak < app_state::pacer.maxIdleSkips &&
+        !pendingBefore && !injectedInput && !app_state::lastTickChangedUi && !raw_input_activity()) {
+        ++app_state::pacer.idleSkipStreak;
+        ++app_state::pacer.skipped;
+        std::this_thread::sleep_for(std::chrono::milliseconds(8));
+        return;
+    }
     app_update(dt);
     if (!app_state::headless && metal_window_resize_pending()) return;
     bool activity = app_has_input_activity();
@@ -1025,6 +1084,7 @@ static void app_update_and_maybe_draw(float dt, bool forceRender) {
     auto currentActivity = capture_ui_activity_snapshot();
     bool changedSinceRender = !app_state::lastRenderedUiActivity ||
         currentActivity != *app_state::lastRenderedUiActivity;
+    app_state::lastTickChangedUi = changedSinceRender;
     auto decision = app_state::pacer.decide(forceRender, injectedInput || activity || changedSinceRender, pendingBefore || pendingAfter);
     if (decision.render) {
         app_draw(dt);
@@ -1328,6 +1388,12 @@ int main(int argc, char* argv[]) {
             if (auto* l = layout())
                 return l->sidebarMode == ecs::LayoutComponent::SidebarMode::Changes
                            ? "Changes" : "Refs";
+        } else if (key == "selected_commit_count") {
+            if (auto* r = repo()) {
+                if (r->historySelection.hashes.empty())
+                    return r->selectedCommitHash().empty() ? "0" : "1";
+                return std::to_string(r->historySelection.visible(r->commitLog).size());
+            }
         } else if (key == "staged_count") {
             if (auto* r = repo()) return std::to_string(r->stagedFiles.size());
         } else if (key == "unstaged_count") {
@@ -1338,10 +1404,32 @@ int main(int argc, char* argv[]) {
             if (auto* r = repo()) return r->currentBranch;
         } else if (key == "selected_file") {
             if (auto* r = repo()) return r->selectedFilePath();
+        } else if (key == "vim_mode") {
+            return Settings::get().get_vim_mode() ? "true" : "false";
+        } else if (key == "edit_mode") {
+            if (auto* r = repo()) {
+                const auto* doc = r->workspace().document(r->workspace().active_id());
+                return doc && doc->editMode ? "true" : "false";
+            }
+        } else if (key == "edit_dirty") {
+            if (auto* r = repo()) {
+                const auto* doc = r->workspace().document(r->workspace().active_id());
+                return doc && doc->editDirty ? "true" : "false";
+            }
         } else if (key == "commit_message") {
             if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent,
                                                    ecs::ActiveTab>())
                 return editor->subject;
+        } else if (key == "caret_line") {
+            if (auto* r = repo()) {
+                const auto* doc = r->workspace().document(r->workspace().active_id());
+                return doc && doc->caret ? std::to_string(doc->caret->line) : "0";
+            }
+        } else if (key == "caret_column") {
+            if (auto* r = repo()) {
+                const auto* doc = r->workspace().document(r->workspace().active_id());
+                return doc && doc->caret ? std::to_string(doc->caret->column) : "0";
+            }
         } else if (key == "source_line") {
             if (auto* r = repo()) return std::to_string(r->fullFileTargetLine());
         } else if (key.starts_with("visible_source_line:")) {
@@ -1403,7 +1491,7 @@ int main(int argc, char* argv[]) {
             return std::to_string(ui::image_diff::cache().bytes);
         } else if (key == "image_caches_bounded") {
             return image_content::decodedBytes.load() <= image_content::totalDecodedLimit &&
-                ui::image_diff::cache().bytes <= 128 * 1024 * 1024 ? "true" : "false";
+                ui::image_diff::cache().bytes <= image_content::totalDecodedLimit ? "true" : "false";
         } else if (key == "search_result_count") {
             if (auto* r = repo()) return std::to_string(r->repoSearchResults.size());
         } else if (key == "search_captured_bytes") {

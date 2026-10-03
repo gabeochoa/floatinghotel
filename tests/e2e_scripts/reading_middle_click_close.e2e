@@ -1,0 +1,14 @@
+make_test_repo
+resize 1600 1000
+wait_for_refresh
+click_text "Add contributing guidelines"
+wait_for_refresh
+key ENTER
+click_text "Add unit tests for utils"
+wait_for_refresh
+key ENTER
+workspace_checkpoint 3 midtab_before
+# Middle-click the inactive "Add contributing guidelines" tab
+middle_click 594 74
+wait_for_refresh
+workspace_checkpoint 2 midtab_after

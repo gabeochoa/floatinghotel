@@ -398,14 +398,15 @@ TEST(historical_navigation_pins_a_revision_even_after_the_branch_moves) {
     std::filesystem::remove_all(path);
 }
 
-TEST(untracked_review_preserves_text_and_bounds_large_previews) {
+TEST(untracked_review_preserves_text_and_renders_whole_files) {
     char directory[] = "/tmp/fh-untracked-review.XXXXXX";
     auto* path = mkdtemp(directory);
     ASSERT_TRUE(path != nullptr);
     { std::ofstream out(std::filesystem::path(path) / "new.cpp"); out << "α\r\n\nlast"; }
     { std::ofstream out(std::filesystem::path(path) / "large.txt"); for (int i = 0; i < 6000; ++i) out << "line\n"; }
-    auto result = git::read_untracked_review_files_async(path, {"new.cpp", "large.txt", "missing"}).get();
-    ASSERT_EQ(result.files.size(), 3u);
+    { std::ofstream out(std::filesystem::path(path) / "huge.txt"); for (int i = 0; i < 60000; ++i) out << "012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789\n"; }
+    auto result = git::read_untracked_review_files_async(path, {"new.cpp", "large.txt", "huge.txt", "missing"}).get();
+    ASSERT_EQ(result.files.size(), 4u);
     const auto& file = result.files[0];
     ASSERT_TRUE(file.isNew);
     ASSERT_FALSE(file.isFullContent);
@@ -415,16 +416,21 @@ TEST(untracked_review_preserves_text_and_bounds_large_previews) {
     ASSERT_EQ(file.hunks[0].oldCount, 0);
     ASSERT_EQ(file.hunks[0].lines, (std::vector<std::string>{"+α\r", "+", "+last"}));
     ASSERT_TRUE(file.hunks[0].noNewline.contains(2));
-    ASSERT_TRUE(result.files[1].isPartialContent);
+    // A 6,000-line file renders in full: the review reads whole files,
+    // not one source page.
+    ASSERT_FALSE(result.files[1].isPartialContent);
+    ASSERT_EQ(result.files[1].additions, 6000);
+    // Only a file past the per-file limit stays a partial preview, and a
+    // partial file can never be marked reviewed/approved.
+    ASSERT_TRUE(result.files[2].isPartialContent);
     ecs::ReviewComponent review;
-    const auto& partial = result.files[1];
+    const auto& partial = result.files[2];
     review.reviewedFiles["wt\n" + partial.filePath] = ecs::diff_signature(partial);
     for (const auto& hunk : partial.hunks)
         review.approvedHunks.insert("wt\n" + ecs::ReviewComponent::hunk_key(partial.filePath, hunk));
     ASSERT_FALSE(ecs::file_reviewed(review, "wt", partial));
     ASSERT_FALSE(ecs::review_progress(review, "wt", std::vector<ecs::FileDiff>{partial}).can_approve());
-    ASSERT_TRUE(result.files[1].additions <= 4096);
-    ASSERT_TRUE(result.files[2].isPartialContent);
+    ASSERT_TRUE(result.files[3].isPartialContent);
     ASSERT_FALSE(result.notice.empty());
     std::stop_source stopped;
     stopped.request_stop();

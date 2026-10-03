@@ -2,9 +2,8 @@
 # Flow: Stage individual hunks or lines from a diff
 # User views a diff and stages only specific hunks
 make_test_repo
-resize 1280 720
+resize 1280 900
 wait_frames 5
-click_ui sidebar_working_files
 mouse_move 190 180
 scroll_wheel 0 -1000
 wait_frames 10

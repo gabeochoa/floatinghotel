@@ -17,6 +17,7 @@ struct Settings::Data {
     int windowWidth = 280;
     int expandedWindowWidth = 1200;
     bool windowCollapsed = true;
+    bool vimMode = false;
     int windowHeight = 800;
     int windowX = 100;
     int windowY = 100;
@@ -34,13 +35,22 @@ struct Settings::Data {
     std::map<std::string, std::vector<CodeBookmark>> codeBookmarks;
     std::map<std::string, reading::ReadingSession> readingSessions;
     std::map<std::string, review_files::DisplayMode> reviewDisplayModes;
+    std::map<std::string, fold_defaults::Rules> foldRules;
 };
 
 Settings::Settings() { data_ = new Data(); }
 Settings::~Settings() { delete data_; }
 
 static float bounded_code_font_size(float size) {
-    return std::isfinite(size) ? std::clamp(size, 10.f, 24.f) : Settings::kDefaultCodeFontSize;
+    if (!std::isfinite(size)) return Settings::kDefaultCodeFontSize;
+    // Code text stays on the UI type scale: snap to the nearest tier
+    // (12/14/16, ties go up) instead of drifting at arbitrary sizes.
+    float best = Settings::kDefaultCodeFontSize;
+    for (float tier : {12.f, 14.f, 16.f})
+        if (std::abs(size - tier) < std::abs(size - best) ||
+            (std::abs(size - tier) == std::abs(size - best) && tier > best))
+            best = tier;
+    return best;
 }
 
 std::string Settings::get_settings_path() const {
@@ -81,6 +91,7 @@ bool Settings::load_save_file() {
         if (!std::isfinite(data_->sidebarWidth)) data_->sidebarWidth = 280.f;
         data_->sidebarWidth = std::clamp(data_->sidebarWidth, 200.f, 16384.f);
         data_->windowCollapsed = j.value("window_shelf_collapsed", true);
+        data_->vimMode = j.value("vim_mode", false);
         data_->windowWidth = std::clamp(j.contains("window_shelf_collapsed") ? j.value("window_width", 280) :
             static_cast<int>(data_->sidebarWidth), 200, 16384);
         data_->expandedWindowWidth = std::clamp(j.value("expanded_window_width", 1200), 648, 16384);
@@ -99,6 +110,15 @@ bool Settings::load_save_file() {
             for (const auto& [repo, value] : j["review_display_modes"].items())
                 if (value == "all" || value == "selected") data_->reviewDisplayModes[repo] =
                     value == "all" ? review_files::DisplayMode::AllFiles : review_files::DisplayMode::SelectedFile;
+        data_->foldRules.clear();
+        if (j.contains("fold_rules") && j["fold_rules"].is_object())
+            for (const auto& [repo, value] : j["fold_rules"].items()) {
+                if (!value.is_object()) continue;
+                fold_defaults::Rules rules;
+                rules.patterns = value.value("patterns", std::vector<std::string>{});
+                rules.minChangedLines = std::max(0, value.value("min_lines", 0));
+                data_->foldRules[repo] = std::move(rules);
+            }
         data_->readingSessions.clear();
         if (j.contains("reading_sessions") && j["reading_sessions"].is_object()) {
             for (const auto& [repo, value] : j["reading_sessions"].items())
@@ -147,6 +167,7 @@ void Settings::write_save_file() {
     j["window_width"] = data_->windowWidth;
     j["window_height"] = data_->windowHeight;
     j["window_shelf_collapsed"] = data_->windowCollapsed;
+    j["vim_mode"] = data_->vimMode;
     j["expanded_window_width"] = data_->expandedWindowWidth;
     j["window_x"] = data_->windowX;
     j["window_y"] = data_->windowY;
@@ -175,6 +196,9 @@ void Settings::write_save_file() {
     j["review_display_modes"] = nlohmann::json::object();
     for (const auto& [repo, mode] : data_->reviewDisplayModes)
         j["review_display_modes"][repo] = mode == review_files::DisplayMode::AllFiles ? "all" : "selected";
+    j["fold_rules"] = nlohmann::json::object();
+    for (const auto& [repo, rules] : data_->foldRules)
+        j["fold_rules"][repo] = {{"patterns", rules.patterns}, {"min_lines", rules.minChangedLines}};
     j["reading_sessions"] = nlohmann::json::object();
     for (const auto& [repo, session] : data_->readingSessions)
         j["reading_sessions"][repo] = reading::encode_session(session);
@@ -232,6 +256,14 @@ void Settings::set_window_geometry(int x, int y, int w, int h) {
 }
 
 bool Settings::get_window_collapsed() const { return data_->windowCollapsed; }
+
+bool Settings::get_vim_mode() const { return data_->vimMode; }
+
+void Settings::set_vim_mode(bool enabled) {
+    if (data_->vimMode == enabled) return;
+    data_->vimMode = enabled;
+    save_if_auto();
+}
 int Settings::get_expanded_window_width() const { return data_->expandedWindowWidth; }
 
 void Settings::remember_window_size(int width, int height, bool collapsed, int expandedWidth, float sidebarWidth) {
@@ -371,6 +403,21 @@ void Settings::set_review_display_mode(const std::string& repoPath, review_files
     save_if_auto();
 }
 
+fold_defaults::Rules Settings::get_fold_rules(const std::string& repoPath) const {
+    auto found = data_->foldRules.find(repoPath);
+    return found == data_->foldRules.end() ? fold_defaults::default_rules() : found->second;
+}
+
+void Settings::set_fold_rules(const std::string& repoPath, fold_defaults::Rules rules) {
+    if (repoPath.empty()) return;
+    rules.minChangedLines = std::max(0, rules.minChangedLines);
+    auto found = data_->foldRules.find(repoPath);
+    if (found != data_->foldRules.end() && found->second.patterns == rules.patterns &&
+        found->second.minChangedLines == rules.minChangedLines) return;
+    data_->foldRules[repoPath] = std::move(rules);
+    save_if_auto();
+}
+
 const std::vector<std::string>& Settings::get_pinned_repos() const { return data_->pinnedRepos; }
 
 void Settings::set_repo_pinned(const std::string& path, bool pinned) {
@@ -422,6 +469,7 @@ bool Settings::relink_repository(const std::string& oldPath, const std::string& 
     move(data_->codeBookmarks);
     move(data_->reviewDisplayModes);
     move(data_->collapsedSections);
+    move(data_->foldRules);
     if (!auto_save_enabled) return true;
     write_save_file();
     if (!saveError.empty()) { *data_ = previous; pendingSave_ = previousPending; return false; }

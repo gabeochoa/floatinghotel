@@ -48,7 +48,6 @@ wait_frames 30
 screenshot item_11_long_after_horizontal_wheel
 expect_text END_OF_LONG_LINE
 dump_ui long_width commit_detail_scroll
-click_ui sidebar_working_files
 screenshot item_11_files_navigation
 click_text app.cpp
 resize 1440 900

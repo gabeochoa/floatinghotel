@@ -8,8 +8,8 @@
 namespace image_content {
 
 inline constexpr size_t encodedLimit = 16 * 1024 * 1024;
-inline constexpr size_t decodedLimit = 64 * 1024 * 1024;
-inline constexpr size_t totalDecodedLimit = 128 * 1024 * 1024;
+inline constexpr size_t decodedLimit = 32 * 1024 * 1024;
+inline constexpr size_t totalDecodedLimit = 48 * 1024 * 1024;
 inline std::atomic<size_t> decodedBytes{0};
 
 struct FreePixels {

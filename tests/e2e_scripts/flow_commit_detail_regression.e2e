@@ -4,7 +4,6 @@
 make_test_repo
 resize 1280 720
 wait_frames 5
-click_ui sidebar_working_files
 screenshot flow_commit_detail_regression_files_navigation
 
 # Sidebar elements should be visible

@@ -24,7 +24,16 @@ public:
     explicit TokenCache(size_t bytes = 4 * 1024 * 1024) : cache_(bytes) {}
     Tokens get(const std::string& text, const std::string& path, code_lexer::State incoming = {}) {
         auto dot = path.find_last_of('.');
-        std::string key = "text:" + (dot == std::string::npos ? "" : path.substr(dot)) + "\n" + incoming.key() + "\n" + text;
+        const std::string_view ext = dot == std::string::npos ? std::string_view{} : std::string_view(path).substr(dot);
+        const auto state = incoming.key();
+        std::string key;
+        key.reserve(6 + ext.size() + 1 + state.size() + 1 + text.size());
+        key += "text:";
+        key += ext;
+        key += '\n';
+        key += state;
+        key += '\n';
+        key += text;
         return cached(std::move(key), [&] { return tokenize(text, path, incoming); });
     }
     Tokens get_source(const std::string& text, const std::string& path, bool whitespace, const std::string& identity, code_lexer::State incoming = {}) {

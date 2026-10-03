@@ -12,33 +12,13 @@ struct DocumentTitle {
 };
 
 inline std::vector<DocumentTitle> document_titles(const std::vector<Document>& documents) {
-    std::vector<std::string> revisions;
-    for (const auto& document : documents) {
-        if (const auto* source = std::get_if<SourceLocation>(&document.location))
-            revisions.push_back(revision_text(source->destination.revision));
-        else std::visit([&](const auto& review) {
-            using T = std::decay_t<decltype(review)>;
-            if constexpr (std::is_same_v<T, CommitReview>) {
-                revisions.push_back(revision_text(review.commit));
-                if (review.parent) revisions.push_back(revision_text(*review.parent));
-            } else if constexpr (std::is_same_v<T, ComparisonReview>) {
-                revisions.push_back(revision_text(review.before));
-                revisions.push_back(revision_text(review.after));
-            }
-        }, std::get<ReviewLocation>(document.location).destination);
-    }
+    // Short hash only: never grow past 7 characters to chase uniqueness —
+    // the tooltip carries the full identity when it matters.
     auto compact = [&](const std::string& revision) {
         if (revision.empty()) return std::string("Working tree");
         if (revision == "INDEX") return std::string("Index");
         if (!is_object_id(revision)) return revision;
-        size_t length = 7;
-        for (const auto& other : revisions) {
-            if (other == revision || !is_object_id(other)) continue;
-            size_t shared = 0;
-            while (shared < std::min(other.size(), revision.size()) && other[shared] == revision[shared]) ++shared;
-            length = std::max(length, shared + 1);
-        }
-        return revision.substr(0, length);
+        return revision.substr(0, 7);
     };
     auto parent_suffix = [](const std::string& path, size_t count) {
         auto parent = std::filesystem::path(path).parent_path();
@@ -77,8 +57,15 @@ inline std::vector<DocumentTitle> document_titles(const std::vector<Document>& d
                 })) suffix = parent_suffix(path, ++count);
                 title.label += " · " + suffix;
             }
-            if (!revision.empty() || otherRevision) title.badge = compact(revision);
+            // A version badge only earns its place when another version
+            // of the same file is open to confuse it with; a lone pinned
+            // file shows no hash at all.
+            if (otherRevision) title.badge = compact(revision);
             title.tooltip = path + " @ " + (revision.empty() ? "working tree" : revision);
+            if (document.editDirty) {
+                title.label += " •";
+                title.tooltip += "\nUnsaved changes";
+            }
         } else std::visit([&](const auto& review) {
             using T = std::decay_t<decltype(review)>;
             if constexpr (std::is_same_v<T, WorkingChanges>) {

@@ -4,6 +4,7 @@
 #include "context_menu.h"
 #include "diff_renderer.h"
 #include "file_history.h"
+#include "source_edit.h"
 #include "../util/markdown_preview.h"
 
 namespace ecs {
@@ -38,6 +39,26 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
         .with_debug_name("full_file_revision"));
     ui::set_tooltip(revisionLabel.ent(), revision.empty() ? "Working tree" : revision);
+    // Read-only / Editing pill: working-tree files can switch into an
+    // editable buffer; committed and index content stays read-only.
+    if (source_edit_eligible(repo)) {
+        const auto* doc = repo.workspace().document(repo.workspace().active_id());
+        const bool editing = doc && doc->editMode;
+        const bool dirty = doc && doc->editDirty;
+        auto pill = button(ctx, mk(header.ent(), 4), preset::Button(editing ? (dirty ? "Editing •" : "Editing") : "Read-only")
+            .with_size(ComponentSize{pixels(compact ? 62 : 84), pixels(28)})
+            .with_font_size(pixels(12)).with_debug_name("source_edit_toggle"));
+        ui::set_tooltip(pill.ent(), editing ? "Switch back to read-only (unsaved changes are kept in the buffer)" : "Edit this file");
+        if (pill) {
+            if (auto* editDoc = navigation::active_edit_document(repo)) editDoc->editMode = !editing;
+        }
+    } else {
+        auto pill = div(ctx, mk(header.ent(), 4), ComponentConfig{}
+            .with_label("Read-only").with_size(ComponentSize{pixels(compact ? 62 : 84), pixels(28)})
+            .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_debug_name("source_readonly_pill"));
+        ui::set_tooltip(pill.ent(), revision == "INDEX" ? "Index content is read-only" : "Committed content is read-only");
+    }
     auto options = button(ctx, mk(header.ent(), 3), preset::Button("...")
         .with_size(ComponentSize{pixels(28), pixels(28)}).with_font_size(pixels(12))
         .with_debug_name("full_file_options"));
@@ -121,6 +142,28 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
     if (markdown) items.push_back(ui::ContextMenuItem::item(repo.fullFileMarkdownPreview ? "Raw Markdown" : "Preview Markdown", [current] {
         if (auto* active = current()) active->fullFileMarkdownPreview = !active->fullFileMarkdownPreview;
     }));
+    if (source_edit_eligible(repo)) {
+        items.push_back(ui::ContextMenuItem::separator());
+        if (!document->editMode) {
+            items.push_back(ui::ContextMenuItem::item("Edit file", [current] {
+                if (auto* active = current())
+                    if (auto* doc = navigation::active_edit_document(*active)) doc->editMode = true;
+            }));
+        } else {
+            items.push_back(ui::ContextMenuItem::item("Save", [current] {
+                if (auto* active = current())
+                    if (auto* doc = navigation::active_edit_document(*active)) save_edit_buffer(*active, *doc);
+            }, document->editDirty, document->editDirty ? "" : "No unsaved changes"));
+            items.push_back(ui::ContextMenuItem::item("Discard changes", [current] {
+                if (auto* active = current())
+                    if (auto* doc = navigation::active_edit_document(*active)) discard_edit_buffer(*doc);
+            }, document->editDirty, document->editDirty ? "" : "No unsaved changes"));
+            items.push_back(ui::ContextMenuItem::item("Stop editing", [current] {
+                if (auto* active = current())
+                    if (auto* doc = navigation::active_edit_document(*active)) doc->editMode = false;
+            }));
+        }
+    }
     items.push_back(ui::ContextMenuItem::separator());
     items.push_back(ui::ContextMenuItem::item("Reload file", [current] {
         if (auto* active = current()) {

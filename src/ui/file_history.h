@@ -40,20 +40,20 @@ inline void render_file_history(UIContext<InputAction>& ctx, Entity& parent,
             .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.fileHistoryOpen = false;
     div(ctx, mk(header.ent(), 1), ComponentConfig{}
         .with_label("History · " + repo.fileHistoryPath + " · follows renames")
-        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(FontSize::Medium));
+        .with_size(ComponentSize{expand(), pixels(30)}).with_font_size(pixels(14)));
     std::string status = repo.fileHistoryFuture.valid() ? "Loading history..." :
         std::to_string(repo.fileHistoryEntries.size()) + " commits";
     if (!repo.fileHistoryError.empty()) status = repo.fileHistoryError;
     div(ctx, mk(parent, 588001), ComponentConfig{}.with_label(status)
-        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(FontSize::Small));
+        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)));
     afterhours::ui::imm::virtual_list(ctx, mk(parent, 588002), repo.fileHistoryEntries.size(), 36.f,
         [&](size_t i, Entity& row) {
             const auto& commit = repo.fileHistoryEntries[i];
             if (button(ctx, mk(row, 0), preset::Button(commit.shortHash + "  " + commit.subject + "  · " + commit.author + " · " + commit.authorDate.substr(0, 10))
                     .with_size(ComponentSize{percent(1.f), pixels(36)}).with_alignment(TextAlignment::Left)
-                    .with_custom_background(theme::PANEL_BG).with_font_size(FontSize::Medium)
+                    .with_custom_background(theme::PANEL_BG).with_font_size(pixels(14))
                     .with_debug_name("file_history_commit:" + std::to_string(i)))) {
-                navigation::click(repo, reading::review(commit.hash), afterhours::input::is_key_pressed(257), reading::ClickRegion::Search);
+                navigation::click(repo, reading::review(commit.hash), afterhours::input::is_key_pressed(afterhours::keys::ENTER), reading::ClickRegion::Search);
             }
         }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(40.f, layout.mainContent.height - 100.f))}));
     if (!repo.fileHistoryFuture.valid() && (static_cast<int>(repo.fileHistoryEntries.size()) == repo.fileHistoryLimit || !repo.fileHistoryError.empty())) {

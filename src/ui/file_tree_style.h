@@ -46,7 +46,7 @@ inline void review_indicator(UIContext<InputAction>& ctx, Entity& row, bool revi
     if (unresolved) {
         div(ctx, mk(status.ent(), 0), ComponentConfig{}
             .with_label(unresolved > 99 ? "99+" : std::to_string(unresolved))
-            .with_size(ComponentSize{pixels(20), pixels(20)}).with_font("mono", pixels(10))
+            .with_size(ComponentSize{pixels(20), pixels(20)}).with_font("mono", pixels(12))
             .with_custom_text_color(theme::STATUS_MODIFIED).with_debug_name("tree_unresolved_count"));
     } else if (reviewed && !changed) {
         chrome_icon(ctx, mk(status.ent(), 0), ChromeIcon::Check, theme::DIFF_ADD_TEXT, "tree_reviewed_check");
@@ -87,7 +87,7 @@ inline bool directory(afterhours::ui::UIContext<InputAction>& ctx, afterhours::E
         .with_border_left(theme::TEXT_SECONDARY, pixels(1)));
     auto label = div(ctx, mk(row.ent(), 2), ComponentConfig{}
         .with_label(node.label)
-        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(13))
+        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
         .with_custom_text_color(theme::TEXT_SECONDARY)
         .with_text_overflow(TextOverflow::Ellipsis).with_debug_name("tree_directory_name"));
     set_truncated_tooltip(row.ent(), node.path, label.ent());

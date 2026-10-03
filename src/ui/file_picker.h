@@ -172,7 +172,7 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("line_picker_status"));
     const bool pressed = button(ctx, mk(parent, 587004), preset::Button("Go", valid && !position.future.valid())
         .with_size(ComponentSize{pixels(64), pixels(28)}).with_debug_name("line_picker_go"));
-    const bool enter = ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && afterhours::input::is_key_pressed(257);
+    const bool enter = ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && afterhours::input::is_key_pressed(afterhours::keys::ENTER);
     if (!valid || position.future.valid() || (!pressed && !enter)) return;
     auto point = *position.point;
     point.revision = reading::anchor_revision(repo.workspace().location());
@@ -438,9 +438,9 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     auto& results = scope.results;
     const bool pickerKeys = !ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker);
     if (pickerKeys && !results.empty()) {
-        if (afterhours::input::is_key_pressed(264)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
-        if (afterhours::input::is_key_pressed(265)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
-        if (afterhours::input::is_key_pressed(257)) open(results[layout.filePickerIndex], true);
+        if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
+        if (afterhours::input::is_key_pressed(afterhours::keys::UP)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
+        if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) open(results[layout.filePickerIndex], true);
     }
     if (!results.empty()) layout.filePickerSelectedPath = results[layout.filePickerIndex].key();
     const bool includesFiles = scope.category == git::catalog::Kind::All || scope.category == git::catalog::Kind::File;
@@ -473,7 +473,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         height -= 26.f;
     }
     const auto listParent = mk(parent, 586003);
-    const bool moving = pickerKeys && (afterhours::input::is_key_pressed(264) || afterhours::input::is_key_pressed(265));
+    const bool moving = pickerKeys && (afterhours::input::is_key_pressed(afterhours::keys::DOWN) || afterhours::input::is_key_pressed(afterhours::keys::UP));
     if (revealSelection || moving) {
         auto [entity, owner] = afterhours::ui::imm::deref(listParent);
         if (entity.has<afterhours::ui::HasScrollView>()) {

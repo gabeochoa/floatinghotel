@@ -212,6 +212,8 @@ bundle: $(MAIN_EXE) copy-resources
 		'    <string>com.floatinghotel.app</string>' \
 		'    <key>CFBundleName</key>' \
 		'    <string>FloatingHotel</string>' \
+		'    <key>CFBundleIconFile</key>' \
+		'    <string>AppIcon</string>' \
 		'    <key>CFBundleVersion</key>' \
 		'    <string>1.0</string>' \
 		'    <key>CFBundlePackageType</key>' \
@@ -274,10 +276,29 @@ $(TEST_DIR)/test_review_store: tests/unit/test_review_store.cpp src/review_store
 $(TEST_DIR)/test_diff_tools: tests/unit/test_diff_tools.cpp | $(TEST_DIR)
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
+$(TEST_DIR)/test_welcome: tests/unit/test_welcome.cpp | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $< -o $@
+
+$(TEST_DIR)/test_fold_defaults: tests/unit/test_fold_defaults.cpp | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $< -o $@
+
+$(TEST_DIR)/test_history_selection: tests/unit/test_history_selection.cpp | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $< -o $@
+
+$(TEST_DIR)/test_document_titles: tests/unit/test_document_titles.cpp | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $< -o $@
+
 $(TEST_DIR)/test_review_snapshot: tests/unit/test_review_snapshot.cpp src/review_snapshot.cpp src/git/git_runner.cpp src/util/process.cpp vendor/afterhours/src/plugins/files.cpp | $(TEST_DIR)
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
+$(TEST_DIR)/test_content_reader: tests/unit/test_content_reader.cpp src/git/content_reader.cpp src/git/git_parser.cpp src/git/git_runner.cpp src/git/git_commands.cpp src/util/process.cpp src/review_store.cpp src/review_snapshot.cpp vendor/afterhours/src/plugins/files.cpp | $(TEST_DIR)
+	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
+
 TEST_EXES := $(TEST_DIR)/test_diff_tools \
+    $(TEST_DIR)/test_welcome \
+    $(TEST_DIR)/test_fold_defaults \
+    $(TEST_DIR)/test_history_selection \
+    $(TEST_DIR)/test_document_titles \
     $(TEST_DIR)/test_triage \
     $(TEST_DIR)/test_reading_catalog \
     $(TEST_DIR)/test_git_parser \
@@ -287,7 +308,8 @@ TEST_EXES := $(TEST_DIR)/test_diff_tools \
     $(TEST_DIR)/test_git_commands \
     $(TEST_DIR)/test_context_menu \
     $(TEST_DIR)/test_review_store \
-    $(TEST_DIR)/test_review_snapshot
+    $(TEST_DIR)/test_review_snapshot \
+    $(TEST_DIR)/test_content_reader
 
 test: $(TEST_EXES)
 	@echo "Running unit tests..."

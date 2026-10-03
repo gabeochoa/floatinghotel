@@ -1,0 +1,26 @@
+# Flow: clicking a file in an open commit's file tree opens the FILE
+# itself (a source document at that commit), instead of filtering the
+# open commit view down to that file.
+make_test_repo
+resize 1280 720
+wait_frames 10
+wait_for_refresh
+wait_frames 10
+
+# Open a commit from history: the main pane shows the commit review and
+# the sidebar swaps to the commit's file tree.
+click_text "Add unit tests for utils"
+wait_frames 10
+validate active_content=Review
+screenshot commit_open
+
+# Click the changed file in the tree: the file itself opens. The commit
+# patch loads async, so wait for the tree to populate first.
+wait_frames 30
+wait_for_refresh
+wait_frames 10
+expect_text "test_utils.cpp"
+click_ui "jump_to_diff:tests/test_utils.cpp"
+wait_frames 10
+validate active_content=Source
+screenshot commit_file_opened

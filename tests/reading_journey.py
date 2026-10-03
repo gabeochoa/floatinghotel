@@ -49,7 +49,7 @@ def script(head, zoom):
     setup += ["screenshot ready"]
     for temperature in ("cold", "warm"):
         if temperature == "warm":
-            setup += ["click_ui sidebar_review", "screenshot review_sidebar", 'click_text "Reading root"',
+            setup += ["screenshot review_sidebar", 'click_text "Reading root"',
                       "wait_for_refresh", "screenshot root"]
 
         def step(label, kind, path, revision, action):

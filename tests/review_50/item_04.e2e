@@ -1,6 +1,5 @@
 resize 1440 900
 wait_for_refresh
-click_ui sidebar_review
 click_ui review_unstaged_changes
 screenshot item_04_files_navigation
 key CMD+P
@@ -21,7 +20,6 @@ expect_no_text "historical source"
 screenshot item_04_uncached_working_tree
 click_ui full_file_back
 wait_frames 5
-click_ui sidebar_review
 screenshot item_04_history_ready
 click_text latest
 wait_for_refresh

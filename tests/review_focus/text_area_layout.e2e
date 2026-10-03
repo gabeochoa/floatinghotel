@@ -1,7 +1,6 @@
 make_test_repo
 resize 1280 800
 wait_for_refresh
-click_ui sidebar_working_files
 screenshot text_area_files
 click_ui commit_msg_input
 type "Draft commit message"

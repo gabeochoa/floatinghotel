@@ -1,18 +1,17 @@
-# V7: View > All Files View
-# Verifies clicking All Files View sets file view mode to All.
+# V7: View > File Explorer
+# Verifies clicking File Explorer sets file view mode to All.
 make_test_repo
 resize 1280 720
 wait_frames 5
-click_ui sidebar_working_files
 screenshot flow_v7_all_files_view_files_navigation
 
 # Default is Flat
 validate file_view_mode=Flat
 
-# Switch to All Files View via menu
+# Switch to File Explorer via menu
 click_text "View"
 wait_frames 5
-click_text "All Files View"
+click_text "File Explorer"
 wait_frames 5
 
 validate file_view_mode=All
