@@ -329,6 +329,13 @@ struct SourceFindRuntime {
     SourceFindResult result;
 };
 
+struct MarkdownLinkRuntime {
+    reading::RequestStamp request;
+    reading::SourceLocation target;
+    std::string anchor;
+    async_work::Task<OutlineResult> future;  // finds the anchor's heading
+};
+
 struct HunkContextResult {
     DiffHunk lines;
     std::string error;
@@ -435,6 +442,7 @@ public:
     hex_view::Preview fullFileHexPreview;
     std::string fullFileDecodedText;
     markdown_preview::Cache fullFileMarkdownCache;
+    MarkdownLinkRuntime markdownLink;
     bool fullFileMarkdownPreview = false;
     std::vector<FileDiff> fullFileDiff;
     // Rendered form of the active document's edit buffer (see source_edit.h);

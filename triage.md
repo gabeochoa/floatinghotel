@@ -110,8 +110,13 @@ caches. No px0 application or benchmark has run yet.
       Whole-word repository searches move files whose matching line reads as a
       definition of the word to the top and tag it "likely declaration" (status
       still says "text, not references"). `flow_declaration_ranking`, `test_outline`.
-- [ ] Make Markdown relative links and heading anchors navigate through typed
+- [x] Make Markdown relative links and heading anchors navigate through typed
       revision-aware destinations. Preserve source/preview position and Back/Forward.
+      Preview links (accent-coloured, followed on release) open repo-relative
+      files at the revision being read; "#slug" matches a heading via the outline
+      scan, "#L12" a line; web links are left alone. Jumping to a line shows the
+      raw source (the preview flag is per repository, not per visit), so Back
+      returns to the linking file unpreviewed. `flow_markdown_links`.
 
 ### P2: reader completeness
 

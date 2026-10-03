@@ -13,6 +13,45 @@
 
 namespace ecs {
 
+inline void open_markdown_link(RepoComponent& repo, int line) {
+    auto target = repo.markdownLink.target;
+    if (line <= 0) return navigation::open(repo, target, {}, reading::OpenMode::Keep);
+    target.line = line;
+    const auto anchor = reading::ReadingAnchor{target.destination.path, reading::anchor_revision(target), reading::DiffSide::After, line, 1, .15f};
+    navigation::open(repo, target, {}, reading::OpenMode::Keep, anchor);
+}
+
+// Follows a relative link from the Markdown preview at the revision being
+// read. "#L12" is a line; other anchors are matched against headings.
+inline void follow_markdown_link(RepoComponent& repo, const std::string& link) {
+    const auto hash = link.find('#');
+    const auto path = markdown_preview::resolve(repo.fullFilePath(), std::string_view(link).substr(0, hash));
+    if (path.empty()) return;
+    auto& runtime = repo.markdownLink;
+    runtime = {};
+    runtime.target = reading::SourceLocation{{path, reading::source_revision_for(repo.workspace().location())}};
+    runtime.anchor = hash == std::string::npos ? std::string{} : link.substr(hash + 1);
+    const auto digits = runtime.anchor.size() > 1 && runtime.anchor[0] == 'L' &&
+        std::all_of(runtime.anchor.begin() + 1, runtime.anchor.end(), [](unsigned char c) { return std::isdigit(c); });
+    if (runtime.anchor.empty() || digits) return open_markdown_link(repo, digits ? std::atoi(runtime.anchor.c_str() + 1) : 0);
+    runtime.request = navigation::stamp(repo, path + "#" + runtime.anchor);
+    runtime.future = git::outline_source_async({repo.repoPath, path, repo.fullFileRevision(), {}, repo.fullFileEncodingOverride});
+}
+
+inline void poll_markdown_link(RepoComponent& repo) {
+    auto& runtime = repo.markdownLink;
+    if (!runtime.future.valid() || runtime.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+    const auto result = runtime.future.get();
+    if (!navigation::accepts(repo, runtime.request, runtime.request.key)) return;
+    int line = 0;
+    for (const auto& symbol : result.symbols)
+        if (symbol.kind == "heading" && markdown_preview::slug(symbol.name.substr(symbol.name.find(' ') + 1)) == runtime.anchor) {
+            line = symbol.line;
+            break;
+        }
+    open_markdown_link(repo, line);  // a missing heading opens the file at the top
+}
+
 inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                              RepoComponent& repo, LayoutComponent& layout) {
     // Edit mode: the document's buffer is authoritative, so the paged
@@ -299,6 +338,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         }
         spacer(2, static_cast<float>(preview.lines.size() - last) * rowHeight + 16.f);
     } else if (markdown_preview::is_markdown_path(repo.fullFilePath()) && repo.fullFileMarkdownPreview) {
+        poll_markdown_link(repo);
         auto& cache = repo.fullFileMarkdownCache;
         auto& fonts = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::FontManager>();
         const auto bodyFont = fonts.get_font(afterhours::ui::UIComponent::DEFAULT_FONT);
@@ -349,19 +389,41 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_size(ComponentSize{percent(1.f), pixels(height)}).with_skip_grid_snap());
         };
         spacer(0, cache.offsets[first]);
+        const auto* menu = find_singleton<MenuComponent>();
+        const bool overlayOpen = ui::is_context_menu_open() || (menu && menu->activeMenuIndex >= 0);
+        std::optional<std::string> followed;
         for (size_t row = first; row < last; ++row) {
             const auto& line = cache.lines[row];
-            auto renderedLine = div(ctx, mk(body.ent(), 100 + static_cast<int>(row)), ComponentConfig{}
+            std::vector<afterhours::ui::TextSpan> spans;
+            size_t at = 0;
+            for (const auto& link : line.links) {
+                if (link.begin > at) spans.push_back({line.text.substr(at, link.begin - at), theme::TEXT_PRIMARY});
+                spans.push_back({line.text.substr(link.begin, link.end - link.begin), theme::TEXT_ACCENT});
+                at = link.end;
+            }
+            if (!spans.empty() && at < line.text.size()) spans.push_back({line.text.substr(at), theme::TEXT_PRIMARY});
+            auto config = ComponentConfig{}
                 .with_label(line.text)
                 .with_size(ComponentSize{percent(1.f), pixels(line.height)}).with_skip_grid_snap()
                 .with_font(line.kind == markdown_preview::Kind::Code ? "mono" : afterhours::ui::UIComponent::DEFAULT_FONT, pixels(line.fontSize))
                 .with_custom_text_color(line.kind == markdown_preview::Kind::Image ? theme::TEXT_SECONDARY : theme::TEXT_PRIMARY)
-                .with_debug_name("markdown_preview_block"));
+                .with_debug_name("markdown_preview_block");
+            if (!spans.empty()) config.with_styled_label(std::move(spans));
+            auto renderedLine = div(ctx, mk(body.ent(), 100 + static_cast<int>(row)), config);
             const int endColumn = row + 1 < cache.lines.size() && cache.lines[row + 1].sourceLine == line.sourceLine
                 ? cache.lines[row + 1].sourceColumn - 1 : std::numeric_limits<int>::max();
             const int sourceLine = line.sourceLine + repo.fullFilePage.begin.line - 1;
             state.rows.push_back({renderedLine.ent().id, repo.fullFilePath(), 0, 0, sourceLine, sourceLine, line.sourceColumn, endColumn});
+            if (line.links.empty() || overlayOpen || !ctx.mouse.just_released) continue;
+            const auto rect = ui::visible_rect(renderedLine.ent());
+            if (!afterhours::ui::is_mouse_inside(ctx.mouse.pos, rect)) continue;
+            const auto width = [&](size_t bytes) {
+                return afterhours::measure_text(bodyFont, line.text.substr(0, bytes).c_str(), line.fontSize * zoom, zoom).x;
+            };
+            for (const auto& link : line.links)
+                if (const float x = ctx.mouse.pos.x - rect.x; x >= width(link.begin) && x < width(link.end)) followed = link.target;
         }
+        if (followed) follow_markdown_link(repo, *followed);
         spacer(1, cache.offsets.back() - cache.offsets[last] + 16.f);
     } else {
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,

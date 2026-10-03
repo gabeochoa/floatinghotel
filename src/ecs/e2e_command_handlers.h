@@ -468,8 +468,18 @@ struct HandleTouchFile : afterhours::System<afterhours::testing::PendingE2EComma
         }
         // Optional line count: append that many numbered lines, enough to
         // make a diff several screens tall.
-        const int lines = cmd.has_args(2) ? std::max(1, std::atoi(cmd.args[1].c_str())) : 0;
-        if (lines == 0) ofs << "# edited by e2e test\n";
+        // "text LINE" appends that line verbatim instead.
+        const bool text = cmd.has_args(3) && cmd.args[1] == "text";
+        const int lines = cmd.has_args(2) && !text ? std::max(1, std::atoi(cmd.args[1].c_str())) : 0;
+        if (text) {
+            std::string joined;
+            for (size_t i = 2; i < cmd.args.size(); ++i) { if (!joined.empty()) joined += ' '; joined += cmd.args[i]; }
+            std::istringstream input(joined);
+            std::string line;
+            input >> std::quoted(line);
+            ofs << line << "\n";
+        }
+        else if (lines == 0) ofs << "# edited by e2e test\n";
         for (int i = 1; i <= lines; ++i) ofs << "e2e_line_" << i << "\n";
         ofs.close();
 

@@ -23,12 +23,19 @@ enum class Kind {
     Blank,
 };
 
+// An in-repository link: a relative path and/or a #heading anchor.
+struct Link {
+    size_t begin = 0, end = 0;  // bytes of the block's (or line's) text
+    std::string target;
+};
+
 struct Block {
     Kind kind = Kind::Paragraph;
     std::string text;
     int level = 0;
     int sourceLine = 1;
     int sourceColumn = 1;
+    std::vector<Link> links;
 };
 
 inline std::string trim(std::string_view input) {
@@ -43,6 +50,49 @@ inline bool is_markdown_path(const std::string& path) {
     std::string ext = std::filesystem::path(path).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     return ext == ".md" || ext == ".markdown";
+}
+
+// Replaces [label](target) with its label. Relative targets and anchors are
+// recorded as links; web links keep only their label.
+inline std::string strip_links(std::string_view text, std::vector<Link>& links, size_t offset = 0) {
+    std::string out;
+    for (size_t i = 0; i < text.size();) {
+        const auto close = text[i] == '[' && (i == 0 || text[i - 1] != '!') ? text.find("](", i + 1) : std::string_view::npos;
+        const auto end = close == std::string_view::npos ? close : text.find(')', close + 2);
+        if (end == std::string_view::npos || text.substr(i + 1, close - i - 1).find('[') != std::string_view::npos) {
+            out += text[i++];
+            continue;
+        }
+        auto target = trim(text.substr(close + 2, end - close - 2));
+        target = target.substr(0, target.find(' '));  // drop a "title"
+        const auto begin = out.size();
+        out += text.substr(i + 1, close - i - 1);
+        if (!target.empty() && target.find("://") == std::string::npos && !target.starts_with("mailto:"))
+            links.push_back({offset + begin, offset + out.size(), std::move(target)});
+        i = end + 1;
+    }
+    return out;
+}
+
+// GitHub-style heading anchor: lowercase, spaces to '-', punctuation dropped.
+inline std::string slug(std::string_view heading) {
+    std::string out;
+    for (const unsigned char c : heading) {
+        if (std::isalnum(c) || c >= 128 || c == '-' || c == '_') out += static_cast<char>(std::tolower(c));
+        else if (c == ' ') out += '-';
+    }
+    return out;
+}
+
+// The repository path a link in `from` points to ("/x" is repository-rooted);
+// empty if it leaves the repository.
+inline std::string resolve(std::string_view from, std::string_view path) {
+    if (path.empty()) return std::string(from);
+    const auto joined = path.starts_with('/') ? std::filesystem::path(path.substr(1))
+                                              : std::filesystem::path(from).parent_path() / path;
+    auto normal = joined.lexically_normal().generic_string();
+    if (normal.empty() || normal == "." || normal.starts_with("..")) return {};
+    return normal;
 }
 
 inline Block image_block(std::string_view line) {
@@ -76,14 +126,22 @@ inline std::vector<Block> parse(std::string_view text) {
         } else if (stripped.starts_with("#")) {
             size_t hashes = 0;
             while (hashes < stripped.size() && stripped[hashes] == '#') ++hashes;
-            if (hashes <= 6 && hashes < stripped.size() && stripped[hashes] == ' ')
-                blocks.push_back({Kind::Heading, trim(std::string_view(stripped).substr(hashes + 1)), static_cast<int>(hashes)});
-            else
-                blocks.push_back({Kind::Paragraph, stripped, 0});
+            std::vector<Link> links;
+            if (hashes <= 6 && hashes < stripped.size() && stripped[hashes] == ' ') {
+                auto text = strip_links(trim(std::string_view(stripped).substr(hashes + 1)), links);
+                blocks.push_back({Kind::Heading, std::move(text), static_cast<int>(hashes), 1, 1, std::move(links)});
+            } else {
+                auto text = strip_links(stripped, links);
+                blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(links)});
+            }
         } else if (stripped.starts_with("- ") || stripped.starts_with("* ")) {
-            blocks.push_back({Kind::ListItem, "• " + stripped.substr(2), 0});
+            std::vector<Link> links;
+            auto text = "• " + strip_links(std::string_view(stripped).substr(2), links, std::string_view("• ").size());
+            blocks.push_back({Kind::ListItem, std::move(text), 0, 1, 1, std::move(links)});
         } else {
-            blocks.push_back({Kind::Paragraph, stripped, 0});
+            std::vector<Link> links;
+            auto text = strip_links(stripped, links);
+            blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(links)});
         }
         if (blocks.size() != count) {
             auto& block = blocks.back();
@@ -105,6 +163,7 @@ struct Line {
     float height;
     int sourceLine;
     int sourceColumn;
+    std::vector<Link> links;  // bytes of `text`
 };
 
 struct Cache {
@@ -168,13 +227,21 @@ bool update(Cache& cache, const std::string& key, const std::string& text,
             if (block.kind != Kind::Code)
                 while (cursor < block.text.size() && std::isspace(static_cast<unsigned char>(block.text[cursor]))) ++cursor;
             const int column = block.sourceColumn + reading::column_at_byte(block.text, cursor) - 1;
-            for (const unsigned char byte : line) {
-                if (block.kind != Kind::Code && std::isspace(byte)) continue;
+            std::vector<Link> links;
+            const Link* previous = nullptr;
+            for (size_t i = 0; i < line.size(); ++i) {
+                if (block.kind != Kind::Code && std::isspace(static_cast<unsigned char>(line[i]))) continue;
                 if (block.kind != Kind::Code)
                     while (cursor < block.text.size() && std::isspace(static_cast<unsigned char>(block.text[cursor]))) ++cursor;
+                const auto at = cursor;
                 if (cursor < block.text.size()) ++cursor;
+                const auto link = std::find_if(block.links.begin(), block.links.end(), [&](const Link& l) { return at >= l.begin && at < l.end; });
+                if (link == block.links.end()) { previous = nullptr; continue; }
+                if (previous == &*link) links.back().end = i + 1;  // spans the spaces between words too
+                else links.push_back({i, i + 1, link->target});
+                previous = &*link;
             }
-            cache.lines.push_back({std::move(line), block.kind, fontSize, height, block.sourceLine, column});
+            cache.lines.push_back({std::move(line), block.kind, fontSize, height, block.sourceLine, column, std::move(links)});
             cache.offsets.push_back(cache.offsets.back() + height);
         }
     }

@@ -72,6 +72,37 @@ TEST(markdown_preview_retains_source_positions_through_fences_and_wrapping) {
     ASSERT_EQ(cache.lines[6].sourceColumn, 13);
 }
 
+TEST(markdown_preview_links_keep_labels_and_record_repository_targets) {
+    auto blocks = markdown_preview::parse("See [the guide](docs/guide.md#install-steps \"Guide\") or [web](https://x.invalid).\n"
+                                          "- [Usage](#development)\n![img](a.png)\n");
+    ASSERT_STREQ(blocks[0].text, "See the guide or web.");
+    ASSERT_EQ(blocks[0].links.size(), 1u);
+    ASSERT_EQ(blocks[0].text.substr(blocks[0].links[0].begin, blocks[0].links[0].end - blocks[0].links[0].begin), std::string("the guide"));
+    ASSERT_STREQ(blocks[0].links[0].target, "docs/guide.md#install-steps");
+    ASSERT_STREQ(blocks[1].text, "• Usage");
+    ASSERT_EQ(blocks[1].text.substr(blocks[1].links[0].begin), std::string("Usage"));
+    ASSERT_EQ(blocks[2].kind, markdown_preview::Kind::Image);
+
+    markdown_preview::Cache cache;
+    markdown_preview::update(cache, "k", "aa [b c](x.md) dd", 6.f, 1.f, 14.f, 1.f,
+        [](const std::string& text, markdown_preview::Kind, float) { return static_cast<float>(text.size()); });
+    ASSERT_EQ(cache.lines.size(), 2u);
+    ASSERT_STREQ(cache.lines[0].text, "aa b c");
+    ASSERT_EQ(cache.lines[0].links.size(), 1u);
+    ASSERT_EQ(cache.lines[0].links[0].begin, 3u);
+    ASSERT_EQ(cache.lines[0].links[0].end, 6u);
+    ASSERT_TRUE(cache.lines[1].links.empty());
+}
+
+TEST(markdown_preview_link_targets_resolve_inside_the_repository) {
+    ASSERT_STREQ(markdown_preview::resolve("docs/a.md", "../README.md"), "README.md");
+    ASSERT_STREQ(markdown_preview::resolve("docs/a.md", "b/c.md"), "docs/b/c.md");
+    ASSERT_STREQ(markdown_preview::resolve("docs/a.md", "/src/x.cpp"), "src/x.cpp");
+    ASSERT_STREQ(markdown_preview::resolve("docs/a.md", ""), "docs/a.md");
+    ASSERT_STREQ(markdown_preview::resolve("README.md", "../outside.md"), "");
+    ASSERT_STREQ(markdown_preview::slug("Install steps (macOS)!"), "install-steps-macos");
+}
+
 int main() {
     printf("=== markdown preview tests ===\n");
     RUN_ALL_TESTS();

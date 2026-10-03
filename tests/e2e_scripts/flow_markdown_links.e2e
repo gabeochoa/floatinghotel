@@ -1,0 +1,58 @@
+# Flow: links in the Markdown preview navigate inside the repository at the
+# revision being read: same-document heading anchors, other files with a
+# heading anchor, and Back returns to the linking file.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+touch_file GUIDE.md text "# Guide"
+touch_file GUIDE.md 60
+touch_file GUIDE.md text "## Install steps"
+touch_file GUIDE.md text "Run the installer."
+touch_file README.md text "See [the guide](GUIDE.md#install-steps) or [usage](#development)."
+wait_for_refresh
+click_text "View"
+wait_frames 5
+click_text "File Explorer"
+wait_frames 8
+click_text "README.md"
+wait_for_refresh
+wait_frames 8
+validate active_content=Source
+click_ui full_file_options
+wait_frames 5
+click_text "Preview Markdown"
+wait_for_refresh
+wait_frames 8
+screenshot markdown_links_readme
+expect_text "the guide"
+expect_text "usage"
+expect_no_text "](GUIDE.md"
+
+# Heading anchor in another file.
+# click_text aims at the line centre; the link is a span at its start.
+click 380 249
+wait_for_refresh
+wait_frames 10
+screenshot markdown_links_guide
+expect_text "Install steps"
+validate source_line=62
+expect_no_text "the guide"
+
+# Back returns to the README preview.
+key ALT+LEFT
+wait_for_refresh
+wait_frames 10
+expect_text "[the guide](GUIDE.md#install-steps)"
+
+# Same-document heading anchor. Jumping to a line shows the raw source, so
+# the preview is turned back on first.
+click_ui full_file_options
+wait_frames 5
+click_text "Preview Markdown"
+wait_for_refresh
+wait_frames 8
+expect_no_text "](GUIDE.md"
+click 438 249
+wait_for_refresh
+wait_frames 10
+validate source_line=4
