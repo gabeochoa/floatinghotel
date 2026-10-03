@@ -730,6 +730,10 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                         !scope.extraFuture.valid() && !scope.statusFuture.valid() && !scope.changesFuture.valid();
                 refreshDone = refreshDone && !layout->relinkFuture.valid();
             }
+            // Menu git ops (stage/unstage/push...) request their refresh only
+            // once they finish, so the gate has to cover them too.
+            if (auto* ops = ecs::find_singleton<ecs::NetworkOpsComponent>())
+                refreshDone = refreshDone && ops->pending.empty();
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
                 refreshDone = refreshDone && !repo->refreshRequested && !repo->isRefreshing;
@@ -1627,7 +1631,9 @@ int main(int argc, char* argv[]) {
         }
     }
     Settings::get().auto_save_enabled = false;
-    Settings::get().load_save_file();
+    // Tests start from defaults unless they point at their own settings dir;
+    // the user's settings (vim mode, sidebar width, ...) would leak in.
+    if (!app_state::testModeEnabled || app_state::restoreWindowSize) Settings::get().load_save_file();
 
     {
         auto preGfxMs = std::chrono::duration_cast<std::chrono::milliseconds>(

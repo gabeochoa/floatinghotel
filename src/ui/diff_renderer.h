@@ -2975,15 +2975,15 @@ inline void render_diff(UIContext<InputAction>& ctx,
     contentParent->addComponentIfMissing<ReadingViewport>().topInset = headerInset;
     diff_detail::DiffViewport vp;
     vp.topInset = headerInset;
+    // An embedded diff may sit in a section div inside the scroll container
+    // (the combined Changes page), so cull, pin headers and scroll against
+    // the nearest scrolling ancestor, not just the direct parent.
+    Entity* scrollEntity = contentParent;
     {
         vp.active = true;
         vp.screenH = (float)afterhours::graphics::get_screen_height();
         vp.contentWidth = codeWidth;
         float scrollY = 0.f, viewportH = 0.f;
-        // An embedded diff may sit in a section div inside the scroll
-        // container (the combined Changes page), so cull against the
-        // nearest scrolling ancestor, not just the direct parent.
-        Entity* scrollEntity = contentParent;
         while (embedInParentScroll && scrollEntity && !scrollEntity->has<afterhours::ui::HasScrollView>() &&
                scrollEntity->has<afterhours::ui::UIComponent>()) {
             const int parentId = scrollEntity->get<afterhours::ui::UIComponent>().parent;
@@ -3023,12 +3023,15 @@ inline void render_diff(UIContext<InputAction>& ctx,
             for (const auto& fold : review->foldedFiles) state.key += "\nfile:" + fold;
             for (const auto& fold : review->foldedHunks) state.key += "\nhunk:" + fold;
         }
-        const auto viewport = visible_rect(*contentParent);
+        const auto viewport = visible_rect(scrollEntity ? *scrollEntity : *contentParent);
         const auto wheel = afterhours::input::get_mouse_wheel_move_v();
         const bool scrolling = (vp.scroll && vp.scroll->dragging_scrollbar) ||
             ((wheel.x != 0.f || wheel.y != 0.f) && afterhours::ui::is_mouse_inside(ctx.mouse.pos, viewport));
         if (scrolling) navigation::cancel_anchor(*filterRepo);
-        else if (state.previousDocument == filterRepo->workspace().active_id() && state.key != state.previousKey &&
+        // Embedded diffs build the key one section at a time, so mid-frame it
+        // never matches last frame's full key; ReadingLayoutSystem compares
+        // the finished key after the frame instead.
+        else if (!embedInParentScroll && state.previousDocument == filterRepo->workspace().active_id() && state.key != state.previousKey &&
             filterRepo->fullFileNavigateFrames == 0 && filterRepo->diffTargetFrames == 0)
             navigation::restore_anchor(*filterRepo);
         const auto* document = filterRepo->workspace().document(filterRepo->workspace().active_id());
@@ -3076,14 +3079,14 @@ inline void render_diff(UIContext<InputAction>& ctx,
         headers.push_back({&fileHeaderRow.ent(), &fileDiff, vp.curY, fileHeaderHeight});
         if (!fileDiff.isFullContent) {
             auto& sticky = fileHeaderRow.ent().addComponentIfMissing<StickyFileHeader>();
-            sticky.viewport = contentParent->id;
+            sticky.viewport = scrollEntity ? scrollEntity->id : contentParent->id;
             if (headers.size() > 1) headers[headers.size() - 2].entity->get<StickyFileHeader>().next = fileHeaderRow.ent().id;
         } else if (fileHeaderRow.ent().has<StickyFileHeader>()) fileHeaderRow.ent().removeComponent<StickyFileHeader>();
         vp.built(fileHeaderHeight);
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             repo && reviewScope != "snapshot" && repo->diffTargetFrames > 0 && repo->diffTargetFile() == fileDiff.filePath &&
-            contentParent->has<afterhours::ui::HasScrollView>()) {
-            auto& scroll = contentParent->get<afterhours::ui::HasScrollView>();
+            scrollEntity && scrollEntity->has<afterhours::ui::HasScrollView>()) {
+            auto& scroll = scrollEntity->get<afterhours::ui::HasScrollView>();
             float target = vp.curY - vp.px(fileHeaderHeight);
             target = std::clamp(target, 0.f, std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
             scroll.scroll_offset = scroll.scroll_target = scroll.last_eased_offset = {0.f, target};

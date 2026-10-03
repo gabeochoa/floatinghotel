@@ -8,7 +8,7 @@ wait_frames 5
 validate branch=main
 
 # Fetch via Repository menu
-click_text "More"
+click_text "Repository"
 wait_frames 5
 click_text "Fetch"
 wait_for_refresh

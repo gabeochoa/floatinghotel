@@ -1,6 +1,6 @@
 # Regression: commit detail view must not leave blank UI
-# Verifies that clicking commits renders full detail view,
-# switching commits resets properly, and going back works.
+# Verifies that clicking commits renders the commit document, switching
+# commits replaces it rather than blanking, and the details popup closes.
 make_test_repo
 resize 1280 720
 wait_frames 5
@@ -10,67 +10,48 @@ screenshot flow_commit_detail_regression_files_navigation
 expect_text "Changes"
 expect_text "COMMIT HISTORY"
 
-# Click a commit to open detail view
+# Click a commit to open its document
 click_text "Add contributing guidelines"
 wait_for_refresh
 screenshot commit_detail_regression_compact
+click_ui diff_options_toggle
+screenshot flow_commit_detail_options
+expect_text "FILES CHANGED"
+click_ui diff_options_toggle
+wait_frames 3
+
+# Details popup: subject and metadata
 click_ui commit_meta_toggle
 screenshot commit_detail_regression_expanded
-
-# Commit detail must render: subject, metadata, files, back button
 expect_text "Add contributing guidelines"
 expect_text "Commit:"
 expect_text "Author:"
 expect_text "Date:"
-assert_ui commit_back_btn hidden=false
-click_ui diff_options_toggle
-screenshot flow_commit_detail_options
-expect_text "FILES CHANGED"
 
-# Sidebar must remain visible while viewing commit detail
+# Escape closes the popup and leaves the sidebar intact
+key ESCAPE
+wait_frames 5
+screenshot commit_detail_regression_02_closed
+expect_no_text "Commit details"
 expect_text "Changes"
 expect_text "COMMIT HISTORY"
 
-screenshot commit_detail_regression_01_first
-
-# Switch to a different commit — detail should update, not go blank
+# Switch to a different commit -- detail should update, not go blank
 click_text "Add unit tests for utils"
 wait_for_refresh
-
+click_ui commit_meta_toggle
+screenshot commit_detail_regression_03_second
 expect_text "Add unit tests for utils"
 expect_text "Commit:"
 expect_text "Author:"
-expect_text "FILES CHANGED"
-assert_ui commit_back_btn hidden=false
-
-screenshot commit_detail_regression_02_second
-
-# Click back — should return to default view
-click_ui commit_back_btn
+key ESCAPE
 wait_frames 5
 
-# Screenshot first: it is the only command that forces a render, and
-# expect_no_text reads the visible-text registry, which only a render refills.
-# e2e_tick_loop drains `wait_frames` without rendering, so asserting straight
-# after the wait tests the frame the click was made on -- where the button is
-# still drawn. Remove this once the tick loop renders per waited frame.
-screenshot commit_detail_regression_03_back
-
-# Back returns to the default view: the commit detail (and its "<- Back"
-# button) must be dismissed. The diff shelf collapses when nothing is selected,
-# so assert the detail is gone rather than the collapse-sensitive empty hint.
-validate ui_present:commit_back_btn=false
-expect_text "Changes"
-expect_text "COMMIT HISTORY"
-
-# Re-select a commit after going back — must not leave blank UI
+# Re-select the first commit -- must not leave blank UI
 click_text "Add contributing guidelines"
 wait_for_refresh
-
+click_ui commit_meta_toggle
+screenshot commit_detail_regression_04_reselect
 expect_text "Add contributing guidelines"
 expect_text "Commit:"
 expect_text "Author:"
-expect_text "FILES CHANGED"
-assert_ui commit_back_btn hidden=false
-
-screenshot commit_detail_regression_04_reselect

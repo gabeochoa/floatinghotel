@@ -1,0 +1,26 @@
+# Regression: on the combined Changes page each section's diff is embedded in
+# a section div inside the page scroll. Row culling used to measure against
+# that div instead of the scroll container, so rows past the first screens
+# (and file header contents) rendered blank once you scrolled, and with both
+# sections present the page snapped back to its anchor every frame.
+make_test_repo
+resize 1000 725
+enable_file_watcher
+wait_for_refresh
+touch_file src/app.cpp 400
+wait_for_file_change
+disable_file_watcher
+wait_frames 10
+click_text "Review working changes"
+wait_for_refresh
+wait_frames 10
+screenshot embedded_diff_scroll_top
+hover_ui diff_scroll
+scroll_wheel 0 -100
+wait_frames 30
+screenshot embedded_diff_scroll_mid
+expect_text "e2e_line_45"
+scroll_wheel 0 -1000
+wait_frames 40
+screenshot embedded_diff_scroll_end
+expect_text "e2e_line_400"

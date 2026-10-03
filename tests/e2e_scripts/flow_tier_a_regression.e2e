@@ -58,7 +58,7 @@ validate file_view_mode=Tree
 
 click_text "View"
 wait_frames 5
-click_text "All Files View"
+click_text "File Explorer"
 wait_frames 5
 validate file_view_mode=All
 

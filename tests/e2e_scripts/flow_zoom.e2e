@@ -20,7 +20,9 @@ screenshot zoom_03_pinched_out
 key CMD+0
 wait_frames 5
 validate ui_scale=0.98
-native_menu_action "Reset Zoom"
+click_text "View"
+wait_frames 5
+click_text "Reset Zoom"
 wait_frames 5
 validate ui_scale=1.00
 screenshot zoom_04_reset

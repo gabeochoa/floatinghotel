@@ -9,7 +9,7 @@ screenshot flow_r4_amend_commit_files_navigation
 validate is_amend=false
 
 # Trigger amend via Repository menu
-click_text "More"
+click_text "Repository"
 wait_frames 5
 click_text "Amend Last Commit"
 wait_frames 5

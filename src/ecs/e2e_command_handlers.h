@@ -248,6 +248,8 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.comparisonFuture = {};
             repo.comparisonLoadedScope.clear();
             repo.blameOpen = false;
+            repo.pushDialogOpen = false;
+            repo.comparisonEditorOpen = false;
             repo.blameFuture = {};
             repo.diffTargetFrames = 0;
             repo.repoSearchFuture = {};
@@ -464,7 +466,11 @@ struct HandleTouchFile : afterhours::System<afterhours::testing::PendingE2EComma
             cmd.fail("touch_file: could not open " + filePath.string());
             return;
         }
-        ofs << "# edited by e2e test\n";
+        // Optional line count: append that many numbered lines, enough to
+        // make a diff several screens tall.
+        const int lines = cmd.has_args(2) ? std::max(1, std::atoi(cmd.args[1].c_str())) : 0;
+        if (lines == 0) ofs << "# edited by e2e test\n";
+        for (int i = 1; i <= lines; ++i) ofs << "e2e_line_" << i << "\n";
         ofs.close();
 
         log_info("touch_file: wrote to {}", filePath.string());

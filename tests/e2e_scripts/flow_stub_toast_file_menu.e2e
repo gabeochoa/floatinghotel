@@ -4,6 +4,6 @@ wait_for_refresh
 click_text File
 screenshot file_menu_supported_actions
 expect_text Quit
-expect_no_text "Open Repository..."
+expect_text "Open Repository..."
 expect_no_text "Close Tab"
 expect_no_text "not yet implemented"

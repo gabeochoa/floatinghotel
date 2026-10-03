@@ -19,14 +19,16 @@ expect_text "Hello, floatinghotel!"
 expect_text "Development"
 screenshot unstaged_all_files
 
-# Drill into one file, then back to all files via the segment.
+# Drill into one file, then back to all files via the segment. The page
+# keeps main.cpp in view, so check a file below it (src/app.cpp).
 click_text "main.cpp"
 wait_frames 10
 expect_text "Hello, floatinghotel!"
 expect_no_text "Development"
+expect_no_text "modified by test setup"
 click_ui review_unstaged_changes
 wait_frames 15
-expect_text "Development"
+expect_text "modified by test setup"
 screenshot unstaged_all_files_again
 
 # Leaving review mode keeps the all-files page too (this is the state
@@ -37,5 +39,5 @@ wait_frames 15
 wait_for_refresh
 wait_frames 10
 expect_no_text "Select a file or commit"
-expect_text "Development"
+expect_text "modified by test setup"
 screenshot unstaged_all_files_not_reviewing

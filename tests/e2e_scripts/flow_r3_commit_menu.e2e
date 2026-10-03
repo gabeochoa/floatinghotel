@@ -10,7 +10,7 @@ screenshot flow_r3_commit_menu_files_navigation
 validate staged_count=1
 
 # Trigger commit via Repository menu
-click_text "More"
+click_text "Repository"
 wait_frames 5
 click_text "Commit..."
 wait_frames 5
