@@ -197,6 +197,57 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
     }
 }
 
+inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo, LayoutComponent& layout, float height) {
+    auto& position = layout.filePickerPosition;
+    ui::bind_focus(parent, repo, reading::focus::Region::Picker);
+    div(ctx, mk(parent, 588000), ComponentConfig{}.with_label("Commands")
+        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(14)));
+    auto input = afterhours::text_input::text_input(ctx, mk(parent, 588001), position.input,
+        ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)}).with_debug_name("command_palette_input"));
+    if (layout.filePickerFocus || ui::shortcut_owner(ctx, repo).region != reading::focus::Region::Picker) {
+        ui::focus_control(ctx, input.ent());
+        layout.filePickerFocus = false;
+    }
+    if (position.key != position.input) {
+        position.key = position.input;
+        layout.filePickerIndex = 0;
+    }
+    std::vector<std::string> labels;
+    for (const auto& command : position.commands) labels.push_back(command.label);
+    std::vector<size_t> results;
+    if (position.input.empty()) for (size_t i = 0; i < labels.size(); ++i) results.push_back(i);  // menu order
+    else for (const auto& label : fuzzy::rank(labels, position.input))
+        results.push_back(static_cast<size_t>(std::find(labels.begin(), labels.end(), label) - labels.begin()));
+    layout.filePickerIndex = std::clamp(layout.filePickerIndex, 0, std::max(0, static_cast<int>(results.size()) - 1));
+    // Close first: the command may open a picker of its own.
+    auto run = [&](size_t index) {
+        auto action = position.commands[index].action;
+        layout.filePickerOpen = false;
+        action();
+    };
+    if (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && !results.empty()) {
+        if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
+        if (afterhours::input::is_key_pressed(afterhours::keys::UP)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
+        if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) return run(results[layout.filePickerIndex]);
+    }
+    div(ctx, mk(parent, 588002), ComponentConfig{}
+        .with_label(std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close")
+        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)).with_debug_name("command_palette_status"));
+    std::optional<size_t> clicked;
+    ui::virtual_list(ctx, mk(parent, 588003), results.size(), 28.f, [&](size_t i, Entity& row) {
+        const auto& command = position.commands[results[i]];
+        std::vector<afterhours::ui::TextSpan> spans{{command.label, theme::TEXT_PRIMARY}};
+        if (!command.shortcut.empty()) spans.push_back({"   " + command.shortcut, theme::TEXT_SECONDARY});
+        if (button(ctx, mk(row, 0), preset::Button(command.label).with_styled_label(spans)
+                .with_size(ComponentSize{percent(1.f), pixels(28)}).with_alignment(TextAlignment::Left)
+                .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
+                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_font_size(pixels(14)).with_debug_name("command_palette_result"))) clicked = results[i];
+    }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(28.f, height - 90.f))})
+        .with_debug_name("command_palette_list"));
+    if (clicked) run(*clicked);
+}
+
 inline void update_picker_catalog(RepoComponent& repo, LayoutComponent& layout) {
     auto& scope = layout.filePickerScope;
     const auto path = repo.repoPath;
@@ -574,6 +625,7 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
             return afterhours::modal::detail::is_entity_in_tree(modalId, id);
         });
         if (layout->filePickerPosition.lineMode) render_line_picker(ctx, body.ent(), *repo, *layout);
+        else if (layout->filePickerPosition.commandMode) render_command_palette(ctx, body.ent(), *repo, *layout, height - 48.f);
         else render_file_picker(ctx, body.ent(), *repo, *layout, height - 48.f);
     }
 };

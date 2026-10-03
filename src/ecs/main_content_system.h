@@ -463,6 +463,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         case Popup::PushDialog: repoPtr->pushDialogOpen = false; repoPtr->pushDestinationFuture = {}; break;
                         case Popup::RelinkDialog: layout.relinkOpen = false; layout.relinkFuture = {}; break;
                         case Popup::Options: layout.diffOptionsOpen = false; break;
+                        case Popup::Shortcuts: layout.shortcutsOpen = false; break;
                         case Popup::Snapshot:
                             if (review) review->sinceReviewOpen = false;
                             navigation::restore_anchor(*repoPtr);

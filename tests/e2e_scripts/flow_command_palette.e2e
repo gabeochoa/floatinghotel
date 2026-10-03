@@ -1,0 +1,41 @@
+# Flow: Cmd+K opens a searchable palette of the menu commands. Enter runs
+# the top match and closes it; Esc closes it and hands keys back to the
+# reader without moving the reading position.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_text main.cpp
+wait_for_refresh
+wait_frames 10
+validate visible_source_line:4=true
+# Give the reader focus so the Ctrl+G check below proves it comes back.
+click 700 400
+wait_frames 3
+
+key CMD+K
+wait_frames 5
+assert_ui command_palette_input hidden=false
+expect_text "Edit: Copy as snippet"
+type "keyboard sho"
+wait_frames 5
+screenshot command_palette_filtered
+expect_text "Help: Keyboard Shortcuts"
+expect_no_text "Edit: Copy as snippet"
+key ENTER
+wait_frames 10
+expect_no_text "Help: Keyboard Shortcuts"
+assert_ui shortcut_reference hidden=false
+key ESCAPE
+wait_frames 5
+
+key CMD+K
+wait_frames 5
+assert_ui command_palette_input hidden=false
+key ESCAPE
+wait_frames 5
+expect_no_text "Edit: Copy as snippet"
+validate visible_source_line:4=true
+# Reader shortcuts work again: Ctrl+G opens Go to line.
+key CTRL+G
+wait_frames 5
+expect_text "Go to line"

@@ -5,7 +5,7 @@
 namespace reading::focus {
 
 enum class Region { Tree, History, DocumentTabs, Code, Picker, Find, Search, SearchPreview, Feedback, Menu };
-enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory, Composer, Options, Snapshot, ComparisonEditor, CommitDetails, PushDialog, RelinkDialog };
+enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory, Composer, Options, Snapshot, ComparisonEditor, CommitDetails, PushDialog, RelinkDialog, Shortcuts };
 
 struct Target {
     std::string repository;
@@ -55,7 +55,10 @@ struct State {
         }
         for (const auto popup : visible) {
             if (std::none_of(returns.begin(), returns.end(), [&](const auto& point) { return point.popup == popup; })) {
-                returns.push_back({popup, origin && origin->repository == repo ? origin : std::nullopt, generation});
+                // A popup that replaces one closing this frame (menu item -> dialog)
+                // returns to where the closing one would have.
+                const auto from = pending ? pending : origin;
+                returns.push_back({popup, from && from->repository == repo ? from : std::nullopt, generation});
                 pending.reset();
             }
         }

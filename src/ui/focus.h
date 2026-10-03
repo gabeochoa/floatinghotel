@@ -124,6 +124,7 @@ inline std::vector<reading::focus::Popup> open_popups(const ecs::RepoComponent& 
     if (repo.workspace().document(repo.workspace().active_id())->detailsExpanded) visible.push_back(Popup::CommitDetails);
     if (repo.pushDialogOpen) visible.push_back(Popup::PushDialog);
     if (layout.relinkOpen) visible.push_back(Popup::RelinkDialog);
+    if (layout.shortcutsOpen) visible.push_back(Popup::Shortcuts);
     if (layout.diffOptionsOpen) visible.push_back(Popup::Options);
     return visible;
 }

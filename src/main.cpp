@@ -724,7 +724,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
                 const auto& scope = layout->filePickerScope;
                 refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.future.valid();
-                if (layout->filePickerOpen && !layout->filePickerPosition.lineMode)
+                if (layout->filePickerOpen && !layout->filePickerPosition.lineMode && !layout->filePickerPosition.commandMode)
                     refreshDone = refreshDone && scope.catalogStarted && !scope.catalogDue &&
                         !scope.localFuture.valid() && !scope.remoteFuture.valid() && !scope.commitsFuture.valid() &&
                         !scope.extraFuture.valid() && !scope.statusFuture.valid() && !scope.changesFuture.valid();

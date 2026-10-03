@@ -113,6 +113,10 @@ inline std::vector<Menu> createMenuBar() {
 
     // View menu
     menus.push_back({"View", {
+        MenuItem::item("Command Palette...", "Cmd+K", [] {
+            if (auto* menu = ecs::find_singleton<ecs::MenuComponent>()) menu->paletteRequested = true;
+        }),
+        MenuItem::separator(),
         MenuItem::item("Review Workspace (toggle)", "", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
                 repo->reviewWorkspace = !repo->reviewWorkspace;

@@ -78,6 +78,21 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         return result;
     }
 
+    void open_palette(LayoutComponent& layout) const {
+        if (!find_singleton<RepoComponent, ActiveTab>()) return;
+        layout.filePickerPosition = {};
+        auto& position = layout.filePickerPosition;
+        position.commandMode = true;
+        for (auto& group : current_menus())
+            for (auto& item : group.items)
+                if (!item.isSeparator && item.enabled && item.action && item.label != "Command Palette...")
+                    position.commands.push_back({group.label + ": " + item.label, item.shortcut, std::move(item.action)});
+        layout.filePickerScope = {};
+        layout.filePickerCacheKey.clear();
+        layout.filePickerIndex = 0;
+        layout.filePickerOpen = layout.filePickerFocus = true;
+    }
+
     void drain_notices(UIContext<InputAction>& ctx, MenuComponent& menu) {
         for (const auto& notice : menu.pendingToasts) {
             switch (notice.kind) {
@@ -115,6 +130,13 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
             if (!app_state::testModeEnabled || std::getenv("FH_NATIVE_MENUS"))
                 native_menu::install("floatinghotel", native_menu::CommandId{0}, native_menus(current_menus()));
         }
+
+        const bool cmdDown = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
+                             afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
+                             afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL);
+        if (cmdDown && !ui::shortcuts_blocked(layout) && afterhours::input::is_key_pressed(afterhours::keys::K))
+            menu.paletteRequested = true;
+        if (std::exchange(menu.paletteRequested, false)) open_palette(layout);
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
         if (native_menu::is_installed()) {

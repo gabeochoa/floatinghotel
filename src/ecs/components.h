@@ -1129,6 +1129,13 @@ struct FilePickerScope {
 
 struct FilePickerPosition {
     bool lineMode = false;
+    // Command palette: the menu commands captured when it opened.
+    struct Command {
+        std::string label, shortcut;
+        std::function<void()> action;
+    };
+    bool commandMode = false;
+    std::vector<Command> commands;
     std::string input;
     std::optional<reading::ReadingAnchor> point;
     file_query::Query parsed;
@@ -1243,6 +1250,7 @@ struct MenuComponent : public afterhours::BaseComponent {
 
     enum class PendingDialog { None, OpenRepo };
     PendingDialog pendingDialog = PendingDialog::None;
+    bool paletteRequested = false;
 
     struct Notice {
         enum class Kind { Info, Success, Error };

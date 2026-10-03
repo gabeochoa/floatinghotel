@@ -108,8 +108,10 @@ caches. No px0 application or benchmark has run yet.
 - [ ] Extend Markdown preview with tables, inline formatting, and bounded local
       images. Test links and image paths in historical revisions as well as the
       working tree.
-- [ ] Add a searchable command palette backed by existing commands and shortcut
+- [x] Add a searchable command palette backed by existing commands and shortcut
       ownership. Restore focus and the reading anchor on dismissal.
+      View > Command Palette (Cmd+K) lists enabled menu items; the shortcuts
+      overlay now restores focus too. `flow_command_palette` covers it.
 - [x] Add source-snippet copy with a revision-aware location and fenced code for
       agent prompts. Preserve plain copy and existing copy-size limits.
       Edit > Copy as snippet (Cmd+Alt+C): `path:Lx-y @ commit`, `(index)` or

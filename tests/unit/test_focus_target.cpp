@@ -27,6 +27,18 @@ TEST(focus_nested_popup_returns_to_immediate_then_original_caller) {
     ASSERT_EQ(state.pending, std::optional{code});
 }
 
+TEST(focus_popup_replacing_another_returns_to_the_original_caller) {
+    State state;
+    Target code{"repo", {1}, Region::Code, {}, "diff_scroll"};
+    state.origin = code;
+    state.sync("repo", 5, {Popup::Picker});
+    state.origin = Target{"repo", {}, Region::Menu, {}, "command_palette_input"};
+    state.sync("repo", 5, {Popup::Shortcuts});
+    ASSERT_FALSE(state.pending.has_value());
+    state.sync("repo", 5, {});
+    ASSERT_EQ(state.pending, std::optional{code});
+}
+
 TEST(focus_does_not_restore_across_navigation_or_repository_changes) {
     State state;
     state.origin = Target{"repo", {1}, Region::Code, {}, "diff_scroll"};
