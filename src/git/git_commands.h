@@ -10,6 +10,11 @@ namespace git {
 
 std::optional<ecs::DiffHunk> selected_lines_hunk(const ecs::DiffHunk& hunk,
                                                 const std::set<size_t>& selected);
+// Groups a hunk's change runs into chunks of about `target` changed lines,
+// cutting only at context so a replacement's - and + lines stay together (a
+// longer run is a chunk of its own). Returns the line indices of each chunk's
+// changes, ready for stage_selected_lines; one chunk means no split.
+std::vector<std::set<size_t>> change_chunks(const ecs::DiffHunk& hunk, size_t target = 20);
 GitResult unstage_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,
                                   const std::vector<std::set<size_t>>& selected);
 GitResult stage_selected_lines(const std::string& repo_path, const ecs::FileDiff& file,

@@ -270,10 +270,16 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       100%, 140%, and 200%. Find, caret, selection, and logical anchors remain below
       the pinned header; see [verification](docs/reading-backlog.md#pinned-file-headers).
 
-- [ ] Split large changes into independently reviewable chunks of about 20 lines.
+- [x] Split large changes into independently reviewable chunks of about 20 lines.
       Preserve original hunk identities and generate valid patches at safe seams.
       Whole-hunk and selected-line staging already exist; verify partial edits,
       adjacent changes, missing final newlines, and rejected patches.
+      `git::change_chunks` groups a hunk's change runs into ~20-line parts, cut
+      only at context lines; the hunk context menu lists "Approve/Unstage lines
+      a–b · +n −m" for each part and stages it as a line selection, so the hunk
+      and its review key stay whole. `test_git_commands` applies parts out of
+      order next to each other, with a missing final newline, and checks that a
+      stale patch is rejected; `tests/change_chunks.py` covers the menu.
 - [ ] Carry a working-tree comment to the commit that contains its reviewed change.
       Match saved content rather than line number alone, preserve ambiguity warnings,
       and keep exported commit/file/line identities correct across later edits.

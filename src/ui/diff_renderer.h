@@ -1598,6 +1598,32 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 items.push_back(ContextMenuItem::item(scope == "index" ? "Unstage hunk" : "Approve hunk", [repoPath, fd, hunk, scope] {
                     approve_hunk(repoPath, fd, hunk, scope);
                 }));
+                // Large hunks also offer ~20-line parts, staged as line selections
+                // so the hunk itself (and its review key) stays whole.
+                const auto chunks = git::change_chunks(hunk);
+                const size_t hunkIndex = static_cast<size_t>(&hunk - fileDiff.hunks.data());
+                for (size_t c = 0; chunks.size() > 1 && hunkIndex < fileDiff.hunks.size() && c < chunks.size(); ++c) {
+                    int line = hunk.newStart, first = 0, last = 0, adds = 0, dels = 0;
+                    for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                        const char sign = hunk.lines[i].empty() ? ' ' : hunk.lines[i][0];
+                        if (chunks[c].contains(i)) {
+                            if (!first) first = line;
+                            last = line;
+                            ++(sign == '+' ? adds : dels);
+                        }
+                        if (sign != '-') ++line;
+                    }
+                    std::vector<std::set<size_t>> selected(fileDiff.hunks.size());
+                    selected[hunkIndex] = chunks[c];
+                    const bool staged = scope == "index";
+                    items.push_back(ContextMenuItem::item((staged ? "Unstage lines " : "Approve lines ") + std::to_string(first) +
+                        (last != first ? "–" + std::to_string(last) : "") + " · +" + std::to_string(adds) + " −" + std::to_string(dels),
+                        [repoPath, fd, selected, staged] {
+                            enqueue_index_op(staged ? "Unstage part" : "Approve part", [repoPath, fd, selected, staged] {
+                                return staged ? git::unstage_selected_lines(repoPath, fd, selected) : git::stage_selected_lines(repoPath, fd, selected);
+                            });
+                        }));
+                }
             }
             int line = hunk.newCount == 0 ? hunk.oldStart : hunk.newStart;
             auto scope = sel->reviewScope;

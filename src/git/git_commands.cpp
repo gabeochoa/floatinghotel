@@ -30,6 +30,23 @@ std::optional<ecs::DiffHunk> selected_lines_hunk(const ecs::DiffHunk& hunk,
     return out;
 }
 
+std::vector<std::set<size_t>> change_chunks(const ecs::DiffHunk& hunk, size_t target) {
+    std::vector<std::set<size_t>> runs;
+    for (size_t i = 0; i < hunk.lines.size(); ++i) {
+        const bool change = hunk.lines[i].starts_with('+') || hunk.lines[i].starts_with('-');
+        if (!change) continue;
+        if (runs.empty() || i == 0 || !(hunk.lines[i - 1].starts_with('+') || hunk.lines[i - 1].starts_with('-')))
+            runs.emplace_back();
+        runs.back().insert(i);
+    }
+    std::vector<std::set<size_t>> chunks;
+    for (auto& run : runs) {
+        if (chunks.empty() || chunks.back().size() + run.size() > target) chunks.push_back(std::move(run));
+        else chunks.back().merge(run);
+    }
+    return chunks;
+}
+
 // Build a minimal unified diff patch string for a single hunk.
 std::string build_patch(const ecs::FileDiff& file_diff,
                                const ecs::DiffHunk& hunk) {

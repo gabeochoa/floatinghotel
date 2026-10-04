@@ -3,7 +3,10 @@
 
 #include "test_framework.h"
 #include "../../src/git/git_commands.h"
+#include "../../src/git/git_parser.h"
 
+#include <filesystem>
+#include <fstream>
 #include <string>
 
 // ===========================================================================
@@ -228,6 +231,103 @@ TEST(patch_all_lines_get_newline) {
 }
 
 // ===========================================================================
+
+// ===========================================================================
+// change_chunks: ~20-line review chunks cut at context seams
+// ===========================================================================
+
+TEST(chunks_cut_at_context_and_keep_long_replacements_whole) {
+    ecs::DiffHunk hunk;
+    for (int run = 0; run < 3; ++run) {
+        for (int i = 0; i < 8; ++i) hunk.lines.push_back("-old");
+        for (int i = 0; i < 4; ++i) hunk.lines.push_back("+new");
+        hunk.lines.push_back(" context");
+    }
+    for (int i = 0; i < 30; ++i) hunk.lines.push_back("+long");
+    auto chunks = git::change_chunks(hunk, 20);
+    // 12 + 12 > 20, so each 12-line replacement is a chunk; the 30-line run stays whole.
+    ASSERT_EQ(chunks.size(), 4u);
+    ASSERT_EQ(*chunks[0].begin(), 0u); ASSERT_EQ(*chunks[0].rbegin(), 11u);
+    ASSERT_EQ(*chunks[1].begin(), 13u);
+    ASSERT_EQ(chunks[3].size(), 30u);
+    ASSERT_EQ(git::change_chunks(hunk, 100).size(), 1u);
+    ASSERT_TRUE(git::change_chunks(ecs::DiffHunk{}).empty());
+}
+
+namespace {
+struct ChunkRepo {
+    std::filesystem::path path;
+    ChunkRepo() {
+        char pattern[] = "/tmp/fh-chunks.XXXXXX";
+        path = mkdtemp(pattern);
+        for (auto args : std::vector<std::vector<std::string>>{{"init", "-q"}, {"config", "user.email", "t@e.invalid"},
+                {"config", "user.name", "t"}, {"config", "commit.gpgsign", "false"}})
+            git::git_run(path.string(), args);
+    }
+    ~ChunkRepo() { std::filesystem::remove_all(path); }
+    void write(const std::string& text) { std::ofstream(path / "a.txt", std::ios::binary) << text; }
+    std::string run(std::vector<std::string> args) { return git::git_run(path.string(), args).stdout_str(); }
+    ecs::FileDiff diff() { return git::parse_diff(run({"diff", "-U3", "--", "a.txt"})).at(0); }
+    std::vector<std::set<size_t>> only(const ecs::FileDiff& file, size_t hunk, const std::set<size_t>& lines) {
+        std::vector<std::set<size_t>> selected(file.hunks.size());
+        selected[hunk] = lines;
+        return selected;
+    }
+};
+std::string numbered(int count, int changedFrom = 0, int changedTo = -1, bool finalNewline = true) {
+    std::string text;
+    for (int i = 1; i <= count; ++i)
+        text += (i >= changedFrom && i <= changedTo ? "changed " : "line ") + std::to_string(i) + (i < count || finalNewline ? "\n" : "");
+    return text;
+}
+}
+
+TEST(chunks_stage_out_of_order_adjacent_and_without_final_newline) {
+    ChunkRepo repo;
+    repo.write(numbered(60));
+    repo.run({"add", "a.txt"});
+    repo.run({"commit", "-qm", "base"});
+    // Two adjacent 12-line replacements split by one context line, then a
+    // change to the last line that also drops the final newline.
+    std::string edited;
+    for (int i = 1; i <= 60; ++i) {
+        const bool changed = (i >= 10 && i <= 15) || (i >= 17 && i <= 22) || i == 60;
+        edited += (changed ? "changed " : "line ") + std::to_string(i) + (i < 60 ? "\n" : "");
+    }
+    repo.write(edited);
+    auto file = repo.diff();
+    ASSERT_EQ(file.hunks.size(), 2u);
+    auto chunks = git::change_chunks(file.hunks[0], 20);
+    ASSERT_EQ(chunks.size(), 2u);
+    // Stage the later chunk first; the earlier one still applies afterwards.
+    ASSERT_EQ(git::stage_selected_lines(repo.path.string(), file, repo.only(file, 0, chunks[1])).exit_code(), 0);
+    auto cached = repo.run({"diff", "--cached"});
+    ASSERT_TRUE(cached.find("+changed 17") != std::string::npos && cached.find("+changed 10") == std::string::npos);
+    file = repo.diff();
+    chunks = git::change_chunks(file.hunks[0], 20);
+    ASSERT_EQ(chunks.size(), 1u);
+    ASSERT_EQ(git::stage_selected_lines(repo.path.string(), file, repo.only(file, 0, chunks[0])).exit_code(), 0);
+    file = repo.diff();
+    ASSERT_EQ(file.hunks.size(), 1u);
+    ASSERT_EQ(git::stage_selected_lines(repo.path.string(), file, repo.only(file, 0, git::change_chunks(file.hunks[0])[0])).exit_code(), 0);
+    ASSERT_EQ(repo.run({"diff"}), "");
+    ASSERT_EQ(repo.run({"show", ":a.txt"}), edited);
+}
+
+TEST(chunk_patch_is_rejected_when_the_index_moved_underneath) {
+    ChunkRepo repo;
+    repo.write(numbered(30));
+    repo.run({"add", "a.txt"});
+    repo.run({"commit", "-qm", "base"});
+    repo.write(numbered(30, 5, 8));
+    auto file = repo.diff();
+    // Someone else stages a conflicting edit before ours lands.
+    repo.write(numbered(30, 4, 9));
+    repo.run({"add", "a.txt"});
+    auto result = git::stage_selected_lines(repo.path.string(), file, repo.only(file, 0, git::change_chunks(file.hunks[0])[0]));
+    ASSERT_TRUE(result.exit_code() != 0);
+    ASSERT_EQ(repo.run({"show", ":a.txt"}), numbered(30, 4, 9));
+}
 
 int main() {
     printf("=== git_commands tests ===\n");
