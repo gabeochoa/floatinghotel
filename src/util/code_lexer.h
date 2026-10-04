@@ -13,17 +13,45 @@ enum class Region { Code, Comment, String };
 
 inline constexpr size_t lookaheadSize = 24;
 
+// Extension or exact file name -> lexer. Each lexer is a comment/string
+// dialect, so a new language that shares one only needs a row here.
+struct LanguageRule {
+    std::string_view match;
+    Language language;
+};
+inline constexpr LanguageRule languageRules[] = {
+    {".c", Language::C}, {".m", Language::C},
+    {".h", Language::Cpp}, {".cc", Language::Cpp}, {".cpp", Language::Cpp}, {".cxx", Language::Cpp},
+    {".hpp", Language::Cpp}, {".hh", Language::Cpp}, {".hxx", Language::Cpp}, {".ipp", Language::Cpp},
+    {".inl", Language::Cpp}, {".tpp", Language::Cpp}, {".mm", Language::Cpp}, {".cu", Language::Cpp},
+    {".cuh", Language::Cpp}, {".metal", Language::Cpp},
+    {".py", Language::Python}, {".pyi", Language::Python}, {".pyw", Language::Python},
+    {".js", Language::JavaScript}, {".jsx", Language::JavaScript}, {".mjs", Language::JavaScript},
+    {".cjs", Language::JavaScript}, {".ts", Language::JavaScript}, {".tsx", Language::JavaScript},
+    {".mts", Language::JavaScript}, {".cts", Language::JavaScript},
+    {".json", Language::Json},
+    {".sh", Language::Hash}, {".bash", Language::Hash}, {".zsh", Language::Hash}, {".fish", Language::Hash},
+    {".rb", Language::Hash}, {".rake", Language::Hash}, {".gemspec", Language::Hash}, {".pl", Language::Hash},
+    {".yaml", Language::Hash}, {".yml", Language::Hash}, {".toml", Language::Hash}, {".cmake", Language::Hash},
+    {".mk", Language::Hash}, {".tf", Language::Hash}, {".r", Language::Hash},
+    {"Makefile", Language::Hash}, {"GNUmakefile", Language::Hash}, {"Dockerfile", Language::Hash},
+    {"CMakeLists.txt", Language::Hash}, {"Gemfile", Language::Hash}, {"Rakefile", Language::Hash},
+    {".gitignore", Language::Hash}, {".gitattributes", Language::Hash},
+    {".sql", Language::Sql}, {".lua", Language::Sql},
+    {".rs", Language::Slash}, {".go", Language::Slash}, {".java", Language::Slash}, {".kt", Language::Slash},
+    {".kts", Language::Slash}, {".swift", Language::Slash}, {".cs", Language::Slash}, {".scala", Language::Slash},
+    {".dart", Language::Slash}, {".groovy", Language::Slash}, {".gradle", Language::Slash},
+    {".proto", Language::Slash}, {".zig", Language::Slash}, {".php", Language::Slash},
+};
+
 inline Language language(std::string_view path) {
-    const auto dot = path.find_last_of('.');
-    const auto ext = dot == std::string_view::npos ? std::string_view{} : path.substr(dot);
-    if (ext == ".c" || ext == ".m") return Language::C;
-    if (ext == ".h" || ext == ".cc" || ext == ".cpp" || ext == ".cxx" || ext == ".hpp" || ext == ".mm") return Language::Cpp;
-    if (ext == ".py") return Language::Python;
-    if (ext == ".js" || ext == ".jsx" || ext == ".ts" || ext == ".tsx") return Language::JavaScript;
-    if (ext == ".json") return Language::Json;
-    if (ext == ".sh" || ext == ".rb" || ext == ".yaml" || ext == ".yml") return Language::Hash;
-    if (ext == ".sql") return Language::Sql;
-    if (ext == ".rs" || ext == ".go" || ext == ".java" || ext == ".kt" || ext == ".swift") return Language::Slash;
+    const auto slash = path.find_last_of('/');
+    const auto name = slash == std::string_view::npos ? path : path.substr(slash + 1);
+    const auto dot = name.find_last_of('.');
+    std::string ext(dot == std::string_view::npos ? std::string_view{} : name.substr(dot));
+    for (char& c : ext) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    for (const auto& rule : languageRules)
+        if (rule.match == name || rule.match == ext) return rule.language;
     return Language::Plain;
 }
 

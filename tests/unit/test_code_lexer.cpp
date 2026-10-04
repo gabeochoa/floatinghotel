@@ -66,4 +66,17 @@ TEST(before_and_after_states_are_independent_values) {
     ASSERT_EQ(scan("/* plain", Language::Plain), State{});
 }
 
+TEST(file_names_and_case_insensitive_extensions_map_to_lexers) {
+    ASSERT_EQ(language("build/Makefile"), Language::Hash);
+    ASSERT_EQ(language("CMakeLists.txt"), Language::Hash);
+    ASSERT_EQ(language("notes/CMakeLists.txt.bak"), Language::Plain);
+    ASSERT_EQ(language("src/.gitignore"), Language::Hash);
+    ASSERT_EQ(language("src/Widget.HPP"), Language::Cpp);
+    ASSERT_EQ(language("a.dir/script.mjs"), Language::JavaScript);
+    ASSERT_EQ(language("a.dir/noext"), Language::Plain);
+    ASSERT_EQ(language("init.lua"), Language::Sql);
+    ASSERT_EQ(scan("-- comment ' still comment\nx = 'str", Language::Sql).mode, Mode::Single);
+    ASSERT_EQ(language("Service.cs"), Language::Slash);
+}
+
 int main() { RUN_ALL_TESTS(); }

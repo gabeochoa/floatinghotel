@@ -140,9 +140,12 @@ caches. No px0 application or benchmark has run yet.
       `(working tree)`, then a fence that outlasts backtick runs in the code.
 - [x] Add a line-number visibility toggle without moving the logical reading anchor.
       View > Line Numbers (toggle); `flow_line_numbers_toggle` checks the anchor.
-- [ ] Expand syntax-language support based on real repositories. Define a data-driven
+- [x] Expand syntax-language support based on real repositories. Define a data-driven
       extension/language configuration where it avoids code changes for new mappings.
       Verify multiline state, distant pages, and independent before/after diff states.
+      `code_lexer::languageRules` maps extensions (case-insensitive) and exact file
+      names (Makefile, Dockerfile, CMakeLists.txt) to the shared comment/string
+      lexers; test_code_lexer covers mapping, multiline, paging and diff states.
 - [ ] Complete the light theme and then add theme choices. Check code, diff colors,
       hover, caret, selection, and Find highlights at every supported zoom.
 - [ ] Check image-preview format parity with px0 using shared fixtures. Record
