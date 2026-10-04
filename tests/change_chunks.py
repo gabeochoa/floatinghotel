@@ -32,7 +32,7 @@ for zoom in [100, 140, 200]:
         run = directory / name
         run.mkdir()
         setup = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n' + 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-        (run / 'journey.e2e').write_text(setup + 'click_text "Unstaged (1)"\nwait_for_refresh\nclick_text "a.txt"\nwait_for_refresh\nwait_frames 10\n' + script)
+        (run / 'journey.e2e').write_text(setup + 'hover_ui sidebar_mode_tabs\nscroll_wheel 0 -10\nwait_frames 3\nclick_text "Unstaged (1)"\nwait_for_refresh\nclick_text "a.txt"\nwait_for_refresh\nwait_frames 10\n' + script)
         command = [str(binary), str(repo), '--test-mode', f'--test-script={run / "journey.e2e"}', f'--screenshot-dir={run}', '--e2e-timeout=120', '--headless']
         with (run / 'run.log').open('w') as log:
             result = subprocess.run(command, cwd=ROOT, env=dict(os.environ, FH_NATIVE_MENUS='1'), stdout=log, stderr=subprocess.STDOUT, timeout=180)

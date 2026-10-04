@@ -317,9 +317,14 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       survives temporary viewport clamping. Dragging, restart, dock transitions,
       and narrow windows pass at 100%, 140%, and 200%.
       [Evidence](docs/reading-backlog.md#settings-and-panel-size).
-- [ ] Finish logical-pixel typography in remaining legacy Git controls. Reproduce
+- [x] Finish logical-pixel typography in remaining legacy Git controls. Reproduce
       the outstanding legacy zoom/Options overflow warnings before changing layout;
       keep screenshots and geometry assertions at 100%, 140%, and 200%.
+      Reproduced in `flow_light_theme` at 200%: sync row and mode tabs squashed to
+      2-5 px because the sidebar sized rows with window-relative `h720()` under
+      zoom-scaled fonts. Sidebar rows, padding and dialogs now use logical pixels;
+      the controls scroll when the window is too short. `tests/sidebar_typography.py`.
+      `h720`/`w1280` remain in presets, main content, command log and toolbar.
 - [ ] Verify native menu tracking and shortcut delivery in a normal macOS session,
       plus physical live resizing with presentation timing. Hidden native probes
       and headless screenshots do not establish compositor behavior.

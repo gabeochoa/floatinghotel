@@ -1013,10 +1013,13 @@ that every label string is valid Unicode.
 
 The passing 74-flow run in `output/spacing-audit/flows-final.log` still reports
 layout overflow for sidebar mode tabs and sync controls in a legacy zoom flow.
-The focused captured layouts pass their geometry checks. The remaining warnings
-have not been traced to a root cause and should not be dismissed as harmless or
-reported as fixed. Some legacy Git controls also retain window-relative font
-sizes, which makes their text small at enlarged zoom.
+Resolved, and app-side: the sidebar's Git controls sized their rows with
+`h720()` (a fraction of the window height) while their fonts were zoom-scaled
+`pixels()`, so at 200% the text outgrew rows that had not grown with it
+(`flow_light_theme` reproduced it: rows 2-5 px tall). Those rows now use logical
+pixels and the controls scroll when they do not fit; `tests/sidebar_typography.py`
+checks them at 100/140/200. `h720`/`w1280` remain in presets, main content,
+the command log and the toolbar.
 
 ### Panel padding exposed a stale frame-clear color
 

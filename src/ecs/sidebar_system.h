@@ -261,7 +261,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float sidebarW = layout.sidebar.width;
         sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
 
-        float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
         const float zoom = ::ui::zoom::get();
         const bool historyCollapsed = repoPtr && Settings::get().section_collapsed(repoPtr->repoPath, "history");
         float filesH = 0.f;
@@ -312,9 +311,9 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 layout.fileViewMode != LayoutComponent::FileViewMode::All;
             const float fixedControlsH =
                 (showGit && !reviewingDoc && layout.fileViewMode != LayoutComponent::FileViewMode::All
-                     ? resolve_to_pixels(h720(34.0f), sh_for_tab) / zoom : 0.f) +
-                (renderCommitArea ? resolve_to_pixels(h720(54.0f + COMMIT_INPUT_H_720), sh_for_tab) / zoom : 0.f) +
-                resolve_to_pixels(h720(28.0f), sh_for_tab) / zoom +
+                     ? 34.f : 0.f) +
+                (renderCommitArea ? (54.0f + COMMIT_INPUT_H) : 0.f) +
+                28.f +
                 (showProgress ? 60.f : 0.f) + (showViewsTrack ? 36.f : 0.f);
             const float bodyH = std::max(viewportH, fixedControlsH + 20.f);
             // Ask layout to keep this pane tall enough for the header,
@@ -341,13 +340,13 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (repoPtr && !repoPtr->repoPath.empty() && !reviewingDoc &&
                 layout.fileViewMode != LayoutComponent::FileViewMode::All) {
                 render_sync_row(ctx, controlsBody.ent(), repoPtr);
-                syncRowH = resolve_to_pixels(h720(34.0f), sh_for_tab) / zoom;
+                syncRowH = 34.f;
             }
 
             // === Commit area (always-visible input + button, VS Code style) ===
             // hint(16) + input + button(24) + gaps(6) + padding(6) + slack, tracked
             // against the actual multi-line input height.
-            const float COMMIT_AREA_H_720 = 54.0f + COMMIT_INPUT_H_720;
+            const float COMMIT_AREA_H = 54.0f + COMMIT_INPUT_H;
             float commitAreaH = 0.0f;
             // Hide the commit input + button when there is nothing to commit (#24).
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
@@ -355,12 +354,12 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 layout.fileViewMode != LayoutComponent::FileViewMode::All) {
                 if (editor) {
                     render_commit_area(ctx, controlsBody.ent(), *repoPtr, *editor);
-                    commitAreaH = resolve_to_pixels(h720(COMMIT_AREA_H_720), sh_for_tab) / zoom;
+                    commitAreaH = COMMIT_AREA_H;
                 }
             }
 
             render_sidebar_mode_tabs(ctx, controlsBody.ent(), layout);
-            float tabH = resolve_to_pixels(h720(28.0f), sh_for_tab) / zoom;
+            float tabH = 28.f;
 
             // === Review-progress strip ("In the ballroom") ===
             float progressH = 0.0f;
@@ -1073,12 +1072,12 @@ private:
         auto tabRowW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto tabRow = div(ctx, mk(parent, 2090),
             ComponentConfig{}
-                .with_size(ComponentSize{tabRowW, h720(TAB_HEIGHT)})
+                .with_size(ComponentSize{tabRowW, pixels(TAB_HEIGHT)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(8),
-                    .bottom = h720(2), .left = pixels(8)})
+                    .top = pixels(2), .right = pixels(8),
+                    .bottom = pixels(2), .left = pixels(8)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_mode_tabs"));
@@ -1101,13 +1100,13 @@ private:
             // enough for each to render its label in full anyway.
             auto config = preset::Button(label)
                 .with_size(ComponentSize{afterhours::ui::expand(),
-                                         h720(TAB_HEIGHT - 4)})
+                                         pixels(TAB_HEIGHT - 4)})
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 // Tight padding: four tabs share a sidebar that starts at
                 // 200px, so every pixel here is one the labels do not get.
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(5),
-                    .bottom = h720(2), .left = pixels(5)})
+                    .top = pixels(2), .right = pixels(5),
+                    .bottom = pixels(2), .left = pixels(5)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = pixels(3)})
@@ -1117,7 +1116,7 @@ private:
                 .with_debug_name("tab_" + label);
             if (active) {
                 config = config.with_custom_text_color(theme::TEXT_PRIMARY)
-                               .with_border_bottom(theme::BUTTON_PRIMARY, h720(2.0f));
+                               .with_border_bottom(theme::BUTTON_PRIMARY, pixels(2.0f));
             } else {
                 config = config.with_custom_text_color(theme::TEXT_SECONDARY);
             }
@@ -1226,14 +1225,14 @@ private:
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto row = div(ctx, mk(parent, 2085),
             ComponentConfig{}
-                .with_size(ComponentSize{w, h720(34)})
+                .with_size(ComponentSize{w, pixels(34)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_gap(pixels(6))
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(10),
-                    .bottom = h720(6), .left = pixels(10)})
+                    .top = pixels(2), .right = pixels(10),
+                    .bottom = pixels(6), .left = pixels(10)})
                 .with_roundness(0.0f)
                 .with_debug_name("sync_row"));
 
@@ -1282,10 +1281,10 @@ private:
         div(ctx, mk(parent, id),
             ComponentConfig{}
                 .with_label("No repository open")
-                .with_size(ComponentSize{percent(1.0f), h720(32)})
+                .with_size(ComponentSize{percent(1.0f), pixels(32)})
                 .with_padding(Padding{
-                    .top = h720(16), .right = pixels(8),
-                    .bottom = h720(8), .left = pixels(8)})
+                    .top = pixels(16), .right = pixels(8),
+                    .bottom = pixels(8), .left = pixels(8)})
                 .with_custom_text_color(theme::TEXT_TERTIARY)
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
@@ -1384,9 +1383,9 @@ private:
                 .with_debug_name("prog_text"));
     }
 
-    // Height of the multi-line commit message box (720-space). Kept in sync
-    // with COMMIT_AREA_H_720, which reserves the whole commit area's space.
-    static constexpr float COMMIT_INPUT_H_720 = 44.0f;
+    // Height of the multi-line commit message box (logical px). Kept in sync
+    // with COMMIT_AREA_H, which reserves the whole commit area's space.
+    static constexpr float COMMIT_INPUT_H = 44.0f;
 
     // ---- Commit area (VS Code parity: always-visible input + button) ----
     void render_commit_area(UIContext<InputAction>& ctx,
@@ -1405,9 +1404,9 @@ private:
                 .with_size(ComponentSize{secWidth, children()})
                 .with_flex_direction(FlexDirection::Column)
                 .with_padding(Padding{
-                    .top = h720(4), .right = pixels(8),
-                    .bottom = h720(2), .left = pixels(8)})
-                .with_gap(h720(3))
+                    .top = pixels(4), .right = pixels(8),
+                    .bottom = pixels(2), .left = pixels(8)})
+                .with_gap(pixels(3))
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("commit_area"));
@@ -1422,7 +1421,7 @@ private:
             div(ctx, mk(commitArea.ent(), 0),
                 ComponentConfig{}
                     .with_label(hint)
-                    .with_size(ComponentSize{childW, h720(16)})
+                    .with_size(ComponentSize{childW, pixels(16)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_font_size(pixels(12))
                     .with_alignment(TextAlignment::Left)
@@ -1437,9 +1436,9 @@ private:
             ctx, mk(commitArea.ent(), 1),
             editor.subject,
             ComponentConfig{}
-                .with_size(ComponentSize{childW, h720(COMMIT_INPUT_H_720)})
+                .with_size(ComponentSize{childW, pixels(COMMIT_INPUT_H)})
                 .with_custom_background(theme::INPUT_BG)
-                .with_border(theme::BORDER, h720(1.0f))
+                .with_border(theme::BORDER, pixels(1.0f))
                 .with_corner_radius(4.0f)
                 .with_line_height(pixels(18.0f))
                 .with_submit_on_enter()
@@ -1458,7 +1457,7 @@ private:
         bool hasStaged = !repo.stagedFiles.empty();
         auto commitBtn = button(ctx, mk(commitArea.ent(), 2),
             preset::Button("Commit", hasStaged)
-                .with_size(ComponentSize{childW, h720(24)})
+                .with_size(ComponentSize{childW, pixels(24)})
                 .with_font_size(pixels(14))
                 .with_debug_name("commit_btn_inline"));
 
@@ -1476,12 +1475,12 @@ private:
         // Header with branch count and "+ New" button
         auto headerRow = div(ctx, mk(parent, 2160),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_size(ComponentSize{percent(1.0f), pixels(28)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(4), .right = pixels(8),
-                    .bottom = h720(4), .left = pixels(8)})
+                    .top = pixels(4), .right = pixels(8),
+                    .bottom = pixels(4), .left = pixels(8)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("refs_header"));
@@ -1499,10 +1498,10 @@ private:
         if (!repo.reviewWorkspace) {
             auto newBranchBtn = button(ctx, mk(headerRow.ent(), 2),
                 preset::Button("+ New")
-                    .with_size(ComponentSize{children(), h720(18)})
+                    .with_size(ComponentSize{children(), pixels(18)})
                     .with_padding(Padding{
-                        .top = h720(2), .right = pixels(8),
-                        .bottom = h720(2), .left = pixels(8)})
+                        .top = pixels(2), .right = pixels(8),
+                        .bottom = pixels(2), .left = pixels(8)})
                     .with_font_size(pixels(14))
                     .with_debug_name("new_branch_btn"));
 
@@ -1524,10 +1523,10 @@ private:
             div(ctx, mk(parent, 2170),
                 ComponentConfig{}
                     .with_label("No branches found")
-                    .with_size(ComponentSize{percent(1.0f), h720(32)})
+                    .with_size(ComponentSize{percent(1.0f), pixels(32)})
                     .with_padding(Padding{
-                        .top = h720(16), .right = pixels(8),
-                        .bottom = h720(8), .left = pixels(8)})
+                        .top = pixels(16), .right = pixels(8),
+                        .bottom = pixels(8), .left = pixels(8)})
                     .with_custom_text_color(theme::TEXT_TERTIARY)
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -1554,11 +1553,11 @@ private:
         // Row container (use div + HasClickListener for reliable E2E click detection)
         auto rowResult = div(ctx, mk(parent, 2200 + index * 10),
             preset::SelectableRow(isCurrent)
-                .with_size(ComponentSize{percent(1.0f), h720(ROW_H)})
+                .with_size(ComponentSize{percent(1.0f), pixels(ROW_H)})
                 .with_custom_background(rowBg)
                 .with_padding(Padding{
-                    .top = h720(0), .right = pixels(8),
-                    .bottom = h720(0), .left = pixels(0)})
+                    .top = pixels(0), .right = pixels(8),
+                    .bottom = pixels(0), .left = pixels(0)})
                 .with_roundness(0.0f)
                 .with_debug_name("branch_row"));
         ui::set_tooltip(rowResult.ent(), branch.name);
@@ -1578,7 +1577,7 @@ private:
         if (isCurrent) {
             div(ctx, mk(rowResult.ent(), 1),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(3), h720(ROW_H)})
+                    .with_size(ComponentSize{pixels(3), pixels(ROW_H)})
                     .with_custom_background(theme::STATUS_ADDED)
                     .with_roundness(0.0f)
                     .with_debug_name("current_indicator"));
@@ -1590,10 +1589,10 @@ private:
         div(ctx, mk(rowResult.ent(), 2),
             preset::Badge(branch.isLocal ? "L" : "R", badgeBg,
                           afterhours::Color{255, 255, 255, 255})
-                .with_size(ComponentSize{pixels(20), h720(16)})
+                .with_size(ComponentSize{pixels(20), pixels(16)})
                 .with_padding(Padding{
-                    .top = h720(1), .right = pixels(3),
-                    .bottom = h720(1), .left = pixels(3)})
+                    .top = pixels(1), .right = pixels(3),
+                    .bottom = pixels(1), .left = pixels(3)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = pixels(isCurrent ? 5.0f : 8.0f),
@@ -1608,7 +1607,7 @@ private:
         div(ctx, mk(rowResult.ent(), 3),
             ComponentConfig{}
                 .with_label(branch.name)
-                .with_size(ComponentSize{afterhours::ui::expand(), h720(ROW_H)})
+                .with_size(ComponentSize{afterhours::ui::expand(), pixels(ROW_H)})
                 .with_custom_text_color(nameColor)
                 .with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Left)
@@ -1621,10 +1620,10 @@ private:
             div(ctx, mk(rowResult.ent(), 4),
                 ComponentConfig{}
                     .with_label(branch.tracking)
-                    .with_size(ComponentSize{children(), h720(ROW_H)})
+                    .with_size(ComponentSize{children(), pixels(ROW_H)})
                     .with_padding(Padding{
-                        .top = h720(0), .right = pixels(4),
-                        .bottom = h720(0), .left = pixels(4)})
+                        .top = pixels(0), .right = pixels(4),
+                        .bottom = pixels(0), .left = pixels(4)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_font_size(pixels(14))
                     .with_alignment(TextAlignment::Right)
@@ -1636,7 +1635,7 @@ private:
         if (!isCurrent && !repo.reviewWorkspace) {
             auto deleteBtn = button(ctx, mk(rowResult.ent(), 5),
                 preset::Button("x")
-                    .with_size(ComponentSize{pixels(20), h720(20)})
+                    .with_size(ComponentSize{pixels(20), pixels(20)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_custom_text_color(theme::STATUS_DELETED)
                     .with_debug_name("delete_branch_btn"));
@@ -1660,7 +1659,6 @@ private:
         if (!bd.showNewBranchDialog) return;
 
         using namespace afterhours;
-        using afterhours::ui::h720;
 
         constexpr int MODAL_ID = 8100;
         constexpr int CONTENT_LAYER = 1001;
@@ -1668,7 +1666,7 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, MODAL_ID), bd.showNewBranchDialog,
             ModalConfig{}
-                .with_size(pixels(380), h720(180))
+                .with_size(pixels(380), pixels(180))
                 .with_title("New Branch")
                 .with_show_close_button(false));
 
@@ -1679,10 +1677,10 @@ private:
         div(ctx, mk(modalEnt, 1),
             ComponentConfig{}
                 .with_label("Branch name:")
-                .with_size(ComponentSize{percent(1.0f), h720(20)})
+                .with_size(ComponentSize{percent(1.0f), pixels(20)})
                 .with_padding(Padding{
-                    .top = h720(8), .right = pixels(16),
-                    .bottom = h720(4), .left = pixels(16)})
+                    .top = pixels(8), .right = pixels(16),
+                    .bottom = pixels(4), .left = pixels(16)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_alignment(TextAlignment::Left)
                 .with_render_layer(CONTENT_LAYER)
@@ -1692,10 +1690,10 @@ private:
         afterhours::text_input::text_input(ctx, mk(modalEnt, 2),
             bd.newBranchName,
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(32)})
+                .with_size(ComponentSize{percent(1.0f), pixels(32)})
                 .with_padding(Padding{
-                    .top = h720(0), .right = pixels(16),
-                    .bottom = h720(0), .left = pixels(16)})
+                    .top = pixels(0), .right = pixels(16),
+                    .bottom = pixels(0), .left = pixels(16)})
                 .with_background(afterhours::ui::Theme::Usage::Surface)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("new_branch_input"));
@@ -1746,7 +1744,6 @@ private:
         if (!bd.showDeleteBranchDialog) return;
 
         using namespace afterhours;
-        using afterhours::ui::h720;
 
         constexpr int MODAL_ID = 8200;
         constexpr int CONTENT_LAYER = 1001;
@@ -1758,7 +1755,7 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, MODAL_ID), bd.showDeleteBranchDialog,
             ModalConfig{}
-                .with_size(pixels(420), h720(180))
+                .with_size(pixels(420), pixels(180))
                 .with_title("Delete Branch")
                 .with_show_close_button(false));
 
@@ -1818,7 +1815,6 @@ private:
         if (!bd.showForceDeleteDialog) return;
 
         using namespace afterhours;
-        using afterhours::ui::h720;
 
         constexpr int MODAL_ID = 8300;
         constexpr int CONTENT_LAYER = 1001;
@@ -1831,7 +1827,7 @@ private:
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, MODAL_ID), bd.showForceDeleteDialog,
             ModalConfig{}
-                .with_size(pixels(420), h720(200))
+                .with_size(pixels(420), pixels(200))
                 .with_title("Force Delete Branch")
                 .with_show_close_button(false));
 
@@ -1891,12 +1887,12 @@ private:
         auto vmTabW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto tabRow = div(ctx, mk(parent, 2120),
             ComponentConfig{}
-                .with_size(ComponentSize{vmTabW, h720(TAB_HEIGHT)})
+                .with_size(ComponentSize{vmTabW, pixels(TAB_HEIGHT)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(10),
-                    .bottom = h720(2), .left = pixels(10)})
+                    .top = pixels(2), .right = pixels(10),
+                    .bottom = pixels(2), .left = pixels(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("view_mode_tabs"));
@@ -1906,10 +1902,10 @@ private:
             bool active = (layout.fileViewMode == mode);
 
             auto config = preset::Button(label)
-                .with_size(ComponentSize{children(), h720(TAB_HEIGHT - 6)})
+                .with_size(ComponentSize{children(), pixels(TAB_HEIGHT - 6)})
                 .with_padding(Padding{
-                    .top = h720(2), .right = pixels(TAB_HPAD),
-                    .bottom = h720(2), .left = pixels(TAB_HPAD)})
+                    .top = pixels(2), .right = pixels(TAB_HPAD),
+                    .bottom = pixels(2), .left = pixels(TAB_HPAD)})
                 .with_margin(Margin{
                     .top = {}, .bottom = {},
                     .left = {}, .right = pixels(4)})
@@ -2089,18 +2085,18 @@ private:
                           RepoComponent& repo) {
         if (repo.repoPath.empty()) {
             div(ctx, mk(scrollParent, 2500), preset::EmptyStateText("No repository open")
-                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_size(ComponentSize{percent(1.0f), pixels(28)})
                 .with_debug_name("no_repository"));
             return;
         }
         if (!repo.filesError.empty()) {
             if (button(ctx, mk(scrollParent, 2500), preset::Button("Retry repository read")
-                    .with_size(ComponentSize{percent(1.0f), h720(28)})
+                    .with_size(ComponentSize{percent(1.0f), pixels(28)})
                     .with_debug_name("retry_repository_read")))
                 repo.refreshRequested = true;
             div(ctx, mk(scrollParent, 2501), preset::EmptyStateText(
                     repo.filesError.substr(0, repo.filesError.find('\n')))
-                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_size(ComponentSize{percent(1.0f), pixels(28)})
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("repository_read_error"));
             return;
@@ -2109,7 +2105,7 @@ private:
             // Only reached when the explorer tree is empty (the windowed
             // list handles the non-empty case).
             div(ctx, mk(scrollParent, 2500), preset::EmptyStateText(repo.hasLoadedOnce ? "No files in this repository" : "Loading files...")
-                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_size(ComponentSize{percent(1.0f), pixels(28)})
                 .with_debug_name("explorer_empty"));
             return;
         }
@@ -2134,10 +2130,10 @@ private:
                 div(ctx, mk(scrollParent, 2500),
                     ComponentConfig{}
                         .with_label(label)
-                        .with_size(ComponentSize{percent(1.0f), h720(28)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(28)})
                         .with_padding(Padding{
-                            .top = h720(20), .right = pixels(8),
-                            .bottom = h720(4), .left = pixels(8)})
+                            .top = pixels(20), .right = pixels(8),
+                            .bottom = pixels(4), .left = pixels(8)})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
@@ -2145,19 +2141,19 @@ private:
             } else {
                 div(ctx, mk(scrollParent, 2500),
                     preset::EmptyStateText("\xe2\x9c\x93 No changes")
-                        .with_size(ComponentSize{percent(1.0f), h720(28)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(28)})
                         .with_padding(Padding{
-                            .top = h720(20), .right = pixels(8),
-                            .bottom = h720(4), .left = pixels(8)})
+                            .top = pixels(20), .right = pixels(8),
+                            .bottom = pixels(4), .left = pixels(8)})
                         .with_debug_name("empty_changes"));
 
                 div(ctx, mk(scrollParent, 2501),
                     ComponentConfig{}
                         .with_label("Working tree clean")
-                        .with_size(ComponentSize{percent(1.0f), h720(22)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(22)})
                         .with_padding(Padding{
-                            .top = h720(0), .right = pixels(8),
-                            .bottom = h720(8), .left = pixels(8)})
+                            .top = pixels(0), .right = pixels(8),
+                            .bottom = pixels(8), .left = pixels(8)})
                         .with_custom_text_color(theme::TEXT_TERTIARY)
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
@@ -2182,10 +2178,10 @@ private:
             div(ctx, mk(scrollParent, 2599),
                 ComponentConfig{}
                     .with_label(emptyMsg)
-                    .with_size(ComponentSize{percent(1.0f), h720(24)})
+                    .with_size(ComponentSize{percent(1.0f), pixels(24)})
                     .with_padding(Padding{
-                        .top = h720(12), .right = pixels(8),
-                        .bottom = h720(4), .left = pixels(8)})
+                        .top = pixels(12), .right = pixels(8),
+                        .bottom = pixels(4), .left = pixels(8)})
                     .with_custom_text_color(theme::pick({110, 110, 110, 255}, {140, 140, 144, 255}))
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
@@ -2368,10 +2364,10 @@ private:
             // "No commits yet" during that window reads as a broken sidebar.
             div(ctx, mk(scrollParent, 0),
                 preset::EmptyStateText(repo.commitLogLoading ? "Loading commits..." : !repo.historyError.empty() ? repo.historyError : "No commits yet")
-                    .with_size(ComponentSize{percent(1.0f), h720(32)})
+                    .with_size(ComponentSize{percent(1.0f), pixels(32)})
                     .with_padding(Padding{
-                        .top = h720(16), .right = pixels(8),
-                        .bottom = h720(8), .left = pixels(8)})
+                        .top = pixels(16), .right = pixels(8),
+                        .bottom = pixels(8), .left = pixels(8)})
                     .with_debug_name("empty_log"));
             return;
         }
@@ -2397,8 +2393,8 @@ private:
                 .with_consumes_directional_input()
                 .with_size(ComponentSize{percent(1.0f), pixels(24)})
                 .with_padding(Padding{
-                    .top = h720(3), .right = pixels(8),
-                    .bottom = h720(3), .left = pixels(8)})
+                    .top = pixels(3), .right = pixels(8),
+                    .bottom = pixels(3), .left = pixels(8)})
                 .with_custom_text_color(loading ? theme::TEXT_SECONDARY : theme::TEXT_PRIMARY)
                 .with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -2711,7 +2707,6 @@ private:
                                 RepoComponent& repo,
                                 CommitEditorComponent& editor) {
         using namespace afterhours;
-        using afterhours::ui::h720;
 
         constexpr int DIALOG_ID = 8000;
         constexpr int CONTENT_LAYER = 1001;
@@ -2754,10 +2749,10 @@ private:
             div(ctx, mk(modalEnt, 10),
                 ComponentConfig{}
                     .with_label("Staged files:")
-                    .with_size(ComponentSize{percent(1.0f), h720(16)})
+                    .with_size(ComponentSize{percent(1.0f), pixels(16)})
                     .with_padding(Padding{
-                        .top = h720(4), .right = pixels(16),
-                        .bottom = h720(2), .left = pixels(16)})
+                        .top = pixels(4), .right = pixels(16),
+                        .bottom = pixels(2), .left = pixels(16)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Left)
                     .with_render_layer(CONTENT_LAYER)
@@ -2769,8 +2764,8 @@ private:
                     .with_size(ComponentSize{percent(1.0f), children()})
                     .with_flex_direction(FlexDirection::Column)
                     .with_padding(Padding{
-                        .top = h720(2), .right = pixels(16),
-                        .bottom = h720(4), .left = pixels(19)})
+                        .top = pixels(2), .right = pixels(16),
+                        .bottom = pixels(4), .left = pixels(19)})
                     .with_render_layer(CONTENT_LAYER)
                     .with_debug_name("staged_list"));
 
@@ -2784,7 +2779,7 @@ private:
                 div(ctx, mk(stagedList.ent(), 100 + i),
                     ComponentConfig{}
                         .with_label(label)
-                        .with_size(ComponentSize{percent(1.0f), h720(20)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(20)})
                         .with_custom_text_color(theme::TEXT_PRIMARY)
                         .with_alignment(TextAlignment::Left)
                         .with_render_layer(CONTENT_LAYER)
@@ -2796,7 +2791,7 @@ private:
                 div(ctx, mk(stagedList.ent(), 199),
                     ComponentConfig{}
                         .with_label(moreLabel)
-                        .with_size(ComponentSize{percent(1.0f), h720(18)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(18)})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_alignment(TextAlignment::Left)
                         .with_render_layer(CONTENT_LAYER)
@@ -2809,10 +2804,10 @@ private:
             div(ctx, mk(modalEnt, 20),
                 ComponentConfig{}
                     .with_label("Unstaged files:")
-                    .with_size(ComponentSize{percent(1.0f), h720(16)})
+                    .with_size(ComponentSize{percent(1.0f), pixels(16)})
                     .with_padding(Padding{
-                        .top = h720(8), .right = pixels(16),
-                        .bottom = h720(2), .left = pixels(16)})
+                        .top = pixels(8), .right = pixels(16),
+                        .bottom = pixels(2), .left = pixels(16)})
                     .with_custom_text_color(theme::TEXT_SECONDARY)
                     .with_alignment(TextAlignment::Left)
                     .with_render_layer(CONTENT_LAYER)
@@ -2823,8 +2818,8 @@ private:
                     .with_size(ComponentSize{percent(1.0f), children()})
                     .with_flex_direction(FlexDirection::Column)
                     .with_padding(Padding{
-                        .top = h720(2), .right = pixels(16),
-                        .bottom = h720(4), .left = pixels(19)})
+                        .top = pixels(2), .right = pixels(16),
+                        .bottom = pixels(4), .left = pixels(19)})
                     .with_render_layer(CONTENT_LAYER)
                     .with_debug_name("unstaged_list"));
 
@@ -2847,7 +2842,7 @@ private:
                 div(ctx, mk(unstagedList.ent(), 200 + i),
                     ComponentConfig{}
                         .with_label(label)
-                        .with_size(ComponentSize{percent(1.0f), h720(20)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(20)})
                         .with_custom_text_color(theme::TEXT_PRIMARY)
                         .with_alignment(TextAlignment::Left)
                         .with_render_layer(CONTENT_LAYER)
@@ -2859,7 +2854,7 @@ private:
                 div(ctx, mk(unstagedList.ent(), 299),
                     ComponentConfig{}
                         .with_label(moreLabel)
-                        .with_size(ComponentSize{percent(1.0f), h720(18)})
+                        .with_size(ComponentSize{percent(1.0f), pixels(18)})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_alignment(TextAlignment::Left)
                         .with_render_layer(CONTENT_LAYER)
@@ -2870,12 +2865,12 @@ private:
         // -- "Remember this choice" checkbox --
         auto checkboxRow = div(ctx, mk(modalEnt, 30),
             ComponentConfig{}
-                .with_size(ComponentSize{percent(1.0f), h720(28)})
+                .with_size(ComponentSize{percent(1.0f), pixels(28)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = h720(8), .right = pixels(16),
-                    .bottom = h720(4), .left = pixels(16)})
+                    .top = pixels(8), .right = pixels(16),
+                    .bottom = pixels(4), .left = pixels(16)})
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("remember_row"));
 
@@ -2883,7 +2878,7 @@ private:
             editor.rememberChoice,
             ComponentConfig{}
                 .with_label("Remember this choice")
-                .with_size(ComponentSize{children(), h720(20)})
+                .with_size(ComponentSize{children(), pixels(20)})
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("remember_checkbox"));
