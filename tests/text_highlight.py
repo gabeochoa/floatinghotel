@@ -37,7 +37,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         if mode == "split":
             setup += 'click_text "Split"\nwait_frames 8\n'
         if mode == "source":
-            setup += 'key CMD+P\nwait_frames 3\ntype "sample.txt"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\nwait_frames 3\nwait_for_refresh\n'
+            setup += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "sample.txt"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\nwait_frames 3\nwait_for_refresh\n'
         setup += 'mouse_move 1500 20\nwait_frames 5\nscreenshot before\n'
 
         def replay(name, script):
@@ -73,7 +73,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
                 change = next(n for n in before["nodes"] if n.get("name") == "intraline_change" and n["parent"] == current["id"] and n["rendered"])
                 assert abs(change["rect"]["x"] - (current["content_x"] + 4 * width)) < 1
                 assert abs(change["rect"]["width"] - 2 * width) < 1
-        script += 'key CMD+F\nclick_ui diff_find_input\nkey CMD+A\ntype "3456"\nwait_frames 5\nscreenshot found\n'
+        script += 'hold_key 343\nkey F\nrelease_key 343\nclick_ui diff_find_input\nkey CMD+A\ntype "3456"\nwait_frames 5\nscreenshot found\n'
         if mode == "source":
             script += 'click_ui diff_find_close\nhover_ui diff_scroll\nscroll_wheel 0 -10000\nwait_frames 30\nscreenshot bottom\n'
             bottom = json.loads((directory / "bottom_probe.json").read_text())

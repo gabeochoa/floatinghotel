@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from reading_journey import quick_open
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
@@ -30,12 +31,6 @@ def capture(name):
     return f"workspace_checkpoint {checkpoints[name][0]} {name}\nscreenshot {name}\n"
 
 
-def picker(path, keep=False, working=False):
-    action = "key ENTER" if keep else "click_ui file_picker_result"
-    scope = "click_ui file_picker_working_scope\nwait_for_refresh\n" if working else ""
-    return f'key CMD+P\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\n{action}\nwait_for_refresh\n'
-
-
 for zoom, steps in ((100, 0), (140, 4), (200, 10)):
     directory = out / str(zoom)
     directory.mkdir()
@@ -45,10 +40,10 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
     script += 'click_text "Add unit tests for utils"\nwait_for_refresh\n' + capture("replaced")
     script += 'key ENTER\nwait_frames 2\n' + capture("kept_review")
     script += 'click_ui open_full_file\nwait_for_refresh\n' + capture("source")
-    script += picker("README.md", working=True) + capture("second_source")
+    script += quick_open("README.md", working=True, keep=False) + capture("second_source")
     script += 'click_ui content_document_5\nwait_frames 1\nclick_ui content_document_5\nwait_frames 2\n' + capture("kept_source")
-    script += picker("CONTRIBUTING.md") + capture("third_source")
-    script += picker("README.md", True) + capture("reused")
+    script += quick_open("CONTRIBUTING.md", keep=False) + capture("third_source")
+    script += quick_open("README.md") + capture("reused")
     script += 'click_ui scroll_tabs_right\nwait_frames 3\nright_click_ui content_document_6\nwait_frames 2\nclick_text "Keep Open"\nwait_frames 2\n' + capture("kept_from_menu")
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / "journey.e2e"

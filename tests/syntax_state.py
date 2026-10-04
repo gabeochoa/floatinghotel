@@ -46,7 +46,7 @@ for zoom in [100, 140, 200]:
     if scope == "commit": script += 'click_text "Multiline syntax"\n' + capture("scope", 2)
     extra = scope != "working"
     for index, (name, opening, closing, color) in enumerate(cases):
-        script += f'key CMD+P\nwait_for_refresh\nscreenshot picker_{index}\ntype "{name}:4097"\nkey ENTER\n'
+        script += f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nscreenshot picker_{index}\ntype "{name}:4097"\nkey ENTER\n'
         script += capture(f"inside_{index}", index + 2 + extra)
         script += 'key CTRL+G\nwait_frames 4\nclick_ui line_picker_input\nkey CMD+A\ntype "4120"\nkey ENTER\n'
         script += capture(f"after_{index}", index + 2 + extra)

@@ -30,7 +30,7 @@ for zoom in args.zooms:
     script += 'screenshot ready\nclick_text "Reading change"\nwait_for_refresh\nscreenshot commit\nclick_ui jump_to_diff:alpha.cpp\n' + capture('review_before', 2)
     for label, action in [('row', 'click_ui jump_to_diff:alpha.cpp'), ('history', 'click_text "Reading change"'), ('tab', 'click_ui content_document_2')]:
         script += f'reading_probe {label} review alpha.cpp {head}\n{action}\nreading_checkpoint\n' + capture(label, 2)
-    script += 'key CMD+P\nwait_for_refresh\nscreenshot picker\nclick_ui file_picker_input\nkey CMD+A\ntype alpha.cpp\nkey ENTER\nwait_for_refresh\nscreenshot source\nfocus_ui diff_scroll\nkey RIGHT\nkey SHIFT+RIGHT\n' + capture('source_before', 3)
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nscreenshot picker\nclick_ui file_picker_input\nkey CMD+A\ntype alpha.cpp\nkey ENTER\nwait_for_refresh\nscreenshot source\nfocus_ui diff_scroll\nkey RIGHT\nkey SHIFT+RIGHT\n' + capture('source_before', 3)
     script += f'reading_probe source_tab source alpha.cpp {head}\nclick_ui content_document_3\nreading_checkpoint\n' + capture('source_tab', 3)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

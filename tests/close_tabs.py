@@ -38,7 +38,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
     script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
     for name, wheel in (("a", 20), ("b", 30), ("c", 40)):
-        script += f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
+        script += f'hold_key 343\nkey P\nrelease_key 343\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
         script += f'hover_ui diff_scroll\nscroll_wheel 0 -{wheel}\nwait_frames 20\n' + capture(name)
     script += 'click_ui close_document_3\nwait_frames 5\n' + capture("inactive_closed")
     script += 'key CMD+SHIFT+T\nwait_for_refresh\nwait_frames 5\n' + capture("reopened_b")

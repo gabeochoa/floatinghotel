@@ -34,17 +34,17 @@ for zoom in [100, 140, 200]:
     def query(text):
         return 'click_ui file_picker_input\nkey CMD+A\n' + (f'type "{text}"\n' if text else 'key BACKSPACE\n') + 'wait_frames 8\n'
     def open_file(path):
-        return 'key CMD+P\nwait_for_refresh\n' + query(path) + 'key ENTER\nwait_for_refresh\n'
+        return 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n' + query(path) + 'key ENTER\nwait_for_refresh\n'
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     script += open_file('right/common.cpp') + open_file('left/common.cpp')
-    script += 'key CMD+W\nwait_for_refresh\nkey CMD+P\nwait_for_refresh\n' + query('') + capture('recent_working', 2)
+    script += 'key CMD+W\nwait_for_refresh\nhold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n' + query('') + capture('recent_working', 2)
     script += query('APP') + capture('filename_rank', 2)
     script += query('common') + capture('duplicate_names', 2)
     script += query('app') + capture('deterministic_rank', 2)
-    script += 'key ESCAPE\nclick_text "Ranking fixture"\nwait_for_refresh\nkey ENTER\nkey CMD+P\nwait_for_refresh\n'
+    script += 'key ESCAPE\nclick_text "Ranking fixture"\nwait_for_refresh\nkey ENTER\nhold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n'
     script += query('') + capture('historical_fresh', 3)
-    script += query('left/common.cpp') + 'key ENTER\nwait_for_refresh\nkey CMD+P\nwait_for_refresh\n'
+    script += query('left/common.cpp') + 'key ENTER\nwait_for_refresh\nhold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n'
     script += query('') + capture('historical_recent', 4)
     script += 'click_ui file_picker_working_scope\n' + capture('working_scoped', 4)
     script += query('common') + 'resize 1100 800\n' + capture('narrow', 4)

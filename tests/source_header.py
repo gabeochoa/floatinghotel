@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from reading_journey import quick_open
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
@@ -32,10 +33,6 @@ def capture(name, count=3):
     return f'wait_for_refresh\nwait_frames 3\nwait_for_refresh\nwait_frames 15\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
 
 
-def picker(path):
-    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\nwait_frames 10\n'
-
-
 def menu(label):
     return f'click_ui full_file_options\nwait_frames 3\nclick_ui "context_menu_item_{label}"\n'
 
@@ -46,7 +43,7 @@ for zoom in [100, 140, 200]:
     script = 'resize 1600 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     script += 'click_text "Source header fixture"\nwait_for_refresh\nkey ENTER\n' + capture('review', 2)
-    script += picker(source) + capture('source')
+    script += quick_open(source, settle=10) + capture('source')
     script += 'resize 1150 850\n' + capture('narrow')
     if not args.baseline:
         script += 'bench_frames 120\nexpect_p99_below 20\n'
@@ -59,11 +56,11 @@ for zoom in [100, 140, 200]:
         script += menu('File history') + capture('history')
         script += 'expect_text "History · ' + source + ' · follows renames"\nclick_text Back\n'
         script += 'click_ui full_file_back\n' + capture('returned')
-        script += picker('notes.md') + menu('Preview Markdown') + capture('markdown', 4)
+        script += quick_open('notes.md', settle=10) + menu('Preview Markdown') + capture('markdown', 4)
         script += 'assert_ui markdown_preview hidden=false\n'
         script += menu('Raw Markdown') + capture('raw', 4)
         script += 'assert_ui diff_scroll hidden=false\n'
-        script += picker('utf16.txt') + 'click_ui full_file_options\n' + capture('auto', 5)
+        script += quick_open('utf16.txt', settle=10) + 'click_ui full_file_options\n' + capture('auto', 5)
         script += 'expect_text "UTF-16 LE"\nclick_ui context_menu_item_Encoding\nwait_frames 3\nclick_ui context_menu_item_UTF-8\n'
         script += capture('utf8', 5)
         script += menu('Encoding') + 'wait_frames 3\nclick_ui "context_menu_item_UTF-16 LE"\n' + capture('utf16', 5)

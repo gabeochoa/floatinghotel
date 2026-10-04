@@ -31,7 +31,7 @@ for zoom in args.zooms:
     settings.mkdir()
     script = 'resize 1700 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'screenshot zoom_ready\nkey CMD+P\nwait_for_refresh\nscreenshot picker\ntype "blocks.cpp"\nkey ENTER\n' + capture("initial")
+    script += 'screenshot zoom_ready\nhold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nscreenshot picker\ntype "blocks.cpp"\nkey ENTER\n' + capture("initial")
     for line in [1, 4, 7]: script += f"click_ui source_fold_{line}\n" + capture(f"fold_{line}")
     script += "bench_frames 120\nexpect_p99_below 20\n"
     script += 'key CTRL+G\nwait_frames 4\nclick_ui line_picker_input\nkey CMD+A\ntype "9000"\nkey ENTER\n' + capture("later")

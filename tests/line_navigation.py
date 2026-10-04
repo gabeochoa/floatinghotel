@@ -43,7 +43,7 @@ for zoom in [100, 140, 200]:
     def query(text, control='file_picker_input'):
         return f'click_ui {control}\nkey CMD+A\ntype "{text}"\nwait_frames 6\n'
     def open_file(text):
-        return 'key CMD+P\nwait_for_refresh\n' + query(text) + 'key ENTER\nwait_for_refresh\n'
+        return 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n' + query(text) + 'key ENTER\nwait_for_refresh\n'
     def line(text):
         return 'key CTRL+G\nwait_frames 4\n' + query(text, 'line_picker_input') + 'key ENTER\n'
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
@@ -60,8 +60,8 @@ for zoom in [100, 140, 200]:
     script += open_file('large.cpp:4200:2') + capture('large_4200', 4)
     script += line('1:1') + capture('large_start', 4)
     script += 'key ALT+LEFT\n' + capture('large_back', 4)
-    script += 'key CMD+P\nwait_for_refresh\n' + query('a.cpp:80:') + 'key ENTER\n' + capture('invalid_suffix', 4)
-    script += 'key ESCAPE\nclick_text "Original lines"\nwait_for_refresh\nkey ENTER\nkey CMD+P\nwait_for_refresh\n'
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n' + query('a.cpp:80:') + 'key ENTER\n' + capture('invalid_suffix', 4)
+    script += 'key ESCAPE\nclick_text "Original lines"\nwait_for_refresh\nkey ENTER\nhold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n'
     script += query('a.cpp:80:4') + 'key ENTER\nwait_frames 3\nscreenshot checking_position\n'
     script += query('a.cpp:90:3') + capture('superseded_position', 5)
     script += 'key ENTER\n' + capture('historical_90', 6)

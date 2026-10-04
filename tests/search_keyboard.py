@@ -31,7 +31,7 @@ for zoom in [100, 140, 200]:
         return f'wait_for_refresh\nwait_frames 3\nwait_for_refresh\nwait_frames 15\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
     script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'click_text "Original keyboard files"\nwait_for_refresh\nkey ENTER\nkey CMD+SHIFT+F\nwait_frames 3\nclick_ui repo_search_input\ntype "NEEDLE"\n' + capture('results', 2)
+    script += 'click_text "Original keyboard files"\nwait_for_refresh\nkey ENTER\nhold_key 343\nkey SHIFT+F\nrelease_key 343\nwait_frames 3\nclick_ui repo_search_input\ntype "NEEDLE"\n' + capture('results', 2)
     script += 'key DOWN\n' + capture('first')
     script += 'key DOWN\n' * 19 + capture('twentieth')
     script += 'key CMD+DOWN\n' + capture('modified')

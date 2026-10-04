@@ -32,21 +32,21 @@ for zoom in [100, 140, 200]:
     def capture(name, count):
         return f'wait_for_refresh\nwait_frames 3\nwait_for_refresh\nwait_frames 15\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
     def source(path):
-        return f'key CMD+P\nwait_frames 3\ntype "{path}"\nwait_for_refresh\nwait_frames 3\nkey ENTER\nwait_for_refresh\nwait_frames 3\nwait_for_refresh\n'
+        return f'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "{path}"\nwait_for_refresh\nwait_frames 3\nkey ENTER\nwait_for_refresh\nwait_frames 3\nwait_for_refresh\n'
     script = 'resize 1600 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     script += 'click_text "Original source files"\nwait_for_refresh\nkey ENTER\n'
-    script += source('large.cpp') + 'key CMD+F\ntype "NEEDLE"\n' + capture('first', 3)
+    script += source('large.cpp') + 'hold_key 343\nkey F\nrelease_key 343\ntype "NEEDLE"\n' + capture('first', 3)
     script += 'key ENTER\n' + capture('later_page', 3)
     script += 'key ENTER\n' + capture('last_line', 3)
     script += 'key SHIFT+ENTER\n' + capture('previous', 3)
     script += 'click_ui diff_find_previous\n' + capture('first_again', 3)
-    script += source('cap.cpp') + 'key CMD+F\ntype "CAP"\n' + capture('limited', 4)
-    script += 'key ESCAPE\n' + source('encoded.txt') + 'key CMD+F\ntype "UNICODE"\n' + capture('encoded', 5)
-    script += 'key ESCAPE\n' + source('long.txt') + 'key CMD+F\ntype "NEEDLE"\n' + capture('cross_boundary', 6)
+    script += source('cap.cpp') + 'hold_key 343\nkey F\nrelease_key 343\ntype "CAP"\n' + capture('limited', 4)
+    script += 'key ESCAPE\n' + source('encoded.txt') + 'hold_key 343\nkey F\nrelease_key 343\ntype "UNICODE"\n' + capture('encoded', 5)
+    script += 'key ESCAPE\n' + source('long.txt') + 'hold_key 343\nkey F\nrelease_key 343\ntype "NEEDLE"\n' + capture('cross_boundary', 6)
     script += 'key ENTER\n' + capture('long_second', 6)
     script += 'key ESCAPE\nclick_ui content_document_5\nwait_for_refresh\nclick_ui content_document_6\n' + capture('long_return', 6)
-    script += 'key CMD+F\n' + capture('long_reopened', 6)
+    script += 'hold_key 343\nkey F\nrelease_key 343\n' + capture('long_reopened', 6)
     script += 'focus_ui diff_scroll\nkey CMD+HOME\n' + capture('full_page', 6)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

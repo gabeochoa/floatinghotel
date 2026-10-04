@@ -52,26 +52,26 @@ for zoom in [100, 140, 200]:
         return f'click_ui file_picker_input\nkey CMD+A\ntype "{text}"\nwait_frames 8\n'
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'click_text "Original files"\nwait_for_refresh\nkey ENTER\nkey CMD+P\nwait_frames 3\nkey SHIFT+TAB\nwait_frames 3\nscreenshot pending_scope_focus\n'
+    script += 'click_text "Original files"\nwait_for_refresh\nkey ENTER\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 3\nkey SHIFT+TAB\nwait_frames 3\nscreenshot pending_scope_focus\n'
     script += capture('loaded_scope_focus', 2)
     script += 'key ENTER\n' + capture('keyboard_working', 2)
-    script += 'key ESCAPE\nwait_frames 3\nkey CMD+P\nwait_frames 3\nscreenshot historical_loading\n'
+    script += 'key ESCAPE\nwait_frames 3\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 3\nscreenshot historical_loading\n'
     script += 'click_ui file_picker_working_scope\n' + capture('working_after_cancel', 2)
     script += 'wait_frames 400\n' + capture('working_after_delay', 2)
     script += 'click_ui file_picker_document_scope\n' + capture('historical_catalog', 2)
     script += query('gone.cpp') + capture('historical_match', 2)
     script += 'key ENTER\n' + capture('historical_source', 3)
-    script += 'key ALT+LEFT\nwait_for_refresh\nkey CMD+P\nwait_frames 3\nclick_ui file_picker_working_scope\n'
+    script += 'key ALT+LEFT\nwait_for_refresh\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 3\nclick_ui file_picker_working_scope\n'
     script += query('a.cpp') + capture('working_match', 3)
     script += 'key ENTER\n' + capture('working_source', 4)
-    script += 'click_ui review_staged_changes\nwait_for_refresh\nclick_ui content_document_5\nkey ENTER\nkey CMD+P\n'
+    script += 'click_ui review_staged_changes\nwait_for_refresh\nclick_ui content_document_5\nkey ENTER\nhold_key 343\nkey P\nrelease_key 343\n'
     script += capture('index_match', 5)
     script += 'key ENTER\n' + capture('index_source', 6)
-    script += 'key CMD+P\nwait_frames 3\nclick_ui file_picker_working_scope\n' + capture('index_to_working', 6)
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\nclick_ui file_picker_working_scope\n' + capture('index_to_working', 6)
     script += 'key ENTER\n' + capture('working_reused', 6)
-    script += 'click_text "Original files"\nwait_for_refresh\nkey CMD+P\n' + query('old_name.cpp') + capture('old_name_match', 6)
+    script += 'click_text "Original files"\nwait_for_refresh\nhold_key 343\nkey P\nrelease_key 343\n' + query('old_name.cpp') + capture('old_name_match', 6)
     script += 'key ENTER\n' + capture('old_name_source', 7)
-    script += 'key CMD+P\nwait_frames 3\nnew_tab\nwait_frames 400\nscreenshot other_repository\nclose_tab\nwait_for_refresh\n'
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\nnew_tab\nwait_frames 400\nscreenshot other_repository\nclose_tab\nwait_for_refresh\n'
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)

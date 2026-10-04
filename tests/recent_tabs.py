@@ -43,7 +43,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'native_menu_action "Zoom In"\n' * steps
     script += 'hold_key 345\nkey TAB\nrelease_key 345\nwait_frames 3\n' + capture('single')
     for name in 'abcdefgh':
-        script += f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
+        script += f'hold_key 343\nkey P\nrelease_key 343\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\nwait_frames 20\n' + capture('before')
     script += 'key TAB\nwait_frames 3\n' + capture('plain_tab')
     script += 'hold_key 341\nkey TAB\nwait_frames 3\n' + capture('first')

@@ -36,7 +36,7 @@ for zoom in [100, 140, 200]:
     script += 'native_menu_action "Compare Revisions..."\nwait_frames 3\n'
     script += f'click_ui compare_base\nkey CMD+A\ntype "{base}"\nclick_ui compare_target\nkey CMD+A\ntype "{target}"\nclick_ui compare_submit\nwait_for_refresh\nwait_frames 20\n'
     script += 'click_ui open_full_file\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 source\nscreenshot source\n'
-    script += 'key CMD+SHIFT+F\nwait_frames 3\nclick_ui repo_search_options\nclick_ui repo_search_changed_only\nclick_ui repo_search_input\ntype "NEEDLE"\nkey ENTER\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 results\nscreenshot results\n'
+    script += 'hold_key 343\nkey SHIFT+F\nrelease_key 343\nwait_frames 3\nclick_ui repo_search_options\nclick_ui repo_search_changed_only\nclick_ui repo_search_input\ntype "NEEDLE"\nkey ENTER\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 results\nscreenshot results\n'
     script += ('key DOWN\n' if options.keyboard else 'click_ui repo_search_result\n') + 'wait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 deleted\nscreenshot deleted\n'
     script += 'click_ui full_file_back\nwait_for_refresh\nwait_frames 20\nworkspace_checkpoint 3 returned\nscreenshot returned\nbench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

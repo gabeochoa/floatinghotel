@@ -35,14 +35,14 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
     script += 'click_text "Focus fixture"\nwait_for_refresh\nkey ENTER\nclick_ui content_document_2\n' + capture('caller')
-    script += 'key CMD+P\nwait_frames 3\ntype "a.cpp"\n' + capture('picker') + 'key ESCAPE\n' + capture('picker_return')
-    script += 'key CMD+F\nwait_frames 3\ntype "value"\n' + capture('find') + 'key ESCAPE\n' + capture('find_return')
-    script += 'click_ui commit_file_filter\nwait_frames 4\nkey CMD+P\nwait_frames 4\nkey ESCAPE\n' + capture('tree_return')
-    script += 'click_ui commit_row\nwait_frames 4\nkey CMD+P\nwait_frames 4\nkey ESCAPE\n' + capture('history_return')
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "a.cpp"\n' + capture('picker') + 'key ESCAPE\n' + capture('picker_return')
+    script += 'hold_key 343\nkey F\nrelease_key 343\nwait_frames 3\ntype "value"\n' + capture('find') + 'key ESCAPE\n' + capture('find_return')
+    script += 'click_ui commit_file_filter\nwait_frames 4\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 4\nkey ESCAPE\n' + capture('tree_return')
+    script += 'click_ui commit_row\nwait_frames 4\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 4\nkey ESCAPE\n' + capture('history_return')
     script += 'click_ui content_document_2\nwait_frames 4\n'
     script += 'click_ui open_tabs_menu\nwait_frames 3\nkey ESCAPE\n' + capture('menu_return')
     script += 'right_click_ui content_document_1\nwait_frames 3\nkey ESCAPE\n' + capture('inactive_menu_return')
-    script += 'click_ui content_document_2\nkey CMD+SHIFT+F\nclick_ui repo_search_input\ntype "value_1"\nclick_ui repo_search_submit\nwait_for_refresh\nwait_frames 20\n'
+    script += 'click_ui content_document_2\nhold_key 343\nkey SHIFT+F\nrelease_key 343\nclick_ui repo_search_input\ntype "value_1"\nclick_ui repo_search_submit\nwait_for_refresh\nwait_frames 20\n'
     script += 'click_ui repo_search_preview\n' + capture('preview')
     script += 'click_ui repo_search_preview_close\n' + capture('preview_return')
     script += 'key ESCAPE\n' + capture('search_return')
@@ -51,7 +51,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'click_ui basket_toggle_btn\n' + capture('feedback_open')
     script += 'click_ui basket_close\n' + capture('feedback_return')
     script += 'right_click_ui content_document_1\nwait_frames 3\nclick_ui "context_menu_item_Close"\nwait_frames 4\n' + capture('closed_invoker', 1)
-    script += 'key CMD+P\nwait_frames 3\nnew_tab\nwait_frames 8\nscreenshot other_repository\nclose_tab\nwait_for_refresh\n' + capture('repository_return', 1)
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\nnew_tab\nwait_frames 8\nscreenshot other_repository\nclose_tab\nwait_for_refresh\n' + capture('repository_return', 1)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)

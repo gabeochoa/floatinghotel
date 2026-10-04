@@ -28,22 +28,22 @@ for zoom in [100, 140, 200]:
     setup = 'resize 1600 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     setup += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     setup += 'click_text "Find fixture"\nwait_for_refresh\nkey ENTER\n' + capture('review_before', 2)
-    script = setup + 'key CMD+F\n' + capture('review_open', 2)
+    script = setup + 'hold_key 343\nkey F\nrelease_key 343\n' + capture('review_open', 2)
     script += 'type "ALPHA"\n' + capture('review_found', 2)
     script += 'key ENTER\n' + capture('review_second', 2)
     script += 'key SHIFT+ENTER\n' + capture('review_previous', 2)
     script += 'key ESCAPE\n' + capture('review_closed', 2)
-    script += 'key CMD+P\nwait_frames 3\ntype "a.cpp:50"\nwait_for_refresh\nwait_frames 3\nkey ENTER\n' + capture('source_before')
-    script += 'key CMD+F\n' + capture('source_open')
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "a.cpp:50"\nwait_for_refresh\nwait_frames 3\nkey ENTER\n' + capture('source_before')
+    script += 'hold_key 343\nkey F\nrelease_key 343\n' + capture('source_open')
     script += 'type "ALPHA"\n' + capture('source_found')
     script += 'key ENTER\nkey ENTER\n' + capture('source_third')
-    script += 'key CMD+P\nwait_frames 3\ntype "b.cpp"\nwait_for_refresh\nwait_frames 3\nkey ENTER\n' + capture('other_before', 4)
-    script += 'key CMD+F\ntype "BETA"\nkey ENTER\n' + capture('other_second', 4)
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "b.cpp"\nwait_for_refresh\nwait_frames 3\nkey ENTER\n' + capture('other_before', 4)
+    script += 'hold_key 343\nkey F\nrelease_key 343\ntype "BETA"\nkey ENTER\n' + capture('other_second', 4)
     script += 'click_ui content_document_3\n' + capture('source_return', 4)
     script += 'click_ui diff_find_close\n' + capture('source_closed', 4)
-    script += 'key CMD+F\n' + capture('source_reopened', 4)
+    script += 'hold_key 343\nkey F\nrelease_key 343\n' + capture('source_reopened', 4)
     script += 'key ESCAPE\nresize 1150 850\nwait_frames 15\n' + capture('narrow_before', 4)
-    script += 'key CMD+F\n' + capture('narrow_open', 4)
+    script += 'hold_key 343\nkey F\nrelease_key 343\n' + capture('narrow_open', 4)
     script += 'key ESCAPE\n' + capture('narrow_closed', 4)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     def replay(name, commands):
@@ -110,7 +110,7 @@ for zoom in [100, 140, 200]:
     glyph = text_node['measured_text_width'] / len(text_node['text'])
     x, y = record['content_x'] + 4 * glyph, record['rect']['y'] + record['rect']['height'] / 2
     replay('selection', setup + f'drag_to {x} {y} {x+5*glyph} {y}\n' + capture('selected', 2)
-        + 'key CMD+F\n' + capture('seeded', 2) + 'key ESCAPE\n' + capture('seed_closed', 2))
+        + 'hold_key 343\nkey F\nrelease_key 343\n' + capture('seeded', 2) + 'key ESCAPE\n' + capture('seed_closed', 2))
     assert layout('selected')['selection_text'] == 'ALPHA'
     assert active('seeded')['find']['query'] == 'ALPHA'
     assert active('seeded')['find']['position']['column'] == 5

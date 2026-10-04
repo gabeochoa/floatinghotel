@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from reading_journey import quick_open
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
@@ -23,10 +24,6 @@ binary = ROOT / 'output/floatinghotel.exe'
 digest = hashlib.sha256(binary.read_bytes()).hexdigest()
 
 
-def picker(path):
-    return f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
-
-
 def capture(name, count):
     return f'wait_frames 20\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
 
@@ -36,9 +33,9 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     directory.mkdir()
     script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
-    script += picker('large.cpp') + 'focus_ui diff_scroll\nkey CTRL+G\ntype "4097"\nkey ENTER\nwait_for_refresh\n' + capture('page_two', 2)
+    script += quick_open('large.cpp') + 'focus_ui diff_scroll\nkey CTRL+G\ntype "4097"\nkey ENTER\nwait_for_refresh\n' + capture('page_two', 2)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -25\n' + capture('scrolled', 2)
-    script += picker('other.cpp') + 'click_ui open_tabs_menu\nwait_frames 3\nclick_ui context_menu_item_large.cpp\nwait_for_refresh\n' + capture('restored', 3)
+    script += quick_open('other.cpp') + 'click_ui open_tabs_menu\nwait_frames 3\nclick_ui context_menu_item_large.cpp\nwait_for_refresh\n' + capture('restored', 3)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)

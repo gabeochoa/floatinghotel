@@ -31,10 +31,10 @@ for zoom in [100, 140, 200]:
         return f'wait_for_refresh\nwait_frames 15\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
     script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'key CMD+SHIFT+F\nwait_frames 3\nclick_ui repo_search_input\ntype "NEEDLE"\n' + capture('grouped') + 'bench_frames 120\nexpect_p99_below 20\n'
+    script += 'hold_key 343\nkey SHIFT+F\nrelease_key 343\nwait_frames 3\nclick_ui repo_search_input\ntype "NEEDLE"\n' + capture('grouped') + 'bench_frames 120\nexpect_p99_below 20\n'
     script += 'click_ui repo_search_file\n' + capture('collapsed')
     script += 'click_ui repo_search_result\n' + capture('source', 2)
-    script += 'click_ui repo_search_close\nkey CMD+SHIFT+F\n' + capture('retained', 2)
+    script += 'click_ui repo_search_close\nhold_key 343\nkey SHIFT+F\nrelease_key 343\n' + capture('retained', 2)
     script += 'click_ui repo_search_file\n' + capture('expanded', 2)
     script += 'click_ui repo_search_input\nkey CMD+A\ntype "needle"\n' + capture('long_match', 2)
     script += 'bench_frames 120\nexpect_p99_below 20\n'

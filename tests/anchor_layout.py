@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from reading_journey import quick_open
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
@@ -29,17 +30,14 @@ def capture(name, count):
     return f'wait_frames 20\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
 
 
-def picker(path):
-    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
-
 script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
-script += picker('a.cpp') + 'hover_ui diff_scroll\nscroll_wheel 0 -37\n' + capture('source', 2)
+script += quick_open('a.cpp') + 'hover_ui diff_scroll\nscroll_wheel 0 -37\n' + capture('source', 2)
 script += 'native_menu_action "Zoom In"\n' * 4 + capture('zoomed', 2)
 script += 'native_menu_action "Zoom In"\n' * 6 + capture('zoom200', 2)
 script += 'native_menu_action "Zoom Out"\n' * 6
 script += 'resize 1250 850\n' + capture('narrow', 2)
 script += 'key CMD+EQUAL\nkey CMD+EQUAL\n' + capture('font', 2)
-script += picker('b.cpp') + 'native_menu_action "Reset Zoom"\nresize 1600 1000\nwait_frames 5\n'
+script += quick_open('b.cpp') + 'native_menu_action "Reset Zoom"\nresize 1600 1000\nwait_frames 5\n'
 script += 'click_ui open_tabs_menu\nwait_frames 3\nclick_ui "context_menu_item_a.cpp"\nwait_for_refresh\n' + capture('reactivated', 3)
 script += 'click_text "Reading anchor layout"\nwait_for_refresh\nkey ENTER\nclick_ui "jump_to_diff:a.cpp"\nwait_frames 8\nhover_ui commit_detail_scroll\nscroll_wheel 0 -29\n' + capture('review', 4)
 script += 'click_text "Split"\n' + capture('split', 4)
@@ -48,7 +46,7 @@ script += 'native_menu_action "Zoom In"\n' * 6 + capture('split200', 4)
 script += 'native_menu_action "Reset Zoom"\nclick_text "Unified"\nclick_ui "jump_to_diff:b.cpp"\nwait_frames 8\nclick_ui "jump_to_diff:a.cpp"\n' + capture('before_fold', 4)
 script += 'click_ui "fold_file:a.cpp"\n' + capture('folded', 4)
 script += 'click_ui "fold_file:a.cpp"\n' + capture('unfolded', 4)
-script += picker('notes.md') + 'click_ui full_file_options\nwait_frames 3\nclick_ui "context_menu_item_Preview Markdown"\nhover_ui markdown_preview\nscroll_wheel 0 -37\n' + capture('markdown', 5)
+script += quick_open('notes.md') + 'click_ui full_file_options\nwait_frames 3\nclick_ui "context_menu_item_Preview Markdown"\nhover_ui markdown_preview\nscroll_wheel 0 -37\n' + capture('markdown', 5)
 script += 'native_menu_action "Zoom In"\n' * 4 + capture('markdown140', 5)
 script += 'native_menu_action "Zoom In"\n' * 6 + capture('markdown200', 5)
 script += 'resize 1250 850\n' + capture('markdown_narrow', 5)

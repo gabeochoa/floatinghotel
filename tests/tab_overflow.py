@@ -36,7 +36,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
     script = 'resize 1200 850\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
     for path in files:
-        script += f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
+        script += f'hold_key 343\nkey P\nrelease_key 343\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
     script += capture("last")
     script += 'click_ui scroll_tabs_left\nwait_frames 3\n' + capture("scrolled")
     script += 'hover_ui content_tab_viewport\nscroll_wheel 3 0\nwait_frames 3\n' + capture("wheel")

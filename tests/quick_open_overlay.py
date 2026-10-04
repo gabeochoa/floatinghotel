@@ -45,19 +45,19 @@ for zoom in [100, 140, 200]:
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     script += 'click_text "Picker review"\nwait_for_refresh\nkey ENTER\nclick_ui commit_file_filter\ntype "f045"\nwait_frames 8\nexpect_text "f045.cpp"\nscreenshot filtered_target\nclick_ui jump_to_diff:files/f045.cpp\nwait_frames 8\nhover_ui commit_detail_scroll\nscroll_wheel 0 -20\nwait_frames 12\nclick_ui content_document_2\n' + capture('review_before')
-    script += 'key CMD+P\n' + capture('review_open')
+    script += 'hold_key 343\nkey P\nrelease_key 343\n' + capture('review_open')
     script += 'type "files/f"\nwait_for_refresh\n' + 'key DOWN\n' * 45 + capture('chosen')
     script += 'hover_ui commit_detail_scroll\nscroll_wheel 0 -40\n' + capture('review_blocked')
     script += 'key ESCAPE\n' + capture('review_return')
     outside = 'click 700 60\n' if zoom == 200 else 'click_ui content_document_1\n'
-    script += 'key CMD+P\nwait_frames 8\n' + outside + capture('outside_return')
-    script += 'key CMD+P\nwait_frames 8\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n' + capture('source_opened', 3)
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 8\n' + outside + capture('outside_return')
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 8\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n' + capture('source_opened', 3)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\nwait_frames 12\nclick_ui content_document_3\n' + capture('source_before', 3)
-    script += 'key CMD+P\n' + capture('source_picker', 3)
+    script += 'hold_key 343\nkey P\nrelease_key 343\n' + capture('source_picker', 3)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -40\n' + capture('source_blocked', 3)
     script += 'key ESCAPE\n' + capture('source_return', 3)
     script += 'resize 1100 800\nwait_frames 24\n' + capture('narrow_before', 3)
-    script += 'key CMD+P\n' + capture('narrow_picker', 3)
+    script += 'hold_key 343\nkey P\nrelease_key 343\n' + capture('narrow_picker', 3)
     script += 'key ESCAPE\n' + capture('narrow_return', 3)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

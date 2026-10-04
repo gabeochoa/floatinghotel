@@ -40,7 +40,7 @@ for zoom in args.zooms:
     script = 'wait_for_refresh\nscreenshot initial\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * round((zoom - 100) / 10)
     script += 'click_text "Dock fixture"\nwait_for_refresh\nkey ENTER\n'
-    script += 'key CMD+P\nwait_frames 3\ntype "a.cpp"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n'
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "a.cpp"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n'
     script += 'key CTRL+G\nwait_frames 3\ntype "150:5"\nkey ENTER\nwait_for_refresh\nfocus_ui diff_scroll\nkey SHIFT+RIGHT\n' + capture('before')
     for i in range(3):
         script += f'native_menu_action "Collapse reading panel"\nwait_window_size {dock} 1100\n' + capture(f'dock_{i}')

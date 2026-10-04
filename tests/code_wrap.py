@@ -67,7 +67,7 @@ for zoom, steps in ((100, 0), (140, 4), (200, 10)):
         x2, y2 = last["content_x"], last["rect"]["y"] + last["rect"]["height"] / 2
         scroll = "diff_scroll" if mode == "source" else "commit_detail_scroll"
         replay("select", setup + f"drag_to {x1} {y1} {x2} {y2}\nwait_frames 5\nscreenshot selected\n" +
-            'key CMD+F\nwait_frames 5\nscreenshot seeded\nkey ESCAPE\nwait_frames 5\n' +
+            'hold_key 343\nkey F\nrelease_key 343\nwait_frames 5\nscreenshot seeded\nkey ESCAPE\nwait_frames 5\n' +
             'native_menu_action "Show Whitespace (toggle)"\nwait_frames 5\nscreenshot whitespace\n' +
             'native_menu_action "Show Whitespace (toggle)"\nwait_frames 5\n' +
             f"hover_ui {scroll}\nscroll_wheel 0 -100\nwait_frames 30\nscreenshot end\nbench_frames 120\nexpect_p99_below 20\n")

@@ -48,7 +48,7 @@ for zoom in [100, 140, 200]:
         return f'click_ui repo_search_input\nkey CMD+A\ntype "{text}"\n'
     script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'key CMD+SHIFT+F\nwait_frames 3\nclick_ui repo_search_input\n'
+    script += 'hold_key 343\nkey SHIFT+F\nrelease_key 343\nwait_frames 3\nclick_ui repo_search_input\n'
     script += ''.join(f'type "{letter}"\n' for letter in 'NEEDLE') + capture('automatic')
     script += query('OLD') + 'key ENTER\nwait_for_path searches.jsonl.started\n' + capture('older_loading', False)
     script += query('NEW') + capture('newer')
@@ -57,7 +57,7 @@ for zoom in [100, 140, 200]:
     script += 'click_ui repo_search_options\n' + query('LIMIT') + 'key ENTER\n' + capture('limited')
     script += 'click_ui repo_search_input\nkey CMD+A\nkey BACKSPACE\n' + capture('empty')
     script += query('NEEDLE') + 'click_ui repo_search_close\n' + capture('closed', False)
-    script += 'key CMD+SHIFT+F\n' + capture('reopened')
+    script += 'hold_key 343\nkey SHIFT+F\nrelease_key 343\n' + capture('reopened')
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)

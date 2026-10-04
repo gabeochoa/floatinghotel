@@ -66,7 +66,7 @@ for zoom in [100, 140, 200]:
     script += 'key J\n' + capture('commit_deleted', 2)
     if not args.baseline:
         script += 'native_menu_action "Previous Change"\n' + capture('commit_previous', 2)
-        script += 'key CMD+F\nwait_frames 3\nkey J\nkey K\ntype "jk"\n' + capture('find', 2)
+        script += 'hold_key 343\nkey F\nrelease_key 343\nwait_frames 3\nkey J\nkey K\ntype "jk"\n' + capture('find', 2)
         script += 'key ESCAPE\n'
         script += 'native_menu_action "Compare Revisions..."\nwait_frames 3\n'
         script += f'click_ui compare_base\nkey CMD+A\ntype "{base}"\nclick_ui compare_target\nkey CMD+A\ntype "{target}"\nclick_ui compare_submit\nwait_for_refresh\nwait_frames 20\n'

@@ -80,7 +80,7 @@ for zoom in args.zooms:
         if mode == 'index': setup += 'click_ui review_staged_changes\n' + capture('scope_ready', 2)
         if mode == 'commit': setup += 'click_text "Range fixture base"\n' + capture('scope_ready', 2)
         if source:
-            setup += 'key CMD+P\n' + settle() + 'screenshot picker_ready\ntype "range.txt"\nkey ENTER\n'
+            setup += 'hold_key 343\nkey P\nrelease_key 343\n' + settle() + 'screenshot picker_ready\ntype "range.txt"\nkey ENTER\n'
         else:
             setup += 'click_ui jump_to_diff:range.txt\n'
             if mode.startswith('split'): setup += 'click_text "Split"\n'
@@ -150,10 +150,10 @@ if not args.baseline and (args.limits_only or (100 in args.zooms and 'working' i
     directory = out / 'limits'
     directory.mkdir()
     setup = 'resize 1800 1200\n' + capture('limit_ready', 1)
-    setup += 'key CMD+P\nscreenshot seed_picker\ntype "sentinel.txt"\nkey ENTER\n' + capture('seed', 2)
+    setup += 'hold_key 343\nkey P\nrelease_key 343\nscreenshot seed_picker\ntype "sentinel.txt"\nkey ENTER\n' + capture('seed', 2)
     setup += 'focus_ui diff_scroll\nkey CMD+HOME\nkey CMD+SHIFT+END\n' + capture('seed_selected', 2)
     setup += 'key CMD+C\n' + capture('seed_copied', 2)
-    setup += 'key CMD+P\nscreenshot limit_picker\ntype "limit.txt"\nkey ENTER\n' + capture('limit_open', 3)
+    setup += 'hold_key 343\nkey P\nrelease_key 343\nscreenshot limit_picker\ntype "limit.txt"\nkey ENTER\n' + capture('limit_open', 3)
     setup += 'focus_ui diff_scroll\nkey CMD+HOME\nkey CMD+SHIFT+END\n' + capture('limit_selected', 3)
     setup += 'key CMD+C\nkey CMD+W\n' + capture('cancelled', 2)
     run(directory, 'cancel', setup)

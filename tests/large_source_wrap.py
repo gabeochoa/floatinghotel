@@ -24,7 +24,7 @@ git("config", "commit.gpgsign", "false")
 git("add", ".")
 git("commit", "-qm", "Large reader fixture")
 script = out / "journey.e2e"
-script.write_text('resize 1600 1000\nwait_for_refresh\nkey CMD+P\nclick_ui file_picker_input\ntype "large.cpp"\nkey ENTER\nwait_for_refresh\nwait_frames 20\nscreenshot reader\nvalidate diff_metrics_bounded=true\nbench_frames 120\nexpect_p99_below 20\nvalidate diff_metrics_reused=true\n')
+script.write_text('resize 1600 1000\nwait_for_refresh\nhold_key 343\nkey P\nrelease_key 343\nclick_ui file_picker_input\ntype "large.cpp"\nkey ENTER\nwait_for_refresh\nwait_frames 20\nscreenshot reader\nvalidate diff_metrics_bounded=true\nbench_frames 120\nexpect_p99_below 20\nvalidate diff_metrics_reused=true\n')
 with (out / "run.log").open("w") as log:
     result = subprocess.run([str(ROOT / "output/floatinghotel.exe"), str(repo), "--test-mode", "--headless",
         f"--test-script={script}", f"--screenshot-dir={out}", "--e2e-timeout=120"], cwd=ROOT,

@@ -249,11 +249,18 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       `saved_review_return.py`.
 - [x] Replace implementation-defined persistent review keys with a stable encoding. Completed by CP-096; SHA-256 keys and legacy migration verified in review-store tests.
 
-- [ ] Share the repeated Quick Open test setup. Several final-replay corrections
+- [x] Share the repeated Quick Open test setup. Several final-replay corrections
       required waiting for historical paths, choosing scope, and clearing retained
       input. Extract a small helper used by those journeys with explicit scope and
       keep/preview behavior. Retain each journey's independent destination assertions;
       do not introduce a new test language or hide readiness failures.
+      `reading_journey.quick_open(path, working=, keep=, settle=)` waits for the
+      picker's path futures (already in the refresh gate) before Enter. Journeys
+      also send Cmd+P/Cmd+F as a held Super chord: afterhours maps `key CMD+` to
+      Ctrl, which no longer opens them. Still failing on unrelated drift:
+      restore_tabs (open-tabs menu labels), anchor_layout/tree_reveal (document
+      counts since previews became tabs), document_titles (revision badge 3 px
+      short), focus_return at 200% (Feedback toggle off-screen).
 
 ## Remaining review and reader work
 

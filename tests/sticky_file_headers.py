@@ -36,7 +36,7 @@ for zoom in [100, 140, 200]:
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
     script += 'click_text "Fold the pinned header"\nwait_for_refresh\nkey ENTER\nwait_frames 20\nscreenshot flow\n'
     script += 'hover_ui commit_detail_scroll\nscroll_wheel 0 -24\nwait_frames 30\nscreenshot pinned\n'
-    script += 'key CMD+F\nwait_frames 5\nclick_ui diff_find_input\ntype "a_80"\nwait_frames 20\nscreenshot found\nkey ESCAPE\nwait_frames 5\nclick_ui review_display_mode\nwait_frames 3\nclick_ui "context_menu_item_All files"\nwait_frames 10\nhover_ui commit_detail_scroll\nscroll_wheel 0 100000\nwait_frames 30\nscroll_wheel 0 -24\nwait_frames 30\n'
+    script += 'hold_key 343\nkey F\nrelease_key 343\nwait_frames 5\nclick_ui diff_find_input\ntype "a_80"\nwait_frames 20\nscreenshot found\nkey ESCAPE\nwait_frames 5\nclick_ui review_display_mode\nwait_frames 3\nclick_ui "context_menu_item_All files"\nwait_frames 10\nhover_ui commit_detail_scroll\nscroll_wheel 0 100000\nwait_frames 30\nscroll_wheel 0 -24\nwait_frames 30\n'
     script += f'hover_ui commit_detail_scroll\nscroll_wheel 0 -{340 * zoom / 100}\nwait_frames 30\nscreenshot crossing\nscroll_wheel 0 100000\nwait_frames 30\nscroll_wheel 0 -24\nwait_frames 30\n'
     script += 'click_ui fold_file:a.cpp\nwait_frames 25\nscreenshot folded\n'
     script += 'click_ui fold_file:a.cpp\nwait_frames 25\nscreenshot unfolded\n'

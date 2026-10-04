@@ -44,7 +44,7 @@ digest = hashlib.sha256(binary.read_bytes()).hexdigest()
 def capture(label, count, wait=True):
     return ('wait_for_refresh\nwait_frames 15\n' if wait else '') + f'workspace_checkpoint {count} {label}\nscreenshot {label}\n'
 def picker(name):
-    return f'key CMD+P\nwait_for_refresh\nscreenshot picker\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}"\nkey ENTER\n'
+    return f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nscreenshot picker\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}"\nkey ENTER\n'
 results = []
 for zoom in args.zooms:
     directory = out / str(zoom)

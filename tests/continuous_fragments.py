@@ -32,7 +32,7 @@ for zoom in [100, 140, 200]:
         return f"wait_for_refresh\nwait_frames 3\nwait_for_refresh\nwait_frames 15\nworkspace_checkpoint 2 {label}\nscreenshot {label}\n"
     script = 'resize 1700 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'screenshot zoom_ready\nkey CMD+P\nwait_for_refresh\nscreenshot picker\ntype "fragments.txt"\nkey ENTER\n' + capture("initial")
+    script += 'screenshot zoom_ready\nhold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nscreenshot picker\ntype "fragments.txt"\nkey ENTER\n' + capture("initial")
     for i in range(1, 5):
         script += "hover_ui diff_scroll\nscroll_wheel 0 -1000000\n" + capture(f"forward_{i}")
     script += "bench_frames 120\nexpect_p99_below 20\n"

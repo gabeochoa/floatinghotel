@@ -45,7 +45,7 @@ for zoom in args.zooms:
     script += select('a') + 'hover_ui diff_scroll\nscroll_wheel 0 200\nwait_frames 8\nclick_ui fold_file:a.cpp\n' + capture('file_folded', 2)
     script += select('b') + select('a') + capture('file_reselected', 2)
     script += 'click_ui fold_file:a.cpp\n' + capture('file_expanded', 2)
-    script += 'click_ui content_document_1\nkey CMD+F\nwait_frames 4\ntype "a_value_10"\n' + capture('find_reveal', 2)
+    script += 'click_ui content_document_1\nhold_key 343\nkey F\nrelease_key 343\nwait_frames 4\ntype "a_value_10"\n' + capture('find_reveal', 2)
     script += 'key ESCAPE\n' + select('b') + capture('other_still_folded', 2)
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

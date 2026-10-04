@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from reading_journey import quick_open
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
@@ -29,10 +30,6 @@ def capture(name, count):
     return f'wait_frames 20\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
 
 
-def picker(path):
-    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\n'
-
-
 for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     directory = out / str(zoom)
     directory.mkdir()
@@ -43,13 +40,13 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'key ALT+LEFT\nwait_for_refresh\n' + capture('back_a', 2)
     script += 'key ALT+RIGHT\nwait_for_refresh\n' + capture('forward_b', 2)
     script += 'key ALT+LEFT\nwait_for_refresh\nwait_frames 12\n'
-    script += picker('a.cpp') + 'hover_ui diff_scroll\nscroll_wheel 0 -30\n' + capture('source_a', 3)
-    script += picker('c.cpp') + 'hover_ui diff_scroll\nscroll_wheel 0 -25\n' + capture('source_c', 4)
+    script += quick_open('a.cpp') + 'hover_ui diff_scroll\nscroll_wheel 0 -30\n' + capture('source_a', 3)
+    script += quick_open('c.cpp') + 'hover_ui diff_scroll\nscroll_wheel 0 -25\n' + capture('source_c', 4)
     script += 'click_ui close_document_3\n' + capture('closed_a', 3)
     script += 'key ALT+LEFT\nwait_for_refresh\n' + capture('revisited_a', 4)
     script += 'key ALT+RIGHT\nwait_for_refresh\n' + capture('forward_c', 4)
     script += 'key ALT+LEFT\nwait_for_refresh\nwait_frames 12\n'
-    script += picker('b.cpp') + capture('branch', 5)
+    script += quick_open('b.cpp') + capture('branch', 5)
     script += 'key ALT+RIGHT\nwait_for_refresh\n' + capture('no_forward', 5)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -27\n' + capture('scrolled', 5)
     script += 'bench_frames 120\nexpect_p99_below 20\n'

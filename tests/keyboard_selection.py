@@ -47,7 +47,7 @@ def capture(label, count):
     return settle() + f'workspace_checkpoint {count} {label}\nscreenshot {label}\n'
 
 def open_file(path):
-    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nkey ENTER\n' + settle()
+    return f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nkey ENTER\n' + settle()
 
 for zoom in args.zooms:
     for mode in args.modes:
@@ -110,7 +110,7 @@ for zoom in args.zooms:
         if mode == 'source':
             script += 'click_ui full_file_options\n' + capture('bookmark_target', count) + 'key ESCAPE\n'
         script += 'key CMD+UP\n' + capture('document_start', count)
-        script += 'key CMD+F\nwait_frames 4\ntype "beta"\n' + capture('find', count)
+        script += 'hold_key 343\nkey F\nrelease_key 343\nwait_frames 4\ntype "beta"\n' + capture('find', count)
         script += 'key LEFT\n' + capture('find_left', count)
         script += 'key ESCAPE\nkey DELETE\nkey BACKSPACE\n' + capture('readonly', count)
         if mode == 'source':

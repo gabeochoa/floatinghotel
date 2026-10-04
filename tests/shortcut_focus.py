@@ -37,12 +37,12 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
     script += 'click_text "Focus fixture"\nwait_for_refresh\nkey ENTER\nclick_ui content_document_2\n'
-    script += 'key CMD+P\nwait_frames 3\ntype "a.cpp"\n' + capture('before')
+    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "a.cpp"\n' + capture('before')
     script += 'key ALT+LEFT\nkey ALT+RIGHT\nwait_frames 8\n' + capture('after')
     script += 'key ESCAPE\nclick_ui content_document_2\nkey J\n' + capture('commit_keys')
     script += 'key K\nkey A\nkey C\n' + capture('hidden_actions')
     script += 'click_ui open_tabs_menu\nkey J\nkey C\nkey A\n' + capture('menu_keys') + 'key ESCAPE\n'
-    script += 'click_ui content_document_2\nkey CMD+F\nwait_frames 4\ntype "value"\n' + capture('find_before')
+    script += 'click_ui content_document_2\nhold_key 343\nkey F\nrelease_key 343\nwait_frames 4\ntype "value"\n' + capture('find_before')
     script += 'key ALT+LEFT\nkey ALT+RIGHT\nkey CMD+A\nkey CMD+C\n' + capture('find_after')
     script += 'click_ui content_document_2\nkey ENTER\n' + capture('find_unfocused')
     script += 'key ESCAPE\nclick_ui commit_file_filter\nkey J\nkey C\nkey A\n' + capture('tree_keys')
@@ -50,7 +50,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     script += 'click_ui review_unstaged_changes\nwait_for_refresh\nwait_frames 8\nclick_ui content_document_1\nkey J\n' + capture('reader_next') + 'key K\nclick_ui comment_hunk_btn\nwait_frames 4\nclick_ui comment_input\ntype "alpha beta"\n' + capture('comment_before')
     script += 'key ALT+LEFT\nkey ALT+RIGHT\nkey CMD+A\nkey CMD+C\n' + capture('comment_after')
     script += 'type "jac"\n' + capture('comment_typed')
-    script += 'key CMD+SHIFT+F\nwait_frames 4\ntype "value"\n' + capture('search_before')
+    script += 'hold_key 343\nkey SHIFT+F\nrelease_key 343\nwait_frames 4\ntype "value"\n' + capture('search_before')
     script += 'key ALT+LEFT\nkey ALT+RIGHT\nkey ENTER\nwait_for_refresh\n' + capture('search_after')
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

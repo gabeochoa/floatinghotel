@@ -41,7 +41,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     setup = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     setup += 'native_menu_action "Zoom In"\n' * steps
     for name in 'abcdefgh':
-        setup += f'key CMD+P\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
+        setup += f'hold_key 343\nkey P\nrelease_key 343\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
     setup += 'hover_ui diff_scroll\nscroll_wheel 0 -20\nwait_frames 20\n' + capture('before')
 
     def replay(name, script):

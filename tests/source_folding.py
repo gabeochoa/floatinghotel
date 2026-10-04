@@ -41,7 +41,7 @@ digest = hashlib.sha256(binary.read_bytes()).hexdigest()
 def capture(label, count):
     return f"wait_for_refresh\nwait_frames 3\nwait_for_refresh\nwait_frames 15\nworkspace_checkpoint {count} {label}\nscreenshot {label}\n"
 def open_file(name):
-    return f'key CMD+P\nwait_for_refresh\nscreenshot picker\ntype "{name}"\nkey ENTER\n'
+    return f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nscreenshot picker\ntype "{name}"\nkey ENTER\n'
 def options(action):
     return f'click_ui full_file_options\nscreenshot menu\nclick_ui context_menu_item_{action}\n'
 results = []
@@ -67,7 +67,7 @@ for zoom in args.zooms:
         script += "resize 1350 900\nkey CMD+EQUAL\n" + capture("resized", 3)
         script += "click_ui source_fold_1\n" + capture("font_unfolded", 3)
         script += "click_ui source_fold_1\n" + capture("font_folded", 3)
-        script += 'key CMD+F\ntype "body_5()"\n' + capture("find_revealed", 3)
+        script += 'hold_key 343\nkey F\nrelease_key 343\ntype "body_5()"\n' + capture("find_revealed", 3)
         script += "key ESCAPE\nbench_frames 120\nexpect_p99_below 20\n"
     path = directory / "journey.e2e"
     path.write_text(script)

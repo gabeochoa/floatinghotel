@@ -41,7 +41,7 @@ def capture(name, count):
     return settle() + f'workspace_checkpoint {count} {name}\nscreenshot {name}\n'
 
 def open_file(path):
-    return f'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 6\nkey ENTER\n' + settle()
+    return f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 6\nkey ENTER\n' + settle()
 
 for zoom in [100, 140, 200]:
     for mode in ['source', 'unified', 'split']:
@@ -92,7 +92,7 @@ for zoom in [100, 140, 200]:
         script += 'mouse_move 1 1\n' + capture('left', count)
         script += 'key CMD+EQUAL\n' + capture('font', count)
         script += 'resize 1200 1100\n' + capture('narrow', count)
-        script += 'resize 1600 1100\nnative_menu_action "Reset Code Text"\nkey CMD+F\nwait_frames 3\ntype "words"\n' + capture('find', count)
+        script += 'resize 1600 1100\nnative_menu_action "Reset Code Text"\nhold_key 343\nkey F\nrelease_key 343\nwait_frames 3\ntype "words"\n' + capture('find', count)
         script += 'key ESCAPE\n' + capture('find_closed', count)
         if mode == 'source':
             script += open_file('b.cpp') + capture('other', 3)

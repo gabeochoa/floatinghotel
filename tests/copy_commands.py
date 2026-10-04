@@ -59,7 +59,7 @@ for zoom in [100, 140, 200]:
         if mode == 'index': setup += 'click_ui review_staged_changes\nwait_for_refresh\nscreenshot scope_ready\n'
         if mode == 'commit': setup += 'click_text "Copy fixture base"\nwait_for_refresh\nscreenshot scope_ready\n'
         if source:
-            setup += 'key CMD+P\nwait_for_refresh\nwait_frames 15\nscreenshot picker_ready\nclick_ui file_picker_input\ntype "copy.cpp"\nkey ENTER\n'
+            setup += 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nwait_frames 15\nscreenshot picker_ready\nclick_ui file_picker_input\ntype "copy.cpp"\nkey ENTER\n'
         else:
             if mode.startswith('split'): setup += 'click_text "Split"\nscreenshot split_ready\n'
             setup += settle() + 'click_ui hunk_header_label\nkey CTRL+G\nwait_frames 4\nscreenshot line_ready\nclick_ui line_picker_input\ntype "1"\nkey ENTER\n'

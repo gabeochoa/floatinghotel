@@ -40,8 +40,8 @@ for zoom in [100, 140, 200]:
         return ('wait_for_refresh\nwait_frames 3\nwait_for_refresh\nwait_frames 10\n' if wait else '') + f'workspace_checkpoint 3 {name}\nscreenshot {name}\n'
     script = 'resize 1600 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
-    script += 'click_text "Find cancellation"\nwait_for_refresh\nkey ENTER\nkey CMD+P\nwait_frames 3\ntype "large.cpp"\nwait_for_refresh\nkey ENTER\n' + capture('ready')
-    script += f'key CMD+F\nwait_frames 3\ntouch_file ../{zoom}/arm\ntype "OLD"\nwait_for_path started\n' + capture('pending', False)
+    script += 'click_text "Find cancellation"\nwait_for_refresh\nkey ENTER\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "large.cpp"\nwait_for_refresh\nkey ENTER\n' + capture('ready')
+    script += f'hold_key 343\nkey F\nrelease_key 343\nwait_frames 3\ntouch_file ../{zoom}/arm\ntype "OLD"\nwait_for_path started\n' + capture('pending', False)
     script += 'click_ui diff_find_input\nkey CMD+A\ntype "NEW"\n' + capture('newer')
     script += 'wait_frames 700\n' + capture('after_old')
     script += 'bench_frames 120\nexpect_p99_below 20\n'

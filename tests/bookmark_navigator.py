@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+from reading_journey import quick_open
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
@@ -48,11 +49,6 @@ def menu(label):
     return f'click_ui full_file_options\nwait_frames 3\nclick_ui "context_menu_item_{label}"\nwait_frames 3\n'
 
 
-def picker(path, working=False):
-    scope = 'click_ui file_picker_working_scope\nwait_for_refresh\n' if working else ''
-    return f'key CMD+P\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nkey ENTER\nwait_for_refresh\nwait_frames 10\n'
-
-
 for zoom in [100, 140, 200]:
     directory = out / str(zoom)
     directory.mkdir()
@@ -75,11 +71,11 @@ for zoom in [100, 140, 200]:
         return target
 
     script = setup + 'click_text "Bookmark original"\nwait_for_refresh\nkey ENTER\n'
-    script += picker('sample.txt:4') + capture('before', 3)
+    script += quick_open('sample.txt:4', settle=10) + capture('before', 3)
     script += menu('Bookmarks') + 'expect_text "No bookmarks"\nkey ESCAPE\n'
     script += menu('Bookmark line 4') + capture('historical_added', 3)
-    script += picker('sample.txt:2', working=True) + menu('Bookmark line 2') + capture('working_added', 4)
-    script += 'click_ui review_staged_changes\nwait_for_refresh\n' + picker('sample.txt:3')
+    script += quick_open('sample.txt:2', working=True, settle=10) + menu('Bookmark line 2') + capture('working_added', 4)
+    script += 'click_ui review_staged_changes\nwait_for_refresh\n' + quick_open('sample.txt:3', settle=10)
     script += capture('index_source', 6) + menu('Bookmark line 3') + capture('index_added', 6)
     script += menu('Bookmarks') + capture('navigator', 6) + 'key ESCAPE\n' + capture('dismissed', 6)
     script += 'key ENTER\nwait_frames 3\nkey DOWN\nkey DOWN\nkey DOWN\nkey ENTER\nwait_frames 3\nkey DOWN\nkey ENTER\n'
@@ -121,7 +117,7 @@ for zoom in [100, 140, 200]:
     bookmarks += [dict(path='sample.txt', revision='', line=i, label='') for i in range(10, 50)]
     bookmarks += [dict(path='sample.txt', revision='1' * 40, line=1, label='Missing object')]
     (settings / 'settings.json').write_text(json.dumps(dict(code_bookmarks={str(repo): bookmarks})))
-    script = setup + picker('sample.txt') + capture('before_menu', 2) + menu('Bookmarks') + capture('long_menu', 2)
+    script = setup + quick_open('sample.txt', settle=10) + capture('before_menu', 2) + menu('Bookmarks') + capture('long_menu', 2)
     script += 'key DOWN\n' * (len(bookmarks) - 1) + capture('last_visible', 2) + 'key ENTER\n' + capture('last_open', 2)
     script += 'expect_text "working_049"\n' + menu('Bookmarks') + 'key UP\nkey ENTER\n'
     script += capture('missing', 3) + 'assert_ui full_file_error hidden=false\n'

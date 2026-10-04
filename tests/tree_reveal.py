@@ -39,7 +39,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     def capture(name, count): return f'wait_frames 12\nworkspace_checkpoint {count} {name}\nscreenshot {name}\n'
     def picker(path, working_scope=False):
         scope = 'click_ui file_picker_working_scope\nwait_for_refresh\n' if working_scope else ''
-        return f'key CMD+P\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nkey ENTER\nwait_for_refresh\n'
+        return f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nkey ENTER\nwait_for_refresh\n'
     script = 'resize 1800 1100\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
     script += 'click_text "Historical tree"\nwait_for_refresh\nkey ENTER\nclick_ui commit_file_filter\nkey TAB\nworkspace_checkpoint 2 tree_entry\nscreenshot tree_entry\ntype "z"\nwait_frames 6\nworkspace_checkpoint 2 tree_z\nscreenshot tree_z\nkey RIGHT\nwait_frames 6\nworkspace_checkpoint 2 tree_deep\nscreenshot tree_deep\nkey RIGHT\nwait_frames 8\nworkspace_checkpoint 2 tree_target\nscreenshot tree_target\nclick_text "Open file"\nwait_for_refresh\nkey ENTER\n'

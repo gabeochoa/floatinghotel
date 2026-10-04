@@ -52,7 +52,7 @@ def capture(label, count, settle=True):
     wait = "wait_for_refresh\nwait_frames 3\nwait_for_refresh\nwait_frames 15\n" if settle else "wait_frames 3\n"
     return wait + f"workspace_checkpoint {count} {label}\nscreenshot {label}\n"
 def open_file(path):
-    return f'key CMD+P\nwait_for_refresh\nscreenshot picker_ready\ntype "{path}"\nkey ENTER\n'
+    return f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nscreenshot picker_ready\ntype "{path}"\nkey ENTER\n'
 def visible(path):
     snapshot = json.loads(path.read_text())
     viewport = next(n["visible_rect"] for n in snapshot["nodes"] if n.get("name") == "diff_scroll" and n["rendered"])

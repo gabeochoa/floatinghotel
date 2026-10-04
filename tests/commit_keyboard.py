@@ -55,7 +55,7 @@ for zoom in [100, 140, 200]:
     script += 'key UP\n' + capture('endpoint', 0, 3)
     script += 'click_ui commit_file_filter\ntype "reader"\nkey DOWN\nkey UP\nkey A\n'
     script += 'wait_frames 8\nworkspace_checkpoint 3 editing\nscreenshot editing\n'
-    script += 'key CMD+P\nclick_ui file_picker_input\ntype "reader"\nkey DOWN\nkey UP\n'
+    script += 'hold_key 343\nkey P\nrelease_key 343\nclick_ui file_picker_input\ntype "reader"\nkey DOWN\nkey UP\n'
     script += 'wait_frames 8\nworkspace_checkpoint 3 picker\nscreenshot picker\nkey ESCAPE\n'
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'

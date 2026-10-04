@@ -50,7 +50,7 @@ for zoom in args.zooms:
         setup += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
         setup += 'click_ui review_unstaged_changes\nwait_for_refresh\nclick_ui jump_to_diff:a.cpp\n'
         if mode == 'source':
-            setup += 'key CMD+P\nwait_for_refresh\nclick_ui file_picker_input\ntype "a.cpp:3:1"\nkey ENTER\n'
+            setup += 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\ntype "a.cpp:3:1"\nkey ENTER\n'
         else:
             if mode == 'split':
                 setup += 'click_text "Split"\n'
