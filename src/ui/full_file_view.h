@@ -348,7 +348,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             std::max(1.f, layout.mainContent.width - 48.f), 1.f,
             Settings::get().get_code_font_size(), 1.f,
             [&](const std::string& text, markdown_preview::Kind kind, float size) {
-                return afterhours::measure_text(kind == markdown_preview::Kind::Code ? codeFont : bodyFont, text.c_str(), size * zoom, zoom).x / zoom;
+                return afterhours::measure_text(markdown_preview::literal(kind) ? codeFont : bodyFont, text.c_str(), size * zoom, zoom).x / zoom;
             });
         float bodyHeight = layout.mainContent.height - headerHeight - blameHeight - pageHeight;
         auto body = div(ctx, mk(parent, 585005), ComponentConfig{}
@@ -394,19 +394,24 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         std::optional<std::string> followed;
         for (size_t row = first; row < last; ++row) {
             const auto& line = cache.lines[row];
+            const auto color = line.kind == markdown_preview::Kind::Image ? theme::TEXT_SECONDARY : theme::TEXT_PRIMARY;
             std::vector<afterhours::ui::TextSpan> spans;
             size_t at = 0;
-            for (const auto& link : line.links) {
-                if (link.begin > at) spans.push_back({line.text.substr(at, link.begin - at), theme::TEXT_PRIMARY});
-                spans.push_back({line.text.substr(link.begin, link.end - link.begin), theme::TEXT_ACCENT});
-                at = link.end;
+            // Bold and italic draw plain: no italic face ships, and weighted
+            // runs draw small (docs/afterhours-gaps.md).
+            for (const auto& span : line.spans) {
+                using markdown_preview::Style;
+                if (span.begin > at) spans.push_back({line.text.substr(at, span.begin - at), color});
+                spans.push_back({line.text.substr(span.begin, span.end - span.begin),
+                    span.style == Style::Link ? theme::TEXT_ACCENT : span.style == Style::Code ? theme::STATUS_MODIFIED : color});
+                at = span.end;
             }
-            if (!spans.empty() && at < line.text.size()) spans.push_back({line.text.substr(at), theme::TEXT_PRIMARY});
+            if (!spans.empty() && at < line.text.size()) spans.push_back({line.text.substr(at), color});
             auto config = ComponentConfig{}
                 .with_label(line.text)
                 .with_size(ComponentSize{percent(1.f), pixels(line.height)}).with_skip_grid_snap()
-                .with_font(line.kind == markdown_preview::Kind::Code ? "mono" : afterhours::ui::UIComponent::DEFAULT_FONT, pixels(line.fontSize))
-                .with_custom_text_color(line.kind == markdown_preview::Kind::Image ? theme::TEXT_SECONDARY : theme::TEXT_PRIMARY)
+                .with_font(markdown_preview::literal(line.kind) ? "mono" : afterhours::ui::UIComponent::DEFAULT_FONT, pixels(line.fontSize))
+                .with_custom_text_color(color)
                 .with_debug_name("markdown_preview_block");
             if (!spans.empty()) config.with_styled_label(std::move(spans));
             auto renderedLine = div(ctx, mk(body.ent(), 100 + static_cast<int>(row)), config);
@@ -414,17 +419,18 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 ? cache.lines[row + 1].sourceColumn - 1 : std::numeric_limits<int>::max();
             const int sourceLine = line.sourceLine + repo.fullFilePage.begin.line - 1;
             state.rows.push_back({renderedLine.ent().id, repo.fullFilePath(), 0, 0, sourceLine, sourceLine, line.sourceColumn, endColumn});
-            if (line.links.empty() || overlayOpen || !ctx.mouse.just_released) continue;
+            if (line.spans.empty() || overlayOpen || !ctx.mouse.just_released) continue;
             const auto rect = ui::visible_rect(renderedLine.ent());
             if (!afterhours::ui::is_mouse_inside(ctx.mouse.pos, rect)) continue;
             const auto width = [&](size_t bytes) {
                 return afterhours::measure_text(bodyFont, line.text.substr(0, bytes).c_str(), line.fontSize * zoom, zoom).x;
             };
-            for (const auto& link : line.links)
-                if (const float x = ctx.mouse.pos.x - rect.x; x >= width(link.begin) && x < width(link.end)) followed = link.target;
+            for (const auto& span : line.spans)
+                if (const float x = ctx.mouse.pos.x - rect.x;
+                    span.style == markdown_preview::Style::Link && x >= width(span.begin) && x < width(span.end)) followed = span.target;
         }
-        if (followed) follow_markdown_link(repo, *followed);
         spacer(1, cache.offsets.back() - cache.offsets[last] + 16.f);
+        if (followed) follow_markdown_link(repo, *followed);  // navigating resets `cache`
     } else {
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
                         layout.mainContent.height - headerHeight - blameHeight - pageHeight, false, changed, false,

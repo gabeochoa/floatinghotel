@@ -76,11 +76,11 @@ TEST(markdown_preview_links_keep_labels_and_record_repository_targets) {
     auto blocks = markdown_preview::parse("See [the guide](docs/guide.md#install-steps \"Guide\") or [web](https://x.invalid).\n"
                                           "- [Usage](#development)\n![img](a.png)\n");
     ASSERT_STREQ(blocks[0].text, "See the guide or web.");
-    ASSERT_EQ(blocks[0].links.size(), 1u);
-    ASSERT_EQ(blocks[0].text.substr(blocks[0].links[0].begin, blocks[0].links[0].end - blocks[0].links[0].begin), std::string("the guide"));
-    ASSERT_STREQ(blocks[0].links[0].target, "docs/guide.md#install-steps");
+    ASSERT_EQ(blocks[0].spans.size(), 1u);
+    ASSERT_EQ(blocks[0].text.substr(blocks[0].spans[0].begin, blocks[0].spans[0].end - blocks[0].spans[0].begin), std::string("the guide"));
+    ASSERT_STREQ(blocks[0].spans[0].target, "docs/guide.md#install-steps");
     ASSERT_STREQ(blocks[1].text, "• Usage");
-    ASSERT_EQ(blocks[1].text.substr(blocks[1].links[0].begin), std::string("Usage"));
+    ASSERT_EQ(blocks[1].text.substr(blocks[1].spans[0].begin), std::string("Usage"));
     ASSERT_EQ(blocks[2].kind, markdown_preview::Kind::Image);
 
     markdown_preview::Cache cache;
@@ -88,10 +88,47 @@ TEST(markdown_preview_links_keep_labels_and_record_repository_targets) {
         [](const std::string& text, markdown_preview::Kind, float) { return static_cast<float>(text.size()); });
     ASSERT_EQ(cache.lines.size(), 2u);
     ASSERT_STREQ(cache.lines[0].text, "aa b c");
-    ASSERT_EQ(cache.lines[0].links.size(), 1u);
-    ASSERT_EQ(cache.lines[0].links[0].begin, 3u);
-    ASSERT_EQ(cache.lines[0].links[0].end, 6u);
-    ASSERT_TRUE(cache.lines[1].links.empty());
+    ASSERT_EQ(cache.lines[0].spans.size(), 1u);
+    ASSERT_EQ(cache.lines[0].spans[0].begin, 3u);
+    ASSERT_EQ(cache.lines[0].spans[0].end, 6u);
+    ASSERT_TRUE(cache.lines[1].spans.empty());
+}
+
+TEST(markdown_preview_strips_inline_formatting_into_styled_spans) {
+    using markdown_preview::Style;
+    auto blocks = markdown_preview::parse("Use **bold**, *em*, _em_ and `a*b*c` but not snake_case_name or 2 * 3 * 4 or \\*x\\*.\n");
+    ASSERT_STREQ(blocks[0].text, "Use bold, em, em and a*b*c but not snake_case_name or 2 * 3 * 4 or *x*.");
+    const auto& spans = blocks[0].spans;
+    ASSERT_EQ(spans.size(), 4u);
+    const auto piece = [&](size_t i) { return blocks[0].text.substr(spans[i].begin, spans[i].end - spans[i].begin); };
+    ASSERT_EQ(piece(0), std::string("bold"));
+    ASSERT_EQ(spans[0].style, Style::Bold);
+    ASSERT_EQ(spans[1].style, Style::Italic);
+    ASSERT_EQ(spans[2].style, Style::Italic);
+    ASSERT_EQ(piece(3), std::string("a*b*c"));
+    ASSERT_EQ(spans[3].style, Style::Code);
+    ASSERT_STREQ(markdown_preview::parse("**unclosed and *open\n")[0].text, "**unclosed and *open");
+}
+
+TEST(markdown_preview_tables_align_columns_in_the_code_font) {
+    auto blocks = markdown_preview::parse("| Name | Größe |\n|:-----|------:|\n| **a** | 1 |\n| long name | 22 | extra |\nafter\n");
+    ASSERT_EQ(blocks[0].kind, markdown_preview::Kind::Table);
+    ASSERT_STREQ(blocks[0].text, "Name      │ Größe");
+    ASSERT_STREQ(blocks[1].text, "──────────┼───────┼──────");
+    ASSERT_STREQ(blocks[2].text, "a         │ 1");
+    ASSERT_STREQ(blocks[3].text, "long name │ 22    │ extra");
+    ASSERT_EQ(blocks[3].sourceLine, 4);
+    ASSERT_EQ(blocks[4].kind, markdown_preview::Kind::Paragraph);
+}
+
+TEST(markdown_preview_local_images_link_to_the_image) {
+    auto blocks = markdown_preview::parse("![Logo](docs/logo.png)\n![remote](https://x.invalid/a.png)\n");
+    ASSERT_STREQ(blocks[0].text, "Image: Logo");
+    ASSERT_EQ(blocks[0].spans.size(), 1u);
+    ASSERT_STREQ(blocks[0].spans[0].target, "docs/logo.png");
+    ASSERT_EQ(blocks[0].text.substr(blocks[0].spans[0].begin), std::string("Logo"));
+    ASSERT_STREQ(blocks[1].text, "Image omitted: remote");
+    ASSERT_TRUE(blocks[1].spans.empty());
 }
 
 TEST(markdown_preview_link_targets_resolve_inside_the_repository) {

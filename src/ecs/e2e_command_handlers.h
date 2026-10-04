@@ -237,6 +237,8 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.ignoreWhitespace = false;
             repo.diffContext = 3;
             repo.fullFileCacheKey.clear();
+            repo.fullFileMarkdownPreview = false;
+            repo.markdownLink = {};
             repo.repoSearchOpen = false;
             repo.fileHistoryOpen = false;
             repo.fileHistoryFuture = {};

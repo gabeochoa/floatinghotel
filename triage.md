@@ -120,9 +120,16 @@ caches. No px0 application or benchmark has run yet.
 
 ### P2: reader completeness
 
-- [ ] Extend Markdown preview with tables, inline formatting, and bounded local
+- [x] Extend Markdown preview with tables, inline formatting, and bounded local
       images. Test links and image paths in historical revisions as well as the
       working tree.
+      Inline code is coloured; `**bold**`/`*em*` markers are stripped but draw
+      at regular weight (no italic face; weighted styled runs draw small, see
+      docs/afterhours-gaps.md). Pipe tables align in the code font. Local images
+      are links into the image viewer at the revision being read (never decoded
+      inline, so they stay bounded); remote images are omitted. Historical
+      revisions share the link resolver but have no E2E yet.
+      `flow_markdown_formatting`, `test_markdown_preview`.
 - [x] Add a searchable command palette backed by existing commands and shortcut
       ownership. Restore focus and the reading anchor on dismissal.
       View > Command Palette (Cmd+K) lists enabled menu items; the shortcuts

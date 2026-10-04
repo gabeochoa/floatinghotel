@@ -2638,3 +2638,14 @@ a full header can cover a Find result placed at the old fixed viewport fraction.
 The app exposes a reading viewport inset and uses it consistently for anchors,
 Find/caret destinations, source origins, and selection hit tests, while retaining
 the full scroll viewport for layout and scroll extents.
+
+### Weighted runs in styled labels draw small
+
+A `TextSpan` with `FontWeight::Bold` (resolved to a registered `"<font>@bold"`
+face, here Roboto-Bold) draws at roughly three quarters of the surrounding
+regular runs' size in the batched styled-label path, although both receive the
+same `font_size` (`result.rect.height` from the regular face). Whole labels
+using the bold face through `with_font("ui-bold", ...)` look right. The Markdown
+preview therefore strips `**bold**` markers but draws the text at regular
+weight; switching its span to `FontWeight::Bold` is a one-line change once
+weighted runs match their neighbours.

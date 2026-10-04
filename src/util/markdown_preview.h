@@ -20,22 +20,31 @@ enum class Kind {
     ListItem,
     Code,
     Image,
+    Table,
     Blank,
 };
 
-// An in-repository link: a relative path and/or a #heading anchor.
-struct Link {
+// Code and tables keep their spacing and draw in the code font.
+inline bool literal(Kind kind) { return kind == Kind::Code || kind == Kind::Table; }
+
+enum class Style { Link, Bold, Italic, Code };
+
+// A styled run of a block's (or line's) text. A link's target is an
+// in-repository path and/or a #heading anchor.
+struct Span {
     size_t begin = 0, end = 0;  // bytes of the block's (or line's) text
+    Style style = Style::Link;
     std::string target;
 };
 
 struct Block {
     Kind kind = Kind::Paragraph;
     std::string text;
-    int level = 0;
+    int level = 0;  // heading depth; 1 marks a table's header rule
     int sourceLine = 1;
     int sourceColumn = 1;
-    std::vector<Link> links;
+    std::vector<Span> spans;
+    std::vector<std::string> cells;  // table rows
 };
 
 inline std::string trim(std::string_view input) {
@@ -52,24 +61,70 @@ inline bool is_markdown_path(const std::string& path) {
     return ext == ".md" || ext == ".markdown";
 }
 
-// Replaces [label](target) with its label. Relative targets and anchors are
-// recorded as links; web links keep only their label.
-inline std::string strip_links(std::string_view text, std::vector<Link>& links, size_t offset = 0) {
+inline bool web(std::string_view target) {
+    return target.find("://") != std::string_view::npos || target.starts_with("mailto:");
+}
+
+// The target of "](target)" starting at `open`, without a "title".
+inline std::string link_target(std::string_view text, size_t open, size_t end) {
+    auto target = trim(text.substr(open, end - open));
+    return target.substr(0, target.find(' '));
+}
+
+// Strips inline Markdown -- [label](target), **bold**, *em*, `code`, and
+// backslash escapes -- recording styled spans. Web links keep only their label.
+inline std::string inline_spans(std::string_view text, std::vector<Span>& spans, size_t offset = 0) {
     std::string out;
+    const auto word = [&](size_t at) { return at < text.size() && std::isalnum(static_cast<unsigned char>(text[at])); };
+    const auto styled = [&](std::string_view content, Style style, std::string target = {}) {
+        const auto begin = out.size();
+        out += content;
+        spans.push_back({offset + begin, offset + out.size(), style, std::move(target)});
+    };
     for (size_t i = 0; i < text.size();) {
-        const auto close = text[i] == '[' && (i == 0 || text[i - 1] != '!') ? text.find("](", i + 1) : std::string_view::npos;
-        const auto end = close == std::string_view::npos ? close : text.find(')', close + 2);
-        if (end == std::string_view::npos || text.substr(i + 1, close - i - 1).find('[') != std::string_view::npos) {
-            out += text[i++];
+        const char c = text[i];
+        if (c == '\\' && i + 1 < text.size() && std::ispunct(static_cast<unsigned char>(text[i + 1]))) {
+            out += text[i + 1];
+            i += 2;
             continue;
         }
-        auto target = trim(text.substr(close + 2, end - close - 2));
-        target = target.substr(0, target.find(' '));  // drop a "title"
-        const auto begin = out.size();
-        out += text.substr(i + 1, close - i - 1);
-        if (!target.empty() && target.find("://") == std::string::npos && !target.starts_with("mailto:"))
-            links.push_back({offset + begin, offset + out.size(), std::move(target)});
-        i = end + 1;
+        if (c == '`') {
+            if (const auto close = text.find('`', i + 1); close != std::string_view::npos && close > i + 1) {
+                styled(text.substr(i + 1, close - i - 1), Style::Code);
+                i = close + 1;
+                continue;
+            }
+        } else if (c == '[' && (i == 0 || text[i - 1] != '!')) {
+            const auto close = text.find("](", i + 1);
+            const auto end = close == std::string_view::npos ? close : text.find(')', close + 2);
+            if (end != std::string_view::npos && text.substr(i + 1, close - i - 1).find('[') == std::string_view::npos) {
+                auto target = link_target(text, close + 2, end);
+                const auto label = text.substr(i + 1, close - i - 1);
+                if (target.empty() || web(target)) out += label;
+                else styled(label, Style::Link, std::move(target));
+                i = end + 1;
+                continue;
+            }
+        } else if (c == '*' || c == '_') {
+            // Opens before a non-space; '_' only outside words (snake_case).
+            const bool strong = i + 1 < text.size() && text[i + 1] == c;
+            const auto marker = text.substr(i, strong ? 2 : 1);
+            const size_t from = i + marker.size();
+            if (from < text.size() && !std::isspace(static_cast<unsigned char>(text[from])) && (c == '*' || i == 0 || !word(i - 1))) {
+                auto close = text.find(marker, from + 1);
+                while (close != std::string_view::npos &&
+                       (std::isspace(static_cast<unsigned char>(text[close - 1])) || (c == '_' && word(close + marker.size())) ||
+                        (!strong && close + 1 < text.size() && text[close + 1] == c)))
+                    close = text.find(marker, close + (strong ? 1 : 2));
+                if (close != std::string_view::npos) {
+                    styled(text.substr(from, close - from), strong ? Style::Bold : Style::Italic);
+                    i = close + marker.size();
+                    continue;
+                }
+            }
+        }
+        out += c;
+        ++i;
     }
     return out;
 }
@@ -95,13 +150,63 @@ inline std::string resolve(std::string_view from, std::string_view path) {
     return normal;
 }
 
+// "![alt](src)": a local image becomes a link that opens it in the image
+// viewer at the same revision; remote images are never fetched.
 inline Block image_block(std::string_view line) {
-    size_t altBegin = line.find('[');
-    size_t altEnd = line.find(']', altBegin == std::string_view::npos ? 0 : altBegin + 1);
-    std::string alt = altBegin != std::string_view::npos && altEnd != std::string_view::npos && altEnd > altBegin
-        ? std::string(line.substr(altBegin + 1, altEnd - altBegin - 1))
-        : "image";
-    return {Kind::Image, "Image omitted: " + alt, 0};
+    const auto close = line.find("](");
+    const auto end = close == std::string_view::npos ? close : line.find(')', close + 2);
+    std::string alt = close != std::string_view::npos && close > 2 ? std::string(line.substr(2, close - 2)) : "image";
+    const auto target = end == std::string_view::npos ? std::string{} : link_target(line, close + 2, end);
+    if (target.empty() || web(target)) return {Kind::Image, "Image omitted: " + alt, 0};
+    Block block{Kind::Image, "Image: " + alt, 0};
+    block.spans.push_back({std::string_view("Image: ").size(), block.text.size(), Style::Link, target});
+    return block;
+}
+
+// "| a | b |" -> {"a", "b"}, inline formatting stripped.
+inline std::vector<std::string> table_cells(std::string_view row) {
+    if (row.starts_with('|')) row.remove_prefix(1);
+    if (row.ends_with('|')) row.remove_suffix(1);
+    std::vector<std::string> cells;
+    for (size_t begin = 0;;) {
+        auto end = row.find('|', begin);
+        while (end != std::string_view::npos && end > 0 && row[end - 1] == '\\') end = row.find('|', end + 1);
+        std::vector<Span> ignored;
+        cells.push_back(inline_spans(trim(row.substr(begin, end == std::string_view::npos ? end : end - begin)), ignored));
+        if (end == std::string_view::npos) return cells;
+        begin = end + 1;
+    }
+}
+
+// Pads each run of table rows to shared column widths (in code points; the
+// table draws in the code font) and draws the header rule.
+inline void layout_tables(std::vector<Block>& blocks) {
+    for (size_t first = 0; first < blocks.size();) {
+        if (blocks[first].kind != Kind::Table) { ++first; continue; }
+        size_t last = first;
+        std::vector<int> widths;
+        const auto columns = [](const std::string& cell) { return reading::column_at_byte(cell, cell.size()) - 1; };
+        for (; last < blocks.size() && blocks[last].kind == Kind::Table; ++last) {
+            if (blocks[last].level == 1) continue;
+            widths.resize(std::max(widths.size(), blocks[last].cells.size()));
+            for (size_t c = 0; c < blocks[last].cells.size(); ++c) widths[c] = std::max(widths[c], columns(blocks[last].cells[c]));
+        }
+        for (size_t row = first; row < last; ++row) {
+            auto& block = blocks[row];
+            block.text.clear();
+            for (size_t c = 0; c < (block.level == 1 ? widths.size() : block.cells.size()); ++c) {
+                if (block.level == 1) {
+                    if (c > 0) block.text += "─┼─";
+                    for (int i = 0; i < widths[c]; ++i) block.text += "─";
+                    continue;
+                }
+                if (c > 0) block.text += " │ ";
+                block.text += block.cells[c] + std::string(static_cast<size_t>(widths[c] - columns(block.cells[c])), ' ');
+            }
+            while (block.text.ends_with(' ')) block.text.pop_back();
+        }
+        first = last;
+    }
 }
 
 inline std::vector<Block> parse(std::string_view text) {
@@ -126,33 +231,40 @@ inline std::vector<Block> parse(std::string_view text) {
         } else if (stripped.starts_with("#")) {
             size_t hashes = 0;
             while (hashes < stripped.size() && stripped[hashes] == '#') ++hashes;
-            std::vector<Link> links;
+            std::vector<Span> spans;
             if (hashes <= 6 && hashes < stripped.size() && stripped[hashes] == ' ') {
-                auto text = strip_links(trim(std::string_view(stripped).substr(hashes + 1)), links);
-                blocks.push_back({Kind::Heading, std::move(text), static_cast<int>(hashes), 1, 1, std::move(links)});
+                auto text = inline_spans(trim(std::string_view(stripped).substr(hashes + 1)), spans);
+                blocks.push_back({Kind::Heading, std::move(text), static_cast<int>(hashes), 1, 1, std::move(spans)});
             } else {
-                auto text = strip_links(stripped, links);
-                blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(links)});
+                auto text = inline_spans(stripped, spans);
+                blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(spans)});
             }
+        } else if (stripped.starts_with('|')) {
+            auto cells = table_cells(stripped);
+            const bool rule = std::all_of(cells.begin(), cells.end(), [](const std::string& cell) {
+                return cell.find('-') != std::string::npos && cell.find_first_not_of("-: ") == std::string::npos;
+            });
+            blocks.push_back({Kind::Table, stripped, rule ? 1 : 0, 1, 1, {}, std::move(cells)});
         } else if (stripped.starts_with("- ") || stripped.starts_with("* ")) {
-            std::vector<Link> links;
-            auto text = "• " + strip_links(std::string_view(stripped).substr(2), links, std::string_view("• ").size());
-            blocks.push_back({Kind::ListItem, std::move(text), 0, 1, 1, std::move(links)});
+            std::vector<Span> spans;
+            auto text = "• " + inline_spans(std::string_view(stripped).substr(2), spans, std::string_view("• ").size());
+            blocks.push_back({Kind::ListItem, std::move(text), 0, 1, 1, std::move(spans)});
         } else {
-            std::vector<Link> links;
-            auto text = strip_links(stripped, links);
-            blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(links)});
+            std::vector<Span> spans;
+            auto text = inline_spans(stripped, spans);
+            blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(spans)});
         }
         if (blocks.size() != count) {
             auto& block = blocks.back();
             block.sourceLine = sourceLine;
-            const auto begin = line.find(block.kind == Kind::ListItem ? stripped : block.text);
+            const auto begin = line.find(block.kind == Kind::ListItem || block.kind == Kind::Table ? stripped : block.text);
             block.sourceColumn = begin == std::string_view::npos ? 1 : reading::column_at_byte(std::string(line), begin);
         }
         ++sourceLine;
         if (end == text.size()) break;
         start = end + 1;
     }
+    layout_tables(blocks);
     return blocks;
 }
 
@@ -163,7 +275,7 @@ struct Line {
     float height;
     int sourceLine;
     int sourceColumn;
-    std::vector<Link> links;  // bytes of `text`
+    std::vector<Span> spans;  // bytes of `text`
 };
 
 struct Cache {
@@ -216,32 +328,32 @@ bool update(Cache& cache, const std::string& key, const std::string& text,
     cache.lines.clear();
     cache.offsets = {0.f};
     for (const auto& block : cache.blocks) {
-        float fontSize = std::max(14.f, block.kind == Kind::Code ? codeFontSize :
+        float fontSize = std::max(14.f, literal(block.kind) ? codeFontSize :
             (block.kind == Kind::Heading && block.level == 1 ? 16.f : 14.f) * scale);
         float height = std::ceil((block.kind == Kind::Blank ? 10.f * scale : fontSize * 1.5f) / grid) * grid;
         auto measureLine = [&](const std::string& line) { return measure(line, block.kind, fontSize); };
-        auto lines = block.kind == Kind::Code ? wrap_measured_text(block.text, width, measureLine) :
+        auto lines = literal(block.kind) ? wrap_measured_text(block.text, width, measureLine) :
             wrap_paragraph(block.text, width, measureLine);
         size_t cursor = 0;
         for (auto& line : lines) {
-            if (block.kind != Kind::Code)
+            if (!literal(block.kind))
                 while (cursor < block.text.size() && std::isspace(static_cast<unsigned char>(block.text[cursor]))) ++cursor;
             const int column = block.sourceColumn + reading::column_at_byte(block.text, cursor) - 1;
-            std::vector<Link> links;
-            const Link* previous = nullptr;
+            std::vector<Span> spans;
+            const Span* previous = nullptr;
             for (size_t i = 0; i < line.size(); ++i) {
-                if (block.kind != Kind::Code && std::isspace(static_cast<unsigned char>(line[i]))) continue;
-                if (block.kind != Kind::Code)
+                if (!literal(block.kind) && std::isspace(static_cast<unsigned char>(line[i]))) continue;
+                if (!literal(block.kind))
                     while (cursor < block.text.size() && std::isspace(static_cast<unsigned char>(block.text[cursor]))) ++cursor;
                 const auto at = cursor;
                 if (cursor < block.text.size()) ++cursor;
-                const auto link = std::find_if(block.links.begin(), block.links.end(), [&](const Link& l) { return at >= l.begin && at < l.end; });
-                if (link == block.links.end()) { previous = nullptr; continue; }
-                if (previous == &*link) links.back().end = i + 1;  // spans the spaces between words too
-                else links.push_back({i, i + 1, link->target});
-                previous = &*link;
+                const auto span = std::find_if(block.spans.begin(), block.spans.end(), [&](const Span& s) { return at >= s.begin && at < s.end; });
+                if (span == block.spans.end()) { previous = nullptr; continue; }
+                if (previous == &*span) spans.back().end = i + 1;  // covers the spaces between words too
+                else spans.push_back({i, i + 1, span->style, span->target});
+                previous = &*span;
             }
-            cache.lines.push_back({std::move(line), block.kind, fontSize, height, block.sourceLine, column, std::move(links)});
+            cache.lines.push_back({std::move(line), block.kind, fontSize, height, block.sourceLine, column, std::move(spans)});
             cache.offsets.push_back(cache.offsets.back() + height);
         }
     }

@@ -1,0 +1,45 @@
+# Flow: the Markdown preview strips inline formatting, aligns tables in the
+# code font, and turns a local image into a link to the image viewer.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+touch_file README.md text "Use **bold** and `make test`, not snake_case_name."
+touch_file README.md text "| Name | Size |"
+touch_file README.md text "|------|-----:|"
+touch_file README.md text "| app | 12 |"
+touch_file README.md text "| long name | 3 |"
+touch_file README.md text "![Logo](icon.png)"
+touch_file README.md text "![remote](https://example.invalid/a.png)"
+wait_for_refresh
+click_text "View"
+wait_frames 5
+click_text "File Explorer"
+wait_frames 8
+click_text "README.md"
+wait_for_refresh
+wait_frames 8
+click_ui full_file_options
+wait_frames 5
+click_text "Preview Markdown"
+wait_for_refresh
+wait_frames 8
+screenshot markdown_formatting
+expect_text "bold"
+expect_text "make test"
+expect_text "snake_case_name"
+expect_no_text "**bold**"
+expect_text "Name      │ Size"
+expect_text "app       │ 12"
+expect_text "long name │ 3"
+expect_no_text "|------"
+expect_text "Logo"
+expect_text "Image omitted: remote"
+
+# The local image link opens the image at the same revision.
+click 384 354
+wait_for_refresh
+wait_frames 10
+screenshot markdown_formatting_image
+expect_no_text "Image: Logo"
+expect_text "Copy file"
+validate active_content=Source
