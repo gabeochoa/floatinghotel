@@ -80,6 +80,27 @@ inline std::vector<Menu> createMenuBar() {
             auto message = ui::diff_sel::copy_selection(true, true);
             if (!message.empty()) set_pending_toast(message);
         }),
+        MenuItem::item("Copy Diff", "", [] {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (!repo || ecs::source_tab_active(*repo)) { set_pending_toast("Open a review to copy its diff"); return; }
+            const auto* files = ui::review_files(*repo);
+            if (!files) { set_pending_toast("Changes are still loading"); return; }
+            std::string text;
+            for (const auto& file : *files) text += ui::diff_detail::file_diff_to_text(file);
+            if (text.empty()) { set_pending_toast("No changes to copy"); return; }
+            afterhours::clipboard::set_text(text);
+            set_pending_toast("Copied diff of " + std::to_string(files->size()) + (files->size() == 1 ? " file" : " files"));
+        }),
+        MenuItem::item("Copy Path", "", [] {
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (!repo) return;
+            const auto* document = repo->workspace().document(repo->workspace().active_id());
+            auto path = document && document->caret ? document->caret->path
+                : document && document->anchor ? document->anchor->path : repo->selectedFilePath();
+            if (path.empty()) { set_pending_toast("No file to copy the path of"); return; }
+            afterhours::clipboard::set_text(path);
+            set_pending_toast("Copied " + path);
+        }),
         MenuItem::separator(),
         MenuItem::item("Find...", "Cmd+F", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ui::open_find(*repo);

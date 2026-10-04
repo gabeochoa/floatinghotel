@@ -1637,7 +1637,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
     }
 
-    // The label takes what the action cluster (Copy/Comment/Approve) leaves.
+    // The label takes what the action cluster (Comment/Approve) leaves.
     // This used to subtract a hardcoded reserve, because percent(1.0) took the
     // whole row and shoved the buttons off-screen.
     auto captionClip = div(ctx, mk(hunkRow.ent(), 20), ComponentConfig{}.with_skip_grid_snap()
@@ -1698,27 +1698,6 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 auto* active = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
                 if (active && navigation::accepts(*active, stamp, key)) { remember_diff_anchor(*active); navigation::expand_hunk_context_all(*active, key); }
             }
-        }
-    }
-
-    // Copy button only where drag-select-to-copy isn't available (i.e. the
-    // embedded commit-detail diff). In the working-tree diff, select-to-copy
-    // (with file:line) replaces it.
-    if (!(sel && sel->enabled)) {
-        std::string hunkText = diff_detail::hunk_to_text(hunk);
-        auto copyBtn = button(ctx, mk(hunkBtns.ent(), 1),
-            preset::Button("Copy")
-                .with_size(ComponentSize{compactActions ? pixels(36) : children(), pixels(compactActions ? 22 : 18)})
-                .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
-                    .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
-                .with_custom_background(theme::pick({78, 78, 86, 255}, {222, 222, 226, 255}))
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(pixels(12))
-                .with_debug_name("copy_hunk_btn"));
-        if (copyBtn) {
-            afterhours::clipboard::set_text(hunkText);
-            afterhours::toast::send_info(ctx, "Copied hunk to clipboard", 1.5f);
         }
     }
 
@@ -2027,24 +2006,6 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                 .top = pixels(4), .right = pixels(0),
                 .bottom = pixels(4), .left = pixels(12)})
             .with_debug_name("sbs_hunk_header_label"));
-    {
-        std::string hunkText = diff_detail::hunk_to_text(hunk);
-        auto copyBtn = button(ctx, mk(hunkRow.ent(), 1),
-            preset::Button("Copy")
-                .with_size(ComponentSize{children(), pixels(18)})
-                .with_margin(Margin{.right = pixels(8)})
-                .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = pixels(8)})
-                .with_custom_background(theme::pick({60, 60, 65, 255}, {226, 226, 230, 255}))
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(12))
-                .with_debug_name("copy_sbs_hunk_btn"));
-        if (copyBtn) {
-            afterhours::clipboard::set_text(hunkText);
-            afterhours::toast::send_info(ctx, "Copied hunk to clipboard", 1.5f);
-        }
-    }
     }
     }
 
@@ -2454,30 +2415,24 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
             approve_file(repoPath, fileDiff.filePath, reviewScope);
     }
 
-    {
-        auto fileCopyBtn = button(ctx, mk(fileBtns.ent(), 1),
-            preset::Button(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy Diff")
-                .with_size(ComponentSize{children(), pixels(28)})
-                .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = pixels(8)})
-                .with_transparent_bg()
-                .with_custom_text_color(theme::TEXT_PRIMARY)
-                .with_font_size(pixels(12))
-                .with_debug_name("copy_file_diff_btn"));
-        if (fileCopyBtn) {
-            std::string diffText = diff_detail::file_diff_to_text(fileDiff);
-            if (fileDiff.isFullContent) {
-                diffText.clear();
-                for (const auto& hunk : fileDiff.hunks)
-                    for (size_t i = 0; i < hunk.lines.size(); ++i) {
-                        diffText += hunk.lines[i].substr(1);
-                        if (!hunk.noNewline.contains(i)) diffText += '\n';
-                    }
-            }
-            afterhours::clipboard::set_text(diffText);
-            afterhours::toast::send_info(ctx, fileDiff.isPartialContent ? "Copied loaded page to clipboard" : "Copied diff to clipboard", 1.5f);
+    // Copy lives on the header's context menu and Edit › Copy Diff / Copy Path.
+    header.addComponentIfMissing<HasClickListener>([](Entity&){});
+    if (ctx.is_right_click(header.id)) {
+        remember_focus_origin(ctx, header);
+        std::string text = diff_detail::file_diff_to_text(fileDiff);
+        if (fileDiff.isFullContent) {
+            text.clear();
+            for (const auto& hunk : fileDiff.hunks)
+                for (size_t i = 0; i < hunk.lines.size(); ++i) {
+                    text += hunk.lines[i].substr(1);
+                    if (!hunk.noNewline.contains(i)) text += '\n';
+                }
         }
+        show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+            ContextMenuItem::item(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy diff",
+                [text] { afterhours::clipboard::set_text(text); }),
+            ContextMenuItem::item("Copy path", [path = fileDiff.filePath] { afterhours::clipboard::set_text(path); }),
+        });
     }
     return false;
 }

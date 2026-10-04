@@ -22,7 +22,7 @@ for filename in sys.argv[1:]:
         assert rect["x"] >= parent["x"] - 0.1, by_id[key]
         assert rect["x"] + rect["width"] <= parent["x"] + parent["width"] + 0.1, by_id[key]
         assert rect["y"] + rect["height"] <= parent["y"] + parent["height"] + 0.1, by_id[key]
-    for name in ("open_full_file", "approve_file_btn", "copy_file_diff_btn"):
+    for name in ("open_full_file", "approve_file_btn"):
         assert by_name[name]["rect"]["height"] / scale >= 28, by_name[name]
     if "folded" in Path(filename).stem:
         assert "hunk_header_label" not in by_name

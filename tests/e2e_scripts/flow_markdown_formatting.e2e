@@ -41,5 +41,4 @@ wait_for_refresh
 wait_frames 10
 screenshot markdown_formatting_image
 expect_no_text "Image: Logo"
-expect_text "Copy file"
 validate active_content=Source

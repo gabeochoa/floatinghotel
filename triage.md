@@ -301,9 +301,14 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       uninitialized checkout and a pointer to a commit the checkout lacks each say so.
       Read in the background, re-read on repository refresh.
       `tests/submodule_view.py` covers all three at 100/140/200.
-- [ ] Reduce redundant visible Copy/Copy Diff buttons where selection and keyboard
+- [x] Reduce redundant visible Copy/Copy Diff buttons where selection and keyboard
       copy provide the same action. Keep discoverable, keyboard-accessible menu actions
       for plain code, diff, path, and location; preserve bulk diff export.
+      The file header's Copy Diff button moved to its right-click menu (Copy diff /
+      Copy file / Copy loaded page, Copy path); the never-shown hunk Copy buttons
+      are gone (the hunk menu keeps Copy hunk). Edit gains Copy Diff (every file in
+      the review) and Copy Path (caret, anchor, or selected file) beside Copy and
+      Copy with location. `tests/copy_actions.py` checks the clipboard at 100/140/200.
 - [x] Add enclosing function/class context to diff navigation using the planned
       document-symbol scan. Preserve revision and side and label approximate scopes.
       Hunk captions show `≈ name` from a text outline of the file at the diff's

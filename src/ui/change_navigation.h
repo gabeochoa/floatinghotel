@@ -6,21 +6,24 @@
 
 namespace ui {
 
+// The diff the active review shows; null while it loads.
+inline const std::vector<ecs::FileDiff>* review_files(ecs::RepoComponent& repo) {
+    const auto scope = reading::scope(repo.workspace().review());
+    if (scope == "wt") return &repo.currentDiff;
+    if (scope == "index") return &repo.stagedDiff;
+    if (repo.comparisonOpen())
+        return repo.comparisonFuture.valid() || repo.comparisonLoadedScope != scope ? nullptr : &repo.comparisonDiff;
+    const auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
+    if (!cache || cache->patchFuture.valid() || cache->cachedCommitHash != repo.selectedCommitHash() ||
+        cache->cachedParentHash != ecs::selected_commit_parent(repo)) return nullptr;
+    return &cache->commitDetailDiff;
+}
+
 inline std::string navigate_change(ecs::RepoComponent& repo, ecs::ReviewComponent& review, int direction) {
     if (ecs::source_tab_active(repo)) return "Open a review to move between changes";
     const auto scope = reading::scope(repo.workspace().review());
-    const std::vector<ecs::FileDiff>* files = nullptr;
-    if (scope == "wt") files = &repo.currentDiff;
-    else if (scope == "index") files = &repo.stagedDiff;
-    else if (repo.comparisonOpen()) {
-        if (repo.comparisonFuture.valid() || repo.comparisonLoadedScope != scope) return "Changes are still loading";
-        files = &repo.comparisonDiff;
-    } else {
-        const auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
-        if (!cache || cache->patchFuture.valid() || cache->cachedCommitHash != repo.selectedCommitHash() ||
-            cache->cachedParentHash != ecs::selected_commit_parent(repo)) return "Changes are still loading";
-        files = &cache->commitDetailDiff;
-    }
+    const auto* files = review_files(repo);
+    if (!files) return "Changes are still loading";
     auto order = ecs::visible_review_file_indices(*files, repo.fileFilter, &review, scope);
     auto changes = reading::change_locations(*files, order, reading::anchor_revision(repo.workspace().location()));
     std::erase_if(changes, [&](const auto& change) {
