@@ -18,6 +18,7 @@
 #include "../util/git_helpers.h"
 #include "../util/file_tree.h"
 #include "../util/commit_graph.h"
+#include "../util/review_anchor.h"
 #include "network_ops_system.h"
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
@@ -134,6 +135,19 @@ inline bool execute_commit(RepoComponent& repo,
         editor.body.clear();
         editor.isVisible = false;
         repo.refreshRequested = true;
+        auto* review = find_singleton<ReviewComponent, ActiveTab>();
+        if (review && std::ranges::any_of(review->comments, [](const auto& c) { return c.scope == "wt" || c.scope == "index"; })) {
+            auto patch = git::read_commit_patch({repo.repoPath, "HEAD"});
+            auto carried = patch.error.empty() ? review_anchor::carry_to_commit(review->comments, patch.resolvedCommit, patch.files)
+                                               : review_anchor::Carried{};
+            if (carried.moved) review->dirty = true;
+            auto* menu = find_singleton<MenuComponent>();
+            if (menu && carried.moved) menu->pendingToasts.push_back({"Moved " + std::to_string(carried.moved) +
+                " comment" + (carried.moved == 1 ? "" : "s") + " to commit " + patch.resolvedCommit.substr(0, 7), MenuComponent::Notice::Kind::Info});
+            if (menu && carried.ambiguous) menu->pendingToasts.push_back({std::to_string(carried.ambiguous) +
+                " comment" + (carried.ambiguous == 1 ? "" : "s") + " left on the working tree: matches several places in the commit",
+                MenuComponent::Notice::Kind::Info});
+        }
         return true;
     }
     toast_on_git_failure(result, "Commit");
@@ -248,7 +262,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         sidebarPixelWidth_ = sidebarW;  // Set early for all child rendering
 
         float sh_for_tab = static_cast<float>(afterhours::graphics::get_screen_height());
-        const float zoom = ui::zoom::get();
+        const float zoom = ::ui::zoom::get();
         const bool historyCollapsed = repoPtr && Settings::get().section_collapsed(repoPtr->repoPath, "history");
         float filesH = 0.f;
         float commitsH = 0.f;
@@ -2710,17 +2724,22 @@ private:
             " staged and " + std::to_string(unstagedCount) +
             " unstaged changes.\nHow would you like to proceed?";
 
-        // Create modal using modal_impl
+        // Cancel + "Commit Staged Only" + "Stage All & Commit" need ~535px of
+        // row; 480 left the last one outside the dialog. Sized and centred in
+        // the zoomed viewport (see "Modal centering" in docs/afterhours-gaps.md).
+        const float zoom = ::ui::zoom::get();
+        const float width = std::min(640.f, ctx.screen_width / zoom - 32.f);
+        const float height = std::min(560.f, ctx.screen_height / zoom - 32.f);
         auto modalResult = afterhours::modal::detail::modal_impl(
             ctx, mk(uiRoot, DIALOG_ID), editor.showUnstagedDialog,
             ModalConfig{}
-                // Cancel + "Commit Staged Only" + "Stage All & Commit" need
-                // ~535px of row; 480 left the last one outside the dialog.
-                .with_size(pixels(640), h720(380))
+                .with_size(pixels(width), pixels(height))
                 .with_title("Unstaged Changes")
                 .with_show_close_button(false));
 
         if (!modalResult) return;
+        modalResult.cmp().absolute_pos_x = (ctx.screen_width - width * zoom) * 0.5f;
+        modalResult.cmp().absolute_pos_y = (ctx.screen_height - height * zoom) * 0.5f;
 
         auto& modalEnt = modalResult.ent();
 

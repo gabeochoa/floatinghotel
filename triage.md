@@ -280,9 +280,17 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       and its review key stay whole. `test_git_commands` applies parts out of
       order next to each other, with a missing final newline, and checks that a
       stale patch is rejected; `tests/change_chunks.py` covers the menu.
-- [ ] Carry a working-tree comment to the commit that contains its reviewed change.
+- [x] Carry a working-tree comment to the commit that contains its reviewed change.
       Match saved content rather than line number alone, preserve ambiguity warnings,
       and keep exported commit/file/line identities correct across later edits.
+      After a commit, `review_anchor::carry_to_commit` moves unresolved working-tree
+      and index comments whose saved lines locate (by content) onto changed lines of
+      the new commit: scope becomes the SHA, line/file follow the commit patch, and
+      the excerpt/revision are recaptured from the commit hunk, so the export no
+      longer depends on the working tree. Ambiguous matches stay on the working tree
+      and are reported in a toast; multi-range comments are not carried yet.
+      `tests/carry_comments.py` covers it at 100/140/200. The Unstaged Changes commit
+      dialog is now centred in the zoomed viewport (it was off-screen at 200%).
 - [ ] Add a richer submodule view showing the old/new commit range and a route into
       the submodule repository. Detection, gitlink diffs, and pointer staging already
       exist; handle missing checkouts and unavailable objects explicitly.

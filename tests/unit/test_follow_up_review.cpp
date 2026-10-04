@@ -82,3 +82,39 @@ TEST(large_lists_keep_deterministic_unique_positions) {
 }
 
 int main() { RUN_ALL_TESTS(); }
+
+TEST(commit_carries_comments_on_its_changed_lines_by_content) {
+    ecs::FileDiff commit;
+    commit.filePath = "a.cpp";
+    ecs::DiffHunk hunk;
+    hunk.oldStart = 5; hunk.newStart = 7;
+    hunk.oldCount = 3; hunk.newCount = 4;
+    hunk.lines = {" keep", "-old", "+new", "+dup", " tail"};
+    ecs::DiffHunk dups;
+    dups.oldStart = 20; dups.newStart = 22;
+    dups.oldCount = dups.newCount = 2;
+    dups.lines = {" twin", " twin"};
+    commit.hunks = {hunk, dups};
+    ecs::ReviewComponent::Comment moved{"wt", "a.cpp", 3, "rename this", 4};
+    moved.codeContext = "3: new\n4: dup\n";
+    auto context = moved;
+    context.line = context.endLine = 1;
+    context.codeContext = "1: keep\n";
+    auto ambiguous = context;
+    ambiguous.codeContext = "1: twin\n";
+    auto resolved = moved;
+    resolved.resolved = true;
+    std::vector<ecs::ReviewComponent::Comment> comments{moved, context, ambiguous, resolved};
+    const std::vector files{commit};
+    const auto carried = review_anchor::carry_to_commit(comments, "abc123", files);
+    ASSERT_EQ(carried.moved, 1u);
+    ASSERT_EQ(carried.ambiguous, 1u);
+    ASSERT_EQ(comments[0].scope, "abc123");
+    ASSERT_EQ(comments[0].line, 8);
+    ASSERT_EQ(comments[0].endLine, 9);
+    ASSERT_TRUE(comments[0].revision.starts_with("abc123; hunk "));
+    ASSERT_EQ(review_anchor::locate(comments[0], &files).status, review_anchor::Status::Current);
+    ASSERT_EQ(comments[1].scope, "wt");
+    ASSERT_EQ(comments[2].scope, "wt");
+    ASSERT_EQ(comments[3].scope, "wt");
+}

@@ -105,3 +105,55 @@ inline std::string preview(std::string text) {
 }
 
 }
+
+namespace review_anchor {
+
+struct Carried { size_t moved = 0, ambiguous = 0; };
+
+// After a commit, moves unresolved working-tree/index comments whose saved
+// lines are changed lines of `commit` (matched by content, so earlier edits
+// in the file don't matter) onto the commit, re-anchored to its line numbers
+// with a fresh excerpt. Ambiguous matches stay put and are counted.
+// ponytail: multi-range comments stay put; shift each range when needed.
+inline Carried carry_to_commit(std::vector<ecs::ReviewComponent::Comment>& comments,
+    const std::string& commit, const std::vector<ecs::FileDiff>& files) {
+    Carried carried;
+    for (auto& comment : comments) {
+        if (comment.resolved || (comment.scope != "wt" && comment.scope != "index") || comment.ranges.size() > 1) continue;
+        const auto anchor = locate(comment, &files);
+        if (anchor.status == Status::Ambiguous) ++carried.ambiguous;
+        if (anchor.status != Status::Current && anchor.status != Status::Relocated) continue;
+        const int span = std::max(0, comment.endLine - comment.line);
+        const auto file = std::find_if(files.begin(), files.end(), [&](const auto& candidate) {
+            return candidate.filePath == comment.file || (comment.oldSide && candidate.oldPath == comment.file);
+        });
+        for (const auto& hunk : file->hunks) {
+            const int first = comment.oldSide ? hunk.oldStart : hunk.newStart;
+            const int count = comment.oldSide ? hunk.oldCount : hunk.newCount;
+            if (anchor.line < first || anchor.line + span >= first + count) continue;
+            bool changed = false;
+            int number = first;
+            for (const auto& text : hunk.lines) {
+                const char sign = text.empty() ? ' ' : text.front();
+                if (sign == (comment.oldSide ? '+' : '-')) continue;
+                changed |= sign != ' ' && number >= anchor.line && number <= anchor.line + span;
+                ++number;
+            }
+            if (!changed) break;
+            auto moved = comment;
+            moved.scope = commit;
+            moved.file = comment.oldSide ? file->oldPath : file->filePath;
+            if (moved.file.empty()) moved.file = file->filePath;
+            moved.line = anchor.line;
+            moved.endLine = comment.endLine ? anchor.line + span : 0;
+            for (auto& range : moved.ranges) range = {anchor.line, anchor.line + span, comment.oldSide};
+            moved.codeContext.clear();
+            comment = ecs::comment_with_context(std::move(moved), hunk, "");
+            ++carried.moved;
+            break;
+        }
+    }
+    return carried;
+}
+
+}
