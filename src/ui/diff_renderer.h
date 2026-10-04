@@ -1401,6 +1401,29 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
             }
             return rows;
         });
+    } else if (vp && vp->active && !(vp->restoreAnchor && !vp->restoredAnchor && vp->restoreAnchor->path == fileDiff.filePath) &&
+               !(sel->findNavigate && sel->findMatch && sel->findMatch->file == fileDiff.filePath)) {
+        // Row prefix sums per hunk, so off-screen lines skip by height
+        // instead of each wrapping through the per-line cache, which a
+        // review of thousands of files cycles through faster than it holds.
+        const auto identity = std::bit_cast<std::array<char, 2 * sizeof(std::uint64_t)>>(
+            std::array<std::uint64_t, 2>{fileDiff.renderIdentity, hunk.renderIdentity});
+        sourceRows = diff_metrics().rows_view({identity.data(), identity.size()}, width * zoom::get(), sel->fontSize, sel->visibleWhitespace, 'h', [&] {
+            std::vector<size_t> rows{0};
+            rows.reserve(hunk.lines.size() + 1);
+            for (int index = 0, oldNumber = hunk.oldStart, newNumber = hunk.newStart; index < static_cast<int>(hunk.lines.size()); ++index) {
+                const auto& line = hunk.lines[static_cast<size_t>(index)];
+                const char sign = line.empty() ? ' ' : line.front();
+                const auto gutter = code_gutter::prefix(sign == '+' ? "" : std::to_string(oldNumber), sign == '-' ? "" : std::to_string(newNumber), sign, false);
+                const float available = std::max(1.f, width * zoom::get() - diff_sel::content_x_offset(*sel, gutter) - 12.f);
+                const auto breaks = diff_sel::wrapped_rows(*sel, line.empty() ? "" : line.substr(1), available, !hunk.noNewline.contains(static_cast<size_t>(index)),
+                    std::to_string(fileDiff.renderIdentity) + (sign == '-' ? ":b:" + std::to_string(oldNumber) : ":a:" + std::to_string(newNumber)));
+                rows.push_back(rows.back() + breaks.size() - 1);
+                if (sign != '+') ++oldNumber;
+                if (sign != '-') ++newNumber;
+            }
+            return rows;
+        });
     }
     auto* foldOwner = fileDiff.isFullContent ? ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>() : nullptr;
     if (foldOwner && sel->findNavigate && sel->findMatch) navigation::reveal_source_line(*foldOwner, sel->findMatch->line);
@@ -1428,8 +1451,9 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
                 vp->pending += height;
                 vp->curY += height;
                 nextId += static_cast<int>(count);
-                ++oldLine;
-                ++newLine;
+                const char sign = hunk.lines[index].empty() ? ' ' : hunk.lines[index].front();
+                if (sign != '+') ++oldLine;
+                if (sign != '-') ++newLine;
                 continue;
             }
         }

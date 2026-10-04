@@ -343,9 +343,13 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       sidebar. Inactive tabs already skip file watching, restored tabs load on
       first activation, and opening an open path focuses its tab, so there are
       no duplicate payloads to share. No shared data or background refresh needed.
-- [ ] Reviewing 2000 changed files costs ~120 ms/frame: MainContentSystem
-      builds ~8.7k entities (`tests/repo_tab_payload.py` one_tab bench). Cull
-      off-screen files in the review the way rows are culled.
+- [ ] Reviewing 2000 changed files costs ~40 ms/frame (`tests/repo_tab_payload.py`
+      one_tab bench; was ~120). Fixed: per-line wrap measurement thrashed its
+      3 MB LRU every frame; hunks now cache row sums in their own budget and
+      off-screen lines skip by height. Left: every file still builds its
+      spacer, header row and footer (~8.7k entities). Culling them needs the
+      sticky-header chain, layout rows and review-cursor ordinals to survive
+      skipped files.
 
 ## Afterhours work
 

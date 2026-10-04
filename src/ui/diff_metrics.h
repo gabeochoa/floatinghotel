@@ -22,6 +22,10 @@ struct MetricRows {
 class DiffMetricsCache {
     ByteCache<std::string> signatures_{2 * 1024 * 1024};
     SharedByteCache<std::vector<size_t>> wraps_{3 * 1024 * 1024};
+    // Per-hunk and per-file row sums live apart from per-line wraps: a large
+    // review touches more lines per frame than wraps_ holds, and sharing one
+    // LRU let that churn evict the sums that let off-screen lines skip.
+    SharedByteCache<std::vector<size_t>> rows_{4 * 1024 * 1024};
     size_t signatureScans_ = 0, hunkScans_ = 0, wrapScans_ = 0, wrapHits_ = 0;
     static std::string metrics_key(float width, float fontSize, bool whitespace, char kind, std::string_view content) {
         const auto widthBytes = std::bit_cast<std::array<char, sizeof(float)>>(width);
@@ -79,11 +83,11 @@ public:
     template<class Build>
     MetricRows rows_view(std::string_view identity, float width, float fontSize, bool whitespace, char kind, Build build) {
         auto key = metrics_key(width, fontSize, whitespace, kind, identity);
-        if (auto value = wraps_.get(key)) return {std::move(value)};
+        if (auto value = rows_.get(key)) return {std::move(value)};
         auto value = build();
         value.shrink_to_fit();
         const auto bytes = value.capacity() * sizeof(size_t);
-        if (auto owned = wraps_.put(std::move(key), value, bytes)) return {std::move(owned)};
+        if (auto owned = rows_.put(std::move(key), value, bytes)) return {std::move(owned)};
         return {std::make_shared<const std::vector<size_t>>(std::move(value))};
     }
     template<class Build>
@@ -98,7 +102,7 @@ public:
     size_t signature_scans() const { return signatureScans_; }
     size_t wrap_scans() const { return wrapScans_; }
     size_t wrap_hits() const { return wrapHits_; }
-    size_t bytes() const { return signatures_.bytes() + wraps_.bytes(); }
+    size_t bytes() const { return signatures_.bytes() + wraps_.bytes() + rows_.bytes(); }
 };
 
 inline DiffMetricsCache& diff_metrics() {
