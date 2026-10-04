@@ -223,8 +223,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 if (diff_reconcile::reconcile(repo.currentDiff, git::parse_diff(result.stdout_str())))
                     ++repo.patchGeneration;
                 // Untracked previews are appended to currentDiff, not in git diff:
-                // a worktree refresh must re-read them even if status is unchanged.
-                if (!repo.untrackedFiles.empty() && refresh_scope::has(pf.scope, refresh_scope::Scope::Worktree))
+                // reconcile just dropped them, so re-read them even if status is unchanged.
+                if (!repo.untrackedFiles.empty())
                     repo.untrackedReviewGeneration.reset();
             }
         }

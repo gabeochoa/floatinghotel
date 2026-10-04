@@ -1082,6 +1082,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 }
             }
 
+            const bool selectedInFileDiffs = !selectedDiffs.empty();
             bool reviewing = reviewPtr && reviewPtr->reviewing;
             bool selUntracked = false;
             for (auto& u : repo.untrackedFiles)
@@ -1119,7 +1120,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // (Approve/Comment) reserve room instead of overflowing off-screen.
                 float diffW = layout.mainContent.width;
                 auto* review = find_singleton<ReviewComponent, ActiveTab>();
-                ui::render_diff(ctx, mainBg.ent(), fileDiffs.empty() ? selectedDiffs : fileDiffs,
+                ui::render_diff(ctx, mainBg.ent(), selectedInFileDiffs ? fileDiffs : selectedDiffs,
                                diffW, layout.mainContent.height, false, fileJustChanged, sideBySide,
                                repo.repoPath, repo.selectedFileStaged() ? nullptr : review,
                                repo.selectedFileStaged() ? "index" : "wt");
