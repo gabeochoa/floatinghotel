@@ -2658,3 +2658,12 @@ asks for `theme::INPUT_BG` and gets the Secondary colour instead, so the light
 theme maps Secondary to a pale field grey rather than the border colour it uses
 in the dark theme. Honouring the caller's background in `text_area` the way
 `text_input` does would let Secondary go back to meaning borders.
+
+### E2E `CMD+` means Control
+
+The E2E key parser treats `CMD+` as Control (`key_codes.h`: "Mac convention:
+Cmd = Ctrl for shortcuts"). floatinghotel keeps the two apart: Find, Go to File
+and ⌘⏎ need real Command, because Control drives vim paging (Ctrl+F/B/D/U). So
+`key CMD+P` sends Ctrl+P and opens nothing. Scripts hold Super instead
+(`hold_key 343` / `key P` / `release_key 343`). A distinct `SUPER+` or `META+`
+modifier in `KeyCombo` would let scripts say what they mean.
