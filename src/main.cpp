@@ -18,6 +18,7 @@
 #include <algorithm>
 
 #ifdef __APPLE__
+#include <mach/mach.h>
 extern "C" void metal_activate_app(void);
 extern "C" void metal_draw_first_frame_early(void);
 extern "C" void metal_defer_window_presentation(void);
@@ -159,6 +160,21 @@ struct HandleBenchFrames : afterhours::System<afterhours::testing::PendingE2ECom
         if (cmd.is_consumed() || !cmd.is("bench_frames")) return;
         int n = cmd.has_args(1) ? cmd.arg_as<int>(0) : 120;
         e2e_bench::requested = std::max(1, n);
+        cmd.consume();
+    }
+};
+
+// log_footprint LABEL: log the process's physical footprint (what
+// `footprint` and Activity Monitor report, GPU allocations included).
+struct HandleLogFootprint : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || !cmd.is("log_footprint")) return;
+#ifdef __APPLE__
+        task_vm_info_data_t info{};
+        mach_msg_type_number_t count = TASK_VM_INFO_COUNT;
+        if (task_info(mach_task_self(), TASK_VM_INFO, reinterpret_cast<task_info_t>(&info), &count) == KERN_SUCCESS)
+            log_info("footprint {}: {:.1f} MB", cmd.has_args(1) ? cmd.arg(0) : "", static_cast<double>(info.phys_footprint) / (1024.0 * 1024.0));
+#endif
         cmd.consume();
     }
 };
@@ -591,6 +607,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleClearGitCommandLog>());
             sm.register_update_system(std::make_unique<HandleIdlePacingCommands>());
             sm.register_update_system(std::make_unique<HandleBenchFrames>());
+            sm.register_update_system(std::make_unique<HandleLogFootprint>());
             {
                 namespace perf = afterhours::testing::perf_commands;
                 perf::builtin_profile::enable();

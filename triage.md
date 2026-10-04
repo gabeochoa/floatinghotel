@@ -334,9 +334,18 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       to the context footer (rows stay flat and culled; header height and row
       geometry unchanged), top-rounded header. `tests/diff_card_border.py`
       covers working-tree and commit views at 100/140/200%, scrolled.
-- [ ] Make large repository tabs economical as well as document tabs. Measure
+- [x] Make large repository tabs economical as well as document tabs. Measure
       inactive repository payloads and duplicate opens before considering shared
       immutable data or opt-in background refresh. Preserve separate reading state.
+      Measured (`tests/repo_tab_payload.py`, E2E `log_footprint`) on two
+      2k-change / 3k-commit repos: a loaded tab costs ~35 MB footprint; with a
+      reviewed tab in the background frames cost 3.4 ms, same as a lone
+      sidebar. Inactive tabs already skip file watching, restored tabs load on
+      first activation, and opening an open path focuses its tab, so there are
+      no duplicate payloads to share. No shared data or background refresh needed.
+- [ ] Reviewing 2000 changed files costs ~120 ms/frame: MainContentSystem
+      builds ~8.7k entities (`tests/repo_tab_payload.py` one_tab bench). Cull
+      off-screen files in the review the way rows are culled.
 
 ## Afterhours work
 
