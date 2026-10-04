@@ -264,8 +264,10 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
 - [ ] Reduce redundant visible Copy/Copy Diff buttons where selection and keyboard
       copy provide the same action. Keep discoverable, keyboard-accessible menu actions
       for plain code, diff, path, and location; preserve bulk diff export.
-- [ ] Add enclosing function/class context to diff navigation using the planned
+- [x] Add enclosing function/class context to diff navigation using the planned
       document-symbol scan. Preserve revision and side and label approximate scopes.
+      Hunk captions show `≈ name` from a text outline of the file at the diff's
+      revision (old side for deletions). `flow_hunk_scope.e2e`.
 - [x] Persist the command-log height. The saved value uses logical pixels and
       survives temporary viewport clamping. Dragging, restart, dock transitions,
       and narrow windows pass at 100%, 140%, and 200%.

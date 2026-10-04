@@ -336,6 +336,14 @@ struct MarkdownLinkRuntime {
     async_work::Task<OutlineResult> future;  // finds the anchor's heading
 };
 
+// Text outlines of files in the diff, for approximate hunk scopes. Keyed by
+// scope, path, revision, and data generation; one scan runs at a time.
+struct HunkScopeRuntime {
+    std::map<std::string, std::vector<symbol_outline::Symbol>> outlines;
+    async_work::Task<OutlineResult> future;
+    std::string pending;
+};
+
 struct HunkContextResult {
     DiffHunk lines;
     std::string error;
@@ -458,6 +466,7 @@ public:
     std::vector<source_folding::Range> sourceFoldRanges;
     SelectionCopyRuntime selectionCopy;
     HunkContextRuntime hunkContext;
+    HunkScopeRuntime hunkScopes;
     std::map<std::string, DiffSyntaxRuntime> diffSyntax;
     async_work::Task<FullFileContent> fullFileFuture;
     loading_feedback::Delay fullFileLoading;

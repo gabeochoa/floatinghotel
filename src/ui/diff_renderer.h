@@ -24,6 +24,7 @@
 #include "context_menu.h"
 #include "image_diff.h"
 #include "hunk_context.h"
+#include "hunk_scope.h"
 #include "reading_position.h"
 #include "zoom.h"
 #include "text_area.h"
@@ -1054,11 +1055,18 @@ inline std::string file_header_label(const ecs::FileDiff& fileDiff) {
     return label;
 }
 
-inline std::vector<afterhours::ui::TextSpan> hunk_caption(const std::string& header) {
+// `scope`, when known, replaces git's function-context guess; "≈" marks it as
+// a text scan rather than a semantic answer.
+inline std::vector<afterhours::ui::TextSpan> hunk_caption(const std::string& header, const std::string& scope = {}) {
     auto rangeEnd = header.find("@@", 2);
     if (rangeEnd == std::string::npos) return {{header, theme::DIFF_HUNK_HEADER}};
     return {{header.substr(0, rangeEnd + 2), theme::DIFF_HUNK_HEADER},
-            {header.substr(rangeEnd + 2), theme::TEXT_TERTIARY}};
+            {scope.empty() ? header.substr(rangeEnd + 2) : " ≈ " + scope, theme::TEXT_TERTIARY}};
+}
+
+inline std::string hunk_scope_label(const ecs::FileDiff& file, const ecs::DiffHunk& hunk, const diff_sel::Session* sel) {
+    auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+    return repo && sel ? ui::hunk_scope::enclosing(*repo, file, hunk, sel->reviewScope) : std::string{};
 }
 
 // ----------------------------------------------------------------------------
@@ -1595,7 +1603,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         .with_debug_name("hunk_caption_clip"));
     div(ctx, mk(captionClip.ent(), 0),
         ComponentConfig{}.with_skip_grid_snap()
-            .with_styled_label(diff_detail::hunk_caption(hunk.header))
+            .with_styled_label(diff_detail::hunk_caption(hunk.header, diff_detail::hunk_scope_label(fileDiff, hunk, sel)))
             .with_size(ComponentSize{percent(1.f), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_font("mono", pixels(14))
@@ -1967,7 +1975,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
         .with_debug_name("hunk_caption_clip"));
     div(ctx, mk(captionClip.ent(), 0),
         ComponentConfig{}.with_skip_grid_snap()
-            .with_styled_label(diff_detail::hunk_caption(hunk.header))
+            .with_styled_label(diff_detail::hunk_caption(hunk.header, diff_detail::hunk_scope_label(fileDiff, hunk, sel)))
             .with_size(ComponentSize{percent(1.f), percent(1.0f)})
             .with_custom_text_color(theme::DIFF_HUNK_HEADER)
             .with_font("mono", pixels(14))

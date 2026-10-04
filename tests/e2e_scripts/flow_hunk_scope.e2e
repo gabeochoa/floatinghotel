@@ -1,0 +1,17 @@
+# Flow: hunk captions name the nearest declaration above the change, from a
+# text outline of the file at the diff's revision, marked approximate.
+make_test_repo
+resize 1280 800
+enable_file_watcher
+wait_frames 5
+touch_file utils.h text "// appended by e2e"
+wait_for_file_change
+disable_file_watcher
+wait_for_refresh
+click_text "utils.h"
+wait_for_refresh
+wait_frames 10
+wait_for_refresh
+wait_frames 5
+screenshot hunk_scope
+expect_text "≈ greet"
