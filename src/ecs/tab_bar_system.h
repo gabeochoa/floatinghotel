@@ -28,17 +28,17 @@ inline std::string repo_display_name(const std::string& path) {
 }
 
 namespace tab_colors {
-    constexpr afterhours::Color STRIP_BG     = {27, 29, 33, 255};
-    constexpr afterhours::Color TAB_ACTIVE   = {43, 52, 65, 255};
-    constexpr afterhours::Color TAB_INACTIVE = {33, 36, 42, 255};
-    constexpr afterhours::Color TAB_HOVER    = {39, 43, 51, 255};
-    constexpr afterhours::Color TAB_TEXT     = {156, 162, 175, 255};
-    constexpr afterhours::Color TAB_TEXT_ACT = {228, 230, 235, 255};
-    constexpr afterhours::Color CLOSE_HOVER  = {80, 86, 98, 255};
-    constexpr afterhours::Color BORDER       = {44, 47, 54, 255};
-    constexpr afterhours::Color BORDER_ACT   = {70, 82, 100, 255};
-    constexpr afterhours::Color DOT          = {110, 118, 130, 255};
-    constexpr afterhours::Color PLUS_TEXT    = {156, 162, 175, 255};
+    inline const afterhours::Color& STRIP_BG = theme::TAB_STRIP_BG;
+    inline const afterhours::Color& TAB_ACTIVE = theme::TAB_ACTIVE_BG;
+    inline const afterhours::Color& TAB_INACTIVE = theme::TAB_INACTIVE_BG;
+    inline const afterhours::Color& TAB_HOVER = theme::HOVER_BG;
+    inline const afterhours::Color& TAB_TEXT = theme::TEXT_SECONDARY;
+    inline const afterhours::Color& TAB_TEXT_ACT = theme::TEXT_PRIMARY;
+    inline const afterhours::Color& CLOSE_HOVER = theme::TAB_CLOSE_HOVER;
+    inline const afterhours::Color& BORDER = theme::BORDER;
+    inline const afterhours::Color& BORDER_ACT = theme::TAB_BORDER_ACTIVE;
+    inline const afterhours::Color& DOT = theme::TAB_DOT;
+    inline const afterhours::Color& PLUS_TEXT = theme::TEXT_SECONDARY;
 }
 
 struct TabBarSystem : afterhours::System<UIContext<InputAction>> {

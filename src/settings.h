@@ -38,6 +38,9 @@ struct Settings {
     bool get_window_collapsed() const;
     bool get_vim_mode() const;
     void set_vim_mode(bool enabled);
+    // "dark" or "light".
+    const std::string& get_theme() const;
+    void set_theme(const std::string& name);
     int get_expanded_window_width() const;
     void remember_window_size(int width, int height, bool collapsed, int expandedWidth, float sidebarWidth);
 

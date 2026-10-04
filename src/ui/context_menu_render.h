@@ -19,15 +19,15 @@ namespace {
 constexpr int LAYER_PANEL = 2000;
 constexpr int LAYER_ITEM = 2001;
 
-constexpr afterhours::Color PANEL_BG = {45, 45, 45, 255};
-constexpr afterhours::Color PANEL_BORDER = {58, 58, 58, 255};
-constexpr afterhours::Color ITEM_TEXT = {204, 204, 204, 255};
-constexpr afterhours::Color ITEM_HOVER_BG = {4, 57, 94, 255};
-constexpr afterhours::Color ITEM_HOVER_TEXT = {255, 255, 255, 255};
-constexpr afterhours::Color SHORTCUT_TEXT = {128, 128, 128, 255};
-constexpr afterhours::Color SEPARATOR_COL = {58, 58, 58, 255};
-constexpr afterhours::Color DISABLED_TEXT = {90, 90, 90, 255};
-constexpr afterhours::Color DESTRUCTIVE_TEXT = {235, 94, 94, 255};
+const afterhours::Color& PANEL_BG = theme::MENU_PANEL_BG;
+const afterhours::Color& PANEL_BORDER = theme::MENU_BORDER;
+const afterhours::Color& ITEM_TEXT = theme::MENU_TEXT;
+const afterhours::Color& ITEM_HOVER_BG = theme::MENU_HOVER_BG;
+const afterhours::Color& ITEM_HOVER_TEXT = theme::MENU_HOVER_TEXT;
+const afterhours::Color& SHORTCUT_TEXT = theme::MENU_SHORTCUT_TEXT;
+const afterhours::Color& SEPARATOR_COL = theme::MENU_BORDER;
+const afterhours::Color& DISABLED_TEXT = theme::MENU_DISABLED_TEXT;
+const afterhours::Color& DESTRUCTIVE_TEXT = theme::DESTRUCTIVE_TEXT;
 
 }  // namespace
 

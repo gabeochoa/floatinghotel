@@ -237,7 +237,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_absolute_position()
                 .with_translate(layout.sidebar.x, layout.sidebar.y)
                 .with_custom_background(theme::SIDEBAR_BG)
-                .with_border_right(afterhours::Color{58, 58, 58, 80})
+                .with_border_right(theme::pick({58, 58, 58, 80}, {0, 0, 0, 30}))
                 .with_flex_direction(FlexDirection::Column)
                 .with_overflow(Overflow::Hidden, Axis::Y)
                 .with_roundness(0.0f)
@@ -1350,7 +1350,7 @@ private:
             auto bar = div(ctx, mk(status.ent(), 0),
                 ComponentConfig{}
                     .with_size(ComponentSize{pixels(32), pixels(4)})
-                    .with_custom_background(afterhours::Color{51, 51, 51, 255})
+                    .with_custom_background(theme::pick({51, 51, 51, 255}, {218, 218, 222, 255}))
                     .with_corner_radius(2.0f)
                     .with_debug_name("prog_bar"));
             div(ctx, mk(bar.ent(), 0),
@@ -1589,7 +1589,7 @@ private:
         // Branch name takes whatever the badge, tracking and delete button
         // leave. This used to subtract each sibling by hand because percent(1)
         // resolved to the whole row and overflowed them; expand() does it now.
-        auto nameColor = isCurrent ? afterhours::Color{255, 255, 255, 255}
+        auto nameColor = isCurrent ? theme::pick({255, 255, 255, 255}, {0, 0, 0, 255})
                                    : theme::TEXT_PRIMARY;
         div(ctx, mk(rowResult.ent(), 3),
             ComponentConfig{}
@@ -2172,7 +2172,7 @@ private:
                     .with_padding(Padding{
                         .top = h720(12), .right = pixels(8),
                         .bottom = h720(4), .left = pixels(8)})
-                    .with_custom_text_color(afterhours::Color{110, 110, 110, 255})
+                    .with_custom_text_color(theme::pick({110, 110, 110, 255}, {140, 140, 144, 255}))
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("tab_empty"));
@@ -2473,7 +2473,7 @@ private:
                 .with_size(ComponentSize{pixels(std::max(0.f, sidebarW - 8.f)), pixels(ROW_H)})
                 .with_margin(Margin{.left = pixels(4), .right = pixels(4)})
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
-                .with_border(selected ? afterhours::Color{69, 83, 103, 255} : afterhours::Color{0, 0, 0, 0}, pixels(1))
+                .with_border(selected ? theme::pick({69, 83, 103, 255}, {150, 180, 220, 255}) : afterhours::Color{0, 0, 0, 0}, pixels(1))
                 .with_padding(Padding{
                     .top = pixels(0), .right = pixels(4),
                     .bottom = pixels(0), .left = pixels(ROW_INSET_L)})

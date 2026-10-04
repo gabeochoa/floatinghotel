@@ -284,8 +284,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_margin(Margin{
                     .top = pixels(2), .bottom = pixels(6),
                     .left = pixels(PAD), .right = {}})
-                .with_custom_background(afterhours::Color{51, 42, 24, 255})
-                .with_custom_text_color(afterhours::Color{226, 192, 141, 255})
+                .with_custom_background(theme::pick({51, 42, 24, 255}, {253, 243, 220, 255}))
+                .with_custom_text_color(theme::pick({226, 192, 141, 255}, {120, 80, 10, 255}))
                 .with_font_size(pixels(12))
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                 .with_corner_radius(theme::layout::RADIUS_BOX)

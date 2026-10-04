@@ -13,6 +13,7 @@
 
 #include "input_mapping.h"
 #include "rl.h"
+#include "settings.h"
 #include "ui/theme.h"
 
 #include <afterhours/src/core/key_codes.h>
@@ -60,6 +61,32 @@ std::string resolve_resource_root() {
 
 Preload::Preload() {}
 
+void apply_ui_theme(bool light) {
+    ::theme::set_theme(light ? ::theme::ThemeName::Light : ::theme::ThemeName::Dark);
+    // The library's widget defaults read these, not the live palette.
+    ui::imm::ThemeDefaults::get()
+        .set_theme_color(ui::Theme::Usage::Primary,
+                         ::theme::BUTTON_PRIMARY)
+        .set_theme_color(ui::Theme::Usage::Error,
+                         afterhours::Color{220, 76, 71, 255})
+        .set_theme_color(ui::Theme::Usage::Font,
+                         ::theme::TEXT_PRIMARY)
+        .set_theme_color(ui::Theme::Usage::DarkFont,
+                         ::theme::WINDOW_BG)
+        .set_theme_color(ui::Theme::Usage::Background,
+                         ::theme::WINDOW_BG)
+        .set_theme_color(ui::Theme::Usage::Surface,
+                         ::theme::SIDEBAR_BG)
+        // Also every text field's fill (text_area ignores custom backgrounds).
+        .set_theme_color(ui::Theme::Usage::Secondary,
+                         ::theme::pick(::theme::BORDER, {244, 244, 246, 255}))
+        .set_theme_color(ui::Theme::Usage::Accent,
+                         ::theme::TEXT_ACCENT)
+        .set_theme_color(ui::Theme::Usage::Focus, ::theme::FOCUS_RING);
+}
+
+
+
 Preload& Preload::init(const char* /*title*/) {
     files::init("floatinghotel", resolve_resource_root());
 
@@ -103,26 +130,8 @@ Preload& Preload::make_singleton() {
     fontMgr.load_font("mono", mono_font_path.c_str());
     fontMgr.load_font("ui-bold", files::get_resource_path("fonts", "Roboto-Bold.ttf").string().c_str());
 
-    // Dark theme setup
     {
-        ui::imm::ThemeDefaults::get()
-            .set_theme_color(ui::Theme::Usage::Primary,
-                             ::theme::BUTTON_PRIMARY)
-            .set_theme_color(ui::Theme::Usage::Error,
-                             afterhours::Color{220, 76, 71, 255})
-            .set_theme_color(ui::Theme::Usage::Font,
-                             ::theme::TEXT_PRIMARY)
-            .set_theme_color(ui::Theme::Usage::DarkFont,
-                             ::theme::WINDOW_BG)
-            .set_theme_color(ui::Theme::Usage::Background,
-                             ::theme::WINDOW_BG)
-            .set_theme_color(ui::Theme::Usage::Surface,
-                             ::theme::SIDEBAR_BG)
-            .set_theme_color(ui::Theme::Usage::Secondary,
-                             ::theme::BORDER)
-            .set_theme_color(ui::Theme::Usage::Accent,
-                             ::theme::TEXT_ACCENT)
-            .set_theme_color(ui::Theme::Usage::Focus, ::theme::FOCUS_RING);
+        apply_ui_theme(Settings::get().get_theme() == "light");
 
         // Four typography tiers (values are h720 reference pixels):
         //   Small/Caption = 12, Body/Medium = 14, Subhead/Large = 16,

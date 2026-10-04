@@ -2649,3 +2649,12 @@ using the bold face through `with_font("ui-bold", ...)` look right. The Markdown
 preview therefore strips `**bold**` markers but draws the text at regular
 weight; switching its span to `FontWeight::Bold` is a one-line change once
 weighted runs match their neighbours.
+
+### Text areas ignore a custom background
+
+`text_input` uses a caller's `with_custom_background` for its field, but
+`text_area` always fills with `Theme::Usage::Secondary`. The commit message
+asks for `theme::INPUT_BG` and gets the Secondary colour instead, so the light
+theme maps Secondary to a pale field grey rather than the border colour it uses
+in the dark theme. Honouring the caller's background in `text_area` the way
+`text_input` does would let Secondary go back to meaning borders.

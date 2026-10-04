@@ -116,7 +116,7 @@ inline std::vector<afterhours::ui::TextSpan> repo_search_match_label(const Searc
         const auto next = code_wrap::next_codepoint(match.text, at);
         if (next > end) break;
         const bool highlighted = match.highlighted.test(at - match.excerptStart);
-        const auto color = highlighted ? afterhours::Color{190, 215, 255, 255} : theme::TEXT_PRIMARY;
+        const auto color = highlighted ? theme::pick({190, 215, 255, 255}, {0, 80, 170, 255}) : theme::TEXT_PRIMARY;
         if (previous == static_cast<int>(highlighted)) spans.back().text += match.text.substr(at, next - at);
         else spans.push_back({match.text.substr(at, next - at), color});
         previous = static_cast<int>(highlighted);

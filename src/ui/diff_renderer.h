@@ -79,10 +79,10 @@ inline std::vector<afterhours::ui::TextSpan> highlighted_code(
         auto color = theme::TEXT_PRIMARY;
         switch (token.kind) {
             case code_highlight::Kind::Plain: break;
-            case code_highlight::Kind::Keyword: color = {194, 168, 217, 255}; break;
-            case code_highlight::Kind::String: color = {183, 205, 159, 255}; break;
-            case code_highlight::Kind::Number: color = {215, 185, 145, 255}; break;
-            case code_highlight::Kind::Comment: color = {117, 129, 142, 255}; break;
+            case code_highlight::Kind::Keyword: color = theme::SYNTAX_KEYWORD; break;
+            case code_highlight::Kind::String: color = theme::SYNTAX_STRING; break;
+            case code_highlight::Kind::Number: color = theme::SYNTAX_NUMBER; break;
+            case code_highlight::Kind::Comment: color = theme::SYNTAX_COMMENT; break;
         }
         auto first = std::clamp(begin, position, position + token.text.size()) - position;
         auto last = std::clamp(end, position, position + token.text.size()) - position;
@@ -1176,8 +1176,10 @@ inline bool caret_line(const Session* session, const std::string& path, reading:
 }
 
 inline afterhours::Color active_background(afterhours::Color color) {
-    auto tint = [](unsigned char channel) { return static_cast<unsigned char>(channel + (255 - channel) * .045f); };
-    return {tint(color.r), tint(color.g), tint(color.b), color.a};
+    // Nudged toward the text colour: lighter on dark themes, darker on light.
+    auto tint = [](unsigned char channel, unsigned char text) { return static_cast<unsigned char>(channel + (text - channel) * .045f); };
+    const auto text = theme::TEXT_PRIMARY;
+    return {tint(color.r, text.r), tint(color.g, text.g), tint(color.b, text.b), color.a};
 }
 
 inline void render_caret(UIContext<InputAction>& ctx, Entity& row, const Session& session,
@@ -1242,12 +1244,12 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         sign      = ' ';
     }
 
-    if (moved) bgColor = afterhours::Color{35, 55, 85, 255};
+    if (moved) bgColor = theme::DIFF_MOVED_BG;
     const auto caretSide = prefix == '-' || (prefix == ' ' && sel && sel->caret && sel->caret->side == reading::DiffSide::Before)
         ? reading::DiffSide::Before : reading::DiffSide::After;
     const int caretLine = caretSide == reading::DiffSide::Before ? (oldNum.empty() ? 0 : std::stoi(oldNum)) : (newNum.empty() ? 0 : std::stoi(newNum));
     const bool activeLine = diff_sel::caret_line(sel, filePath, caretSide, caretLine);
-    if (diff_sel::feedback_line(sel, filePath, caretSide, caretLine)) bgColor = afterhours::Color{58, 68, 94, 255};
+    if (diff_sel::feedback_line(sel, filePath, caretSide, caretLine)) bgColor = theme::FEEDBACK_LINE_BG;
     if (activeLine) bgColor = diff_sel::active_background(bgColor);
 
 
@@ -1529,7 +1531,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_flex_direction(FlexDirection::Row)
             .with_justify_content(JustifyContent::SpaceBetween)
             .with_align_items(AlignItems::Center)
-            .with_custom_background(isCursor ? afterhours::Color{38, 79, 140, 255}
+            .with_custom_background(isCursor ? theme::HUNK_CURSOR_BG
                                              : diff_detail::HUNK_HEADER_BG)
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
@@ -1670,7 +1672,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_padding(Padding{
                     .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
                     .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
-                .with_custom_background(afterhours::Color{78, 78, 86, 255})
+                .with_custom_background(theme::pick({78, 78, 86, 255}, {222, 222, 226, 255}))
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(pixels(12))
                 .with_debug_name("copy_hunk_btn"));
@@ -1734,7 +1736,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{w, pixels(diff_detail::COMMENT_COMPOSE_H)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
-                .with_custom_background(afterhours::Color{35, 35, 39, 255})
+                .with_custom_background(theme::pick({35, 35, 39, 255}, {242, 242, 244, 255}))
                 .with_padding(Padding{
                     .top = pixels(2), .right = pixels(8),
                     .bottom = pixels(2), .left = pixels(12)})
@@ -1863,17 +1865,17 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             bg = DIFF_DEL_BG; fg = theme::TEXT_PRIMARY; sign = '-'; break;
         case SbsKind::Empty:
             // Slightly darker than the panel to read as "no line here".
-            bg = afterhours::Color{26, 26, 26, 255};
+            bg = theme::DIFF_EMPTY_BG;
             fg = theme::TEXT_SECONDARY; break;
         default:
             bg = theme::PANEL_BG; fg = theme::TEXT_PRIMARY; break;
     }
 
-    if (moved) bg = afterhours::Color{35, 55, 85, 255};
+    if (moved) bg = theme::DIFF_MOVED_BG;
     const auto caretSide = leftBorder ? reading::DiffSide::Before : reading::DiffSide::After;
     const int caretLine = num.empty() ? 0 : std::stoi(num);
     const bool activeLine = kind != SbsKind::Empty && diff_sel::caret_line(sel, filePath, caretSide, caretLine);
-    if (diff_sel::feedback_line(sel, filePath, caretSide, caretLine)) bg = afterhours::Color{58, 68, 94, 255};
+    if (diff_sel::feedback_line(sel, filePath, caretSide, caretLine)) bg = theme::FEEDBACK_LINE_BG;
     if (activeLine) bg = diff_sel::active_background(bg);
 
     std::string gutter = code_gutter::pad(num) + "  " + sign + " ";
@@ -1994,7 +1996,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                 .with_padding(Padding{
                     .top = pixels(2), .right = pixels(8),
                     .bottom = pixels(2), .left = pixels(8)})
-                .with_custom_background(afterhours::Color{60, 60, 65, 255})
+                .with_custom_background(theme::pick({60, 60, 65, 255}, {226, 226, 230, 255}))
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_font_size(pixels(12))
                 .with_debug_name("copy_sbs_hunk_btn"));
@@ -3176,7 +3178,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label("Exact moved blocks are blue · addition and deletion signs are preserved")
                 .with_size(ComponentSize{w, pixels(28)}).with_font_size(pixels(12))
-                .with_custom_text_color(afterhours::Color{125, 180, 255, 255}).with_debug_name("moved_code_legend"));
+                .with_custom_text_color(theme::DIFF_MOVED_TEXT).with_debug_name("moved_code_legend"));
             vp.built(28.f);
         }
         if (ownerRepo && reviewScope != "snapshot" && !ownerRepo->codeownersDocument.path.empty()) {

@@ -16,18 +16,18 @@ namespace ecs {
 
 // Colors from the mockup spec
 namespace menu_colors {
-    constexpr afterhours::Color BAR_BG        = {30, 30, 30, 255};       // #1E1E1E (matches WINDOW_BG)
-    constexpr afterhours::Color HEADER_TEXT    = {170, 170, 170, 255};   // brighter than secondary so menus don't read disabled
-    constexpr afterhours::Color ACTIVE_BG      = {45, 45, 45, 255};     // #2D2D2D
-    constexpr afterhours::Color ACTIVE_TEXT    = {255, 255, 255, 255};   // #FFFFFF
-    constexpr afterhours::Color DROPDOWN_BG    = {45, 45, 45, 255};     // #2D2D2D
-    constexpr afterhours::Color DROPDOWN_BORDER = {58, 58, 58, 255};    // #3A3A3A
-    constexpr afterhours::Color ITEM_HOVER_BG  = {4, 57, 94, 255};      // Selected blue
-    constexpr afterhours::Color ITEM_TEXT       = {204, 204, 204, 255};  // #CCCCCC
-    constexpr afterhours::Color ITEM_HOVER_TEXT = {255, 255, 255, 255};  // #FFFFFF
-    constexpr afterhours::Color SHORTCUT_TEXT   = {128, 128, 128, 255};  // #808080
-    constexpr afterhours::Color SEPARATOR       = {58, 58, 58, 255};    // #3A3A3A
-    constexpr afterhours::Color DISABLED_TEXT   = {90, 90, 90, 255};
+    inline const afterhours::Color& BAR_BG = theme::MENU_BAR_BG;
+    inline const afterhours::Color& HEADER_TEXT = theme::MENU_HEADER_TEXT;
+    inline const afterhours::Color& ACTIVE_BG = theme::MENU_ACTIVE_BG;
+    inline const afterhours::Color& ACTIVE_TEXT = theme::MENU_ACTIVE_TEXT;
+    inline const afterhours::Color& DROPDOWN_BG = theme::MENU_PANEL_BG;
+    inline const afterhours::Color& DROPDOWN_BORDER = theme::MENU_BORDER;
+    inline const afterhours::Color& ITEM_HOVER_BG = theme::MENU_HOVER_BG;
+    inline const afterhours::Color& ITEM_TEXT = theme::MENU_TEXT;
+    inline const afterhours::Color& ITEM_HOVER_TEXT = theme::MENU_HOVER_TEXT;
+    inline const afterhours::Color& SHORTCUT_TEXT = theme::MENU_SHORTCUT_TEXT;
+    inline const afterhours::Color& SEPARATOR = theme::MENU_BORDER;
+    inline const afterhours::Color& DISABLED_TEXT = theme::MENU_DISABLED_TEXT;
 }
 
 struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {

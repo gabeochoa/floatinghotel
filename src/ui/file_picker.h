@@ -60,7 +60,7 @@ inline std::vector<afterhours::ui::TextSpan> file_picker_label(const std::string
     const auto ranges = fuzzy::matched_ranges(query, path);
     const auto filename = fuzzy::filename_start(path);
     std::vector<afterhours::ui::TextSpan> spans;
-    const auto directoryColor = selected ? afterhours::Color{196, 202, 212, 255} : theme::TEXT_SECONDARY;
+    const auto directoryColor = selected ? theme::pick({196, 202, 212, 255}, {40, 44, 52, 255}) : theme::TEXT_SECONDARY;
     auto append = [&](size_t begin, size_t finish) {
         size_t match = 0;
         int previousStyle = -1;
@@ -68,7 +68,7 @@ inline std::vector<afterhours::ui::TextSpan> file_picker_label(const std::string
             const auto end = code_wrap::next_codepoint(path, at);
             while (match < ranges.size() && ranges[match].second <= at) ++match;
             const bool highlighted = match < ranges.size() && ranges[match].first <= at;
-            const auto color = highlighted ? afterhours::Color{190, 215, 255, 255} :
+            const auto color = highlighted ? theme::pick({190, 215, 255, 255}, {0, 80, 170, 255}) :
                 at < filename ? directoryColor : theme::TEXT_PRIMARY;
             const int style = highlighted ? 2 : at < filename ? 0 : 1;
             if (previousStyle == style) spans.back().text += path.substr(at, end - at);

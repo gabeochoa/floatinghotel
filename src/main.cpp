@@ -1540,6 +1540,10 @@ int main(int argc, char* argv[]) {
             // Two decimals: the value is a float the pinch multiplies into, so
             // an exact-match assertion needs a rounded, stable spelling.
             return std::format("{:.2f}", ui::zoom::get());
+        } else if (key == "theme") {
+            return theme::current_theme_name == theme::ThemeName::Light ? "light" : "dark";
+        } else if (key == "panel_bg") {
+            return std::format("{},{},{}", theme::PANEL_BG.r, theme::PANEL_BG.g, theme::PANEL_BG.b);
         } else if (key == "selected_commit") {
             if (auto* r = repo()) return r->selectedCommitHash();
         } else if (key == "is_amend") {

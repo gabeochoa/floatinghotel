@@ -20,3 +20,6 @@ struct Preload {
     Preload& init(const char* title);
     Preload& make_singleton();
 };
+
+// Switches the live palette and the UI library's widget defaults together.
+void apply_ui_theme(bool light);

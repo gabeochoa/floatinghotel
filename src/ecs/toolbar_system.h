@@ -116,8 +116,8 @@ private:
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name("toolbar_btn");
             if (enabled) {
-                config = config.with_custom_background(afterhours::Color{62, 62, 66, 255})
-                               .with_custom_text_color(afterhours::Color{200, 200, 200, 255});
+                config = config.with_custom_background(theme::pick({62, 62, 66, 255}, {222, 222, 226, 255}))
+                               .with_custom_text_color(theme::pick({200, 200, 200, 255}, {40, 40, 40, 255}));
             }
             return static_cast<bool>(button(ctx, mk(toolbarBg.ent(), id), config));
         };

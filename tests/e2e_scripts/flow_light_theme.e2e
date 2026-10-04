@@ -1,0 +1,52 @@
+# Flow: View > Light Theme repaints the live palette (chrome, diff, syntax,
+# caret line, occurrences, Find, menus) at every zoom, and View > Dark Theme
+# restores the default.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+validate theme=dark
+click_text "View"
+wait_frames 5
+click_text "Light Theme"
+wait_frames 5
+validate theme=light
+validate panel_bg=255,255,255
+click_text main.cpp
+wait_for_refresh
+wait_frames 10
+# Caret in "std" on the added line: active line and occurrence highlights.
+click 440 328
+wait_frames 3
+screenshot light_theme_diff
+hold_key 343
+key F
+release_key 343
+wait_frames 5
+click_ui diff_find_input
+type "std::cout"
+wait_frames 10
+expect_text "1/2"
+screenshot light_theme_find
+key ESCAPE
+wait_frames 3
+pinch 0.4
+wait_frames 5
+validate ui_scale=1.40
+screenshot light_theme_zoom_140
+pinch 0.43
+wait_frames 5
+validate ui_scale=2.00
+screenshot light_theme_zoom_200
+pinch -0.5
+wait_frames 5
+validate ui_scale=1.00
+click_text "Split"
+wait_frames 5
+screenshot light_theme_split
+click_text "View"
+wait_frames 5
+screenshot light_theme_menu
+click_text "Dark Theme"
+wait_frames 5
+validate theme=dark
+validate panel_bg=21,23,27

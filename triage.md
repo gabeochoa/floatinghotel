@@ -146,8 +146,11 @@ caches. No px0 application or benchmark has run yet.
       `code_lexer::languageRules` maps extensions (case-insensitive) and exact file
       names (Makefile, Dockerfile, CMakeLists.txt) to the shared comment/string
       lexers; test_code_lexer covers mapping, multiline, paging and diff states.
-- [ ] Complete the light theme and then add theme choices. Check code, diff colors,
+- [x] Complete the light theme and then add theme choices. Check code, diff colors,
       hover, caret, selection, and Find highlights at every supported zoom.
+      View > Dark Theme / Light Theme, persisted as `theme`. Menus, tabs, syntax,
+      moved/feedback lines and the hunk cursor are palette entries now;
+      `flow_light_theme` covers diff, Find, occurrences, split, menu, 140%, 200%.
 - [ ] Check image-preview format parity with px0 using shared fixtures. Record
       unsupported formats and add the useful missing ones within decoding limits.
 

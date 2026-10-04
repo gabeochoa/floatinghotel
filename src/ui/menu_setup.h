@@ -14,6 +14,7 @@
 #include "../ecs/query_helpers.h"
 #include "../git/git_commands.h"
 #include "../git/git_runner.h"
+#include "../preload.h"
 #include "../settings.h"
 #include "diff_renderer.h"
 #include "change_navigation.h"
@@ -217,6 +218,14 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("Line Numbers (toggle)", "", [] {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
                 l->showLineNumbers = !l->showLineNumbers;
+        }),
+        MenuItem::item("Dark Theme", "", [] {
+            Settings::get().set_theme("dark");
+            apply_ui_theme(false);
+        }),
+        MenuItem::item("Light Theme", "", [] {
+            Settings::get().set_theme("light");
+            apply_ui_theme(true);
         }),
         MenuItem::item("Vim Mode (toggle)", "", [] {
             Settings::get().set_vim_mode(!Settings::get().get_vim_mode());

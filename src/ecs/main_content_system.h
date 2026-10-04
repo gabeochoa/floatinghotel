@@ -236,7 +236,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_padding(Padding{.left = pixels(0)})
                     .with_alignment(TextAlignment::Left)
                     .with_custom_background(theme::WINDOW_BG)
-                    .with_custom_text_color(afterhours::Color{100, 180, 255, 255})
+                    .with_custom_text_color(theme::pick({100, 180, 255, 255}, {0, 95, 184, 255}))
                     .with_font("mono", pixels(12.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("basket_item_loc"));
@@ -315,7 +315,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             auto rmBtn = button(ctx, mk(actions.ent(), 1),
                 preset::Button("Delete")
                     .with_size(ComponentSize{expand(), pixels(28)})
-                    .with_custom_background(afterhours::Color{60, 60, 65, 255})
+                    .with_custom_background(theme::pick({60, 60, 65, 255}, {226, 226, 230, 255}))
                     .with_custom_text_color(theme::STATUS_DELETED)
                     .with_font_size(pixels(12))
                     .with_debug_name("basket_item_remove"));
@@ -1322,7 +1322,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .top = h720(0), .right = w1280(0),
                             .bottom = h720(16), .left = w1280(0)})
                         .with_transparent_bg()
-                        .with_custom_text_color(afterhours::Color{80, 80, 80, 255})
+                        .with_custom_text_color(theme::pick({80, 80, 80, 255}, {170, 170, 174, 255}))
                         .with_alignment(TextAlignment::Center)
                         .with_roundness(0.0f)
                         .with_debug_name("empty_icon"));
@@ -1365,7 +1365,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .top = h720(16), .right = w1280(8),
                         .bottom = h720(0), .left = w1280(8)})
                     .with_transparent_bg()
-                    .with_custom_text_color(afterhours::Color{125, 125, 125, 255})
+                    .with_custom_text_color(theme::pick({125, 125, 125, 255}, {130, 130, 134, 255}))
                     .with_alignment(TextAlignment::Center)
                     .with_roundness(0.0f)
                     .with_debug_name("empty_shortcuts"));

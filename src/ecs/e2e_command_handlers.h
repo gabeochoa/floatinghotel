@@ -15,6 +15,7 @@
 #include <afterhours/src/plugins/e2e_testing/e2e_testing.h>
 
 #include "app_reset.h"
+#include "../preload.h"
 #include "layout_system.h"
 #include "components.h"
 #include "query_helpers.h"
@@ -239,6 +240,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.fullFileCacheKey.clear();
             repo.fullFileMarkdownPreview = false;
             repo.markdownLink = {};
+            if (theme::current_theme_name != theme::ThemeName::Dark) apply_ui_theme(false);
             repo.repoSearchOpen = false;
             repo.fileHistoryOpen = false;
             repo.fileHistoryFuture = {};

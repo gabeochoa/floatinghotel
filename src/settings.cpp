@@ -18,6 +18,7 @@ struct Settings::Data {
     int expandedWindowWidth = 1200;
     bool windowCollapsed = true;
     bool vimMode = false;
+    std::string theme = "dark";
     int windowHeight = 800;
     int windowX = 100;
     int windowY = 100;
@@ -92,6 +93,7 @@ bool Settings::load_save_file() {
         data_->sidebarWidth = std::clamp(data_->sidebarWidth, 200.f, 16384.f);
         data_->windowCollapsed = j.value("window_shelf_collapsed", true);
         data_->vimMode = j.value("vim_mode", false);
+        data_->theme = j.value("theme", std::string("dark"));
         data_->windowWidth = std::clamp(j.contains("window_shelf_collapsed") ? j.value("window_width", 280) :
             static_cast<int>(data_->sidebarWidth), 200, 16384);
         data_->expandedWindowWidth = std::clamp(j.value("expanded_window_width", 1200), 648, 16384);
@@ -168,6 +170,7 @@ void Settings::write_save_file() {
     j["window_height"] = data_->windowHeight;
     j["window_shelf_collapsed"] = data_->windowCollapsed;
     j["vim_mode"] = data_->vimMode;
+    j["theme"] = data_->theme;
     j["expanded_window_width"] = data_->expandedWindowWidth;
     j["window_x"] = data_->windowX;
     j["window_y"] = data_->windowY;
@@ -262,6 +265,14 @@ bool Settings::get_vim_mode() const { return data_->vimMode; }
 void Settings::set_vim_mode(bool enabled) {
     if (data_->vimMode == enabled) return;
     data_->vimMode = enabled;
+    save_if_auto();
+}
+
+const std::string& Settings::get_theme() const { return data_->theme; }
+
+void Settings::set_theme(const std::string& name) {
+    if (data_->theme == name) return;
+    data_->theme = name;
     save_if_auto();
 }
 int Settings::get_expanded_window_width() const { return data_->expandedWindowWidth; }
