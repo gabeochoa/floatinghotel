@@ -2670,3 +2670,16 @@ and ⌘⏎ need real Command, because Control drives vim paging (Ctrl+F/B/D/U). 
 `key CMD+P` sends Ctrl+P and opens nothing. Scripts hold Super instead
 (`hold_key 343` / `key P` / `release_key 343`). A distinct `SUPER+` or `META+`
 modifier in `KeyCombo` would let scripts say what they mean.
+
+### Absolute children of a scroll view count as content
+
+`update_scroll_view_content_size` sums every child of a scroll view, and
+`apply_scroll_anchor` can pin any of them, absolute ones included, although
+autolayout skips absolute children everywhere else. A border overlay hung
+directly off the commit view's scroll container grew its scroll range by the
+overlay's height and became the scroll anchor, so opening diff Options scrolled
+the summary out of view (`flow_commit_detail_regression`). Also, a uniform
+1px border's outline lands outside its rect at 1x, so the scroll scissor clips
+an edge flush with the viewport. The diff's file-card overlays therefore hang
+off the zero-height `diff_headers_end` marker and are inset 1px. Skipping
+`absolute` children in both loops would let overlays sit in the scroll view.

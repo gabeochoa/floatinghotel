@@ -328,8 +328,12 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
 - [ ] Verify native menu tracking and shortcut delivery in a normal macOS session,
       plus physical live resizing with presentation timing. Hidden native probes
       and headless screenshots do not establish compositor behavior.
-- [ ] Revisit the full enclosing diff-card border against the approved mock, without
+- [x] Revisit the full enclosing diff-card border against the approved mock, without
       restoring excessive header height or changing code/selection geometry.
+      Each file is now one bordered card: a border-only overlay from the header
+      to the context footer (rows stay flat and culled; header height and row
+      geometry unchanged), top-rounded header. `tests/diff_card_border.py`
+      covers working-tree and commit views at 100/140/200%, scrolled.
 - [ ] Make large repository tabs economical as well as document tabs. Measure
       inactive repository payloads and duplicate opens before considering shared
       immutable data or opt-in background refresh. Preserve separate reading state.

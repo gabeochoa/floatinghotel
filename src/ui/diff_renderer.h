@@ -3144,7 +3144,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_align_items(AlignItems::Center)
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_border(theme::BORDER, pixels(1))
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_rounded_corners(fileFolded || !vp.active ? theme::layout::ROUNDED_CORNERS : std::bitset<4>(0b0011))
                 .with_corner_radius(6.f)
                 .with_render_layer(50).with_debug_name("file_header_row"));
         if (filterRepo) bind_focus(fileHeaderRow.ent(), *filterRepo, reading::focus::Region::Code, fileDiff.filePath);
@@ -3309,6 +3309,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             vp.built(28.f);
         }
     }
+    const double filesEnd = vp.curY;
     if (filterable && !fileOrder.empty()) {
         const auto& candidates = filterRepo && reviewScope == "wt" ? filterRepo->currentDiff :
             filterRepo && reviewScope == "index" ? filterRepo->stagedDiff : diffs;
@@ -3327,6 +3328,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // reflects the full diff height, not just what was built.
     vp.flush(ctx, *contentParent, nextId);
 
+    const double endY = vp.curY;
     auto endOfFiles = div(ctx, mk(*contentParent, 593101), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{w, pixels(0)}).with_debug_name("diff_headers_end"));
     if (!headers.empty() && headers.back().entity->has<StickyFileHeader>())
@@ -3339,6 +3341,29 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (pinned || !vp.active || (header.y + vp.px(header.height) >= vp.top && header.y <= vp.bottom))
             if (render_file_header(ctx, *header.entity, contentParent, *header.file, contentWidth,
                 review, reviewScope, repoPath, sess)) return;
+    }
+    // Rows are built flat and culled, so each file's card edge is one
+    // border-only overlay from its header to its footer, inset 1px because
+    // the outline draws outside its rect and the scroll view clips it, and
+    // short of the scrollbar, which paints over the rows' right edge. They
+    // hang off the zero-height end marker: a scroll view counts absolute
+    // children in its content size and scroll anchor.
+    float gutter = 0.f;
+    if (vp.scroll) {
+        const auto& view = scrollEntity->get<afterhours::ui::UIComponent>();
+        const auto bar = afterhours::ui::scrollbar_metrics(*vp.scroll, view.resolved_scaling_mode, vp.screenH);
+        if (afterhours::ui::scrollbar_geometry(*vp.scroll, view.rect(), true, bar.thickness, bar.min_thumb).visible)
+            gutter = bar.thickness / zoom::get();
+    }
+    for (size_t i = 0; vp.active && i < headers.size(); ++i) {
+        const double top = headers[i].y, end = i + 1 < headers.size() ? headers[i + 1].y - vp.px(14.f) : filesEnd;
+        if (end < vp.top || top > vp.bottom) continue;
+        div(ctx, mk(endOfFiles.ent(), static_cast<int>(i)), ComponentConfig{}.with_skip_grid_snap()
+            .with_absolute_position(1.f, (top - endY) / zoom::get())
+            .with_size(ComponentSize{pixels(contentWidth - 1.f - gutter), pixels((end - top) / zoom::get())})
+            .with_transparent_bg().with_border(theme::BORDER, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
+            .with_render_layer(49).with_debug_name("file_card_border"));
     }
     if (stickyHeight > 0.f && filterRepo) {
         auto display = button(ctx, mk(stickyHost.ent(), 1), preset::Button(selectedFileOnly ? "Selected file" : "All files")
