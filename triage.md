@@ -235,12 +235,18 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       test eviction while composing both sides, and keep all cache bytes accounted.
       Shared leases survive eviction, pinned bytes constrain admission, and
       wrapping/anchor/source-folding replays pass within the existing budget.
-- [ ] Give snapshot reading an explicit content owner. The snapshot renderer in
+- [x] Give snapshot reading an explicit content owner. The snapshot renderer in
       [review_snapshot.h](src/ui/review_snapshot.h) disables the normal reader
       binding to avoid borrowing another document's state. Introduce a typed
       reading context for source, review, and saved snapshots, keeping selection,
       Find, anchors, and copy attached to the correct content. Then enable snapshot
       character selection with identity and bounded-copy tests. Avoid a second viewer.
+      Snapshots now select in the same viewer with no reader owner: the selection
+      lives only in the scope-keyed `diff_sel` context, and Cmd+C / Edit > Copy
+      copy it from the loaded snapshot (`git::copy_loaded_selection`, 8 MiB cap).
+      No separate typed context type was needed; snapshots still offer no Find or
+      anchors. `flow_snapshot_selection.e2e`, `test_selection_copy`,
+      `saved_review_return.py`.
 - [x] Replace implementation-defined persistent review keys with a stable encoding. Completed by CP-096; SHA-256 keys and legacy migration verified in review-store tests.
 
 - [ ] Share the repeated Quick Open test setup. Several final-replay corrections

@@ -111,4 +111,19 @@ TEST(snippet_wraps_copy_with_revision_location_and_a_long_enough_fence) {
     ASSERT_TRUE(full.text.empty()); ASSERT_EQ(full.error, "Selection exceeds the 8 MiB copy limit");
 }
 
+
+TEST(loaded_copy_slices_columns_across_lines_and_rejects_missing_or_oversized_ranges) {
+    const std::string big(git::selection_copy_limit + 1, 'x');
+    std::vector<reading::CodeLine> lines{{3, 1, "éλ one"}, {4, 1, "two"}, {5, 1, big}};
+    auto at = [](int line, int column) { return reading::CodePosition{"a.txt", reading::DiffSide::Before, line, column}; };
+    auto copy = git::copy_loaded_selection(lines, {at(4, 3), at(3, 2)}, false);
+    ASSERT_TRUE(copy.error.empty()); ASSERT_EQ(copy.text, "λ one\ntw");
+    ASSERT_EQ(git::copy_loaded_selection(lines, {at(3, 1), at(4, 4)}, true).text, "a.txt:L3-4\néλ one\ntwo");
+    ASSERT_EQ(git::copy_loaded_selection({lines[0], lines[1]}, {at(4, 1), at(9, 1)}, false).error, "Selection no longer exists in this source");
+    ASSERT_EQ(git::copy_loaded_selection(lines, {at(4, 1), at(5, 99999999)}, false).error, "Selection exceeds the 8 MiB copy limit");
+    reading::CodePosition other = at(4, 1);
+    other.side = reading::DiffSide::After;
+    ASSERT_EQ(git::copy_loaded_selection(lines, {at(3, 1), other}, false).error, "Selection endpoints do not identify one source");
+}
+
 int main() { RUN_ALL_TESTS(); }

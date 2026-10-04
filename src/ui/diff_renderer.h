@@ -364,7 +364,44 @@ inline std::string build_copy_text(State& st, bool withLocation) {
     return out;
 }
 
+inline void append_code_lines(std::vector<reading::CodeLine>& lines, const ecs::DiffHunk& hunk,
+                              reading::DiffSide side, int firstColumn = 1) {
+    int oldLine = hunk.oldStart, newLine = hunk.newStart;
+    for (const auto& raw : hunk.lines) {
+        if (raw.empty()) continue;
+        const char sign = raw.front();
+        const int oldNumber = sign == '+' ? 0 : oldLine++;
+        const int newNumber = sign == '-' ? 0 : newLine++;
+        const int number = side == reading::DiffSide::Before ? oldNumber : newNumber;
+        if (number <= 0) continue;
+        std::string_view text(raw);
+        text.remove_prefix(1);
+        if (text.ends_with('\r')) text.remove_suffix(1);
+        lines.push_back({number, lines.empty() ? firstColumn : 1, text});
+    }
+}
+
+inline std::vector<reading::CodeLine> code_lines(const ecs::FileDiff& file, reading::DiffSide side, int firstColumn = 1) {
+    std::vector<reading::CodeLine> lines;
+    for (const auto& hunk : file.hunks) append_code_lines(lines, hunk, side, firstColumn);
+    if (file.isFullContent && lines.empty()) lines.push_back({1, 1, {}});
+    return lines;
+}
+
 inline std::string copy_selection(bool withLocation, bool snippet = false) {
+    // A saved-review snapshot has no reader owner, so its selection is only in
+    // state() and its text only in the loaded diff; copy synchronously from there.
+    if (auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>(); review && review->sinceReviewOpen) {
+        const auto& st = state();
+        if (!st.hasSel) return "No selection to copy";
+        const auto& files = review->sinceReviewDiff;
+        const auto file = std::find_if(files.begin(), files.end(), [&](const auto& value) { return value.filePath == st.anchor.path; });
+        auto result = file == files.end() ? ecs::SelectionCopyResult{{}, "Selection no longer exists in this source"} :
+            git::copy_loaded_selection(code_lines(*file, st.anchor.side), {st.anchor, st.head}, withLocation);
+        if (!result.error.empty()) return result.error;
+        afterhours::clipboard::set_text(result.text);
+        return withLocation ? "Copied selection with location" : "Copied selection";
+    }
     auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     if (!repo) return "No selection to copy";
     const auto& document = *repo->workspace().document(repo->workspace().active_id());
@@ -580,30 +617,6 @@ inline void handle_mouse(UIContext<InputAction>& ctx, const Session& sess) {
     }
     recompute_highlight(st);
     if (mouse.just_pressed || mouse.left_down || mouse.just_released) remember_selection(sess);
-}
-
-inline void append_code_lines(std::vector<reading::CodeLine>& lines, const ecs::DiffHunk& hunk,
-                              reading::DiffSide side, int firstColumn = 1) {
-    int oldLine = hunk.oldStart, newLine = hunk.newStart;
-    for (const auto& raw : hunk.lines) {
-        if (raw.empty()) continue;
-        const char sign = raw.front();
-        const int oldNumber = sign == '+' ? 0 : oldLine++;
-        const int newNumber = sign == '-' ? 0 : newLine++;
-        const int number = side == reading::DiffSide::Before ? oldNumber : newNumber;
-        if (number <= 0) continue;
-        std::string_view text(raw);
-        text.remove_prefix(1);
-        if (text.ends_with('\r')) text.remove_suffix(1);
-        lines.push_back({number, lines.empty() ? firstColumn : 1, text});
-    }
-}
-
-inline std::vector<reading::CodeLine> code_lines(const ecs::FileDiff& file, reading::DiffSide side, int firstColumn = 1) {
-    std::vector<reading::CodeLine> lines;
-    for (const auto& hunk : file.hunks) append_code_lines(lines, hunk, side, firstColumn);
-    if (file.isFullContent && lines.empty()) lines.push_back({1, 1, {}});
-    return lines;
 }
 
 inline void keyboard_selection(const reading::CodePosition& head) {
@@ -2194,7 +2207,7 @@ inline float diff_controls_height(float width, bool optionsOpen,
 inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Entity* contentParent,
                                const ecs::FileDiff& fileDiff, float contentWidth,
                                ecs::ReviewComponent* review, const std::string& reviewScope,
-                               const std::string& repoPath, diff_sel::Session& sess, bool selEnabled) {
+                               const std::string& repoPath, diff_sel::Session& sess) {
     const bool narrowFile = contentWidth < 600.f;
     const float actionsHeight = !fileDiff.isFullContent && narrowFile ? 64.f : 32.f;
     const std::string fileFoldKey = reviewScope + "\n" + fileDiff.filePath;
@@ -2344,7 +2357,7 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
     }
     auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     if ((!activeRepo || !activeRepo->reviewWorkspace) && reviewScope == "wt" && !fileDiff.isFullContent && !fileDiff.isRenamed &&
-        !fileDiff.isSubmodule && selEnabled && diff_sel::state().hasSel) {
+        !fileDiff.isSubmodule && diff_sel::state().hasSel) {
         auto stage = button(ctx, mk(fileBtns.ent(), 3), preset::Button("Stage selection")
             .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12)).with_transparent_bg()
             .with_debug_name("stage_selected_lines"));
@@ -2936,9 +2949,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
     sess.tmc = &EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
     sess.fontSize = Settings::get().get_code_font_size() * zoom::get();
-    bool selEnabled = reviewScope != "snapshot";
-    if (!selEnabled) diff_sel::reset();
-    if (selEnabled) {
+    // A saved-review snapshot has no reader owner: its selection lives only in
+    // diff_sel (the context below includes the scope, so it never carries over to
+    // or from the review documents) and copies from the loaded diff.
+    {
         std::string context = repoPath + "\n" + (filterRepo ? std::to_string(filterRepo->workspace().active_id().value) : "") + "\n" + reviewScope + (sideBySide ? "\nsplit" : "\ninline") +
             std::to_string(contentWidth) + ":" + std::to_string(zoom::get()) + ":" + std::to_string(Settings::get().get_code_font_size()) +
             (sess.visibleWhitespace ? ":spaces" : ":plain") + (code_gutter::showNumbers ? ":numbers" : ":bare");
@@ -3000,6 +3014,12 @@ inline void render_diff(UIContext<InputAction>& ctx,
             const bool snippet = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
             auto message = diff_sel::copy_selection(withLocation, snippet);
             if (!message.empty()) afterhours::toast::send_info(ctx, message, 4.f);
+        }
+        auto* activeRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        if (!filterRepo && reviewScope == "snapshot" && activeRepo && layout && !ui::shortcuts_blocked(*layout) &&
+            !shortcut_owner(ctx, *activeRepo).text && superDown && afterhours::input::is_key_pressed(afterhours::keys::C)) {
+            const bool withLocation = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
+            afterhours::toast::send_info(ctx, diff_sel::copy_selection(withLocation), 1.5f);
         }
         diff_sel::state().curLines.clear();
     }
@@ -3325,7 +3345,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         const bool pinned = !header.file->isFullContent && header.y <= scrollY && scrollY < end;
         if (pinned || !vp.active || (header.y + vp.px(header.height) >= vp.top && header.y <= vp.bottom))
             if (render_file_header(ctx, *header.entity, contentParent, *header.file, contentWidth,
-                review, reviewScope, repoPath, sess, selEnabled)) return;
+                review, reviewScope, repoPath, sess)) return;
     }
     if (stickyHeight > 0.f && filterRepo) {
         auto display = button(ctx, mk(stickyHost.ent(), 1), preset::Button(selectedFileOnly ? "Selected file" : "All files")
@@ -3361,9 +3381,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
 
     // This frame's registry becomes next frame's hit-test source.
-    if (selEnabled) {
-        diff_sel::state().lastLines = std::move(diff_sel::state().curLines);
-    }
+    diff_sel::state().lastLines = std::move(diff_sel::state().curLines);
     // Record visible-hunk count for keyboard cursor clamping.
     if (review) review->hunkCount = sess.hunkOrdinal;
 }

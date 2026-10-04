@@ -1,0 +1,40 @@
+# Flow: a saved-review snapshot owns its selection. Dragging selects
+# characters, Cmd+C and Edit > Copy with location copy them from the loaded
+# snapshot, and closing it leaves the review document without a selection.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+click_ui review_unstaged_changes
+wait_for_refresh
+click_ui save_review_baseline
+wait_for_refresh
+enable_file_watcher
+wait_frames 5
+touch_file utils.h text "// snapshot selection marker"
+wait_for_file_change
+disable_file_watcher
+wait_for_refresh
+click_ui since_last_review
+wait_for_refresh
+wait_frames 10
+mouse_down 431 280
+mouse_move 600 324
+mouse_up
+wait_frames 5
+screenshot snapshot_selection
+key CMD+C
+wait_frames 5
+expect_text "Copied selection"
+click_text "Edit"
+wait_frames 3
+click_text "Copy with location"
+wait_frames 5
+expect_text "Copied selection with location"
+click_ui snapshot_close
+wait_for_refresh
+wait_frames 10
+click_text "Edit"
+wait_frames 3
+click_text "Copy"
+wait_frames 5
+expect_text "No selection to copy"

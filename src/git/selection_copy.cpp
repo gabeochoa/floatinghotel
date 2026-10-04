@@ -75,6 +75,35 @@ ecs::SelectionCopyResult copy_source_selection(FileRequest request, reading::Cod
     return result;
 }
 
+ecs::SelectionCopyResult copy_loaded_selection(const std::vector<reading::CodeLine>& lines,
+                                               reading::CodeSelection selection, bool withLocation) {
+    ecs::SelectionCopyResult result;
+    auto first = selection.anchor;
+    auto last = selection.head;
+    if (first.path != last.path || first.side != last.side || first.line < 1 || last.line < 1 ||
+        first.column < 1 || last.column < 1) return {{}, "Selection endpoints do not identify one source"};
+    if (std::tie(first.line, first.column) > std::tie(last.line, last.column)) std::swap(first, last);
+    if (first == last) return result;
+    if (withLocation) {
+        result.text = first.path + ":L" + std::to_string(first.line);
+        if (first.line != last.line) result.text += "-" + std::to_string(last.line);
+        result.text += "\n";
+    }
+    bool reachedFirst = false;
+    for (const auto& line : lines) {
+        if (line.number < first.line) continue;
+        if (line.number > last.line) break;
+        if (reachedFirst) result.text += '\n';
+        reachedFirst = true;
+        const auto begin = line.number == first.line ? reading::byte_at_column(line.text, std::max(1, first.column - line.column + 1)) : 0;
+        const auto end = line.number == last.line ? reading::byte_at_column(line.text, std::max(1, last.column - line.column + 1)) : line.text.size();
+        if (end > begin) result.text.append(line.text.substr(begin, end - begin));
+        if (result.text.size() > selection_copy_limit) return {{}, "Selection exceeds the 8 MiB copy limit"};
+        if (line.number == last.line) return result;
+    }
+    return {{}, "Selection no longer exists in this source"};
+}
+
 void make_snippet(ecs::SelectionCopyResult& result, const reading::CodeSelection& selection) {
     if (!result.error.empty()) return;
     auto first = selection.anchor.line, last = selection.head.line;

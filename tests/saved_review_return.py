@@ -68,7 +68,7 @@ for zoom in args.zooms:
     assert metadata['baseline_head'] == head and metadata['baseline_captured_at'] > 0
     assert head[:8] in nodes(saved, 'saved')['review_baseline_identity']['text']
     source.write_text(original.replace('value_017 = 17', 'value_017 = 171'))
-    script = 'click_text "Baseline fixture"\nwait_for_refresh\nkey ENTER\nkey CMD+P\nwait_frames 3\ntype "code.cpp"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n'
+    script = 'click_text "Baseline fixture"\nwait_for_refresh\nkey ENTER\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "code.cpp"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n'
     script += 'key CTRL+G\nwait_frames 3\ntype "40:5"\nkey ENTER\nwait_for_refresh\nfocus_ui diff_scroll\nkey SHIFT+RIGHT\n' + capture('before', 3)
     script += 'native_menu_action "Since last review"\n' + capture('delta', 3)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -15\nwait_frames 8\nkey ESCAPE\n' + capture('returned', 3)
@@ -79,7 +79,10 @@ for zoom in args.zooms:
     delta = replay('return', script)
     assert baseline.read_bytes() == baseline_bytes
     for name in ['delta', 'again']:
-        assert layout(delta, name)['reading_rows'] == [] and layout(delta, name)['reading_projections'] == [], (zoom, name, 'retained reader leaked into snapshot')
+        # The snapshot registers its own selectable rows (the hunk around line
+        # 17) but never binds the source reader's projections.
+        view = layout(delta, name)
+        assert view['reading_projections'] == [] and {r['line'] for r in view['reading_rows']} <= set(range(14, 21)), (zoom, name, 'retained reader leaked into snapshot')
         rows = [n for n in layout(delta, name)['nodes'] if n.get('name') == 'diff_line' and n['rendered']]
         assert any('- int value_017 = 170;' in r['text'] for r in rows), (zoom, name)
         assert any('+ int value_017 = 171;' in r['text'] for r in rows), (zoom, name)
