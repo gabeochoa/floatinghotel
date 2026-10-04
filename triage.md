@@ -291,9 +291,16 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       and are reported in a toast; multi-range comments are not carried yet.
       `tests/carry_comments.py` covers it at 100/140/200. The Unstaged Changes commit
       dialog is now centred in the zoomed viewport (it was off-screen at 200%).
-- [ ] Add a richer submodule view showing the old/new commit range and a route into
+- [x] Add a richer submodule view showing the old/new commit range and a route into
       the submodule repository. Detection, gitlink diffs, and pointer staging already
       exist; handle missing checkouts and unavailable objects explicitly.
+      Gitlink files show a summary above the pointer hunk (`ui/submodule_view.h`,
+      `git::catalog::submodule_range`): old → new IDs, fast-forward/rewound/diverged
+      with counts, up to 20 commits each way, a "-dirty" checkout note, and an "Open
+      submodule" button that opens the checkout as a repository tab. An
+      uninitialized checkout and a pointer to a commit the checkout lacks each say so.
+      Read in the background, re-read on repository refresh.
+      `tests/submodule_view.py` covers all three at 100/140/200.
 - [ ] Reduce redundant visible Copy/Copy Diff buttons where selection and keyboard
       copy provide the same action. Keep discoverable, keyboard-accessible menu actions
       for plain code, diff, path, and location; preserve bulk diff export.

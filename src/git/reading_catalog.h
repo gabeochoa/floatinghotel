@@ -287,4 +287,48 @@ inline std::string submodule_status(const std::string& path, std::stop_token sto
     return "Checkout " + trim_line(head.stdout_str()) + " · " + worktree_status(path, stop);
 }
 
+// What a gitlink change from `before` to `after` means inside the submodule
+// checkout at `path`: direction, counts, and up to 20 commits each way.
+struct SubmoduleRange {
+    std::string summary;
+    std::vector<std::string> commits;  // "+ abc1234 subject" / "- abc1234 subject"
+    bool checkedOut = false;
+};
+
+inline SubmoduleRange submodule_range(const std::string& path, const std::string& before,
+                                      const std::string& after, std::stop_token stop) {
+    SubmoduleRange range;
+    auto status = submodule_status(path, stop);
+    if (!status.starts_with("Checkout ")) {
+        range.summary = status + " · run git submodule update --init to read its commits";
+        return range;
+    }
+    range.checkedOut = true;
+    for (const auto& id : {before, after})
+        if (!id.empty() && !git_run(path, {"cat-file", "-e", id + "^{commit}"}, stop).success()) {
+            range.summary = "Commit " + id.substr(0, 12) + " is not in the submodule checkout · fetch in the submodule";
+            return range;
+        }
+    if (before.empty() || after.empty()) {
+        range.summary = before.empty() ? "Submodule added at " + after.substr(0, 12) : "Submodule removed (was " + before.substr(0, 12) + ")";
+        return range;
+    }
+    auto list = [&](const std::string& spec, const char* sign) {
+        auto log = git_run(path, {"log", "--format=%h %s", "-n", "20", spec}, stop);
+        size_t count = 0;
+        for (const auto& line : fields(log.stdout_str(), '\n'))
+            if (!line.empty()) { range.commits.push_back(sign + line); ++count; }
+        auto total = git_run(path, {"rev-list", "--count", spec}, stop);
+        return total.success() ? std::stoul(trim_line(total.stdout_str())) : count;
+    };
+    const auto ahead = list(before + ".." + after, "+ ");
+    const auto behind = list(after + ".." + before, "- ");
+    const auto plural = [](size_t n) { return std::to_string(n) + (n == 1 ? " commit" : " commits"); };
+    range.summary = behind == 0 ? "Fast-forward · " + plural(ahead) + " added"
+        : ahead == 0 ? "Rewound · " + plural(behind) + " removed"
+        : "Diverged · " + plural(ahead) + " added, " + plural(behind) + " removed";
+    if (range.commits.size() < ahead + behind) range.summary += " · showing " + std::to_string(range.commits.size());
+    return range;
+}
+
 }

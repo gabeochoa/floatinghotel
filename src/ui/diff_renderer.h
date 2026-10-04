@@ -23,6 +23,7 @@
 #include "diff_metrics.h"
 #include "context_menu.h"
 #include "image_diff.h"
+#include "submodule_view.h"
 #include "hunk_context.h"
 #include "hunk_scope.h"
 #include "reading_position.h"
@@ -3290,6 +3291,17 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_font_size(pixels(12)).with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_debug_name("file_mode_change"));
             vp.built(28.f);
+        }
+
+        if (fileDiff.isSubmodule) {
+            const unsigned generation = ownerRepo ? ownerRepo->dataGeneration : 0;
+            const float h = submodule_view::height(fileDiff, repoPath, generation);
+            if (!vp.visible(h)) vp.skipped(h);
+            else {
+                vp.flush(ctx, *contentParent, nextId);
+                submodule_view::render(ctx, *contentParent, nextId++, fileDiff, repoPath, generation, w);
+                vp.built(h);
+            }
         }
 
         // Binary files: just show the header, no hunks

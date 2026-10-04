@@ -720,7 +720,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             // took, so summing it capped this wait at 300 frames, which a
             // git status over a few thousand files outlasts.
             constexpr auto MAX_REFRESH_WAIT = std::chrono::seconds(30);
-            bool refreshDone = !ui::image_diff::pending();
+            bool refreshDone = !ui::image_diff::pending() && !ui::submodule_view::pending();
             if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
                 const auto& scope = layout->filePickerScope;
                 refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.future.valid() &&
@@ -925,7 +925,7 @@ static UiActivitySnapshot capture_ui_activity_snapshot() {
 
 static bool app_has_pending_work() {
     if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>(); layout && (layout->filePickerScope.future.valid() || layout->filePickerPosition.future.valid())) return true;
-    if (ui::image_diff::pending()) return true;
+    if (ui::image_diff::pending() || ui::submodule_view::pending()) return true;
     {
         std::lock_guard<std::mutex> lock(g_gitLogMutex);
         if (!g_pendingGitLog.empty()) return true;
@@ -1161,7 +1161,7 @@ static void app_frame() {
         auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if ((!repo || repo->repoPath.empty() ||
              (repo->hasLoadedOnce && !repo->refreshRequested && !repo->isRefreshing)) &&
-            !ui::image_diff::pending()) {
+            !ui::image_diff::pending() && !ui::submodule_view::pending()) {
             static bool logged = false;
             if (!logged && std::getenv("FH_NAVIGATION_TIMING")) {
                 int loaded = 0;
