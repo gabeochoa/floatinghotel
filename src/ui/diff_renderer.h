@@ -239,8 +239,7 @@ inline void render_changed_range(UIContext<InputAction>& ctx, Entity& entity,
     div(ctx, mk(entity, 90003), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{pixels(width / zoom::get()), percent(1.f)})
         .with_absolute_position(x / zoom::get(), 0.f)
-        .with_custom_background(deletion ? afterhours::Color{240, 100, 100, 90}
-                                         : afterhours::Color{90, 230, 140, 80})
+        .with_custom_background(deletion ? theme::INTRALINE_DEL_BG : theme::INTRALINE_ADD_BG)
         .with_roundness(0.f)
         .with_debug_name("intraline_change"));
 }
@@ -255,7 +254,7 @@ inline void render_find_match(UIContext<InputAction>& ctx, Entity& lineEntity,
     div(ctx, mk(lineEntity, 90002), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{pixels(width / zoom::get()), percent(1.f)})
         .with_absolute_position(x / zoom::get(), 0.f)
-        .with_custom_background(afterhours::Color{230, 180, 30, 100})
+        .with_custom_background(theme::FIND_MATCH_BG)
         .with_roundness(0.f)
         .with_debug_name("diff_find_match"));
 }
@@ -278,7 +277,7 @@ inline void render_occurrences(UIContext<InputAction>& ctx, Entity& lineEntity, 
         div(ctx, mk(lineEntity, 90010 + index++), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(code_mw(s, word) / zoom::get()), percent(1.f)})
             .with_absolute_position((prefix + code_mw(s, content.substr(0, at))) / zoom::get(), 0.f)
-            .with_custom_background(afterhours::Color{120, 160, 230, 60})
+            .with_custom_background(theme::OCCURRENCE_BG)
             .with_roundness(0.f)
             .with_debug_name("occurrence_highlight"));
     }
@@ -1202,7 +1201,7 @@ inline void render_caret(UIContext<InputAction>& ctx, Entity& row, const Session
     if (!caret_line(&session, path, side, line)) return;
     div(ctx, mk(row, 90004), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{pixels(std::max(0.f, prefix / zoom::get() - 2.f)), pixels(diff_detail::code_line_height())})
-        .with_absolute_position(2.f, 0.f).with_custom_background(afterhours::Color{110, 156, 220, 24})
+        .with_absolute_position(2.f, 0.f).with_custom_background(theme::CARET_GUTTER_BG)
         .with_roundness(0.f).with_debug_name("code_active_gutter"));
     if (!session.codeFocused) return;
     const auto at = reading::caret_byte(*session.caret, path, side, line, text, firstColumn, finalFragment);
@@ -1335,7 +1334,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                         .with_size(ComponentSize{pixels((x1 - x0) / zoom::get()),
                                                  pixels(diff_detail::code_line_height())})
                         .with_absolute_position(x0 / zoom::get(), 0.f)
-                        .with_custom_background(afterhours::Color{58, 130, 210, 90})
+                        .with_custom_background(theme::SELECTION_BG)
                         .with_roundness(0.0f)
                         .with_debug_name("diff_sel_hl"));
             }
@@ -1969,7 +1968,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             div(ctx, mk(cell.ent(), 90001), ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(0.f, x1 - x0) / zoom::get()), pixels(code_line_height())})
                 .with_absolute_position(x0 / zoom::get(), 0.f)
-                .with_custom_background(afterhours::Color{58, 130, 210, 90})
+                .with_custom_background(theme::SELECTION_BG)
                 .with_roundness(0.f)
                 .with_debug_name("diff_sel_hl"));
         }

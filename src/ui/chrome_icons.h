@@ -55,7 +55,7 @@ inline void chrome_icon(UIContext<InputAction>& ctx, afterhours::ui::imm::Entity
 }
 
 inline afterhours::Color segment_selected_color() {
-    return theme::current_theme_name == theme::ThemeName::Dark ? afterhours::Color{51, 55, 64, 255} : theme::SELECTED_BG;
+    return theme::SEGMENT_SELECTED_BG;
 }
 
 }
