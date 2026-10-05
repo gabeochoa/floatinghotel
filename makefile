@@ -261,7 +261,7 @@ $(TEST_DIR)/test_settings: tests/unit/test_settings.cpp src/settings.cpp vendor/
 	@echo "Compiling test_settings..."
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
-$(TEST_DIR)/test_git_commands: tests/unit/test_git_commands.cpp src/git/git_commands.cpp src/git/git_runner.cpp src/util/process.cpp | $(TEST_DIR)
+$(TEST_DIR)/test_git_commands: tests/unit/test_git_commands.cpp src/git/git_commands.cpp src/git/git_runner.cpp src/util/process.cpp src/git/git_parser.cpp | $(TEST_DIR)
 	@echo "Compiling test_git_commands..."
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
@@ -294,34 +294,9 @@ $(TEST_DIR)/test_review_snapshot: tests/unit/test_review_snapshot.cpp src/review
 $(TEST_DIR)/test_content_reader: tests/unit/test_content_reader.cpp src/git/content_reader.cpp src/git/git_parser.cpp src/git/git_runner.cpp src/git/git_commands.cpp src/util/process.cpp src/review_store.cpp src/review_snapshot.cpp vendor/afterhours/src/plugins/files.cpp | $(TEST_DIR)
 	$(CXX) $(TEST_CXXFLAGS) $(TEST_INCLUDES) $^ -o $@
 
-TEST_EXES := $(TEST_DIR)/test_diff_tools \
-    $(TEST_DIR)/test_welcome \
-    $(TEST_DIR)/test_fold_defaults \
-    $(TEST_DIR)/test_history_selection \
-    $(TEST_DIR)/test_document_titles \
-    $(TEST_DIR)/test_triage \
-    $(TEST_DIR)/test_reading_catalog \
-    $(TEST_DIR)/test_git_parser \
-    $(TEST_DIR)/test_error_humanizer \
-    $(TEST_DIR)/test_process \
-    $(TEST_DIR)/test_settings \
-    $(TEST_DIR)/test_git_commands \
-    $(TEST_DIR)/test_context_menu \
-    $(TEST_DIR)/test_review_store \
-    $(TEST_DIR)/test_review_snapshot \
-    $(TEST_DIR)/test_content_reader
-
-test: $(TEST_EXES)
-	@echo "Running unit tests..."
-	@PASS=0; FAIL=0; \
-	for t in $(TEST_EXES); do \
-	    if $$t; then PASS=$$((PASS + 1)); \
-	    else FAIL=$$((FAIL + 1)); fi; \
-	done; \
-	echo "========================================"; \
-	echo "Results: $$PASS/$$(( PASS + FAIL )) passed, $$FAIL failed"; \
-	echo "========================================"; \
-	[ "$$FAIL" -eq 0 ]
+test:
+	python3 scripts/check_unit_registry.py
+	./tests/run_unit_tests.sh
 
 .PHONY: test
 

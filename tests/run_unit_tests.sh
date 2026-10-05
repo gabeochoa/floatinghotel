@@ -322,6 +322,15 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_tree_navigation" ]; then
     run_test "test_tree_navigation" "tests/unit/test_tree_navigation.cpp"
 fi
 
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_git_commands" ]; then
+    run_test "test_git_commands" "tests/unit/test_git_commands.cpp" "src/git/git_commands.cpp" "src/git/git_runner.cpp" "src/util/process.cpp" "src/git/git_parser.cpp"
+fi
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_welcome" ]; then run_test "test_welcome" "tests/unit/test_welcome.cpp"; fi
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_outline" ]; then run_test "test_outline" "tests/unit/test_outline.cpp"; fi
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_fold_defaults" ]; then run_test "test_fold_defaults" "tests/unit/test_fold_defaults.cpp"; fi
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_history_selection" ]; then run_test "test_history_selection" "tests/unit/test_history_selection.cpp"; fi
+
 if [ -n "$FILTER" ] && [ "$TOTAL" -eq 0 ]; then
     printf 'Unknown test suite: %s\n' "$FILTER" >&2
     exit 1
