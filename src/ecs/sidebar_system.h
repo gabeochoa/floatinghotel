@@ -1369,7 +1369,7 @@ private:
             div(ctx, mk(bar.ent(), 0),
                 ComponentConfig{}
                     .with_size(ComponentSize{percent(frac), percent(1.0f)})
-                    .with_custom_background(afterhours::Color{63, 185, 80, 255})
+                    .with_custom_background(theme::STATUS_BAR_CLEAN)
                     .with_corner_radius(2.0f)
                     .with_debug_name("prog_fill"));
         }
@@ -2247,7 +2247,7 @@ private:
 
         // Leading status glyph (left column) — matches the commit-detail file
         // rows and the mock, and gives every filename a consistent start x.
-        auto statusCol = isSubmodule ? afterhours::Color{170, 140, 230, 255}
+        auto statusCol = isSubmodule ? theme::STATUS_SUBMODULE
                                      : theme::statusColor(statusChar);
         div(ctx, mk(row.ent(), 3),
             preset::MetaText(statusStr)

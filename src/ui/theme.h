@@ -115,6 +115,15 @@ inline Color DIFF_MOVED_TEXT = {125, 180, 255, 255};
 inline Color DIFF_EMPTY_BG = {26, 26, 26, 255};  // side-by-side "no line here"
 inline Color FEEDBACK_LINE_BG = {58, 68, 94, 255};
 inline Color HUNK_CURSOR_BG = {38, 79, 140, 255};
+// Translucent reader highlights (routed here 2026-10-04; were raw literals in diff_renderer/sidebar, invisible to the light theme)
+inline Color INTRALINE_ADD_BG = {90, 230, 140, 80};
+inline Color INTRALINE_DEL_BG = {240, 100, 100, 90};
+inline Color FIND_MATCH_BG = {230, 180, 30, 100};
+inline Color OCCURRENCE_BG = {120, 160, 230, 60};
+inline Color SELECTION_BG = {58, 130, 210, 90};
+inline Color CARET_GUTTER_BG = {110, 156, 220, 24};
+inline Color STATUS_SUBMODULE = {170, 140, 230, 255};
+inline Color SEGMENT_SELECTED_BG = {51, 55, 64, 255};
 
 // Menu bar dropdowns and context menus
 inline Color MENU_BAR_BG = {30, 30, 30, 255};
@@ -184,6 +193,10 @@ inline const Swatch LIGHT[] = {
     {&DIFF_MOVED_BG, {216, 230, 250, 255}}, {&DIFF_MOVED_TEXT, {25, 95, 190, 255}},
     {&DIFF_EMPTY_BG, {240, 240, 240, 255}}, {&FEEDBACK_LINE_BG, {226, 228, 246, 255}},
     {&HUNK_CURSOR_BG, {190, 214, 244, 255}},
+    {&INTRALINE_ADD_BG, {30, 140, 60, 90}}, {&INTRALINE_DEL_BG, {200, 50, 45, 90}},
+    {&FIND_MATCH_BG, {180, 130, 0, 110}}, {&OCCURRENCE_BG, {0, 95, 184, 70}},
+    {&SELECTION_BG, {0, 110, 200, 100}}, {&CARET_GUTTER_BG, {0, 110, 200, 36}},
+    {&STATUS_SUBMODULE, {120, 70, 180, 255}}, {&SEGMENT_SELECTED_BG, {205, 222, 244, 255}},
     {&MENU_BAR_BG, {236, 236, 236, 255}}, {&MENU_HEADER_TEXT, {50, 50, 54, 255}},
     {&MENU_ACTIVE_BG, {218, 218, 222, 255}}, {&MENU_ACTIVE_TEXT, {20, 20, 20, 255}},
     {&MENU_PANEL_BG, {250, 250, 250, 255}}, {&MENU_BORDER, {205, 205, 208, 255}},
