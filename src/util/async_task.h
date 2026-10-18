@@ -149,4 +149,13 @@ auto launch(Fn fn, Priority priority = Priority::Foreground,
     return launch_on(executor(), std::move(fn), priority, std::move(rejected), cancellable);
 }
 
+
+// A task that is already done: lets a result in hand (a cache hit) take the
+// same completion path as one computed on a worker.
+template<class T>
+Task<T> completed(T value) {
+    std::promise<T> done;
+    done.set_value(std::move(value));
+    return Task<T>(done.get_future(), std::stop_source{std::nostopstate});
+}
 }

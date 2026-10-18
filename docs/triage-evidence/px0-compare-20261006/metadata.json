@@ -1,0 +1,95 @@
+{
+ "recorded": "2026-10-06T13:01:43.355618+00:00",
+ "floatinghotel": {
+  "commit": "45b3ecdbb71d3e43a1a5831bbea5a6998a753a69",
+  "dirty": true,
+  "binary_sha256": "74bf2e253d0954b505842a11ee310d6e9d88d0884b8a2a3c9d1424986afdde87",
+  "build": "make (-O2, UBSan off)",
+  "mode": "headless offscreen Metal, --test-mode"
+ },
+ "px0": {
+  "commit": "5743e84e6bc4dd2e309200206f957ed540df6976",
+  "version": "px0 0.1.1 (darwin/arm64)",
+  "binary_sha256": "2dc66dd00540a2938a76f84c5605ea3214cb7f8e227df40a79bea59cec04177c",
+  "flags": "-no-open -no-lsp -quiet"
+ },
+ "chrome": {
+  "version": "Google Chrome 154.0.8037.98",
+  "mode": "headless=new, dedicated temporary profile"
+ },
+ "node": "v26.5.0",
+ "os": {
+  "platform": "macOS-26.6.2-arm64-arm-64bit-Mach-O",
+  "macos": "26.6.2"
+ },
+ "machine": {
+  "model": "Mac16,12",
+  "cpu": "Apple M4",
+  "cores": 10,
+  "memory_bytes": "25769803776"
+ },
+ "display": {
+  "note": "both apps headless; floatinghotel offscreen at scale 1, px0 viewport emulated at deviceScaleFactor = zoom",
+  "main_display": "Display Type: Built-in Liquid Retina Display\n          Resolution: 2560 x 1664 Retina"
+ },
+ "fonts": {
+  "floatinghotel_code_px": "settings default (Settings::kDefaultCodeFontSize)",
+  "px0": "its stylesheet default"
+ },
+ "fixture_commit": "5ef2cf46ea1dc119e191c33c34f831ad1dc63bb4",
+ "priority": "nice -n 10, run sequentially, one app at a time",
+ "plan": {
+  "launches_100": 30,
+  "reps_per_launch": 5,
+  "zoom_launches": 3,
+  "predeclared": [
+   "quick_open",
+   "warm",
+   100,
+   "wide"
+  ],
+  "win_margin": 0.2
+ },
+ "real_repositories": {
+  "flask": {
+   "url": "https://github.com/pallets/flask.git",
+   "tag": "3.1.0",
+   "commit": "ab8149664182b662453a563161aa89013c806dc9",
+   "files": 249,
+   "a": "src/flask/helpers.py",
+   "b": "src/flask/app.py",
+   "big": "CHANGES.rst",
+   "readme": "README.md"
+  },
+  "redis": {
+   "url": "https://github.com/redis/redis.git",
+   "tag": "7.4.1",
+   "commit": "74b289a0e12f9f65a6daeec6a66cadc76792f644",
+   "files": 1610,
+   "a": "src/networking.c",
+   "b": "src/server.c",
+   "big": "src/server.c",
+   "readme": "README.md"
+  },
+  "react": {
+   "url": "https://github.com/facebook/react.git",
+   "tag": "v19.0.0",
+   "commit": "7aa5dda3b3e4c2baa905a59b922ae7ec14734b24",
+   "files": 6928,
+   "a": "packages/react/src/ReactHooks.js",
+   "b": "packages/react-dom/src/client/ReactDOMRoot.js",
+   "big": "packages/react-reconciler/src/ReactFiberWorkLoop.js",
+   "readme": "README.md"
+  },
+  "typescript": {
+   "url": "https://github.com/microsoft/TypeScript.git",
+   "tag": "v5.7.2",
+   "commit": "d701d908d534e68cfab24b6df15539014ac348a3",
+   "files": 73043,
+   "a": "src/compiler/scanner.ts",
+   "b": "src/compiler/parser.ts",
+   "big": "src/compiler/checker.ts",
+   "readme": "README.md"
+  }
+ }
+}

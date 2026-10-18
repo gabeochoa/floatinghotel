@@ -154,8 +154,8 @@ struct RepositoryActionsSystem : afterhours::System<UIContext<InputAction>> {
             .with_size(ComponentSize{percent(1.f), pixels(30)}).with_debug_name("push_confirm_destination"))) {
             const auto target = destination;
             enqueue_network_op("Push to " + target.remote + "/" + target.destination,
-                async_work::launch([path = repo->repoPath, target](std::stop_token) { return git::push_explicit(path, target); },
-                    async_work::Priority::Foreground, git::GitResult{{"", "Operation queue is full; retry Push", -1}}, false));
+                async_work::launch([path = repo->repoPath, target](std::stop_token stop) { return git::push_explicit(path, target, stop); },
+                    async_work::Priority::Foreground, git::GitResult{{"", "Operation queue is full; retry Push", -1}}));
             repo->pushDialogOpen = false;
             ctx.remove_input_gate("push_dialog");
         }

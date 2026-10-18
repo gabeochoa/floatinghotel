@@ -23,6 +23,7 @@ struct Probe {
     std::string kind;
     std::string path;
     std::string revision;
+    int line = 0;  // optional: the destination is this line on screen, not just the file
     Clock::time_point armed = Clock::now();
     std::optional<Clock::time_point> dispatched;
     std::optional<double> selectionMs;
@@ -75,14 +76,16 @@ void rendered() {
     if (!probe.dispatched || probe.readyMs) return;
     auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     if (!repo) return;
-    bool selected = probe.kind == "source"
-        ? ecs::source_tab_active(*repo) && repo->fullFilePath() == probe.path && repo->fullFileRevision() == probe.revision
+    const bool source = probe.kind == "source" || probe.kind == "markdown";
+    bool selected = source
+        ? ecs::source_tab_active(*repo) && repo->fullFilePath() == probe.path && repo->fullFileRevision() == probe.revision &&
+            (probe.kind != "markdown" || repo->fullFileMarkdownPreview)
         : !ecs::source_tab_active(*repo) && repo->selectedCommitHash() == probe.revision &&
             (probe.path.empty() || repo->diffTargetFile() == probe.path || repo->selectedFilePath() == probe.path);
     if (!selected) return;
     auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
-    const std::string headingName = probe.kind == "source" ? "full_file_path" : "commit_detail_subject";
-    const std::string headingText = probe.kind == "source"
+    const std::string headingName = source ? "full_file_path" : "commit_detail_subject";
+    const std::string headingText = source
         ? probe.path
         : detail ? detail->entry.subject : "";
     bool headingVisible = false;
@@ -102,11 +105,24 @@ void rendered() {
     double elapsed = std::chrono::duration<double, std::milli>(Clock::now() - *probe.dispatched).count();
     if (!probe.selectionMs) probe.selectionMs = elapsed;
     bool ready = false;
-    if (probe.kind == "source") ready = !repo->fullFileFuture.valid() && !repo->fullFileDiff.empty() && repo->fullFileError.empty();
+    // An extension (the page above or below loading for scroll context) is
+    // not the destination: its page is already on screen.
+    if (source) ready = (!repo->fullFileFuture.valid() || repo->fullFileExtendRequest) &&
+        !repo->fullFileDiff.empty() && repo->fullFileError.empty();
     else if (probe.revision.empty()) ready = !repo->isRefreshing && !repo->refreshRequested;
     else if (detail)
         ready = detail->cachedCommitHash == probe.revision && !detail->patchFuture.valid() &&
             !detail->commitDetailDiff.empty() && detail->commitDetailError.empty();
+    if (ready && probe.line > 0) {
+        ready = false;
+        for (const auto& row : ui::diff_sel::state().lastLines) {
+            if (row.filePath != probe.path || row.newLine != probe.line) continue;
+            auto entity = afterhours::ui::UICollectionHolder::getEntityForID(row.ent);
+            if (!entity.valid() || !entity->has<afterhours::ui::UIComponent>()) continue;
+            const auto rect = ui::visible_rect(**entity);
+            if (rect.width > 0.f && rect.height >= row.rect.height - .5f) { ready = true; break; }
+        }
+    }
     if (ready) {
         probe.readyMs = elapsed;
         probe.layoutMs = reading_load::totalLayoutMs - probe.layoutBefore;
@@ -332,14 +348,15 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 cmd.fail("Timed out waiting for commit prefetch completion");
             } else { cmd.frames_alive = 0; cmd.retry(); }
         } else if (cmd.is("reading_probe")) {
-            if (cmd.args.size() != 4 || cmd.arg(0).empty() ||
+            if ((cmd.args.size() != 4 && cmd.args.size() != 5) || cmd.arg(0).empty() ||
                 cmd.arg(0).find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos ||
-                (cmd.arg(1) != "source" && cmd.arg(1) != "review")) {
-                cmd.fail("reading_probe requires label, source|review, path|- and revision|-");
+                (cmd.arg(1) != "source" && cmd.arg(1) != "review" && cmd.arg(1) != "markdown")) {
+                cmd.fail("reading_probe requires label, source|review|markdown, path|-, revision|- and optionally a line");
                 return;
             }
             if (!probe.label.empty()) { cmd.fail("Previous reading probe was not checked"); return; }
-            probe = {cmd.arg(0), cmd.arg(1), cmd.arg(2) == "-" ? "" : cmd.arg(2), cmd.arg(3) == "-" ? "" : cmd.arg(3)};
+            probe = {cmd.arg(0), cmd.arg(1), cmd.arg(2) == "-" ? "" : cmd.arg(2), cmd.arg(3) == "-" ? "" : cmd.arg(3),
+                cmd.args.size() == 5 ? std::atoi(cmd.arg(4).c_str()) : 0};
             probe.blobBefore = git::blob_page_cache().activity();
             probe.patchBefore = git::commit_patch_cache().activity();
             cmd.consume();
@@ -376,7 +393,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                     {"hit_delta", blob.first - probe.blobBefore.first}, {"miss_delta", blob.second - probe.blobBefore.second}}},
                 {"patch_cache", {{"bytes", git::commit_patch_cache().bytes()}, {"hits", patch.first}, {"misses", patch.second},
                     {"hit_delta", patch.first - probe.patchBefore.first}, {"miss_delta", patch.second - probe.patchBefore.second}}}};
-            const auto* load = probe.kind == "source" ? &repo->fullFileTrace : detail ? &detail->trace : nullptr;
+            const auto* load = probe.kind != "review" ? &repo->fullFileTrace : detail ? &detail->trace : nullptr;
             if (load && load->submitted >= *probe.dispatched && load->published >= load->finished && load->finished >= load->started) {
                 auto ms = reading_load::milliseconds;
                 snapshot["load_stages"] = {{"dispatch_to_submit_ms", ms(load->submitted - *probe.dispatched)},

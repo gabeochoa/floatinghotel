@@ -45,6 +45,7 @@ for repo in repos:
     assert len(tabs) == 1, (repo, [n['name'] for n in tabs])
 # Footprint moves with the allocator and text caches, so it is reported, not
 # asserted. Frame time with the reviewed tab in the background is the check:
-# it must cost what a lone sidebar tab costs, far below the review it hides.
-assert ms[1] < ms[0] / 2 and ms[1] < 8, ms
+# it must cost what a lone sidebar tab costs. The active review itself culls
+# off-screen files whole, so it stays near that too (was ~60 ms).
+assert ms[1] < 8 and ms[0] < 20, ms
 print(f'PASS inactive review tab adds no frame cost ({ms[1]:.2f} ms vs {ms[0]:.2f} active); duplicate open focuses the existing tab', flush=True)

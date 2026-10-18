@@ -47,7 +47,7 @@ inline PushDestination read_push_destination(const std::string& repository, std:
     return result;
 }
 
-inline GitResult push_explicit(const std::string& repository, const PushDestination& destination) {
+inline GitResult push_explicit(const std::string& repository, const PushDestination& destination, std::stop_token stop = {}) {
     auto branch = git_run(repository, {"symbolic-ref", "--quiet", "--short", "HEAD"});
     if (!branch.success() || catalog::trim_line(branch.stdout_str()) != destination.branch)
         return GitResult{{"", "The checked-out branch changed; reopen Push", -1}};
@@ -58,7 +58,7 @@ inline GitResult push_explicit(const std::string& repository, const PushDestinat
     if (!current.error.empty() || current.pushIdentity != destination.pushIdentity)
         return GitResult{{"", "The push destination changed; reopen Push", -1}};
     return git_run(repository, {"push", "--", destination.remote,
-        "refs/heads/" + destination.branch + ":refs/heads/" + destination.destination});
+        "refs/heads/" + destination.branch + ":refs/heads/" + destination.destination}, stop);
 }
 
 }

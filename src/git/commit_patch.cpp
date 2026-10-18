@@ -4,7 +4,9 @@
 #include "../util/shared_read.h"
 #include "../../vendor/afterhours/src/logging.h"
 #include <filesystem>
+#include <mutex>
 #include <sstream>
+#include <unordered_map>
 
 namespace git {
 
@@ -14,6 +16,29 @@ static auto& pending_patch_reads() {
 }
 
 std::uint64_t commit_patch_shared_reads() { return pending_patch_reads().shared_count(); }
+
+namespace {
+struct Resolution { std::string repository, commonDirectory, parent; };
+std::mutex resolutionMutex;
+std::unordered_map<std::string, Resolution> resolutions;  // ponytail: unbounded, one small entry per commit viewed
+
+std::string resolution_key(const CommitPatchRequest& request) {
+    return request.repoPath + '\n' + request.commit + '\n' + request.parent;
+}
+}
+
+std::optional<ecs::CommitPatch> peek_commit_patch(const CommitPatchRequest& request) {
+    if (!reading::is_object_id(request.commit) || (!request.parent.empty() && !reading::is_object_id(request.parent))) return {};
+    Resolution resolved;
+    {
+        std::lock_guard lock(resolutionMutex);
+        auto found = resolutions.find(resolution_key(request));
+        if (found == resolutions.end()) return {};
+        resolved = found->second;
+    }
+    return commit_patch_cache().get({resolved.repository, resolved.commonDirectory, request.commit, resolved.parent,
+        request.context, request.ignoreWhitespace, request.parent.empty()});
+}
 
 
 static ecs::CommitPatch read_commit_patch_impl(const CommitPatchRequest& request, std::stop_token stop, reading_load::Trace& trace) {
@@ -43,6 +68,10 @@ static ecs::CommitPatch read_commit_patch_impl(const CommitPatchRequest& request
     CommitPatchKey key{repository.string(), commonDirectory, out.resolvedCommit,
         out.resolvedParent, request.context, request.ignoreWhitespace, request.parent.empty()};
     bool cacheable = !identityError && !commonDirectory.empty();
+    if (cacheable && reading::is_object_id(request.commit)) {
+        std::lock_guard lock(resolutionMutex);
+        resolutions[resolution_key(request)] = {key.repository, key.commonDirectory, key.parent};
+    }
     trace.validationMs = reading_load::milliseconds(reading_load::Clock::now() - validationStart);
     auto& cache = commit_patch_cache();
     if (cacheable) {

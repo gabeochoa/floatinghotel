@@ -123,7 +123,8 @@ inline bool render(UIContext<InputAction>& ctx, Entity& parent, int id,
                     const std::string& scope, float width) {
     std::string ext = std::filesystem::path(file.filePath).extension().string();
     std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-    if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".gif" && ext != ".bmp" && ext != ".tga") return false;
+    if (ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".gif" && ext != ".bmp" && ext != ".tga" &&
+        ext != ".webp" && ext != ".avif" && ext != ".ico") return false;
     auto& files = cache().files;
     if (!files.contains(file.filePath)) {
         auto [before, after] = diff_revisions(scope);

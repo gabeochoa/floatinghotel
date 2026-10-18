@@ -18,6 +18,7 @@
 #include "../util/git_helpers.h"
 #include "../util/file_tree.h"
 #include "../util/commit_graph.h"
+#include "../util/commit_message.h"
 #include "../util/review_anchor.h"
 #include "network_ops_system.h"
 #include "ui_imports.h"
@@ -128,10 +129,17 @@ inline bool execute_commit(RepoComponent& repo,
     if (message.empty()) {
         message = "Update";
     }
+    // git commit's editor refuses an untouched template; -m would not.
+    if (!editor.templateText.empty() && commit_message::strip_template(message) == editor.templateText) {
+        if (auto* menu = find_singleton<MenuComponent>())
+            menu->pendingToasts.push_back({"Fill in the commit template first", MenuComponent::Notice::Kind::Error});
+        return false;
+    }
 
     auto result = git::git_commit(repo.repoPath, message);
     if (result.success()) {
-        editor.subject.clear();
+        editor.subject = editor.templateText;
+        editor.placeCaret = 0;
         editor.body.clear();
         editor.isVisible = false;
         repo.refreshRequested = true;
@@ -1429,6 +1437,20 @@ private:
                     .with_debug_name("commit_hint"));
         }
 
+        if (!editor.templateLoaded) {
+            editor.templateLoaded = true;
+            auto path = git::git_run(repo.repoPath, {"config", "--get", "--path", "commit.template"});
+            if (path.success()) {
+                std::filesystem::path file = commit_message::strip_template(path.stdout_str());
+                if (file.is_relative()) file = std::filesystem::path(repo.repoPath) / file;
+                editor.templateText = commit_message::strip_template(afterhours::files::read_string(file).value_or(""));
+                if (editor.subject.empty()) {
+                    editor.subject = editor.templateText;
+                    editor.placeCaret = 0;
+                }
+            }
+        }
+
         // Multi-line message: Enter commits (submit_on_enter), Shift+Enter adds
         // a body line. The whole string is the commit message — build_message
         // passes a multi-line subject through as subject + body.
@@ -1443,6 +1465,26 @@ private:
                 .with_line_height(pixels(18.0f))
                 .with_submit_on_enter()
                 .with_debug_name("commit_msg_input"));
+
+        // The area puts the caret at the end of text set from outside, which
+        // scrolls a multi-line template to its last line.
+        if (editor.placeCaret && inputResult.ent().has<afterhours::text_input::HasTextAreaState>()) {
+            auto& area = inputResult.ent().get<afterhours::text_input::HasTextAreaState>();
+            area.cursor_position = std::min(*editor.placeCaret, editor.subject.size());
+            area.scroll_offset_y = 0.f;
+            editor.placeCaret.reset();
+        }
+        if (ctx.is_right_click(inputResult.ent().id)) {
+            std::vector<ui::ContextMenuItem> types;
+            for (auto type : commit_message::kConventionalTypes)
+                types.push_back(ui::ContextMenuItem::item(std::string(type) + ":", [type] {
+                    if (auto* ed = find_singleton<CommitEditorComponent, ActiveTab>()) {
+                        ed->subject = commit_message::with_type(ed->subject, type);
+                        ed->placeCaret = type.size() + 2;
+                    }
+                }));
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(types));
+        }
 
         // Enter fires on_submit -> request a commit.
         inputResult.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>();

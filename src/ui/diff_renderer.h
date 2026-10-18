@@ -3135,13 +3135,64 @@ inline void render_diff(UIContext<InputAction>& ctx,
         if (document->restoreAnchor && document->anchor && vp.scroll) vp.restoreAnchor = document->anchor;
     }
 
-    struct HeaderLocation { Entity* entity; const ecs::FileDiff* file; double y; float height; };
+    struct HeaderLocation { Entity* entity; const ecs::FileDiff* file; double y; float height; double end = -1.; };
     std::vector<HeaderLocation> headers;
+    // Whole files off screen are skipped by the extent, entity ids and cursor
+    // ordinals they used when last built. The stamp holds everything that can
+    // change an unbuilt file's height; a frame that must reach some file's rows
+    // (a reveal, a restore, the composer, a cursor action) builds them all.
+    // Files whose height waits on async data (images, submodules, local
+    // context) are always built.
+    struct FileExtent { size_t stamp; double height; int ids; int ordinals; };
+    static std::unordered_map<std::uint64_t, FileExtent> fileExtents;
+    if (fileExtents.size() > 16384) fileExtents.clear();
+    const auto* skipDocument = filterRepo ? filterRepo->workspace().document(filterRepo->workspace().active_id()) : nullptr;
+    const bool skipFiles = vp.active && vp.scroll && !sess.findNavigate &&
+        !(filterRepo && (filterRepo->diffTargetFrames > 0 || filterRepo->fullFileNavigateFrames > 0)) &&
+        !(skipDocument && (skipDocument->restoreAnchor || !skipDocument->contextLines.empty())) &&
+        !(review && (!review->composingKey.empty() || review->cursorMoved || review->cursorApprove || review->cursorComment));
+    size_t extentStamp = 0;
+    if (skipFiles) {
+        std::string key = std::to_string(contentWidth) + ":" + std::to_string(sess.fontSize) + ":" +
+            std::to_string(zoom::get()) + ":" + std::to_string(sideBySide) + ":" + std::to_string(sess.visibleWhitespace) +
+            ":" + std::to_string(code_gutter::showNumbers) + ":" + std::to_string(sess.reviewActions) + ":" +
+            std::to_string(filterRepo ? filterRepo->diffContext : 3) + ":" + reviewScope;
+        if (ownerRepo) key += "\n" + ownerRepo->codeownersDocument.path + "\n" + ownerRepo->codeownersDocument.error;
+        if (review) {
+            key += review->showApproved ? "\nshown" : "\nhidden";
+            for (const auto& hunk : review->approvedHunks) key += "\na:" + hunk;
+            for (const auto& fold : review->foldedFiles) key += "\nf:" + fold;
+            for (const auto& fold : review->foldedHunks) key += "\nh:" + fold;
+        }
+        extentStamp = std::hash<std::string>{}(key);
+    }
+    struct Measuring { std::uint64_t key; double top; int id; int ordinal; };
+    std::optional<Measuring> measuring;
+    auto finishMeasuring = [&] {
+        if (!headers.empty() && headers.back().end < 0.) headers.back().end = vp.curY;
+        if (measuring) fileExtents[measuring->key] = {extentStamp, vp.curY - measuring->top,
+            nextId - measuring->id, sess.hunkOrdinal - measuring->ordinal};
+        measuring.reset();
+    };
     if (fileOrder.empty() && !diffs.empty())
         div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("No files match these filters")
             .with_size(ComponentSize{pixels(contentWidth), pixels(32)}).with_font_size(pixels(12)));
     for (size_t fileIndex : fileOrder) {
         auto& fileDiff = diffs[fileIndex];
+        finishMeasuring();
+        if (skipFiles && !fileDiff.isFullContent && !fileDiff.isBinary && !fileDiff.isSubmodule) {
+            const std::uint64_t key = fileDiff.renderIdentity * 1000003u ^ std::hash<std::string>{}(reviewScope) ^
+                (fileIndex == fileOrder.front() ? 1u : 0u);
+            auto known = fileExtents.find(key);
+            if (known != fileExtents.end() && known->second.stamp == extentStamp &&
+                (vp.curY + known->second.height < vp.top || vp.curY > vp.bottom)) {
+                vp.skipped(static_cast<float>(known->second.height / zoom::get()));
+                nextId += known->second.ids;
+                sess.hunkOrdinal += known->second.ordinals;
+                continue;
+            }
+            measuring = Measuring{key, vp.curY, nextId, sess.hunkOrdinal};
+        }
         if (fileIndex != fileOrder.front()) {
             vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
@@ -3333,7 +3384,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             vp.built(28.f);
         }
     }
-    const double filesEnd = vp.curY;
+    finishMeasuring();
     if (filterable && !fileOrder.empty()) {
         const auto& candidates = filterRepo && reviewScope == "wt" ? filterRepo->currentDiff :
             filterRepo && reviewScope == "index" ? filterRepo->stagedDiff : diffs;
@@ -3360,7 +3411,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     const double scrollY = vp.scroll ? vp.scroll->scroll_offset.y : 0.f;
     for (size_t i = 0; i < headers.size(); ++i) {
         const auto& header = headers[i];
-        const double end = i + 1 < headers.size() ? headers[i + 1].y : vp.curY;
+        const double end = i + 1 < headers.size() ? std::min(headers[i + 1].y, header.end + vp.px(14.f)) : vp.curY;
         const bool pinned = !header.file->isFullContent && header.y <= scrollY && scrollY < end;
         if (pinned || !vp.active || (header.y + vp.px(header.height) >= vp.top && header.y <= vp.bottom))
             if (render_file_header(ctx, *header.entity, contentParent, *header.file, contentWidth,
@@ -3380,7 +3431,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             gutter = bar.thickness / zoom::get();
     }
     for (size_t i = 0; vp.active && i < headers.size(); ++i) {
-        const double top = headers[i].y, end = i + 1 < headers.size() ? headers[i + 1].y - vp.px(14.f) : filesEnd;
+        const double top = headers[i].y, end = headers[i].end;
         if (end < vp.top || top > vp.bottom) continue;
         div(ctx, mk(endOfFiles.ent(), static_cast<int>(i)), ComponentConfig{}.with_skip_grid_snap()
             .with_absolute_position(1.f, (top - endY) / zoom::get())

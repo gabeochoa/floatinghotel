@@ -1,0 +1,348 @@
+From 026dd2ee42855f2152016ed88cf80a0b9fa3fec7 Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 06:24:11 -0400
+Subject: [PATCH] files: durable atomic writes with per-write temps
+
+write_string_atomic now creates a unique temp per write (O_EXCL,
+<target>.afh-tmp.<pid>.<n>), loops over partial writes and EINTR,
+fsyncs the temp (F_FULLFSYNC on macOS), renames, then fsyncs the
+directory. The target's permissions are kept. Concurrent writers to one
+path no longer share a temp: the last completed rename wins and a reader
+sees old or whole new contents.
+
+sweep_temp_files removes the legacy fixed-name temp and temps whose
+writer process has exited, and leaves a live writer's temp alone.
+
+Tests: competing writers, preserved 0600 mode, disk full (RLIMIT_FSIZE),
+a writer SIGKILLed mid-write, live vs dead temps in the sweep. The old
+has_temp_siblings matched a .tmp extension and never saw our temps.
+---
+ src/plugins/files.h               | 131 +++++++++++++++++++++++++++---
+ tests/files_atomic_write_test.cpp | 102 ++++++++++++++++++++++-
+ 2 files changed, 220 insertions(+), 13 deletions(-)
+
+diff --git a/src/plugins/files.h b/src/plugins/files.h
+index 9ad7e92..f0a28a1 100644
+--- a/src/plugins/files.h
++++ b/src/plugins/files.h
+@@ -1,5 +1,8 @@
+ #pragma once
+ 
++#include <atomic>
++#include <cerrno>
++#include <cstdio>
+ #include <cstring>
+ #include <filesystem>
+ #include <fstream>
+@@ -15,6 +18,15 @@
+ #include "../developer.h"
+ #include "../logging.h"
+ 
++#ifndef _WIN32
++#include <fcntl.h>
++#include <signal.h>
++#include <sys/stat.h>
++#include <unistd.h>
++#else
++#include <process.h>
++#endif
++
+ // Compile-time check: ensure files.cpp is compiled in your project
+ // If you see a linker error about ProvidesResourcePaths constructor,
+ // make sure to compile vendor/afterhours/src/plugins/files.cpp
+@@ -130,17 +142,86 @@ struct files : developer::Plugin {
+   // TODO: crash-safe but not power-loss-safe. Durability across power loss
+   // needs open/write/fsync/close on a raw fd plus an fsync of the directory,
+   // which is platform-specific. Fits behind this signature when needed.
++  // Each write gets its own temp, `<target>.afh-tmp.<pid>.<n>`: two writers
++  // to one path (two windows, a save racing a sync) never share a temp, so
++  // the last rename to complete wins and a reader sees the old file or a
++  // whole new one, never a mix.
++  static fs::path unique_temp_path(const fs::path &path) {
++    static std::atomic<unsigned long> counter{0};
++    fs::path tmp = path;
++    tmp += TEMP_SUFFIX;
++    tmp += "." + std::to_string(current_pid()) + "." + std::to_string(counter++);
++    return tmp;
++  }
++
++  // Durable replace: write a fresh temp, flush it to the device, rename it
++  // over the target, then flush the directory so the rename itself survives
++  // power loss. On macOS fsync stops at the drive's cache; F_FULLFSYNC does
++  // not, so it is used there (it costs milliseconds per write).
+   static bool write_string_atomic(const fs::path &path,
+                                   std::string_view content) {
+     std::error_code ec;
+     if (!path.parent_path().empty())
+       fs::create_directories(path.parent_path(), ec);
+-
+-    // Sibling temp: rename is only atomic within one filesystem. The suffix is
+-    // distinctive so sweep_temp_files can tell ours from a caller's .tmp.
+-    fs::path tmp = path;
+-    tmp += TEMP_SUFFIX;
+-
++    // Older versions used one fixed temp name per target; a crash could
++    // leave it behind, and nothing else ever writes that exact name.
++    fs::remove(fs::path(path.string() + TEMP_SUFFIX), ec);
++    const fs::path tmp = unique_temp_path(path);
++#ifndef _WIN32
++    const int fd = ::open(tmp.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_CLOEXEC, 0644);
++    if (fd < 0) {
++      log_warn("write_string_atomic: cannot create {}: {}", tmp.string(), strerror(errno));
++      return false;
++    }
++    auto fail = [&](const char *what) {
++      const int saved = errno;
++      ::close(fd);
++      fs::remove(tmp, ec);
++      log_warn("write_string_atomic: {} failed for {}: {}", what, path.string(), strerror(saved));
++      return false;
++    };
++    // Keep the target's permissions (a 0600 settings file stays 0600).
++    struct stat existing {};
++    if (::stat(path.c_str(), &existing) == 0 && ::fchmod(fd, existing.st_mode & 07777) != 0)
++      return fail("chmod");
++    const char *at = content.data();
++    size_t left = content.size();
++    while (left > 0) {
++      const ssize_t n = ::write(fd, at, left);
++      if (n < 0) {
++        if (errno == EINTR)
++          continue;
++        return fail("write");  // ENOSPC, EFBIG, EIO: the target is untouched
++      }
++      at += n;
++      left -= static_cast<size_t>(n);
++    }
++#ifdef __APPLE__
++    if (::fcntl(fd, F_FULLFSYNC) != 0 && ::fsync(fd) != 0)
++      return fail("fsync");
++#else
++    if (::fsync(fd) != 0)
++      return fail("fsync");
++#endif
++    if (::close(fd) != 0) {
++      fs::remove(tmp, ec);
++      log_warn("write_string_atomic: close failed for {}", path.string());
++      return false;
++    }
++    if (::rename(tmp.c_str(), path.c_str()) != 0) {
++      const int saved = errno;
++      fs::remove(tmp, ec);
++      log_warn("write_string_atomic: rename to {} failed: {}", path.string(), strerror(saved));
++      return false;
++    }
++    const fs::path dir = path.parent_path().empty() ? fs::path(".") : path.parent_path();
++    const int dfd = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC);
++    if (dfd >= 0) {
++      ::fsync(dfd);  // best effort: some filesystems refuse directory fsync
++      ::close(dfd);
++    }
++    return true;
++#else
+     {
+       std::ofstream out(tmp, std::ios::binary | std::ios::trunc);
+       if (!out) {
+@@ -156,7 +237,6 @@ struct files : developer::Plugin {
+         return false;
+       }
+     }
+-
+     fs::rename(tmp, path, ec);
+     if (ec) {
+       fs::remove(tmp, ec);
+@@ -164,6 +244,7 @@ struct files : developer::Plugin {
+       return false;
+     }
+     return true;
++#endif
+   }
+ 
+   // Whole file, or nullopt if missing/unreadable.
+@@ -178,6 +259,36 @@ struct files : developer::Plugin {
+     return ss.str();
+   }
+ 
++  // A temp whose writer can no longer finish it: the legacy fixed name, or a
++  // `.afh-tmp.<pid>.<n>` whose process has exited. A live writer's temp
++  // (another window mid-save) is left for its rename.
++  static bool is_orphaned_temp(const std::string &name) {
++    const size_t at = name.rfind(TEMP_SUFFIX);
++    if (at == std::string::npos || at == 0)
++      return false;
++    const std::string rest = name.substr(at + strlen(TEMP_SUFFIX));
++    if (rest.empty())
++      return true;
++    long pid = 0;
++    if (std::sscanf(rest.c_str(), ".%ld.", &pid) != 1 || pid <= 0)
++      return false;
++#ifndef _WIN32
++    if (pid == current_pid())
++      return false;
++    return ::kill(static_cast<pid_t>(pid), 0) != 0 && errno == ESRCH;
++#else
++    return true;
++#endif
++  }
++
++  static long current_pid() {
++#ifndef _WIN32
++    return static_cast<long>(::getpid());
++#else
++    return static_cast<long>(_getpid());
++#endif
++  }
++
+   // Delete leftover temps under `dir`. init() runs it over the config and save
+   // dirs. Never recovers data from them: a half-written and a complete temp are
+   // indistinguishable, so promoting one could overwrite good data.
+@@ -190,11 +301,7 @@ struct files : developer::Plugin {
+          it.increment(ec)) {
+       if (!it->is_regular_file(ec))
+         continue;
+-      const std::string name = it->path().filename().string();
+-      if (name.size() <= strlen(TEMP_SUFFIX))
+-        continue;
+-      if (name.compare(name.size() - strlen(TEMP_SUFFIX),
+-                       strlen(TEMP_SUFFIX), TEMP_SUFFIX) != 0)
++      if (!is_orphaned_temp(it->path().filename().string()))
+         continue;
+       std::error_code rm;
+       if (fs::remove(it->path(), rm))
+diff --git a/tests/files_atomic_write_test.cpp b/tests/files_atomic_write_test.cpp
+index 1c2d04e..5978a55 100644
+--- a/tests/files_atomic_write_test.cpp
++++ b/tests/files_atomic_write_test.cpp
+@@ -5,10 +5,18 @@
+ 
+ #include <afterhours/src/plugins/files.h>
+ 
++#include <atomic>
++#include <csignal>
+ #include <cstdio>
+ #include <filesystem>
+ #include <fstream>
+ #include <string>
++#include <thread>
++#ifndef _WIN32
++#include <sys/resource.h>
++#include <sys/wait.h>
++#include <unistd.h>
++#endif
+ 
+ namespace fs = std::filesystem;
+ using afterhours::files;
+@@ -25,10 +33,12 @@ static void check(bool cond, const std::string &what) {
+   }
+ }
+ 
++// Our temps carry TEMP_SUFFIX inside the name (`x.json.afh-tmp.<pid>.<n>`);
++// matching on the extension never found them, so these checks always passed.
+ static bool has_temp_siblings(const fs::path &dir) {
+   std::error_code ec;
+   for (const auto &e : fs::directory_iterator(dir, ec))
+-    if (e.path().extension() == ".tmp")
++    if (e.path().filename().string().find(files::TEMP_SUFFIX) != std::string::npos)
+       return true;
+   return false;
+ }
+@@ -156,6 +166,96 @@ int main() {
+           "sweeping a missing dir is a no-op");
+   }
+ 
++  // 10. Competing writers: each write has its own temp, so the file always
++  //     holds one writer's complete payload and no temp survives.
++  {
++    const fs::path p = root / "contended.json";
++    std::atomic<int> failures{0};
++    auto writer = [&](char fill) {
++      for (int i = 0; i < 100; i++)
++        if (!files::write_string_atomic(p, std::string(64 * 1024, fill)))
++          failures++;
++    };
++    std::thread a(writer, 'a'), b(writer, 'b');
++    a.join();
++    b.join();
++    auto got = files::read_string(p);
++    check(failures == 0, "every competing write succeeds");
++    check(got && got->size() == 64 * 1024 &&
++              (*got == std::string(64 * 1024, 'a') || *got == std::string(64 * 1024, 'b')),
++          "the file holds one writer's whole payload, never a mix");
++    check(!has_temp_siblings(root), "no temp survives competing writers");
++  }
++
++  // 11. Replacing a 0600 file keeps it 0600.
++  {
++    const fs::path p = root / "private.json";
++    check(files::write_string_atomic(p, "secret"), "seed private file");
++    fs::permissions(p, fs::perms::owner_read | fs::perms::owner_write, ec);
++    check(files::write_string_atomic(p, "secret2"), "rewrite private file");
++    check((fs::status(p, ec).permissions() & fs::perms::all) ==
++              (fs::perms::owner_read | fs::perms::owner_write),
++          "permissions survive the replace");
++  }
++
++#ifndef _WIN32
++  // 12. Disk full, simulated by a file-size limit: the write fails, the
++  //     original is intact and the partial temp is gone.
++  {
++    const fs::path p = root / "full.json";
++    check(files::write_string_atomic(p, "original"), "seed before disk full");
++    struct rlimit before {};
++    getrlimit(RLIMIT_FSIZE, &before);
++    signal(SIGXFSZ, SIG_IGN);
++    struct rlimit small = before;
++    small.rlim_cur = 1024;
++    setrlimit(RLIMIT_FSIZE, &small);
++    const bool wrote = files::write_string_atomic(p, std::string(64 * 1024, 'x'));
++    setrlimit(RLIMIT_FSIZE, &before);
++    check(!wrote, "a write past the size limit fails");
++    auto got = files::read_string(p);
++    check(got && *got == "original", "the original survives a full disk");
++    check(!has_temp_siblings(root), "the partial temp is removed");
++  }
++
++  // 13. Interruption: a writer killed mid-write leaves the old file or the
++  //     new one whole, and its temp is reclaimed by the sweep.
++  {
++    const fs::path dir = root / "killed";
++    fs::create_directories(dir, ec);
++    const fs::path p = dir / "state.json";
++    check(files::write_string_atomic(p, "old"), "seed before interruption");
++    const std::string big(64 * 1024 * 1024, 'n');
++    const pid_t child = fork();
++    if (child == 0) {
++      files::write_string_atomic(p, big);
++      _exit(0);
++    }
++    usleep(20 * 1000);
++    kill(child, SIGKILL);
++    int status = 0;
++    waitpid(child, &status, 0);
++    auto got = files::read_string(p);
++    check(got && (*got == "old" || *got == big), "an interrupted write leaves old or whole new contents");
++    files::sweep_temp_files(dir);
++    check(!has_temp_siblings(dir), "the killed writer's temp is swept");
++  }
++
++  // 14. The sweep spares a live writer's temp and takes a dead one's.
++  {
++    const fs::path dir = root / "sweep_live";
++    fs::create_directories(dir, ec);
++    const std::string live = "a.json" + std::string(files::TEMP_SUFFIX) + "." +
++                             std::to_string(getpid()) + ".0";
++    const std::string dead = "b.json" + std::string(files::TEMP_SUFFIX) + ".999999.0";
++    { std::ofstream(dir / live) << "writing"; }
++    { std::ofstream(dir / dead) << "orphan"; }
++    files::sweep_temp_files(dir);
++    check(fs::exists(dir / live, ec), "a live writer's temp is left alone");
++    check(!fs::exists(dir / dead, ec), "a dead writer's temp is swept");
++  }
++#endif
++
+   fs::remove_all(root, ec);
+ 
+   printf("\n%d/%d checks passed\n", checks_passed, checks_run);
+-- 
+2.50.1
+

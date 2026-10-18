@@ -81,7 +81,8 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     auto requestKey = [&] {
         return commit_review_scope(repo) + "\n" + std::to_string(repo.diffContext) + ":" + std::to_string(repo.ignoreWhitespace);
     };
-    bool staleRequest = (detailCache.patchFuture.valid()) &&
+    std::optional<CommitPatch> peeked;
+    bool staleRequest = (detailCache.patchFuture.valid() || detailCache.revalidateFuture.valid()) &&
         !navigation::accepts(repo, detailCache.requestStamp, requestKey());
     bool commitJustChanged = staleRequest || detailCache.cachedCommitHash != repo.selectedCommitHash() || detailCache.cachedRepoPath != repo.repoPath ||
         detailCache.cachedParentHash != selectedParent || detailCache.cachedContext != repo.diffContext ||
@@ -96,19 +97,31 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 if (entry.hash == repo.selectedCommitHash()) detailCache.entry = entry;
         detailCache.requestStamp = navigation::stamp(repo, requestKey());
         detailCache.loading.restart();
-        detailCache.patchFuture = git::load_commit_patch_async({repo.repoPath, repo.selectedCommitHash(),
-            selectedParent, repo.diffContext, repo.ignoreWhitespace});
+        const git::CommitPatchRequest request{repo.repoPath, repo.selectedCommitHash(), selectedParent,
+            repo.diffContext, repo.ignoreWhitespace};
+        if (auto cached = git::peek_commit_patch(request)) {
+            detailCache.revalidateFuture = git::load_commit_patch_async(request);
+            peeked = std::move(*cached);
+            peeked->trace.cacheHit = true;
+            peeked->trace.submitted = peeked->trace.started = peeked->trace.finished = reading_load::Clock::now();
+        } else detailCache.patchFuture = git::load_commit_patch_async(request);
         detailCache.cachedCommitHash = repo.selectedCommitHash();
         detailCache.cachedParentHash = selectedParent;
         detailCache.cachedRepoPath = repo.repoPath;
         detailCache.cachedContext = repo.diffContext;
         detailCache.cachedIgnoreWhitespace = repo.ignoreWhitespace;
     }
-    if (detailCache.patchFuture.valid() && detailCache.patchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+    auto ready = [](auto& task) { return task.valid() && task.wait_for(std::chrono::seconds(0)) == std::future_status::ready; };
+    auto& arrived = ready(detailCache.patchFuture) ? detailCache.patchFuture : detailCache.revalidateFuture;
+    if (peeked || ready(arrived)) {
         try {
-            auto patch = detailCache.patchFuture.get();
+            const bool revalidated = !peeked && &arrived == &detailCache.revalidateFuture;
+            auto patch = peeked ? std::move(*peeked) : arrived.get();
             if (!navigation::accepts(repo, detailCache.requestStamp, requestKey())) return;
-            reading_load::Publishing publication(detailCache.trace, patch.trace);
+            // The trace describes how the shown content arrived; revalidating
+            // it afterwards is not part of that.
+            reading_load::Trace discarded;
+            reading_load::Publishing publication(revalidated ? discarded : detailCache.trace, patch.trace);
             navigation::resolve_review(repo, detailCache.requestStamp, patch.resolvedCommit, patch.resolvedParent);
             detailCache.cachedCommitHash = repo.selectedCommitHash();
             detailCache.cachedParentHash = selected_commit_parent(repo);

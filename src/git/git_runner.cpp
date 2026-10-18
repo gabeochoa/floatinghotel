@@ -107,6 +107,13 @@ async_work::Task<RevisionComparison> git_compare_async(const std::string& repo,
         RevisionComparison{GitResult{{"", "Background queue is full; compare again to retry", -1}}, {}, {}});
 }
 
+// A push or fetch over a slow link can outlast any fixed bound, so network
+// verbs run untimed and the status bar offers Cancel instead. Cancelling kills
+// the process exactly as the old 60 s timeout did.
+static bool is_network(const std::vector<std::string>& args) {
+    return !args.empty() && (args[0] == "push" || args[0] == "fetch" || args[0] == "pull");
+}
+
 GitResult git_run(const std::string& repo_path,
                   const std::vector<std::string>& args, std::stop_token stop,
                   std::function<bool(std::string_view)> consumeOutput) {
@@ -140,7 +147,7 @@ GitResult git_run(const std::string& repo_path,
     } else {
         std::unique_lock<std::shared_timed_mutex> lock(*repositoryMutex);
         t1 = clock::now();
-        result.raw = run_process("", cmd, GIT_TIMEOUT_MS);
+        result.raw = is_network(args) ? run_process("", cmd, 0, stop) : run_process("", cmd, GIT_TIMEOUT_MS);
     }
     const auto t2 = clock::now();
     result.lockMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
@@ -173,7 +180,7 @@ async_work::Task<GitResult> git_run_async(
     const std::vector<std::string>& args, async_work::Priority priority) {
     return async_work::launch([repo_path, args](std::stop_token stop) {
         return git_run(repo_path, args, stop);
-    }, priority, GitResult{{"", "Background queue is full; retry the action", -1}}, is_read_only(args));
+    }, priority, GitResult{{"", "Background queue is full; retry the action", -1}}, is_read_only(args) || is_network(args));
 }
 
 // --- Startup prefetch ---

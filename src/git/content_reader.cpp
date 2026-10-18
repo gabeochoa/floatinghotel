@@ -13,6 +13,8 @@
 #include <sstream>
 #include <thread>
 #include <charconv>
+#include <mutex>
+#include <unordered_map>
 
 namespace git {
 
@@ -35,7 +37,16 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
     return file;
 }
 
-static ecs::FullFileContent read_file_impl(const FileRequest& input, std::stop_token stop, reading_load::Trace& trace) {
+namespace {
+// What `ls-tree` said about a path at a full commit id, from the last read
+// that asked; peek_file reuses it instead of a process.
+struct TreeEntry { std::string mode, blob; size_t totalBytes = 0; };
+std::mutex treeEntryMutex;
+std::unordered_map<std::string, TreeEntry> treeEntries;  // ponytail: unbounded, one small entry per file opened
+constexpr std::string_view kPeekMiss = "peek miss";
+}
+
+static ecs::FullFileContent read_file_impl(const FileRequest& input, std::stop_token stop, reading_load::Trace& trace, bool peek = false) {
     auto run = [&](const std::vector<std::string>& args, std::function<bool(std::string_view)> consume = {}) {
         auto result = git_run(input.repo, args, stop, std::move(consume));
         trace.gitLockMs += result.lockMs;
@@ -73,7 +84,18 @@ static ecs::FullFileContent read_file_impl(const FileRequest& input, std::stop_t
         content.page.totalBytes = result.totalBytes;
         content.page.sourceIdentity = std::move(result.identity);
     } else {
-        if (request.revision != "INDEX") {
+        const auto treeKey = input.repo + '\n' + request.revision + '\n' + request.path;
+        if (peek) {
+            std::lock_guard lock(treeEntryMutex);
+            auto found = treeEntries.find(treeKey);
+            if (request.revision == "INDEX" || !reading::is_object_id(input.revision) || found == treeEntries.end()) {
+                content.error = kPeekMiss;
+                return content;
+            }
+            mode = found->second.mode;
+            content.page.blob = found->second.blob;
+            content.page.totalBytes = found->second.totalBytes;
+        } else if (request.revision != "INDEX") {
             auto entry = run({"ls-tree", "-l", "-z", request.revision,
                 "--", ":(literal)" + request.path});
             const auto& output = entry.stdout_str();
@@ -92,6 +114,10 @@ static ecs::FullFileContent read_file_impl(const FileRequest& input, std::stop_t
                     parsed.ec != std::errc{} || parsed.ptr != size.data() + size.size())
                     content.error = type == "commit" ? "Path is a submodule; open its repository to read files" :
                         "Unable to read file metadata at this revision";
+                else if (reading::is_object_id(input.revision)) {
+                    std::lock_guard lock(treeEntryMutex);
+                    treeEntries[treeKey] = {mode, content.page.blob, content.page.totalBytes};
+                }
             }
         } else {
             std::string spec = request.revision == "INDEX" ? ":" + request.path
@@ -123,6 +149,9 @@ static ecs::FullFileContent read_file_impl(const FileRequest& input, std::stop_t
                 content.page = std::move(cached->page);
                 cacheHit = trace.cacheHit = true;
                 log_info("blob page cache hit for {}", content.page.blob);
+            } else if (peek) {
+                content.error = kPeekMiss;
+                return content;
             } else {
                 reading_load::Phase reading{trace.readMs};
                 auto result = run({"cat-file", "blob", content.page.blob}, consume);
@@ -166,6 +195,17 @@ ecs::FullFileContent read_file(const FileRequest& request, std::stop_token stop)
     reading_load::Trace trace;
     trace.submitted = trace.started = reading_load::Clock::now();
     auto result = read_file_impl(request, stop, trace);
+    trace.finished = reading_load::Clock::now();
+    result.trace = trace;
+    return result;
+}
+
+std::optional<ecs::FullFileContent> peek_file(const FileRequest& request) {
+    if (request.revision.empty() || request.revision == "INDEX" || !reading::is_object_id(request.revision)) return {};
+    reading_load::Trace trace;
+    trace.submitted = trace.started = reading_load::Clock::now();
+    auto result = read_file_impl(request, {}, trace, true);
+    if (result.error == kPeekMiss) return {};
     trace.finished = reading_load::Clock::now();
     result.trace = trace;
     return result;

@@ -1,0 +1,1702 @@
+From ae7b26a7f0e420e97ef2d49a4ec775e5b938d7c1 Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 07:13:35 -0400
+Subject: [PATCH] Add bounded jobs, byte-budget cache, image decode and texture
+ upload; watcher generations
+
+- plugins/jobs.h: Executor with bounded foreground/background queues, a
+  reserved foreground worker, explicit Rejected/Pending/Cancelled/Completed/
+  Failed outcomes, shutdown that cancels reads and drains must-complete jobs,
+  Generation tickets for stale completions, and BusyDelay.
+- plugins/byte_budget_cache.h: LRU bounded by a host cost function with
+  oversize rejection and hit/miss/eviction/rejection/byte stats.
+- plugins/image_decode.{h,cpp}: limited, cancellable stb decode to owned
+  RGBA8 with an optional shared Budget and structured errors.
+- load_texture_from_rgba on raylib, sokol and none, returning nullopt on
+  failure.
+- file_watcher: Event::generation and Watcher::generation(); test covers
+  generations and stop racing start under file churn.
+- Tests registered in tests/makefile; docs/plugins.md, PLUGIN_API.md and
+  CHANGELOG.md describe the contracts.
+---
+ CHANGELOG.md                          |   4 +
+ PLUGIN_API.md                         |   5 +-
+ docs/plugins.md                       |  51 ++++-
+ src/backends/none/drawing_helpers.h   |   7 +
+ src/backends/raylib/drawing_helpers.h |  18 ++
+ src/backends/sokol/drawing_helpers.h  |  17 ++
+ src/plugins/byte_budget_cache.h       | 125 +++++++++++
+ src/plugins/file_watcher.cpp          |  11 +-
+ src/plugins/file_watcher.h            |   6 +
+ src/plugins/image_decode.cpp          |  93 ++++++++
+ src/plugins/image_decode.h            |  93 ++++++++
+ src/plugins/jobs.h                    | 309 ++++++++++++++++++++++++++
+ tests/Makefile                        |  13 ++
+ tests/byte_budget_cache_test.cpp      | 127 +++++++++++
+ tests/file_watcher_test.cpp           |  42 ++++
+ tests/image_decode_test.cpp           | 157 +++++++++++++
+ tests/jobs_test.cpp                   | 233 +++++++++++++++++++
+ tests/texture_upload_test.cpp         | 113 ++++++++++
+ 18 files changed, 1419 insertions(+), 5 deletions(-)
+ create mode 100644 src/plugins/byte_budget_cache.h
+ create mode 100644 src/plugins/image_decode.cpp
+ create mode 100644 src/plugins/image_decode.h
+ create mode 100644 src/plugins/jobs.h
+ create mode 100644 tests/byte_budget_cache_test.cpp
+ create mode 100644 tests/image_decode_test.cpp
+ create mode 100644 tests/jobs_test.cpp
+ create mode 100644 tests/texture_upload_test.cpp
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5ae4108..3eb4f96 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -30,6 +30,10 @@ Started partway through the project's life, so it does not go all the way back.
+ - **Menu shortcuts sit one pad in from the panel edge** — they were flush, clipping the last glyph in half.
+ 
+ ### New APIs
++- **`jobs::Executor`** (`plugins/jobs.h`) runs owned-value work on bounded foreground/background queues with a reserved foreground worker. Handles report `Rejected`, `Pending`, `Cancelled`, `Completed` or `Failed`; shutdown cancels reads and drains must-complete jobs. `jobs::Generation` tickets let the main thread drop stale completions, and `jobs::BusyDelay` keeps fast work from flashing a spinner.
++- **`ByteBudgetCache`** (`plugins/byte_budget_cache.h`) is an LRU keyed by any type and bounded by a host cost function. It rejects oversize values and reports hits, misses, evictions, rejections and bytes.
++- **`image_decode::decode`** (`plugins/image_decode.h` + `.cpp`) decodes on any thread with encoded, dimension and decoded-byte limits, an optional shared `Budget`, cancellation and structured errors. **`load_texture_from_rgba`** uploads the pixels on every backend and returns `std::nullopt` on failure. Apps reaching into `metal_texture_detail::load_texture_from_pixels` can move to it.
++- **`file_watcher::Event::generation`** and `Watcher::generation()` mark which subscription produced an event, so events kept across a restart can be discarded.
+ - **`polyline::draw_dashed(pts, thickness, color, dash, gap, phase)`** (`polyline.h`) draws a patterned run. `draw_line_ex` was solid-only, so a dashed cable, marquee or tick run had to be hand-rolled. Arc length accumulates across vertices, so a dash straddling a corner stays one dash, and `phase` is what animates it.
+ - **`polyline::resample_by_arclength(pts, step)`** returns evenly spaced points. A bezier sampler walks uniformly in `t`, which is not uniform in screen distance, so anything spaced along the result bunches where the curve is tight.
+ - **`draw_line_ex` is recorded by capture**, so a test can assert on a dashed pattern. The `none` backend used to log `@notimplemented` and draw nothing.
+diff --git a/PLUGIN_API.md b/PLUGIN_API.md
+index 3ad1d02..417b9c4 100644
+--- a/PLUGIN_API.md
++++ b/PLUGIN_API.md
+@@ -62,8 +62,9 @@ and `SINGLETON_PARAM` remain available.
+ Construct singleton state, register it, install EnforceSingleton checks, then register
+ update/render systems in the application's intended order. State must outlive systems.
+ See `src/plugins/input_system.h`, `animation.h` and `window_manager.h` for real examples.
+-Compile implementation files required by selected plugins, such as `files.cpp` and
+-platform dialog/watcher files; headers alone do not provide those symbols.
++Compile implementation files required by selected plugins, such as `files.cpp`,
++`image_decode.cpp` and platform dialog/watcher files; headers alone do not provide
++those symbols.
+ 
+ [Optional APIs](docs/plugins.md), [UI](src/plugins/ui/README.md), and
+ [profiling](docs/profiling.md) document their own contracts. Proposed extraction and
+diff --git a/docs/plugins.md b/docs/plugins.md
+index e417cc0..70f4942 100644
+--- a/docs/plugins.md
++++ b/docs/plugins.md
+@@ -69,7 +69,56 @@ Own a `Watcher`, call `start` with existing roots, and check the `Started`, `Uns
+ 
+ The macOS backend uses FSEvents on a private serial dispatch queue. It never calls application code from that queue. The event buffer is bounded; overflow produces one event with an empty path and `must_rescan = true`, meaning rescan all watched roots. Native dropped-event and root-change flags also request rescans. Choose the limit and latency through `Options`.
+ 
+-Call start, stop and destruction from the owning app thread. `stop` waits for in-flight native callbacks and clears pending events; destruction calls stop. No callbacks can retain the watcher after stop. Filtering, debounce, Git state and refresh policy remain application-owned.
++Call start, stop and destruction from the owning app thread. `stop` waits for in-flight native callbacks and clears pending events; destruction calls stop. No callbacks can retain the watcher after stop. Start is synchronous, so a stop or destruction immediately after start joins safely; the test churns files while starting and stopping repeatedly. Filtering, debounce, Git state and refresh policy remain application-owned.
++
++Each event carries the `generation` of the subscription that produced it. `generation()` advances on every stop, and therefore on every start. An app that keeps drained events, or hands them to a job, compares `event.generation == watcher.generation()` before acting so events from an old subscription are discarded.
++
++## Background jobs
++
++Include `src/plugins/jobs.h` (header-only). Own one `jobs::Executor` per app or subsystem, not per widget. `Options` sets `threads`, `queue_capacity` (total queued jobs) and `background_queue_capacity` (where background admission stops, keeping the rest for foreground work). With two or more threads, one worker only takes foreground jobs, so a background backlog cannot delay foreground work. Foreground jobs are dequeued before background ones.
++
++`submit(fn, {.priority, .must_complete, .ticket})` never blocks. `fn` takes a `std::stop_token` and returns an owned value; it runs on a worker and must not touch entities, components or UI state. The returned `Handle<T>` reports one `Status`:
++
++- `Rejected`: the queue was at its bound or the executor was shut down. `fn` never runs.
++- `Pending`: accepted and not finished. `accepted()` is true for every status except `Rejected`.
++- `Completed`: `take()` moves the value out once.
++- `Failed`: `fn` threw; `error()` returns the exception.
++- `Cancelled`: cancellation was requested before `fn` returned. No value is delivered, even if `fn` ignored its token. A queued job settles as `Cancelled` immediately and never runs; a running job should poll its token and return early.
++
++Poll with `status()`/`finished()` from the main thread; `wait_for` blocks and is meant for tests and shutdown paths. Destroying or reassigning a handle cancels its job. `must_complete` jobs ignore `cancel()` and keep an unstopped token.
++
++`shutdown()` (also run by the destructor) stops admission, cancels running and queued cancellable jobs, runs every queued must-complete job, then joins the workers. It is idempotent. Call it from the owning thread, never from a job. A cancelled queued job keeps its queue slot until a worker discards it.
++
++`jobs::Generation view(owner_id)` issues `Ticket{owner, generation}` values. Pass `.ticket = view.issue()` when submitting, and apply a completion only if `view.is_current(handle.ticket())`. A later `issue()` or `invalidate()` makes earlier tickets stale, so a result arriving after its view or scene was replaced is dropped. The host still owns the document or asset key.
++
++`jobs::BusyDelay` shows a busy indicator only after work has been pending for `delay` (150 ms by default), so fast operations never flash it. Call `start()` when work begins, `stop()` when it ends, and draw the indicator while `visible()`. A second `start()` while busy keeps the first start time.
++
++## Byte-budget cache
++
++Include `src/plugins/byte_budget_cache.h` (header-only). `ByteBudgetCache<Key, Value, Hash, KeyEqual>(budget, cost)` takes a cost function `size_t(const Key&, const Value&)` and keeps the sum of costs within the budget, evicting least recently used entries.
++
++- `get` returns a pointer valid until the next mutation, marks the entry most recently used, and counts a hit or miss.
++- `put` inserts or replaces. Replacement re-accounts the key and is not an eviction. A value costing more than the whole budget is rejected (`false`, counted in `rejections`), and any older value under that key is removed so a stale value never survives a failed replacement. An entry equal to the remaining budget fits.
++- `erase`, `clear` and `set_budget` (which evicts immediately when lowered) round out the API.
++- `stats()` reports `hits`, `misses`, `evictions`, `rejections`, `bytes`, `entries` and `budget`.
++
++Values are moved in and owned by the cache. To share them, store `std::shared_ptr<const T>`: an evicted value then lives on while referenced, and its bytes are no longer counted. Accounting is exactly the sum of cost results; list nodes, hash buckets and the cache's two copies of each key are excluded unless the cost function adds them. `bytes` is cache occupancy, not process or GPU memory. The cache is not thread-safe; wrap it in a mutex when shared.
++
++## Image decoding and texture upload
++
++Include `src/plugins/image_decode.h` and compile `image_decode.cpp`, which carries a private internal-linkage copy of the bundled stb_image. It needs `vendor` on the include path. `image_decode::decode(bytes, limits, stop, budget)` may run on any thread. Formats are those stb_image reads: PNG, JPEG, BMP, TGA, GIF (first frame), PSD, HDR, PIC and PNM.
++
++`Limits` caps encoded bytes, width, height and decoded bytes. Dimensions come from the header and are checked before any pixel allocation. The result is either a `DecodedImage` or an `Error` with an `ErrorCode` (`Cancelled`, `EncodedTooLarge`, `InvalidImage`, `DimensionsTooLarge`, `DecodedTooLarge`, `BudgetExhausted`, `DecodeFailed`) and a message. A `DecodedImage` owns RGBA8 pixels with straight alpha, rows top to bottom, stride `width * 4`. It is move-only and frees its pixels on destruction.
++
++An optional `image_decode::Budget` is shared by several decoders. Each image reserves `width * height * 4` bytes before decoding and returns them when destroyed. Decoder scratch memory and GPU textures are not counted, so keep GPU accounting separate. The budget must outlive its images. Cancellation is checked before and after the stb call; stb cannot be interrupted mid-decode. Every failure, including a late cancellation, frees the pixels and returns the reservation before `decode` returns.
++
++`load_texture_from_rgba(pixels, width, height, filter)` from `drawing_helpers.h` uploads such pixels as a texture. Call it on the render thread after `graphics::init`. It copies the pixels; the caller keeps ownership, so drop the `DecodedImage` after the call whether it succeeded or failed. It returns `std::nullopt` on invalid input or upload failure, and the caller then has nothing to unload. Otherwise release the texture with `unload_texture`.
++
++| Backend | Behavior |
++|---|---|
++| raylib | `LoadTextureFromImage`; `TEXTURE_FILTER_TRILINEAR` also generates mipmaps. Calling without a GL context is undefined. |
++| sokol (Metal tested; GL/D3D share the code) | Builds the mip chain and sampler. Returns `std::nullopt` when sokol is not set up, or the image, view or sampler pool is exhausted. |
++| none | Always `std::nullopt`. |
+ 
+ ## Input binding persistence
+ 
+diff --git a/src/backends/none/drawing_helpers.h b/src/backends/none/drawing_helpers.h
+index b6697dd..e2d9e53 100644
+--- a/src/backends/none/drawing_helpers.h
++++ b/src/backends/none/drawing_helpers.h
+@@ -303,6 +303,13 @@ inline TextureType load_texture(const char *) {
+   return TextureType{};
+ }
+ 
++// No graphics backend: always std::nullopt, so callers take their failure path.
++inline std::optional<TextureType> load_texture_from_rgba(const unsigned char *,
++                                                         int, int,
++                                                         int = TEXTURE_FILTER_BILINEAR) {
++  return std::nullopt;
++}
++
+ inline void unload_texture(TextureType &) {
+   log_error("@notimplemented unload_texture");
+ }
+diff --git a/src/backends/raylib/drawing_helpers.h b/src/backends/raylib/drawing_helpers.h
+index d57fbd6..2a12b27 100644
+--- a/src/backends/raylib/drawing_helpers.h
++++ b/src/backends/raylib/drawing_helpers.h
+@@ -682,6 +682,24 @@ inline TextureType load_texture(const char *path) {
+   return raylib::LoadTexture(path);
+ }
+ 
++// Uploads tightly packed RGBA8 pixels (straight alpha, rows top to bottom,
++// stride width * 4) to a new texture with the given filter. Call on the render
++// thread after graphics::init. The pixels are copied; the caller keeps
++// ownership either way. Returns std::nullopt on invalid input or upload
++// failure; the caller then has nothing to unload.
++inline std::optional<TextureType>
++load_texture_from_rgba(const unsigned char *rgba, int width, int height,
++                       int filter = TEXTURE_FILTER_BILINEAR) {
++  if (rgba == nullptr || width <= 0 || height <= 0) return std::nullopt;
++  raylib::Image image{const_cast<unsigned char *>(rgba), width, height, 1,
++                      raylib::PIXELFORMAT_UNCOMPRESSED_R8G8B8A8};
++  TextureType texture = raylib::LoadTextureFromImage(image);
++  if (texture.id == 0) return std::nullopt;
++  if (filter == TEXTURE_FILTER_TRILINEAR) raylib::GenTextureMipmaps(&texture);
++  raylib::SetTextureFilter(texture, filter);
++  return texture;
++}
++
+ inline void unload_texture(TextureType &texture) {
+   if (texture.id != 0) {
+     raylib::UnloadTexture(texture);
+diff --git a/src/backends/sokol/drawing_helpers.h b/src/backends/sokol/drawing_helpers.h
+index 8b1be16..f1f05d9 100644
+--- a/src/backends/sokol/drawing_helpers.h
++++ b/src/backends/sokol/drawing_helpers.h
+@@ -1673,6 +1673,23 @@ inline TextureType load_texture_from_pixels(const unsigned char *rgba, int w,
+ 
+ } // namespace metal_texture_detail
+ 
++// Uploads tightly packed RGBA8 pixels (straight alpha, rows top to bottom,
++// stride width * 4) to a new texture with the given filter. Call on the render
++// thread after graphics::init. The pixels are copied; the caller keeps
++// ownership either way. Returns std::nullopt on invalid input or upload
++// failure; the caller then has nothing to unload.
++// Every sokol backend shares this path; it fails when sokol is not set up.
++inline std::optional<TextureType>
++load_texture_from_rgba(const unsigned char *rgba, int width, int height,
++                       int filter = TEXTURE_FILTER_BILINEAR) {
++  if (rgba == nullptr || width <= 0 || height <= 0 || !sg_isvalid())
++    return std::nullopt;
++  TextureType texture =
++      metal_texture_detail::load_texture_from_pixels(rgba, width, height, filter);
++  if (texture.img_id == 0) return std::nullopt;
++  return texture;
++}
++
+ inline TextureType load_texture(const char *path) {
+   int w = 0, h = 0, comp = 0;
+   // Force 4 channels (RGBA8) to match the fixed pixel format below.
+diff --git a/src/plugins/byte_budget_cache.h b/src/plugins/byte_budget_cache.h
+new file mode 100644
+index 0000000..f56eb10
+--- /dev/null
++++ b/src/plugins/byte_budget_cache.h
+@@ -0,0 +1,125 @@
++#pragma once
++
++// LRU cache bounded by host-reported byte costs. See docs/plugins.md
++// "Byte-budget cache" for the contract. Not thread-safe: wrap it in a mutex
++// when shared.
++
++#include <cstddef>
++#include <functional>
++#include <list>
++#include <unordered_map>
++#include <utility>
++
++namespace afterhours {
++
++struct CacheStats {
++  std::size_t hits = 0;
++  std::size_t misses = 0;
++  std::size_t evictions = 0;  // entries dropped to make room
++  std::size_t rejections = 0; // puts whose cost exceeded the budget
++  std::size_t bytes = 0;      // sum of costs of resident entries
++  std::size_t entries = 0;
++  std::size_t budget = 0;
++};
++
++// Values are moved in and owned by the cache. Use Value = shared_ptr<const T>
++// to hand out shared references; an evicted value then lives on while
++// referenced, and those bytes are no longer counted here. Accounting is
++// exactly the sum of cost(key, value): list nodes, hash buckets and the
++// duplicated key are excluded unless the cost function adds them.
++template <class Key, class Value, class Hash = std::hash<Key>,
++          class KeyEqual = std::equal_to<Key>>
++class ByteBudgetCache {
++public:
++  using CostFn = std::function<std::size_t(const Key &, const Value &)>;
++
++  ByteBudgetCache(std::size_t budget, CostFn cost)
++      : budget_(budget), cost_(std::move(cost)) {}
++
++  // Pointer valid until the next put/erase/clear. Counts a hit or miss and
++  // marks a hit most recently used.
++  const Value *get(const Key &key) {
++    auto it = index_.find(key);
++    if (it == index_.end()) {
++      ++stats_.misses;
++      return nullptr;
++    }
++    ++stats_.hits;
++    entries_.splice(entries_.begin(), entries_, it->second);
++    return &it->second->value;
++  }
++
++  bool contains(const Key &key) const { return index_.count(key) != 0; }
++
++  // Inserts or replaces, then evicts least recently used entries until the
++  // budget holds. A value costing more than the whole budget is rejected and
++  // returns false; any older value under that key is removed either way, so
++  // a stale value never outlives a failed replacement.
++  bool put(Key key, Value value) {
++    const std::size_t cost = cost_(key, value);
++    erase(key);
++    if (cost > budget_) {
++      ++stats_.rejections;
++      return false;
++    }
++    while (stats_.bytes > budget_ - cost) {
++      drop(std::prev(entries_.end()));
++      ++stats_.evictions;
++    }
++    entries_.push_front({key, std::move(value), cost});
++    index_.emplace(std::move(key), entries_.begin());
++    stats_.bytes += cost;
++    return true;
++  }
++
++  bool erase(const Key &key) {
++    auto it = index_.find(key);
++    if (it == index_.end()) return false;
++    drop(it->second);
++    return true;
++  }
++
++  void clear() {
++    entries_.clear();
++    index_.clear();
++    stats_.bytes = 0;
++  }
++
++  // Lowering the budget evicts immediately.
++  void set_budget(std::size_t budget) {
++    budget_ = budget;
++    while (stats_.bytes > budget_) {
++      drop(std::prev(entries_.end()));
++      ++stats_.evictions;
++    }
++  }
++
++  CacheStats stats() const {
++    CacheStats out = stats_;
++    out.entries = entries_.size();
++    out.budget = budget_;
++    return out;
++  }
++
++private:
++  struct Entry {
++    Key key;
++    Value value;
++    std::size_t cost;
++  };
++  using Iter = typename std::list<Entry>::iterator;
++
++  std::size_t budget_;
++  CostFn cost_;
++  std::list<Entry> entries_;
++  std::unordered_map<Key, Iter, Hash, KeyEqual> index_;
++  CacheStats stats_;
++
++  void drop(Iter it) {
++    stats_.bytes -= it->cost;
++    index_.erase(it->key);
++    entries_.erase(it);
++  }
++};
++
++} // namespace afterhours
+diff --git a/src/plugins/file_watcher.cpp b/src/plugins/file_watcher.cpp
+index c53dd5b..080274c 100644
+--- a/src/plugins/file_watcher.cpp
++++ b/src/plugins/file_watcher.cpp
+@@ -15,6 +15,7 @@ struct Watcher::Impl {
+     std::vector<Event> events;
+     std::size_t limit = 4096;
+     bool overflowed = false;
++    std::uint64_t generation = 0;
+ #ifdef __APPLE__
+     FSEventStreamRef stream = nullptr;
+     dispatch_queue_t queue = nullptr;
+@@ -29,14 +30,14 @@ struct Watcher::Impl {
+         for (std::size_t i = 0; i < count; ++i) {
+             if (self.events.size() >= self.limit) {
+                 self.events.clear();
+-                self.events.push_back({{}, true});
++                self.events.push_back({{}, true, self.generation});
+                 self.overflowed = true;
+                 return;
+             }
+             const auto rescan_flags = kFSEventStreamEventFlagMustScanSubDirs |
+                 kFSEventStreamEventFlagUserDropped | kFSEventStreamEventFlagKernelDropped |
+                 kFSEventStreamEventFlagRootChanged;
+-            self.events.push_back({paths[i], (flags[i] & rescan_flags) != 0});
++            self.events.push_back({paths[i], (flags[i] & rescan_flags) != 0, self.generation});
+         }
+     }
+ #endif
+@@ -109,6 +110,12 @@ void Watcher::stop() {
+     std::lock_guard lock(impl_->mutex);
+     impl_->events.clear();
+     impl_->overflowed = false;
++    ++impl_->generation;
++}
++
++std::uint64_t Watcher::generation() const {
++    std::lock_guard lock(impl_->mutex);
++    return impl_->generation;
+ }
+ 
+ std::vector<Event> Watcher::drain() {
+diff --git a/src/plugins/file_watcher.h b/src/plugins/file_watcher.h
+index 1d73c63..13b4987 100644
+--- a/src/plugins/file_watcher.h
++++ b/src/plugins/file_watcher.h
+@@ -1,6 +1,7 @@
+ #pragma once
+ 
+ #include <cstddef>
++#include <cstdint>
+ #include <filesystem>
+ #include <memory>
+ #include <string>
+@@ -12,6 +13,9 @@ namespace afterhours::file_watcher {
+ struct Event {
+     std::filesystem::path path;
+     bool must_rescan = false;
++    // The subscription that produced this event; compare with
++    // Watcher::generation() to drop events kept across a restart.
++    std::uint64_t generation = 0;
+ };
+ 
+ struct Options {
+@@ -34,6 +38,8 @@ class Watcher {
+                       Options options = {});
+     void stop();
+     std::vector<Event> drain();
++    // Advances on every stop (and so on every start).
++    std::uint64_t generation() const;
+ 
+  private:
+     struct Impl;
+diff --git a/src/plugins/image_decode.cpp b/src/plugins/image_decode.cpp
+new file mode 100644
+index 0000000..10ddf12
+--- /dev/null
++++ b/src/plugins/image_decode.cpp
+@@ -0,0 +1,93 @@
++#include "image_decode.h"
++
++#include <climits>
++#include <cstdlib>
++
++// A private, internal-linkage copy of stb_image: no symbol clash with the
++// sokol backend's copy or any the application links.
++#define STB_IMAGE_STATIC
++#define STB_IMAGE_IMPLEMENTATION
++#if defined(__clang__)
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wunused-function"
++#elif defined(__GNUC__)
++#pragma GCC diagnostic push
++#pragma GCC diagnostic ignored "-Wunused-function"
++#endif
++#include <stb/stb_image.h>
++#if defined(__clang__)
++#pragma clang diagnostic pop
++#elif defined(__GNUC__)
++#pragma GCC diagnostic pop
++#endif
++
++namespace afterhours::image_decode {
++
++struct Reservation {
++  static bool take(Budget *budget, std::size_t bytes) {
++    if (!budget) return true;
++    auto reserved = budget->reserved_.load();
++    do {
++      if (bytes > budget->limit_ || reserved > budget->limit_ - bytes) return false;
++    } while (!budget->reserved_.compare_exchange_weak(reserved, reserved + bytes));
++    return true;
++  }
++  static void give_back(Budget *budget, std::size_t bytes) {
++    if (budget) budget->reserved_.fetch_sub(bytes);
++  }
++};
++
++void PixelRelease::operator()(unsigned char *pixels) const {
++  stbi_image_free(pixels);
++  Reservation::give_back(budget, bytes);
++}
++
++struct Decoder {
++  static DecodedImage make(unsigned char *pixels, int width, int height,
++                           Budget *budget, std::size_t bytes) {
++    DecodedImage image;
++    image.pixels_ = {pixels, PixelRelease{budget, bytes}};
++    image.width_ = width;
++    image.height_ = height;
++    return image;
++  }
++};
++
++static tl::unexpected<Error> fail(ErrorCode code, std::string message) {
++  return tl::unexpected(Error{code, std::move(message)});
++}
++
++tl::expected<DecodedImage, Error> decode(std::span<const unsigned char> encoded,
++                                         const Limits &limits,
++                                         std::stop_token stop, Budget *budget) {
++  if (stop.stop_requested()) return fail(ErrorCode::Cancelled, "Image decode cancelled");
++  if (encoded.size() > limits.max_encoded_bytes || encoded.size() > INT_MAX)
++    return fail(ErrorCode::EncodedTooLarge, "Encoded image exceeds the size limit");
++  const auto length = static_cast<int>(encoded.size());
++  int width = 0, height = 0, channels = 0;
++  if (!stbi_info_from_memory(encoded.data(), length, &width, &height, &channels) ||
++      width <= 0 || height <= 0)
++    return fail(ErrorCode::InvalidImage, "Unsupported or invalid image");
++  if (width > limits.max_width || height > limits.max_height)
++    return fail(ErrorCode::DimensionsTooLarge, "Image dimensions exceed the limit");
++  const std::size_t bytes = static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4;
++  if (bytes > limits.max_decoded_bytes)
++    return fail(ErrorCode::DecodedTooLarge, "Decoded image exceeds the memory limit");
++  if (!Reservation::take(budget, bytes))
++    return fail(ErrorCode::BudgetExhausted, "Shared decode budget exhausted");
++  int decoded_width = 0, decoded_height = 0;
++  unsigned char *pixels = stbi_load_from_memory(encoded.data(), length, &decoded_width,
++                                                &decoded_height, &channels, 4);
++  if (!pixels || decoded_width != width || decoded_height != height) {
++    if (pixels) stbi_image_free(pixels);
++    Reservation::give_back(budget, bytes);
++    return fail(ErrorCode::DecodeFailed,
++                std::string("Unable to decode image: ") +
++                    (stbi_failure_reason() ? stbi_failure_reason() : "size mismatch"));
++  }
++  auto image = Decoder::make(pixels, width, height, budget, bytes);
++  if (stop.stop_requested()) return fail(ErrorCode::Cancelled, "Image decode cancelled");
++  return image;
++}
++
++} // namespace afterhours::image_decode
+diff --git a/src/plugins/image_decode.h b/src/plugins/image_decode.h
+new file mode 100644
+index 0000000..d32463e
+--- /dev/null
++++ b/src/plugins/image_decode.h
+@@ -0,0 +1,93 @@
++#pragma once
++
++// CPU image decoding with limits, safe to call from worker threads. Compile
++// image_decode.cpp. Upload the result on the render thread with
++// load_texture_from_rgba (drawing_helpers.h). See docs/plugins.md
++// "Image decoding and texture upload".
++
++#include <atomic>
++#include <cstddef>
++#include <memory>
++#include <span>
++#include <stop_token>
++#include <string>
++
++#include "../../expected.hpp"
++
++namespace afterhours::image_decode {
++
++struct Limits {
++  std::size_t max_encoded_bytes = std::size_t{64} << 20;
++  int max_width = 16384;
++  int max_height = 16384;
++  // width * height * 4 for the RGBA8 output.
++  std::size_t max_decoded_bytes = std::size_t{256} << 20;
++};
++
++// Decoded bytes shared by several decoders, e.g. all thumbnail workers. Each
++// DecodedImage reserves its pixel bytes before decoding and returns them when
++// destroyed. Decoder scratch memory and GPU textures are not counted. Must
++// outlive every image decoded against it.
++class Budget {
++public:
++  explicit Budget(std::size_t limit) : limit_(limit) {}
++  Budget(const Budget &) = delete;
++  Budget &operator=(const Budget &) = delete;
++  std::size_t reserved() const { return reserved_.load(); }
++  std::size_t limit() const { return limit_; }
++
++private:
++  friend struct PixelRelease;
++  friend struct Reservation;
++  std::atomic<std::size_t> reserved_{0};
++  std::size_t limit_;
++};
++
++struct PixelRelease {
++  Budget *budget = nullptr;
++  std::size_t bytes = 0;
++  void operator()(unsigned char *pixels) const;
++};
++
++// Owned pixels: RGBA8, straight (unpremultiplied) alpha, rows top to bottom,
++// tightly packed (stride = width * 4). Move-only.
++class DecodedImage {
++public:
++  int width() const { return width_; }
++  int height() const { return height_; }
++  const unsigned char *pixels() const { return pixels_.get(); }
++  std::size_t size_bytes() const { return pixels_.get_deleter().bytes; }
++
++private:
++  friend struct Decoder;
++  std::unique_ptr<unsigned char, PixelRelease> pixels_;
++  int width_ = 0;
++  int height_ = 0;
++};
++
++enum class ErrorCode {
++  Cancelled,
++  EncodedTooLarge,
++  InvalidImage,       // unrecognised format or unreadable header
++  DimensionsTooLarge,
++  DecodedTooLarge,
++  BudgetExhausted,
++  DecodeFailed,       // header was fine, pixel data was not
++};
++
++struct Error {
++  ErrorCode code;
++  std::string message;
++};
++
++// Formats: whatever the bundled stb_image accepts (PNG, JPEG, BMP, TGA, GIF
++// first frame, PSD, HDR, PIC, PNM). Limits are checked from the header
++// before any pixel allocation. Cancellation is checked before decoding and
++// after it; stb cannot be interrupted mid-decode. Every failure, including a
++// late cancellation, frees the pixels and returns the budget reservation.
++tl::expected<DecodedImage, Error> decode(std::span<const unsigned char> encoded,
++                                         const Limits &limits = {},
++                                         std::stop_token stop = {},
++                                         Budget *budget = nullptr);
++
++} // namespace afterhours::image_decode
+diff --git a/src/plugins/jobs.h b/src/plugins/jobs.h
+new file mode 100644
+index 0000000..776ec19
+--- /dev/null
++++ b/src/plugins/jobs.h
+@@ -0,0 +1,309 @@
++#pragma once
++
++// Bounded background jobs. See docs/plugins.md "Background jobs" for the
++// contract. Header-only; no ECS dependency. Job functions run on worker
++// threads and must return owned values instead of touching entities.
++
++#include <algorithm>
++#include <chrono>
++#include <condition_variable>
++#include <cstddef>
++#include <cstdint>
++#include <deque>
++#include <exception>
++#include <memory>
++#include <mutex>
++#include <optional>
++#include <stop_token>
++#include <thread>
++#include <type_traits>
++#include <utility>
++#include <vector>
++
++namespace afterhours::jobs {
++
++enum class Priority { Foreground, Background };
++
++// Rejected: never queued (queue full or executor shut down).
++// Pending: accepted and not finished.
++// Cancelled: cancellation was requested before the job produced a value.
++enum class Status { Rejected, Pending, Cancelled, Completed, Failed };
++
++// Identifies which consumer asked and which of its requests this is, so the
++// main thread can drop a completion after its view or scene was replaced.
++struct Ticket {
++  std::uint64_t owner = 0;
++  std::uint64_t generation = 0;
++  bool operator==(const Ticket &) const = default;
++};
++
++// One per consumer. issue() stamps a new request; is_current() is false for
++// tickets issued before the latest issue() or invalidate().
++class Generation {
++public:
++  explicit Generation(std::uint64_t owner) : owner_(owner) {}
++  Ticket issue() { return {owner_, ++generation_}; }
++  void invalidate() { ++generation_; }
++  bool is_current(Ticket ticket) const {
++    return ticket.owner == owner_ && ticket.generation == generation_;
++  }
++
++private:
++  std::uint64_t owner_;
++  std::uint64_t generation_ = 0;
++};
++
++struct SubmitOptions {
++  Priority priority = Priority::Foreground;
++  // Must-complete jobs ignore cancel() and run during shutdown.
++  bool must_complete = false;
++  Ticket ticket{};
++};
++
++namespace detail {
++
++struct JobBase {
++  std::mutex mutex;
++  std::condition_variable finished;
++  Status status = Status::Pending;
++  bool started = false;
++  std::exception_ptr error;
++  std::stop_source stop;
++  bool must_complete = false;
++  Ticket ticket{};
++
++  virtual ~JobBase() = default;
++  virtual void run() = 0;
++
++  void cancel() {
++    if (must_complete) return;
++    std::lock_guard lock(mutex);
++    stop.request_stop();
++    if (!started && status == Status::Pending) settle(Status::Cancelled);
++  }
++  // Caller holds mutex.
++  void settle(Status next) {
++    status = next;
++    finished.notify_all();
++  }
++  bool begin() {
++    std::lock_guard lock(mutex);
++    if (status != Status::Pending) return false;
++    started = true;
++    return true;
++  }
++};
++
++template <class T> struct Result : JobBase {
++  std::optional<T> value;
++};
++
++template <class T, class Fn> struct Job final : Result<T> {
++  Fn fn;
++  explicit Job(Fn f) : fn(std::move(f)) {}
++  using JobBase::begin, JobBase::mutex, JobBase::settle, JobBase::stop,
++      JobBase::must_complete, JobBase::error;
++  using Result<T>::value;
++
++  void run() override {
++    if (!begin()) return;
++    try {
++      T result = fn(stop.get_token());
++      std::lock_guard lock(mutex);
++      if (!must_complete && stop.stop_requested()) return settle(Status::Cancelled);
++      value.emplace(std::move(result));
++      settle(Status::Completed);
++    } catch (...) {
++      std::lock_guard lock(mutex);
++      if (!must_complete && stop.stop_requested()) return settle(Status::Cancelled);
++      error = std::current_exception();
++      settle(Status::Failed);
++    }
++  }
++};
++
++} // namespace detail
++
++// Move-only handle. Destroying or reassigning it cancels a cancellable job.
++template <class T> class Handle {
++public:
++  Handle() = default;
++  Handle(Handle &&) noexcept = default;
++  Handle &operator=(Handle &&other) noexcept {
++    if (this != &other) {
++      cancel();
++      state_ = std::move(other.state_);
++    }
++    return *this;
++  }
++  Handle(const Handle &) = delete;
++  Handle &operator=(const Handle &) = delete;
++  ~Handle() { cancel(); }
++
++  bool valid() const { return state_ != nullptr; }
++  bool accepted() const { return valid() && status() != Status::Rejected; }
++  Status status() const {
++    std::lock_guard lock(state_->mutex);
++    return state_->status;
++  }
++  bool finished() const { return status() != Status::Pending; }
++  Ticket ticket() const { return state_->ticket; }
++  void cancel() {
++    if (state_) state_->cancel();
++  }
++  // Blocks up to `timeout`; returns finished().
++  template <class Rep, class Period>
++  bool wait_for(std::chrono::duration<Rep, Period> timeout) const {
++    std::unique_lock lock(state_->mutex);
++    return state_->finished.wait_for(lock, timeout, [&] {
++      return state_->status != Status::Pending;
++    });
++  }
++  // Moves the value out once Completed; empty otherwise or on a second call.
++  std::optional<T> take() {
++    std::lock_guard lock(state_->mutex);
++    if (state_->status != Status::Completed) return std::nullopt;
++    return std::exchange(state_->value, std::nullopt);
++  }
++  // The exception a Failed job threw; null otherwise.
++  std::exception_ptr error() const {
++    std::lock_guard lock(state_->mutex);
++    return state_->error;
++  }
++
++private:
++  friend class Executor;
++  explicit Handle(std::shared_ptr<detail::Result<T>> state)
++      : state_(std::move(state)) {}
++  std::shared_ptr<detail::Result<T>> state_;
++};
++
++struct Options {
++  std::size_t threads = 4;
++  // Total queued (not running) jobs. Foreground may fill it.
++  std::size_t queue_capacity = 64;
++  // Background admission stops here, keeping the rest for foreground work.
++  std::size_t background_queue_capacity = 48;
++};
++
++class Executor {
++public:
++  explicit Executor(Options options = {})
++      : options_(options), active_(std::max<std::size_t>(1, options.threads)),
++        // One worker is reserved for foreground work when there are two or
++        // more, so a backlog of background jobs cannot delay foreground ones.
++        background_workers_(active_.size() > 1 ? active_.size() - 1 : 1) {
++    for (std::size_t i = 0; i < active_.size(); ++i)
++      workers_.emplace_back([this, i] { work(i); });
++  }
++  Executor(const Executor &) = delete;
++  Executor &operator=(const Executor &) = delete;
++  ~Executor() { shutdown(); }
++
++  // fn: T(std::stop_token). Never blocks; a full queue or a shut-down executor
++  // returns a Rejected handle and fn is destroyed without running.
++  template <class Fn>
++  auto submit(Fn fn, SubmitOptions submit = {})
++      -> Handle<std::invoke_result_t<Fn &, std::stop_token>> {
++    using T = std::invoke_result_t<Fn &, std::stop_token>;
++    static_assert(!std::is_void_v<T>, "jobs return an owned value");
++    auto state = std::make_shared<detail::Job<T, Fn>>(std::move(fn));
++    state->must_complete = submit.must_complete;
++    state->ticket = submit.ticket;
++    {
++      std::lock_guard lock(mutex_);
++      const std::size_t queued = foreground_.size() + background_.size();
++      const std::size_t limit = submit.priority == Priority::Background
++                                    ? options_.background_queue_capacity
++                                    : options_.queue_capacity;
++      if (stopping_ || queued >= limit) {
++        state->status = Status::Rejected;
++        return Handle<T>(std::move(state));
++      }
++      (submit.priority == Priority::Foreground ? foreground_ : background_)
++          .push_back(state);
++    }
++    ready_.notify_all();
++    return Handle<T>(std::move(state));
++  }
++
++  std::size_t queued() const {
++    std::lock_guard lock(mutex_);
++    return foreground_.size() + background_.size();
++  }
++
++  // Stops admission, cancels running and queued cancellable jobs (queued ones
++  // finish as Cancelled without running), runs queued must-complete jobs,
++  // then joins. Idempotent. Call from the owning thread, never from a job.
++  void shutdown() {
++    {
++      std::lock_guard lock(mutex_);
++      stopping_ = true;
++      for (auto &job : active_)
++        if (job) job->cancel();
++      for (auto *queue : {&foreground_, &background_})
++        for (auto &job : *queue) job->cancel();
++    }
++    ready_.notify_all();
++    for (auto &worker : workers_)
++      if (worker.joinable()) worker.join();
++  }
++
++private:
++  using Ptr = std::shared_ptr<detail::JobBase>;
++  Options options_;
++  mutable std::mutex mutex_;
++  std::condition_variable ready_;
++  std::deque<Ptr> foreground_, background_;
++  std::vector<Ptr> active_;
++  std::vector<std::thread> workers_;
++  std::size_t background_workers_;
++  std::size_t background_active_ = 0;
++  bool stopping_ = false;
++
++  void work(std::size_t index) {
++    std::unique_lock lock(mutex_);
++    for (;;) {
++      auto runnable = [&] {
++        return !foreground_.empty() ||
++               (!background_.empty() && background_active_ < background_workers_);
++      };
++      ready_.wait(lock, [&] {
++        return runnable() ||
++               (stopping_ && foreground_.empty() && background_.empty());
++      });
++      if (!runnable()) return;
++      const bool background = foreground_.empty();
++      auto &queue = background ? background_ : foreground_;
++      auto job = std::move(queue.front());
++      queue.pop_front();
++      active_[index] = job;
++      if (background) ++background_active_;
++      lock.unlock();
++      job->run();
++      lock.lock();
++      active_[index].reset();
++      if (background) --background_active_;
++      ready_.notify_all();
++    }
++  }
++};
++
++// Shows a busy indicator only once work has been pending for `delay`, so fast
++// operations never flash it. start() keeps the original start time while
++// already busy, so back-to-back requests do not restart the delay.
++struct BusyDelay {
++  using Clock = std::chrono::steady_clock;
++  Clock::duration delay = std::chrono::milliseconds(150);
++  std::optional<Clock::time_point> started;
++
++  void start(Clock::time_point now = Clock::now()) {
++    if (!started) started = now;
++  }
++  void stop() { started.reset(); }
++  bool visible(Clock::time_point now = Clock::now()) const {
++    return started && now - *started >= delay;
++  }
++};
++
++} // namespace afterhours::jobs
+diff --git a/tests/Makefile b/tests/Makefile
+index 688b6c0..3f0687f 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -97,6 +97,11 @@ ALL_TESTS := \
+ 	input_prompts_test \
+ 	input_device_activity_test \
+ 	file_watcher_test \
++	jobs_test \
++	byte_budget_cache_test \
++	image_decode_test \
++	texture_upload_test \
++	texture_upload_raylib_test \
+ 	render_capture_test \
+ 	charts_test \
+ 	system_profile_test \
+@@ -200,6 +205,7 @@ ifeq ($(UNAME_S),Darwin)
+ ALL_TESTS += bundle_test
+ ALL_TESTS += native_dialogs_macos_test
+ ALL_TESTS += render_capture_metal_test
++ALL_TESTS += texture_upload_metal_test
+ # Sokol is Metal here, so macOS-only; renders headless, no window.
+ ALL_TESTS += sokol_blend_test
+ # Own process: the Metal backend cannot be re-initialised, so this cannot be a
+@@ -304,6 +310,10 @@ $(OUT)/files_atomic_write_test: ../src/plugins/files.cpp
+ $(OUT)/files_resource_path_test: ../src/plugins/files.cpp
+ $(OUT)/bundle_test: ../src/plugins/files.cpp
+ $(OUT)/file_watcher_test: ../src/plugins/file_watcher.cpp
++$(OUT)/image_decode_test: ../src/plugins/image_decode.cpp
++$(OUT)/texture_upload_test: ../src/plugins/image_decode.cpp
++$(OUT)/texture_upload_raylib_test: texture_upload_test.cpp ../src/plugins/image_decode.cpp
++	$(CXX) $(CXXFLAGS_RAYLIB) $(DEPFLAGS) $(INCLUDES_RAYLIB) $(filter %.cpp,$^) $(LDFLAGS_RAYLIB) -o $@
+ ifeq ($(UNAME_S),Darwin)
+ $(OUT)/file_watcher_test: LDFLAGS_T += -framework CoreServices
+ endif
+@@ -335,6 +345,9 @@ $(OUT)/sokol_include_order_test: LDFLAGS_T += $(SOKOL_FRAMEWORKS)
+ $(OUT)/render_capture_metal_test: render_capture_test.cpp ../examples/web/sokol_impl.cc
+ 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) $(INCLUDES) -DSOKOL_METAL -x objective-c++ $(filter %.cpp %.cc,$^) $(SOKOL_FRAMEWORKS) -o $@
+ 
++$(OUT)/texture_upload_metal_test: texture_upload_test.cpp ../src/plugins/image_decode.cpp ../examples/web/sokol_impl.cc
++	$(CXX) $(CXXFLAGS) $(DEPFLAGS) $(INCLUDES) -DSOKOL_METAL -x objective-c++ $(filter %.cpp %.cc,$^) $(SOKOL_FRAMEWORKS) -o $@
++
+ # Runs every test even when one fails, then reports. The old loop dropped each
+ # exit code, so only the last test's status escaped and a red suite read green.
+ check-boundaries:
+diff --git a/tests/byte_budget_cache_test.cpp b/tests/byte_budget_cache_test.cpp
+new file mode 100644
+index 0000000..0693983
+--- /dev/null
++++ b/tests/byte_budget_cache_test.cpp
+@@ -0,0 +1,127 @@
++// byte_budget_cache_test.cpp
++// ByteBudgetCache: LRU eviction by cost, replacement accounting, oversize
++// rejection, observable stats, structured keys and shared values.
++
++#include <afterhours/src/plugins/byte_budget_cache.h>
++
++#include <cstdio>
++#include <memory>
++#include <string>
++#include <vector>
++
++using afterhours::ByteBudgetCache;
++
++static int checks_run = 0;
++static int checks_passed = 0;
++
++static void check(bool cond, const std::string &what) {
++  checks_run++;
++  if (cond) {
++    checks_passed++;
++  } else {
++    fprintf(stderr, "  FAIL: %s\n", what.c_str());
++  }
++}
++
++static std::size_t string_cost(const std::string &, const std::string &value) {
++  return value.size();
++}
++
++static void evicts_least_recently_used() {
++  ByteBudgetCache<std::string, std::string> cache(300, string_cost);
++  check(cache.put("first", std::string(100, 'a')), "first fits");
++  check(cache.put("second", std::string(100, 'b')), "second fits");
++  check(cache.put("third", std::string(100, 'c')), "third fits");
++  check(cache.get("first") != nullptr, "touch first");
++  check(cache.put("fourth", std::string(100, 'd')), "fourth fits after eviction");
++  check(cache.get("second") == nullptr, "least recently used entry was evicted");
++  check(cache.get("first") && cache.get("third") && cache.get("fourth"), "others survive");
++  auto stats = cache.stats();
++  check(stats.bytes == 300 && stats.entries == 3 && stats.budget == 300, "bytes and entries accounted");
++  check(stats.evictions == 1, "one eviction counted");
++  check(stats.hits == 4 && stats.misses == 1, "hits and misses counted");
++  check(cache.put("big", std::string(250, 'e')), "a large entry evicts several");
++  stats = cache.stats();
++  check(stats.entries == 1 && stats.bytes == 250 && stats.evictions == 4, "evicted until it fit");
++}
++
++static void replacement_and_oversize() {
++  ByteBudgetCache<std::string, std::string> cache(300, string_cost);
++  check(cache.put("key", std::string(100, 'a')), "insert");
++  check(cache.put("key", std::string(40, 'b')), "replace");
++  auto stats = cache.stats();
++  check(stats.bytes == 40 && stats.entries == 1, "replacement re-accounts instead of adding");
++  check(stats.evictions == 0, "replacement is not an eviction");
++  check(*cache.get("key") == std::string(40, 'b'), "replacement value visible");
++  check(cache.put("exact", std::string(260, 'c')), "an entry equal to the remaining budget fits");
++  check(cache.stats().bytes == 300, "budget filled exactly");
++  check(!cache.put("key", std::string(301, 'd')), "a value larger than the budget is rejected");
++  stats = cache.stats();
++  check(stats.rejections == 1, "rejection counted");
++  check(!cache.contains("key"), "a rejected replacement removes the stale value");
++  check(cache.contains("exact") && stats.bytes == 260, "rejection evicts nothing else");
++  check(cache.erase("exact") && !cache.erase("exact"), "erase reports presence");
++  check(cache.stats().bytes == 0, "erase releases bytes");
++}
++
++static void budget_changes_and_clear() {
++  ByteBudgetCache<std::string, std::string> cache(300, string_cost);
++  for (int i = 0; i < 3; ++i) cache.put(std::to_string(i), std::string(100, 'x'));
++  cache.set_budget(150);
++  auto stats = cache.stats();
++  check(stats.entries == 1 && stats.bytes == 100 && stats.evictions == 2, "lowering the budget evicts");
++  check(cache.contains("2"), "most recent survives a budget cut");
++  cache.clear();
++  stats = cache.stats();
++  check(stats.entries == 0 && stats.bytes == 0, "clear empties");
++  check(stats.evictions == 2, "clear is not counted as eviction");
++  ByteBudgetCache<std::string, std::string> zero(0, string_cost);
++  check(zero.put("empty", ""), "zero-cost entry fits a zero budget");
++  check(!zero.put("one", "x"), "nonzero cost rejected by a zero budget");
++}
++
++struct PatchKey {
++  std::string commit;
++  int page = 0;
++  bool operator==(const PatchKey &) const = default;
++};
++struct PatchKeyHash {
++  std::size_t operator()(const PatchKey &key) const {
++    return std::hash<std::string>{}(key.commit) ^ (std::hash<int>{}(key.page) << 1);
++  }
++};
++
++static void structured_keys_and_shared_values() {
++  using Pixels = std::shared_ptr<const std::vector<unsigned char>>;
++  // The cost function may include the key; here it charges the commit name.
++  ByteBudgetCache<PatchKey, Pixels, PatchKeyHash> cache(
++      1000, [](const PatchKey &key, const Pixels &value) {
++        return key.commit.size() + value->size();
++      });
++  auto first = std::make_shared<const std::vector<unsigned char>>(600, 1);
++  check(cache.put({"abc", 0}, first), "structured key insert");
++  check(cache.put({"abc", 1}, std::make_shared<const std::vector<unsigned char>>(100, 2)),
++        "same commit, other page");
++  check(cache.stats().bytes == 706, "cost includes key bytes when the cost function says so");
++  Pixels held = *cache.get({"abc", 0});
++  check(cache.put({"def", 0}, std::make_shared<const std::vector<unsigned char>>(500, 3)),
++        "insert that forces eviction");
++  check(!cache.contains({"abc", 0}), "shared entry evicted from the cache");
++  check(held.get() == first.get() && held->size() == 600, "a shared reference outlives eviction");
++  check(cache.stats().bytes == 503 && cache.stats().entries == 1, "evicted shared value no longer counted");
++}
++
++int main() {
++  printf("=== byte budget cache tests ===\n\n");
++  evicts_least_recently_used();
++  replacement_and_oversize();
++  budget_changes_and_clear();
++  structured_keys_and_shared_values();
++  printf("\n%d/%d checks passed\n", checks_passed, checks_run);
++  if (checks_passed != checks_run) {
++    printf("FAILURES: %d\n", checks_run - checks_passed);
++    return 1;
++  }
++  printf("All checks passed!\n");
++  return 0;
++}
+diff --git a/tests/file_watcher_test.cpp b/tests/file_watcher_test.cpp
+index da4be8c..94c32db 100644
+--- a/tests/file_watcher_test.cpp
++++ b/tests/file_watcher_test.cpp
+@@ -1,4 +1,5 @@
+ #include <afterhours/src/plugins/file_watcher.h>
++#include <atomic>
+ #include <cassert>
+ #include <chrono>
+ #include <fstream>
+@@ -10,6 +11,7 @@ int main() {
+     Watcher watcher;
+ #ifndef __APPLE__
+     assert(std::holds_alternative<Unsupported>(watcher.start({"."})));
++    assert(watcher.drain().empty());
+ #else
+     auto root = fs::temp_directory_path() / ("afh-watch-" + std::to_string(
+         std::chrono::steady_clock::now().time_since_epoch().count()));
+@@ -48,7 +50,47 @@ int main() {
+     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+     auto events = watcher.drain();
+     assert(events.size() == 1 && events[0].must_rescan);
++    assert(events[0].generation == watcher.generation());
++
++    // Generations: events kept from an old subscription are recognisably stale.
++    assert(std::holds_alternative<Started>(watcher.start({root})));
++    const auto first_generation = watcher.generation();
++    { std::ofstream out(root / "gen-a"); out << "a"; }
++    std::vector<Event> kept;
++    for (int i = 0; i < 250 && kept.empty(); ++i) {
++        kept = watcher.drain();
++        std::this_thread::sleep_for(std::chrono::milliseconds(20));
++    }
++    assert(!kept.empty());
++    for (const auto &event : kept) assert(event.generation == first_generation);
++    assert(std::holds_alternative<Started>(watcher.start({root})));
++    assert(watcher.generation() != first_generation);
++    assert(kept[0].generation != watcher.generation());
++    { std::ofstream out(root / "gen-b"); out << "b"; }
++    assert(await_event(root / "gen-b"));
+     watcher.stop();
++    assert(watcher.generation() != first_generation);
++
++    // Stop racing startup: callbacks are in flight while watchers start and
++    // stop immediately. stop() must join the native queue and leave nothing.
++    std::atomic<bool> churning{true};
++    std::thread writer([&] {
++        for (int i = 0; churning; ++i) {
++            std::ofstream out(root / ("churn" + std::to_string(i % 16))); out << i;
++        }
++    });
++    for (int i = 0; i < 50; ++i) {
++        assert(std::holds_alternative<Started>(watcher.start({root, root / "other"},
++            {.latency_seconds = 0.0})));
++        if (i % 2) std::this_thread::sleep_for(std::chrono::milliseconds(2));
++        watcher.stop();
++        assert(watcher.drain().empty());
++        Watcher destroyed_after_start;
++        assert(std::holds_alternative<Started>(destroyed_after_start.start({root},
++            {.latency_seconds = 0.0})));
++    }
++    churning = false;
++    writer.join();
+     fs::remove_all(root);
+ #endif
+ }
+diff --git a/tests/image_decode_test.cpp b/tests/image_decode_test.cpp
+new file mode 100644
+index 0000000..debc098
+--- /dev/null
++++ b/tests/image_decode_test.cpp
+@@ -0,0 +1,157 @@
++// image_decode_test.cpp
++// image_decode::decode: owned RGBA8 output, header limits checked before
++// allocation, structured errors, shared budget, and cancellation releasing
++// memory.
++
++#include <afterhours/src/plugins/image_decode.h>
++
++#include <atomic>
++#include <cstdio>
++#include <string>
++#include <thread>
++#include <vector>
++
++using namespace afterhours::image_decode;
++
++static int checks_run = 0;
++static int checks_passed = 0;
++
++static void check(bool cond, const std::string &what) {
++  checks_run++;
++  if (cond) {
++    checks_passed++;
++  } else {
++    fprintf(stderr, "  FAIL: %s\n", what.c_str());
++  }
++}
++
++using Bytes = std::vector<unsigned char>;
++
++// Uncompressed 32-bit TGA, top-left origin; rgba is row-major from the top.
++static Bytes tga(int width, int height, const Bytes &rgba) {
++  Bytes out(18, 0);
++  out[2] = 2;
++  out[12] = static_cast<unsigned char>(width);
++  out[13] = static_cast<unsigned char>(width >> 8);
++  out[14] = static_cast<unsigned char>(height);
++  out[15] = static_cast<unsigned char>(height >> 8);
++  out[16] = 32;
++  out[17] = 0x28; // 8 alpha bits, top-left origin
++  for (size_t i = 0; i < rgba.size(); i += 4)
++    out.insert(out.end(), {rgba[i + 2], rgba[i + 1], rgba[i], rgba[i + 3]});
++  return out;
++}
++
++static Bytes ppm(int width, int height, unsigned char value = 0x7f) {
++  const auto header = "P6\n" + std::to_string(width) + " " + std::to_string(height) + "\n255\n";
++  Bytes out(header.begin(), header.end());
++  out.resize(out.size() + static_cast<size_t>(width) * height * 3, value);
++  return out;
++}
++
++static bool is(const tl::expected<DecodedImage, Error> &result, ErrorCode code) {
++  return !result && result.error().code == code && !result.error().message.empty();
++}
++
++static void decodes_owned_rgba_rows_top_down() {
++  const Bytes rgba = {255, 0, 0, 255,   0, 255, 0, 128,   0, 0, 255, 0,
++                      10, 20, 30, 40,   50, 60, 70, 80,   90, 100, 110, 120};
++  auto image = decode(tga(3, 2, rgba));
++  check(image.has_value(), "valid TGA decodes");
++  if (!image) return;
++  check(image->width() == 3 && image->height() == 2, "dimensions reported");
++  check(image->size_bytes() == 24, "size is width * height * 4");
++  check(Bytes(image->pixels(), image->pixels() + 24) == rgba,
++        "pixels are RGBA8, straight alpha, top row first");
++  auto rgb = decode(ppm(2, 2, 9));
++  check(rgb && rgb->pixels()[0] == 9 && rgb->pixels()[3] == 255, "RGB input expands to opaque RGBA");
++}
++
++static void limits_are_checked_before_allocation() {
++  Budget budget(1 << 20);
++  check(is(decode(Bytes{}, {}, {}, &budget), ErrorCode::InvalidImage), "empty input is invalid");
++  check(is(decode(Bytes{'n', 'o', 'p', 'e', 0, 1, 2, 3}, {}, {}, &budget), ErrorCode::InvalidImage),
++        "unknown bytes are invalid");
++  const auto image = ppm(64, 32);
++  check(is(decode(image, {.max_encoded_bytes = image.size() - 1}, {}, &budget), ErrorCode::EncodedTooLarge),
++        "encoded size limit");
++  check(is(decode(image, {.max_width = 63}, {}, &budget), ErrorCode::DimensionsTooLarge), "width limit");
++  check(is(decode(image, {.max_height = 31}, {}, &budget), ErrorCode::DimensionsTooLarge), "height limit");
++  check(is(decode(image, {.max_decoded_bytes = 64 * 32 * 4 - 1}, {}, &budget), ErrorCode::DecodedTooLarge),
++        "decoded byte limit");
++  check(decode(image, {.max_width = 64, .max_height = 32, .max_decoded_bytes = 64 * 32 * 4}).has_value(),
++        "limits are inclusive");
++  // A declared-huge image is refused from its header alone.
++  Bytes huge = {'P', '6', '\n', '1', '0', '0', '0', '0', '0', ' ', '1', '0', '0', '0', '0', '0', '\n', '2', '5', '5', '\n'};
++  check(is(decode(huge, {}, {}, &budget), ErrorCode::DimensionsTooLarge),
++        "100000x100000 header rejected without decoding");
++  auto truncated = image;
++  truncated.resize(truncated.size() / 2);
++  check(is(decode(truncated, {}, {}, &budget), ErrorCode::DecodeFailed), "truncated pixel data fails");
++  check(budget.reserved() == 0, "no failure leaves a reservation behind");
++}
++
++static void shared_budget() {
++  Budget budget(2 * 16 * 16 * 4);
++  auto a = decode(ppm(16, 16), {}, {}, &budget);
++  auto b = decode(ppm(16, 16), {}, {}, &budget);
++  check(a && b && budget.reserved() == budget.limit(), "two images fill the budget");
++  check(is(decode(ppm(1, 1), {}, {}, &budget), ErrorCode::BudgetExhausted), "a third is refused");
++  DecodedImage moved = std::move(*a);
++  check(budget.reserved() == budget.limit(), "moving an image does not double-release");
++  { DecodedImage gone = std::move(moved); }
++  check(budget.reserved() == 16 * 16 * 4, "destroying an image returns its bytes");
++  check(decode(ppm(16, 16), {}, {}, &budget).has_value(), "returned bytes are reusable");
++  check(budget.reserved() == 16 * 16 * 4, "the temporary result released on scope exit");
++}
++
++static void cancellation_releases_memory() {
++  Budget budget(std::size_t{1} << 30);
++  std::stop_source cancelled;
++  cancelled.request_stop();
++  check(is(decode(ppm(8, 8), {}, cancelled.get_token(), &budget), ErrorCode::Cancelled),
++        "cancelled before decoding");
++  check(budget.reserved() == 0, "nothing reserved for an early cancel");
++
++  // Cancel while stb is decoding: the reservation is taken just before the
++  // pixel decode, so stop as soon as it appears. Scheduling can let a decode
++  // finish first, so retry; every attempt must leave the budget empty.
++  const auto big = ppm(4096, 2048);
++  bool saw_late_cancel = false;
++  bool always_released = true;
++  for (int attempt = 0; attempt < 20 && !saw_late_cancel; ++attempt) {
++    std::stop_source stop;
++    std::atomic<bool> done{false};
++    std::thread canceller([&] {
++      while (!done && budget.reserved() == 0) std::this_thread::yield();
++      stop.request_stop();
++    });
++    {
++      auto result = decode(big, {}, stop.get_token(), &budget);
++      done = true;
++      canceller.join();
++      if (is(result, ErrorCode::Cancelled)) {
++        saw_late_cancel = true;
++        always_released = always_released && budget.reserved() == 0;
++      }
++    }
++    always_released = always_released && budget.reserved() == 0;
++  }
++  check(saw_late_cancel, "a cancel during decode reports Cancelled");
++  check(always_released, "late cancellation frees the decoded pixels and reservation");
++}
++
++int main() {
++  printf("=== image decode tests ===\n\n");
++  decodes_owned_rgba_rows_top_down();
++  limits_are_checked_before_allocation();
++  shared_budget();
++  cancellation_releases_memory();
++  printf("\n%d/%d checks passed\n", checks_passed, checks_run);
++  if (checks_passed != checks_run) {
++    printf("FAILURES: %d\n", checks_run - checks_passed);
++    return 1;
++  }
++  printf("All checks passed!\n");
++  return 0;
++}
+diff --git a/tests/jobs_test.cpp b/tests/jobs_test.cpp
+new file mode 100644
+index 0000000..f37e901
+--- /dev/null
++++ b/tests/jobs_test.cpp
+@@ -0,0 +1,233 @@
++// jobs_test.cpp
++// afterhours::jobs: explicit outcomes, bounded queues, foreground
++// reservation, cancellation, shutdown draining must-complete work, tickets,
++// and the delayed busy indicator.
++
++#include <afterhours/src/plugins/jobs.h>
++
++#include <atomic>
++#include <cstdio>
++#include <future>
++#include <stdexcept>
++#include <string>
++
++using namespace afterhours::jobs;
++using namespace std::chrono_literals;
++
++static int checks_run = 0;
++static int checks_passed = 0;
++
++static void check(bool cond, const std::string &what) {
++  checks_run++;
++  if (cond) {
++    checks_passed++;
++  } else {
++    fprintf(stderr, "  FAIL: %s\n", what.c_str());
++  }
++}
++
++// A job that blocks until the gate opens, signalling when it has started.
++struct Gate {
++  std::promise<void> open_promise;
++  std::shared_future<void> opened = open_promise.get_future().share();
++  void open() { open_promise.set_value(); }
++};
++
++static void completes_and_fails() {
++  Executor pool({.threads = 2});
++  auto ok = pool.submit([](std::stop_token) { return 7; });
++  check(ok.accepted(), "submission is accepted");
++  check(ok.wait_for(2s) && ok.status() == Status::Completed, "job completes");
++  check(ok.take() == 7, "take returns the value");
++  check(!ok.take().has_value(), "take moves the value out once");
++  auto bad = pool.submit([](std::stop_token) -> int { throw std::runtime_error("boom"); });
++  check(bad.wait_for(2s) && bad.status() == Status::Failed, "throwing job fails");
++  bool message = false;
++  try {
++    std::rethrow_exception(bad.error());
++  } catch (const std::runtime_error &e) {
++    message = std::string(e.what()) == "boom";
++  }
++  check(message, "failure keeps the exception");
++  check(!bad.take().has_value(), "failed job has no value");
++}
++
++static void foreground_has_a_reserved_worker() {
++  Executor pool({.threads = 2, .queue_capacity = 8, .background_queue_capacity = 6});
++  Gate gate;
++  std::promise<void> entered;
++  auto first = pool.submit([&entered, opened = gate.opened](std::stop_token) {
++    entered.set_value();
++    opened.wait();
++    return 1;
++  }, {.priority = Priority::Background});
++  check(entered.get_future().wait_for(2s) == std::future_status::ready, "background job started");
++  auto second = pool.submit([opened = gate.opened](std::stop_token) { opened.wait(); return 2; },
++                            {.priority = Priority::Background});
++  auto foreground = pool.submit([](std::stop_token) { return 3; });
++  const bool ran = foreground.wait_for(2s);
++  check(ran, "foreground runs while background holds every background worker");
++  check(second.status() == Status::Pending, "second background job waits for a background worker");
++  gate.open();
++  check(first.wait_for(2s) && second.wait_for(2s), "background jobs finish after release");
++  check(first.take() == 1 && second.take() == 2 && foreground.take() == 3, "all values delivered");
++}
++
++static void queue_is_bounded_and_foreground_overtakes_background() {
++  Executor pool({.threads = 1, .queue_capacity = 4, .background_queue_capacity = 3});
++  Gate gate;
++  std::promise<void> entered;
++  auto running = pool.submit([&entered, opened = gate.opened](std::stop_token) {
++    entered.set_value();
++    opened.wait();
++    return 0;
++  });
++  check(entered.get_future().wait_for(2s) == std::future_status::ready, "blocking job started");
++  std::vector<int> order;
++  std::vector<Handle<int>> pending;
++  for (int i = 0; i < 3; ++i)
++    pending.push_back(pool.submit([&order, i](std::stop_token) { order.push_back(i); return i; },
++                                  {.priority = Priority::Background}));
++  bool ran_rejected = false;
++  auto rejected_background = pool.submit([&](std::stop_token) { ran_rejected = true; return 9; },
++                                         {.priority = Priority::Background});
++  check(!rejected_background.accepted() && rejected_background.status() == Status::Rejected,
++        "background is rejected at its reserved queue bound");
++  auto foreground = pool.submit([&order](std::stop_token) { order.push_back(3); return 3; });
++  check(foreground.accepted(), "foreground still fits in the reserved queue slot");
++  auto rejected = pool.submit([&](std::stop_token) { ran_rejected = true; return 9; });
++  check(rejected.status() == Status::Rejected, "foreground is rejected at the total bound");
++  check(pool.queued() == 4, "queued count reports the bound");
++  gate.open();
++  bool all_done = foreground.wait_for(2s);
++  for (auto &job : pending) all_done = job.wait_for(2s) && all_done;
++  check(all_done, "accepted jobs finish");
++  pool.shutdown();
++  check(order == std::vector<int>({3, 0, 1, 2}), "foreground overtakes queued background");
++  check(!ran_rejected, "rejected jobs never run");
++}
++
++static void cancellation() {
++  Executor pool({.threads = 1});
++  Gate gate;
++  std::promise<void> entered;
++  auto blocker = pool.submit([&entered, opened = gate.opened](std::stop_token) {
++    entered.set_value();
++    opened.wait();
++    return 0;
++  });
++  check(entered.get_future().wait_for(2s) == std::future_status::ready, "blocker started");
++  std::atomic<bool> queued_ran{false};
++  auto queued = pool.submit([&](std::stop_token) { queued_ran = true; return 1; });
++  queued.cancel();
++  check(queued.status() == Status::Cancelled, "cancelling a queued job settles it immediately");
++  gate.open();
++  check(blocker.wait_for(2s), "blocker finished");
++
++  std::promise<void> running_entered;
++  auto running = pool.submit([&running_entered](std::stop_token stop) {
++    running_entered.set_value();
++    while (!stop.stop_requested()) std::this_thread::yield();
++    return 2;
++  });
++  check(running_entered.get_future().wait_for(2s) == std::future_status::ready, "running job started");
++  running.cancel();
++  check(running.wait_for(2s) && running.status() == Status::Cancelled,
++        "a running job that observes its token finishes Cancelled");
++  check(!running.take().has_value(), "a cancelled job delivers no value");
++
++  // Dropping a handle cancels; a must-complete job ignores cancel().
++  std::promise<void> dropped_entered;
++  std::atomic<bool> dropped_saw_stop{false};
++  {
++    auto dropped = pool.submit([&](std::stop_token stop) {
++      dropped_entered.set_value();
++      while (!stop.stop_requested()) std::this_thread::yield();
++      dropped_saw_stop = true;
++      return 3;
++    });
++    check(dropped_entered.get_future().wait_for(2s) == std::future_status::ready, "dropped job started");
++  }
++  auto write = pool.submit([](std::stop_token stop) { return stop.stop_requested() ? -1 : 4; },
++                           {.must_complete = true});
++  write.cancel();
++  check(write.wait_for(2s) && write.take() == 4, "must-complete job ignores cancel()");
++  check(dropped_saw_stop, "destroying a handle requests stop");
++  pool.shutdown();
++  check(!queued_ran, "a cancelled queued job never runs");
++}
++
++static void shutdown_cancels_reads_and_drains_must_complete() {
++  Executor pool({.threads = 1, .queue_capacity = 8});
++  std::promise<void> entered;
++  auto read = pool.submit([&entered](std::stop_token stop) {
++    entered.set_value();
++    while (!stop.stop_requested()) std::this_thread::yield();
++    return 1;
++  });
++  check(entered.get_future().wait_for(2s) == std::future_status::ready, "read started");
++  std::atomic<bool> queued_read_ran{false};
++  auto queued_read = pool.submit([&](std::stop_token) { queued_read_ran = true; return 2; },
++                                 {.priority = Priority::Background});
++  auto write = pool.submit([](std::stop_token stop) { return stop.stop_requested() ? -1 : 3; },
++                           {.priority = Priority::Background, .must_complete = true});
++  pool.shutdown();
++  check(read.status() == Status::Cancelled, "shutdown cancels the running read");
++  check(queued_read.status() == Status::Cancelled && !queued_read_ran,
++        "shutdown cancels queued reads without running them");
++  check(write.status() == Status::Completed && write.take() == 3,
++        "shutdown runs accepted must-complete work with an unstopped token");
++  pool.shutdown();
++  auto late = pool.submit([](std::stop_token) { return 4; }, {.must_complete = true});
++  check(late.status() == Status::Rejected, "submission after shutdown is rejected");
++}
++
++static void tickets_reject_stale_completions() {
++  Executor pool({.threads = 1});
++  Generation view(42);
++  auto first = pool.submit([](std::stop_token) { return 1; }, {.ticket = view.issue()});
++  auto second = pool.submit([](std::stop_token) { return 2; }, {.ticket = view.issue()});
++  check(first.wait_for(2s) && second.wait_for(2s), "both requests completed");
++  check(first.ticket().owner == 42, "ticket carries the owner");
++  check(!view.is_current(first.ticket()), "a superseded request is stale");
++  check(view.is_current(second.ticket()), "the latest request is current");
++  view.invalidate();
++  check(!view.is_current(second.ticket()), "invalidate() makes every outstanding ticket stale");
++  Generation other(7);
++  check(!other.is_current(Ticket{42, 0}), "another owner's ticket is never current");
++}
++
++static void busy_delay() {
++  using Clock = BusyDelay::Clock;
++  const auto t0 = Clock::time_point{} + 1s;
++  BusyDelay busy;
++  check(!busy.visible(t0), "idle is not visible");
++  busy.start(t0);
++  check(!busy.visible(t0 + 149ms), "not visible before the delay");
++  check(busy.visible(t0 + 150ms), "visible once the delay elapses");
++  busy.start(t0 + 140ms);
++  check(busy.visible(t0 + 150ms), "a second start keeps the first start time");
++  busy.stop();
++  check(!busy.visible(t0 + 1s), "stop hides it");
++  busy.delay = 0ms;
++  busy.start(t0);
++  check(busy.visible(t0), "a zero delay shows immediately");
++}
++
++int main() {
++  printf("=== jobs tests ===\n\n");
++  completes_and_fails();
++  foreground_has_a_reserved_worker();
++  queue_is_bounded_and_foreground_overtakes_background();
++  cancellation();
++  shutdown_cancels_reads_and_drains_must_complete();
++  tickets_reject_stale_completions();
++  busy_delay();
++  printf("\n%d/%d checks passed\n", checks_passed, checks_run);
++  if (checks_passed != checks_run) {
++    printf("FAILURES: %d\n", checks_run - checks_passed);
++    return 1;
++  }
++  printf("All checks passed!\n");
++  return 0;
++}
+diff --git a/tests/texture_upload_test.cpp b/tests/texture_upload_test.cpp
+new file mode 100644
+index 0000000..2c92c85
+--- /dev/null
++++ b/tests/texture_upload_test.cpp
+@@ -0,0 +1,113 @@
++// texture_upload_test.cpp
++// Decode on the CPU, then load_texture_from_rgba on the render thread.
++// Built three ways: no backend (always fails), raylib, and sokol/Metal.
++
++#define FMT_HEADER_ONLY
++#if defined(SOKOL_METAL) && !defined(AFTER_HOURS_USE_METAL)
++#define AFTER_HOURS_USE_METAL
++#endif
++#include <afterhours/src/plugins/image_decode.h>
++#if defined(AFTER_HOURS_USE_RAYLIB) || defined(AFTER_HOURS_USE_METAL)
++#include <afterhours/src/graphics.h>
++#endif
++#include <afterhours/src/drawing_helpers.h>
++
++#include <cstdio>
++#include <string>
++#include <vector>
++
++using namespace afterhours;
++
++static int checks_run = 0;
++static int checks_passed = 0;
++
++static void check(bool cond, const std::string &what) {
++  checks_run++;
++  if (cond) {
++    checks_passed++;
++  } else {
++    fprintf(stderr, "  FAIL: %s\n", what.c_str());
++  }
++}
++
++// 2x2 uncompressed TGA, top-left origin: red, green / blue, white.
++static std::vector<unsigned char> quad_tga() {
++  std::vector<unsigned char> out(18, 0);
++  out[2] = 2;
++  out[12] = 2;
++  out[14] = 2;
++  out[16] = 32;
++  out[17] = 0x28;
++  const unsigned char bgra[] = {0, 0, 255, 255, 0, 255, 0, 255, 255, 0, 0, 255, 255, 255, 255, 255};
++  out.insert(out.end(), std::begin(bgra), std::end(bgra));
++  return out;
++}
++
++int main() {
++  printf("=== texture upload tests ===\n\n");
++  image_decode::Budget budget(1 << 20);
++  {
++    auto image = image_decode::decode(quad_tga(), {}, {}, &budget);
++    check(image && image->width() == 2 && image->height() == 2, "fixture decodes");
++    check(!load_texture_from_rgba(nullptr, 2, 2), "null pixels fail");
++    check(!load_texture_from_rgba(image->pixels(), 0, 2), "zero width fails");
++    check(!load_texture_from_rgba(image->pixels(), 2, -1), "negative height fails");
++#if defined(AFTER_HOURS_BACKEND_NONE)
++    check(!load_texture_from_rgba(image->pixels(), 2, 2), "the none backend reports failure");
++#elif defined(AFTER_HOURS_USE_METAL)
++    check(!load_texture_from_rgba(image->pixels(), 2, 2), "fails before graphics::init");
++#endif
++  }
++  check(budget.reserved() == 0, "a failed upload leaves the caller's image to release");
++
++#if defined(AFTER_HOURS_USE_RAYLIB) || defined(AFTER_HOURS_USE_METAL)
++  graphics::Config config;
++  config.display = graphics::DisplayMode::Headless;
++  config.width = 64;
++  config.height = 32;
++  check(graphics::init(config), "headless init");
++  auto &rt = graphics::get_render_texture();
++  auto image = image_decode::decode(quad_tga(), {}, {}, &budget);
++  auto texture = load_texture_from_rgba(image->pixels(), image->width(), image->height(),
++                                        TEXTURE_FILTER_BILINEAR);
++  check(texture.has_value(), "upload succeeds on the render thread");
++  check(texture && texture->width == 2 && texture->height == 2, "texture has the image size");
++  image = tl::unexpected(image_decode::Error{image_decode::ErrorCode::Cancelled, "released"});
++  check(budget.reserved() == 0, "pixels can be released right after upload");
++  if (texture) {
++    graphics::begin_frame();
++    graphics::clear_background(Color{0, 0, 0, 255});
++    draw_texture_pro(*texture, RectangleType{0, 0, 2, 2}, RectangleType{0, 0, 64, 32},
++                     Vector2Type{0, 0}, 0, Color{255, 255, 255, 255});
++    graphics::end_frame();
++    auto rgba = capture_render_texture_rgba(rt);
++    check(rgba && rgba->width == 64 && rgba->height == 32, "captured the target");
++    auto at = [&](int x, int y, int r, int g, int b) {
++      const auto *p = rgba->pixels.data() + (static_cast<size_t>(y) * 64 + x) * 4;
++      // Bilinear filtering blends a little across the texel boundary.
++      auto near = [](int got, int want) { return got >= want - 24 && got <= want + 24; };
++      return near(p[0], r) && near(p[1], g) && near(p[2], b) && p[3] == 255;
++    };
++    if (rgba) {
++      check(at(16, 8, 255, 0, 0), "top-left texel is red");
++      check(at(48, 8, 0, 255, 0), "top-right texel is green");
++      check(at(16, 24, 0, 0, 255), "bottom-left texel is blue");
++      check(at(48, 24, 255, 255, 255), "bottom-right texel is white");
++    }
++    auto trilinear = load_texture_from_rgba(std::vector<unsigned char>(16 * 16 * 4, 200).data(),
++                                            16, 16, TEXTURE_FILTER_TRILINEAR);
++    check(trilinear.has_value(), "trilinear upload succeeds");
++    if (trilinear) unload_texture(*trilinear);
++    unload_texture(*texture);
++  }
++  graphics::shutdown();
++#endif
++
++  printf("\n%d/%d checks passed\n", checks_passed, checks_run);
++  if (checks_passed != checks_run) {
++    printf("FAILURES: %d\n", checks_run - checks_passed);
++    return 1;
++  }
++  printf("All checks passed!\n");
++  return 0;
++}
+-- 
+2.50.1
+

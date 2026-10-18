@@ -121,8 +121,13 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         repo.blameFuture = {};
         repo.fullFileRequestStamp = navigation::stamp(repo, key);
         repo.fullFileLoading.restart();
-        repo.fullFileFuture = git::read_file_async({repo.repoPath, repo.fullFilePath(), repo.fullFileRevision(),
-            pageRequest, repo.fullFileEncodingOverride, repo.fullFilePage.encoding});
+        const git::FileRequest request{repo.repoPath, repo.fullFilePath(), repo.fullFileRevision(),
+            pageRequest, repo.fullFileEncodingOverride, repo.fullFilePage.encoding};
+        repo.fullFileRevalidate = {};
+        if (auto cached = git::peek_file(request)) {
+            repo.fullFileFuture = async_work::completed(std::move(*cached));
+            repo.fullFileRevalidate = git::read_file_async(request);
+        } else repo.fullFileFuture = git::read_file_async(request);
         if (repo.fullFileExtendRequest) changed = false;
     }
     bool pageLayoutReady = true;
@@ -139,6 +144,13 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             pageLayoutReady = !scrolling && repo.reading.previousDocument == document->id &&
                 std::fabs(repo.reading.offset - scroll.scroll_offset.y) < .5f;
         }
+    }
+    if (!repo.fullFileFuture.valid() && repo.fullFileRevalidate.valid() &&
+        repo.fullFileRevalidate.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto checked = repo.fullFileRevalidate.get();
+        if (navigation::accepts(repo, repo.fullFileRequestStamp, key) &&
+            (!checked.error.empty() || checked.page.sourceIdentity != repo.fullFilePage.sourceIdentity))
+            repo.fullFileFuture = async_work::completed(std::move(checked));
     }
     if (pageLayoutReady && repo.fullFileFuture.valid() && repo.fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto content = repo.fullFileFuture.get();

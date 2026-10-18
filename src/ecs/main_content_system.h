@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../ui/semantic_navigation.h"
 #include "../util/review_anchor.h"
 
 #include <cstring>
@@ -817,6 +818,15 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             open_line_picker(*repoPtr, layout);
         if (readingKeys && superDown && afterhours::input::is_key_pressed(afterhours::keys::R))
             open_symbol_picker(*repoPtr, layout);
+        if (readingKeys && !superDown) {
+            const bool shift = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
+            const bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
+            if (afterhours::input::is_key_pressed(afterhours::keys::F12))
+                request_semantic(*repoPtr, alt ? semantic::Kind::Hover : shift ? semantic::Kind::References : semantic::Kind::Definition);
+            if (alt && shift && afterhours::input::is_key_pressed(afterhours::keys::H)) request_semantic(*repoPtr, semantic::Kind::Incoming);
+            if (alt && shift && afterhours::input::is_key_pressed(afterhours::keys::O)) request_semantic(*repoPtr, semantic::Kind::Outgoing);
+        }
+        if (repoPtr) poll_semantic(*repoPtr);
         if (readingKeys && !superDown && (!reviewPtr || reviewPtr->composingKey.empty()) &&
             activeDocumentFocused && afterhours::input::is_key_pressed(afterhours::keys::ENTER))
             navigation::keep(*repoPtr, repoPtr->workspace().active_id());

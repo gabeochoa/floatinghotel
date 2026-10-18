@@ -1,0 +1,2354 @@
+From 593908cf1ca3b522dd9adef7ebd70793ea3ad148 Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 08:16:47 -0400
+Subject: [PATCH] e2e: barriers, isolated storage, visible-rect targets,
+ Unicode type, test clipboard, native_resize, logical coordinates
+
+Native/headless test support that apps were each working around:
+
+- await_frame [timeout]: blocks the script until two UI render passes
+  after it (layout and render both reflect state), failing at a wall-clock
+  deadline. PendingE2ECommand::block_until() makes any command a runner
+  barrier with a wall-clock deadline instead of the 30-tick budget.
+- AFTERHOURS_TEST_STORAGE_DIR / files::isolate_storage(): config, saves and
+  the new temp path move together under one test root; platform folders are
+  neither read nor created.
+- get_visible_rect/is_visible: screen rect cut by every scroll/clip ancestor
+  and the window (the renderer's clip). Named/text clicks use the visible
+  part and fail when fully clipped; assert_ui visible=, vx/vy/vw/vh; dump_ui
+  marks clipped nodes.
+- type decodes UTF-8 to code points (push_char(int), push_text).
+- register_builtin_handlers installs an in-memory clipboard;
+  set_clipboard / expect_clipboard; use_system_clipboard() opts out.
+- native_resize w h [timeout]: resizes the real window, waits for the
+  backend size plus a render; "unsupported" headless.
+- Script coordinates and rect reports are logical pixels (screen / ui_scale
+  in Adaptive mode).
+
+Tests: e2e_barrier_test, files_isolated_storage_test, e2e_visibility_test,
+e2e_zoom_coordinates_test (1.0/1.4/2.0), e2e_unicode_type_test,
+e2e_clipboard_test, native_resize_test (+ make native-window-test).
+---
+ CHANGELOG.md                               |   8 +
+ docs/plugins.md                            |  28 +++
+ src/plugins/e2e_testing/command_handlers.h | 252 ++++++++++++++++++---
+ src/plugins/e2e_testing/draw_commands.h    |  16 +-
+ src/plugins/e2e_testing/e2e_testing.h      |   6 +
+ src/plugins/e2e_testing/pending_command.h  |  24 ++
+ src/plugins/e2e_testing/runner.h           |  19 +-
+ src/plugins/e2e_testing/test_input.h       |  39 +++-
+ src/plugins/e2e_testing/ui_commands.h      | 221 ++++++++++++------
+ src/plugins/files.cpp                      |  36 +++
+ src/plugins/files.h                        |  31 +++
+ tests/Makefile                             |  23 +-
+ tests/e2e_barrier_test.cpp                 | 179 +++++++++++++++
+ tests/e2e_clipboard_test.cpp               | 119 ++++++++++
+ tests/e2e_unicode_type_test.cpp            | 120 ++++++++++
+ tests/e2e_visibility_test.cpp              | 186 +++++++++++++++
+ tests/e2e_zoom_coordinates_test.cpp        | 127 +++++++++++
+ tests/files_isolated_storage_test.cpp      | 116 ++++++++++
+ tests/native_resize_test.cpp               | 116 ++++++++++
+ tests/ui_test_harness.h                    |   5 +-
+ 20 files changed, 1561 insertions(+), 110 deletions(-)
+ create mode 100644 tests/e2e_barrier_test.cpp
+ create mode 100644 tests/e2e_clipboard_test.cpp
+ create mode 100644 tests/e2e_unicode_type_test.cpp
+ create mode 100644 tests/e2e_visibility_test.cpp
+ create mode 100644 tests/e2e_zoom_coordinates_test.cpp
+ create mode 100644 tests/files_isolated_storage_test.cpp
+ create mode 100644 tests/native_resize_test.cpp
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5ae4108..8d60126 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -30,6 +30,7 @@ Started partway through the project's life, so it does not go all the way back.
+ - **Menu shortcuts sit one pad in from the panel edge** — they were flush, clipping the last glyph in half.
+ 
+ ### New APIs
++- **Isolated storage for test runs.** Set `AFTERHOURS_TEST_STORAGE_DIR` (`files::TEST_STORAGE_ENV`) and `ProvidesResourcePaths` puts config, saves and the new temp path under `<dir>/{config,save,tmp}/<game>`, without reading or creating the platform folders. `files::isolate_storage(dir)` does the same for an already-initialised provider. `files::get_temp_path()` / `temp_folder_path` are new; temp defaults to the OS temp dir.
+ - **`polyline::draw_dashed(pts, thickness, color, dash, gap, phase)`** (`polyline.h`) draws a patterned run. `draw_line_ex` was solid-only, so a dashed cable, marquee or tick run had to be hand-rolled. Arc length accumulates across vertices, so a dash straddling a corner stays one dash, and `phase` is what animates it.
+ - **`polyline::resample_by_arclength(pts, step)`** returns evenly spaced points. A bezier sampler walks uniformly in `t`, which is not uniform in screen distance, so anything spaced along the result bunches where the curve is tight.
+ - **`draw_line_ex` is recorded by capture**, so a test can assert on a dashed pattern. The `none` backend used to log `@notimplemented` and draw nothing.
+@@ -80,6 +81,13 @@ Started partway through the project's life, so it does not go all the way back.
+ - **`SINGLETON_FWD` still does not work in class scope** — use `SINGLETON_CLASS_FWD`, which has existed since `e9c662b`. Comment-only change.
+ 
+ ### e2e
++- **E2E coordinates are logical pixels.** `click`/`mouse_move`/`drag`/... arguments, `double_click_ui` offsets, `assert_ui x/y/w/h`, `dump_ui`, `expect_drawn_at`/`dump_draws` and `assert_no_overflow` reports used screen pixels, so every number in a script went stale when an Adaptive-mode app zoomed. They are now divided by `ui_scale` (Adaptive only; Proportional ignores `ui_scale`, so nothing changes there, and nothing changes anywhere at 100%). `N%` stays a fraction of the window. `ui_commands::get_screen_rect` and the injector still use screen pixels. *What to do:* a script that hard-codes screen pixels at a zoom other than 100% needs those numbers divided by the zoom.
++- **E2E scripts get their own clipboard.** `register_builtin_handlers` installs an in-memory provider (`testing::test_clipboard()`), so test copy/paste never reads or overwrites the user's clipboard and works with no window. `set_clipboard "text"` and `expect_clipboard "text"` seed and check it; it empties on `reset_test_state` and between scripts. *What to do:* to test the platform clipboard on purpose, call `testing::use_system_clipboard()` after registering.
++- **`await_frame [timeout_s]`** holds the script until a frame whose layout and render both ran after it (two UI render passes, counted by `VisibleTextRegistry::generation`), and fails with the render count at the deadline (default 5s). A host that batches several ticks per render could click a view that was never drawn.
++- **`PendingE2ECommand::block_until(seconds)`** makes any command a barrier: the runner dispatches nothing after it until it resolves, and it is timed by a wall-clock deadline instead of the 30-tick budget. `retry()` alone still lets later lines run.
++- **Clicks aim at what is visible.** `ui_commands::get_visible_rect` / `is_visible` cut the screen rect by every scroll/clip ancestor and the window, using the renderer's own clip. `click_ui`, `click_text`, `click_button`, the right-click variants, `toggle_checkbox`, `select_dropdown`, `set_slider` and `double/triple_click_ui` click the visible part and fail naming the target when it is fully clipped. `assert_ui` gains `visible=true|false` and `vx/vy/vw/vh`; `dump_ui` adds `visible="partial|false"` and the visible rect on clipped nodes only.
++- **`type` accepts UTF-8.** The injected char queue carries Unicode code points (`test_input::push_char(int)`, new `push_text(utf8)`), so `type "héllo 日本 🎉"` reaches text fields intact instead of as negative bytes. Malformed bytes become U+FFFD.
++- **`native_resize w h [timeout_s]`** resizes the real window and holds the script until the backend reports that size in logical points and a UI render has followed. Headless and backend-less builds fail with "unsupported" (use `resize`). On sokol/Metal it goes through the app's `metal_set_window_size`.
+ - **The harness ships with the engine** (`e2e_testing/harness.h`): `E2EArgs`, `parse_e2e_args`, `should_run_e2e`, `screenshot_path`, `count_e2e_scripts`, `configure_runner`. Every consumer was writing its own ~150 line parser and they had drifted. New flags while there: `--screenshot-dir` and `--e2e-speed` (an accepted spelling of `--time-scale`).
+ - **`wait_frames N` waits N frames.** It stored `N/60` seconds and the runner counted that down with `dt`, so it was a frame count only if the host ticked at exactly 60Hz, and `--time-scale` changed it again. Whether a suite was reproducible was the host's undocumented decision.
+ - **`right_click_ui <name>` and `right_click_text "..."`** open a context menu the way the app does. A secondary click could only be aimed at a coordinate, which goes stale the moment the layout moves.
+diff --git a/docs/plugins.md b/docs/plugins.md
+index e417cc0..8085e9e 100644
+--- a/docs/plugins.md
++++ b/docs/plugins.md
+@@ -125,6 +125,34 @@ Quote arguments containing spaces: `assert_ui header "text=My Project" hidden=fa
+ 
+ Text commands such as `type`, `expect_text` and the value in `expect_input_text` still accept the unquoted rest of the line verbatim. To use escapes there, quote the entire text. Custom handlers receive decoded arguments and should not tokenize them again.
+ 
++## E2E barriers and deadlines
++
++`await_frame [timeout_s]` blocks the script until two UI render passes have happened after it, so the next command sees a layout and a render that both ran after every earlier line. It fails at the deadline (default 5 seconds) with the number of renders seen. A host that never runs the UI render pass with `AFTER_HOURS_ENABLE_E2E_TESTING` always times out.
++
++A custom handler that waits on a worker, an asset or the network calls `cmd.block_until(seconds)` on every visit until it can consume or fail. That holds the runner and replaces the 30-tick timeout with a wall-clock deadline. `cmd.retry()` alone keeps the command pending but lets later lines run.
++
++## E2E coordinates
++
++Script coordinates and reported rectangles are logical pixels: screen pixels divided by `ui_scale` in Adaptive mode, screen pixels in Proportional mode. `N%` is a fraction of the window. Logical units apply to coordinate commands, `double_click_ui` offsets, `assert_ui` and `dump_ui`, `expect_drawn_at` and `dump_draws`, and `assert_no_overflow`. A widget built at `pixels(100)` asserts as `w=100` at 100%, 140% and 200%. C++ helpers such as `get_screen_rect` stay in screen pixels; use `testing::e2e_to_logical` and `testing::e2e_ui_scale` to convert.
++
++## E2E visibility
++
++`ui_commands::get_visible_rect(entity)` is the screen rectangle cut by every scroll or clip ancestor and by the window, using the same clip as rendering and hit testing. `is_visible` requires at least one whole pixel. Named and text clicks target the centre of the visible part, skip fully clipped matches and fail with "fully clipped" when nothing visible matches. `assert_ui name visible=false` and `vx`/`vy`/`vw`/`vh` assert it; `dump_ui` adds `visible` and `v*` attributes only to clipped nodes.
++
++## E2E text and clipboard
++
++`type` decodes UTF-8 and queues one Unicode code point per character, as the native backends deliver them. Invalid bytes become U+FFFD.
++
++`register_builtin_handlers` installs an in-memory clipboard for the process, `testing::test_clipboard()`. Scripts and widgets read and write it instead of the system clipboard, with or without a window. `set_clipboard "text"` and `expect_clipboard "text"` take the rest of the line; quote it to use `\n`. It is emptied by `reset_test_state` and between batch scripts. Call `testing::use_system_clipboard()` after registering to test the platform clipboard.
++
++## E2E isolated storage
++
++Set `AFTERHOURS_TEST_STORAGE_DIR=/some/dir` before `files::init`. Config, saves and temporaries then live in `/some/dir/config/<game>`, `/some/dir/save/<game>` and `/some/dir/tmp/<game>`, and the platform folders are neither read nor created. The settings plugin saves under the save path, so it follows. A host that parses its test directory after `files::init` calls `files::isolate_storage(dir)`, which redirects all three together.
++
++## E2E native resize
++
++`resize w h` changes the layout viewport. `native_resize w h [timeout_s]` resizes the actual window and blocks until `graphics::get_screen_width/height` report `w`x`h` logical points and a UI render has followed. It fails with "unsupported" in headless mode and without a graphics backend. The raylib path is covered by `make -C tests native-window-test`, which opens a hidden window and needs a window server. On sokol/Metal the resize goes through the app's `metal_set_window_size`. Afterhours does not yet provide that function.
++
+ ## Image tint
+ 
+ Use `ComponentConfig{}.with_image_tint({255, 120, 60, 200})` with `image`, `sprite`, `image_button`, or `with_texture`. RGB multiplies the source pixels; tint alpha multiplies the widget's opacity and ancestor opacity. Omitting the option restores white tint on a reused widget. Backgrounds and labels keep their own colors.
+diff --git a/src/plugins/e2e_testing/command_handlers.h b/src/plugins/e2e_testing/command_handlers.h
+index 436ed20..f6f6b29 100644
+--- a/src/plugins/e2e_testing/command_handlers.h
++++ b/src/plugins/e2e_testing/command_handlers.h
+@@ -11,7 +11,11 @@
+ #include "../../font_helper.h"
+ #include "../../logging.h"
+ #include "../animation.h"
++#include "../clipboard.h"
+ #include "../ui/components.h"
++// component_config.h needs UIContext declared first.
++#include "../ui/context.h"
++#include "../ui/component_config.h"
+ #include "../ui/ui_collection.h"
+ #include "../ui/ui_core_components.h"
+ #include "../window_manager.h"
+@@ -32,6 +36,50 @@ inline std::pair<float, float> e2e_screen_size() {
+     return {1280.f, 720.f};  // fallback
+ }
+ 
++// E2E coordinates are logical pixels: the unit layout is written in, before
++// Adaptive scaling multiplies it by ui_scale. `click 100 40`, `assert_ui row
++// w=80` and dump_ui then mean the same element at 100%, 140% and 200% zoom.
++// Proportional mode ignores ui_scale, so there the two units coincide.
++// "N%" coordinates stay fractions of the window. get_screen_rect and the
++// injector keep screen pixels; only what a script reads or writes converts.
++inline float e2e_ui_scale() {
++    if (ui::imm::UIStylingDefaults::get().scaling_mode !=
++        ui::ScalingMode::Adaptive)
++        return 1.f;
++    const float s = ui::imm::ThemeDefaults::get().theme.ui_scale;
++    return s > 0.f ? s : 1.f;
++}
++
++// Script coordinate -> screen pixels.
++inline float e2e_coord(const PendingE2ECommand &cmd, size_t idx,
++                       float screen_dim) {
++    const std::string &s = cmd.arg(idx);
++    const float v = cmd.coord_arg(idx, screen_dim);
++    return (!s.empty() && s.back() == '%') ? v : v * e2e_ui_scale();
++}
++
++// Screen pixels -> the logical pixels a script reads.
++inline RectangleType e2e_to_logical(RectangleType r) {
++    const float s = e2e_ui_scale();
++    return {r.x / s, r.y / s, r.width / s, r.height / s};
++}
++
++// The clipboard E2E scripts use. register_builtin_handlers() installs it, so
++// copy/paste in a test never reads or overwrites the user's real clipboard,
++// with or without a window. Call use_system_clipboard() after registering to
++// exercise the platform clipboard deliberately.
++inline clipboard::MemoryProvider &test_clipboard() {
++    static clipboard::MemoryProvider provider;
++    return provider;
++}
++inline void isolate_clipboard() {
++    clipboard::detail::provider = &test_clipboard();
++}
++inline void use_system_clipboard() {
++    if (clipboard::detail::provider == &test_clipboard())
++        clipboard::detail::provider = nullptr;
++}
++
+ // Handle 'type "text"' command - types characters
+ struct HandleTypeCommand : System<PendingE2ECommand> {
+     virtual void for_each_with(Entity &, PendingE2ECommand &cmd,
+@@ -42,11 +90,10 @@ struct HandleTypeCommand : System<PendingE2ECommand> {
+             return;
+         }
+ 
+-        // Clear any leftover chars before pushing new ones
++        // Clear any leftover chars before pushing new ones. UTF-8 in, one
++        // code point per character out, as the native backends deliver them.
+         test_input::clear_queue();
+-        for (char c : cmd.arg(0)) {
+-            test_input::push_char(c);
+-        }
++        test_input::push_text(cmd.arg(0));
+         cmd.consume();
+     }
+ };
+@@ -142,7 +189,7 @@ struct HandleClickCommand : System<PendingE2ECommand> {
+         }
+ 
+         auto [sw, sh] = e2e_screen_size();
+-        test_input::simulate_click(cmd.coord_arg(0, sw), cmd.coord_arg(1, sh));
++        test_input::simulate_click(e2e_coord(cmd, 0, sw), e2e_coord(cmd, 1, sh));
+         cmd.consume();
+     }
+ };
+@@ -158,8 +205,8 @@ struct HandleRightClickCommand : System<PendingE2ECommand> {
+         }
+ 
+         auto [sw, sh] = e2e_screen_size();
+-        test_input::simulate_right_click(cmd.coord_arg(0, sw),
+-                                         cmd.coord_arg(1, sh));
++        test_input::simulate_right_click(e2e_coord(cmd, 0, sw),
++                                         e2e_coord(cmd, 1, sh));
+         cmd.consume();
+     }
+ };
+@@ -175,8 +222,8 @@ struct HandleMiddleClickCommand : System<PendingE2ECommand> {
+         }
+ 
+         auto [sw, sh] = e2e_screen_size();
+-        test_input::simulate_middle_click(cmd.coord_arg(0, sw),
+-                                          cmd.coord_arg(1, sh));
++        test_input::simulate_middle_click(e2e_coord(cmd, 0, sw),
++                                          e2e_coord(cmd, 1, sh));
+         cmd.consume();
+     }
+ };
+@@ -193,8 +240,8 @@ struct HandleMiddleDownCommand : System<PendingE2ECommand> {
+         }
+ 
+         auto [sw, sh] = e2e_screen_size();
+-        test_input::set_mouse_position(cmd.coord_arg(0, sw),
+-                                       cmd.coord_arg(1, sh));
++        test_input::set_mouse_position(e2e_coord(cmd, 0, sw),
++                                       e2e_coord(cmd, 1, sh));
+         auto &m = input_injector::detail::mouse;
+         m.middle_down = true;
+         m.middle_just_pressed = true;
+@@ -246,8 +293,8 @@ struct HandleDoubleClickCommand : System<PendingE2ECommand> {
+ 
+         using namespace double_click_detail;
+         auto [sw, sh] = e2e_screen_size();
+-        float x = cmd.coord_arg(0, sw);
+-        float y = cmd.coord_arg(1, sh);
++        float x = e2e_coord(cmd, 0, sw);
++        float y = e2e_coord(cmd, 1, sh);
+ 
+         if (phase == 0) {
+             // Phase 0: inject first click
+@@ -295,8 +342,8 @@ struct HandleTripleClickCommand : System<PendingE2ECommand> {
+ 
+         using namespace triple_click_detail;
+         auto [sw, sh] = e2e_screen_size();
+-        float x = cmd.coord_arg(0, sw);
+-        float y = cmd.coord_arg(1, sh);
++        float x = e2e_coord(cmd, 0, sw);
++        float y = e2e_coord(cmd, 1, sh);
+ 
+         if (phase == 0) {
+             stored_x = x;
+@@ -330,9 +377,9 @@ struct HandleDragCommand : System<PendingE2ECommand> {
+         }
+ 
+         auto [sw, sh] = e2e_screen_size();
+-        test_input::simulate_click(cmd.coord_arg(0, sw), cmd.coord_arg(1, sh));
+-        input_injector::set_mouse_position(cmd.coord_arg(2, sw),
+-                                           cmd.coord_arg(3, sh));
++        test_input::simulate_click(e2e_coord(cmd, 0, sw), e2e_coord(cmd, 1, sh));
++        input_injector::set_mouse_position(e2e_coord(cmd, 2, sw),
++                                           e2e_coord(cmd, 3, sh));
+         cmd.consume();
+     }
+ };
+@@ -348,8 +395,8 @@ struct HandleMouseMoveCommand : System<PendingE2ECommand> {
+         }
+ 
+         auto [sw, sh] = e2e_screen_size();
+-        test_input::set_mouse_position(cmd.coord_arg(0, sw),
+-                                       cmd.coord_arg(1, sh));
++        test_input::set_mouse_position(e2e_coord(cmd, 0, sw),
++                                       e2e_coord(cmd, 1, sh));
+         cmd.consume();
+     }
+ };
+@@ -365,8 +412,8 @@ struct HandleMouseDownCommand : System<PendingE2ECommand> {
+         }
+ 
+         auto [sw, sh] = e2e_screen_size();
+-        float x = cmd.coord_arg(0, sw);
+-        float y = cmd.coord_arg(1, sh);
++        float x = e2e_coord(cmd, 0, sw);
++        float y = e2e_coord(cmd, 1, sh);
+         test_input::set_mouse_position(x, y);
+         auto &m = input_injector::detail::mouse;
+         m.left_down = true;
+@@ -475,8 +522,8 @@ struct HandleDragToCommand : System<PendingE2ECommand> {
+         switch (phase) {
+             case 0: {
+                 // Frame 0: press at start position
+-                float x1 = cmd.coord_arg(0, sw);
+-                float y1 = cmd.coord_arg(1, sh);
++                float x1 = e2e_coord(cmd, 0, sw);
++                float y1 = e2e_coord(cmd, 1, sh);
+                 test_input::set_mouse_position(x1, y1);
+                 auto &m = input_injector::detail::mouse;
+                 m.left_down = true;
+@@ -489,8 +536,8 @@ struct HandleDragToCommand : System<PendingE2ECommand> {
+             }
+             case 1: {
+                 // Frame 1: move to end position (mouse still held)
+-                float x2 = cmd.coord_arg(2, sw);
+-                float y2 = cmd.coord_arg(3, sh);
++                float x2 = e2e_coord(cmd, 2, sw);
++                float y2 = e2e_coord(cmd, 3, sh);
+                 test_input::set_mouse_position(x2, y2);
+                 phase = 2;
+                 cmd.retry();  // Mark as in-progress so unknown handler skips it
+@@ -664,6 +711,7 @@ struct HandleResetTestStateCommand : System<PendingE2ECommand> {
+         triple_click_detail::reset();
+         shift_tab_detail::reset();
+         VisibleTextRegistry::instance().clear();
++        test_clipboard().reset();
+         cmd.consume();
+     }
+ 
+@@ -709,6 +757,132 @@ struct HandleResizeCommand : System<PendingE2ECommand> {
+     }
+ };
+ 
++// 'await_frame [timeout_seconds=5]' - a barrier: holds the script until a
++// frame whose layout AND render both ran after this line was reached.
++//
++// Counted in renders (VisibleTextRegistry::generation, bumped once per UI
++// render pass), not ticks: a host may run many update ticks per render, and
++// commands like click_ui only see what was_rendered_to_screen. Two renders,
++// because the first may close a frame whose layout ran before this handler;
++// the second follows a full update, layout included, that began after it.
++// Fails with the render count when the deadline passes, which also catches a
++// host that never renders the UI in test mode.
++struct HandleAwaitFrameCommand : System<PendingE2ECommand> {
++    virtual void for_each_with(Entity &, PendingE2ECommand &cmd,
++                               float) override {
++        if (cmd.is_consumed() || !cmd.is("await_frame")) return;
++        const float timeout = cmd.arg_as<float>(0, 5.f);
++        if (timeout <= 0.f) {
++            cmd.fail(std::format("await_frame: timeout must be positive, got "
++                                 "'{}'", cmd.arg(0)));
++            return;
++        }
++        const auto gen = static_cast<long long>(
++            VisibleTextRegistry::instance().generation());
++        if (cmd.seen_render < 0) cmd.seen_render = gen;
++        const long long renders = gen - cmd.seen_render;
++        if (renders >= 2) {
++            cmd.consume();
++            return;
++        }
++        if (cmd.past_deadline()) {
++            cmd.fail(std::format(
++                "await_frame timed out after {:.2f}s with {} of 2 UI render "
++                "passes; is the UI rendered in test mode "
++                "(AFTER_HOURS_ENABLE_E2E_TESTING)?",
++                timeout, renders));
++            return;
++        }
++        cmd.block_until(timeout);
++    }
++};
++
++// 'set_clipboard "text"' / 'expect_clipboard "text"' - seed or check the
++// clipboard (the isolated one unless the app opted out). \n is a newline
++// inside quotes, as in expect_text.
++struct HandleClipboardCommands : System<PendingE2ECommand> {
++    virtual void for_each_with(Entity &, PendingE2ECommand &cmd,
++                               float) override {
++        if (cmd.is_consumed()) return;
++        if (cmd.is("set_clipboard")) {
++            clipboard::set_text(cmd.arg(0));
++            cmd.consume();
++        } else if (cmd.is("expect_clipboard")) {
++            const std::string actual = clipboard::get_text();
++            if (actual == cmd.arg(0))
++                cmd.consume();
++            else
++                cmd.fail(std::format(
++                    "expect_clipboard: expected \"{}\", clipboard holds "
++                    "\"{}\"", cmd.arg(0), actual));
++        }
++    }
++};
++
++// 'native_resize w h [timeout_seconds=5]' - resize the real window and hold
++// the script until the backend reports a w x h drawable (logical points,
++// independent of Retina scale) and one UI render has happened at that size.
++//
++// 'resize' only moves the layout viewport; this is for checking what AppKit
++// and Metal do when the actual window changes. Headless and backend-less
++// builds have no native window, so it fails at once with "unsupported" rather
++// than passing on a size nobody drew. On sokol/Metal the window change goes
++// through the app's metal_set_window_size (see window_manager.h).
++struct HandleNativeResizeCommand : System<PendingE2ECommand> {
++    virtual void for_each_with(Entity &, PendingE2ECommand &cmd,
++                               float) override {
++        if (cmd.is_consumed() || !cmd.is("native_resize")) return;
++        const int w = cmd.arg_as<int>(0);
++        const int h = cmd.arg_as<int>(1);
++        if (w <= 0 || h <= 0) {
++            cmd.fail(std::format("native_resize: invalid dimensions {}x{}",
++                                 cmd.arg(0), cmd.arg(1)));
++            return;
++        }
++#if defined(AFTER_HOURS_USE_RAYLIB) || defined(AFTER_HOURS_USE_METAL)
++        if (graphics::is_headless()) {
++            cmd.fail("native_resize: unsupported in headless mode (no native "
++                     "window); use 'resize' to change the layout viewport");
++            return;
++        }
++        const float timeout = cmd.arg_as<float>(2, 5.f);
++        if (!cmd.deadline) {
++            window_manager::set_window_size(w, h);
++            cmd.block_until(timeout);
++            return;
++        }
++        const auto gen = static_cast<long long>(
++            VisibleTextRegistry::instance().generation());
++        const int got_w = graphics::get_screen_width();
++        const int got_h = graphics::get_screen_height();
++        if (got_w == w && got_h == h) {
++            // The first render at the new size proves a drawable of that
++            // size was presented, not just that the setter returned.
++            if (cmd.seen_render < 0) cmd.seen_render = gen;
++            if (gen > cmd.seen_render) {
++                cmd.consume();
++                return;
++            }
++        } else {
++            cmd.seen_render = -1;
++        }
++        if (cmd.past_deadline()) {
++            cmd.fail(std::format(
++                "native_resize: window is {}x{} after {:.2f}s, wanted {}x{}{}",
++                got_w, got_h, timeout, w, h,
++                got_w == w && got_h == h ? " (size matched, but no UI render "
++                                           "followed)"
++                                         : ""));
++            return;
++        }
++        cmd.block_until(timeout);
++#else
++        cmd.fail("native_resize: unsupported without a graphics backend (no "
++                 "native window); use 'resize' to change the layout viewport");
++#endif
++    }
++};
++
+ // Handle 'assert_no_overflow' command - checks that all rendered UI elements
+ // fit within the current viewport AND that text content fits its containers.
+ // Checks three things:
+@@ -835,10 +1009,12 @@ struct HandleAssertNoOverflowCommand : System<PendingE2ECommand> {
+                             rect.x + rect.width > r + PARENT_TOLERANCE ||
+                             rect.y + rect.height > b + PARENT_TOLERANCE) {
+                             parent_out = true;
++                            const RectangleType box =
++                                e2e_to_logical({l, t, r - l, b - t});
+                             parent_detail = std::format(
+                                 " (outside parent content box "
+                                 "{:.0f},{:.0f} {:.0f}x{:.0f})",
+-                                l, t, r - l, b - t);
++                                box.x, box.y, box.width, box.height);
+                         }
+                     }
+                 }
+@@ -915,9 +1091,10 @@ struct HandleAssertNoOverflowCommand : System<PendingE2ECommand> {
+ 
+             const char *reason =
+                 rect_out ? "RECT" : (parent_out ? "PARENT" : "TEXT");
++            const RectangleType lr = e2e_to_logical(rect);
+             violations.push_back(std::format(
+                 "  [{}] {} at ({:.0f},{:.0f}) size {:.0f}x{:.0f}{}{}", reason,
+-                name, rect.x, rect.y, rect.width, rect.height, parent_detail,
++                name, lr.x, lr.y, lr.width, lr.height, parent_detail,
+                 text_detail));
+         }
+ 
+@@ -979,6 +1156,25 @@ struct E2ECommandCleanupSystem : System<PendingE2ECommand> {
+             return;
+         }
+ 
++        // A blocking command is timed by its wall-clock deadline, not frames.
++        // Its handler usually fails it first with a specific reason; this is
++        // the fallback for a handler that only kept calling block_until().
++        if (cmd.deadline) {
++            if (cmd.past_deadline()) {
++                cmd.fail(std::format(
++                    "Command '{}'{} passed its wall-clock deadline", cmd.name,
++                    cmd.args.empty() ? std::string{}
++                                     : std::format(" ('{}')", cmd.args[0])));
++                detail::command_error_count()++;
++                log_warn("[TIMEOUT] {} (line {}): {}", cmd.name,
++                         cmd.line_number, cmd.error_message);
++                e.cleanup = true;
++                return;
++            }
++            cmd.reset_retry();
++            return;
++        }
++
+         // Check for command timeout (wait commands are exempt)
+         if (!cmd.is_wait_command() && cmd.tick_frame()) {
+             std::string error_msg;
+diff --git a/src/plugins/e2e_testing/draw_commands.h b/src/plugins/e2e_testing/draw_commands.h
+index b89592b..0d2fcfc 100644
+--- a/src/plugins/e2e_testing/draw_commands.h
++++ b/src/plugins/e2e_testing/draw_commands.h
+@@ -15,6 +15,7 @@
+ 
+ #include "../../capture.h"
+ #include "../../logging.h"
++#include "command_handlers.h"
+ #include "pending_command.h"
+ 
+ namespace afterhours {
+@@ -178,9 +179,10 @@ inline std::string summarize(size_t limit = 12,
+       continue;
+     if (shown++ >= limit)
+       break;
++    const RectangleType r = e2e_to_logical(c.rect);
+     out += std::format("\n  | {} ({:.0f},{:.0f}) {:.0f}x{:.0f} "
+                        "#{:02x}{:02x}{:02x}{:02x} eid={}",
+-                       c.op, c.rect.x, c.rect.y, c.rect.width, c.rect.height,
++                       c.op, r.x, r.y, r.width, r.height,
+                        c.color.r, c.color.g, c.color.b, c.color.a, c.entity_id);
+     if (!c.text.empty())
+       out += std::format(" '{}'", c.text);
+@@ -274,8 +276,9 @@ struct HandleExpectDrawnAtCommand : System<PendingE2ECommand> {
+       return;
+     }
+ 
++    // x/y/w/h are logical pixels, like every script coordinate.
+     for (const auto *c : candidates)
+-      if (want.matches(c->rect)) {
++      if (want.matches(e2e_to_logical(c->rect))) {
+         cmd.consume();
+         return;
+       }
+@@ -283,10 +286,11 @@ struct HandleExpectDrawnAtCommand : System<PendingE2ECommand> {
+     // It IS drawn, just not there. That is a real failure, and the useful
+     // part is saying where it landed instead.
+     std::string got;
+-    for (size_t i = 0; i < candidates.size() && i < 6; i++)
+-      got += std::format("\n  | at ({:.0f},{:.0f}) {:.0f}x{:.0f}",
+-                         candidates[i]->rect.x, candidates[i]->rect.y,
+-                         candidates[i]->rect.width, candidates[i]->rect.height);
++    for (size_t i = 0; i < candidates.size() && i < 6; i++) {
++      const RectangleType r = e2e_to_logical(candidates[i]->rect);
++      got += std::format("\n  | at ({:.0f},{:.0f}) {:.0f}x{:.0f}", r.x, r.y,
++                         r.width, r.height);
++    }
+     cmd.fail(std::format("{} drawn, but not {}. {} found:{}", f.describe(),
+                          want.describe(), candidates.size(), got));
+   }
+diff --git a/src/plugins/e2e_testing/e2e_testing.h b/src/plugins/e2e_testing/e2e_testing.h
+index 98c6455..b039b20 100644
+--- a/src/plugins/e2e_testing/e2e_testing.h
++++ b/src/plugins/e2e_testing/e2e_testing.h
+@@ -81,8 +81,14 @@ inline void register_builtin_handlers(SystemManager &sm) {
+       std::make_unique<HandleExpectTextInsensitiveCommand>());
+   sm.register_update_system(std::make_unique<HandleExpectNoTextCommand>());
+   sm.register_update_system(std::make_unique<HandleResizeCommand>());
++  sm.register_update_system(std::make_unique<HandleNativeResizeCommand>());
++  sm.register_update_system(std::make_unique<HandleAwaitFrameCommand>());
++  sm.register_update_system(std::make_unique<HandleClipboardCommands>());
+   sm.register_update_system(std::make_unique<HandleAssertNoOverflowCommand>());
+   // Note: screenshot and reset_test_state need callbacks, registered separately
++
++  // Scripts get an in-memory clipboard; use_system_clipboard() opts out.
++  isolate_clipboard();
+ }
+ 
+ // Register a system to run AFTER built-in handlers (to extend or add custom)
+diff --git a/src/plugins/e2e_testing/pending_command.h b/src/plugins/e2e_testing/pending_command.h
+index 0344b4b..8c03949 100644
+--- a/src/plugins/e2e_testing/pending_command.h
++++ b/src/plugins/e2e_testing/pending_command.h
+@@ -6,6 +6,7 @@
+ 
+ #include "../../ecs.h"
+ 
++#include <chrono>
+ #include <optional>
+ #include <string>
+ #include <vector>
+@@ -59,6 +60,29 @@ struct PendingE2ECommand : BaseComponent {
+   long long seen_render = -1;
+   static constexpr int MAX_FRAMES = 30; // Commands timeout after 30 frames (~0.5s at 60fps)
+   CommandState state = CommandState::Ready;
++  // Set by block_until(). A blocking command stops the runner dispatching the
++  // next line, and is timed by this wall-clock deadline instead of
++  // MAX_FRAMES: a headless host can burn 30 ticks in a millisecond, long
++  // before a render, a worker or a window resize lands.
++  bool blocking = false;
++  std::optional<std::chrono::steady_clock::time_point> deadline;
++
++  // Hold the script on this command until it is consumed or failed, failing
++  // after `seconds` of wall clock. Call on every visit that is still waiting;
++  // only the first call arms the deadline. Plain retry() keeps the command
++  // pending but lets the runner dispatch the lines after it.
++  void block_until(float seconds) {
++    blocking = true;
++    if (!deadline)
++      deadline = std::chrono::steady_clock::now() +
++                 std::chrono::duration_cast<std::chrono::steady_clock::duration>(
++                     std::chrono::duration<float>(seconds));
++    retry();
++  }
++
++  bool past_deadline() const {
++    return deadline && std::chrono::steady_clock::now() > *deadline;
++  }
+ 
+   // Increment frame counter, returns true if timed out
+   bool tick_frame() {
+diff --git a/src/plugins/e2e_testing/runner.h b/src/plugins/e2e_testing/runner.h
+index 1fad7ef..571a683 100644
+--- a/src/plugins/e2e_testing/runner.h
++++ b/src/plugins/e2e_testing/runner.h
+@@ -221,7 +221,8 @@ inline std::vector<ParsedCommand> parse_script(const std::string &path) {
+             }
+             cmd.wait_seconds = 1 * frame;
+         } else if (cmd.name == "expect_text" || cmd.name == "expect_text_i" ||
+-                   cmd.name == "expect_no_text" || cmd.name == "expect_text_fully_visible") {
++                   cmd.name == "expect_no_text" || cmd.name == "expect_text_fully_visible" ||
++                   cmd.name == "set_clipboard" || cmd.name == "expect_clipboard") {
+             cmd.args.push_back(args.rest());
+             cmd.wait_seconds = 1 * frame;
+         } else if (cmd.name == "expect_selected_text") {
+@@ -435,6 +436,11 @@ class E2ERunner {
+             return;
+         }
+ 
++        // A blocking command (await_frame, native_resize, anything that called
++        // block_until) is a barrier: nothing after it is dispatched until it
++        // resolves. Plain retry() does not hold the script.
++        if (has_blocking_commands()) return;
++
+         // Let the script's own commands resolve before closing it out,
+         // otherwise their errors land in the next script's window.
+         const auto &cmd = commands_[index_];
+@@ -577,6 +583,7 @@ class E2ERunner {
+             test_input::reset_all();
+             key_release_detail::reset();
+             VisibleTextRegistry::instance().clear();
++            test_clipboard().reset();
+             current_script_idx_++;
+             current_script_errors_ = 0;
+             elapsed_time_ = 0.0f;
+@@ -592,6 +599,16 @@ class E2ERunner {
+         return false;
+     }
+ 
++    bool has_blocking_commands() const {
++        auto pending =
++            EntityQuery().whereHasComponent<PendingE2ECommand>().gen();
++        for (const Entity &e : pending) {
++            const auto &cmd = e.get<PendingE2ECommand>();
++            if (cmd.blocking && !cmd.is_consumed()) return true;
++        }
++        return false;
++    }
++
+     void consume_all_pending_commands() {
+         auto pending =
+             EntityQuery().whereHasComponent<PendingE2ECommand>().gen();
+diff --git a/src/plugins/e2e_testing/test_input.h b/src/plugins/e2e_testing/test_input.h
+index 9bc3fc8..2be02fb 100644
+--- a/src/plugins/e2e_testing/test_input.h
++++ b/src/plugins/e2e_testing/test_input.h
+@@ -5,6 +5,7 @@
+ #include "input_injector.h"
+ 
+ #include <queue>
++#include <string_view>
+ 
+ namespace afterhours {
+ namespace testing {
+@@ -13,7 +14,9 @@ namespace test_input {
+ struct KeyPress {
+   int key = 0;
+   bool is_char = false;
+-  char char_value = 0;
++  // A Unicode code point, the same contract as the backends' GetCharPressed.
++  // It was a char, so `type "é"` delivered two negative bytes.
++  int char_value = 0;
+ };
+ 
+ namespace detail {
+@@ -37,14 +40,38 @@ inline void push_key(int key) {
+   input_injector::set_key_up(key);
+ }
+ 
+-// Queue a character
+-inline void push_char(char c) {
++// Queue one Unicode code point.
++inline void push_char(int codepoint) {
+   KeyPress kp;
+   kp.is_char = true;
+-  kp.char_value = c;
++  kp.char_value = codepoint;
+   detail::key_queue.push(kp);
+ }
+ 
++// Queue every code point of a UTF-8 string, in order. A malformed or
++// truncated sequence queues U+FFFD for its lead byte and resumes at the next
++// byte, so a bad fixture shows up as a replacement glyph, not a lost tail.
++inline void push_text(std::string_view utf8) {
++  for (size_t i = 0; i < utf8.size();) {
++    const auto b = static_cast<unsigned char>(utf8[i]);
++    const int len = b < 0x80 ? 1 : (b >> 5) == 6 ? 2 : (b >> 4) == 14 ? 3
++                  : (b >> 3) == 30 ? 4 : 0;
++    int cp = len == 1 ? b : len == 2 ? (b & 0x1F) : len == 3 ? (b & 0x0F)
++           : (b & 0x07);
++    bool ok = len > 0 && i + static_cast<size_t>(len) <= utf8.size();
++    for (int k = 1; ok && k < len; ++k) {
++      const auto c = static_cast<unsigned char>(utf8[i + static_cast<size_t>(k)]);
++      ok = (c >> 6) == 2;
++      cp = (cp << 6) | (c & 0x3F);
++    }
++    // Overlong forms, surrogates and values past U+10FFFF are not text.
++    static constexpr int kMin[] = {0, 0, 0x80, 0x800, 0x10000};
++    ok = ok && cp >= kMin[len] && cp <= 0x10FFFF && (cp < 0xD800 || cp > 0xDFFF);
++    push_char(ok ? cp : 0xFFFD);
++    i += ok ? static_cast<size_t>(len) : 1;
++  }
++}
++
+ // Clear input queue
+ inline void clear_queue() {
+   while (!detail::key_queue.empty())
+@@ -239,9 +266,9 @@ inline int get_char_pressed(BackendFn backend_fn) {
+       return 0;
+     }
+     if (detail::key_queue.front().is_char) {
+-      char c = detail::key_queue.front().char_value;
++      const int c = detail::key_queue.front().char_value;
+       detail::key_queue.pop();
+-      return static_cast<int>(c);
++      return c;
+     }
+     return 0;
+   }
+diff --git a/src/plugins/e2e_testing/ui_commands.h b/src/plugins/e2e_testing/ui_commands.h
+index 01a8bf3..7b2d3e4 100644
+--- a/src/plugins/e2e_testing/ui_commands.h
++++ b/src/plugins/e2e_testing/ui_commands.h
+@@ -49,48 +49,103 @@ inline RectangleType get_screen_rect(Entity &entity) {
+   return ui::detail::apply_ancestor_transform(entity, rect);
+ }
+ 
+-// Find a UI component by its debug name and return its center position
+-template <typename InputAction>
+-std::optional<Position> find_component_center(const std::string &name) {
+-  auto query = ui_query()
+-                   .whereHasComponent<ui::UIComponent>()
+-                   .whereHasComponent<ui::UIComponentDebug>()
+-                   .whereLambda([&](const Entity &e) {
+-                     return e.get<ui::UIComponentDebug>().name() == name &&
+-                            e.get<ui::UIComponent>().was_rendered_to_screen;
+-                   })
+-                   .first();
++// The part of an element that is actually on screen, in screen pixels: its
++// screen rect cut by every scroll/clip ancestor and by the window. Zero-sized
++// when fully clipped. The same clip render scissors with and hit-testing uses
++// (ui::detail::clip_hit_rect), so a click aimed inside it lands where the
++// element is drawn. was_rendered_to_screen alone cannot say this: a row
++// scrolled out of its viewport is still "rendered".
++inline RectangleType get_visible_rect(Entity &entity) {
++  const auto [sw, sh] = e2e_screen_size();
++  return ui::detail::intersect_rects(
++      ui::detail::clip_hit_rect(entity, get_screen_rect(entity)),
++      RectangleType{0.f, 0.f, sw, sh});
++}
+ 
+-  for (Entity &entity : query.gen()) {
+-    auto rect = get_screen_rect(entity);
+-    float cx = rect.x + rect.width / 2;
+-    float cy = rect.y + rect.height / 2;
+-    return Position{cx, cy};
++// At least one whole pixel visible, the same bar text registration uses.
++inline bool is_visible(Entity &entity) {
++  const RectangleType r = get_visible_rect(entity);
++  return r.width >= 1.f && r.height >= 1.f;
++}
++
++// Centre of the visible portion, or nullopt when fully clipped.
++inline std::optional<Position> visible_center(Entity &entity) {
++  if (!is_visible(entity))
++    return std::nullopt;
++  const RectangleType r = get_visible_rect(entity);
++  return Position{r.x + r.width / 2, r.y + r.height / 2};
++}
++
++// Why a rendered target cannot be clicked, in the logical pixels scripts use.
++inline std::string clipped_message(Entity &entity, const std::string &what) {
++  const RectangleType r = e2e_to_logical(get_screen_rect(entity));
++  return std::format("{} is rendered but fully clipped (at {:.0f},{:.0f} "
++                     "size {:.0f}x{:.0f}, outside its scroll/clip ancestors "
++                     "or the window)",
++                     what, r.x, r.y, r.width, r.height);
++}
++
++// First visible match of `pred`; if every match is clipped, nullopt with the
++// reason in *why (left empty when nothing matched at all).
++template <typename Pred>
++std::optional<Position> find_visible_center(Pred pred, const std::string &what,
++                                            std::string *why) {
++  Entity *clipped = nullptr;
++  for (Entity &entity : ui_query()
++                            .whereHasComponent<ui::UIComponent>()
++                            .whereLambda([&](const Entity &e) {
++                              return e.get<ui::UIComponent>()
++                                         .was_rendered_to_screen &&
++                                     pred(e);
++                            })
++                            .gen()) {
++    if (auto pos = visible_center(entity))
++      return pos;
++    if (!clipped)
++      clipped = &entity;
+   }
++  if (why)
++    *why = clipped ? clipped_message(*clipped, what) : std::string{};
+   return std::nullopt;
+ }
+ 
+-// Find a UI component containing specific text
++// Find a UI component by its debug name and return the centre of its visible
++// portion. A match scrolled or clipped entirely out of view is skipped; when
++// that is all there is, *why says so.
+ template <typename InputAction>
+-std::optional<Position> find_component_with_text(const std::string &text) {
+-  auto query = ui_query()
+-                   .whereHasComponent<ui::UIComponent>()
+-                   .whereHasComponent<ui::HasLabel>()
+-                   .whereLambda([&](const Entity &e) {
+-                     return e.get<ui::HasLabel>().label.find(text) !=
+-                                std::string::npos &&
+-                            e.get<ui::UIComponent>().was_rendered_to_screen;
+-                   })
+-                   .first();
++std::optional<Position> find_component_center(const std::string &name,
++                                              std::string *why = nullptr) {
++  return find_visible_center(
++      [&](const Entity &e) {
++        return e.has<ui::UIComponentDebug>() &&
++               e.get<ui::UIComponentDebug>().name() == name;
++      },
++      std::format("UI component '{}'", name), why);
++}
++
++// Find a UI component containing specific text, as find_component_center.
++template <typename InputAction>
++std::optional<Position> find_component_with_text(const std::string &text,
++                                                 std::string *why = nullptr) {
++  return find_visible_center(
++      [&](const Entity &e) {
++        return e.has<ui::HasLabel>() &&
++               e.get<ui::HasLabel>().label.find(text) != std::string::npos;
++      },
++      std::format("UI with text '{}'", text), why);
++}
+ 
+-  // TODO add a gen_lambda() to do this conversion
+-  for (Entity &entity : query.gen()) {
+-    auto rect = get_screen_rect(entity);
+-    float cx = rect.x + rect.width / 2;
+-    float cy = rect.y + rect.height / 2;
+-    return Position{cx, cy};
++// Click the visible centre of `entity`, or say why it cannot be clicked.
++template <typename ClickFn>
++bool click_visible(Entity &entity, PendingE2ECommand &cmd,
++                   const std::string &what, ClickFn click) {
++  if (auto pos = visible_center(entity)) {
++    click(pos->x, pos->y);
++    cmd.consume();
++    return true;
+   }
+-  return std::nullopt;
++  cmd.fail(clipped_message(entity, what));
++  return false;
+ }
+ 
+ // Handle 'click_ui name' - clicks UI component by debug name
+@@ -104,12 +159,13 @@ struct HandleClickUICommand : System<PendingE2ECommand> {
+       return;
+     }
+ 
+-    auto pos = find_component_center<InputAction>(cmd.arg(0));
++    std::string why;
++    auto pos = find_component_center<InputAction>(cmd.arg(0), &why);
+     if (pos) {
+       test_input::simulate_click(pos->x, pos->y);
+       cmd.consume();
+     } else {
+-      cmd.fail(std::format("UI component not found: {}", cmd.arg(0)));
++      cmd.fail(why.empty() ? std::format("UI component not found: {}", cmd.arg(0)) : why);
+     }
+   }
+ };
+@@ -127,12 +183,13 @@ struct HandleRightClickUICommand : System<PendingE2ECommand> {
+       return;
+     }
+ 
+-    auto pos = find_component_center<InputAction>(cmd.arg(0));
++    std::string why;
++    auto pos = find_component_center<InputAction>(cmd.arg(0), &why);
+     if (pos) {
+       test_input::simulate_right_click(pos->x, pos->y);
+       cmd.consume();
+     } else {
+-      cmd.fail(std::format("UI component not found: {}", cmd.arg(0)));
++      cmd.fail(why.empty() ? std::format("UI component not found: {}", cmd.arg(0)) : why);
+     }
+   }
+ };
+@@ -148,12 +205,13 @@ struct HandleRightClickTextCommand : System<PendingE2ECommand> {
+       return;
+     }
+ 
+-    auto pos = find_component_with_text<InputAction>(cmd.arg(0));
++    std::string why;
++    auto pos = find_component_with_text<InputAction>(cmd.arg(0), &why);
+     if (pos) {
+       test_input::simulate_right_click(pos->x, pos->y);
+       cmd.consume();
+     } else {
+-      cmd.fail(std::format("No UI with text: {}", cmd.arg(0)));
++      cmd.fail(why.empty() ? std::format("No UI with text: {}", cmd.arg(0)) : why);
+     }
+   }
+ };
+@@ -169,12 +227,13 @@ struct HandleClickTextCommand : System<PendingE2ECommand> {
+       return;
+     }
+ 
+-    auto pos = find_component_with_text<InputAction>(cmd.arg(0));
++    std::string why;
++    auto pos = find_component_with_text<InputAction>(cmd.arg(0), &why);
+     if (pos) {
+       test_input::simulate_click(pos->x, pos->y);
+       cmd.consume();
+     } else {
+-      cmd.fail(std::format("No UI with text: {}", cmd.arg(0)));
++      cmd.fail(why.empty() ? std::format("No UI with text: {}", cmd.arg(0)) : why);
+     }
+   }
+ };
+@@ -405,11 +464,8 @@ struct HandleClickButtonCommand : System<PendingE2ECommand> {
+             .first();
+ 
+     for (Entity &entity : query.gen()) {
+-      auto rect = get_screen_rect(entity);
+-      float cx = rect.x + rect.width / 2;
+-      float cy = rect.y + rect.height / 2;
+-      test_input::simulate_click(cx, cy);
+-      cmd.consume();
++      click_visible(entity, cmd, std::format("Button '{}'", text),
++                    test_input::simulate_click);
+       return;
+     }
+     cmd.fail(std::format("Button not found: {}", cmd.arg(0)));
+@@ -439,11 +495,8 @@ struct HandleToggleCheckboxCommand : System<PendingE2ECommand> {
+                      .first();
+ 
+     for (Entity &entity : query.gen()) {
+-      auto rect = get_screen_rect(entity);
+-      float cx = rect.x + rect.width / 2;
+-      float cy = rect.y + rect.height / 2;
+-      test_input::simulate_click(cx, cy);
+-      cmd.consume();
++      click_visible(entity, cmd, std::format("Checkbox '{}'", name),
++                    test_input::simulate_click);
+       return;
+     }
+     cmd.fail(std::format("Checkbox not found: {}", cmd.arg(0)));
+@@ -507,8 +560,13 @@ struct HandleSetSliderCommand : System<PendingE2ECommand> {
+       // Half a pixel in: a click on the boundary can miss the rect.
+       const float x =
+           std::min(rect.x + pct * rect.width, rect.x + rect.width - 0.5f);
+-      float y = rect.y + rect.height / 2;
+-      test_input::simulate_click(x, y);
++      const RectangleType vis = get_visible_rect(entity);
++      if (x < vis.x || x >= vis.x + vis.width || vis.height < 1.f) {
++        cmd.fail(std::format("Slider '{}': the point for {} is clipped out of "
++                             "view", name, *value));
++        return;
++      }
++      test_input::simulate_click(x, vis.y + vis.height / 2);
+       cmd.consume();
+       return;
+     }
+@@ -540,13 +598,10 @@ struct HandleSelectDropdownCommand : System<PendingE2ECommand> {
+ 
+     for (Entity &entity : query.gen()) {
+       // Click to open dropdown first
+-      auto rect = get_screen_rect(entity);
+-      float cx = rect.x + rect.width / 2;
+-      float cy = rect.y + rect.height / 2;
+-      test_input::simulate_click(cx, cy);
+       // Note: Selecting the actual option requires another frame
+       // TODO: Add wait + option click logic
+-      cmd.consume();
++      click_visible(entity, cmd, std::format("Dropdown '{}'", name),
++                    test_input::simulate_click);
+       return;
+     }
+     cmd.fail(std::format("Dropdown not found: {}", cmd.arg(0)));
+@@ -886,14 +941,27 @@ struct HandleMultiClickUICommand : System<PendingE2ECommand> {
+       bool found = false;
+       for (Entity &entity : query.gen()) {
+         const RectangleType r = get_screen_rect(entity);
++        // Offsets are logical pixels, like every other script coordinate.
+         const auto off = [&](size_t i, float extent) {
+           if (cmd.args.size() <= i || cmd.arg(i) == "center")
+             return extent * 0.5f;
+-          return static_cast<float>(std::atof(cmd.arg(i).c_str()));
++          return static_cast<float>(std::atof(cmd.arg(i).c_str())) *
++                 e2e_ui_scale();
+         };
+         x = r.x + off(1, r.width);
+         y = r.y + off(2, r.height);
++        const RectangleType vis = get_visible_rect(entity);
++        if (x < vis.x || y < vis.y || x >= vis.x + vis.width ||
++            y >= vis.y + vis.height) {
++          cmd.fail(std::format("{}: the target point is clipped out of view; "
++                               "{}",
++                               name_for(),
++                               clipped_message(entity, std::format(
++                                   "UI component '{}'", cmd.arg(0)))));
++          return;
++        }
+         found = true;
++        break;
+       }
+       if (!found) {
+         cmd.fail(std::format("UI component not found: {}", cmd.arg(0)));
+@@ -1012,7 +1080,8 @@ inline void dump_ui_node(std::string &out, Entity &entity, int depth) {
+   if (!cmp.was_rendered_to_screen) return;
+ 
+   std::string indent(depth * 2, ' ');
+-  RectangleType rect = get_screen_rect(entity);
++  const RectangleType screen = get_screen_rect(entity);
++  RectangleType rect = e2e_to_logical(screen);
+ 
+   out += indent + "<ui";
+ 
+@@ -1026,14 +1095,26 @@ inline void dump_ui_node(std::string &out, Entity &entity, int depth) {
+                      std::lroundf(rect.x), std::lroundf(rect.y),
+                      std::lroundf(rect.width), std::lroundf(rect.height));
+ 
++  // Only where clipping cut something off, so unclipped dumps read as before.
++  const RectangleType vis = get_visible_rect(entity);
++  if (vis.x != screen.x || vis.y != screen.y || vis.width != screen.width ||
++      vis.height != screen.height) {
++    const RectangleType lv = e2e_to_logical(vis);
++    out += std::format(" visible=\"{}\" vx=\"{}\" vy=\"{}\" vw=\"{}\" vh=\"{}\"",
++                       is_visible(entity) ? "partial" : "false",
++                       std::lroundf(lv.x), std::lroundf(lv.y),
++                       std::lroundf(lv.width), std::lroundf(lv.height));
++  }
++
+   if (entity.has<ui::HasLabel>())
+     out += " text=\"" + xml_escape(truncate_text(entity.get<ui::HasLabel>().label)) + "\"";
+ 
+   if (entity.has<ui::HasScrollView>()) {
+     auto &sv = entity.get<ui::HasScrollView>();
++    const float scale = e2e_ui_scale();
+     out += std::format(" scroll_x=\"{}\" scroll_y=\"{}\"",
+-                       std::lroundf(sv.scroll_offset.x),
+-                       std::lroundf(sv.scroll_offset.y));
++                       std::lroundf(sv.scroll_offset.x / scale),
++                       std::lroundf(sv.scroll_offset.y / scale));
+   }
+ 
+   if (cmp.should_hide)
+@@ -1108,7 +1189,8 @@ inline bool parse_prop_assertion(const std::string &arg, std::string &prop,
+ inline std::string check_ui_property(Entity &entity, const std::string &prop,
+                                       const std::string &expected) {
+   auto &cmp = entity.get<ui::UIComponent>();
+-  RectangleType rect = get_screen_rect(entity);
++  const RectangleType rect = e2e_to_logical(get_screen_rect(entity));
++  const RectangleType vis = e2e_to_logical(get_visible_rect(entity));
+ 
+   long actual_int = 0;
+   bool is_int_prop = true;
+@@ -1117,6 +1199,17 @@ inline std::string check_ui_property(Entity &entity, const std::string &prop,
+   else if (prop == "y") actual_int = std::lroundf(rect.y);
+   else if (prop == "w") actual_int = std::lroundf(rect.width);
+   else if (prop == "h") actual_int = std::lroundf(rect.height);
++  else if (prop == "vx") actual_int = std::lroundf(vis.x);
++  else if (prop == "vy") actual_int = std::lroundf(vis.y);
++  else if (prop == "vw") actual_int = std::lroundf(vis.width);
++  else if (prop == "vh") actual_int = std::lroundf(vis.height);
++  else if (prop == "visible") {
++    // true = at least one pixel survives every clip and the window.
++    std::string actual_str = is_visible(entity) ? "true" : "false";
++    if (actual_str != expected)
++      return std::format("{}={} but got {}", prop, expected, actual_str);
++    return "";
++  }
+   else if (prop == "hidden") {
+     std::string actual_str = cmp.should_hide ? "true" : "false";
+     if (actual_str != expected)
+diff --git a/src/plugins/files.cpp b/src/plugins/files.cpp
+index 246a7d4..3b99022 100644
+--- a/src/plugins/files.cpp
++++ b/src/plugins/files.cpp
+@@ -6,6 +6,8 @@
+ 
+ #include "files.h"
+ 
++#include <cstdlib>
++
+ #if defined(_WIN32)
+ #define AFTER_HOURS_USE_RAYLIB
+ #endif
+@@ -109,6 +111,18 @@ std::filesystem::path resolve_resource_root(const std::string &root_folder) {
+ files::ProvidesResourcePaths::ProvidesResourcePaths(
+     const std::string &game_name, const std::string &root_folder)
+     : game_name(game_name), root_folder(root_folder) {
++  // Checked first so an isolated run never creates the real save folder.
++  if (const char *root = std::getenv(TEST_STORAGE_ENV); root && *root) {
++#ifdef __EMSCRIPTEN__
++    resource_folder_path = fs::path("/") / fs::path(root_folder);
++#else
++    resource_folder_path = resolve_resource_root(root_folder);
++#endif
++    use_storage_root(root);
++    log_info("{} set: config, saves and temp under {}", TEST_STORAGE_ENV,
++             root);
++    return;
++  }
+ #ifdef __EMSCRIPTEN__
+   // Emscripten virtual filesystem: files preloaded with --preload-file are
+   // available at the mount point. Save/config use in-memory directories.
+@@ -116,6 +130,7 @@ files::ProvidesResourcePaths::ProvidesResourcePaths(
+   config_folder_path = fs::path("/config") / fs::path(game_name);
+   resource_folder_path = fs::path("/") / fs::path(root_folder);
+ 
++  temp_folder_path = fs::path("/tmp") / fs::path(game_name);
+   if (!fs::exists(save_folder_path)) {
+     fs::create_directories(save_folder_path);
+   }
+@@ -128,6 +143,8 @@ files::ProvidesResourcePaths::ProvidesResourcePaths(
+   save_folder_path = master_folder / fs::path(game_name);
+   config_folder_path = sago::getConfigHome() / fs::path(game_name);
+   resource_folder_path = resolve_resource_root(root_folder);
++  std::error_code ec;
++  temp_folder_path = fs::temp_directory_path(ec) / fs::path(game_name);
+ 
+   if (!fs::exists(save_folder_path)) {
+     bool was_created = fs::create_directories(save_folder_path);
+@@ -274,6 +291,25 @@ fs::path files::get_config_path() {
+   return provider->get_config_path();
+ }
+ 
++fs::path files::get_temp_path() {
++  auto *provider = get_provider();
++  if (!provider) {
++    log_error("Files plugin not initialized. Call files::init() first.");
++    return fs::path();
++  }
++  return provider->get_temp_path();
++}
++
++bool files::isolate_storage(const fs::path &root) {
++  auto *provider = get_provider();
++  if (!provider) {
++    log_error("isolate_storage: files plugin not initialized");
++    return false;
++  }
++  provider->use_storage_root(root);
++  return true;
++}
++
+ void files::for_resources_in_group(
+     const std::string &group,
+     const std::function<void(std::string, std::string, std::string)> &cb) {
+diff --git a/src/plugins/files.h b/src/plugins/files.h
+index 9ad7e92..76cc729 100644
+--- a/src/plugins/files.h
++++ b/src/plugins/files.h
+@@ -38,6 +38,9 @@ struct files : developer::Plugin {
+     fs::path resource_folder_path;
+     fs::path save_folder_path;
+     fs::path config_folder_path;
++    // Scratch space for the game's own temporaries (exports, staging, caches
++    // safe to lose). Under the OS temp dir unless storage is isolated.
++    fs::path temp_folder_path;
+ 
+     ProvidesResourcePaths() = default;
+     // Constructor implementation in files.cpp to avoid including
+@@ -57,6 +60,21 @@ struct files : developer::Plugin {
+       return config_folder_path;
+     }
+ 
++    [[nodiscard]] fs::path get_temp_path() const { return temp_folder_path; }
++
++    // Point config, saves and temp under `root` together, as
++    // root/{config,save,tmp}/<game_name>, creating them. Redirecting only one
++    // of them is how test fixtures end up in a user's real save folder.
++    void use_storage_root(const fs::path &root) {
++      config_folder_path = root / "config" / game_name;
++      save_folder_path = root / "save" / game_name;
++      temp_folder_path = root / "tmp" / game_name;
++      std::error_code ec;
++      for (const fs::path *p :
++           {&config_folder_path, &save_folder_path, &temp_folder_path})
++        fs::create_directories(*p, ec);
++    }
++
+     // Implementation in files.cpp
+     void for_resources_in_group(
+         const std::string &group,
+@@ -99,6 +117,13 @@ struct files : developer::Plugin {
+ 
+   static fs::path get_config_path();
+ 
++  static fs::path get_temp_path();
++
++  // Redirect an already-initialised provider (use_storage_root). For hosts
++  // that only learn the test directory after files::init(). False if the
++  // plugin is not initialised.
++  static bool isolate_storage(const fs::path &root);
++
+   static void for_resources_in_group(
+       const std::string &group,
+       const std::function<void(std::string, std::string, std::string)> &cb);
+@@ -120,6 +145,12 @@ struct files : developer::Plugin {
+   // caller's own .tmp file.
+   static constexpr const char *TEMP_SUFFIX = ".afh-tmp";
+ 
++  // Set this to a directory and every ProvidesResourcePaths built afterwards
++  // uses use_storage_root(it) instead of the platform folders, which are then
++  // neither read nor created. For test runs: a test can never load or
++  // overwrite the user's real settings or saves.
++  static constexpr const char *TEST_STORAGE_ENV = "AFTERHOURS_TEST_STORAGE_DIR";
++
+   // Defined here rather than in files.cpp: these are plain std::filesystem
+   // helpers with no singleton or platform_folders dependency, and theme_io
+   // (pulled in by ui.h) needs them without forcing every UI consumer to link
+diff --git a/tests/Makefile b/tests/Makefile
+index 688b6c0..5f87701 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -193,7 +193,14 @@ ALL_TESTS := \
+ 	text_input_test \
+ 	toast_test \
+ 	text_wrap_test \
+-	theme_io_test
++	theme_io_test \
++	e2e_barrier_test \
++	files_isolated_storage_test \
++	e2e_visibility_test \
++	e2e_zoom_coordinates_test \
++	e2e_unicode_type_test \
++	e2e_clipboard_test \
++	native_resize_test
+ 
+ # .app packaging is macOS-only, and the test shells out to plutil.
+ ifeq ($(UNAME_S),Darwin)
+@@ -251,7 +258,10 @@ RAYLIB_TESTS := \
+ 	overlay_layer_test \
+ 	press_delay_test \
+ 	text_wrap_test \
+-	theme_io_test
++	theme_io_test \
++	e2e_unicode_type_test \
++	e2e_clipboard_test \
++	native_resize_test
+ 
+ TEST_BINS := $(addprefix $(OUT)/,$(ALL_TESTS))
+ 
+@@ -280,7 +290,7 @@ $(RAYLIB_BINS): LDFLAGS_T  = $(LDFLAGS_RAYLIB)
+ # with no window, so the modifier half of a chord cannot be tested at all.
+ $(OUT)/input_device_activity_test: LDFLAGS_T = $(subst $(RAYLIB_LIB)/libraylib.a,-L$(RAYLIB_LIB) -lraylib,$(LDFLAGS_RAYLIB))
+ 
+-$(OUT)/text_area_test $(OUT)/scroll_input_gate_test: CXXFLAGS_T = $(CXXFLAGS_RAYLIB) -DAFTER_HOURS_ENABLE_E2E_TESTING
++$(OUT)/text_area_test $(OUT)/scroll_input_gate_test $(OUT)/e2e_unicode_type_test: CXXFLAGS_T = $(CXXFLAGS_RAYLIB) -DAFTER_HOURS_ENABLE_E2E_TESTING
+ 
+ # Filter to sources: the .d files list every header as a prerequisite, and a
+ # bare $^ would hand them all to clang. .cc is the sokol implementation TU.
+@@ -302,6 +312,7 @@ $(OUT)/sound_volume_test: CXXFLAGS_T = $(CXXFLAGS_RAYLIB)
+ $(OUT)/sound_volume_test: INCLUDES_T = $(INCLUDES_RAYLIB)
+ $(OUT)/files_atomic_write_test: ../src/plugins/files.cpp
+ $(OUT)/files_resource_path_test: ../src/plugins/files.cpp
++$(OUT)/files_isolated_storage_test: ../src/plugins/files.cpp
+ $(OUT)/bundle_test: ../src/plugins/files.cpp
+ $(OUT)/file_watcher_test: ../src/plugins/file_watcher.cpp
+ ifeq ($(UNAME_S),Darwin)
+@@ -348,6 +359,12 @@ test: check-boundaries all
+ 	done; \
+ 	if [ $$fail -ne 0 ]; then echo "SOME TESTS FAILED"; exit 1; fi
+ 
++# Opens a hidden native window, so it needs a window server and is not part of
++# `test`. The default run of native_resize_test only checks headless.
++native-window-test: $(OUT)/native_resize_test
++	$(OUT)/native_resize_test --window
++.PHONY: native-window-test
++
+ clean:
+ 	rm -rf $(TEST_BINS) $(addsuffix .d,$(TEST_BINS)) $(addsuffix .dSYM,$(TEST_BINS))
+ 	rm -f input_system_mouse_delta_backend_smoke.o smoke_raylib.o smoke_sokol.o
+diff --git a/tests/e2e_barrier_test.cpp b/tests/e2e_barrier_test.cpp
+new file mode 100644
+index 0000000..ca957be
+--- /dev/null
++++ b/tests/e2e_barrier_test.cpp
+@@ -0,0 +1,179 @@
++// e2e_barrier_test.cpp
++// await_frame holds a script until a frame whose layout and render both ran
++// after it, and block_until() gives any command that barrier plus a
++// wall-clock deadline. Before this, retry() kept a command pending but the
++// runner dispatched the next line anyway, and the 30-tick budget expired in
++// a headless host long before a render.
++#include "ui_test_harness.h"
++
++#include <afterhours/src/plugins/e2e_testing/runner.h>
++
++#include <chrono>
++#include <filesystem>
++#include <fstream>
++#include <thread>
++
++using namespace afterhours;
++using namespace afterhours::testing;
++
++namespace {
++
++// A host loop without a window: runner, then handlers, then cleanup, and a
++// UI render only when asked for, the way a batched headless host behaves.
++struct Host {
++  EntityCollection coll;
++  HandleAwaitFrameCommand await_frame;
++  HandleClickCommand click;
++  HandleNativeResizeCommand native_resize;
++  E2ECommandCleanupSystem cleanup;
++  E2ERunner runner;
++  std::filesystem::path script;
++  std::vector<std::string> dispatched;
++
++  explicit Host(const std::string &text) {
++    EntityHelper::set_default_collection(&coll);
++    test_input::reset_all();
++    reset_command_error_count();
++    script = std::filesystem::temp_directory_path() /
++             ("afh_barrier_" +
++              std::to_string(std::chrono::steady_clock::now()
++                                 .time_since_epoch()
++                                 .count()) +
++              ".e2e");
++    std::ofstream(script) << text;
++    runner.load_script(script.string());
++  }
++  ~Host() {
++    std::filesystem::remove(script);
++    test_input::reset_all();
++    EntityHelper::set_default_collection(nullptr);
++  }
++
++  void tick() {
++    runner.tick(1.f / 60.f);
++    coll.merge_entity_arrays();
++    for (const auto &e : coll.get_entities()) {
++      if (!e || !e->has<PendingE2ECommand>()) continue;
++      auto &cmd = e->get<PendingE2ECommand>();
++      // Keyed by script line: entity ids are recycled.
++      if (std::find(seen.begin(), seen.end(), cmd.line_number) ==
++          seen.end()) {
++        seen.push_back(cmd.line_number);
++        dispatched.push_back(cmd.name);
++      }
++      await_frame.for_each_with(*e, cmd, 0.f);
++      click.for_each_with(*e, cmd, 0.f);
++      native_resize.for_each_with(*e, cmd, 0.f);
++      cleanup.for_each_with(*e, cmd, 0.f);
++    }
++    coll.cleanup();
++  }
++  void render() { VisibleTextRegistry::instance().clear(); }
++  bool was_dispatched(const std::string &name) const {
++    return std::find(dispatched.begin(), dispatched.end(), name) !=
++           dispatched.end();
++  }
++
++ private:
++  std::vector<int> seen;
++};
++
++std::string captured_log;
++
++} // namespace
++
++TEST(await_frame_waits_for_two_renders_and_holds_the_script) {
++  Host h("await_frame 5\nclick 10 10\n");
++  // Many more logic ticks than the 30-frame budget, and no render: the
++  // barrier must neither time out nor let the click through.
++  for (int i = 0; i < 120; ++i) h.tick();
++  CHECK(h.was_dispatched("await_frame"));
++  CHECK(!h.was_dispatched("click"));
++  CHECK(get_command_error_count() == 0);
++
++  // One render could close a frame whose layout predates the barrier.
++  h.render();
++  for (int i = 0; i < 10; ++i) h.tick();
++  CHECK(!h.was_dispatched("click"));
++
++  h.render();
++  for (int i = 0; i < 10 && !h.runner.is_finished(); ++i) h.tick();
++  CHECK(h.was_dispatched("click"));
++  CHECK(h.runner.is_finished());
++  CHECK(!h.runner.has_failed());
++}
++
++TEST(await_frame_fails_with_its_reason_at_the_deadline) {
++  captured_log.clear();
++  log_sink_fn = [](const char *, const char *message) {
++    captured_log += message;
++    captured_log += "\n";
++  };
++  Host h("await_frame 0.05\nclick 10 10\n");
++  for (int i = 0; i < 5; ++i) h.tick();
++  std::this_thread::sleep_for(std::chrono::milliseconds(80));
++  for (int i = 0; i < 20 && !h.runner.is_finished(); ++i) h.tick();
++  log_sink_fn = nullptr;
++  CHECK(h.runner.is_finished());
++  CHECK(h.runner.has_failed());
++  CHECK(captured_log.find("await_frame timed out") != std::string::npos);
++  CHECK(captured_log.find("0 of 2 UI render passes") != std::string::npos);
++}
++
++TEST(block_until_falls_back_to_a_wall_clock_deadline) {
++  EntityCollection coll;
++  EntityHelper::set_default_collection(&coll);
++  reset_command_error_count();
++  Entity &e = coll.createEntity();
++  auto &cmd = e.addComponent<PendingE2ECommand>();
++  cmd.name = "wait_for_worker";
++  coll.merge_entity_arrays();
++  E2ECommandCleanupSystem cleanup;
++
++  // 100 ticks would have timed a plain retry() out at 30.
++  for (int i = 0; i < 100; ++i) {
++    cmd.block_until(0.05f);
++    cleanup.for_each_with(e, cmd, 0.f);
++  }
++  CHECK(cmd.blocking);
++  CHECK(!cmd.is_consumed());
++  std::this_thread::sleep_for(std::chrono::milliseconds(80));
++  cmd.block_until(0.05f);
++  cleanup.for_each_with(e, cmd, 0.f);
++  CHECK(cmd.is_consumed());
++  CHECK(!cmd.succeeded());
++  CHECK(cmd.error_message.find("wall-clock deadline") != std::string::npos);
++  CHECK(get_command_error_count() == 1);
++  reset_command_error_count();
++  EntityHelper::set_default_collection(nullptr);
++}
++
++TEST(retry_alone_still_does_not_hold_the_script) {
++  // Unchanged contract: an expect_text that is still retrying does not stop
++  // the next line, only a blocking command does.
++  Host h("expect_text never_rendered\nclick 10 10\n");
++  for (int i = 0; i < 10; ++i) h.tick();
++  CHECK(h.was_dispatched("expect_text"));
++  CHECK(h.was_dispatched("click"));
++}
++
++TEST(native_resize_is_explicitly_unsupported_without_a_window) {
++  Host h("native_resize 640 480\n");
++  PendingE2ECommand cmd;
++  cmd.name = "native_resize";
++  cmd.args = {"640", "480"};
++  Entity &e = h.coll.createEntity();
++  h.native_resize.for_each_with(e, cmd, 0.f);
++  CHECK(cmd.is_consumed());
++  CHECK(!cmd.succeeded());
++  CHECK(cmd.error_message.find("unsupported") != std::string::npos);
++
++  PendingE2ECommand bad;
++  bad.name = "native_resize";
++  bad.args = {"0", "480"};
++  h.native_resize.for_each_with(e, bad, 0.f);
++  CHECK(!bad.succeeded());
++  CHECK(bad.error_message.find("invalid dimensions") != std::string::npos);
++}
++
++int main() { return ui_test::run_registered_tests("E2E barriers"); }
+diff --git a/tests/e2e_clipboard_test.cpp b/tests/e2e_clipboard_test.cpp
+new file mode 100644
+index 0000000..b8fe4c9
+--- /dev/null
++++ b/tests/e2e_clipboard_test.cpp
+@@ -0,0 +1,119 @@
++// e2e_clipboard_test.cpp
++// E2E runs get their own clipboard, so a script's copy/paste never reads or
++// overwrites the user's, and works with no window (the offscreen Metal runner
++// has no sokol_app clipboard at all). set_clipboard / expect_clipboard seed
++// and check it from a script.
++//
++// Built against raylib with no window: if anything still went to the system
++// clipboard here, raylib would have nothing to write to and expect_clipboard
++// would fail, so these checks cannot pass by touching the real pasteboard.
++#include "ui_test_harness.h"
++
++#include <afterhours/src/plugins/e2e_testing/runner.h>
++#include <afterhours/src/plugins/ui/text_input/component.h>
++
++#include <filesystem>
++#include <fstream>
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using namespace afterhours::testing;
++
++namespace {
++
++PendingE2ECommand run(const std::string &name, const std::string &arg) {
++  PendingE2ECommand cmd;
++  cmd.name = name;
++  cmd.args = {arg};
++  Entity dummy;
++  HandleClipboardCommands{}.for_each_with(dummy, cmd, 0.f);
++  return cmd;
++}
++
++} // namespace
++
++TEST(registering_the_handlers_isolates_the_clipboard) {
++  SystemManager sm;
++  register_builtin_handlers(sm);
++  CHECK(clipboard::detail::provider == &test_clipboard());
++  clipboard::set_text("from the app");
++  CHECK(test_clipboard().get_text() == "from the app");
++
++  use_system_clipboard();
++  CHECK(clipboard::detail::provider == nullptr);
++  isolate_clipboard();
++}
++
++TEST(set_and_expect_clipboard) {
++  isolate_clipboard();
++  test_clipboard().reset();
++  CHECK(run("set_clipboard", "héllo\nworld").succeeded());
++  CHECK(clipboard::get_text() == "héllo\nworld");
++  CHECK(run("expect_clipboard", "héllo\nworld").succeeded());
++
++  auto miss = run("expect_clipboard", "something else");
++  CHECK(!miss.succeeded());
++  CHECK(miss.error_message.find("something else") != std::string::npos);
++  CHECK(miss.error_message.find("héllo") != std::string::npos);
++}
++
++TEST(script_lines_parse_as_whole_text) {
++  const auto path = std::filesystem::temp_directory_path() /
++                    "afh_clipboard_parse.e2e";
++  std::ofstream(path) << "set_clipboard two words\n"
++                      << "expect_clipboard \"line one\\nline two\"\n";
++  const auto cmds = parse_script(path.string());
++  std::filesystem::remove(path);
++  CHECK(cmds.size() == 2);
++  CHECK(cmds.size() == 2 && cmds[0].args ==
++                                std::vector<std::string>{"two words"});
++  CHECK(cmds.size() == 2 && cmds[1].args ==
++                                std::vector<std::string>{"line one\nline two"});
++}
++
++TEST(text_input_copy_and_paste_use_the_isolated_clipboard) {
++  isolate_clipboard();
++  test_clipboard().reset();
++  ui_test::ImmTestHarness h;
++  std::string value = "copied text";
++  auto emit = [&]() -> Entity & {
++    h.begin_frame();
++    auto result = imm::text_input(
++        h.context(), mk(h.root(), 0), value,
++        ComponentConfig{}.with_size({pixels(300), pixels(40)}));
++    h.layout_only();
++    return result.ent();
++  };
++  Entity &entity = emit();
++  h.context().set_focus(entity.id);
++  emit();
++  h.context().last_action = ui_test::TestInputAction::TextSelectAll;
++  emit();
++  h.context().last_action = ui_test::TestInputAction::TextCopy;
++  emit();
++  CHECK(run("expect_clipboard", "copied text").succeeded());
++
++  run("set_clipboard", "pasted");
++  h.context().last_action = ui_test::TestInputAction::TextSelectAll;
++  emit();
++  h.context().last_action = ui_test::TestInputAction::TextPaste;
++  emit();
++  CHECK(value == "pasted");
++}
++
++TEST(reset_test_state_empties_it) {
++  isolate_clipboard();
++  run("set_clipboard", "left over");
++  PendingE2ECommand reset;
++  reset.name = "reset_test_state";
++  Entity dummy;
++  HandleResetTestStateCommand{}.for_each_with(dummy, reset, 0.f);
++  CHECK(test_clipboard().get_text().empty());
++}
++
++int main() {
++  const int rc = ui_test::run_registered_tests("E2E clipboard");
++  use_system_clipboard();
++  return rc;
++}
+diff --git a/tests/e2e_unicode_type_test.cpp b/tests/e2e_unicode_type_test.cpp
+new file mode 100644
+index 0000000..42de1a4
+--- /dev/null
++++ b/tests/e2e_unicode_type_test.cpp
+@@ -0,0 +1,120 @@
++// e2e_unicode_type_test.cpp
++// `type` accepts UTF-8 and delivers one Unicode code point per character, the
++// same contract as GetCharPressed / sokol's char event.
++//
++// The injected queue stored `char`, so `type "é"` arrived as two negative
++// bytes; text fields dropped them (key > 0 ends the read loop) and nothing
++// international could be typed in a test. Built with raylib and
++// AFTER_HOURS_ENABLE_E2E_TESTING, as text_area_test is, so the injected
++// queue is what input::get_char_pressed actually reads.
++#include "ui_test_harness.h"
++
++#include <afterhours/src/plugins/ui/text_input/component.h>
++#include <afterhours/src/plugins/ui/text_input/text_area.h>
++
++#include <string>
++#include <vector>
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using namespace afterhours::testing;
++using ui_test::ImmTestHarness;
++
++namespace {
++
++const std::string kSample = "héllo 日本 🎉 ok";
++
++std::vector<int> drain() {
++  std::vector<int> out;
++  for (int c = test_input::get_char_pressed([] { return 0; }); c > 0;
++       c = test_input::get_char_pressed([] { return 0; }))
++    out.push_back(c);
++  return out;
++}
++
++void type(const std::string &text) {
++  PendingE2ECommand cmd;
++  cmd.name = "type";
++  cmd.args = {text};
++  Entity dummy;
++  HandleTypeCommand{}.for_each_with(dummy, cmd, 0.f);
++  CHECK(cmd.is_consumed() && cmd.succeeded());
++}
++
++template <typename Emit>
++std::string type_into(Emit emit, const char *field_name,
++                      const std::string &typed) {
++  ImmTestHarness h;
++  std::string value;
++  h.begin_frame();
++  emit(h, value);
++  h.layout_only();
++  if (UIComponent *f = h.find(field_name)) h.context().focus_id = f->id;
++  test_input::detail::test_mode = true;
++  input_injector::reset_all();
++  type(typed);
++  h.begin_frame();
++  emit(h, value);
++  h.layout_only();
++  test_input::reset_all();
++  test_input::detail::test_mode = false;
++  return value;
++}
++
++} // namespace
++
++TEST(push_text_decodes_utf8_to_code_points) {
++  test_input::detail::test_mode = true;
++  test_input::reset_all();
++  test_input::push_text("aé日🎉");
++  CHECK((drain() == std::vector<int>{'a', 0xE9, 0x65E5, 0x1F389}));
++
++  // Malformed input becomes U+FFFD per bad byte rather than vanishing or
++  // swallowing what follows it.
++  test_input::push_text("\xFF" "x");
++  CHECK((drain() == std::vector<int>{0xFFFD, 'x'}));
++  test_input::push_text("\xE6\x97");  // truncated 3-byte sequence
++  CHECK((drain() == std::vector<int>{0xFFFD, 0xFFFD}));
++  test_input::push_text("\xC0\xAF");  // overlong '/'
++  CHECK((drain() == std::vector<int>{0xFFFD, 0xFFFD}));
++  test_input::push_text("\xED\xA0\x80");  // UTF-16 surrogate
++  CHECK((drain() == std::vector<int>{0xFFFD, 0xFFFD, 0xFFFD}));
++  test_input::detail::test_mode = false;
++}
++
++TEST(type_command_queues_code_points_not_bytes) {
++  test_input::detail::test_mode = true;
++  test_input::reset_all();
++  type("é");
++  const auto got = drain();
++  CHECK(got.size() == 1);
++  CHECK(!got.empty() && got[0] == 0xE9);
++  test_input::detail::test_mode = false;
++}
++
++TEST(type_reaches_a_text_input_intact) {
++  const std::string value = type_into(
++      [](ImmTestHarness &h, std::string &v) {
++        imm::text_input(h.context(), mk(h.root(), 0), v,
++                        ComponentConfig{}.with_size(
++                            ComponentSize{pixels(400), pixels(40)}));
++      },
++      "text_input_field", kSample);
++  CHECK(value == kSample);
++  if (value != kSample) printf("      got '%s'\n", value.c_str());
++}
++
++TEST(type_reaches_a_text_area_intact) {
++  const std::string value = type_into(
++      [](ImmTestHarness &h, std::string &v) {
++        imm::text_area(h.context(), mk(h.root(), 0), v,
++                       ComponentConfig{}.with_size(
++                           ComponentSize{pixels(400), pixels(200)}));
++      },
++      "text_area_field", kSample);
++  CHECK(value == kSample);
++  if (value != kSample) printf("      got '%s'\n", value.c_str());
++}
++
++int main() { return ui_test::run_registered_tests("E2E unicode type"); }
+diff --git a/tests/e2e_visibility_test.cpp b/tests/e2e_visibility_test.cpp
+new file mode 100644
+index 0000000..11a8518
+--- /dev/null
++++ b/tests/e2e_visibility_test.cpp
+@@ -0,0 +1,186 @@
++// e2e_visibility_test.cpp
++// E2E targets resolve to the part of an element that is actually on screen.
++//
++// A row inside a scroll view inside another scroll view has to accumulate
++// both offsets, and then be cut by both viewports. was_rendered_to_screen
++// stays true for a row scrolled out of view, so click_ui used to click the
++// centre of an invisible row and land on whatever was drawn there instead.
++#include "ui_test_harness.h"
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using namespace afterhours::testing;
++using namespace afterhours::testing::ui_commands;
++using ui_test::ImmTestHarness;
++using ui_test::TestInputAction;
++
++namespace {
++
++constexpr float ROW_H = 20.f;
++
++// outer: 300x200 scroll view at the origin, scrolled 30
++//   header: 40 tall
++//   inner: 300x100 scroll view, scrolled 50
++//     row_0..row_19, each 20 tall, labelled "label N"
++// So the inner viewport is on screen at y 10..110, and row k is drawn at
++// y = 40 - 30 + 20k - 50 = 20k - 40.
++struct NestedScroll {
++  ImmTestHarness h;
++
++  NestedScroll() {
++    h.begin_frame();
++    auto &ctx = h.context();
++    auto outer = imm::div(
++        ctx, imm::mk(h.root(), 0),
++        ComponentConfig{}
++            .with_size(ComponentSize{pixels(300.f), pixels(200.f)})
++            .with_overflow(Overflow::Scroll, Axis::Y)
++            .with_flex_direction(FlexDirection::Column)
++            .with_debug_name("outer"));
++    imm::div(ctx, imm::mk(outer.ent(), 0),
++             ComponentConfig{}
++                 .with_size(ComponentSize{pixels(300.f), pixels(40.f)})
++                 .with_debug_name("header"));
++    auto inner = imm::div(
++        ctx, imm::mk(outer.ent(), 1),
++        ComponentConfig{}
++            .with_size(ComponentSize{pixels(300.f), pixels(100.f)})
++            .with_overflow(Overflow::Scroll, Axis::Y)
++            .with_flex_direction(FlexDirection::Column)
++            .with_debug_name("inner"));
++    for (int i = 0; i < 20; ++i)
++      imm::div(ctx, imm::mk(inner.ent(), i),
++               ComponentConfig{}
++                   .with_size(ComponentSize{pixels(300.f), pixels(ROW_H)})
++                   .with_label("label " + std::to_string(i))
++                   .with_debug_name("row_" + std::to_string(i)));
++    h.layout_only();
++    outer.ent().get<HasScrollView>().scroll_offset = {0.f, 30.f};
++    inner.ent().get<HasScrollView>().scroll_offset = {0.f, 50.f};
++    test_input::reset_all();
++  }
++  ~NestedScroll() { test_input::reset_all(); }
++
++  Entity &row(int i) {
++    for (const auto &e : h.coll.get_entities())
++      if (e && e->has<UIComponentDebug>() &&
++          e->get<UIComponentDebug>().name() == "row_" + std::to_string(i))
++        return *e;
++    static Entity none;
++    return none;
++  }
++
++  template <typename Handler>
++  PendingE2ECommand run(const std::string &name,
++                        std::vector<std::string> args) {
++    PendingE2ECommand cmd;
++    cmd.name = name;
++    cmd.args = std::move(args);
++    Handler handler;
++    handler.for_each_with(row(0), cmd, 0.f);
++    return cmd;
++  }
++};
++
++bool contains(const std::string &s, const std::string &needle) {
++  return s.find(needle) != std::string::npos;
++}
++
++} // namespace
++
++TEST(screen_rect_accumulates_every_ancestor_scroll) {
++  NestedScroll f;
++  for (int k : {0, 2, 5, 7}) {
++    const RectangleType r = get_screen_rect(f.row(k));
++    CHECK_APPROX(r.y, 20.f * k - 40.f);
++    CHECK_APPROX(r.height, ROW_H);
++  }
++}
++
++TEST(visible_rect_is_cut_by_both_viewports) {
++  NestedScroll f;
++  CHECK(!is_visible(f.row(0)));  // y -40..-20, above both viewports
++  CHECK(!is_visible(f.row(1)));  // y -20..0, above the inner viewport
++  CHECK(is_visible(f.row(2)));   // y 0..20, bottom half shows
++  CHECK_APPROX(get_visible_rect(f.row(2)).y, 10.f);
++  CHECK_APPROX(get_visible_rect(f.row(2)).height, 10.f);
++  CHECK_APPROX(get_visible_rect(f.row(5)).y, 60.f);
++  CHECK_APPROX(get_visible_rect(f.row(5)).height, ROW_H);
++  CHECK_APPROX(get_visible_rect(f.row(7)).height, 10.f);  // 100..110
++  CHECK(!is_visible(f.row(8)));  // y 120..140, below the inner viewport
++
++  // The same rectangle real hit-testing uses, so a scripted click and a
++  // real one agree about what is under the pointer.
++  Entity &partial = f.row(2);
++  const RectangleType hit =
++      ui::detail::hit_rect(partial, partial.get<UIComponent>());
++  CHECK_APPROX(hit.y, get_visible_rect(partial).y);
++  CHECK_APPROX(hit.height, get_visible_rect(partial).height);
++}
++
++TEST(click_ui_aims_at_the_visible_portion) {
++  NestedScroll f;
++  auto cmd =
++      f.run<HandleClickUICommand<TestInputAction>>("click_ui", {"row_2"});
++  CHECK(cmd.is_consumed() && cmd.succeeded());
++  // The full-rect centre (y 10) sits on the clip edge; the visible centre
++  // is y 15.
++  CHECK_APPROX(input_injector::detail::mouse.pos.y, 15.f);
++}
++
++TEST(click_commands_fail_on_a_fully_clipped_target) {
++  NestedScroll f;
++  auto by_name =
++      f.run<HandleClickUICommand<TestInputAction>>("click_ui", {"row_0"});
++  CHECK(!by_name.succeeded());
++  CHECK(contains(by_name.error_message, "fully clipped"));
++  CHECK(contains(by_name.error_message, "row_0"));
++
++  auto by_text = f.run<HandleClickTextCommand<TestInputAction>>(
++      "click_text", {"label 8"});
++  CHECK(!by_text.succeeded());
++  CHECK(contains(by_text.error_message, "fully clipped"));
++
++  auto right = f.run<HandleRightClickUICommand<TestInputAction>>(
++      "right_click_ui", {"row_1"});
++  CHECK(!right.succeeded());
++
++  auto dbl = f.run<HandleMultiClickUICommand<TestInputAction, 2>>(
++      "double_click_ui", {"row_0", "center", "center"});
++  CHECK(!dbl.succeeded());
++  CHECK(contains(dbl.error_message, "clipped"));
++
++  // An absent target still says "not found", not "clipped".
++  auto missing =
++      f.run<HandleClickUICommand<TestInputAction>>("click_ui", {"row_99"});
++  CHECK(contains(missing.error_message, "not found"));
++  CHECK(input_injector::detail::mouse.left_down == false);
++}
++
++TEST(assert_ui_reports_visibility_and_the_visible_rect) {
++  NestedScroll f;
++  CHECK(check_ui_property(f.row(0), "visible", "false").empty());
++  CHECK(check_ui_property(f.row(5), "visible", "true").empty());
++  CHECK(!check_ui_property(f.row(0), "visible", "true").empty());
++  CHECK(check_ui_property(f.row(2), "vy", "10").empty());
++  CHECK(check_ui_property(f.row(2), "vh", "10").empty());
++  CHECK(check_ui_property(f.row(2), "y", "0").empty());
++  CHECK(check_ui_property(f.row(2), "h", "20").empty());
++}
++
++TEST(dump_ui_marks_clipped_nodes_only) {
++  NestedScroll f;
++  std::string out;
++  dump_ui_node(out, f.row(0), 0);
++  CHECK(contains(out, "visible=\"false\""));
++  out.clear();
++  dump_ui_node(out, f.row(2), 0);
++  CHECK(contains(out, "visible=\"partial\""));
++  CHECK(contains(out, "vy=\"10\" vw=\"300\" vh=\"10\""));
++  out.clear();
++  dump_ui_node(out, f.row(5), 0);
++  CHECK(!contains(out, "visible="));
++}
++
++int main() { return ui_test::run_registered_tests("E2E clipped visibility"); }
+diff --git a/tests/e2e_zoom_coordinates_test.cpp b/tests/e2e_zoom_coordinates_test.cpp
+new file mode 100644
+index 0000000..c1576d8
+--- /dev/null
++++ b/tests/e2e_zoom_coordinates_test.cpp
+@@ -0,0 +1,127 @@
++// e2e_zoom_coordinates_test.cpp
++// E2E coordinates are logical pixels at every UI scale.
++//
++// Adaptive scaling multiplies layout by ui_scale, so a widget written as
++// 100x30 at y 40 is 140x42 at y 56 on screen at 140%. Scripts used to read
++// and write screen pixels, so every coordinate and every assert_ui went stale
++// the moment the user zoomed. Here the same script lines hold at 1.0, 1.4 and
++// 2.0, and the screen rect is checked too, so the scale really applied.
++#include "ui_test_harness.h"
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using namespace afterhours::testing;
++using namespace afterhours::testing::ui_commands;
++using ui_test::ImmTestHarness;
++using ui_test::TestInputAction;
++
++namespace {
++
++struct ScaleScope {
++  Theme saved = ThemeDefaults::get().theme;
++  ScalingMode saved_mode = UIStylingDefaults::get().scaling_mode;
++  ScaleScope(float scale, ScalingMode mode) {
++    Theme t = saved;
++    t.ui_scale = scale;
++    ThemeDefaults::get().set_theme(t);
++    UIStylingDefaults::get().scaling_mode = mode;
++  }
++  ~ScaleScope() {
++    ThemeDefaults::get().set_theme(saved);
++    UIStylingDefaults::get().scaling_mode = saved_mode;
++  }
++};
++
++// A 40-tall spacer, then "target" at logical (0,40) 100x30.
++Entity &build(ImmTestHarness &h, float scale) {
++  h.begin_frame();
++  auto &ctx = h.context();
++  auto col = imm::div(ctx, imm::mk(h.root(), 0),
++                      ComponentConfig{}
++                          .with_size(ComponentSize{pixels(400.f), pixels(300.f)})
++                          .with_flex_direction(FlexDirection::Column));
++  imm::div(ctx, imm::mk(col.ent(), 0),
++           ComponentConfig{}.with_size(
++               ComponentSize{pixels(100.f), pixels(40.f)}));
++  auto target = imm::div(ctx, imm::mk(col.ent(), 1),
++                         ComponentConfig{}
++                             .with_size(ComponentSize{pixels(100.f),
++                                                      pixels(30.f)})
++                             .with_debug_name("target"));
++  h.layout_only(false, {800, 600}, scale);
++  return target.ent();
++}
++
++PendingE2ECommand run(System<PendingE2ECommand> &&handler, Entity &e,
++                      const std::string &name, std::vector<std::string> args) {
++  PendingE2ECommand cmd;
++  cmd.name = name;
++  cmd.args = std::move(args);
++  handler.for_each_with(e, cmd, 0.f);
++  return cmd;
++}
++
++} // namespace
++
++TEST(coordinates_are_logical_at_every_scale) {
++  for (float scale : {1.0f, 1.4f, 2.0f}) {
++    printf("    scale %.1f\n", scale);
++    ScaleScope scope(scale, ScalingMode::Adaptive);
++    ImmTestHarness h;
++    Entity &target = build(h, scale);
++    test_input::reset_all();
++
++    // Not vacuous: on screen the widget really did scale.
++    const RectangleType screen = get_screen_rect(target);
++    CHECK_APPROX(screen.y, 40.f * scale);
++    CHECK_APPROX(screen.height, 30.f * scale);
++    CHECK_APPROX(e2e_ui_scale(), scale);
++
++    // Reports: the same numbers at every scale.
++    for (const char *prop : {"x=0", "y=40", "w=100", "h=30", "vy=40", "vh=30"}) {
++      std::string p, v;
++      parse_prop_assertion(prop, p, v);
++      const std::string err = check_ui_property(target, p, v);
++      CHECK(err.empty());
++      if (!err.empty()) printf("      %s\n", err.c_str());
++    }
++    std::string xml;
++    dump_ui_node(xml, target, 0);
++    CHECK(xml.find("x=\"0\" y=\"40\" w=\"100\" h=\"30\"") != std::string::npos);
++
++    // Input: a logical point lands inside the widget's screen rect.
++    auto click = run(HandleClickCommand{}, target, "click", {"50", "55"});
++    CHECK(click.succeeded());
++    const auto &m = input_injector::detail::mouse;
++    CHECK_APPROX(m.pos.x, 50.f * scale);
++    CHECK_APPROX(m.pos.y, 55.f * scale);
++    CHECK(m.pos.y > screen.y && m.pos.y < screen.y + screen.height);
++
++    // Percentages stay fractions of the window.
++    run(HandleMouseMoveCommand{}, target, "mouse_move", {"50%", "50%"});
++    const auto [sw, sh] = e2e_screen_size();
++    CHECK_APPROX(m.pos.x, sw / 2);
++    CHECK_APPROX(m.pos.y, sh / 2);
++
++    // Offsets from a named element are logical too.
++    multi_click_ui_detail::reset();
++    run(HandleMultiClickUICommand<TestInputAction, 2>{}, target,
++        "double_click_ui", {"target", "10", "5"});
++    CHECK_APPROX(m.pos.x, screen.x + 10.f * scale);
++    CHECK_APPROX(m.pos.y, screen.y + 5.f * scale);
++    multi_click_ui_detail::reset();
++    test_input::reset_all();
++  }
++}
++
++TEST(proportional_mode_ignores_ui_scale_like_layout_does) {
++  ScaleScope scope(2.0f, ScalingMode::Proportional);
++  ImmTestHarness h;
++  Entity &target = build(h, 2.0f);
++  CHECK_APPROX(e2e_ui_scale(), 1.f);
++  CHECK_APPROX(get_screen_rect(target).height, 30.f);
++  CHECK(check_ui_property(target, "h", "30").empty());
++}
++
++int main() { return ui_test::run_registered_tests("E2E zoom coordinates"); }
+diff --git a/tests/files_isolated_storage_test.cpp b/tests/files_isolated_storage_test.cpp
+new file mode 100644
+index 0000000..71552c1
+--- /dev/null
++++ b/tests/files_isolated_storage_test.cpp
+@@ -0,0 +1,116 @@
++// files_isolated_storage_test.cpp
++// AFTERHOURS_TEST_STORAGE_DIR and files::isolate_storage put config, saves
++// and temp under one test root. Apps were redirecting config and forgetting
++// saves, and fixture records landed in the user's real save folder.
++//
++// HOME (and XDG_*) point at a scratch dir, so the platform-folder lookup this
++// test is guarding against can only ever touch that scratch dir.
++
++#include <afterhours/src/plugins/files.h>
++
++#include <cstdio>
++#include <cstdlib>
++#include <filesystem>
++#include <string>
++#include <unistd.h>
++
++namespace fs = std::filesystem;
++using afterhours::files;
++using ProvidesResourcePaths = afterhours::files::ProvidesResourcePaths;
++
++static int checks_run = 0;
++static int checks_passed = 0;
++
++static void check(bool cond, const std::string &what) {
++  checks_run++;
++  if (cond) {
++    checks_passed++;
++  } else {
++    fprintf(stderr, "  FAIL: %s\n", what.c_str());
++  }
++}
++
++static bool under(const fs::path &p, const fs::path &root) {
++  const auto rel = fs::weakly_canonical(p).lexically_relative(
++      fs::weakly_canonical(root));
++  return !rel.empty() && *rel.begin() != "..";
++}
++
++int main() {
++  printf("=== files isolated storage ===\n\n");
++  std::error_code ec;
++  const fs::path scratch = fs::temp_directory_path() /
++                           ("afh_storage_" + std::to_string(getpid()));
++  fs::remove_all(scratch, ec);
++  const fs::path home = scratch / "home";
++  const fs::path root = scratch / "test-root";
++  fs::create_directories(home);
++  setenv("HOME", home.c_str(), 1);
++  for (const char *xdg : {"XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
++                          "XDG_CACHE_HOME"})
++    unsetenv(xdg);
++
++  // Control: without isolation the constructor creates the platform save
++  // folder, which is what the isolated case must not do.
++  unsetenv(files::TEST_STORAGE_ENV);
++  {
++    ProvidesResourcePaths real("isogame", "resources");
++    check(under(real.save_folder_path, home),
++          "control: platform save folder resolves under HOME");
++    check(fs::exists(real.save_folder_path),
++          "control: and the constructor creates it");
++    check(!real.temp_folder_path.empty(),
++          "control: temp has a default outside the test root");
++  }
++  fs::remove_all(home, ec);
++  fs::create_directories(home);
++
++  setenv(files::TEST_STORAGE_ENV, root.c_str(), 1);
++  {
++    ProvidesResourcePaths p("isogame", "resources");
++    check(p.config_folder_path == root / "config" / "isogame",
++          "config goes to <root>/config/<game>");
++    check(p.save_folder_path == root / "save" / "isogame",
++          "saves go to <root>/save/<game>");
++    check(p.temp_folder_path == root / "tmp" / "isogame",
++          "temp goes to <root>/tmp/<game>");
++    for (const fs::path &d :
++         {p.config_folder_path, p.save_folder_path, p.temp_folder_path})
++      check(fs::is_directory(d), "created " + d.string());
++    check(fs::is_empty(home),
++          "nothing under HOME was created, so real folders are untouched");
++  }
++  unsetenv(files::TEST_STORAGE_ENV);
++
++  // After init: the host learned its test dir from argv.
++  {
++    afterhours::EntityCollection coll;
++    afterhours::EntityHelper::set_default_collection(&coll);
++    const fs::path late = scratch / "late-root";
++    check(!files::isolate_storage(late),
++          "isolate_storage reports failure before init");
++    files::init("lategame");
++    check(files::isolate_storage(late), "isolate_storage succeeds after init");
++    check(files::get_config_path() == late / "config" / "lategame",
++          "config redirected");
++    check(files::get_save_path() == late / "save" / "lategame",
++          "saves redirected with it");
++    check(files::get_temp_path() == late / "tmp" / "lategame",
++          "temp redirected with it");
++    check(files::write_string_atomic(files::get_save_path() / "slot.json",
++                                     "{}"),
++          "a save lands");
++    check(fs::exists(late / "save" / "lategame" / "slot.json"),
++          "inside the test root");
++    afterhours::EntityHelper::set_default_collection(nullptr);
++  }
++
++  fs::remove_all(scratch, ec);
++  printf("\n%d/%d checks passed\n", checks_passed, checks_run);
++  if (checks_passed != checks_run) {
++    printf("FAILURES: %d\n", checks_run - checks_passed);
++    return 1;
++  }
++  printf("All checks passed!\n");
++  return 0;
++}
+diff --git a/tests/native_resize_test.cpp b/tests/native_resize_test.cpp
+new file mode 100644
+index 0000000..c48808c
+--- /dev/null
++++ b/tests/native_resize_test.cpp
+@@ -0,0 +1,116 @@
++// native_resize_test.cpp
++// `native_resize w h` resizes the real window and holds the script until the
++// backend reports that size and a UI render has followed; headless gets an
++// explicit "unsupported" instead of a pass on a size nobody drew.
++//
++// No args: the headless check only, safe for `make test`.
++// --window: also opens a hidden raylib (GLFW/Cocoa) window and drives the
++// resize for real. Needs a window server, so it runs from
++// `make native-window-test`, not from `make test`.
++#include "ui_test_harness.h"
++
++#include <afterhours/src/plugins/e2e_testing/runner.h>
++
++#include <chrono>
++#include <filesystem>
++#include <fstream>
++#include <string>
++
++using namespace afterhours;
++using namespace afterhours::testing;
++
++namespace {
++
++bool g_window = false;
++
++PendingE2ECommand resize_once(const std::vector<std::string> &args) {
++  PendingE2ECommand cmd;
++  cmd.name = "native_resize";
++  cmd.args = args;
++  Entity dummy;
++  HandleNativeResizeCommand{}.for_each_with(dummy, cmd, 0.f);
++  return cmd;
++}
++
++} // namespace
++
++TEST(headless_reports_unsupported) {
++  graphics::raylib_backend::ensure_registered();
++  graphics::raylib_backend::storage() = graphics::RaylibHeadless{};
++  CHECK(graphics::is_headless());
++  auto cmd = resize_once({"640", "480"});
++  CHECK(cmd.is_consumed() && !cmd.succeeded());
++  CHECK(cmd.error_message.find("unsupported in headless mode") !=
++        std::string::npos);
++  graphics::raylib_backend::storage() = std::monostate{};
++}
++
++TEST(window_resize_waits_for_the_drawable) {
++  if (!g_window) {
++    printf("    (skipped: pass --window; needs a window server)\n");
++    return;
++  }
++  raylib::SetTraceLogLevel(raylib::LOG_WARNING);
++  raylib::SetConfigFlags(raylib::FLAG_WINDOW_HIDDEN);
++  raylib::InitWindow(400, 300, "native_resize_test");
++  CHECK(raylib::IsWindowReady());
++  if (!raylib::IsWindowReady()) return;
++
++  EntityCollection coll;
++  EntityHelper::set_default_collection(&coll);
++  reset_command_error_count();
++  const auto script =
++      std::filesystem::temp_directory_path() / "afh_native_resize.e2e";
++  std::ofstream(script) << "native_resize 640 480 5\nmouse_move 1 1\n";
++  E2ERunner runner;
++  runner.load_script(script.string());
++
++  HandleNativeResizeCommand resize;
++  HandleMouseMoveCommand move;
++  E2ECommandCleanupSystem cleanup;
++  int renders_before_done = 0;
++  bool resize_done = false, move_seen_before_done = false;
++  const auto start = std::chrono::steady_clock::now();
++  for (int frame = 0; frame < 600 && !runner.is_finished(); ++frame) {
++    runner.tick(1.f / 60.f);
++    coll.merge_entity_arrays();
++    for (const auto &e : coll.get_entities()) {
++      if (!e || !e->has<PendingE2ECommand>()) continue;
++      auto &cmd = e->get<PendingE2ECommand>();
++      if (cmd.is("mouse_move") && !resize_done) move_seen_before_done = true;
++      resize.for_each_with(*e, cmd, 0.f);
++      if (cmd.is("native_resize") && cmd.is_consumed())
++        resize_done = cmd.succeeded();
++      move.for_each_with(*e, cmd, 0.f);
++      cleanup.for_each_with(*e, cmd, 0.f);
++    }
++    coll.cleanup();
++    // The UI render pass: draw, present, then the registry generation the
++    // barrier counts.
++    raylib::BeginDrawing();
++    raylib::ClearBackground(raylib::DARKGRAY);
++    raylib::EndDrawing();
++    VisibleTextRegistry::instance().clear();
++    if (!resize_done) ++renders_before_done;
++  }
++  const double ms = std::chrono::duration<double, std::milli>(
++                        std::chrono::steady_clock::now() - start)
++                        .count();
++  printf("    window %dx%d (render %dx%d), %d renders, %.1f ms\n",
++         raylib::GetScreenWidth(), raylib::GetScreenHeight(),
++         raylib::GetRenderWidth(), raylib::GetRenderHeight(),
++         renders_before_done, ms);
++  CHECK(resize_done);
++  CHECK(runner.is_finished() && !runner.has_failed());
++  CHECK(raylib::GetScreenWidth() == 640 && raylib::GetScreenHeight() == 480);
++  CHECK(!move_seen_before_done);  // the script was held behind the resize
++  std::filesystem::remove(script);
++  EntityHelper::set_default_collection(nullptr);
++  raylib::CloseWindow();
++}
++
++int main(int argc, char **argv) {
++  for (int i = 1; i < argc; ++i)
++    if (std::string(argv[i]) == "--window") g_window = true;
++  return ui_test::run_registered_tests("native_resize");
++}
+diff --git a/tests/ui_test_harness.h b/tests/ui_test_harness.h
+index 4b6fd46..4da842b 100644
+--- a/tests/ui_test_harness.h
++++ b/tests/ui_test_harness.h
+@@ -215,7 +215,8 @@ struct ImmTestHarness {
+   // computed sizes, so anything reproducing an app-side layout must pass true.
+   // Resolution follows suit: the grid unit is derived from screen height.
+   void layout_only(bool grid_snap = false,
+-                   window_manager::Resolution res = {800, 600}) {
++                   window_manager::Resolution res = {800, 600},
++                   float ui_scale = 1.0f) {
+     coll.merge_entity_arrays();
+     auto &entities = coll.get_entities();
+     EntityID max_id = 0;
+@@ -227,7 +228,7 @@ struct ImmTestHarness {
+       if (e)
+         mapping[static_cast<size_t>(e->id)] = e.get();
+     AutoLayout::autolayout(root_entity->get<UIComponent>(), res, mapping,
+-                           grid_snap, 1.0f);
++                           grid_snap, ui_scale);
+     for (const auto &e : entities)
+       if (e && e->has<UIComponent>())
+         e->get<UIComponent>().was_rendered_to_screen = true;
+-- 
+2.50.1
+

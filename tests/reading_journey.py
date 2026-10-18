@@ -70,7 +70,10 @@ def script(head, zoom):
                           "validate blob_cache_bounded=true", "validate patch_cache_bounded=true"])
 
         step("commit", "review", "-", head, 'click_text "Reading change"')
-        step("diff", "review", "alpha.cpp", head, "click_ui jump_to_diff:alpha.cpp")
+        # A tree row opens the file's source; the row menu's "Open diff" is the
+        # route to the file inside the commit review.
+        step("diff", "review", "alpha.cpp", head,
+             'right_click_ui jump_to_diff:alpha.cpp\nwait_frames 3\nclick_text "Open diff"')
         setup += ["focus_ui commit_detail_scroll", "key CTRL+G", "wait_frames 4", "click_ui line_picker_input",
                   "key CMD+A", 'type "12"', "key ENTER", "wait_frames 8", "hover_ui commit_detail_scroll",
                   "scroll_wheel 0 20000", "wait_frames 8"]

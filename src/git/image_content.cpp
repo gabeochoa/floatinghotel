@@ -1,11 +1,70 @@
 #include "image_content.h"
 #include "git_runner.h"
 #include "../util/file_content.h"
+#include <algorithm>
 #include <charconv>
+#include <cstdlib>
 #include <filesystem>
 #include <stb/stb_image.h>
+#ifdef __APPLE__
+#include <ImageIO/ImageIO.h>
+#endif
 
 namespace image_content {
+
+#ifdef __APPLE__
+// stb_image has no WebP, AVIF or ICO; ImageIO decodes all three natively, so
+// they need no new dependency. Same limits as stb: the header's size is checked
+// before one RGBA8 draw. An ICO previews its largest entry.
+namespace {
+struct Release { void operator()(CFTypeRef ref) const { if (ref) CFRelease(ref); } };
+template <class T> using Owned = std::unique_ptr<std::remove_pointer_t<T>, Release>;
+
+int number(CFDictionaryRef properties, CFStringRef key) {
+    int value = 0;
+    if (auto ref = static_cast<CFNumberRef>(CFDictionaryGetValue(properties, key))) CFNumberGetValue(ref, kCFNumberIntType, &value);
+    return value;
+}
+
+struct ImageIOSource { Owned<CGImageSourceRef> source; size_t index = 0; int width = 0, height = 0; };
+
+ImageIOSource imageio_source(const std::string& bytes) {
+    ImageIOSource out;
+    Owned<CFDataRef> data(CFDataCreateWithBytesNoCopy(nullptr, reinterpret_cast<const UInt8*>(bytes.data()),
+        static_cast<CFIndex>(bytes.size()), kCFAllocatorNull));
+    if (!data) return out;
+    out.source.reset(CGImageSourceCreateWithData(data.get(), nullptr));
+    for (size_t i = 0; out.source && i < CGImageSourceGetCount(out.source.get()); ++i) {
+        Owned<CFDictionaryRef> properties(CGImageSourceCopyPropertiesAtIndex(out.source.get(), i, nullptr));
+        if (!properties) continue;
+        const int width = number(properties.get(), kCGImagePropertyPixelWidth);
+        const int height = number(properties.get(), kCGImagePropertyPixelHeight);
+        if (static_cast<long>(width) * height > static_cast<long>(out.width) * out.height) out = {std::move(out.source), i, width, height};
+    }
+    return out;
+}
+
+unsigned char* imageio_pixels(const ImageIOSource& source) {
+    Owned<CGImageRef> image(CGImageSourceCreateImageAtIndex(source.source.get(), source.index, nullptr));
+    Owned<CGColorSpaceRef> space(CGColorSpaceCreateWithName(kCGColorSpaceSRGB));
+    if (!image || !space) return nullptr;
+    const size_t stride = static_cast<size_t>(source.width) * 4;
+    // malloc: FreePixels releases through stbi_image_free, which is free().
+    auto* pixels = static_cast<unsigned char*>(std::malloc(stride * static_cast<size_t>(source.height)));
+    if (!pixels) return nullptr;
+    Owned<CGContextRef> context(CGBitmapContextCreate(pixels, static_cast<size_t>(source.width), static_cast<size_t>(source.height), 8, stride,
+        space.get(), kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big));
+    if (!context) { std::free(pixels); return nullptr; }
+    CGContextClearRect(context.get(), CGRectMake(0, 0, source.width, source.height));
+    CGContextDrawImage(context.get(), CGRectMake(0, 0, source.width, source.height), image.get());
+    // CoreGraphics only draws premultiplied; stb hands back straight alpha.
+    for (size_t i = 0; i < stride * static_cast<size_t>(source.height); i += 4)
+        if (const unsigned alpha = pixels[i + 3]; alpha && alpha < 255)
+            for (size_t c = 0; c < 3; ++c) pixels[i + c] = static_cast<unsigned char>(std::min(255u, (pixels[i + c] * 255u + alpha / 2) / alpha));
+    return pixels;
+}
+}
+#endif
 
 void FreePixels::operator()(unsigned char* pixels) const {
     stbi_image_free(pixels);
@@ -18,7 +77,16 @@ Decoded decode(const std::string& bytes, std::stop_token stop) {
     if (bytes.size() > encodedLimit) { out.error = "Image exceeds 16 MB preview limit"; return out; }
     int channels = 0;
     auto* data = reinterpret_cast<const unsigned char*>(bytes.data());
-    if (!stbi_info_from_memory(data, static_cast<int>(bytes.size()), &out.width, &out.height, &channels) || out.width <= 0 || out.height <= 0) {
+    const bool stb = stbi_info_from_memory(data, static_cast<int>(bytes.size()), &out.width, &out.height, &channels);
+#ifdef __APPLE__
+    ImageIOSource imageio;
+    if (!stb) {
+        imageio = imageio_source(bytes);
+        out.width = imageio.width;
+        out.height = imageio.height;
+    }
+#endif
+    if (out.width <= 0 || out.height <= 0) {
         out.error = "Unsupported or invalid image";
         return out;
     }
@@ -31,7 +99,10 @@ Decoded decode(const std::string& bytes, std::stop_token stop) {
     do {
         if (reserved + size > totalDecodedLimit) { out.error = "Image decode memory limit reached"; return out; }
     } while (!decodedBytes.compare_exchange_weak(reserved, reserved + size));
-    auto* pixels = stbi_load_from_memory(data, static_cast<int>(bytes.size()), &out.width, &out.height, &channels, 4);
+    auto* pixels = stb ? stbi_load_from_memory(data, static_cast<int>(bytes.size()), &out.width, &out.height, &channels, 4) : nullptr;
+#ifdef __APPLE__
+    if (!stb) pixels = imageio_pixels(imageio);
+#endif
     if (!pixels) {
         decodedBytes.fetch_sub(size);
         out.error = "Unable to decode image";

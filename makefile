@@ -8,10 +8,21 @@ ifeq ($(UNAME_S),Darwin)
     MACOS_FLAGS :=
     FRAMEWORKS := -framework CoreFoundation -framework CoreServices \
         -framework Metal -framework MetalKit -framework Cocoa -framework QuartzCore \
-        -framework AppKit
+        -framework AppKit -framework ImageIO -framework CoreGraphics
     # Trackpad pinch: afterhours' NSEvent monitor is a block, and the whole
     # thing is opt-in so a machine with no trackpad is not paying for it.
     MACOS_FLAGS := -fblocks -DAFTER_HOURS_ENABLE_MACOS_GESTURES
+    # Oldest macOS the binary runs on. Unset, zig stamps the build machine's
+    # own version (minos), so nothing older can launch it. `make bundle
+    # MACOS_MIN=14.0` targets 14.0 against the installed SDK; zig needs the
+    # SDK paths spelled out once it is given an explicit target.
+    MACOS_MIN ?=
+    ifneq ($(MACOS_MIN),)
+        MACOS_SDK := $(shell xcrun --show-sdk-path)
+        MACOS_FLAGS += -target aarch64-macos.$(MACOS_MIN) -isysroot $(MACOS_SDK) \
+            -isystem $(MACOS_SDK)/usr/include -iframework $(MACOS_SDK)/System/Library/Frameworks
+        FRAMEWORKS := -F$(MACOS_SDK)/System/Library/Frameworks -L$(MACOS_SDK)/usr/lib $(FRAMEWORKS)
+    endif
 else ifeq ($(OS),Windows_NT)
     # Still host detection, not a zig cross-compile target. sokol is header-only
     # so there is no library to vendor, but the backend is picked at compile
@@ -220,8 +231,14 @@ bundle: $(MAIN_EXE) copy-resources
 		'    <string>APPL</string>' \
 		'    <key>NSHighResolutionCapable</key>' \
 		'    <true/>' \
+		'    <key>LSMinimumSystemVersion</key>' \
+		'    <string>$(or $(MACOS_MIN),$(shell sw_vers -productVersion))</string>' \
 		'</dict>' \
 		'</plist>' > $(APP_BUNDLE)/Contents/Info.plist
+	@# The linker signed the bare executable; resources added since make that
+	@# signature invalid and Gatekeeper refuses the app. Re-sign the bundle
+	@# (ad hoc; distribution needs a Developer ID and notarization).
+	@codesign --force --sign - $(APP_BUNDLE)
 	@echo "Built $(APP_BUNDLE)"
 
 install: output

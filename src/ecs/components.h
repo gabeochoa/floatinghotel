@@ -7,6 +7,7 @@
 #include <array>
 #include <chrono>
 #include <cstdint>
+#include <filesystem>
 #include <future>
 #include <map>
 #include <optional>
@@ -22,6 +23,7 @@
 #include "../git/reading_catalog.h"
 #include "../git/push_destination.h"
 #include "../git/path_list.h"
+#include "../lsp/semantic.h"
 #include "../git/source_position.h"
 #include "../util/file_query.h"
 #include "../util/search_results.h"
@@ -469,12 +471,24 @@ public:
     HunkScopeRuntime hunkScopes;
     std::map<std::string, DiffSyntaxRuntime> diffSyntax;
     async_work::Task<FullFileContent> fullFileFuture;
+    // Validating read behind a page shown straight from the cache; taken only
+    // when it disagrees (path gone, different blob).
+    async_work::Task<FullFileContent> fullFileRevalidate;
     loading_feedback::Delay fullFileLoading;
     reading_load::Trace fullFileTrace;
     reading::RequestStamp fullFileRequestStamp;
     FilePage fullFilePage;
     FilePageRequest fullFilePageRequest;
     std::optional<reading::CodePosition> pendingCaret;
+    // Language-server navigation (ui/semantic_navigation.h): one request at a
+    // time, tied to the document and file state it was asked about.
+    std::shared_ptr<semantic::Session> semanticSession;
+    async_work::Task<semantic::Outcome> semanticFuture;
+    std::uint64_t semanticDocument = 0;
+    std::string semanticPath;
+    std::string semanticSymbol;
+    bool semanticEdited = false;
+    std::optional<std::pair<std::filesystem::file_time_type, std::uintmax_t>> semanticStamp;
     std::optional<reading::CodeMotion> pendingCaretMotion;
     std::string fullFileEncodingOverride = "auto";
     std::string fullFileEncodingLabel;
@@ -514,6 +528,7 @@ public:
     std::optional<size_t> repoSearchSelected;
     float repoSearchScroll = 0.f;
     bool repoSearchRestoreScroll = true;
+    std::string repoSearchSource;  // set when the list holds language-server results
     bool repoSearchOptionsOpen = false;
     bool repoSearchChangedOnly = false;
     SearchMatching repoSearchMatching;
@@ -624,6 +639,9 @@ struct CommitDetailRuntime {
     std::string cachedRepoPath;
     CommitEntry entry;
     async_work::Task<CommitPatch> patchFuture;
+    // Validating read behind a patch shown straight from the cache; its result
+    // replaces what is shown, so a missing commit still ends as an error.
+    async_work::Task<CommitPatch> revalidateFuture;
     loading_feedback::Delay loading;
     reading_load::Trace trace;
     int cachedContext = -1;
@@ -1261,6 +1279,13 @@ struct CommitEditorComponent : public afterhours::BaseComponent {
     std::string body;
     bool isVisible = false;
     bool isAmend = false;
+    // The repository's commit.template, comment lines stripped; refills the
+    // box after each commit. Read once per tab.
+    std::string templateText;
+    bool templateLoaded = false;
+    // Where to put the caret after the box's text was replaced from outside
+    // (template refill, prefix), which otherwise lands at the very end.
+    std::optional<size_t> placeCaret;
 
     enum class UnstagedPolicy { Ask, StageAll, CommitStagedOnly };
     UnstagedPolicy unstagedPolicy = UnstagedPolicy::Ask;

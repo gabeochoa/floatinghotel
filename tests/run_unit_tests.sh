@@ -16,7 +16,7 @@ CXXFLAGS="$CXXSTD -g -O0 -Wall -Wextra -Wpedantic \
     -Wno-sign-conversion -Wno-implicit-int-float-conversion"
 
 if [ "$(uname -s)" = Darwin ]; then
-    CXXFLAGS="$CXXFLAGS -framework CoreFoundation"
+    CXXFLAGS="$CXXFLAGS -framework CoreFoundation -framework ImageIO -framework CoreGraphics"
 fi
 
 INCLUDES="-isystem vendor/ -isystem vendor/afterhours/vendor/ -I."
@@ -106,6 +106,18 @@ fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_layout" ]; then
     run_test "test_review_layout" "tests/unit/test_review_layout.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_lsp_client" ]; then
+    run_test "test_lsp_client" "tests/unit/test_lsp_client.cpp" "src/lsp/lsp_client.cpp" "src/lsp/semantic.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_commit_message" ]; then
+    run_test "test_commit_message" "tests/unit/test_commit_message.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_nested_scroll_layout" ]; then
+    run_test "test_nested_scroll_layout" "tests/unit/test_nested_scroll_layout.cpp"
 fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_review_target" ]; then

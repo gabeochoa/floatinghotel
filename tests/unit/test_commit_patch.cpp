@@ -94,8 +94,20 @@ TEST(merge_parent_cache_entries_are_distinct_and_missing_cached_objects_fail) {
         ASSERT_TRUE(warm.error.empty());
         ASSERT_EQ(warm.resolvedParent, parent.empty() ? primary.resolvedParent : parent);
     }
+    // A warm switch can show the cached patch with no process at all; only
+    // full ids peek, since a ref like HEAD can move.
+    ASSERT_FALSE(git::peek_commit_patch({directory, "HEAD"}).has_value());
+    size_t peekCommands = 0;
+    git::set_log_callback([&](const auto&, const auto&, const auto&, bool) { ++peekCommands; });
+    auto peeked = git::peek_commit_patch({directory, primary.resolvedCommit, secondary.resolvedParent});
+    git::set_log_callback({});
+    ASSERT_TRUE(peeked.has_value());
+    ASSERT_EQ(peekCommands, 0u);
+    ASSERT_EQ(peeked->files[0].filePath, "main");
     auto object = path / ".git/objects" / primary.resolvedCommit.substr(0, 2) / primary.resolvedCommit.substr(2);
     ASSERT_TRUE(std::filesystem::remove(object));
+    // The peek still answers from the cache; the validating read reports the loss.
+    ASSERT_TRUE(git::peek_commit_patch({directory, primary.resolvedCommit}).has_value());
     ASSERT_FALSE(git::read_commit_patch({directory, primary.resolvedCommit}).error.empty());
     std::filesystem::remove_all(path);
 }

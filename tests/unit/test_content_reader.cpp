@@ -667,6 +667,42 @@ TEST(historical_metadata_lookup_is_literal_bounded_and_rejects_missing_objects) 
     std::filesystem::remove_all(path);
 }
 
+TEST(peeked_pages_need_a_validated_read_first_run_no_git_and_never_replace_validation) {
+    char directory[] = "/tmp/fh-peek-file.XXXXXX";
+    auto* path = mkdtemp(directory);
+    ASSERT_TRUE(path != nullptr);
+    for (const auto& args : std::vector<std::vector<std::string>>{{"init", "-q"},
+            {"config", "user.name", "Peek"}, {"config", "user.email", "peek@example.invalid"},
+            {"config", "commit.gpgsign", "false"}}) ASSERT_TRUE(git::git_run(path, args).success());
+    { std::ofstream file(std::filesystem::path(path) / "a.cpp"); file << "int peek = 1;\n"; }
+    ASSERT_TRUE(git::git_run(path, {"add", "."}).success());
+    ASSERT_TRUE(git::git_run(path, {"commit", "-qm", "peek"}).success());
+    auto oid = git::git_run(path, {"rev-parse", "HEAD"}).stdout_str();
+    oid.pop_back();
+    ASSERT_FALSE(git::peek_file({path, "a.cpp", oid}).has_value());
+    auto read = git::read_file({path, "a.cpp", oid});
+    ASSERT_TRUE(read.error.empty());
+    size_t commands = 0;
+    git::set_log_callback([&](const auto&, const auto&, const auto&, bool) { ++commands; });
+    auto peeked = git::peek_file({path, "a.cpp", oid});
+    git::set_log_callback({});
+    ASSERT_TRUE(peeked.has_value());
+    ASSERT_EQ(commands, 0u);
+    ASSERT_EQ(peeked->raw, read.raw);
+    ASSERT_EQ(peeked->diff.newMode, read.diff.newMode);
+    ASSERT_EQ(peeked->page.sourceIdentity, read.page.sourceIdentity);
+    // Only immutable revisions: a ref can move, the working tree and index change.
+    ASSERT_FALSE(git::peek_file({path, "a.cpp", "HEAD"}).has_value());
+    ASSERT_FALSE(git::peek_file({path, "a.cpp"}).has_value());
+    ASSERT_FALSE(git::peek_file({path, "a.cpp", "INDEX"}).has_value());
+    // A peek is what the cache last held; the validating read still decides.
+    const auto object = std::filesystem::path(path) / ".git/objects" / read.page.blob.substr(0, 2) / read.page.blob.substr(2);
+    ASSERT_TRUE(std::filesystem::remove(object));
+    ASSERT_TRUE(git::peek_file({path, "a.cpp", oid}).has_value());
+    ASSERT_FALSE(git::read_file({path, "a.cpp", oid}).error.empty());
+    std::filesystem::remove_all(path);
+}
+
 TEST(historical_source_reads_in_a_shallow_clone_without_parent_objects) {
     char directory[] = "/tmp/fh-shallow-source.XXXXXX";
     auto* root = mkdtemp(directory);

@@ -315,6 +315,43 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
 - **Repro:** the commit message box and the review comment box, any run of the
   e2e suite.
 
+### sokol font atlas fills and is never emptied — OPEN, worked around
+- **Issue:** `backends/sokol/backend.h` makes one fixed 2048² fontstash atlas
+  and its `FONS_ATLAS_FULL` callback only warns. fontstash caches glyphs per
+  0.1 px of size, so every distinct `ui_scale` adds a full set. Once full, new
+  glyphs are dropped from drawing *and* `measure_text`, until restart.
+- **Impact:** A trackpad pinch changes `ui_scale` every frame; one 1.0→3.0→1.0
+  pinch with a diff open filled the atlas and the whole UI lost letters.
+- **Workaround:** `ecs::ZoomSystem` calls `fonsResetAtlas` at the start of any
+  frame whose zoom changed, before anything measures or draws (the reset
+  recreates the sokol image, so it must not happen mid-frame). Regression:
+  `tests/e2e_scripts/flow_pinch_sweep.e2e` (`validate font_atlas_ok=true`).
+- **Suggested fix:** on `FONS_ATLAS_FULL`, set a flag and `fonsResetAtlas` at
+  the next frame boundary (also clearing `measure_memo`, which has cached the
+  short widths), or expose a reset hook for size changes.
+
+### Prepared upstream branches: what a bump changes — notes (October 6, 2026)
+
+Four afterhours branches were prepared off `main` `da70096` (patches in `triage-evidence/`):
+`upstream-background-work`, `upstream-focus-scroll-selection`, `upstream-test-support`,
+`upstream-text-fallback`. Adopting them changes floatinghotel behaviour in these places:
+
+- Test support makes E2E coordinates logical pixels in Adaptive mode: scripts that hard-code
+  screen pixels at a zoom other than 100% must divide by the zoom.
+- Registering the built-in E2E handlers switches to an in-memory clipboard; the named-pasteboard
+  replays (steps 47/48) need `use_system_clipboard()` to keep testing the real pasteboard.
+- Text fallback draws one replacement glyph for codepoints no chained face covers (before: sokol
+  drew `.notdef`); styled runs after a colour change move by one inter-glyph join.
+- `image_diff.h` can move from `metal_texture_detail::load_texture_from_pixels` to the public
+  `load_texture_from_rgba`.
+- Atlas exhaustion is still not handled upstream; keep the zoom-change atlas reset.
+
+Not done in those branches: `native_resize` on a sokol/Metal window (needs the app's
+`metal_set_window_size` upstream), colour emoji, migrating `Modal`/menu focus restore to the new
+tokens. Every branch reports `sokol_blend_test` failing to compile on `main` itself
+("`begin_shader_mode` is ambiguous" in `render_primitives.h` and `rendering.h`), so no sokol build
+that includes the UI test harness compiles at `main`.
+
 ### Font codepoint coverage helpers are raylib-only — OPEN
 - **Issue:** `default_codepoints()` and `font_has_glyph()` live in
   `backends/raylib/font_helper.h`. The sokol backend rasterises on demand
@@ -2540,24 +2577,42 @@ the writer. Settings also use it in `src/settings.cpp`; that adoption is complet
 Settings now coalesce changed values for 250 ms and flush on shutdown. This is
 app-owned scheduling around the existing helper, not a missing filesystem API.
 
-The current helper writes a fixed sibling temporary path and renames it. It does
-not fsync the file or containing directory, and concurrent writers to the same
-path can share the temporary name. Upstream durability work should define writer
-ownership or use distinct temporary files, handle partial writes and interruption,
-and verify disk-full and rename failures. Keep serialization outside Afterhours.
-Do not describe atomic replacement as guaranteed power-loss durability.
+The pinned helper writes a fixed sibling temporary path and renames it, with no
+fsync, so concurrent writers to one path can share the temporary name.
 
-### Historical UI reports that need current reproductions
+Prepared upstream, not adopted (October 6, 2026): branch `atomic-save-durability`
+(commit `026dd2e`) in the worktree `~/p/afterhours-atomic-save`, based on afterhours
+`main`; [patch](triage-evidence/afterhours-atomic-save.patch). Each write creates its
+own `<target>.afh-tmp.<pid>.<n>` with `O_EXCL`, loops over partial writes and
+`EINTR`, flushes with `F_FULLFSYNC` on macOS (`fsync` elsewhere), renames, then
+fsyncs the directory, and keeps the target's permissions. The last completed rename
+wins; a reader sees old or whole new contents. `sweep_temp_files` removes the legacy
+fixed-name temp and temps of exited writers only. `files_atomic_write_test` covers
+competing writers, a preserved 0600 mode, disk full (`RLIMIT_FSIZE`), a writer
+killed mid-write, and live versus dead temps; 44/44 pass. It also fixes the old
+`has_temp_siblings`, which matched a `.tmp` extension and never saw these temps.
+The submodule pin is unchanged; adopting needs a bump. Windows keeps the previous
+unsynced path.
 
-The older nested-scroll report described rows disappearing when a nested panel's
-content height resolved to zero. The app worked around it with rows directly in
-the outer scroll container. Reproduce the case against current layout code before
-proposing an upstream fix; current navigation tests are not a reproduction.
+### Historical UI reports — retired against the pinned revision (October 6, 2026)
 
-The old `to_ent` report used an unordered-map implementation. Current autolayout
-uses an indexed mapping; `to_ent` logs invalid or null entries and then dereferences
-the mapping. Test the caller's mapping invariant with a minimal invalid-entity
-fixture before treating the older startup crash as a current reachable defect.
+Both were re-run against the pinned `vendor/afterhours`; neither reproduces, so
+neither is an upstream request.
+
+- **Nested scroll.** Rows vanished when a panel nested in a scroll view resolved
+  its content height to zero. `tests/unit/test_nested_scroll_layout.cpp` lays out
+  a children-sized panel in a scroll view, the same inside a second scroll view,
+  and two stacked sections in one scroll (the combined Changes page): each panel
+  keeps all 600 px and its 30 rows keep size and order. The harness does fail
+  when the panel is forced to zero height.
+- **Invalid autolayout mapping.** The old startup crash came from a parent
+  listing a child that was no longer in the mapping. `AutoLayout::autolayout`
+  now calls `prune_stale_children` before any traversal, and upstream's
+  `stale_child_id_is_dropped`, `stale_subtree_is_dropped_whole` and
+  `stale_child_with_text_sizing_is_dropped` cover it; the pinned
+  `tests/autolayout_test.cpp` passes 358/358 here. `to_ent` still logs and then
+  dereferences, but its remaining callers only pass ids of widgets already
+  reached through pruned children.
 
 Several old claims are obsolete: `ComponentConfig` defaults to `FlexWrap::NoWrap`,
 ECS iteration uses indices with a captured entity count, simulated clicks support

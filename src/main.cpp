@@ -848,7 +848,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
         app_state::e2eRunner.tick(SIM_DT);
         const auto& injected = afterhours::testing::input_injector::detail::synthetic_press_count;
         if (afterhours::testing::input_injector::detail::mouse.just_pressed ||
-            std::any_of(injected.begin(), injected.end(), [](int count) { return count > 0; }))
+            std::any_of(injected.begin(), injected.end(), [](int count) { return count > 0; }) ||
+            !afterhours::testing::test_input::detail::key_queue.empty())  // typed characters
             reading_probe::input_dispatched();
 
         if (!app_state::pendingScreenshotName.empty()) break;
@@ -1557,6 +1558,13 @@ int main(int argc, char* argv[]) {
             // Two decimals: the value is a float the pinch multiplies into, so
             // an exact-match assertion needs a rounded, stable spelling.
             return std::format("{:.2f}", ui::zoom::get());
+        } else if (key == "font_atlas_ok") {
+            // A full fontstash atlas drops new glyphs from measurement too, so
+            // text at a never-used size comes back short. Odd glyphs and sizes
+            // keep the probe off anything the UI already cached.
+            const float small = afterhours::measure_text_internal("QXJ#~", 47.3f);
+            const float big = afterhours::measure_text_internal("QXJ#~", 94.6f);
+            return small > 0.f && std::abs(big - 2.f * small) < 0.05f * big ? "true" : "false";
         } else if (key == "theme") {
             return theme::current_theme_name == theme::ThemeName::Light ? "light" : "dark";
         } else if (key == "panel_bg") {

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "semantic_navigation.h"
 #include <functional>
 #include <string>
 #include <vector>
@@ -140,6 +141,21 @@ inline std::vector<Menu> createMenuBar() {
             // An explicit command: search now rather than after the typing pause.
             repo->repoSearchObservedText = {repo->repoSearchQuery, repo->repoSearchIncludeGlob, repo->repoSearchExcludeGlob};
             ecs::start_repo_search(*repo);
+        }),
+        MenuItem::item("Go to Definition", "F12", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ecs::request_semantic(*repo, semantic::Kind::Definition);
+        }),
+        MenuItem::item("Find References", "Shift+F12", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ecs::request_semantic(*repo, semantic::Kind::References);
+        }),
+        MenuItem::item("Show Type", "Alt+F12", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ecs::request_semantic(*repo, semantic::Kind::Hover);
+        }),
+        MenuItem::item("Show Callers", "Alt+Shift+H", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ecs::request_semantic(*repo, semantic::Kind::Incoming);
+        }),
+        MenuItem::item("Show Callees", "Alt+Shift+O", [] {
+            if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) ecs::request_semantic(*repo, semantic::Kind::Outgoing);
         }),
         MenuItem::item("Search Commits...", "", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())

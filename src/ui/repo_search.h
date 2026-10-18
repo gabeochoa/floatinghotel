@@ -77,6 +77,7 @@ inline void clear_repo_search(RepoComponent& repo) {
     repo.repoSearchError.clear();
     repo.repoSearchTruncated = false;
     repo.repoSearchCapturedBytes = 0;
+    repo.repoSearchSource.clear();
 }
 
 inline void start_repo_search(RepoComponent& repo) {
@@ -279,6 +280,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         std::to_string(repo.repoSearchResults.size()) + (repo.repoSearchMatching.wholeWord ? " matches · whole-word text, not references" : " matches");
     if (!repo.repoSearchFuture.valid() && repo.repoSearchTruncated) status += " · limit reached";
     if (!repo.repoSearchError.empty()) status = repo.repoSearchError;
+    else if (!repo.repoSearchSource.empty() && !repo.repoSearchFuture.valid()) status = repo.repoSearchSource;
     auto statusNode = div(ctx, mk(parent, 587002), ComponentConfig{}.with_label(status)
         .with_size(ComponentSize{percent(1.f), pixels(24)}).with_font_size(pixels(12))
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("repo_search_status"));

@@ -1,0 +1,3377 @@
+From 20d4aea5e8c4a8a7c6ef2293c16269b6bc5cdda1 Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 08:38:38 -0400
+Subject: [PATCH] Font fallback chains, visible replacements, and one
+ styled-text layout
+
+A glyph the primary face lacks is measured and drawn from the first face in
+its fallback chain, inside measure_text and draw_text_ex, so every path that
+measures or draws agrees. sokol uses fontstash's per-glyph fallback (plus
+fonsResetFallbackFont from upstream so a chain can be replaced); raylib has
+none, so place_glyphs lays out such strings for both measure and draw.
+load_font_face loads one face of a .ttc on both backends, and system_fonts
+lists the OS faces worth chaining (macOS verified, Linux/Windows paths only).
+
+Codepoints no chained face covers draw as one visible replacement each
+(U+FFFD if a face has it, else '?'), measured as drawn; ZWJ sequences and
+flags collapse to one, uncovered modifiers vanish. Colour emoji are not
+drawn: stb_truetype has no sbix/CBDT support.
+
+TextSpan gains font and size_scale. layout_styled_text is the layout both
+label renderers draw and Dim::Text measures, built on detail::line_x_at, the
+pen a single draw call uses for each glyph. Wrap, ellipsis (styled labels now
+truncate), run offsets and selection all come from it. Wrapping breaks
+between ideographs.
+
+Tests: text_fallback_test (sokol, captured glyph quads, 91 checks),
+styled_text_test (both renderers, 28), text_fallback_raylib_test (headless
+pixels, 26). text_memo_test's run offsets move to the pen positions.
+---
+ CHANGELOG.md                          |   7 +
+ docs/font-atlas-measurement.md        |   5 +-
+ docs/text-fallback.md                 | 144 ++++++++
+ src/backends/none/font_helper.h       |  12 +
+ src/backends/raylib/drawing_helpers.h |  22 ++
+ src/backends/raylib/font_helper.h     | 237 +++++++++++-
+ src/backends/sokol/drawing_helpers.h  |   6 +
+ src/backends/sokol/font_helper.h      | 156 +++++++-
+ src/backends/sokol/metal_state.h      |   3 +
+ src/font_coverage.h                   | 192 +++++++++-
+ src/plugins/autolayout.h              |  55 ++-
+ src/plugins/ui/rendering.h            | 365 +++++++------------
+ src/plugins/ui/styled_text.h          | 181 ++++++++++
+ src/plugins/ui/text_selection.h       | 281 ++++++++++++---
+ src/plugins/ui/ui_core_components.h   |  84 ++++-
+ src/system_fonts.h                    | 108 ++++++
+ tests/Makefile                        |  10 +
+ tests/styled_text_test.cpp            | 139 +++++++
+ tests/text_fallback_raylib_test.cpp   | 163 +++++++++
+ tests/text_fallback_test.cpp          | 498 ++++++++++++++++++++++++++
+ tests/text_memo_test.cpp              |  17 +-
+ vendor/fontstash/fontstash.h          |  13 +
+ 22 files changed, 2346 insertions(+), 352 deletions(-)
+ create mode 100644 docs/text-fallback.md
+ create mode 100644 src/plugins/ui/styled_text.h
+ create mode 100644 src/system_fonts.h
+ create mode 100644 tests/styled_text_test.cpp
+ create mode 100644 tests/text_fallback_raylib_test.cpp
+ create mode 100644 tests/text_fallback_test.cpp
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5ae4108..181b138 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -28,8 +28,15 @@ Started partway through the project's life, so it does not go all the way back.
+ - **Cross-axis `expand()` stretches** instead of collapsing to 0, so separators and fills that were invisible now have a size.
+ - **Scroll views draw a draggable scrollbar** on the overflowing edge of each enabled axis. `show_scrollbar = false` opts out; `scrollbar_thickness`/`scrollbar_min_thumb` are h720 Sizes so the bar tracks the window.
+ - **Menu shortcuts sit one pad in from the panel edge** — they were flush, clipping the last glyph in half.
++- **Styled labels truncate with `TextOverflow::Ellipsis`**, keeping each run's colour, face and weight; they used to draw every run at full length past their box. Plain labels cut at a codepoint now, not a byte, so a truncated CJK or accented label no longer ends in a broken sequence.
++- **Styled runs after a colour change move right by one inter-glyph join** (raylib: `1 + letter_spacing` px; sokol: the pair's kerning) to exactly where drawing the line in one call puts them. Selection edges move with them. See `docs/text-fallback.md`.
++- **Codepoints no face covers draw a visible replacement** — U+FFFD if a chained face has it, else `?` — measured as drawn. sokol drew the face's `.notdef`; raylib drew nothing for codepoints in its load set the face lacks. A ZWJ emoji sequence or flag is one replacement; uncovered variation selectors and joiners vanish.
++- **Styled text wraps between ideographs and kana**, not only at spaces, so Japanese and Chinese text wraps instead of overflowing.
+ 
+ ### New APIs
++- **Font fallback chains**: `FontManager::set_fallbacks("ui", {"cjk", ...})`, or `set_font_fallbacks(Font, std::vector<Font>)` on either backend. A missing glyph is measured and drawn from the first chained face that has it, inside `measure_text`/`draw_text_ex`, so layout, wrap, ellipsis, selection and drawing agree. raylib bakes glyphs at load: load fallback faces with the codepoints they are for. `FontManager::face_for(name, cp)` says which face draws a codepoint; `missing_codepoints` now accounts for the chain.
++- **`load_font_face(path, face_index, size, codepoints)`** loads one face of a `.ttc` collection (most system CJK faces) on both backends. **`system_fonts::cjk()` / `emoji()` / `symbols()`** list the OS faces that exist; macOS verified, Linux/Windows paths untested. `font_baseline(Font, size)` gives the top-to-baseline distance.
++- **`TextSpan` gained `font` and `size_scale`**, and **`layout_styled_text`** (`plugins/ui/styled_text.h`) is the one layout both renderers draw, `Dim::Text` measures, and `styled_selection_rects` selects over. Existing three-field `TextSpan{text, color, weight}` and weight-only measure callables still compile. Colour emoji are not drawn (stb_truetype has no colour bitmaps); `docs/text-fallback.md` says exactly what renders.
+ - **`polyline::draw_dashed(pts, thickness, color, dash, gap, phase)`** (`polyline.h`) draws a patterned run. `draw_line_ex` was solid-only, so a dashed cable, marquee or tick run had to be hand-rolled. Arc length accumulates across vertices, so a dash straddling a corner stays one dash, and `phase` is what animates it.
+ - **`polyline::resample_by_arclength(pts, step)`** returns evenly spaced points. A bezier sampler walks uniformly in `t`, which is not uniform in screen distance, so anything spaced along the result bunches where the curve is tight.
+ - **`draw_line_ex` is recorded by capture**, so a test can assert on a dashed pattern. The `none` backend used to log `@notimplemented` and draw nothing.
+diff --git a/docs/font-atlas-measurement.md b/docs/font-atlas-measurement.md
+index 07ba3d2..4faab02 100644
+--- a/docs/font-atlas-measurement.md
++++ b/docs/font-atlas-measurement.md
+@@ -34,6 +34,7 @@ nice -n 10 make -C tests -B -j2 font_atlas_measure_test CXXFLAGS='-std=c++20 -Wa
+ nice -n 10 ./output/font_atlas_measure_test --benchmark
+ ```
+ 
+-Rendering may still omit glyph images when full. Fallback drawing, automatic recovery
+-and general measurement errors remain deferred; keep Hanabi's guard. Direct Fontstash
++Rendering may still omit glyph images when full. Automatic recovery and general
++measurement errors remain deferred; keep Hanabi's guard. Fallback faces are now a
++chain on the primary (`docs/text-fallback.md`). Direct Fontstash
+ bounds/drawing APIs and the Sokol spacing argument retain their existing behavior.
+diff --git a/docs/text-fallback.md b/docs/text-fallback.md
+new file mode 100644
+index 0000000..3effe93
+--- /dev/null
++++ b/docs/text-fallback.md
+@@ -0,0 +1,144 @@
++# Font fallback, emoji and styled text
++
++## Fallback chains
++
++```cpp
++fm.load_font("ui", "Roboto-Regular.ttf");
++for (const auto &f : system_fonts::cjk())       // .ttc faces load by index
++  { fm.load_font("cjk", load_font_face(f.path.c_str(), f.face_index)); break; }
++fm.set_fallbacks("ui", {"cjk"});
++```
++
++A glyph `ui` lacks is measured and drawn from the first face in its chain
++that has it. The lookup happens inside the backend's `measure_text` and
++`draw_text_ex`, so wrap, ellipsis, layout, selection and drawing all see the
++same glyph without knowing about fallbacks. `set_fallbacks` replaces the
++chain and drops the measurement caches; reloading a face re-applies it.
++Backends expose the same thing on raw handles: `set_font_fallbacks(Font,
++std::vector<Font>)` and `font_fallbacks(Font)`.
++
++- **sokol:** fontstash's own per-glyph fallback (`fonsAddFallbackFont`), used
++  by both `fonsTextAdvance` and `fonsDrawText`. `fonsResetFallbackFont` was
++  added from upstream fontstash so a chain can be replaced. Fallback glyphs
++  sit on the primary's baseline.
++- **raylib:** has no fallback, so `place_glyphs` implements it. Once a string
++  needs a fallback face or a replacement, `measure_text` and `draw_text_ex`
++  both take its per-codepoint layout (DrawTextEx's advance and spacing,
++  fallback glyphs moved onto the primary's baseline, rotation via the same
++  transform as DrawTextPro). Strings the primary covers keep raylib's own
++  `MeasureTextEx`/`DrawTextEx`. raylib bakes glyphs at load, so a fallback
++  face covers only the codepoints it was loaded with: pass them to
++  `load_font_face(path, index, size, codepoints)`. A CJK face loaded with
++  the default set covers no ideographs. Multi-line strings on this path step
++  down by `size + 2`, raylib's default line spacing; a changed
++  `SetTextLineSpacing` is not seen. No kerning, as in raylib.
++- **none:** `set_font_fallbacks` returns false.
++
++Kerning across a primary/fallback join is looked up in the primary's table on
++sokol (fontstash behaviour). Measurement and drawing do the same thing, so
++they agree; the pair rarely exists.
++
++## Coverage queries
++
++`font_has_glyph(Font, cp)` answers per face from the cmap recorded at load,
++on both backends. `FontManager::has_glyph(name, cp)` is per face;
++`face_for(name, cp)` names the face that will draw it (empty: none will),
++and `missing_codepoints(name, text)` lists what neither the face nor its
++chain covers. `font_coverage::extract_face(bytes, index)` turns one face of a
++collection into a standalone font; `load_font_face` uses it on both backends.
++
++## System faces
++
++`system_fonts::cjk()`, `emoji()` and `symbols()` return the faces that exist,
++in preference order, as `{path, face_index}`.
++
++| | macOS (verified) | Linux / Windows (paths only, untested) |
++|---|---|---|
++| CJK | Hiragino Sans W3, Hiragino Sans GB, PingFang (pre-12), Apple SD Gothic Neo (Hangul), Arial Unicode | Noto Sans CJK `.ttc` (face 0 = JP), WenQuanYi; Yu Gothic, YaHei, Malgun, SimSun |
++| emoji with outlines | none ships | Noto Emoji (monochrome); Segoe UI Emoji |
++| symbols, U+FFFD | Arial Unicode, Apple Symbols | DejaVu Sans; Segoe UI Symbol |
++
++Hiragino has no Hangul; chain Apple SD Gothic Neo after it for Korean.
++
++## Emoji: what renders
++
++stb_truetype draws outlines only. Apple Color Emoji is sbix bitmaps and Noto
++Color Emoji is CBDT, so neither draws anything. Codepoints no face in the
++chain covers go through `font_coverage::visible_text` before measuring and
++drawing, on both backends:
++
++- each uncovered codepoint becomes one replacement glyph: **U+FFFD** if a
++  face in the chain has it (Arial Unicode does), otherwise **`?`**;
++- a ZWJ sequence (👨‍👩‍👧) and a flag pair (🇯🇵) become one replacement;
++- uncovered variation selectors, ZWJ, skin-tone modifiers, tags and the
++  keycap mark vanish, so `❤️` draws as `❤` when a face has U+2764.
++
++On macOS today an emoji therefore draws as one `?` or `�`, measured exactly
++as drawn. BMP symbols (❤ ★ ☺) draw in one colour when a chained face covers
++them. A colour emoji path (CoreText rasterising into an RGBA atlas next to
++fontstash's alpha atlas) is not implemented.
++
++## Styled text
++
++`TextSpan{text, color, weight, font, size_scale}`: `font` names a registered
++face (empty: the label's) and `size_scale` multiplies the label's font size,
++so a run keeps its proportion at every UI scale.
++
++`layout_styled_text(runs, metrics, wrap_width, ellipsis_width, alignment,
++align_width)` (`plugins/ui/styled_text.h`) returns lines and placed runs.
++Both label renderers draw exactly those runs and `AutoLayout` sizes
++`Dim::Text` from the same layout. `StyledFonts` supplies metrics from a
++`FontManager`; tests may pass their own.
++
++One geometry, `detail::line_x_at`, serves wrapping, ellipsis, run offsets
++and selection. A line is split into stretches of equal face, weight and
++size; each is measured whole. The glyph starting at byte k is drawn at
++`measure(stretch[0, k+len)) - measure(glyph k)`, which is the backend's pen
++when it draws the stretch in one call (advances before k plus the spacing
++and kerning into k). Drawing runs one by one at those positions puts every
++glyph where a single call would, and a selection edge lands on the glyph's
++drawn origin. Runs share the lowest baseline any of them needs
++(`font_baseline`), and a line is as tall as its tallest run.
++
++- **Ellipsis** (`detail::ellipsize_line`) keeps the longest codepoint prefix
++  that fits with `...` in the style of the run it follows. Styled labels now
++  truncate. Plain labels use the same cut, so they no longer split a UTF-8
++  sequence.
++- **Wrapping** breaks at spaces and between ideographs or kana; closing
++  punctuation (、。」）！？ etc.) and ー stay with what precedes them. This is
++  the basic kinsoku rule, not UAX #14. Hangul wraps at spaces.
++- **Selection:** `text_selection::selection_rects` / `byte_offset_at` accept
++  the same run-aware measure; `styled_selection_rects(layout, range, origin,
++  metrics)` also uses each line's own top and height.
++
++Measure callables may take `(text, TextSpan)`, `(text, FontWeight)` or
++`(text)` (`detail::measure_run`); existing callers keep compiling.
++
++## Tests
++
++```sh
++nice -n 19 make -C tests -B text_fallback_test        # sokol, CPU fontstash, macOS
++nice -n 19 ./output/text_fallback_test
++nice -n 19 make -C tests styled_text_test text_fallback_raylib_test
++nice -n 19 ./output/styled_text_test
++nice -n 19 ./output/text_fallback_raylib_test          # headless GL, macOS
++```
++
++`-B` because the dependency file for a two-source sokol test does not track
++the afterhours headers.
++
++- `text_fallback_test`: glyphs are captured from fontstash's draw callback
++  on a CPU-only context, through `draw_text_ex`. Covers coverage queries,
++  chain order and replacement, `.ttc` faces, measured == drawn advance for
++  mixed Latin/CJK at sizes 16, 22.4 and 32, replacement glyphs, and, for a
++  styled line with a fallback face, a second face, a 1.5x run and an emoji
++  at UI scale 1.0, 1.4 and 2.0: runs drawn singly match one call per
++  stretch quad for quad, one shared baseline, every selection edge equals
++  its glyph's drawn origin, wrap lines fit and are maximal, and ellipsis
++  fits, is maximal and draws as wide as measured.
++- `styled_text_test`: both renderers draw the layout's runs, styled
++  ellipsis keeps colours, scaled runs share a baseline, and `Dim::Text`
++  measures the styled layout.
++- `text_fallback_raylib_test`: chain order, the unchanged native path,
++  measured == placed extent, replacement, and pixels: a mixed string drawn
++  whole equals the same string drawn in two pieces at the measured pen.
+diff --git a/src/backends/none/font_helper.h b/src/backends/none/font_helper.h
+index 0abfa27..aa75223 100644
+--- a/src/backends/none/font_helper.h
++++ b/src/backends/none/font_helper.h
+@@ -5,6 +5,7 @@
+ #include <functional>
+ #include <cstring>
+ #include <string>
++#include <vector>
+ 
+ #include "../../developer.h"
+ 
+@@ -69,5 +70,16 @@ inline Vector2Type measure_text_utf8(const Font f, const char *text,
+ inline float get_first_glyph_bearing(const Font, const char *) { return 0.0f; }
+ inline bool is_font_loaded(const Font &) { return false; }
+ inline bool font_has_glyph(const Font, int) { return false; }
++inline Font load_font_face(const char *, int, int = 0,
++                           const std::vector<int> & = {}) {
++  return Font();
++}
++// No font data and no drawing here, so there is nothing to fall back to.
++inline bool set_font_fallbacks(const Font, const std::vector<Font> &) {
++  return false;
++}
++inline std::vector<Font> font_fallbacks(const Font) { return {}; }
++// No metrics without a face; a typical Latin ascender ratio.
++inline float font_baseline(const Font, const float size) { return size * 0.8f; }
+ 
+ } // namespace afterhours
+diff --git a/src/backends/raylib/drawing_helpers.h b/src/backends/raylib/drawing_helpers.h
+index d57fbd6..4fdfc92 100644
+--- a/src/backends/raylib/drawing_helpers.h
++++ b/src/backends/raylib/drawing_helpers.h
+@@ -181,6 +181,28 @@ inline void draw_text_ex(const raylib::Font font, const char *content,
+     capture::record("text", {position.x, position.y, 0.f, font_size}, color,
+                     content);
+   warn_on_missing_glyphs(font, content);
++  // Same placement measure_text used once a fallback face or replacement is
++  // involved; DrawTextPro's transform, then each glyph at its pen.
++  std::vector<PlacedGlyph> glyphs;
++  Vector2Type extent{};
++  if (place_glyphs(font, content, font_size, spacing, glyphs, extent)) {
++    const bool rotated = std::abs(rotation) >= 0.001f;
++    Vector2Type origin = position;
++    if (rotated) {
++      raylib::rlPushMatrix();
++      raylib::rlTranslatef(centerX, centerY, 0.f);
++      raylib::rlRotatef(rotation, 0.f, 0.f, 1.f);
++      origin = {position.x - centerX, position.y - centerY};
++    }
++    for (const PlacedGlyph &g : glyphs)
++      if (g.codepoint != ' ' && g.codepoint != '\t')
++        raylib::DrawTextCodepoint(g.font, g.codepoint,
++                                  {origin.x + g.x, origin.y + g.y}, font_size,
++                                  color);
++    if (rotated)
++      raylib::rlPopMatrix();
++    return;
++  }
+   if (std::abs(rotation) < 0.001f) {
+     raylib::DrawTextEx(font, content, position, font_size, spacing, color);
+     return;
+diff --git a/src/backends/raylib/font_helper.h b/src/backends/raylib/font_helper.h
+index fcb1e76..da7cc3d 100644
+--- a/src/backends/raylib/font_helper.h
++++ b/src/backends/raylib/font_helper.h
+@@ -1,6 +1,7 @@
+ 
+ #pragma once
+ 
++#include <algorithm>
+ #include <map>
+ #include <vector>
+ 
+@@ -95,12 +96,29 @@ inline uint64_t font_key(const raylib::Font font) {
+          static_cast<uint64_t>(font.glyphCount);
+ }
+ 
+-inline void record_font_coverage(const raylib::Font font, const char *file) {
++// hhea baseline ratio per loaded font (font_coverage::baseline_ratio).
++inline std::map<uint64_t, float> &baseline_registry() {
++  static std::map<uint64_t, float> m;
++  return m;
++}
++
++inline void record_font_data(const raylib::Font font, const unsigned char *d,
++                             size_t n) {
+   if (font.glyphCount <= 0)
+     return;
+   font_coverage::Ranges ranges;
+-  if (font_coverage::parse_file(file, ranges))
++  if (font_coverage::parse_cmap(d, n, ranges))
+     coverage_registry()[font_key(font)] = std::move(ranges);
++  if (const float r = font_coverage::baseline_ratio(d, n); r > 0.f)
++    baseline_registry()[font_key(font)] = r;
++}
++
++inline void record_font_coverage(const raylib::Font font, const char *file) {
++  if (font.glyphCount <= 0)
++    return;
++  std::vector<unsigned char> bytes;
++  if (font_coverage::read_file(file, bytes))
++    record_font_data(font, bytes.data(), bytes.size());
+ }
+ 
+ // Fonts rasterize large (96px) and are usually drawn far smaller. With
+@@ -118,16 +136,11 @@ inline void prepare_font_texture(raylib::Font &font) {
+ }
+ 
+ inline raylib::Font
+-build_font_atlas(const char *file, int px, const int *codepoints, int count,
+-                 const FontAtlasConfig &atlas_config =
+-                     default_font_atlas_config()) {
++build_font_atlas_from_memory(const unsigned char *data, int data_size, int px,
++                             const int *codepoints, int count,
++                             const FontAtlasConfig &atlas_config =
++                                 default_font_atlas_config()) {
+   raylib::Font font{};
+-  int data_size = 0;
+-  unsigned char *data = raylib::LoadFileData(file, &data_size);
+-  if (!data || data_size <= 0) {
+-    log_error("build_font_atlas: could not read '{}'", file);
+-    return font;
+-  }
+   font.baseSize = px;
+   font.glyphCount = count;
+   font.glyphPadding = atlas_config.padding;
+@@ -135,8 +148,7 @@ build_font_atlas(const char *file, int px, const int *codepoints, int count,
+                                      const_cast<int *>(codepoints), count,
+                                      raylib::FONT_DEFAULT);
+   if (!font.glyphs) {
+-    log_error("build_font_atlas: no glyph data from '{}'", file);
+-    raylib::UnloadFileData(data);
++    log_error("build_font_atlas: no glyph data");
+     return raylib::Font{};
+   }
+   raylib::Image atlas = raylib::GenImageFontAtlas(
+@@ -144,8 +156,24 @@ build_font_atlas(const char *file, int px, const int *codepoints, int count,
+       static_cast<int>(atlas_config.packer));
+   font.texture = raylib::LoadTextureFromImage(atlas);
+   raylib::UnloadImage(atlas);
++  record_font_data(font, data, static_cast<size_t>(data_size));
++  return font;
++}
++
++inline raylib::Font
++build_font_atlas(const char *file, int px, const int *codepoints, int count,
++                 const FontAtlasConfig &atlas_config =
++                     default_font_atlas_config()) {
++  int data_size = 0;
++  unsigned char *data = raylib::LoadFileData(file, &data_size);
++  if (!data || data_size <= 0) {
++    log_error("build_font_atlas: could not read '{}'", file);
++    return raylib::Font{};
++  }
++  raylib::Font font = build_font_atlas_from_memory(data, data_size, px,
++                                                   codepoints, count,
++                                                   atlas_config);
+   raylib::UnloadFileData(data);
+-  record_font_coverage(font, file);
+   return font;
+ }
+ 
+@@ -191,6 +219,170 @@ inline bool font_has_glyph(const raylib::Font font, int codepoint) {
+   return true;
+ }
+ 
++// One face of a font file, by index, so a collection (.ttc) loads: most
++// system CJK faces ship as collections and raylib reads only a plain font.
++// raylib bakes glyphs at load, so `codepoints` is what the face can ever
++// draw -- a CJK fallback needs the ideographs it is for (empty means
++// default_codepoints(), which has none).
++inline raylib::Font load_font_face(const char *file, int face_index,
++                                   int size = 0,
++                                   const std::vector<int> &codepoints = {}) {
++  std::vector<unsigned char> bytes;
++  if (!font_coverage::read_file(file, bytes)) {
++    log_warn("Failed to read font: {}", file ? file : "(null)");
++    return raylib::Font{};
++  }
++  std::vector<unsigned char> face =
++      font_coverage::extract_face(bytes, face_index);
++  bytes = {};
++  if (face.empty()) {
++    log_warn("No face {} in font: {}", face_index, file);
++    return raylib::Font{};
++  }
++  std::vector<int> cps = codepoints.empty() ? default_codepoints() : codepoints;
++  const int px = size > 0 ? size : 32;
++  raylib::Font font = raylib::LoadFontFromMemory(
++      ".ttf", face.data(), static_cast<int>(face.size()), px, cps.data(),
++      static_cast<int>(cps.size()));
++  if (font.texture.id == 0)
++    font = build_font_atlas_from_memory(face.data(),
++                                        static_cast<int>(face.size()), px,
++                                        cps.data(), static_cast<int>(cps.size()));
++  prepare_font_texture(font);
++  record_font_data(font, face.data(), face.size());
++  return font;
++}
++
++// Fallback chain per primary, keyed like measure_text keys a font.
++inline std::map<uint64_t, std::vector<raylib::Font>> &fallback_registry() {
++  static std::map<uint64_t, std::vector<raylib::Font>> m;
++  return m;
++}
++
++// Glyphs `primary` lacks are measured and drawn from the first face in
++// `chain` that has them; the chain replaces any earlier one. raylib has no
++// fallback of its own, so measure_text and draw_text_ex share place_glyphs
++// below whenever a string needs it.
++inline bool set_font_fallbacks(const raylib::Font primary,
++                               const std::vector<raylib::Font> &chain) {
++  if (primary.glyphCount <= 0)
++    return false;
++  std::vector<raylib::Font> kept;
++  bool ok = true;
++  for (const raylib::Font &f : chain) {
++    if (f.glyphCount <= 0 || font_key(f) == font_key(primary)) {
++      ok = false;
++      continue;
++    }
++    kept.push_back(f);
++  }
++  fallback_registry()[font_key(primary)] = std::move(kept);
++  measure_memo::invalidate();
++  return ok;
++}
++
++inline std::vector<raylib::Font> font_fallbacks(const raylib::Font primary) {
++  const auto it = fallback_registry().find(font_key(primary));
++  return it == fallback_registry().end() ? std::vector<raylib::Font>{}
++                                         : it->second;
++}
++
++inline float baseline_ratio_of(const raylib::Font font) {
++  const auto it = baseline_registry().find(font_key(font));
++  return it == baseline_registry().end() ? 0.8f : it->second;
++}
++
++// Distance from the top of a drawn line to its baseline, in pixels.
++inline float font_baseline(const raylib::Font font, const float size) {
++  return size * baseline_ratio_of(font);
++}
++
++// One codepoint as place_glyphs lays it out: which face, and where its pen
++// sits relative to the text's top left.
++struct PlacedGlyph {
++  raylib::Font font;
++  int codepoint = 0;
++  float x = 0.f;
++  float y = 0.f;
++};
++
++// The single per-codepoint layout measure_text and draw_text_ex share once a
++// string leaves the primary face: a codepoint goes to the first face in
++// [primary, chain...] that has it, anything none has becomes a replacement
++// (font_coverage::visible_text), and fallback glyphs are moved onto the
++// primary's baseline -- what fontstash does on the sokol backend. Advance
++// and spacing follow DrawTextEx exactly.
++//
++// Returns false, with `out` meaningless, when every codepoint is the
++// primary's own: then raylib's MeasureTextEx/DrawTextEx are already exact
++// and stay in charge, so text that never needed a fallback is unchanged.
++// '\n' moves down by size + 2, raylib's default line spacing.
++inline bool place_glyphs(const raylib::Font primary, const char *text,
++                         float size, float spacing,
++                         std::vector<PlacedGlyph> &out, Vector2Type &extent) {
++  out.clear();
++  if (!text || primary.glyphCount <= 0)
++    return false;
++  bool ascii = true;
++  for (int i = 0; text[i]; i++)
++    if (static_cast<unsigned char>(text[i]) >= 0x80) {
++      ascii = false;
++      break;
++    }
++  if (ascii)
++    return false;
++  const std::vector<raylib::Font> chain = font_fallbacks(primary);
++  const auto face_for = [&](int cp) -> const raylib::Font * {
++    if (font_has_glyph(primary, cp))
++      return &primary;
++    for (const raylib::Font &f : chain)
++      if (font_has_glyph(f, cp))
++        return &f;
++    return nullptr;
++  };
++  std::string visible;
++  bool needed = font_coverage::visible_text(
++      text, [&](uint32_t cp) { return face_for(static_cast<int>(cp)) != nullptr; },
++      visible);
++  const char *s = needed ? visible.c_str() : text;
++  const float primary_base = size * baseline_ratio_of(primary);
++  float x = 0.f, y = 0.f, width = 0.f;
++  bool line_has_glyph = false;
++  for (int i = 0; s[i];) {
++    int bytes = 0;
++    const int cp = raylib::GetCodepointNext(&s[i], &bytes);
++    i += bytes > 0 ? bytes : 1;
++    if (cp == '\n') {
++      if (line_has_glyph)
++        width = std::max(width, x - spacing);
++      x = 0.f;
++      y += size + 2.f;
++      line_has_glyph = false;
++      continue;
++    }
++    const raylib::Font *f = face_for(cp);
++    if (!f)
++      f = &primary; // e.g. '?' in a face without it: what raylib would do
++    if (f != &primary)
++      needed = true;
++    const int gi = raylib::GetGlyphIndex(*f, cp);
++    const float scale = size / static_cast<float>(f->baseSize);
++    const float advance = f->glyphs[gi].advanceX > 0
++                              ? static_cast<float>(f->glyphs[gi].advanceX)
++                              : f->recs[gi].width +
++                                    static_cast<float>(f->glyphs[gi].offsetX);
++    const float dy =
++        f == &primary ? 0.f : primary_base - size * baseline_ratio_of(*f);
++    out.push_back(PlacedGlyph{*f, cp, x, y + dy});
++    x += advance * scale + spacing;
++    line_has_glyph = true;
++  }
++  if (line_has_glyph)
++    width = std::max(width, x - spacing);
++  extent = Vector2Type{width, y + size};
++  return needed;
++}
++
+ // A codepoint the font lacks draws nothing: no box, no warning, no log. Both
+ // floatinghotel and hanabi shipped UI with invisible arrows and chevrons and
+ // found out by looking. load_font_from_file asks raylib for the default set,
+@@ -223,10 +415,15 @@ inline void warn_on_missing_glyphs(const raylib::Font font, const char *text) {
+       continue; // the default set is the 95 ASCII glyphs
+     if (font_has_glyph(font, cp))
+       continue;
++    bool in_chain = false;
++    for (const raylib::Font &f : font_fallbacks(font))
++      in_chain = in_chain || font_has_glyph(f, cp);
++    if (in_chain || font_coverage::is_invisible_modifier(cp))
++      continue;
+     warn_once(0x110000 + cp,
+-              "font has no glyph for U+{:04X}, which draws nothing at all "
+-              "rather than a missing-glyph box. Load the font with codepoints "
+-              "for the ranges you use.",
++              "font has no glyph for U+{:04X}; it draws as a replacement "
++              "glyph. Load the font with codepoints for the ranges you use, "
++              "or give it a fallback face (set_font_fallbacks).",
+               cp);
+   }
+ }
+@@ -370,8 +567,12 @@ inline raylib::Vector2 measure_text(const raylib::Font font,
+   Vector2Type cached{};
+   if (measure_memo::lookup(key, cached))
+     return cached;
++  std::vector<PlacedGlyph> glyphs;
++  Vector2Type extent{};
+   const raylib::Vector2 measured =
+-      raylib::MeasureTextEx(font, content, size, spacing);
++      place_glyphs(font, content, size, spacing, glyphs, extent)
++          ? raylib::Vector2{extent.x, extent.y}
++          : raylib::MeasureTextEx(font, content, size, spacing);
+   measure_memo::store(key, measured);
+   return measured;
+ }
+diff --git a/src/backends/sokol/drawing_helpers.h b/src/backends/sokol/drawing_helpers.h
+index 8b1be16..b2e804b 100644
+--- a/src/backends/sokol/drawing_helpers.h
++++ b/src/backends/sokol/drawing_helpers.h
+@@ -44,6 +44,9 @@ inline void draw_text_ex(const afterhours::Font font, const char *content,
+   fonsSetFont(ctx, fid);
+   fonsSetAlign(ctx, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
+   fonsSetColor(ctx, sfons_rgba(color.r, color.g, color.b, color.a));
++  // Same replacement measure_text applied, so the drawn advance matches.
++  std::string scratch;
++  content = font_detail::visible(fid, content, scratch);
+ 
+   // Rasterise glyphs at native DPI for crisp text on Retina displays.
+   // We scale the fontstash size up by dpi_scale and draw in a coordinate
+@@ -71,6 +74,9 @@ inline void draw_text(const char *content, const float x, const float y,
+   fonsSetFont(ctx, graphics::metal_detail::g_active_font);
+   fonsSetAlign(ctx, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
+   fonsSetColor(ctx, sfons_rgba(color.r, color.g, color.b, color.a));
++  std::string scratch;
++  content = font_detail::visible(graphics::metal_detail::g_active_font,
++                                 content, scratch);
+ 
+   float dpi = graphics::metal_detail::dpi_scale();
+   if (dpi > 1.01f) {
+diff --git a/src/backends/sokol/font_helper.h b/src/backends/sokol/font_helper.h
+index ef4e5ed..25d068a 100644
+--- a/src/backends/sokol/font_helper.h
++++ b/src/backends/sokol/font_helper.h
+@@ -7,6 +7,7 @@
+ #include <cstdlib>
+ #include <cstring>
+ #include <string>
++#include <vector>
+ 
+ #include "../../developer.h"
+ #include "metal_state.h"
+@@ -24,6 +25,18 @@ inline void record_coverage(int font_id, const char *file) {
+     graphics::metal_detail::g_font_coverage[font_id] = std::move(ranges);
+ }
+ 
++inline Font track_loaded_font(int id) {
++  auto &md = graphics::metal_detail::g_font_ids;
++  if (graphics::metal_detail::g_font_count <
++      graphics::metal_detail::MAX_FONTS) {
++    md[graphics::metal_detail::g_font_count++] = id;
++  }
++  if (graphics::metal_detail::g_active_font == FONS_INVALID) {
++    graphics::metal_detail::g_active_font = id;
++  }
++  return Font{id};
++}
++
+ inline Font load_font_from_file(const char *file, int = 0) {
+   auto *ctx = graphics::metal_detail::g_fons_ctx;
+   if (!ctx) {
+@@ -33,21 +46,121 @@ inline Font load_font_from_file(const char *file, int = 0) {
+   int id = fonsAddFont(ctx, file, file);
+   if (id == FONS_INVALID) {
+     log_warn("Failed to load font: {}", file);
+-  } else {
+-    record_coverage(id, file);
+-    // Track loaded fonts and set the first one as active default
+-    auto &md = graphics::metal_detail::g_font_ids;
+-    if (graphics::metal_detail::g_font_count <
+-        graphics::metal_detail::MAX_FONTS) {
+-      md[graphics::metal_detail::g_font_count++] = id;
+-    }
+-    if (graphics::metal_detail::g_active_font == FONS_INVALID) {
+-      graphics::metal_detail::g_active_font = id;
++    return Font{id};
++  }
++  record_coverage(id, file);
++  return track_loaded_font(id);
++}
++
++// One face of a font file, by index, so a collection (.ttc) loads: most
++// system CJK faces ship as collections and load_font_from_file reads only a
++// plain font. A plain font is face 0. Size and codepoints are for raylib,
++// which bakes glyphs at load; fontstash rasterises on demand and ignores
++// them.
++inline Font load_font_face(const char *file, int face_index, int = 0,
++                           const std::vector<int> & = {}) {
++  auto *ctx = graphics::metal_detail::g_fons_ctx;
++  if (!ctx) {
++    log_warn("fontstash context not ready yet (load_font_face)");
++    return Font{FONS_INVALID};
++  }
++  std::vector<unsigned char> bytes;
++  if (!font_coverage::read_file(file, bytes)) {
++    log_warn("Failed to read font: {}", file ? file : "(null)");
++    return Font{FONS_INVALID};
++  }
++  std::vector<unsigned char> face =
++      font_coverage::extract_face(bytes, face_index);
++  bytes = {};
++  if (face.empty()) {
++    log_warn("No face {} in font: {}", face_index, file);
++    return Font{FONS_INVALID};
++  }
++  font_coverage::Ranges ranges;
++  const bool have_ranges =
++      font_coverage::parse_cmap(face.data(), face.size(), ranges);
++  // fontstash keeps the bytes and frees them with free().
++  auto *data = static_cast<unsigned char *>(std::malloc(face.size()));
++  if (!data)
++    return Font{FONS_INVALID};
++  std::memcpy(data, face.data(), face.size());
++  const std::string name = std::string(file) + "#" + std::to_string(face_index);
++  const int id = fonsAddFontMem(ctx, name.c_str(), data,
++                                static_cast<int>(face.size()), 1);
++  if (id == FONS_INVALID) {
++    log_warn("Failed to load font face {} of {}", face_index, file);
++    return Font{id};
++  }
++  if (have_ranges)
++    graphics::metal_detail::g_font_coverage[id] = std::move(ranges);
++  return track_loaded_font(id);
++}
++
++// Glyphs `primary` lacks are measured and drawn from the first face in
++// `chain` that has them; the chain replaces any earlier one. fontstash does
++// the lookup per glyph in both fonsTextAdvance and fonsDrawText, so the two
++// agree by construction. False if a face could not be added (invalid, the
++// primary itself, or past FONS_MAX_FALLBACKS); the valid rest still apply.
++inline bool set_font_fallbacks(const Font primary,
++                               const std::vector<Font> &chain) {
++  auto *ctx = graphics::metal_detail::g_fons_ctx;
++  if (!ctx || primary.id == FONS_INVALID)
++    return false;
++  fonsResetFallbackFont(ctx, primary.id);
++  std::vector<int> ids;
++  bool ok = true;
++  for (const Font &f : chain) {
++    if (f.id == FONS_INVALID || f.id == primary.id ||
++        !fonsAddFallbackFont(ctx, primary.id, f.id)) {
++      ok = false;
++      continue;
+     }
++    ids.push_back(f.id);
+   }
+-  return Font{id};
++  graphics::metal_detail::g_font_fallbacks[primary.id] = std::move(ids);
++  measure_memo::invalidate();
++  return ok;
++}
++
++inline std::vector<Font> font_fallbacks(const Font primary) {
++  std::vector<Font> out;
++  const auto &chains = graphics::metal_detail::g_font_fallbacks;
++  if (const auto it = chains.find(primary.id); it != chains.end())
++    for (int id : it->second)
++      out.push_back(Font{id});
++  return out;
++}
++
++namespace font_detail {
++// Recorded cmap for one id; no record means unknown, which counts as covered.
++inline bool face_covers(int fid, uint32_t cp) {
++  const auto &cov = graphics::metal_detail::g_font_coverage;
++  const auto it = cov.find(fid);
++  return it == cov.end() || font_coverage::covers(it->second, cp);
++}
++
++inline bool chain_covers(int fid, uint32_t cp) {
++  if (face_covers(fid, cp))
++    return true;
++  const auto &chains = graphics::metal_detail::g_font_fallbacks;
++  if (const auto it = chains.find(fid); it != chains.end())
++    for (int id : it->second)
++      if (face_covers(id, cp))
++        return true;
++  return false;
+ }
+ 
++// `text` with what the chain cannot draw replaced (font_coverage::
++// visible_text). measure_text and draw_text_ex both go through here.
++inline const char *visible(int fid, const char *text, std::string &scratch) {
++  return font_coverage::visible_text(
++             text, [fid](uint32_t cp) { return chain_covers(fid, cp); },
++             scratch)
++             ? scratch.c_str()
++             : text;
++}
++} // namespace font_detail
++
+ inline Font load_font_from_file_with_codepoints(const char *file, int *, int) {
+   // fontstash loads full TTF; codepoint filtering not needed
+   return load_font_from_file(file);
+@@ -90,9 +203,12 @@ inline Vector2Type measure_text(const Font font, const char *text,
+   float dpi = graphics::metal_detail::dpi_scale();
+   fonsSetSize(ctx, size * dpi);
+   fonsSetAlign(ctx, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
++  std::string scratch;
+   // Advance, not the ink box: ink drops the side bearings, so text sized from
+   // it comes up short and clips.
+-  float w = fonsTextAdvance(ctx, text, nullptr) / dpi;
++  float w = fonsTextAdvance(ctx, font_detail::visible(fid, text, scratch),
++                            nullptr) /
++            dpi;
+   float ascender, descender, lineh;
+   fonsVertMetrics(ctx, &ascender, &descender, &lineh);
+   const Vector2Type measured{w, lineh / dpi};
+@@ -107,6 +223,22 @@ inline Vector2Type measure_text_utf8(const Font font, const char *text,
+ 
+ inline float get_first_glyph_bearing(const Font, const char *) { return 0.0f; }
+ 
++// Distance from the top of a drawn line to its baseline, in logical pixels.
++inline float font_baseline(const Font font, const float size) {
++  auto *ctx = graphics::metal_detail::g_fons_ctx;
++  const int fid = (font.id != FONS_INVALID)
++                      ? font.id
++                      : graphics::metal_detail::g_active_font;
++  if (!ctx || fid == FONS_INVALID)
++    return size * 0.8f;
++  const float dpi = graphics::metal_detail::dpi_scale();
++  fonsSetFont(ctx, fid);
++  fonsSetSize(ctx, size * dpi);
++  float ascender = 0, descender = 0, lineh = 0;
++  fonsVertMetrics(ctx, &ascender, &descender, &lineh);
++  return ascender / dpi;
++}
++
+ inline bool is_font_loaded(const Font &font) { return font.id != FONS_INVALID; }
+ 
+ // Whether the face can draw a codepoint, from the cmap recorded at load.
+diff --git a/src/backends/sokol/metal_state.h b/src/backends/sokol/metal_state.h
+index dd6cc91..d1b64f0 100644
+--- a/src/backends/sokol/metal_state.h
++++ b/src/backends/sokol/metal_state.h
+@@ -46,6 +46,9 @@ inline int g_active_font = FONS_INVALID;
+ // load (fontstash exposes no coverage query). No entry means unknown.
+ inline std::map<int, std::vector<std::pair<uint32_t, uint32_t>>>
+     g_font_coverage;
++// Fallback chain per fontstash id, in lookup order, as last handed to
++// fonsAddFallbackFont (fontstash cannot list them back).
++inline std::map<int, std::vector<int>> g_font_fallbacks;
+ 
+ inline bool g_initialized = false;
+ 
+diff --git a/src/font_coverage.h b/src/font_coverage.h
+index bd5e0df..1e039cf 100644
+--- a/src/font_coverage.h
++++ b/src/font_coverage.h
+@@ -4,6 +4,7 @@
+ #include <cstdint>
+ #include <cstring>
+ #include <fstream>
++#include <string>
+ #include <utility>
+ #include <vector>
+ 
+@@ -127,7 +128,7 @@ inline bool parse_cmap(const unsigned char *d, size_t n, Ranges &out) {
+   return true;
+ }
+ 
+-inline bool parse_file(const char *file, Ranges &out) {
++inline bool read_file(const char *file, std::vector<unsigned char> &out) {
+   if (!file)
+     return false;
+   std::ifstream in(file, std::ios::binary | std::ios::ate);
+@@ -136,11 +137,90 @@ inline bool parse_file(const char *file, Ranges &out) {
+   const std::streamsize size = in.tellg();
+   if (size <= 0)
+     return false;
+-  std::vector<unsigned char> bytes(static_cast<size_t>(size));
++  out.resize(static_cast<size_t>(size));
+   in.seekg(0);
+-  if (!in.read(reinterpret_cast<char *>(bytes.data()), size))
+-    return false;
+-  return parse_cmap(bytes.data(), bytes.size(), out);
++  return static_cast<bool>(
++      in.read(reinterpret_cast<char *>(out.data()), size));
++}
++
++inline bool parse_file(const char *file, Ranges &out) {
++  std::vector<unsigned char> bytes;
++  return read_file(file, bytes) &&
++         parse_cmap(bytes.data(), bytes.size(), out);
++}
++
++inline bool is_collection(const unsigned char *d, size_t n) {
++  return d && n >= 12 && std::memcmp(d, "ttcf", 4) == 0;
++}
++
++inline int face_count(const unsigned char *d, size_t n) {
++  if (!is_collection(d, n))
++    return d && n >= 12 ? 1 : 0;
++  return static_cast<int>(u32(d + 8));
++}
++
++// One face of a TrueType/OpenType collection (.ttc) as a standalone font.
++// stb_truetype, under both fontstash and raylib, reads the face at offset 0
++// and neither loader takes an index, so a collection loads as nothing.
++// Table offsets in a collection are from the start of the file, so the face's
++// tables are copied out behind a fresh directory. A plain font comes back
++// unchanged for index 0; anything unreadable comes back empty.
++inline std::vector<unsigned char>
++extract_face(const std::vector<unsigned char> &d, int index) {
++  const size_t n = d.size();
++  if (!is_collection(d.data(), n))
++    return index == 0 ? d : std::vector<unsigned char>{};
++  if (index < 0 || index >= face_count(d.data(), n) ||
++      12 + 4 * static_cast<size_t>(index) + 4 > n)
++    return {};
++  const size_t face = u32(d.data() + 12 + 4 * static_cast<size_t>(index));
++  if (face + 12 > n)
++    return {};
++  const size_t tables = u16(d.data() + face + 4);
++  const size_t dir = 12 + 16 * tables;
++  if (face + dir > n)
++    return {};
++  std::vector<unsigned char> out(d.begin() + static_cast<long>(face),
++                                 d.begin() + static_cast<long>(face + dir));
++  for (size_t t = 0; t < tables; t++) {
++    unsigned char *rec = out.data() + 12 + 16 * t;
++    const size_t off = u32(rec + 8), len = u32(rec + 12);
++    if (off + len > n)
++      return {};
++    out.resize((out.size() + 3) & ~size_t{3});
++    const uint32_t at = static_cast<uint32_t>(out.size());
++    out.insert(out.end(), d.begin() + static_cast<long>(off),
++               d.begin() + static_cast<long>(off + len));
++    rec = out.data() + 12 + 16 * t; // insert may have moved the buffer
++    rec[8] = static_cast<unsigned char>(at >> 24);
++    rec[9] = static_cast<unsigned char>(at >> 16);
++    rec[10] = static_cast<unsigned char>(at >> 8);
++    rec[11] = static_cast<unsigned char>(at);
++  }
++  return out;
++}
++
++// Top of the line box to the baseline, as a fraction of the font size:
++// hhea ascender / (ascender - descender). stb_truetype sizes a face by that
++// same span, so fontstash's ALIGN_TOP and raylib's glyph offsets both put the
++// baseline here. 0 when the table is missing.
++inline float baseline_ratio(const unsigned char *d, size_t n) {
++  if (!d || n < 12)
++    return 0.f;
++  const uint16_t tables = u16(d + 4);
++  for (uint16_t i = 0;
++       i < tables && 12 + static_cast<size_t>(i) * 16 + 16 <= n; i++) {
++    const unsigned char *rec = d + 12 + static_cast<size_t>(i) * 16;
++    if (std::memcmp(rec, "hhea", 4) != 0)
++      continue;
++    const size_t off = u32(rec + 8);
++    if (off + 8 > n)
++      return 0.f;
++    const float asc = static_cast<int16_t>(u16(d + off + 4));
++    const float desc = static_cast<int16_t>(u16(d + off + 6));
++    return asc - desc > 0.f ? asc / (asc - desc) : 0.f;
++  }
++  return 0.f;
+ }
+ 
+ inline bool covers(const Ranges &ranges, uint32_t cp) {
+@@ -157,4 +237,106 @@ inline bool covers(const Ranges &ranges, uint32_t cp) {
+   return false;
+ }
+ 
++// Codepoints that draw nothing on their own: joiners, variation selectors,
++// tag characters, skin-tone modifiers and the keycap mark. A face without
++// them would draw a missing glyph between the characters they modify.
++inline bool is_invisible_modifier(uint32_t cp) {
++  return (cp >= 0x200B && cp <= 0x200F) || (cp >= 0x2060 && cp <= 0x2064) ||
++         (cp >= 0xFE00 && cp <= 0xFE0F) || cp == 0xFEFF || cp == 0x20E3 ||
++         (cp >= 0x1F3FB && cp <= 0x1F3FF) || (cp >= 0xE0000 && cp <= 0xE0FFF);
++}
++
++// Codepoint and byte length at `s`; length 0 for a malformed sequence.
++inline uint32_t decode_utf8(const unsigned char *s, size_t &len) {
++  len = 0;
++  uint32_t cp = s[0];
++  size_t need = 0;
++  if (cp < 0x80)
++    need = 1;
++  else if ((cp & 0xE0) == 0xC0)
++    cp &= 0x1F, need = 2;
++  else if ((cp & 0xF0) == 0xE0)
++    cp &= 0x0F, need = 3;
++  else if ((cp & 0xF8) == 0xF0)
++    cp &= 0x07, need = 4;
++  else
++    return 0;
++  for (size_t k = 1; k < need; k++) {
++    if ((s[k] & 0xC0) != 0x80)
++      return 0;
++    cp = (cp << 6) | (s[k] & 0x3F);
++  }
++  len = need;
++  return cp;
++}
++
++// What a chain of faces can draw for `text`. Each codepoint `covered`
++// rejects becomes one visible replacement -- U+FFFD when the chain has it,
++// otherwise '?' -- and a ZWJ emoji sequence or a flag pair becomes ONE
++// replacement, not one per codepoint. Uncovered modifiers (above) vanish.
++//
++// Measurement and drawing both pass text through this, so a replacement is
++// measured exactly as it is drawn and layout never sizes a glyph that will
++// not appear. Returns false and leaves `out` alone when nothing changed,
++// which is every all-ASCII string.
++template <typename Covered>
++inline bool visible_text(const char *text, Covered &&covered,
++                         std::string &out) {
++  if (!text)
++    return false;
++  size_t i = 0;
++  while (text[i] && static_cast<unsigned char>(text[i]) < 0x80)
++    i++;
++  if (!text[i])
++    return false;
++  const auto *s = reinterpret_cast<const unsigned char *>(text);
++  std::string res(text, i);
++  const char *replacement = covered(0xFFFDu) ? "\xEF\xBF\xBD" : "?";
++  bool changed = false, joining = false, half_flag = false;
++  while (s[i]) {
++    size_t len = 0;
++    const uint32_t cp = decode_utf8(s + i, len);
++    if (len == 0) { // malformed: pass the byte through, as both backends do
++      res += text[i++];
++      joining = false;
++      continue;
++    }
++    const char *start = text + i;
++    i += len;
++    const bool have = cp < 0x80 || covered(cp);
++    if (cp == 0x200D) { // a joiner continues the cluster either way
++      joining = true;
++      if (have)
++        res.append(start, len);
++      else
++        changed = true;
++      continue;
++    }
++    if (have) {
++      res.append(start, len);
++      joining = half_flag = false;
++      continue;
++    }
++    changed = true;
++    if (is_invisible_modifier(cp))
++      continue;
++    if (joining) {
++      joining = false;
++      continue;
++    }
++    if (cp >= 0x1F1E6 && cp <= 0x1F1FF) { // regional indicators pair up
++      half_flag = !half_flag;
++      if (!half_flag)
++        continue;
++    } else {
++      half_flag = false;
++    }
++    res += replacement;
++  }
++  if (!changed)
++    return false;
++  out = std::move(res);
++  return true;
++}
++
+ } // namespace afterhours::font_coverage
+diff --git a/src/plugins/autolayout.h b/src/plugins/autolayout.h
+index 4822392..abe670c 100644
+--- a/src/plugins/autolayout.h
++++ b/src/plugins/autolayout.h
+@@ -3,6 +3,7 @@
+ // Re-export layout types and core components for backwards compatibility
+ #include "ui/components.h"
+ #include "ui/layout_types.h"
++#include "ui/styled_text.h"
+ #include "ui/text_selection.h"
+ #include "ui/ui_collection.h"
+ #include "ui/ui_core_components.h"
+@@ -205,15 +206,20 @@ struct AutoLayout {
+                                         widget.resolved_scaling_mode, ui_scale);
+     float spacing = 1.f;
+ 
+-    const auto measure_one = [&](const std::string &s) -> Vector2Type {
++    const auto measure_face = [&](const std::string &face,
++                                  const std::string &s,
++                                  float size) -> Vector2Type {
+       if (external_measure_text)
+-        return external_measure_text(font_name, s, font_size, spacing);
++        return external_measure_text(face, s, size, spacing);
+       if (auto *text_cache =
+               EntityHelper::get_singleton_cmp<ui::TextMeasureCache>())
+-        return text_cache->measure(s, font_name, font_size, spacing);
++        return text_cache->measure(s, face, size, spacing);
+       auto font_manager = EntityHelper::get_singleton_cmp<FontManager>();
+-      auto font = font_manager->get_font(font_name);
+-      return measure_text(font, s.c_str(), font_size, spacing);
++      auto font = font_manager->get_font(face);
++      return measure_text(font, s.c_str(), size, spacing);
++    };
++    const auto measure_one = [&](const std::string &s) {
++      return measure_face(font_name, s, font_size);
+     };
+ 
+     // A multi-line label is not the size of its joined string: it is as wide
+@@ -240,7 +246,44 @@ struct AutoLayout {
+                     : fmt::format("entity_{}", widget.id));
+     }
+     Vector2Type result;
+-    if (wraps || content.find('\n') != std::string::npos) {
++    if (!label.spans.empty()) {
++      // Styled: the renderer draws layout_styled_text, so size the box from
++      // that same layout -- per-run faces, sizes and shared baselines.
++      const auto *fm = EntityHelper::get_singleton_cmp<FontManager>();
++      struct SpanMetrics {
++        std::function<Vector2Type(const std::string &, const std::string &,
++                                  float)>
++            measure;
++        std::function<std::string(const TextSpan &)> face;
++        const FontManager *fm;
++        float size;
++        float operator()(const std::string &t, const TextSpan &s) const {
++          return measure(face(s), t, size * s.size_scale).x;
++        }
++        float height(const TextSpan &s) const {
++          return measure(face(s), "Ag", size * s.size_scale).y;
++        }
++        float baseline(const TextSpan &s) const {
++          return fm ? font_baseline(fm->get_font(face(s)), size * s.size_scale)
++                    : height(s) * 0.8f;
++        }
++      };
++      const SpanMetrics metrics{
++          measure_face,
++          [&](const TextSpan &s) {
++            return fm ? fm->span_face(font_name, widget.font_weight, s)
++                      : font_name;
++          },
++          fm, font_size};
++      float wrap_w = widget.computed[Axis::X];
++      const float cap =
++          resolve_constraint(widget, widget.max_size[Axis::X], Axis::X);
++      if (cap >= 0.f && wrap_w > cap)
++        wrap_w = cap;
++      const auto layout = ui::layout_styled_text(
++          label.spans, metrics, wraps ? wrap_w - inset_both : 1e9f);
++      result = Vector2Type{layout.width, layout.height};
++    } else if (wraps || content.find('\n') != std::string::npos) {
+       // max_width gets applied after this, so wrap against the capped width
+       // or we count lines for a width the box never has.
+       float wrap_w = widget.computed[Axis::X];
+diff --git a/src/plugins/ui/rendering.h b/src/plugins/ui/rendering.h
+index d9f1157..58f5098 100644
+--- a/src/plugins/ui/rendering.h
++++ b/src/plugins/ui/rendering.h
+@@ -11,6 +11,7 @@
+ #include "../../ecs.h"
+ #include "../../font_helper.h"
+ #include "../../logging.h"
++#include "styled_text.h"
+ #include "text_selection.h"
+ #include "text_stroke.h"
+ #ifdef AFTER_HOURS_ENABLE_E2E_TESTING
+@@ -991,41 +992,14 @@ static inline void draw_text_in_rect(
+     if (max_width <= 0.f)
+       return text;
+ 
+-    Vector2Type text_size =
+-        measure_text(font, text.c_str(), font_size, spacing);
+-    if (text_size.x <= max_width) {
++    if (measure_text(font, text.c_str(), font_size, spacing).x <= max_width)
+       return text;
+-    }
+-
+-    // Text overflows — find longest prefix that fits with "..."
+-    const std::string ellipsis = "...";
+-    Vector2Type ellipsis_size =
+-        measure_text(font, ellipsis.c_str(), font_size, spacing);
+-    float available = max_width - ellipsis_size.x;
+-    if (available <= 0.f) {
+-      truncated_text = ellipsis;
+-      return truncated_text;
+-    }
+-
+-    // Binary search for the longest prefix that fits
+-    size_t low = 0;
+-    size_t high = text.size();
+-    size_t best = 0;
+-    while (low <= high && high <= text.size()) {
+-      size_t mid = (low + high) / 2;
+-      std::string prefix = text.substr(0, mid);
+-      Vector2Type ps = measure_text(font, prefix.c_str(), font_size, spacing);
+-      if (ps.x <= available) {
+-        best = mid;
+-        low = mid + 1;
+-      } else {
+-        if (mid == 0)
+-          break;
+-        high = mid - 1;
+-      }
+-    }
+-
+-    truncated_text = text.substr(0, best) + ellipsis;
++    // The styled path's cut, so a plain label and a one-run styled label
++    // truncate at the same codepoint.
++    truncated_text = text_selection::line_text(detail::ellipsize_line(
++        {TextSpan{text, Color{}}}, max_width, [&](const std::string &s) {
++          return measure_text(font, s.c_str(), font_size, spacing).x;
++        }));
+     return truncated_text;
+   }();
+ 
+@@ -1058,12 +1032,34 @@ static inline void draw_text_in_rect(
+                                 letter_spacing);
+ }
+ 
+-// Draw coloured runs through the same wrap primitive as the plain path.
+-// `joined` is the concatenated text, only used to derive a font size when none
+-// was set explicitly.
+-// Non-const fm: per-run weights are drawn by swapping the active font around
+-// each run, since draw_text_in_rect resolves the face itself. The active font
+-// is restored before returning.
++// One placed run (styled_text.h): shadow, stroke, then the text, as
++// draw_text_in_rect finishes -- but at the run's exact origin, with no
++// alignment or bearing of its own to move it off the pen it was laid out at.
++static inline void
++draw_placed_run(const ui::FontManager &fm, const PlacedRun &run,
++                Vector2Type origin, const std::optional<TextStroke> &stroke,
++                const std::optional<TextShadow> &shadow, float rotation,
++                float rot_center_x, float rot_center_y, float letter_spacing) {
++  const Font font = fm.get_font(run.font_name);
++  const Vector2Type at{origin.x + run.rect.x, origin.y + run.rect.y};
++  const float spacing = 1.f + letter_spacing;
++  if (shadow.has_value() && shadow->has_shadow())
++    draw_text_ex(font, run.text.c_str(),
++                 Vector2Type{at.x + shadow->offset_x, at.y + shadow->offset_y},
++                 run.font_size, spacing, shadow->color, rotation, rot_center_x,
++                 rot_center_y);
++  if (stroke.has_value() && stroke->has_stroke())
++    text_stroke::draw(font, run.text, at, run.font_size, spacing,
++                      stroke->thickness, stroke->color, rotation, rot_center_x,
++                      rot_center_y);
++  draw_text_ex(font, run.text.c_str(), at, run.font_size, spacing, run.color,
++               rotation, rot_center_x, rot_center_y);
++}
++
++// Draw coloured runs laid out by layout_styled_text, the layout the batched
++// renderer and app-side selection use too. `joined` is the concatenated
++// text, only used to derive a font size when none was set explicitly.
++// Per-run faces resolve against the ACTIVE font's family.
+ static inline void draw_runs_in_rect(
+     ui::FontManager &fm, const std::vector<TextSpan> &runs,
+     RectangleType rect, TextAlignment alignment,
+@@ -1075,10 +1071,11 @@ static inline void draw_runs_in_rect(
+     float explicit_font_size = 0.0f, const std::string &joined = "",
+     Vector2Type inset = default_text_inset(),
+     bool register_text = true) {
++  (void)show_debug_indicator;
++  (void)register_text;
+   if (runs.empty() || rect.width <= 0.f)
+     return;
+ 
+-  Font font = fm.get_active_font();
+   float font_size = explicit_font_size;
+   if (font_size <= 0.f) {
+     font_size = position_text_ex(fm, joined, rect, alignment,
+@@ -1086,98 +1083,55 @@ static inline void draw_runs_in_rect(
+                                  letter_spacing, text_overflow)
+                     .rect.height;
+   }
+-  const float spacing = 1.f + letter_spacing;
+-
+-  // Per-run weight resolves against the ACTIVE font's family. resolve_weighted
+-  // returns the base name when that variant was never loaded, so an app with
+-  // no bold face renders regular rather than throwing in get_font.
+-  const std::string base_font = fm.active_font;
+-  const auto font_for = [&](colors::FontWeight w) {
+-    return fm.get_font(fm.resolve_weighted(base_font, w));
+-  };
+-  const auto weighted_width = [&](const std::string &s, colors::FontWeight w) {
+-    return measure_text(font_for(w), s.c_str(), font_size, spacing).x;
+-  };
+-  const auto line_width = [&](const std::string &s) {
+-    return measure_text(font, s.c_str(), font_size, spacing).x;
+-  };
+-
+   // Only wrap when asked and a size is known, matching draw_text_in_rect.
+   const bool wants_wrap =
+       text_overflow == TextOverflow::Wrap && explicit_font_size > 0.f;
+-  const float wrap_width = wants_wrap ? (rect.width - 2.f * inset.x) : 1e9f;
+-  if (wrap_width <= 0.f)
++  const float box_w = rect.width - 2.f * inset.x;
++  if (wants_wrap && box_w <= 0.f)
+     return;
+ 
+-  // Memoised: this runs every frame, usually on text that hasn't changed.
+-  const std::uint64_t wrap_key =
+-      detail::wrap_memo::key_for(runs, wrap_width, font_size, spacing, base_font);
+-  const std::vector<detail::TextRunLine> *cached =
+-      detail::wrap_memo::lookup(wrap_key);
+-  const std::vector<detail::TextRunLine> &lines =
+-      cached ? *cached
+-             : detail::wrap_memo::store(
+-                   wrap_key,
+-                   detail::wrap_runs_to_width(runs, wrap_width,
+-                                              weighted_width));
+-  float line_h = measure_text(font, "Ag", font_size, spacing).y;
++  StyledFonts metrics{fm, fm.active_font, colors::FontWeight::Regular,
++                      font_size, 1.f + letter_spacing};
++  const auto lay_out = [&]() {
++    return layout_styled_text(
++        runs, metrics, wants_wrap ? box_w : 1e9f,
++        text_overflow == TextOverflow::Ellipsis ? box_w : 0.f, alignment,
++        box_w);
++  };
++  StyledLayout layout = lay_out();
+   // Auto-fit above sized the font against the joined text, i.e. for a single
+   // line. Hard breaks still split it, so shrink to fit every line.
+-  if (explicit_font_size <= 0.f && lines.size() > 1 && rect.height > 0.f) {
+-    const float want = line_h * static_cast<float>(lines.size());
+-    if (want > rect.height) {
+-      font_size *= rect.height / want;
+-      line_h = measure_text(font, "Ag", font_size, spacing).y;
+-    }
++  if (explicit_font_size <= 0.f && layout.lines.size() > 1 &&
++      rect.height > 0.f && layout.height > rect.height) {
++    metrics.font_size *= rect.height / layout.height;
++    layout = lay_out();
+   }
+-  const float total_h = line_h * static_cast<float>(lines.size());
+-  float y = rect.y + std::max(0.f, (rect.height - total_h) * 0.5f);
+ 
+-  for (const auto &line : lines) {
+-    if (line.empty()) {
+-      y += line_h; // blank line from a "\n\n"
+-      continue;
+-    }
++  const float top = rect.y + std::max(0.f, (rect.height - layout.height) * 0.5f);
++  const Vector2Type origin{rect.x + inset.x, top};
++  if (rot_center_x == 0.f && rot_center_y == 0.f) {
++    rot_center_x = rect.x + rect.width / 2.f;
++    rot_center_y = rect.y + rect.height / 2.f;
++  }
++  for (const auto &run : layout.runs) {
+     // A line that does not fully fit is dropped, not drawn: the
+     // own-box clip would otherwise slice it mid-glyph.
+-    if (y + line_h > rect.y + rect.height + 0.5f) {
+-      y += line_h;
++    if (top + layout.line_top[run.line] + layout.line_height[run.line] >
++        rect.y + rect.height + 0.5f)
+       continue;
++#ifdef AFTER_HOURS_ENABLE_E2E_TESTING
++    if (register_text && testing::test_input::detail::test_mode) {
++      auto *pcr = EntityHelper::get_singleton_cmp<
++          window_manager::ProvidesCurrentResolution>();
++      testing::VisibleTextRegistry::instance().register_text_if_visible(
++          run.text, origin.x + run.rect.x, origin.y + run.rect.y,
++          run.rect.width, run.rect.height,
++          pcr ? static_cast<float>(pcr->width()) : 1280.f,
++          pcr ? static_cast<float>(pcr->height()) : 720.f);
+     }
+-    float line_w = 0.f;
+-    const std::vector<float> offsets =
+-        detail::text_run_offsets(line, weighted_width, line_w);
+-
+-    // Mirror position_text_ex's alignment maths so a label lands in the same
+-    // place whether it is drawn as plain text or as styled runs.
+-    float x = rect.x + inset.x;
+-    if (alignment == TextAlignment::Center)
+-      x = std::max(rect.x + inset.x,
+-                   rect.x + inset.x + (rect.width - 2.f * inset.x - line_w) / 2.f);
+-    else if (alignment == TextAlignment::Right)
+-      x = rect.x + rect.width - inset.x - line_w;
+-
+-    for (size_t ri = 0; ri < line.size(); ri++) {
+-      const auto &run = line[ri];
+-      const float w = weighted_width(run.text, run.weight);
+-      RectangleType run_rect{x + offsets[ri], y, w, line_h};
+-      // draw_text_in_rect draws with the ACTIVE font, so the weight has to be
+-      // swapped in around the call and put back afterwards.
+-      const std::string want = fm.resolve_weighted(base_font, run.weight);
+-      const bool swap = want != fm.active_font;
+-      if (swap)
+-        fm.set_active(want);
+-      // Same as the per-line calls above: a run's rect is sized to that run,
+-      // so charging it margins would report overflow for every one of them.
+-      draw_text_in_rect(fm, run.text, run_rect, TextAlignment::Left, run.color,
+-                        show_debug_indicator, stroke, shadow, rotation,
+-                        rot_center_x, rot_center_y, TextOverflow::Clip,
+-                        letter_spacing, font_size, /*report_overflow=*/false,
+-                        Vector2Type{0.f, 0.f}, register_text);
+-      if (swap)
+-        fm.set_active(base_font);
+-    }
+-    y += line_h;
++#endif
++    draw_placed_run(fm, run, origin, stroke, shadow, rotation, rot_center_x,
++                    rot_center_y, letter_spacing);
+   }
+ }
+ 
+@@ -2489,44 +2443,24 @@ struct RenderBatched : System<UIContext<InputAction>, FontManager> {
+               static_cast<int>(label_clip.x), static_cast<int>(label_clip.y),
+               static_cast<int>(label_clip.width),
+               static_cast<int>(label_clip.height), layer, entity.id);
+-        // Handle text overflow ellipsis truncation for batched path
++        // Handle text overflow ellipsis truncation for batched path. Styled
++        // labels are cut per run by layout_styled_text below.
+         std::string display_text = hasLabel.label;
+         if (hasLabel.text_overflow == TextOverflow::Ellipsis &&
+-            !hasLabel.label.empty()) {
++            !hasLabel.label.empty() && hasLabel.spans.empty()) {
+           Font font = font_manager.get_active_font();
+           float font_size = result.rect.height;
+           float spacing = 1.f + hasLabel.letter_spacing;
+           float max_width = text_rect.width - 2.f * label_inset.x;
+-          if (max_width > 0.f) {
+-            Vector2Type ts =
+-                measure_text(font, hasLabel.label.c_str(), font_size, spacing);
+-            if (ts.x > max_width) {
+-              const std::string ellipsis = "...";
+-              Vector2Type es =
+-                  measure_text(font, ellipsis.c_str(), font_size, spacing);
+-              float available = max_width - es.x;
+-              if (available <= 0.f) {
+-                display_text = ellipsis;
+-              } else {
+-                size_t low = 0, high = hasLabel.label.size(), best = 0;
+-                while (low <= high && high <= hasLabel.label.size()) {
+-                  size_t mid = (low + high) / 2;
+-                  std::string prefix = hasLabel.label.substr(0, mid);
+-                  Vector2Type ps =
+-                      measure_text(font, prefix.c_str(), font_size, spacing);
+-                  if (ps.x <= available) {
+-                    best = mid;
+-                    low = mid + 1;
+-                  } else {
+-                    if (mid == 0)
+-                      break;
+-                    high = mid - 1;
+-                  }
+-                }
+-                display_text = hasLabel.label.substr(0, best) + ellipsis;
+-              }
+-            }
+-          }
++          if (max_width > 0.f &&
++              measure_text(font, hasLabel.label.c_str(), font_size, spacing)
++                      .x > max_width)
++            display_text = text_selection::line_text(detail::ellipsize_line(
++                {TextSpan{hasLabel.label, Color{}}}, max_width,
++                [&](const std::string &str) {
++                  return measure_text(font, str.c_str(), font_size, spacing)
++                      .x;
++                }));
+         }
+ 
+         // Pass the container rect (text_rect) not the position rect
+@@ -2542,8 +2476,8 @@ struct RenderBatched : System<UIContext<InputAction>, FontManager> {
+         float centerX = draw_rect.x + draw_rect.width / 2.0f;
+         float centerY = draw_rect.y + draw_rect.height / 2.0f;
+ 
+-        // Wrap into lines of coloured runs, one command per run. Plain text is
+-        // the single-run case. Wrapping needs an explicit font size (see
++        // Lay out coloured runs, one command per run. Plain text is the
++        // single-run case. Wrapping needs an explicit font size (see
+         // draw_text_in_rect); styled runs lay out either way.
+         bool wrapped = false;
+         const bool has_spans = !hasLabel.spans.empty();
+@@ -2551,97 +2485,42 @@ struct RenderBatched : System<UIContext<InputAction>, FontManager> {
+             hasLabel.text_overflow == TextOverflow::Wrap && explicit_fs > 0.f;
+         if ((wants_wrap || has_spans) && !display_text.empty() &&
+             label_rect.width > 0.f) {
+-          Font font = font_manager.get_active_font();
+-          const std::string resolved =
+-              font_manager.resolve_weighted(cmp.font_name, cmp.font_weight);
+-          const float font_size = wants_wrap ? explicit_fs : result.rect.height;
+-          const float spacing = 1.f + hasLabel.letter_spacing;
+           // A span's weight wins when it asks for one; otherwise the run
+-          // inherits the component's. So a styled label with no per-span
+-          // weights resolves exactly as it did before spans had weights.
+-          const auto name_for = [&](colors::FontWeight sw) {
+-            return font_manager.resolve_weighted(
+-                cmp.font_name,
+-                sw == colors::FontWeight::Regular ? cmp.font_weight : sw);
+-          };
+-          const auto weighted_width = [&](const std::string &s,
+-                                          colors::FontWeight sw) {
+-            return measure_text(font_manager.get_font(name_for(sw)), s.c_str(),
+-                                font_size, spacing)
+-                .x;
+-          };
+-          auto line_width = [&](const std::string &s) {
+-            return measure_text(font, s.c_str(), font_size, spacing).x;
+-          };
+-          // Unwrapped styled text uses the same loop, unbounded width.
+-          const float wrap_width =
+-              wants_wrap ? label_rect.width : 1e9f;
+-
+-          if (wrap_width > 0.f) {
+-            const std::vector<TextSpan> runs =
+-                has_spans ? hasLabel.spans
+-                          : std::vector<TextSpan>{
+-                                TextSpan{display_text, font_col}};
+-            // Memoised, same as the immediate path.
+-            const std::uint64_t wrap_key = detail::wrap_memo::key_for(
+-                runs, wrap_width, font_size, spacing, cmp.font_name);
+-            const std::vector<detail::TextRunLine> *cached =
+-                detail::wrap_memo::lookup(wrap_key);
+-            const std::vector<detail::TextRunLine> &lines =
+-                cached ? *cached
+-                       : detail::wrap_memo::store(
+-                             wrap_key, detail::wrap_runs_to_width(
+-                                           runs, wrap_width, weighted_width));
+-
+-            // A single colourless line is what the path below already draws.
+-            if (lines.size() > 1 || has_spans) {
+-              const float line_h =
+-                  measure_text(font, "Ag", font_size, spacing).y;
+-              const float total_h = line_h * static_cast<float>(lines.size());
+-              float y = label_rect.y +
+-                        std::max(0.f, (label_rect.height - total_h) * 0.5f);
+-              for (const auto &line : lines) {
+-                if (line.empty()) {
+-                  y += line_h; // blank line from a "\n\n"
+-                  continue;
+-                }
+-                // A line that does not fully fit is dropped, not drawn:
+-                // the own-box clip would otherwise slice it mid-glyph.
+-                if (y + line_h > label_rect.y + label_rect.height + 0.5f) {
+-                  y += line_h;
+-                  continue;
+-                }
+-                if (line.size() == 1) {
+-                  // Same call shape as before, so plain wrapped text does
+-                  // not shift.
+-                  RectangleType lr{label_rect.x, y, label_rect.width, line_h};
+-                  buffer.add_text(lr, line[0].text, name_for(line[0].weight),
+-                                  font_size, line[0].color, hasLabel.alignment,
+-                                  layer, entity.id, stroke, shadow, rotation,
+-                                  centerX, centerY, hasLabel.letter_spacing);
+-                } else {
+-                  float line_w = 0.f;
+-                  const std::vector<float> offsets =
+-                      detail::text_run_offsets(line, weighted_width, line_w);
+-                  float x = label_rect.x;
+-                  if (hasLabel.alignment == TextAlignment::Center)
+-                    x += std::max(0.f, (label_rect.width - line_w) / 2.f);
+-                  else if (hasLabel.alignment == TextAlignment::Right)
+-                    x += std::max(0.f, label_rect.width - line_w);
+-                  for (size_t ri = 0; ri < line.size(); ri++) {
+-                    const auto &run = line[ri];
+-                    const float w = weighted_width(run.text, run.weight);
+-                    RectangleType sr{x + offsets[ri], y, w, line_h};
+-                    buffer.add_text(sr, run.text, name_for(run.weight),
+-                                    font_size, run.color, TextAlignment::Left,
+-                                    layer, entity.id, stroke, shadow, rotation,
+-                                    centerX, centerY, hasLabel.letter_spacing);
+-                  }
+-                }
+-                y += line_h;
+-              }
+-              wrapped = true;
++          // inherits the component's (FontManager::span_face).
++          const StyledFonts metrics{
++              font_manager, cmp.font_name, cmp.font_weight,
++              wants_wrap ? explicit_fs : result.rect.height,
++              1.f + hasLabel.letter_spacing};
++          const std::vector<TextSpan> runs =
++              has_spans ? hasLabel.spans
++                        : std::vector<TextSpan>{
++                              TextSpan{display_text, font_col}};
++          const bool ellipsis =
++              has_spans && hasLabel.text_overflow == TextOverflow::Ellipsis;
++          const StyledLayout layout = layout_styled_text(
++              runs, metrics, wants_wrap ? label_rect.width : 1e9f,
++              ellipsis ? label_rect.width : 0.f, hasLabel.alignment,
++              label_rect.width);
++          // A single colourless line is what the path below already draws.
++          if (layout.lines.size() > 1 || has_spans) {
++            const float top =
++                label_rect.y +
++                std::max(0.f, (label_rect.height - layout.height) * 0.5f);
++            for (const auto &run : layout.runs) {
++              // A line that does not fully fit is dropped, not drawn: the
++              // own-box clip would otherwise slice it mid-glyph.
++              if (top + layout.line_top[run.line] +
++                      layout.line_height[run.line] >
++                  label_rect.y + label_rect.height + 0.5f)
++                continue;
++              buffer.add_text(
++                  RectangleType{label_rect.x + run.rect.x, top + run.rect.y,
++                                run.rect.width, run.rect.height},
++                  run.text, run.font_name, run.font_size, run.color,
++                  TextAlignment::Left, layer, entity.id, stroke, shadow,
++                  rotation, centerX, centerY, hasLabel.letter_spacing);
+             }
++            wrapped = true;
+           }
+         }
+ 
+diff --git a/src/plugins/ui/styled_text.h b/src/plugins/ui/styled_text.h
+new file mode 100644
+index 0000000..f92c2a4
+--- /dev/null
++++ b/src/plugins/ui/styled_text.h
+@@ -0,0 +1,181 @@
++#pragma once
++
++// Styled text laid out once, for everything that needs it.
++//
++// layout_styled_text turns runs (TextSpan: text, colour, weight, face, size)
++// into placed runs. Wrapping, ellipsis, line width, per-run x and the
++// selection geometry in text_selection.h all come from detail::line_x_at
++// over the same `metrics`, and both label renderers draw the placed runs as
++// given -- so what is measured is what is drawn, at any UI scale and with
++// fallback glyphs mixed in (the backend resolves those inside measure_text
++// and draw_text_ex alike).
++//
++// `metrics` needs three calls, each per run style:
++//   metrics(text, span) -> advance width
++//   metrics.height(span) -> line height
++//   metrics.baseline(span) -> top of line to baseline
++// StyledFonts below answers them from a FontManager; tests may pass their own.
++
++#include <algorithm>
++#include <string>
++#include <vector>
++
++#include "text_selection.h"
++#include "ui_core_components.h"
++
++namespace afterhours {
++namespace ui {
++
++// One run ready to draw: `rect.x/y` is where draw_text_ex puts its top left,
++// `rect.width` its advance, `rect.height` its own line height.
++struct PlacedRun {
++  std::string text;
++  std::string font_name;
++  float font_size = 0.f;
++  Color color{};
++  RectangleType rect{};
++  size_t line = 0;
++};
++
++struct StyledLayout {
++  std::vector<detail::TextRunLine> lines;
++  std::vector<float> line_top; // relative to the block's top
++  std::vector<float> line_height;
++  std::vector<PlacedRun> runs; // relative to the block's top left
++  float width = 0.f;           // widest line
++  float height = 0.f;          // all lines
++};
++
++// FontManager-backed metrics: a run's face is span_face(base, base_weight),
++// its size font_size * size_scale.
++struct StyledFonts {
++  const FontManager &fm;
++  std::string base;
++  colors::FontWeight base_weight = colors::FontWeight::Regular;
++  float font_size = 0.f;
++  float spacing = 1.f;
++
++  [[nodiscard]] std::string face(const TextSpan &s) const {
++    return fm.span_face(base, base_weight, s);
++  }
++  [[nodiscard]] float size(const TextSpan &s) const {
++    return font_size * s.size_scale;
++  }
++  float operator()(const std::string &text, const TextSpan &s) const {
++    return measure_text(fm.get_font(face(s)), text.c_str(), size(s), spacing)
++        .x;
++  }
++  [[nodiscard]] float height(const TextSpan &s) const {
++    return measure_text(fm.get_font(face(s)), "Ag", size(s), spacing).y;
++  }
++  [[nodiscard]] float baseline(const TextSpan &s) const {
++    return font_baseline(fm.get_font(face(s)), size(s));
++  }
++  // What the wrap depends on beyond the runs, width, size and spacing.
++  [[nodiscard]] std::string memo_name() const {
++    return base + "@" + std::to_string(static_cast<int>(base_weight));
++  }
++};
++
++// Lines of `runs`: soft-wrapped at `wrap_width` (pass a huge width for hard
++// breaks only), each then cut to `ellipsis_width` with "..." when that is
++// positive. Lines share a left edge; runs in a line share a baseline, the
++// lowest any of them needs, and a line is as tall as its tallest run.
++// `align_width` positions each line for Center/Right.
++template <typename Metrics>
++inline StyledLayout
++layout_styled_text(const std::vector<TextSpan> &runs, const Metrics &metrics,
++                   float wrap_width, float ellipsis_width = 0.f,
++                   TextAlignment alignment = TextAlignment::Left,
++                   float align_width = 0.f) {
++  StyledLayout out;
++  // Memoised when the metrics can name themselves: labels re-lay out
++  // unchanged text every frame, and the wrap is the allocation-heavy part.
++  if constexpr (requires { metrics.memo_name(); }) {
++    const std::uint64_t key =
++        detail::wrap_memo::key_for(runs, wrap_width, metrics.font_size,
++                                   metrics.spacing, metrics.memo_name());
++    const auto *cached = detail::wrap_memo::lookup(key);
++    out.lines = cached ? *cached
++                       : detail::wrap_memo::store(
++                             key, detail::wrap_runs_to_width(runs, wrap_width,
++                                                             metrics));
++  } else {
++    out.lines = detail::wrap_runs_to_width(runs, wrap_width, metrics);
++  }
++  if (ellipsis_width > 0.f)
++    for (auto &line : out.lines)
++      line = detail::ellipsize_line(line, ellipsis_width, metrics);
++  // An empty line ("\n\n") is as tall as the first run's style.
++  const TextSpan blank = runs.empty() ? TextSpan{} : runs.front();
++  float y = 0.f;
++  for (size_t li = 0; li < out.lines.size(); li++) {
++    const auto &line = out.lines[li];
++    float base = line.empty() ? metrics.baseline(blank) : 0.f;
++    float h = line.empty() ? metrics.height(blank) : 0.f;
++    for (const auto &run : line)
++      base = std::max(base, metrics.baseline(run));
++    for (const auto &run : line)
++      h = std::max(h, base - metrics.baseline(run) + metrics.height(run));
++    float w = 0.f;
++    const std::vector<float> offsets =
++        detail::text_run_offsets(line, metrics, w);
++    float x = 0.f;
++    if (alignment == TextAlignment::Center)
++      x = std::max(0.f, (align_width - w) / 2.f);
++    else if (alignment == TextAlignment::Right)
++      x = std::max(0.f, align_width - w);
++    for (size_t ri = 0; ri < line.size(); ri++) {
++      const auto &run = line[ri];
++      out.runs.push_back(PlacedRun{
++          run.text, std::string{}, 0.f, run.color,
++          RectangleType{x + offsets[ri], y + base - metrics.baseline(run),
++                        metrics(run.text, run), metrics.height(run)},
++          li});
++      if constexpr (requires { metrics.face(run); metrics.size(run); }) {
++        out.runs.back().font_name = metrics.face(run);
++        out.runs.back().font_size = metrics.size(run);
++      }
++    }
++    out.line_top.push_back(y);
++    out.line_height.push_back(h);
++    out.width = std::max(out.width, w);
++    y += h;
++  }
++  out.height = y;
++  return out;
++}
++
++// Selection rects over a styled layout: text_selection::selection_rects,
++// but each line at its own top and height, which differ once runs change
++// size. `origin` is where the block's top left was drawn.
++template <typename Metrics>
++inline std::vector<RectangleType>
++styled_selection_rects(const StyledLayout &layout, text_selection::Range range,
++                       Vector2Type origin, const Metrics &metrics) {
++  std::vector<RectangleType> rects;
++  const auto starts = text_selection::line_start_offsets(layout.lines);
++  for (size_t row = 0; row < layout.lines.size(); row++) {
++    const auto &line = layout.lines[row];
++    const size_t len = text_selection::line_text(line).size();
++    const size_t from = std::max(range.start, starts[row]) - starts[row];
++    const size_t to = std::min(range.end, starts[row] + len);
++    if (range.empty() || to <= starts[row] + from)
++      continue;
++    const float x0 = detail::line_x_at(line, from, metrics);
++    const float x1 = detail::line_x_at(line, to - starts[row], metrics);
++    float x = 0.f; // the line's alignment offset: where its first run went
++    for (const auto &run : layout.runs)
++      if (run.line == row) {
++        x = run.rect.x;
++        break;
++      }
++    rects.push_back(RectangleType{origin.x + x + x0,
++                                  origin.y + layout.line_top[row], x1 - x0,
++                                  layout.line_height[row]});
++  }
++  return rects;
++}
++
++} // namespace ui
++} // namespace afterhours
+diff --git a/src/plugins/ui/text_selection.h b/src/plugins/ui/text_selection.h
+index 1c23663..1ec1b54 100644
+--- a/src/plugins/ui/text_selection.h
++++ b/src/plugins/ui/text_selection.h
+@@ -20,9 +20,11 @@
+ #include <algorithm>
+ #include <cstddef>
+ #include <string>
++#include <type_traits>
+ #include <vector>
+ 
+ #include "../../ecs.h"
++#include "../../font_coverage.h"
+ #include "../../measure_memo.h"
+ #include "ui_core_components.h"
+ 
+@@ -55,16 +57,42 @@ using TextRunLine = std::vector<TextSpan>;
+ // Greedy word-wrap over styled runs. Over-wide words get their own line;
+ // '\n' is a hard break, so '\n\n' leaves a blank line.
+ //
+-// `measure(text, weight)` returns the pixel width of `text` in that weight.
+-// It is called on the largest same-weight stretch of a candidate line rather
+-// than per word -- measure_text spaces BETWEEN characters, so summing pieces
+-// loses one spacing per join and drifts further off with every piece. A line
+-// of uniform weight is therefore still measured in a single call, exactly as
+-// before weights existed; only a genuine weight boundary costs a join.
++// `measure` (any form measure_run accepts) returns the pixel width of text
++// in a run's style. It is called on the largest same-style stretch of a
++// candidate line rather than per word -- measure_text spaces BETWEEN
++// characters, so summing pieces loses one spacing per join and drifts
++// further off with every piece. A line of uniform style is therefore still
++// measured in a single call; only a face, weight or size boundary costs a
++// join. Lines break at spaces and between ideographs (breaks_between).
+ //
+ // The single wrapping primitive: wrap_text_to_width is one colourless
+ // regular-weight run through here, so plain and styled break identically by
+ // construction.
++
++// A run's text in another run's style: font, weight, size and colour kept.
++inline TextSpan with_text(const TextSpan &style, std::string text) {
++  TextSpan out = style;
++  out.text = std::move(text);
++  return out;
++}
++
++// Calls a run measure with what it accepts: (text, span) for callers that
++// resolve face and size per run, (text, weight) for the older weight-only
++// ones, (text) for plain text. Every helper below measures through this, so
++// one callable serves wrap, offsets, ellipsis, selection and drawing alike.
++template <typename MeasureFn>
++inline float measure_run(MeasureFn &&measure, const std::string &text,
++                         const TextSpan &style) {
++  if constexpr (std::is_invocable_v<MeasureFn &, const std::string &,
++                                    const TextSpan &>)
++    return measure(text, style);
++  else if constexpr (std::is_invocable_v<MeasureFn &, const std::string &,
++                                         colors::FontWeight>)
++    return measure(text, style.weight);
++  else
++    return measure(text);
++}
++
+ namespace wrap_memo {
+ 
+ // LRU on content + width, same shape as measure_memo. The draw path otherwise
+@@ -112,6 +140,10 @@ inline std::uint64_t key_for(const std::vector<TextSpan> &runs,
+     mix(0xff); // run boundary, so ["ab"]["c"] and ["a"]["bc"] differ
+     mix(static_cast<std::uint64_t>(r.weight));
+     mix(r.color.r | (r.color.g << 8) | (r.color.b << 16) | (r.color.a << 24));
++    for (unsigned char c : r.font)
++      mix(c);
++    mix(0xfe);
++    mix(static_cast<std::uint64_t>(r.size_scale * 1024.f));
+   }
+   for (unsigned char c : font_name)
+     mix(c);
+@@ -163,6 +195,25 @@ inline void clear() {
+ 
+ } // namespace wrap_memo
+ 
++// Ideographs and kana have no spaces to wrap at: a line may break between
++// any two of them, or between one and its neighbour. Closing punctuation and
++// the prolonged sound mark stay with what precedes them -- the basic kinsoku
++// rule, not full UAX #14. Hangul is spaced and wraps at spaces.
++inline bool breaks_around(uint32_t cp) {
++  return (cp >= 0x2E80 && cp <= 0x9FFF) || (cp >= 0xF900 && cp <= 0xFAFF) ||
++         (cp >= 0xFF00 && cp <= 0xFF60) || (cp >= 0x20000 && cp <= 0x3FFFF);
++}
++inline bool breaks_between(uint32_t before, uint32_t after) {
++  switch (after) {
++  case 0x3001: case 0x3002: case 0x3009: case 0x300B: case 0x300D:
++  case 0x300F: case 0x3011: case 0x30FC: case 0xFF01: case 0xFF09:
++  case 0xFF0C: case 0xFF0E: case 0xFF1A: case 0xFF1B: case 0xFF1F:
++    return false;
++  default:
++    return breaks_around(before) || breaks_around(after);
++  }
++}
++
+ template <typename MeasureFn>
+ static inline std::vector<TextRunLine>
+ wrap_runs_to_width(const std::vector<TextSpan> &runs, float max_width,
+@@ -176,8 +227,8 @@ wrap_runs_to_width(const std::vector<TextSpan> &runs, float max_width,
+       const size_t nl = run.text.find('\n', start);
+       const size_t end = nl == std::string::npos ? run.text.size() : nl;
+       if (end > start)
+-        source_lines.back().push_back(TextSpan{
+-            run.text.substr(start, end - start), run.color, run.weight});
++        source_lines.back().push_back(
++            with_text(run, run.text.substr(start, end - start)));
+       if (nl == std::string::npos)
+         break;
+       source_lines.push_back(TextRunLine{});
+@@ -198,7 +249,7 @@ wrap_runs_to_width(const std::vector<TextSpan> &runs, float max_width,
+   const auto same_style = [](const TextSpan &a, const TextSpan &b) {
+     return a.color.r == b.color.r && a.color.g == b.color.g &&
+            a.color.b == b.color.b && a.color.a == b.color.a &&
+-           a.weight == b.weight;
++           same_metrics(a, b);
+   };
+ 
+   std::vector<TextRunLine> lines;
+@@ -217,29 +268,26 @@ wrap_runs_to_width(const std::vector<TextSpan> &runs, float max_width,
+   };
+ 
+   // Width of a candidate line given as up to three part lists in order.
+-  // Adjacent parts of equal weight are measured together, so a uniform line
+-  // is a single measure call.
++  // Adjacent parts of equal face, weight and size are measured together, so
++  // a uniform line is a single measure call.
+   const auto measure_candidate = [&](const TextRunLine &a,
+                                      const TextRunLine &b,
+                                      const TextRunLine &c) {
+     float total = 0.f;
+     std::string seg;
+-    bool have = false;
+-    colors::FontWeight seg_w = colors::FontWeight::Regular;
++    const TextSpan *seg_style = nullptr;
+     const auto flush_seg = [&]() {
+-      if (have && !seg.empty())
+-        total += measure(seg, seg_w);
++      if (seg_style && !seg.empty())
++        total += measure_run(measure, seg, *seg_style);
+       seg.clear();
+-      have = false;
++      seg_style = nullptr;
+     };
+     for (const TextRunLine *list : {&a, &b, &c}) {
+       for (const auto &part : *list) {
+-        if (have && part.weight != seg_w)
++        if (seg_style && !same_metrics(part, *seg_style))
+           flush_seg();
+-        if (!have) {
+-          seg_w = part.weight;
+-          have = true;
+-        }
++        if (!seg_style)
++          seg_style = &part;
+         seg += part.text;
+       }
+     }
+@@ -249,21 +297,40 @@ wrap_runs_to_width(const std::vector<TextSpan> &runs, float max_width,
+ 
+   for (const auto &src : source_lines) {
+     std::vector<Chunk> chunks;
++    uint32_t prev = 0; // last non-space codepoint; 0 after a space
+     for (const auto &part : src) {
+       size_t i = 0;
+       while (i < part.text.size()) {
+         const bool sp = part.text[i] == ' ';
+         size_t j = i;
+-        while (j < part.text.size() && (part.text[j] == ' ') == sp)
+-          j++;
++        bool breaks_before = false;
++        if (sp) {
++          while (j < part.text.size() && part.text[j] == ' ')
++            j++;
++          prev = 0;
++        } else {
++          // Up to the next space or ideographic break opportunity.
++          while (j < part.text.size() && part.text[j] != ' ') {
++            size_t len = 0;
++            const uint32_t cp = font_coverage::decode_utf8(
++                reinterpret_cast<const unsigned char *>(part.text.c_str()) + j,
++                len);
++            if (prev && breaks_between(prev, cp)) {
++              if (j > i)
++                break;
++              breaks_before = true;
++            }
++            prev = cp;
++            j += len ? len : 1;
++          }
++        }
+         const std::string frag = part.text.substr(i, j - i);
+-        if (!chunks.empty() && chunks.back().is_space == sp) {
+-          chunks.back().parts.push_back(
+-              TextSpan{frag, part.color, part.weight});
++        if (!chunks.empty() && chunks.back().is_space == sp &&
++            !breaks_before) {
++          chunks.back().parts.push_back(with_text(part, frag));
+           chunks.back().text += frag;
+         } else {
+-          chunks.push_back(Chunk{
+-              TextRunLine{TextSpan{frag, part.color, part.weight}}, frag, sp});
++          chunks.push_back(Chunk{TextRunLine{with_text(part, frag)}, frag, sp});
+         }
+         i = j;
+       }
+@@ -314,39 +381,126 @@ wrap_runs_to_width(const std::vector<TextSpan> &runs, float max_width,
+   return lines;
+ }
+ 
+-// Where each run of a laid-out line starts, and how wide the line is.
+-// Measured on the JOINED text the way wrap_runs_to_width measures it --
+-// maximal same-weight stretches, one call each -- because backend
+-// measurement charges between characters: summing per-run widths loses a
+-// spacing at every colour boundary and a monospace block's columns drift
+-// further with every run. Within a stretch a run starts at the stretch's
+-// own prefix measurement, so a run's offset is where its byte range sits
+-// in the measurement of the whole line.
++// Where text is drawn along a laid-out line, and how wide it is: the one
++// geometry wrap, ellipsis, selection and drawing share.
++//
++// A line is maximal STRETCHES of runs with the same face, weight and size;
++// colour alone does not split one. A stretch is measured whole, never as a
++// sum of pieces -- measure_text charges spacing and kerning BETWEEN glyphs,
++// so summing pieces loses a join at every colour change and a monospace
++// block's columns drift. Stretches abut.
++//
++// Inside a stretch the glyph starting at byte k is drawn at
++//   measure(stretch[0, k + len_k)) - measure(glyph k)
++// which is exactly the pen position the backend uses when it draws the
++// stretch in one call: the advances before k, plus the spacing and kerning
++// into k. So a run drawn on its own at its start's pen lands its glyphs
++// where a single call would, and a selection edge at byte k sits on glyph
++// k's drawn origin. Fallback glyphs need nothing special: the backend
++// measures and draws them from the fallback face inside the same call.
++//
++// `at` is a byte offset into the line's joined text, on a codepoint
++// boundary; the end of the line gives its full width.
+ template <typename MeasureFn>
+-static inline std::vector<float>
+-text_run_offsets(const TextRunLine &line, MeasureFn &&measure,
+-                 float &total_width) {
+-  std::vector<float> offsets(line.size(), 0.f);
++static inline float line_x_at(const TextRunLine &line, size_t at,
++                              MeasureFn &&measure) {
+   float stretch_x = 0.f;
++  size_t stretch_start = 0;
+   for (size_t i = 0; i < line.size();) {
+     size_t j = i;
+     std::string joined;
+-    while (j < line.size() && line[j].weight == line[i].weight) {
+-      joined += line[j].text;
+-      j++;
+-    }
+-    size_t prefix = 0;
+-    for (size_t k = i; k < j; k++) {
+-      offsets[k] = stretch_x + (prefix == 0 ? 0.f : measure(joined.substr(0, prefix), line[i].weight));
+-      prefix += line[k].text.size();
++    while (j < line.size() && same_metrics(line[j], line[i]))
++      joined += line[j++].text;
++    if (at < stretch_start + joined.size()) {
++      const size_t local = at > stretch_start ? at - stretch_start : 0;
++      if (local == 0)
++        return stretch_x;
++      const size_t len = std::max<size_t>(1, utf8_char_length(joined, local));
++      return stretch_x +
++             measure_run(measure, joined.substr(0, local + len), line[i]) -
++             measure_run(measure, joined.substr(local, len), line[i]);
+     }
+-    stretch_x += measure(joined, line[i].weight);
++    stretch_x += measure_run(measure, joined, line[i]);
++    stretch_start += joined.size();
+     i = j;
+   }
+-  total_width = stretch_x;
++  return stretch_x;
++}
++
++// Width of a laid-out line: line_x_at its end.
++template <typename MeasureFn>
++static inline float line_width(const TextRunLine &line, MeasureFn &&measure) {
++  size_t bytes = 0;
++  for (const auto &run : line)
++    bytes += run.text.size();
++  return line_x_at(line, bytes, measure);
++}
++
++// Where each run of a line starts (line_x_at its first byte), and the line's
++// width.
++template <typename MeasureFn>
++static inline std::vector<float>
++text_run_offsets(const TextRunLine &line, MeasureFn &&measure,
++                 float &total_width) {
++  std::vector<float> offsets(line.size(), 0.f);
++  size_t at = 0;
++  for (size_t k = 0; k < line.size(); k++) {
++    offsets[k] = line_x_at(line, at, measure);
++    at += line[k].text.size();
++  }
++  total_width = line_x_at(line, at, measure);
+   return offsets;
+ }
+ 
++// `line` cut to the longest codepoint prefix that still fits `max_width`
++// with `ellipsis` appended in the style of the run it follows. Unchanged
++// when the whole line fits; just the ellipsis when nothing does. Widths come
++// from line_width, so the result is exactly as wide as it will draw.
++template <typename MeasureFn>
++static inline TextRunLine ellipsize_line(const TextRunLine &line,
++                                         float max_width, MeasureFn &&measure,
++                                         const std::string &ellipsis = "...") {
++  if (line.empty() || line_width(line, measure) <= max_width)
++    return line;
++  const auto cut = [&](size_t keep) {
++    TextRunLine out;
++    size_t at = 0;
++    for (const auto &run : line) {
++      if (at >= keep)
++        break;
++      out.push_back(with_text(run, run.text.substr(0, keep - at)));
++      at += run.text.size();
++    }
++    if (out.empty())
++      out.push_back(with_text(line.front(), ""));
++    out.back().text += ellipsis;
++    return out;
++  };
++  std::vector<size_t> bounds; // codepoint boundaries, ascending
++  {
++    std::string joined;
++    for (const auto &run : line)
++      joined += run.text;
++    for (size_t i = 0; i < joined.size();) {
++      bounds.push_back(i);
++      i += std::max<size_t>(1, utf8_char_length(joined, i));
++    }
++  }
++  if (bounds.empty())
++    return line;
++  // Keep bounds[k] bytes: the largest k that fits, or 0 for the ellipsis
++  // alone. Keeping every codepoint is the whole line, already too wide.
++  size_t lo = 0, hi = bounds.size() - 1;
++  while (lo < hi) {
++    const size_t mid = (lo + hi + 1) / 2;
++    if (line_width(cut(bounds[mid]), measure) <= max_width)
++      lo = mid;
++    else
++      hi = mid - 1;
++  }
++  return cut(bounds[lo]);
++}
++
+ // Greedy word-wrap: split `text` into lines each no wider than `max_width`,
+ // using `measure` to size candidate lines. Words wider than max_width are
+ // placed on their own line (not character-split). Returns at least one line
+@@ -505,6 +659,11 @@ inline size_t offset_nearest_x(const std::string &text, float x,
+ }
+ } // namespace detail_sel
+ 
++// Geometry below comes from detail::line_x_at, the positions the runs are
++// drawn at, so `measure` may be any callable measure_run accepts: pass the
++// run-aware one the lines were wrapped with and selection follows each run's
++// face and size.
++
+ // Which byte a point lands on. `local` is relative to the text block's top
+ // left. Above the first line clamps to 0; below the last clamps to the end,
+ // which is what a drag that runs off the bottom should do.
+@@ -519,10 +678,20 @@ inline size_t byte_offset_at(const std::vector<detail::TextRunLine> &lines,
+   int row = static_cast<int>(local.y / line_height);
+   row = std::clamp(row, 0, static_cast<int>(lines.size()) - 1);
+ 
+-  const std::string text = line_text(lines[static_cast<size_t>(row)]);
+-  const size_t within =
+-      detail_sel::offset_nearest_x(text, local.x, measure);
+-  return starts[static_cast<size_t>(row)] + within;
++  // Nearest codepoint edge, at the positions the line is drawn at.
++  const auto &line = lines[static_cast<size_t>(row)];
++  const std::string text = line_text(line);
++  size_t best = 0;
++  float best_dist = std::abs(local.x);
++  for (size_t i = 0; i < text.size();) {
++    i += std::max<size_t>(1, utf8_char_length(text, i));
++    const float dist = std::abs(local.x - detail::line_x_at(line, i, measure));
++    if (dist < best_dist) {
++      best_dist = dist;
++      best = i;
++    }
++  }
++  return starts[static_cast<size_t>(row)] + best;
+ }
+ 
+ // One rect per line the range covers. A range inside a single line yields one
+@@ -553,8 +722,8 @@ selection_rects(const std::vector<detail::TextRunLine> &lines, Range range,
+     if (to <= from)
+       continue;
+ 
+-    const float x0 = measure(text.substr(0, from));
+-    const float x1 = measure(text.substr(0, to));
++    const float x0 = detail::line_x_at(lines[row], from, measure);
++    const float x1 = detail::line_x_at(lines[row], to, measure);
+     rects.push_back(RectangleType{origin.x + x0,
+                                   origin.y + line_height *
+                                                  static_cast<float>(row),
+diff --git a/src/plugins/ui/ui_core_components.h b/src/plugins/ui/ui_core_components.h
+index 547a57f..ac57b88 100644
+--- a/src/plugins/ui/ui_core_components.h
++++ b/src/plugins/ui/ui_core_components.h
+@@ -356,6 +356,8 @@ struct UIComponent : BaseComponent {
+   }
+ };
+ 
++struct TextSpan;
++
+ // final so has_child_of can answer in one test instead of a dynamic_cast
+ // per occupied slot. Nothing derives from it, and now nothing can.
+ struct FontManager final : BaseComponent {
+@@ -376,15 +378,67 @@ struct FontManager final : BaseComponent {
+   auto &load_font(const std::string &font_name, Font font) {
+     invalidate_measurements_for(font_name);
+     fonts[font_name] = font;
++    apply_fallbacks();
+     return *this;
+   }
+ 
+   auto &load_font(const std::string &font_name, const char *font_file) {
+     invalidate_measurements_for(font_name);
+     fonts[font_name] = load_font_from_file(font_file);
++    apply_fallbacks();
++    return *this;
++  }
++
++  // Fallback faces for `font_name`, by registered name, in lookup order: a
++  // glyph the face lacks is measured and drawn from the first that has it,
++  // in the backend, so every path that measures or draws with this face
++  // agrees. Replaces any earlier chain; reloading any face involved
++  // re-applies it. Names not yet loaded are skipped until they are.
++  std::map<std::string, std::vector<std::string>> fallbacks;
++
++  auto &set_fallbacks(const std::string &font_name,
++                      std::vector<std::string> chain) {
++    fallbacks[font_name] = std::move(chain);
++    apply_fallbacks();
++    measure_memo::invalidate();
++    if (auto *cache = EntityHelper::get_singleton_cmp<TextMeasureCache>())
++      cache->clear();
+     return *this;
+   }
+ 
++  void apply_fallbacks() {
++    for (const auto &[name, chain] : fallbacks) {
++      const auto it = fonts.find(name);
++      if (it == fonts.end())
++        continue;
++      std::vector<Font> faces;
++      for (const auto &fb : chain)
++        if (const auto f = fonts.find(fb); f != fonts.end())
++          faces.push_back(f->second);
++      set_font_fallbacks(it->second, faces);
++    }
++  }
++
++  // Which registered face draws `codepoint` for `font_name`: the face itself,
++  // else the first fallback that has it. Empty when none does -- the glyph
++  // then draws as a replacement (font_coverage::visible_text).
++  [[nodiscard]] std::string face_for(const std::string &font_name,
++                                     uint32_t codepoint) const {
++    if (has_glyph(font_name, codepoint))
++      return font_name;
++    if (const auto it = fallbacks.find(font_name); it != fallbacks.end())
++      for (const auto &fb : it->second)
++        if (fonts.contains(fb) && has_glyph(fb, codepoint))
++          return fb;
++    return {};
++  }
++
++  // The face a styled run measures and draws with: its own font or `base`,
++  // at its weight or `base_weight` when it asks for none.
++  [[nodiscard]] std::string span_face(const std::string &base,
++                                      colors::FontWeight base_weight,
++                                      const TextSpan &span) const;
++
+   // Add codepoint-based font loading for CJK support
+   auto &load_font_with_codepoints(const std::string &font_name,
+                                   const char *font_file, int *codepoints,
+@@ -464,7 +518,8 @@ struct FontManager final : BaseComponent {
+                           static_cast<int>(codepoint));
+   }
+ 
+-  // The distinct codepoints in `text` that the face cannot draw, in order.
++  // The distinct codepoints in `text` that neither the face nor its
++  // fallbacks can draw, in order.
+   [[nodiscard]] std::vector<uint32_t>
+   missing_codepoints(const std::string &font_name,
+                      std::string_view text) const {
+@@ -490,7 +545,7 @@ struct FontManager final : BaseComponent {
+           cp = (cp << 6) |
+                (static_cast<unsigned char>(text[i + k]) & 0x3F);
+       i += len;
+-      if (!has_glyph(font_name, cp) &&
++      if (face_for(font_name, cp).empty() &&
+           std::find(missing.begin(), missing.end(), cp) == missing.end())
+         missing.push_back(cp);
+     }
+@@ -552,16 +607,39 @@ enum struct TextOverflow {
+ // back to the base face when that variant was never loaded -- so a run asking
+ // for Bold in an app that registered no bold font renders regular rather than
+ // failing. Registering the variant is what turns it on.
++//
++// `font` names a registered face for this run (empty: the label's), and
++// `size_scale` multiplies the label's font size -- relative, so a run keeps
++// its proportion at every UI scale. Runs of different faces or sizes share a
++// baseline. Measuring, wrapping, ellipsis, selection and drawing all resolve
++// a run through FontManager::span_face and the label size times size_scale.
+ struct TextSpan {
+   std::string text;
+   Color color;
+   colors::FontWeight weight = colors::FontWeight::Regular;
++  std::string font;
++  float size_scale = 1.f;
+ };
+ 
++// Same face, weight and size: what a measurement cannot cross.
++inline bool same_metrics(const TextSpan &a, const TextSpan &b) {
++  return a.weight == b.weight && a.font == b.font &&
++         a.size_scale == b.size_scale;
++}
++
++inline std::string FontManager::span_face(const std::string &base,
++                                          colors::FontWeight base_weight,
++                                          const TextSpan &span) const {
++  return resolve_weighted(span.font.empty() ? base : span.font,
++                          span.weight == colors::FontWeight::Regular
++                              ? base_weight
++                              : span.weight);
++}
++
+ inline bool operator==(const TextSpan &a, const TextSpan &b) {
+   return a.text == b.text && a.color.r == b.color.r &&
+          a.color.g == b.color.g && a.color.b == b.color.b &&
+-         a.color.a == b.color.a && a.weight == b.weight;
++         a.color.a == b.color.a && same_metrics(a, b);
+ }
+ 
+ struct HasCheckboxMark : BaseComponent {};
+diff --git a/src/system_fonts.h b/src/system_fonts.h
+new file mode 100644
+index 0000000..92f8315
+--- /dev/null
++++ b/src/system_fonts.h
+@@ -0,0 +1,108 @@
++#pragma once
++
++// Where an OS keeps faces worth chaining behind a UI font (set_font_fallbacks
++// / FontManager::set_fallbacks). Only paths that exist are returned, in
++// preference order; load each with load_font_face(path, face_index), which
++// handles collections.
++//
++// Only the macOS list is verified (on macOS 26): every face there loads and
++// draws through stb_truetype. The Linux and Windows lists are the
++// distributions' and Windows' documented install paths, untested here.
++
++#include <filesystem>
++#include <string>
++#include <vector>
++
++namespace afterhours::system_fonts {
++
++struct Face {
++  std::string path;
++  int face_index = 0;
++};
++
++namespace detail {
++inline std::vector<Face> existing(std::initializer_list<Face> candidates) {
++  std::vector<Face> out;
++  std::error_code ec;
++  for (const Face &f : candidates)
++    if (std::filesystem::is_regular_file(f.path, ec))
++      out.push_back(f);
++  return out;
++}
++} // namespace detail
++
++// Faces covering Han ideographs and kana; the first is the usual choice.
++// Hiragino has no Hangul, so a UI expecting Korean should also chain the
++// first face that has it (Apple SD Gothic Neo here; Arial Unicode covers
++// all three but is an older design).
++inline std::vector<Face> cjk() {
++#if defined(__APPLE__)
++  return detail::existing({
++      {"/System/Library/Fonts/\xE3\x83\x92\xE3\x83\xA9\xE3\x82\xAE\xE3\x83\x8E"
++       "\xE8\xA7\x92\xE3\x82\xB4\xE3\x82\xB7\xE3\x83\x83\xE3\x82\xAF W3.ttc",
++       0}, // Hiragino Sans W3 (Japanese)
++      {"/System/Library/Fonts/Hiragino Sans GB.ttc", 0},
++      {"/System/Library/Fonts/PingFang.ttc", 0}, // before macOS 12
++      {"/System/Library/Fonts/AppleSDGothicNeo.ttc", 0}, // Hangul too
++      {"/System/Library/Fonts/Supplemental/Arial Unicode.ttf", 0},
++      {"/Library/Fonts/Arial Unicode.ttf", 0},
++  });
++#elif defined(_WIN32)
++  return detail::existing({
++      {"C:\\Windows\\Fonts\\YuGothR.ttc", 0}, // Yu Gothic
++      {"C:\\Windows\\Fonts\\msyh.ttc", 0},    // Microsoft YaHei
++      {"C:\\Windows\\Fonts\\malgun.ttf", 0},  // Malgun Gothic (Hangul)
++      {"C:\\Windows\\Fonts\\simsun.ttc", 0},
++  });
++#else
++  // Noto Sans CJK collections order JP, KR, SC, TC, HK; face 0 is JP.
++  return detail::existing({
++      {"/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc", 0},
++      {"/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc", 0},
++      {"/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc", 0},
++      {"/usr/share/fonts/truetype/wqy/wqy-microhei.ttc", 0},
++      {"/usr/share/fonts/wenquanyi/wqy-zenhei/wqy-zenhei.ttc", 0},
++  });
++#endif
++}
++
++// Emoji faces with OUTLINE glyphs, which stb_truetype can draw (in one
++// colour, like any glyph). Colour-bitmap emoji -- Apple Color Emoji (sbix),
++// Noto Color Emoji (CBDT) -- have no outlines and draw nothing, so they are
++// not listed. macOS ships no outline emoji face: this is empty there, and
++// emoji draw as one replacement glyph per sequence (font_coverage::
++// visible_text). Segoe UI Emoji's COLR base glyphs are outlines.
++inline std::vector<Face> emoji() {
++#if defined(__APPLE__)
++  return {};
++#elif defined(_WIN32)
++  return detail::existing({{"C:\\Windows\\Fonts\\seguiemj.ttf", 0}});
++#else
++  return detail::existing({
++      {"/usr/share/fonts/truetype/noto/NotoEmoji-Regular.ttf", 0},
++      {"/usr/share/fonts/noto/NotoEmoji-Regular.ttf", 0},
++      {"/usr/share/fonts/google-noto-emoji/NotoEmoji-Regular.ttf", 0},
++  });
++#endif
++}
++
++// Symbols outside a UI face (dingbats, arrows, U+FFFD) that a chain often
++// lacks; Arial Unicode has U+FFFD, which makes replacements read as such.
++inline std::vector<Face> symbols() {
++#if defined(__APPLE__)
++  return detail::existing({
++      {"/System/Library/Fonts/Supplemental/Arial Unicode.ttf", 0},
++      {"/Library/Fonts/Arial Unicode.ttf", 0},
++      {"/System/Library/Fonts/Apple Symbols.ttf", 0},
++  });
++#elif defined(_WIN32)
++  return detail::existing({{"C:\\Windows\\Fonts\\seguisym.ttf", 0}});
++#else
++  return detail::existing({
++      {"/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 0},
++      {"/usr/share/fonts/dejavu/DejaVuSans.ttf", 0},
++  });
++#endif
++}
++
++} // namespace afterhours::system_fonts
+diff --git a/tests/Makefile b/tests/Makefile
+index 688b6c0..d3c66d8 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -193,6 +193,7 @@ ALL_TESTS := \
+ 	text_input_test \
+ 	toast_test \
+ 	text_wrap_test \
++	styled_text_test \
+ 	theme_io_test
+ 
+ # .app packaging is macOS-only, and the test shells out to plutil.
+@@ -207,6 +208,9 @@ ALL_TESTS += sokol_blend_test
+ ALL_TESTS += sokol_hidpi_test
+ ALL_TESTS += sokol_resize_test
+ ALL_TESTS += sokol_include_order_test
++# Real fonts plus a system CJK face; draws on a CPU-only fontstash context.
++ALL_TESTS += text_fallback_test
++ALL_TESTS += text_fallback_raylib_test
+ endif
+ 
+ RAYLIB_TESTS := \
+@@ -331,6 +335,12 @@ $(OUT)/sokol_resize_test: LDFLAGS_T += $(SOKOL_FRAMEWORKS)
+ $(OUT)/sokol_include_order_test: ../examples/web/sokol_impl.cc
+ $(OUT)/sokol_include_order_test: CXXFLAGS_T += -DSOKOL_METAL -x objective-c++
+ $(OUT)/sokol_include_order_test: LDFLAGS_T += $(SOKOL_FRAMEWORKS)
++$(OUT)/text_fallback_test: ../examples/web/sokol_impl.cc
++$(OUT)/text_fallback_test: CXXFLAGS_T += -DSOKOL_METAL -x objective-c++ -DAFTERHOURS_TEST_FIXTURES=\"$(CURDIR)/fixtures\"
++$(OUT)/text_fallback_test: LDFLAGS_T += $(SOKOL_FRAMEWORKS)
++$(OUT)/text_fallback_raylib_test: CXXFLAGS_T = $(CXXFLAGS_RAYLIB) -DAFTERHOURS_TEST_FIXTURES=\"$(CURDIR)/fixtures\"
++$(OUT)/text_fallback_raylib_test: INCLUDES_T = $(INCLUDES_RAYLIB)
++$(OUT)/text_fallback_raylib_test: LDFLAGS_T = $(LDFLAGS_RAYLIB)
+ 
+ $(OUT)/render_capture_metal_test: render_capture_test.cpp ../examples/web/sokol_impl.cc
+ 	$(CXX) $(CXXFLAGS) $(DEPFLAGS) $(INCLUDES) -DSOKOL_METAL -x objective-c++ $(filter %.cpp %.cc,$^) $(SOKOL_FRAMEWORKS) -o $@
+diff --git a/tests/styled_text_test.cpp b/tests/styled_text_test.cpp
+new file mode 100644
+index 0000000..d82e015
+--- /dev/null
++++ b/tests/styled_text_test.cpp
+@@ -0,0 +1,139 @@
++// styled_text_test.cpp
++// Both label renderers draw a styled label from layout_styled_text, and
++// AutoLayout sizes one from the same layout.
++//
++// Recording backend with the harness's stub measurement (10px a byte at 20px,
++// baseline at 0.8 of the size), so every expected position is arithmetic.
++// Real fonts, fallback glyphs and drawn glyph geometry are text_fallback_test.
++
++#include "ui_test_harness.h"
++
++#include <afterhours/src/plugins/ui/styled_text.h>
++
++#include <cstdio>
++#include <string>
++#include <vector>
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++
++namespace {
++constexpr float FS = 20.f;
++const Color kRed{255, 0, 0, 255};
++const Color kGreen{0, 255, 0, 255};
++
++std::vector<DrawCall> render(ui_test::ImmTestHarness &h, bool batched) {
++  if (batched)
++    h.render_batched();
++  else
++    h.render();
++  return h.drawn("text");
++}
++
++std::string joined(const std::vector<DrawCall> &calls) {
++  std::string out;
++  for (const auto &c : calls)
++    out += c.text;
++  return out;
++}
++} // namespace
++
++// Ellipsis used to be computed for the plain label and then ignored by the
++// styled path, which drew every run at full length past its box.
++TEST(styled_ellipsis_cuts_the_runs_and_keeps_their_colours) {
++  const std::vector<TextSpan> spans{TextSpan{"red part ", kRed},
++                                    TextSpan{"green tail that runs long",
++                                             kGreen}};
++  for (bool batched : {false, true}) {
++    ui_test::ImmTestHarness h;
++    div(h.context(), mk(h.root(), 0),
++        ComponentConfig{}
++            .with_size(ComponentSize{pixels(200), pixels(40)})
++            .with_absolute_position(0.f, 0.f)
++            .with_styled_label(spans)
++            .with_text_overflow(TextOverflow::Ellipsis)
++            .with_alignment(TextAlignment::Left)
++            .with_font_size(FS));
++    const auto calls = render(h, batched);
++    const Vector2Type inset =
++        resolve_text_inset(imm::ThemeDefaults::get().theme);
++    const float box_w = 200.f - 2.f * inset.x;
++    const StyledLayout expected = layout_styled_text(
++        spans,
++        StyledFonts{*h.render_font(), UIComponent::DEFAULT_FONT,
++                    colors::FontWeight::Regular, FS, 1.f},
++        1e9f, box_w);
++    CHECK(calls.size() == expected.runs.size());
++    if (calls.size() != expected.runs.size() || calls.empty())
++      continue;
++    const std::string text = joined(calls);
++    fprintf(stderr, "        %s: '%s' in %.0f\n",
++            batched ? "batched" : "immediate", text.c_str(), box_w);
++    CHECK(text.size() > 3 && text.substr(text.size() - 3) == "...");
++    CHECK(text.size() * 10.f <= box_w);
++    for (size_t i = 0; i < calls.size(); i++) {
++      CHECK(calls[i].text == expected.runs[i].text);
++      CHECK_APPROX(calls[i].rect.x, inset.x + expected.runs[i].rect.x);
++    }
++    CHECK(calls.front().color.r == 255 && calls.back().color.g == 255);
++  }
++}
++
++// A run at twice the size draws at twice the size, sits on the same baseline,
++// and pushes the next run along by its own (larger) advance.
++TEST(a_scaled_run_shares_the_baseline_and_its_advance) {
++  for (bool batched : {false, true}) {
++    ui_test::ImmTestHarness h;
++    div(h.context(), mk(h.root(), 0),
++        ComponentConfig{}
++            .with_size(ComponentSize{pixels(400), pixels(80)})
++            .with_absolute_position(0.f, 0.f)
++            .with_styled_label(
++                {TextSpan{"Ab", kRed, colors::FontWeight::Regular, "", 2.f},
++                 TextSpan{"cd", kGreen}})
++            .with_alignment(TextAlignment::Left)
++            .with_font_size(FS));
++    const auto calls = render(h, batched);
++    CHECK(calls.size() == 2);
++    if (calls.size() != 2)
++      continue;
++    const auto &big = calls[0], &small = calls[1];
++    CHECK_APPROX(big.rect.height, 2.f * FS);
++    CHECK_APPROX(small.rect.height, FS);
++    CHECK_APPROX(big.rect.y + 0.8f * big.rect.height,
++                 small.rect.y + 0.8f * small.rect.height);
++    CHECK_APPROX(small.rect.x, big.rect.x + 2.f * 2.f * FS * 0.5f);
++  }
++}
++
++// Dim::Text measures what the renderer will draw: "ab" at double size is 20px
++// wider than at the label's size.
++TEST(autolayout_sizes_a_styled_label_from_the_layout) {
++  ui_test::ImmTestHarness h;
++  div(h.context(), mk(h.root(), 0),
++      ComponentConfig{}
++          .with_size(ComponentSize{Size{Dim::Text}, pixels(60)})
++          .with_label("abcd")
++          .with_font_size(FS)
++          .with_debug_name("plain"));
++  div(h.context(), mk(h.root(), 1),
++      ComponentConfig{}
++          .with_size(ComponentSize{Size{Dim::Text}, pixels(60)})
++          .with_styled_label(
++              {TextSpan{"ab", kRed, colors::FontWeight::Regular, "", 2.f},
++               TextSpan{"cd", kGreen}})
++          .with_font_size(FS)
++          .with_debug_name("styled"));
++  h.layout_only();
++  UIComponent *plain = h.find("plain");
++  UIComponent *styled = h.find("styled");
++  CHECK(plain && styled);
++  if (!plain || !styled)
++    return;
++  fprintf(stderr, "        plain %.1f, styled %.1f\n", plain->rect().width,
++          styled->rect().width);
++  CHECK_APPROX(styled->rect().width - plain->rect().width, 20.f);
++}
++
++int main() { return ui_test::run_registered_tests("styled text"); }
+diff --git a/tests/text_fallback_raylib_test.cpp b/tests/text_fallback_raylib_test.cpp
+new file mode 100644
+index 0000000..5f671b8
+--- /dev/null
++++ b/tests/text_fallback_raylib_test.cpp
+@@ -0,0 +1,163 @@
++// text_fallback_raylib_test.cpp
++// Font fallback chains on raylib, which has none of its own: measure_text and
++// draw_text_ex share place_glyphs once a string leaves the primary face.
++//
++// Renders headless (a GL context, no window) and compares pixels: a string
++// drawn whole must match the same string drawn in two pieces, the second at
++// the pen measurement gives it. Fonts are the two fixtures and the first
++// system CJK face. raylib bakes glyphs at load, so each face is loaded with
++// the codepoints these strings use.
++
++#define FMT_HEADER_ONLY
++#define AFTER_HOURS_USE_RAYLIB
++#include <afterhours/src/graphics.h>
++#include <afterhours/src/drawing_helpers.h>
++#include <afterhours/src/system_fonts.h>
++
++#include <cstdio>
++#include <cstring>
++#include <filesystem>
++#include <string>
++#include <vector>
++
++using namespace afterhours;
++
++static int checks = 0, failures = 0;
++#define CHECK(cond)                                                            \
++  do {                                                                         \
++    checks++;                                                                  \
++    if (!(cond)) {                                                             \
++      failures++;                                                              \
++      std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
++    }                                                                          \
++  } while (0)
++
++namespace {
++constexpr int W = 512, H = 96;
++const char *kMixed = "Hi \xE6\x97\xA5\xE6\x9C\xAC \xE3\x81\xB2"; // Hi 日本 ひ
++const char *kLast = "\xE3\x81\xB2";                              // ひ
++
++std::string fixture(const char *name) {
++  return (std::filesystem::path(AFTERHOURS_TEST_FIXTURES) / name).string();
++}
++
++bool same(const raylib::Font &a, const raylib::Font &b) {
++  return font_key(a) == font_key(b);
++}
++
++std::vector<unsigned char> frame(const std::vector<std::pair<std::string, float>> &pieces,
++                                 const raylib::Font &font) {
++  auto &rt = graphics::get_render_texture();
++  graphics::begin_frame();
++  graphics::clear_background(Color{0, 0, 0, 255});
++  for (const auto &[text, x] : pieces)
++    draw_text_ex(font, text.c_str(), Vector2Type{x, 20.f}, 32.f, 1.f,
++                 Color{255, 255, 255, 255});
++  graphics::end_frame();
++  auto rgba = capture_render_texture_rgba(rt);
++  return rgba ? rgba->pixels : std::vector<unsigned char>{};
++}
++
++size_t lit(const std::vector<unsigned char> &px, int x0, int x1) {
++  size_t n = 0;
++  for (int y = 0; y < H; y++)
++    for (int x = x0; x < x1 && x < W; x++)
++      n += px[(static_cast<size_t>(y) * W + x) * 4] > 128;
++  return n;
++}
++} // namespace
++
++int main() {
++  graphics::Config config;
++  config.display = graphics::DisplayMode::Headless;
++  config.width = W;
++  config.height = H;
++  if (!graphics::init(config)) {
++    std::fprintf(stderr, "no headless GL context\n");
++    return 2;
++  }
++  const auto cjk_faces = system_fonts::cjk();
++  if (cjk_faces.empty()) {
++    std::fprintf(stderr, "no system CJK face; this test needs one\n");
++    return 2;
++  }
++  std::vector<int> cps = default_codepoints();
++  for (int c = 0x100; c <= 0x17F; c++)
++    cps.push_back(c); // Latin Extended-A: in Archivo and Hiragino, not Atkinson
++  for (int c : {0x65E5, 0x672C, 0x3072, 0xFFFD})
++    cps.push_back(c);
++
++  const raylib::Font ui = load_font_from_file(
++      fixture("AtkinsonHyperlegible-Regular.ttf").c_str(), 32);
++  const raylib::Font narrow =
++      load_font_face(fixture("ArchivoNarrow-Regular.ttf").c_str(), 0, 32, cps);
++  const raylib::Font cjk = load_font_face(cjk_faces[0].path.c_str(),
++                                          cjk_faces[0].face_index, 32, cps);
++  CHECK(font_is_usable(ui) && font_is_usable(narrow) && font_is_usable(cjk));
++
++  // Coverage per face.
++  CHECK(font_has_glyph(ui, 'A') && !font_has_glyph(ui, 0x65E5));
++  CHECK(font_has_glyph(cjk, 0x65E5) && !font_has_glyph(narrow, 0x65E5));
++
++  // Ordering: U+0108 is in both fallbacks; the first one in the chain draws.
++  const std::string c_hat = "\xC4\x88";
++  CHECK(!font_has_glyph(ui, 0x108) && font_has_glyph(narrow, 0x108) &&
++        font_has_glyph(cjk, 0x108));
++  std::vector<PlacedGlyph> glyphs;
++  Vector2Type extent{};
++  CHECK(set_font_fallbacks(ui, {narrow, cjk}));
++  CHECK(place_glyphs(ui, c_hat.c_str(), 32, 1, glyphs, extent));
++  CHECK(glyphs.size() == 1 && same(glyphs[0].font, narrow));
++  const float via_narrow = measure_text(ui, c_hat.c_str(), 32, 1).x;
++  CHECK(via_narrow == measure_text(narrow, c_hat.c_str(), 32, 1).x);
++  CHECK(set_font_fallbacks(ui, {cjk, narrow})); // replaces
++  CHECK(place_glyphs(ui, c_hat.c_str(), 32, 1, glyphs, extent));
++  CHECK(glyphs.size() == 1 && same(glyphs[0].font, cjk));
++  CHECK(measure_text(ui, c_hat.c_str(), 32, 1).x != via_narrow);
++  CHECK(font_fallbacks(ui).size() == 2);
++
++  // Text the primary covers keeps raylib's own measurement exactly.
++  CHECK(!place_glyphs(ui, "caf\xC3\xA9 AVA", 32, 1, glyphs, extent));
++  CHECK(measure_text(ui, "caf\xC3\xA9 AVA", 32, 1).x ==
++        raylib::MeasureTextEx(ui, "caf\xC3\xA9 AVA", 32, 1).x);
++
++  // Mixed Latin/CJK: measurement is the placement's extent, CJK from the
++  // fallback, on the primary's baseline.
++  CHECK(set_font_fallbacks(ui, {narrow, cjk}));
++  CHECK(place_glyphs(ui, kMixed, 32, 1, glyphs, extent));
++  CHECK(measure_text(ui, kMixed, 32, 1).x == extent.x);
++  CHECK(glyphs.size() == 7 && same(glyphs[3].font, cjk) &&
++        same(glyphs[0].font, ui));
++
++  // Uncovered emoji: one visible replacement each, measured as drawn.
++  CHECK(place_glyphs(ui, "a\xF0\x9F\x98\x80" "b", 32, 1, glyphs, extent));
++  const int replacement = font_has_glyph(cjk, 0xFFFD) ? 0xFFFD : '?';
++  CHECK(glyphs.size() == 3 && glyphs[1].codepoint == replacement);
++  CHECK(place_glyphs(ui,
++                     "\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D"
++                     "\xF0\x9F\x91\xA7",
++                     32, 1, glyphs, extent));
++  CHECK(glyphs.size() == 1);
++
++  // Drawing: whole versus split at the measured pen of the last glyph.
++  const float pen = measure_text(ui, kMixed, 32, 1).x -
++                    measure_text(ui, kLast, 32, 1).x;
++  const std::string head(kMixed, std::strlen(kMixed) - std::strlen(kLast));
++  const auto whole = frame({{kMixed, 10.f}}, ui);
++  const auto split = frame({{head, 10.f}, {kLast, 10.f + pen}}, ui);
++  CHECK(!whole.empty() && whole.size() == split.size());
++  size_t differ = 0;
++  for (size_t i = 0; i < whole.size() && i < split.size(); i++)
++    differ += whole[i] != split[i];
++  CHECK(differ == 0);
++  // The CJK glyphs drew ink (they would be blank from the primary).
++  const float cjk_x = 10.f + measure_text(ui, "Hi ", 32, 1).x;
++  CHECK(lit(whole, static_cast<int>(cjk_x), static_cast<int>(10.f + pen)) > 50);
++  std::fprintf(stderr, "  width %.1f, pen %.1f, differing bytes %zu\n",
++               measure_text(ui, kMixed, 32, 1).x, pen, differ);
++
++  graphics::shutdown();
++  std::fprintf(stderr, "text fallback (raylib): %d/%d checks passed\n",
++               checks - failures, checks);
++  return failures == 0 ? 0 : 1;
++}
+diff --git a/tests/text_fallback_test.cpp b/tests/text_fallback_test.cpp
+new file mode 100644
+index 0000000..64a2ca5
+--- /dev/null
++++ b/tests/text_fallback_test.cpp
+@@ -0,0 +1,498 @@
++// text_fallback_test.cpp
++// Font fallback chains and the styled-text layout, against real fonts on the
++// sokol backend, with every drawn glyph captured.
++//
++// fontstash runs on a CPU-only context whose renderDraw records each glyph
++// quad, so "what was drawn" is exact geometry, no GPU and no window. The
++// draws go through afterhours::draw_text_ex, the same call the renderers make.
++//
++// Fonts: the two fixtures (Atkinson primary, Archivo Narrow) plus the first
++// system CJK face (system_fonts::cjk(), a .ttc on macOS) and, for U+FFFD and
++// dingbats, the first system symbols face. macOS-only, like every sokol test.
++// Not on ui_test_harness.h: that pulls in rendering.h, which does not build
++// under sokol at this commit (begin_shader_mode is ambiguous; sokol_blend_test
++// fails the same way).
++
++#define AFTER_HOURS_USE_METAL
++
++#include <afterhours/src/graphics.h>
++#include <afterhours/src/backends/sokol/drawing_helpers.h>
++
++#include <afterhours/src/plugins/ui/styled_text.h>
++#include <afterhours/src/system_fonts.h>
++
++#include <cstdio>
++#include <filesystem>
++#include <string>
++#include <vector>
++
++namespace md = afterhours::graphics::metal_detail;
++namespace font_coverage = afterhours::font_coverage;
++namespace system_fonts = afterhours::system_fonts;
++namespace text_selection = afterhours::ui::text_selection;
++namespace uid = afterhours::ui::detail;
++namespace colors = afterhours::colors;
++using afterhours::Color;
++using afterhours::Font;
++using afterhours::draw_text_ex;
++using afterhours::font_fallbacks;
++using afterhours::font_has_glyph;
++using afterhours::load_font_face;
++using afterhours::load_font_from_file;
++using afterhours::measure_text;
++using afterhours::ui::FontManager;
++using afterhours::ui::StyledFonts;
++using afterhours::ui::StyledLayout;
++using afterhours::ui::TextSpan;
++using afterhours::ui::layout_styled_text;
++using afterhours::ui::styled_selection_rects;
++using afterhours::ui::utf8_char_length;
++namespace font_detail = afterhours::font_detail;
++
++static int checks = 0, failures = 0;
++#define CHECK(cond)                                                            \
++  do {                                                                         \
++    checks++;                                                                  \
++    if (!(cond)) {                                                             \
++      failures++;                                                              \
++      std::fprintf(stderr, "FAIL %s:%d: %s\n", __FILE__, __LINE__, #cond);     \
++    }                                                                          \
++  } while (0)
++
++static std::vector<std::pair<const char *, void (*)()>> &tests() {
++  static std::vector<std::pair<const char *, void (*)()>> t;
++  return t;
++}
++#define TEST(name)                                                             \
++  static void test_##name();                                                   \
++  static const bool registered_##name =                                        \
++      (tests().push_back({#name, test_##name}), true);                         \
++  static void test_##name()
++
++namespace {
++
++struct Quad {
++  float x0, y0, x1, y1;
++  bool operator==(const Quad &o) const {
++    return x0 == o.x0 && y0 == o.y0 && x1 == o.x1 && y1 == o.y1;
++  }
++};
++std::vector<Quad> g_quads;
++
++void capture(void *, const float *v, const float *, const unsigned int *,
++             int n) {
++  for (int i = 0; i + 6 <= n; i += 6)
++    g_quads.push_back({v[i * 2], v[i * 2 + 1], v[i * 2 + 2], v[i * 2 + 3]});
++}
++
++struct Fonts {
++  Font ui, narrow, cjk, symbols;
++} F;
++FontManager *g_fm = nullptr;
++
++const Color kWhite{255, 255, 255, 255};
++const Color kRed{255, 0, 0, 255};
++const Color kBlue{0, 0, 255, 255};
++constexpr float kScales[] = {1.0f, 1.4f, 2.0f};
++
++std::string fixture(const char *name) {
++  return (std::filesystem::path(AFTERHOURS_TEST_FIXTURES) / name).string();
++}
++
++std::vector<Quad> draw(Font f, const std::string &s, float x, float y,
++                       float size) {
++  g_quads.clear();
++  draw_text_ex(f, s.c_str(), Vector2Type{x, y}, size, 1.f, kWhite);
++  return g_quads;
++}
++
++// fonsDrawText's own advance for what draw_text_ex hands it.
++float drawn_advance(Font f, const std::string &s, float size) {
++  std::string scratch;
++  const char *visible = font_detail::visible(f.id, s.c_str(), scratch);
++  fonsSetFont(md::g_fons_ctx, f.id);
++  fonsSetSize(md::g_fons_ctx, size);
++  fonsSetAlign(md::g_fons_ctx, FONS_ALIGN_LEFT | FONS_ALIGN_TOP);
++  const float end = fonsDrawText(md::g_fons_ctx, 0.f, 0.f, visible, nullptr);
++  g_quads.clear();
++  return end;
++}
++
++// Where draw_text_ex put a trailing '|' against where measurement says its
++// pen is: the advance of everything before it, as drawn versus as measured.
++bool sentinel_lands(Font f, const std::string &s, float size) {
++  const auto with = draw(f, s + "|", 0, 0, size);
++  const auto alone = draw(f, "|", 0, 0, size);
++  if (with.empty() || alone.empty())
++    return false;
++  const float drawn = with.back().x0 - alone[0].x0;
++  const float measured = measure_text(f, (s + "|").c_str(), size, 1).x -
++                         measure_text(f, "|", size, 1).x;
++  if (drawn != measured)
++    std::fprintf(stderr, "        '|' drawn at %.1f, measured %.1f\n", drawn,
++                 measured);
++  return drawn == measured;
++}
++
++size_t codepoints(const std::string &s) {
++  size_t n = 0;
++  for (unsigned char c : s)
++    n += (c & 0xC0) != 0x80;
++  return n;
++}
++
++void chain(std::vector<std::string> names) {
++  g_fm->set_fallbacks("ui", std::move(names));
++}
++
++StyledFonts metrics_at(float scale) {
++  return StyledFonts{*g_fm, "ui", colors::FontWeight::Regular, 16.f * scale,
++                     1.f};
++}
++
++// Each placed run drawn where the layout put it, quads in order.
++std::vector<Quad> draw_layout(const StyledLayout &layout) {
++  std::vector<Quad> all;
++  for (const auto &run : layout.runs) {
++    const auto q = draw(g_fm->get_font(run.font_name), run.text, run.rect.x,
++                        run.rect.y, run.font_size);
++    all.insert(all.end(), q.begin(), q.end());
++  }
++  return all;
++}
++
++} // namespace
++
++TEST(coverage_queries_answer_per_face_and_per_chain) {
++  chain({});
++  CHECK(font_has_glyph(F.ui, 'A'));
++  CHECK(!font_has_glyph(F.ui, 0x65E5)); // 日
++  CHECK(font_has_glyph(F.cjk, 0x65E5));
++  CHECK(!font_has_glyph(F.cjk, 0x1F600));
++  CHECK(g_fm->face_for("ui", 0x65E5).empty());
++  chain({"narrow", "cjk"});
++  CHECK(g_fm->face_for("ui", 'A') == "ui");
++  CHECK(g_fm->face_for("ui", 0x65E5) == "cjk");
++  CHECK(!g_fm->has_glyph("ui", 0x65E5)); // has_glyph stays per face
++  const auto missing = g_fm->missing_codepoints("ui", "a\xE6\x97\xA5\xF0\x9F\x98\x80");
++  CHECK(missing.size() == 1 && missing[0] == 0x1F600);
++  const auto listed = font_fallbacks(F.ui);
++  CHECK(listed.size() == 2 && listed[0].id == F.narrow.id &&
++        listed[1].id == F.cjk.id);
++}
++
++TEST(the_first_face_in_the_chain_that_has_a_glyph_draws_it) {
++  // A two-byte codepoint both fallbacks have at different widths, so the
++  // measurement says which one answered.
++  const auto utf8 = [](int c) {
++    return std::string{static_cast<char>(0xC0 | (c >> 6)),
++                       static_cast<char>(0x80 | (c & 63))};
++  };
++  int cp = 0;
++  for (int c = 0x80; c < 0x800 && !cp; c++)
++    if (!font_has_glyph(F.ui, c) && font_has_glyph(F.narrow, c) &&
++        font_has_glyph(F.cjk, c) &&
++        measure_text(F.narrow, utf8(c).c_str(), 32, 1).x !=
++            measure_text(F.cjk, utf8(c).c_str(), 32, 1).x)
++      cp = c;
++  CHECK(cp != 0);
++  if (!cp)
++    return;
++  const std::string s = utf8(cp);
++  fprintf(stderr, "        U+%04X: in both fallbacks, not the primary\n", cp);
++  chain({"narrow", "cjk"});
++  const float via_narrow = measure_text(F.ui, s.c_str(), 32, 1).x;
++  CHECK(via_narrow == measure_text(F.narrow, s.c_str(), 32, 1).x);
++  CHECK(draw(F.ui, s, 0, 0, 32)[0].x1 == draw(F.narrow, s, 0, 0, 32)[0].x1);
++  chain({"cjk", "narrow"}); // replaces, does not append
++  const float via_cjk = measure_text(F.ui, s.c_str(), 32, 1).x;
++  CHECK(via_cjk == measure_text(F.cjk, s.c_str(), 32, 1).x);
++  CHECK(via_cjk != via_narrow);
++  CHECK(draw(F.ui, s, 0, 0, 32)[0].x1 == draw(F.cjk, s, 0, 0, 32)[0].x1);
++}
++
++TEST(collection_faces_load_by_index) {
++  CHECK(F.cjk.id != FONS_INVALID);
++  const auto faces = system_fonts::cjk();
++  CHECK(!faces.empty());
++  if (faces.empty())
++    return;
++  CHECK(load_font_face(faces[0].path.c_str(), 999).id == FONS_INVALID);
++  std::vector<unsigned char> plain;
++  CHECK(font_coverage::read_file(fixture("ArchivoNarrow-Regular.ttf").c_str(),
++                                 plain));
++  CHECK(font_coverage::extract_face(plain, 0) == plain);
++  CHECK(font_coverage::extract_face(plain, 1).empty());
++}
++
++TEST(measurement_equals_the_drawn_advance_with_mixed_latin_and_cjk) {
++  chain({"narrow", "cjk"});
++  const std::string text = "Hello \xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E "
++                           "w\xC3\xB6rld \xE3\x81\xB2\xE3\x82\x89 AVA";
++  for (float scale : kScales) {
++    const float size = 16.f * scale;
++    const float measured = measure_text(F.ui, text.c_str(), size, 1).x;
++    CHECK(measured == drawn_advance(F.ui, text, size));
++    CHECK(sentinel_lands(F.ui, text, size));
++    const auto quads = draw(F.ui, text, 0, 0, size);
++    CHECK(quads.size() == codepoints(text)); // nothing dropped
++    // The CJK glyphs came from the fallback with ink, not as empty boxes.
++    int inked = 0;
++    for (size_t i : {6u, 7u, 8u, 16u, 17u})
++      inked += i < quads.size() && quads[i].x1 - quads[i].x0 > 6.f;
++    CHECK(inked == 5);
++    fprintf(stderr, "        scale %.1f: measured %.0f, drawn %.0f\n", scale,
++            measured, drawn_advance(F.ui, text, size));
++  }
++}
++
++TEST(uncovered_emoji_draw_one_visible_replacement_each) {
++  chain({"narrow", "cjk"}); // nothing here has U+FFFD
++  const auto w = [](const char *s) { return measure_text(F.ui, s, 24, 1).x; };
++  CHECK(w("a\xF0\x9F\x98\x80" "b") == w("a?b")); // 😀
++  // man ZWJ woman ZWJ girl: one replacement, not five glyphs.
++  CHECK(w("\xF0\x9F\x91\xA8\xE2\x80\x8D\xF0\x9F\x91\xA9\xE2\x80\x8D"
++          "\xF0\x9F\x91\xA7") == w("?"));
++  CHECK(w("\xF0\x9F\x87\xAF\xF0\x9F\x87\xB5") == w("?")); // flag JP
++  CHECK(w("x\xEF\xB8\x8F") == w("x"));                     // VS16 alone
++  const auto quads = draw(F.ui, "a\xF0\x9F\x98\x80" "b", 0, 0, 24);
++  CHECK(quads.size() == 3);
++  CHECK(quads.size() == 3 && quads[1].x1 - quads[1].x0 > 6.f); // visible
++  CHECK(w("a\xF0\x9F\x98\x80" "b") ==
++        drawn_advance(F.ui, "a\xF0\x9F\x98\x80" "b", 24));
++  // Drawn exactly as the replacement it was measured as.
++  CHECK(quads == draw(F.ui, "a?b", 0, 0, 24));
++  CHECK(sentinel_lands(F.ui, "a\xF0\x9F\x98\x80" "b", 24));
++
++  if (F.symbols.id == FONS_INVALID) {
++    fprintf(stderr, "        SKIP U+FFFD: no system symbols face\n");
++    return;
++  }
++  chain({"narrow", "cjk", "symbols"});
++  CHECK(w("a\xF0\x9F\x98\x80" "b") == w("a\xEF\xBF\xBD" "b"));
++  // ❤️ = U+2764 U+FE0F: the heart draws from the symbols face, the selector
++  // vanishes instead of drawing a box.
++  CHECK(w("\xE2\x9D\xA4\xEF\xB8\x8F") == w("\xE2\x9D\xA4"));
++  CHECK(draw(F.ui, "\xE2\x9D\xA4\xEF\xB8\x8F", 0, 0, 24).size() == 1);
++}
++
++namespace {
++const std::vector<TextSpan> &styled_runs() {
++  static const std::vector<TextSpan> runs{
++      TextSpan{"Total ", kWhite},
++      TextSpan{"\xE5\x90\x88\xE8\xA8\x88 ", kRed}, // 合計, fallback face
++      TextSpan{"AVA ", kBlue, colors::FontWeight::Regular, "narrow"},
++      TextSpan{"12\xE4\xBB\xB6 \xF0\x9F\x98\x80 ", kWhite,
++               colors::FontWeight::Regular, "", 1.5f}, // 12件 😀, larger
++      TextSpan{"done", kRed},
++  };
++  return runs;
++}
++} // namespace
++
++// Runs drawn one by one at the layout's x land every glyph exactly where one
++// call per same-style stretch puts it, and the layout's width is the drawn
++// advance.
++TEST(styled_runs_draw_where_one_call_would_at_three_scales) {
++  chain({"narrow", "cjk"});
++  for (float scale : kScales) {
++    const auto metrics = metrics_at(scale);
++    const auto layout = layout_styled_text(styled_runs(), metrics, 1e9f);
++    CHECK(layout.lines.size() == 1);
++    const auto per_run = draw_layout(layout);
++    std::vector<Quad> per_stretch;
++    float end = 0.f;
++    const auto &runs = layout.runs;
++    for (size_t i = 0; i < runs.size();) {
++      std::string joined;
++      size_t j = i;
++      while (j < runs.size() && runs[j].font_name == runs[i].font_name &&
++             runs[j].font_size == runs[i].font_size)
++        joined += runs[j++].text;
++      const Font f = g_fm->get_font(runs[i].font_name);
++      const auto q = draw(f, joined, runs[i].rect.x, runs[i].rect.y,
++                          runs[i].font_size);
++      per_stretch.insert(per_stretch.end(), q.begin(), q.end());
++      end = runs[i].rect.x + drawn_advance(f, joined, runs[i].font_size);
++      i = j;
++    }
++    CHECK(per_run == per_stretch);
++    CHECK(layout.width == end);
++    // One baseline for every run, whatever its face or size.
++    float base = runs[0].rect.y + metrics.baseline(styled_runs()[0]);
++    bool shared = true;
++    for (size_t i = 0; i < runs.size(); i++) {
++      TextSpan style;
++      style.font = runs[i].font_name == "narrow" ? "narrow" : "";
++      style.size_scale = runs[i].font_size / metrics.font_size;
++      shared = shared &&
++               std::abs(runs[i].rect.y + metrics.baseline(style) - base) <
++                   0.01f;
++    }
++    CHECK(shared);
++    fprintf(stderr, "        scale %.1f: %zu glyphs, width %.0f\n", scale,
++            per_run.size(), layout.width);
++  }
++}
++
++// A selection edge at byte k is glyph k's drawn origin: its quad minus its
++// own bearing (the quad it draws alone at x = 0).
++TEST(selection_edges_are_drawn_glyph_origins_at_three_scales) {
++  chain({"narrow", "cjk"});
++  for (float scale : kScales) {
++    const auto metrics = metrics_at(scale);
++    const auto layout = layout_styled_text(styled_runs(), metrics, 1e9f);
++    const auto quads = draw_layout(layout);
++    const std::string text = text_selection::line_text(layout.lines[0]);
++    size_t glyph = 0, mismatches = 0, checked = 0;
++    size_t run_index = 0, run_start = 0;
++    for (size_t k = 0; k < text.size(); glyph++) {
++      while (k >= run_start + layout.runs[run_index].text.size())
++        run_start += layout.runs[run_index++].text.size();
++      const auto &run = layout.runs[run_index];
++      const size_t len = utf8_char_length(text, k);
++      const auto rects = styled_selection_rects(
++          layout, text_selection::Range{k, k + len}, Vector2Type{0, 0},
++          metrics);
++      const auto alone = draw(g_fm->get_font(run.font_name),
++                              text.substr(k, len), 0, 0, run.font_size);
++      if (rects.size() != 1 || alone.size() != 1 || glyph >= quads.size()) {
++        mismatches++;
++      } else {
++        checked++;
++        if (rects[0].x != quads[glyph].x0 - alone[0].x0) {
++          mismatches++;
++          fprintf(stderr, "        byte %zu: selection %.2f, glyph %.2f\n", k,
++                  rects[0].x, quads[glyph].x0 - alone[0].x0);
++        }
++      }
++      k += len;
++    }
++    CHECK(checked == codepoints(text));
++    CHECK(mismatches == 0);
++  }
++}
++
++TEST(wrap_breaks_where_measurement_says_at_three_scales) {
++  chain({"narrow", "cjk"});
++  const std::vector<TextSpan> runs{TextSpan{
++      "Fallback \xE6\x96\x87\xE5\xAD\x97\xE3\x82\x82 measured "
++      "\xE6\x97\xA5\xE6\x9C\xAC\xE8\xAA\x9E\xE3\x81\xAE\xE6\x96\x87"
++      "\xE7\xAB\xA0\xE3\x80\x82 and drawn alike, wrapping cleanly",
++      kWhite}};
++  for (float scale : kScales) {
++    const auto metrics = metrics_at(scale);
++    const float width = 140.f * scale;
++    const auto layout = layout_styled_text(runs, metrics, width);
++    CHECK(layout.lines.size() > 2);
++    bool fits = true, maximal = true, drawn = true;
++    for (size_t i = 0; i < layout.lines.size(); i++) {
++      const auto &line = layout.lines[i];
++      const float w = uid::line_width(line, metrics);
++      const std::string t = text_selection::line_text(line);
++      fits = fits && w <= width;
++      drawn = drawn && w == drawn_advance(F.ui, t, metrics.font_size);
++      if (i + 1 < layout.lines.size()) {
++        // The next line's first piece would not have fit here.
++        const std::string next = text_selection::line_text(layout.lines[i + 1]);
++        size_t cut = next.find(' ');
++        size_t first = utf8_char_length(next, 0);
++        if (uid::breaks_around(font_coverage::decode_utf8(
++                reinterpret_cast<const unsigned char *>(next.c_str()), first)))
++          cut = first;
++        const std::string sep =
++            uid::breaks_around(font_coverage::decode_utf8(
++                reinterpret_cast<const unsigned char *>(next.c_str()), first))
++                ? ""
++                : " ";
++        const std::string grown = t + sep + next.substr(0, cut);
++        maximal = maximal && metrics(grown, runs[0]) > width;
++      }
++    }
++    CHECK(fits);
++    CHECK(maximal);
++    CHECK(drawn);
++    fprintf(stderr, "        scale %.1f: %zu lines at %.0f\n", scale,
++            layout.lines.size(), width);
++  }
++}
++
++TEST(ellipsis_cuts_where_measurement_says_at_three_scales) {
++  chain({"narrow", "cjk"});
++  for (float scale : kScales) {
++    const auto metrics = metrics_at(scale);
++    const float full = layout_styled_text(styled_runs(), metrics, 1e9f).width;
++    const float width = full * 0.6f;
++    const auto layout =
++        layout_styled_text(styled_runs(), metrics, 1e9f, width);
++    const auto &line = layout.lines[0];
++    const std::string t = text_selection::line_text(line);
++    CHECK(t.size() > 3 && t.substr(t.size() - 3) == "...");
++    CHECK(layout.width <= width);
++    // One more codepoint before the "..." would not fit.
++    const std::string source = text_selection::line_text(
++        layout_styled_text(styled_runs(), metrics, 1e9f).lines[0]);
++    const size_t kept = t.size() - 3;
++    const size_t more = kept + utf8_char_length(source, kept);
++    uid::TextRunLine longer;
++    size_t at = 0;
++    for (const auto &run : styled_runs()) {
++      if (at >= more)
++        break;
++      longer.push_back(uid::with_text(run, run.text.substr(0, more - at)));
++      at += run.text.size();
++    }
++    longer.back().text += "...";
++    CHECK(uid::line_width(longer, metrics) > width);
++    // And the cut line draws exactly as wide as it measured.
++    const auto quads = draw_layout(layout);
++    CHECK(quads.size() == codepoints(t));
++    const auto &last = layout.runs.back();
++    CHECK(last.rect.x + drawn_advance(g_fm->get_font(last.font_name),
++                                      last.text, last.font_size) ==
++          layout.width);
++  }
++}
++
++int main() {
++  md::g_headless = true; // dpi 1, no sokol_app
++  FONSparams params{};
++  params.width = params.height = 4096;
++  params.flags = FONS_ZERO_TOPLEFT;
++  params.renderDraw = capture;
++  md::g_fons_ctx = fonsCreateInternal(&params);
++  if (!md::g_fons_ctx)
++    return 2;
++
++  F.ui = load_font_from_file(fixture("AtkinsonHyperlegible-Regular.ttf").c_str());
++  F.narrow = load_font_from_file(fixture("ArchivoNarrow-Regular.ttf").c_str());
++  const auto cjk = system_fonts::cjk();
++  if (cjk.empty()) {
++    fprintf(stderr, "no system CJK face; this test needs one\n");
++    return 2;
++  }
++  fprintf(stderr, "CJK face: %s #%d\n", cjk[0].path.c_str(),
++          cjk[0].face_index);
++  F.cjk = load_font_face(cjk[0].path.c_str(), cjk[0].face_index);
++  const auto symbols = system_fonts::symbols();
++  F.symbols = symbols.empty()
++                  ? Font{}
++                  : load_font_face(symbols[0].path.c_str(),
++                                   symbols[0].face_index);
++
++  FontManager fm;
++  fm.load_font("ui", F.ui);
++  fm.load_font("narrow", F.narrow);
++  fm.load_font("cjk", F.cjk);
++  if (F.symbols.id != FONS_INVALID)
++    fm.load_font("symbols", F.symbols);
++  g_fm = &fm;
++  for (const auto &[name, fn] : tests()) {
++    const int before = failures;
++    fn();
++    std::fprintf(stderr, "%s %s\n", failures == before ? "PASS" : "FAIL", name);
++  }
++  std::fprintf(stderr, "text fallback: %d/%d checks passed\n",
++               checks - failures, checks);
++  return failures == 0 ? 0 : 1;
++}
+diff --git a/tests/text_memo_test.cpp b/tests/text_memo_test.cpp
+index 2528953..0a44aa5 100644
+--- a/tests/text_memo_test.cpp
++++ b/tests/text_memo_test.cpp
+@@ -59,8 +59,11 @@ TEST(font_reload_invalidates_cached_measurements) {
+ 
+ // Styled-run placement. Backend measurement charges per call (spacing and
+ // kerning live between characters), so a run must start where the JOINED
+-// line's measurement puts it, not at the sum of the runs before it. In a
+-// monospace block the accumulated version visibly breaks the columns.
++// line puts it, not at the sum of the runs before it. In a monospace block
++// the accumulated version visibly breaks the columns. "Where the joined line
++// puts it" is the pen a single draw call would use for the run's first
++// glyph: measure(prefix + that glyph) - measure(that glyph), which includes
++// the spacing into it (detail::line_x_at).
+ TEST(styled_runs_take_offsets_from_the_joined_line) {
+   for (bool batched : {false, true}) {
+     ui_test::ImmTestHarness h;
+@@ -88,12 +91,12 @@ TEST(styled_runs_take_offsets_from_the_joined_line) {
+     auto calls = h.drawn("text");
+     CHECK(calls.size() == 3);
+     if (calls.size() != 3) continue;
+-    // Joined prefixes at 10px/char + 6 per call: "bb" starts at
+-    // measure("aa") = 26, "cc" at measure("aabb") = 46 -- not the
+-    // accumulated 26 + measure("bb") = 52.
++    // 10px/char + 6 per call: "bb" starts at measure("aab") - measure("b")
++    // = 36 - 16 = 20, "cc" at measure("aabbc") - measure("c") = 56 - 16 =
++    // 40 -- not the accumulated 26 + measure("bb") = 52.
+     CHECK_APPROX(calls[0].rect.x, 40.f);
+-    CHECK_APPROX(calls[1].rect.x, 66.f);
+-    CHECK_APPROX(calls[2].rect.x, 86.f);
++    CHECK_APPROX(calls[1].rect.x, 60.f);
++    CHECK_APPROX(calls[2].rect.x, 80.f);
+   }
+ }
+ 
+diff --git a/vendor/fontstash/fontstash.h b/vendor/fontstash/fontstash.h
+index 07928bf..be267d3 100644
+--- a/vendor/fontstash/fontstash.h
++++ b/vendor/fontstash/fontstash.h
+@@ -111,6 +111,9 @@ FONS_DEF int fonsAddFont(FONScontext* s, const char* name, const char* path);
+ FONS_DEF int fonsAddFontMem(FONScontext* s, const char* name, unsigned char* data, int ndata, int freeData);
+ FONS_DEF int fonsGetFontByName(FONScontext* s, const char* name);
+ FONS_DEF int fonsAddFallbackFont(FONScontext* stash, int base, int fallback);
++// From upstream fontstash: drops base's fallbacks and the glyphs it cached
++// through them.
++FONS_DEF void fonsResetFallbackFont(FONScontext* stash, int base);
+ 
+ // State handling
+ FONS_DEF void fonsPushState(FONScontext* s);
+@@ -790,6 +793,16 @@ int fonsAddFallbackFont(FONScontext* stash, int base, int fallback)
+ 	return 0;
+ }
+ 
++void fonsResetFallbackFont(FONScontext* stash, int base)
++{
++	int i;
++	FONSfont* baseFont = stash->fonts[base];
++	baseFont->nfallbacks = 0;
++	baseFont->nglyphs = 0;
++	for (i = 0; i < FONS_HASH_LUT_SIZE; i++)
++		baseFont->lut[i] = -1;
++}
++
+ void fonsSetSize(FONScontext* stash, float size)
+ {
+ 	fons__getState(stash)->size = size;
+-- 
+2.50.1
+

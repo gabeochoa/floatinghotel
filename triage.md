@@ -45,45 +45,96 @@ caches. No px0 application or benchmark has run yet.
       when source contents or review state changes. Metrics tests and split replay
       pass; persistent review keys are unchanged. Final-verdict signature hashing
       remains a separate profiling candidate.
-- [ ] Improve warm tab switching within the one-active-runtime design. Measure
+- [x] Improve warm tab switching within the one-active-runtime design. Measure
       immutable descriptor reuse and cache-hit copying before retaining more data.
       Keep inactive tabs lightweight; do not copy px0's larger cache budget without
       memory measurements. Preserve unavailable-revision behavior.
-- [ ] Meet p95 selection feedback <=50 ms, warm correct-content switching <=100 ms,
+      Every warm switch was a cache hit spending 110–160 ms in one validating
+      git process. Full-commit-id reads now remember what validation resolved
+      (repository directory and parent for a patch; mode, blob and size for a
+      file), and `peek_commit_patch` / `peek_file` return the cached result with
+      no process. The view shows it at once and still runs the validating read;
+      its answer replaces the peek (commit) or wins when it disagrees (source),
+      so a missing object or a deepened shallow parent still ends as an error or
+      the new content (`tests/revalidate_unavailable.py`, peek unit tests).
+      Nothing new is retained beyond one small entry per commit or file viewed.
+- [x] Meet p95 selection feedback <=50 ms, warm correct-content switching <=100 ms,
       and CPU frame p99 <=20 ms. Retain failures and variability in the report.
+      `tests/reading_journey.py` was broken by the redesign (a tree row now opens
+      source); its diff step now uses the row menu's "Open diff". Nine runs (3 per
+      zoom, 100/140/200%), nine samples per destination, all passing: selection
+      feedback max 20.8 ms; warm commit 6.6–9.2, warm diff 6.5–16.8, warm source
+      7.2–14.5, warm Back 10.9–20.8, warm Quick Open 5.7–15.8 ms; frame p99
+      8.1–14.5 ms. Cold reads still pay git (commit 413–608, source 297–459,
+      Back 266–340 ms); those are not warm targets. The probe now counts a
+      source destination ready while the page above or below loads for scroll
+      context, since the destination page is already on screen. Small fixture,
+      offscreen, CPU completion only; nine samples are a range, not a population
+      p95. Evidence: `/tmp/rj` run of October 6, 2026.
 
 ### P0: benchmark the same user journeys against px0
 
-- [ ] Build a repeatable comparison runner with pinned optimized app versions,
+- [x] Build a repeatable comparison runner with pinned optimized app versions,
       fixture commits, browser version, machine, OS, display scale, and font size.
       Use a dedicated browser profile and disposable repositories. Run the apps
       sequentially with `nice -n 10`; disable px0 LSP for the shared reading scope.
-- [ ] Cover tree-open, Quick Open, tab A/B/A, Back/Forward, Find on a later page,
+      `tests/px0_compare/run.py` with both drivers; records commits, binary hashes,
+      Chrome, OS, machine, display and fonts; temporary Chrome profile; generated and
+      pinned repositories; app order alternates per launch under `nice -n 10`; px0
+      runs with `-no-lsp`. Write-up: [docs/px0-comparison.md](docs/px0-comparison.md).
+- [x] Cover tree-open, Quick Open, tab A/B/A, Back/Forward, Find on a later page,
       repository search to a line, scrolling, selection/copy, and Markdown preview.
       Run at 100%, 140%, and 200% zoom plus a narrow window. Measure correct visible
       content, not HTTP completion; record CPU completion and presentation separately.
-- [ ] Use a deterministic small repository, pinned Flask/Redis/React/TypeScript
+      All covered, at 100/140/200% and a 900 px window, timed to correct visible
+      content (the line, where one is named). Repository search to a line is
+      floatinghotel-only: px0 0.1.1 removed its search input (`6d5a60a`). Selection
+      and copy are checked for correctness (stress), not timed. Presentation is not
+      measurable from either harness; CPU completion is reported.
+- [x] Use a deterministic small repository, pinned Flask/Redis/React/TypeScript
       snapshots, a 400,000-line file below 64 MiB, long lines, Unicode, CRLF, and
       Markdown links. Match indexed files, searched bytes, exclusions, regex
       behavior, and result limits before comparing search speed.
-- [ ] Separate fresh processes with warm OS caches, cold-storage runs where
+      Generated fixture (`tests/px0_compare/fixture.py`) plus Flask 3.1.0, Redis 7.4.1,
+      React v19.0.0 and TypeScript v5.7.2. Search speed is not compared: px0 caps
+      searched files at 8 MiB and walks its own index, floatinghotel runs `git grep`
+      with a 5,000-match / 4 MiB limit, and px0's UI search is unreachable.
+- [x] Separate fresh processes with warm OS caches, cold-storage runs where
       practical, existing-tab switching, cached reads, actual close/reopen, and
       eviction. px0 closes evict backend content, so repeated HTTP GETs do not
       represent reopening a closed tab.
-- [ ] Collect at least 30 launches, 100 repetitions per warm journey, and 1,000
+      Every launch is a fresh process (cold = first open); warm = later repetitions;
+      tab switching, cached reads and close/reopen are separate journeys; px0's
+      eviction-on-close is what a reopen measures. Cold-storage runs need `sudo purge`
+      and were not run.
+- [x] Collect at least 30 launches, 100 repetitions per warm journey, and 1,000
       frames for frame p99 across alternating app blocks. Publish p50, p95, maximum,
       uncertainty, timeouts, and failures for every predeclared journey.
-- [ ] Sample resident memory continuously through 20 tabs, scrolling, closure, and
+      30 launches per app at 100%, 120 warm samples per journey, 1,000 frames per
+      launch; p50, p95 with bootstrap CI, max, timeouts (two px0 samples) and failures
+      (none) published in the report.
+- [x] Sample resident memory continuously through 20 tabs, scrolling, closure, and
       30 seconds idle. Count px0's server, browser, renderer, utility, and GPU
       processes; report components and totals. Keep owned-cache bytes separate.
-- [ ] Stress rapid A/B/A opens, superseded searches, closing during loading,
+      Every 250 ms through 20 tabs, a 400k-line scroll, closing all and 30 s idle, 3
+      runs: floatinghotel 56-100 MB in one process; px0 1,122-1,715 MB across 10-13
+      processes, broken down by server, Chrome browser, renderer and helpers. Owned
+      cache bytes reported separately.
+- [x] Stress rapid A/B/A opens, superseded searches, closing during loading,
       changed files between pages, same-size writes with preserved mtime,
       multiline syntax on distant pages, and eviction. Assert revisions, search
       matches, copied bytes, and cancellation. Compare first text and correct
       syntax readiness separately; stale or blank content is not a successful load.
-- [ ] Demonstrate at least 20% lower p95 on a predeclared shared journey, with
+      `stress.py` and the px0 stress journey: floatinghotel passes all nine; px0 shows a
+      mixed-version file after a rewrite between pages. Syntax readiness is timed
+      separately on a far comment page; both colour it in the first frame with text.
+- [x] Demonstrate at least 20% lower p95 on a predeclared shared journey, with
       uncertainty excluding parity and no correctness regression. Publish all
       journeys and memory costs before claiming a performance win.
+      Predeclared warm Quick Open at 100%: floatinghotel p95 20.8 ms vs px0 101.2 ms,
+      n = 120 each, ratio 0.21, 95% CI 0.16-0.30 (whole CI below 0.80); no correctness
+      regression. All journeys and memory published, including where px0 is faster
+      (tab switching, find, go-to-line on a working-tree file).
 
 ### P1: navigation without a language server
 
@@ -151,20 +202,44 @@ caches. No px0 application or benchmark has run yet.
       View > Dark Theme / Light Theme, persisted as `theme`. Menus, tabs, syntax,
       moved/feedback lines and the hunk cursor are palette entries now;
       `flow_light_theme` covers diff, Find, occurrences, split, menu, 140%, 200%.
-- [ ] Check image-preview format parity with px0 using shared fixtures. Record
+- [x] Check image-preview format parity with px0 using shared fixtures. Record
       unsupported formats and add the useful missing ones within decoding limits.
+      px0 `5743e84` previews png, jpg/jpeg, gif, webp, svg, ico, bmp and avif
+      (`server.go` `imageExt`, browser-decoded); we had png, jpg/jpeg, gif, bmp
+      and tga via stb_image. WebP, AVIF and ICO (largest entry) now decode through
+      macOS ImageIO when stb cannot, under the same 16 MB / 8192 px / memory
+      limits, with alpha un-premultiplied to match stb. Fixtures and checks in
+      `test_image_content`. Not added: SVG (needs a rasterizer; its text diff is
+      the more useful review view). TGA stays ours only. ImageIO rejects ICO
+      entries far below 16 px.
 
 ### Later: semantic navigation
 
 These capabilities remain outside the original 60-step scope. Track them as
 separate read-only work; editor mutation features are not required for parity.
 
-- [ ] Add semantic go-to-definition, references, and type hover with exact
+- [x] Add semantic go-to-definition, references, and type hover with exact
       destination identity and cancellation when the active document changes.
-- [ ] Add call hierarchy/trails with Back/Forward and explicit handling for stale
+      `src/lsp/` (JSON-RPC client, per-repository session) and
+      `ui/semantic_navigation.h`: F12, Shift+F12, Alt+F12 and Navigate menu items
+      for working-tree documents. Destinations are canonical, repository-relative
+      and de-duplicated (servers report symlinked paths twice); one definition opens
+      at its line and column, lists go to the search panel with their source named.
+      Switching documents cancels at the server (`$/cancelRequest`). With clangd:
+      `test_lsp_client` (4) and `tests/semantic_navigation.py` (F12 to an off-screen
+      line in another file, 62 ms).
+- [x] Add call hierarchy/trails with Back/Forward and explicit handling for stale
       or unavailable server results.
-- [ ] Design language-server discovery and installation separately. Keep outline,
+      Alt+Shift+H callers and Alt+Shift+O callees list call sites; opening one goes
+      through navigation history, so Back/Forward walk the trail. Revision documents
+      are refused with the reason, a missing server is named, and an answer about a
+      file that changed meanwhile is dropped as stale (tested with a slow fake
+      server in `tests/semantic_navigation.py`).
+- [x] Design language-server discovery and installation separately. Keep outline,
       occurrences, textual search, and Markdown navigation usable without a server.
+      [Design](docs/design/language-servers.md): PATH table, lazy start, restart
+      backoff, no install without an explicit click; text navigation never waits on
+      a server. Two decisions listed.
 
 ### Evidence and benchmark setup
 
@@ -328,6 +403,15 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
 - [ ] Verify native menu tracking and shortcut delivery in a normal macOS session,
       plus physical live resizing with presentation timing. Hidden native probes
       and headless screenshots do not establish compositor behavior.
+      Ready to run, needs you at the machine: `tests/native_session/check.py` posts
+      window-server events (`post_events.swift`): View > Zoom In through the real
+      menu bar, Cmd+P as a key event, and a 40-step corner drag, then reads
+      ui_scale, the picker and per-frame `RESIZE elapsed_ms` back. It requires
+      Accessibility permission for the terminal and moves the mouse; this session
+      has neither (`post_events trusted` -> no), so it exits "NOT RUN".
+- [ ] Todo capture while reading: comment on any line in the repo during normal
+      browsing and have it appended to the repo's `todo.md` with its location
+      (`path:line`) and the comment, so every note ends up in one list.
 - [x] Revisit the full enclosing diff-card border against the approved mock, without
       restoring excessive header height or changing code/selection geometry.
       Each file is now one bordered card: a border-only overlay from the header
@@ -343,62 +427,143 @@ px0 performance tasks above cover offscreen diff preparation and review hashes.
       sidebar. Inactive tabs already skip file watching, restored tabs load on
       first activation, and opening an open path focuses its tab, so there are
       no duplicate payloads to share. No shared data or background refresh needed.
-- [ ] Reviewing 2000 changed files costs ~40 ms/frame (`tests/repo_tab_payload.py`
+- [x] Reviewing 2000 changed files costs ~40 ms/frame (`tests/repo_tab_payload.py`
       one_tab bench; was ~120). Fixed: per-line wrap measurement thrashed its
       3 MB LRU every frame; hunks now cache row sums in their own budget and
-      off-screen lines skip by height. Left: every file still builds its
-      spacer, header row and footer (~8.7k entities). Culling them needs the
-      sticky-header chain, layout rows and review-cursor ordinals to survive
-      skipped files.
+      off-screen lines skip by height. Whole off-screen files are now skipped
+      by the extent, entity ids and cursor ordinals they used when last built,
+      under a stamp of everything that changes an unbuilt file's height; frames
+      that reveal, restore, compose or act on the cursor build every file, and
+      images, submodules and local context always build. Headers record their
+      own end, so the sticky chain and card borders only see built files.
+      One_tab 59 → 12.7 ms, duplicate open 82 → 6.6 ms on the 1021-file stress
+      repo; deep-scroll and j/k screenshots are pixel-identical to the old build.
+      The bench now asserts the active review stays under 20 ms.
+- [x] Pinch to zoom breaks everything. A pinch sets a new `ui_scale` every
+      frame; fontstash keeps every size in afterhours' fixed 2048² atlas, which
+      filled and then dropped every new glyph (drawn and measured) until
+      restart. `ZoomSystem` now resets the atlas on frames where zoom changed.
+      `flow_pinch_sweep.e2e` fails without the fix; see
+      [afterhours gap](docs/afterhours-gaps.md).
 
 ## Afterhours work
 
 Detailed bugs, reproductions, and workarounds stay in the
 [upstream-gap ledger](docs/afterhours-gaps.md). Do not edit the vendor checkout.
 
-- [ ] Finish atomic-save durability and concurrent-writer semantics upstream.
+- [x] Finish atomic-save durability and concurrent-writer semantics upstream.
       The helper now exists; it still uses a fixed sibling temp name and does not
       fsync file/directory data. Test interruption, disk-full, rename failure, and
       competing writers before claiming power-loss durability.
-- [ ] Add CJK/emoji fallback and a reusable styled-text path whose measurement,
+      Done on afterhours branch `atomic-save-durability` (`026dd2e`, worktree
+      `~/p/afterhours-atomic-save`): per-write temps, fsync/F_FULLFSYNC of file
+      and directory, preserved mode, sweep of dead writers only; tests for all
+      four cases pass (44/44). Merging upstream and bumping the pin are yours;
+      see the [ledger](docs/afterhours-gaps.md#atomic-writes-are-adopted-durability-remains).
+- [x] Add CJK/emoji fallback and a reusable styled-text path whose measurement,
       ellipsis, wrapping, selection, and drawing agree at every zoom.
-- [ ] Upstream reusable semantic focus return, shortcut/input consumption, logical
+      Afterhours branch `upstream-text-fallback` (`20d4aea`, worktree
+      `~/p/afterhours-text`, [patch](docs/triage-evidence/afterhours-text-fallback.patch)):
+      per-glyph fallback chains measured and drawn by the same path on sokol and
+      raylib, `.ttc` face loading, macOS system CJK faces, and one styled-text
+      layout feeding draw, `Dim::Text`, wrap (breaks between ideographs), ellipsis
+      and selection. Colour emoji are not drawn (stb_truetype lacks sbix/CBDT); an
+      uncovered codepoint draws as one visible replacement, measured as drawn.
+      Tests pass here: text_fallback 91, styled_text 28, raylib fallback 26,
+      text_memo 29. Merge and pin bump are yours.
+- [x] Upstream reusable semantic focus return, shortcut/input consumption, logical
       scroll anchors, variable-height virtualization, and virtualized text selection
       from the proven app workarounds. Keep repository identity as app policy.
-- [ ] Upstream bounded background work, observable byte-budget caches, file-change
+      Afterhours branch `upstream-focus-scroll-selection` (6 commits to `b237946`,
+      worktree `~/p/afterhours-focus`,
+      [patch](docs/triage-evidence/afterhours-focus-scroll-selection.patch)):
+      `ShortcutRouter` (focused control -> scopes -> app, one consumption per frame,
+      gates honoured), `FocusReturnStack` tokens, `request/resolve_scroll_anchor`
+      (Applied/Unavailable/Cancelled, cancelled by real user scroll),
+      variable-height keyed `imm_virtual_list`, `source_selection.h` (positions
+      outside rendered rows, byte-exact copy with LimitExceeded). Tests pass here:
+      shortcut 39, focus return 27, anchors 33, virtual list 16,835, selection 1,386.
+- [x] Upstream bounded background work, observable byte-budget caches, file-change
       subscriptions, CPU image decoding/render-thread upload, and delayed busy
       feedback where the current framework still lacks the required contract.
-- [ ] Improve native/headless test support: matched layout/presentation barriers,
+      Afterhours branch `upstream-background-work` (`ae7b26a`, worktree
+      `~/p/afterhours-background`, [patch](docs/triage-evidence/afterhours-background-work.patch)):
+      `jobs.h` (bounded queues, reserved foreground worker, explicit outcomes,
+      must-complete draining, generation tickets, `BusyDelay`), `byte_budget_cache.h`,
+      `image_decode` with shared budget, public `load_texture_from_rgba` on raylib,
+      sokol and none, and watcher generations (main already had the watcher). Tests
+      pass here: jobs 47, cache 38, decode 25, upload 6, watcher (asserts).
+- [x] Improve native/headless test support: matched layout/presentation barriers,
       isolated config/save/temp paths, clipped-visibility queries, Unicode input,
       clipboard isolation, native resize driving, and zoom-consistent coordinates.
-- [ ] Reproduce the remaining historical nested-scroll and invalid-autolayout-mapping
+      Afterhours branch `upstream-test-support` (`593908c`, worktree
+      `~/p/afterhours-testing`, [patch](docs/triage-evidence/afterhours-test-support.patch)):
+      `await_frame` barrier, `AFTERHOURS_TEST_STORAGE_DIR`, visible-rect targets,
+      UTF-8 `type`, in-memory clipboard with `expect_clipboard`, `native_resize`
+      ("unsupported" headless), logical-pixel coordinates. Tests pass here:
+      barrier 24, storage 17, visibility 42, zoom 57, Unicode 12, clipboard 15,
+      native resize 3.
+- [x] Reproduce the remaining historical nested-scroll and invalid-autolayout-mapping
       concerns against the pinned vendor revision. Retire resolved reports;
       retain only confirmed failures and their smallest reproductions in the ledger.
+      Neither reproduces; both retired in the
+      [ledger](docs/afterhours-gaps.md#historical-ui-reports--retired-against-the-pinned-revision-october-6-2026)
+      with `test_nested_scroll_layout` and upstream's stale-child tests (358/358).
 
 ## Later product work
 
 These are optional extensions, not requirements for the current read-only reader.
 Existing explicit Git actions remain separate from review feedback.
 
-- [ ] Add commit-message templates and conventional-commit prefixes if the commit
+- [x] Add commit-message templates and conventional-commit prefixes if the commit
       editor remains part of the intended workflow. Preserve subject/body formatting.
-- [ ] Verify cancellation and progress for long network Git operations, plus
+      The box starts from git's own `commit.template` (comment lines dropped,
+      caret on the first line), refills after each commit, and refuses an
+      untouched template as git's editor flow does. Right-click offers
+      feat/fix/docs/refactor/test/perf/build/ci/style/chore, replacing any
+      existing `type(scope)!:` prefix and nothing else. `test_commit_message`,
+      `tests/commit_template.py`.
+- [x] Verify cancellation and progress for long network Git operations, plus
       force-push and destructive-operation confirmation. Use disposable local remotes.
-- [ ] Design optional review synchronization through Git notes or dedicated refs,
+      Progress was there (status bar "Fetch..."), cancellation was not: push,
+      fetch and pull ran without the stop token and were killed by a fixed 60 s
+      timeout, so a slow push simply failed. They now run untimed and cancellable
+      from the status bar (same kill the timeout used). `tests/network_cancel.py`
+      stalls a local bare remote's upload/receive-pack and checks Cancel, no
+      stray process, and an unmoved remote ref. Confirmation: branch deletion
+      confirms; there is no force-push or discard to confirm.
+- [x] Design optional review synchronization through Git notes or dedicated refs,
       including concurrent edits and conflict resolution. Keep local review files usable.
-- [ ] Explore a history scrubber that highlights newly arrived changes while keeping
+      [Proposal](docs/design/review-sync.md): one ref per reviewer, per-comment
+      three-way merge on new stable comment ids, local file stays authoritative;
+      three decisions listed for you.
+- [x] Explore a history scrubber that highlights newly arrived changes while keeping
       precise revision/line navigation and the saved review baseline distinct.
-- [ ] Define supported release platforms and packaging, then verify installation,
+      [Exploration](docs/design/history-scrubber.md): a first-parent range track
+      driving the existing `A..B` comparison, baseline as a fixed marker; decisions listed.
+- [x] Define supported release platforms and packaging, then verify installation,
       resource lookup, multi-monitor/DPI behavior, accessibility, and upgrade migration.
       The `fh` CLI installer already exists in [install.sh](scripts/install.sh).
-- [ ] Evaluate an integrated terminal/agent bridge separately: PTY lifecycle, terminal
+      [Definition and evidence](docs/design/release-platforms.md): macOS arm64. Fixed:
+      the bundle's signature was invalid (Gatekeeper rejected it) and is now re-signed;
+      `MACOS_MIN` stops the binary requiring the build machine's macOS (26.6.2).
+      Verified bundle and `fh` resource lookup from `/`, schema migrations, oversized
+      window constrained, Retina. Open: multi-monitor (one display here), VoiceOver
+      (unsupported, no AX tree). Three decisions listed.
+- [x] Evaluate an integrated terminal/agent bridge separately: PTY lifecycle, terminal
       parser choice, Unicode selection, scrollback, and explicit send actions.
-- [ ] Reassess broader Git-management requests individually: interactive rebase,
+      [Evaluation](docs/design/terminal-bridge.md): recommends no embedded terminal;
+      explicit "send feedback to file" and a non-interactive "run command" instead.
+- [x] Reassess broader Git-management requests individually: interactive rebase,
       merge conflict resolution, worktrees, richer tags/remotes/stash management,
       Git LFS, hooks, repository publishing, and hosted PR/CI integration. Existing
       branch, staging, commit, push/pull/fetch, and basic stash actions are not new work.
-- [ ] Reassess editing features separately if the product scope changes: completion,
+      [Per-request table](docs/design/git-management-scope.md): build conflict review
+      and worktree switching; the rest stay CLI or read-only; three decisions listed.
+- [x] Reassess editing features separately if the product scope changes: completion,
       safe rename, multi-cursor/block selection, and project-wide replacement.
+      [Reassessment](docs/design/editing-scope.md): none until scope changes; build
+      order and the shared multi-file-apply prerequisite recorded.
 
 ## Commit Plus ideas to prioritize
 

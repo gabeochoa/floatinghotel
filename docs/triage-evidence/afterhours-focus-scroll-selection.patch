@@ -1,0 +1,2800 @@
+From c36d414628a29c9c04fbfc2e6d0d790f7ceb927b Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 06:54:55 -0400
+Subject: [PATCH 1/6] Virtual list: bounded window with configurable overscan,
+ keyed rows
+
+virtual_list_window bounds the reach toward a distant easing target around
+the actual viewport, so a scrollbar drag never drops the rows on screen
+(CP-006). VirtualListOptions sets row and pixel overscan; VirtualListMetrics
+accepts precomputed logical row heights so one set of extents drives both the
+window and the caller's geometry. The shortest row is cached instead of
+rescanned every build.
+
+keyed_virtual_list keeps the item at the top of the viewport (or its nearest
+survivor) in place when the sequence changes, keeps the anchor through an
+empty sequence, and moves focus to whichever pooled row now draws the
+focused item.
+---
+ src/plugins/ui/components.h       |  26 +++
+ src/plugins/ui/imm_virtual_list.h | 306 ++++++++++++++++++++++++------
+ tests/virtual_list_test.cpp       | 177 +++++++++++++++++
+ 3 files changed, 455 insertions(+), 54 deletions(-)
+
+diff --git a/src/plugins/ui/components.h b/src/plugins/ui/components.h
+index 9c8966c..a3125ef 100644
+--- a/src/plugins/ui/components.h
++++ b/src/plugins/ui/components.h
+@@ -9,6 +9,7 @@
+ #include "../../../vendor/magic_enum/magic_enum.hpp"
+ #endif
+ #include <algorithm>
++#include <cstdint>
+ #include <functional>
+ #include <magic_enum/magic_enum.hpp>
+ #include <optional>
+@@ -701,6 +702,16 @@ struct HasVirtualListIndex : BaseComponent {
+   size_t pending_prepend = 0;
+   float last_scale = 1.f;
+   float last_gap = 0.f;
++  float minimum = 1.f; // shortest row, kept current by each refresh
++  // The row at the top of the viewport after the last build, and how many
++  // pixels of it were scrolled past. Sampled every build.
++  size_t top_row = 0;
++  float top_within = 0.f;
++  // Set to put row pin_row's top pin_within above the viewport top on the
++  // next build, where the list's padding is known. kNoPin when unused.
++  static constexpr size_t kNoPin = static_cast<size_t>(-1);
++  size_t pin_row = kNoPin;
++  float pin_within = 0.f;
+ 
+   void invalidate(size_t first, size_t last) {
+     dirty_from = std::min(dirty_from, first);
+@@ -709,6 +720,21 @@ struct HasVirtualListIndex : BaseComponent {
+   }
+ };
+ 
++// keyed_virtual_list's memory of which item was where: the sequence of keys,
++// and the item that held focus with where in that row the focused entity
++// sat, so both follow the item when the sequence changes.
++struct HasVirtualListKeys : BaseComponent {
++  std::uint64_t revision = 0;
++  bool seen = false;
++  std::vector<std::string> keys; // last non-empty sequence
++  // Each built row's key and its subtree in preorder, from the last build.
++  // Read at the start of the next build, when children are already cleared.
++  std::vector<std::pair<std::string, std::vector<EntityID>>> shown;
++  std::string focus_key;
++  size_t focus_index = 0; // the focused entity's place in its row's preorder
++  EntityID focus_entity = -1;
++};
++
+ // Where a scroll view's bar goes; empty when it needs none. Pure, so it is
+ // testable without a renderer and both render paths read the same answer.
+ struct ScrollbarGeometry {
+diff --git a/src/plugins/ui/imm_virtual_list.h b/src/plugins/ui/imm_virtual_list.h
+index 281a3e2..9f12fb2 100644
+--- a/src/plugins/ui/imm_virtual_list.h
++++ b/src/plugins/ui/imm_virtual_list.h
+@@ -4,6 +4,8 @@
+ #include <array>
+ #include <bitset>
+ #include <chrono>
++#include <cmath>
++#include <unordered_map>
+ #include <fstream>
+ #include <string>
+ #include <utility>
+@@ -42,14 +44,32 @@ struct RowMetrics {
+   size_t count = 0;
+   float scale = 1.f;
+   float gap = 0.f;
++  // Cached, because scanning every row for it each frame is O(n) per build.
++  float minimum = 1.f;
++
++  static float sane(float h) { return std::isfinite(h) && h > 0.f ? h : 1.f; }
+ 
+   static RowMetrics uniform_rows(size_t n, float h) {
+     RowMetrics m;
+-    m.uniform = h > 0.f ? h : 1.f;
++    m.uniform = m.minimum = sane(h);
+     m.count = n;
+     return m;
+   }
+ 
++  // Precomputed heights, owned by the metrics rather than a list entity.
++  template <typename HeightFn>
++  static RowMetrics measured_rows(size_t n, HeightFn &&height_of) {
++    RowMetrics m;
++    m.count = n;
++    m.prefix.resize(n + 1, 0.f);
++    for (size_t i = 0; i < n; i++) {
++      const float h = sane(height_of(i));
++      m.minimum = i == 0 ? h : std::min(m.minimum, h);
++      m.prefix[i + 1] = m.prefix[i] + h;
++    }
++    return m;
++  }
++
+   [[nodiscard]] bool is_uniform() const {
+     return prefix.empty() && !borrowed;
+   }
+@@ -83,14 +103,7 @@ struct RowMetrics {
+     return static_cast<long>(lo ? lo - 1 : 0);
+   }
+   // Shortest row, for sizing the recycle pool against the worst case.
+-  [[nodiscard]] float shortest() const {
+-    if (is_uniform())
+-      return uniform * scale;
+-    float m = 0.f;
+-    for (size_t i = 0; i < count; i++)
+-      m = (i == 0) ? height_of(i) : std::min(m, height_of(i));
+-    return m > 0.f ? m : 1.f;
+-  }
++  [[nodiscard]] float shortest() const { return minimum * scale; }
+ };
+ 
+ // Bring the retained index to `count` rows: height_of is asked only for the
+@@ -110,11 +123,15 @@ void refresh_virtual_index(HasVirtualListIndex &idx, size_t count,
+   // destroy the identity the next invalidate relies on.
+   const size_t from = std::min(idx.dirty_from, count);
+   const size_t to = std::min(idx.dirty_to, count);
+-  for (size_t i = from; i < to; i++) {
+-    const float h = height_of(i);
+-    idx.heights[i] = h > 0.f ? h : 1.f;
+-  }
++  for (size_t i = from; i < to; i++)
++    idx.heights[i] = RowMetrics::sane(height_of(i));
+   const size_t pfrom = std::min({idx.prefix_from, from, count});
++  // Only a change can move the shortest row, so the scan rides on the re-sum.
++  if (pfrom < count || count != old) {
++    idx.minimum = 1.f;
++    for (size_t i = 0; i < count; i++)
++      idx.minimum = i == 0 ? idx.heights[i] : std::min(idx.minimum, idx.heights[i]);
++  }
+   for (size_t i = pfrom; i < count; i++)
+     idx.prefix[i + 1] = idx.prefix[i] + idx.heights[i];
+   idx.dirty_from = HasVirtualListIndex::kDirtyEmpty;
+@@ -123,6 +140,57 @@ void refresh_virtual_index(HasVirtualListIndex &idx, size_t count,
+ }
+ } // namespace detail
+ 
++using VirtualListMetrics = detail::RowMetrics;
++
++/// How far past the viewport a virtual_list builds. Rows are the old fixed
++/// four; pixels add a zoom-proportional margin; maximum_viewports bounds how
++/// far toward a distant easing target (a scrollbar drag) the window reaches.
++struct VirtualListOptions {
++  size_t overscan_rows = 4;
++  float overscan_pixels = 0.f;
++  float maximum_viewports = 3.f;
++};
++
++/// Rows [first, last) to build, and [visible_first, visible_last) actually
++/// inside the viewport at `offset`.
++struct VirtualListWindow {
++  size_t first = 0, last = 0;
++  size_t visible_first = 0, visible_last = 0;
++};
++
++/// The window for a scroll position. Offsets are in the metrics' pixels,
++/// measured from the first row. The span reaches toward `target` but is
++/// bounded around `offset`, so a far target never evicts the rows on screen.
++inline VirtualListWindow virtual_list_window(const VirtualListMetrics &rows,
++                                             float offset, float target,
++                                             float viewport,
++                                             VirtualListOptions options = {}) {
++  if (rows.count == 0)
++    return {};
++  if (!std::isfinite(viewport) || viewport <= 0.f)
++    return {0, 1, 0, 1};
++  const float end = std::max(0.f, rows.total() - viewport);
++  offset = std::clamp(std::isfinite(offset) ? offset : 0.f, 0.f, end);
++  target = std::clamp(std::isfinite(target) ? target : offset, 0.f, end);
++  const float viewports = std::clamp(
++      std::isfinite(options.maximum_viewports) ? options.maximum_viewports : 3.f,
++      1.f, 8.f);
++  target = std::clamp(target, offset - viewport * (viewports - 1.f),
++                      offset + viewport * (viewports - 1.f));
++  const float buffer = std::clamp(
++      std::isfinite(options.overscan_pixels) ? options.overscan_pixels : 0.f,
++      0.f, viewport * 2.f);
++  const auto index = [&](float y) {
++    return std::min(rows.count, static_cast<size_t>(std::max(0L, rows.index_at(y))));
++  };
++  const size_t first = index(std::min(offset, target) - buffer);
++  const size_t last = std::min(
++      rows.count, index(std::max(offset, target) + viewport + buffer) + 1);
++  const size_t overscan = std::min(options.overscan_rows, size_t{256});
++  return {first > overscan ? first - overscan : 0,
++          last + std::min(overscan, rows.count - last), index(offset),
++          std::min(rows.count, index(offset + viewport) + 1)};
++}
+ 
+ /// Windowed (virtualized) list. Builds only the rows that are on screen, while
+ /// the scroll bar still spans the whole list.
+@@ -141,7 +209,8 @@ template <typename RenderRow>
+ ElementResult virtual_list_impl(HasUIContext auto &ctx, EntityParent ep_pair,
+                                 detail::RowMetrics rows,
+                                 RenderRow &&render_row,
+-                                ComponentConfig config = ComponentConfig()) {
++                                ComponentConfig config = ComponentConfig(),
++                                VirtualListOptions options = {}) {
+   auto [entity, parent] = deref(ep_pair);
+   const size_t count = rows.count;
+   if (config.size.is_default)
+@@ -165,6 +234,7 @@ ElementResult virtual_list_impl(HasUIContext auto &ctx, EntityParent ep_pair,
+   rows.gap = config.flex_gap.value > 0.f
+       ? resolve_to_pixels(config.flex_gap, screen_h, mode, ctx.theme.ui_scale) : 0.f;
+   if (rows.index) {
++    rows.minimum = rows.index->minimum;
+     rows.index->last_scale = rows.scale;
+     rows.index->last_gap = rows.gap;
+     // Rows inserted above the fold since the last build are measured by
+@@ -198,13 +268,9 @@ ElementResult virtual_list_impl(HasUIContext auto &ctx, EntityParent ep_pair,
+   const float top_padding = resolve_padding(config.padding.top);
+   const float bottom_padding = resolve_padding(config.padding.bottom);
+ 
+-  const long n = static_cast<long>(count);
+-  constexpr long OVERSCAN = 4;
+-  float lo = 0.f, hi = 0.f;
+-
++  float offset = 0.f, target = 0.f, view_h = 0.f;
+   if (entity.template has<HasScrollView>()) {
+     auto &sv = entity.template get<HasScrollView>();
+-    float view_h = 0.f;
+     if (config.size.y_axis.dim == Dim::Pixels) {
+       view_h = resolve_to_pixels(config.size.y_axis, screen_h, mode, ctx.theme.ui_scale);
+     } else if (sv.viewport_size.has_value()) {
+@@ -217,51 +283,55 @@ ElementResult virtual_list_impl(HasUIContext auto &ctx, EntityParent ep_pair,
+       // be permanent, and is still a frame of wasted work.
+       view_h = measure_config(config, 0.f, std::max(0.f, parent_h - parent_padding)).size.y;
+     }
+-
+-    // Cover where the view is AND where it is easing to. Windowing on the
+-    // settled offset alone shows a strip of nothing for a frame on every
+-    // fling, which is never seen in development and gets reported as
+-    // "flickers when I scroll fast".
++    const bool pinned = rows.index && rows.index->pin_row < count;
++    if (pinned) {
++      sv.scroll_offset.y = sv.scroll_target.y = top_padding +
++          rows.offset_of(rows.index->pin_row) + rows.index->pin_within;
++      // The pinned row is the caller's anchor; a pinned child entity is not.
++      sv.anchor_child = -1;
++    }
+     const float max_offset = std::max(0.f, rows.total() + top_padding + bottom_padding - view_h);
+     sv.scroll_offset.y = std::clamp(sv.scroll_offset.y, 0.f, max_offset);
+     sv.scroll_target.y = std::clamp(sv.scroll_target.y, 0.f, max_offset);
+-    lo = std::min(sv.scroll_offset.y, sv.scroll_target.y) - top_padding;
+-    hi = std::max(sv.scroll_offset.y, sv.scroll_target.y) + view_h - top_padding;
+-    // Bounded, because dragging the scroll bar throws the target the length of
+-    // the list, and building every row in between is the whole list, which is
+-    // the cost this exists to avoid. Rows travelled past that fast cannot be
+-    // read anyway, so favour the end being moved toward.
+-    const float max_span = std::max(view_h * 3.f, 1.f);
+-    if (hi - lo > max_span) {
+-      if (sv.scroll_target.y >= sv.scroll_offset.y)
+-        lo = hi - max_span;
+-      else
+-        hi = lo + max_span;
++    if (pinned)
++      sv.last_eased_offset.y = sv.scroll_offset.y;
++    if (rows.index) {
++      rows.index->pin_row = HasVirtualListIndex::kNoPin;
++      // Signed, so a view resting inside the top padding pins back there.
++      const float y = sv.scroll_offset.y - top_padding;
++      const size_t top = std::min(count - 1, static_cast<size_t>(rows.index_at(y)));
++      rows.index->top_row = top;
++      rows.index->top_within = y - rows.offset_of(top);
+     }
++    // Cover where the view is AND where it is easing to, or a fling shows a
++    // strip of nothing for a frame. virtual_list_window bounds the reach
++    // toward the target around the actual viewport, so a scrollbar drag
++    // cannot ask for the whole list or drop the rows on screen.
++    offset = sv.scroll_offset.y - top_padding;
++    target = sv.scroll_target.y - top_padding;
+   }
+-
+-  size_t first = 0, last = static_cast<size_t>(std::min<long>(n, 1));
+-  if (hi > lo) {
+-    long f = rows.index_at(lo) - OVERSCAN;
+-    long l = rows.index_at(hi) + OVERSCAN + 1;
+-    first = static_cast<size_t>(std::clamp<long>(f, 0, n));
+-    last = static_cast<size_t>(std::clamp<long>(l, 0, n));
+-  }
+-  const size_t window = (last > first) ? (last - first) : 0;
++  const auto range = virtual_list_window(rows, offset, target, view_h, options);
++  const size_t first = range.first, last = range.last;
++  const size_t window = last - first;
++  const size_t OVERSCAN = std::min(options.overscan_rows, size_t{256});
++  const float viewports = std::clamp(
++      std::isfinite(options.maximum_viewports) ? options.maximum_viewports : 3.f,
++      1.f, 8.f);
+ 
+   // How many row entities get recycled. Derived from the viewport rather than
+   // from this frame's window, and rounded up to a block, because a modulus
+   // that changes moves every recycled row onto a different item at once: a
+   // press is stranded and the list cannot settle. Rounding keeps it still
+   // while the window breathes by a row.
+-  size_t capacity = window + 2 * (size_t)OVERSCAN + 8;
++  size_t capacity = window + 2 * OVERSCAN + 8;
+   if (entity.template has<HasScrollView>()) {
+     auto &sv = entity.template get<HasScrollView>();
+     if (sv.viewport_size.has_value()) {
+-      // Has to cover the widest window the span bound above can ask for, or
+-      // two items would land on the same row entity.
+-      const float widest = (3.f * sv.viewport_size->y) / rows.shortest();
+-      capacity = std::max(capacity, static_cast<size_t>(widest) + 2 * (size_t)OVERSCAN + 8);
++      // Has to cover the widest window virtual_list_window can ask for --
++      // the bounded span plus up to two viewports of pixel overscan each
++      // side -- or two items would land on the same row entity.
++      const float widest = ((viewports + 4.f) * sv.viewport_size->y) / rows.shortest();
++      capacity = std::max(capacity, static_cast<size_t>(widest) + 2 * OVERSCAN + 8);
+     }
+     constexpr size_t BLOCK = 32;
+     capacity = ((capacity + BLOCK - 1) / BLOCK) * BLOCK;
+@@ -325,10 +395,24 @@ template <typename RenderRow>
+ ElementResult virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
+                            size_t count, float row_height,
+                            RenderRow &&render_row,
+-                           ComponentConfig config = ComponentConfig()) {
++                           ComponentConfig config = ComponentConfig(),
++                           VirtualListOptions options = {}) {
+   return virtual_list_impl(ctx, ep_pair,
+                            detail::RowMetrics::uniform_rows(count, row_height),
+-                           std::forward<RenderRow>(render_row), config);
++                           std::forward<RenderRow>(render_row), config, options);
++}
++
++/// Rows the caller has already measured (VirtualListMetrics::measured_rows),
++/// so one set of extents drives both the window and any other geometry the
++/// caller needs, instead of a second running total kept beside the list.
++template <typename RenderRow>
++ElementResult virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
++                           const VirtualListMetrics &rows,
++                           RenderRow &&render_row,
++                           ComponentConfig config = ComponentConfig(),
++                           VirtualListOptions options = {}) {
++  return virtual_list_impl(ctx, ep_pair, rows,
++                           std::forward<RenderRow>(render_row), config, options);
+ }
+ 
+ /// Rows of differing heights, retained: the prefix-height index lives on
+@@ -345,7 +429,8 @@ template <typename HeightFn, typename RenderRow>
+ ElementResult virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
+                            size_t count, HeightFn &&height_of,
+                            RenderRow &&render_row,
+-                           ComponentConfig config = ComponentConfig())
++                           ComponentConfig config = ComponentConfig(),
++                           VirtualListOptions options = {})
+   requires std::invocable<HeightFn, size_t>
+ {
+   auto [entity, parent] = deref(ep_pair);
+@@ -357,7 +442,120 @@ ElementResult virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
+   rows.borrowed = &index.prefix;
+   rows.index = &index;
+   return virtual_list_impl(ctx, ep_pair, rows,
+-                           std::forward<RenderRow>(render_row), config);
++                           std::forward<RenderRow>(render_row), config, options);
++}
++
++/// A measured virtual_list whose rows are items with stable keys. When the
++/// sequence changes (bump `revision`), the item at the top of the viewport
++/// stays there -- or, if it was removed, the nearest survivor in the old
++/// order takes its place -- and focus inside a row follows its item to
++/// whichever pooled entity now shows it. An empty sequence keeps the old
++/// anchor for the next non-empty one, so clearing a filter returns to where
++/// the reader was.
++///
++/// `key_of(index)` is asked for every row only when `revision` changes.
++/// ponytail: a change re-measures every row; remap heights by key if
++/// height_of is too slow to run over the whole list on each update.
++template <typename KeyFn, typename HeightFn, typename RenderRow>
++ElementResult keyed_virtual_list(HasUIContext auto &ctx, EntityParent ep_pair,
++                                 size_t count, std::uint64_t revision,
++                                 KeyFn &&key_of, HeightFn &&height_of,
++                                 RenderRow &&render_row,
++                                 ComponentConfig config = ComponentConfig(),
++                                 VirtualListOptions options = {}) {
++  auto [entity, parent] = deref(ep_pair);
++  auto &keyed = entity.template addComponentIfMissing<HasVirtualListKeys>();
++  auto &index = entity.template addComponentIfMissing<HasVirtualListIndex>();
++  // Focus moved since the last build (a click, Tab): find which item it
++  // landed in from what that build showed, before positions change.
++  const auto sample_focus = [&] {
++    if (ctx.focus_id == keyed.focus_entity)
++      return;
++    keyed.focus_entity = ctx.focus_id;
++    keyed.focus_key.clear();
++    for (const auto &[key, subtree] : keyed.shown) {
++      const auto at = std::find(subtree.begin(), subtree.end(), ctx.focus_id);
++      if (at == subtree.end())
++        continue;
++      keyed.focus_key = key;
++      keyed.focus_index = static_cast<size_t>(at - subtree.begin());
++    }
++  };
++  sample_focus();
++  if (!keyed.seen || keyed.revision != revision) {
++    std::vector<std::string> next;
++    next.reserve(count);
++    for (size_t i = 0; i < count; i++)
++      next.emplace_back(key_of(i));
++    if (keyed.seen && count > 0 && !keyed.keys.empty()) {
++      std::unordered_map<std::string_view, size_t> where;
++      where.reserve(count);
++      for (size_t i = 0; i < count; i++)
++        where.emplace(next[i], i);
++      const auto &old = keyed.keys;
++      const size_t top = std::min(index.top_row, old.size() - 1);
++      // Nearest survivor in the old order, the row below first: removing
++      // the top row should bring up the one that followed it.
++      for (size_t d = 0; d < old.size(); d++) {
++        auto hit = top + d < old.size() ? where.find(old[top + d]) : where.end();
++        if (hit == where.end() && d <= top)
++          hit = where.find(old[top - d]);
++        if (hit == where.end())
++          continue;
++        index.pin_row = hit->second;
++        index.pin_within = d == 0 ? index.top_within : 0.f;
++        break;
++      }
++    }
++    // Heights were stored by position, and positions just moved.
++    index.invalidate(0, count);
++    keyed.revision = revision;
++    keyed.seen = true;
++    if (count > 0)
++      keyed.keys = std::move(next);
++  }
++
++  std::vector<std::pair<size_t, EntityID>> built;
++  detail::refresh_virtual_index(index, count, std::forward<HeightFn>(height_of));
++  detail::RowMetrics rows;
++  rows.count = count;
++  rows.borrowed = &index.prefix;
++  rows.index = &index;
++  auto result = virtual_list_impl(
++      ctx, ep_pair, rows,
++      [&](size_t i, Entity &row) {
++        built.emplace_back(i, row.id);
++        render_row(i, row);
++      },
++      config, options);
++  keyed.shown.clear();
++  if (count == 0 || keyed.keys.size() != count)
++    return result;
++  for (const auto &[i, row] : built) {
++    std::vector<EntityID> subtree;
++    const std::function<void(EntityID)> walk = [&](EntityID id) {
++      subtree.push_back(id);
++      for (const EntityID child : UICollectionHolder::getEntityForIDEnforce(id)
++                                      .template get<UIComponent>().children)
++        walk(child);
++    };
++    walk(row);
++    keyed.shown.emplace_back(keyed.keys[i], std::move(subtree));
++  }
++  // The focused item is now drawn by a different pooled row: focus the entity
++  // in the same place in that row. Off screen, the item is remembered until
++  // it is built again.
++  if (!keyed.focus_key.empty() && ctx.focus_id == keyed.focus_entity) {
++    for (const auto &[key, subtree] : keyed.shown) {
++      if (key != keyed.focus_key || keyed.focus_index >= subtree.size())
++        continue;
++      if (subtree[keyed.focus_index] != ctx.focus_id)
++        ctx.set_focus(subtree[keyed.focus_index], ctx.focus_modality);
++      keyed.focus_entity = ctx.focus_id;
++    }
++  }
++  sample_focus();
++  return result;
+ }
+ 
+ /// Mark rows [first, last) of a measured virtual_list as changed: the next
+diff --git a/tests/virtual_list_test.cpp b/tests/virtual_list_test.cpp
+index 7375b64..3b2c481 100644
+--- a/tests/virtual_list_test.cpp
++++ b/tests/virtual_list_test.cpp
+@@ -7,6 +7,7 @@
+ // so that is what these assert: how many rows got built, not how they look.
+ 
+ #include "ui_test_harness.h"
++#include <limits>
+ 
+ using namespace afterhours;
+ using namespace afterhours::ui;
+@@ -311,4 +312,180 @@ TEST(prepend_virtual_rows_holds_the_viewport) {
+                600.f);
+ }
+ 
++// ---------------------------------------------------------------------------
++// The window (CP-006): bounded around the actual viewport, configurable
++// overscan. The old range favoured a distant easing target and could drop the
++// rows on screen during a scrollbar drag.
++// ---------------------------------------------------------------------------
++TEST(distant_scroll_targets_never_evict_the_visible_rows) {
++  for (const float zoom : {1.f, 1.4f, 2.f}) {
++    auto metrics = VirtualListMetrics::measured_rows(
++        100000, [zoom](size_t row) { return zoom * (row % 7 == 0 ? 120.f : 18.f); });
++    for (const float pixels : {0.f, 24.f, 96.f}) {
++      size_t widest = 0;
++      bool covered = true;
++      for (size_t frame = 0; frame < 3000; ++frame) {
++        const float offset = static_cast<float>((frame * 7919) % 2000000);
++        const float target = frame % 2 ? 0.f : metrics.total();
++        const auto range = virtual_list_window(metrics, offset, target, 600.f * zoom,
++                                               VirtualListOptions{4, pixels * zoom, 3.f});
++        covered = covered && range.first <= range.visible_first &&
++                  range.last >= range.visible_last && range.last <= metrics.count &&
++                  static_cast<long>(range.visible_first) == std::min<long>(
++                      metrics.index_at(std::min(offset, metrics.total() - 600.f * zoom)),
++                      static_cast<long>(metrics.count));
++        widest = std::max(widest, range.last - range.first);
++      }
++      CHECK(covered);
++      CHECK(widest < 130);
++    }
++  }
++}
++
++TEST(window_handles_empty_unknown_and_nonfinite_geometry) {
++  CHECK(virtual_list_window(VirtualListMetrics::uniform_rows(0, 10.f), 0, 0, 100).last == 0);
++  auto metrics = VirtualListMetrics::uniform_rows(100, 10.f);
++  CHECK(virtual_list_window(metrics, 0, 0, 0).last == 1);
++  auto range = virtual_list_window(metrics, std::numeric_limits<float>::quiet_NaN(), 0, 100);
++  CHECK(range.first == 0);
++  CHECK(range.last < 20);
++  CHECK(VirtualListMetrics::measured_rows(3, [](size_t) {
++          return std::numeric_limits<float>::infinity(); }).total() == 3.f);
++}
++
++TEST(pixel_overscan_builds_past_the_viewport) {
++  const auto built_with = [](VirtualListOptions options) {
++    ImmTestHarness h;
++    int built = 0;
++    virtual_list(h.context(), mk(h.root(), 0), 2000, 20.f, [&](size_t, Entity &) { built++; },
++                 ComponentConfig{}.with_size({pixels(300), pixels(200)}), options);
++    return built;
++  };
++  const int base = built_with({});
++  CHECK(built_with({0, 0.f, 3.f}) == base - 4);
++  CHECK(built_with({4, 100.f, 3.f}) == base + 5);
++}
++
++// ---------------------------------------------------------------------------
++// keyed_virtual_list: the viewport and focus follow items, not positions.
++// ---------------------------------------------------------------------------
++namespace {
++struct KeyedFixture {
++  ImmTestHarness h;
++  std::vector<std::string> items;
++  std::uint64_t revision = 1;
++  EntityID list = -1;
++  std::vector<std::pair<std::string, EntityID>> buttons; // item -> its button
++  float zoom = 1.f;
++
++  void frame() {
++    h.context().theme.ui_scale = zoom;
++    h.begin_frame();
++    buttons.clear();
++    auto result = keyed_virtual_list(
++        h.context(), mk(h.root(), 0), items.size(), revision,
++        [&](size_t i) { return items[i]; },
++        [&](size_t i) { return items[i].size() % 2 ? 20.f : 30.f; },
++        [&](size_t i, Entity &row) {
++          div(h.context(), mk(row, 0), ComponentConfig{}.with_size({pixels(10), pixels(5)}));
++          auto button = div(h.context(), mk(row, 1),
++                            ComponentConfig{}.with_size({pixels(10), pixels(5)}));
++          buttons.emplace_back(items[i], button.ent().id);
++        },
++        ComponentConfig{}.with_size({pixels(300), pixels(200)})
++            .with_padding(Padding{.top = pixels(7)})
++            .with_scaling_mode(ScalingMode::Adaptive));
++    list = result.id();
++    layout_at_scale(h, zoom, false);
++    auto &scroll = scroll_view();
++    const auto &cmp = result.ent().get<UIComponent>();
++    scroll.viewport_size = {cmp.rect().width, cmp.rect().height};
++    scroll.content_size = measure_scroll_content(cmp, scroll);
++  }
++  HasScrollView &scroll_view() { return AutoLayout::to_ent_static(list).get<HasScrollView>(); }
++  void scroll_to(float y) {
++    auto &scroll = scroll_view();
++    scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = y;
++    frame();
++  }
++  // Distance from the viewport top to the top of `item`'s row, in pixels.
++  float screen_top(const std::string &item) {
++    const size_t i = static_cast<size_t>(std::find(items.begin(), items.end(), item) - items.begin());
++    return 7.f * zoom + virtual_row_offset(AutoLayout::to_ent_static(list), i) -
++           scroll_view().scroll_offset.y;
++  }
++  void update(std::vector<std::string> next) {
++    items = std::move(next);
++    revision++;
++    frame();
++  }
++  EntityID button_of(const std::string &item) {
++    for (auto &[key, id] : buttons)
++      if (key == item) return id;
++    return -1;
++  }
++};
++
++std::vector<std::string> numbered(size_t from, size_t to) {
++  std::vector<std::string> out;
++  for (size_t i = from; i < to; i++) out.push_back("item" + std::to_string(i));
++  return out;
++}
++} // namespace
++
++TEST(keyed_list_keeps_the_top_item_through_insert_remove_and_empty) {
++  for (const float zoom : {1.f, 1.4f, 2.f}) {
++    KeyedFixture f;
++    f.zoom = zoom;
++    f.items = numbered(0, 300);
++    f.frame();
++    f.frame();
++    f.scroll_to(f.screen_top("item50") + 11.f * zoom);
++    const float before = f.screen_top("item50");
++    CHECK_APPROX(before, -11.f * zoom);
++
++    auto inserted = numbered(1000, 1007);
++    inserted.insert(inserted.end(), f.items.begin(), f.items.end());
++    f.update(inserted);
++    CHECK_APPROX(f.screen_top("item50"), before);
++
++    // Removing the anchored row brings up the row that followed it.
++    auto removed = f.items;
++    removed.erase(std::find(removed.begin(), removed.end(), "item50"));
++    f.update(removed);
++    CHECK_APPROX(f.screen_top("item51"), 0.f);
++
++    // An empty filter keeps the anchor for the results that come back.
++    f.update({});
++    f.update(removed);
++    CHECK_APPROX(f.screen_top("item51"), 0.f);
++  }
++}
++
++TEST(keyed_list_focus_follows_its_item_to_a_recycled_row) {
++  KeyedFixture f;
++  f.items = numbered(0, 300);
++  f.frame();
++  f.frame();
++  f.scroll_to(f.screen_top("item40"));
++  const EntityID first = f.button_of("item42");
++  f.h.context().set_focus(first);
++  f.frame();
++
++  // Reverse the order: item42 is now drawn by some other pooled row.
++  auto reversed = f.items;
++  std::reverse(reversed.begin(), reversed.end());
++  f.update(reversed);
++  const EntityID now = f.button_of("item42");
++  CHECK(now >= 0);
++  CHECK(f.h.context().focus_id == now);
++  CHECK(now != first); // a different pooled entity, or this proves nothing
++
++  // Focus moved by someone else is not dragged back.
++  const EntityID other = f.button_of("item41");
++  f.h.context().set_focus(other);
++  f.update(numbered(0, 300));
++  CHECK(f.h.context().focus_id == f.button_of("item41"));
++}
++
+ int main() { return ui_test::run_registered_tests("virtual_list"); }
+-- 
+2.50.1
+
+
+From 74916dceba88fee444b74907d8968acac6d2860d Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 06:59:35 -0400
+Subject: [PATCH 2/6] Scroll: logical item anchors resolved after layout
+ readiness
+
+request_scroll_anchor/resolve_scroll_anchor keep an item named by an
+app-owned key at a fraction of the unoccluded viewport band. The request
+waits for the matching content generation and a measured viewport, resolves
+once to Applied, Unavailable (key gone or content replaced) or Cancelled, and
+writes offset, target and easing in one jump_to_y. No frame-count retries.
+
+HasScrollView::user_scroll_serial is bumped by wheel input and scrollbar
+drags, so cancellation follows real user input rather than any change to
+scroll_target, which clamping and virtual lists also make.
+---
+ src/plugins/ui/components.h         |   9 ++
+ src/plugins/ui/scroll_item_anchor.h | 127 +++++++++++++++++++
+ src/plugins/ui/systems.h            |   4 +
+ tests/Makefile                      |   4 +-
+ tests/scroll_item_anchor_test.cpp   | 184 ++++++++++++++++++++++++++++
+ 5 files changed, 327 insertions(+), 1 deletion(-)
+ create mode 100644 src/plugins/ui/scroll_item_anchor.h
+ create mode 100644 tests/scroll_item_anchor_test.cpp
+
+diff --git a/src/plugins/ui/components.h b/src/plugins/ui/components.h
+index a3125ef..7dfd0de 100644
+--- a/src/plugins/ui/components.h
++++ b/src/plugins/ui/components.h
+@@ -569,6 +569,10 @@ struct HasScrollView : BaseComponent {
+   bool horizontal_enabled = false;    // Allow horizontal scrolling
+   bool invert_scroll = false;         // Invert scroll direction (non-natural)
+   bool config_owned = false;
++  // Bumped whenever the user moves the view: a wheel notch or a scrollbar
++  // drag. Lets a pending programmatic scroll tell the user's input apart
++  // from its own writes and from clamping, which also move the target.
++  std::uint64_t user_scroll_serial = 0;
+   bool auto_overflow =
+       false; // Auto mode: only clip/scroll when content overflows
+   // Non-zero: views sharing an id scroll together, on enabled axes only.
+@@ -596,6 +600,11 @@ struct HasScrollView : BaseComponent {
+   void scroll_to_bottom() {
+     scroll_offset.y = scroll_target.y = last_eased_offset.y = bottom_offset();
+   }
++  // Jump to an offset in one write, like scroll_to_top: no glide, and no
++  // stale target for the easing to pull back toward.
++  void jump_to_y(float y) {
++    scroll_offset.y = scroll_target.y = last_eased_offset.y = y;
++  }
+   void scroll_to_left() {
+     scroll_offset.x = scroll_target.x = last_eased_offset.x = 0.f;
+   }
+diff --git a/src/plugins/ui/scroll_item_anchor.h b/src/plugins/ui/scroll_item_anchor.h
+new file mode 100644
+index 0000000..667fbc8
+--- /dev/null
++++ b/src/plugins/ui/scroll_item_anchor.h
+@@ -0,0 +1,127 @@
++#pragma once
++
++// Logical scroll anchors: keep an ITEM at a place in the viewport across
++// replaced entities, pages, zoom and resizes.
++//
++// HasScrollView::anchor_scroll pins a rendered child entity, which is right
++// for ordinary lists and wrong for a virtualized one, where that entity is
++// recycled for a different row. Here the caller owns the identity: an opaque
++// key it can resolve to the item's current geometry once the content that
++// key belongs to is laid out. Nothing retries on a frame count; a request
++// stays pending until it applies, turns out unavailable, or the user scrolls.
++//
++//   // Remember, while the item is on screen:
++//   auto anchor = capture_scroll_anchor(scroll, "msg:4812", {top, height}, .3f);
++//   anchor.generation = doc_generation;
++//   ...
++//   request_scroll_anchor(view, anchor);
++//   // Each frame, from a system after the UI post-layout systems:
++//   resolve_scroll_anchor(view, ready_generation, [&](std::string_view key)
++//       -> std::optional<ItemGeometry> { ... });
++
++#include <algorithm>
++#include <cstdint>
++#include <optional>
++#include <string>
++#include <string_view>
++
++#include "../../ecs.h"
++#include "components.h"
++
++namespace afterhours {
++namespace ui {
++
++/// Where an item is, in the scroll view's content pixels (the space
++/// scroll_offset counts in).
++struct ItemGeometry {
++  float top = 0.f;
++  float height = 0.f;
++};
++
++struct ScrollItemAnchor {
++  std::string key;
++  // The point within the item, as a fraction of its height, so it survives
++  // zoom and reflow that change the height.
++  float within = 0.f;
++  // Where that point sits in the unoccluded band of the viewport: 0 top, 1
++  // bottom.
++  float fraction = 0.f;
++  // Pixels of viewport covered by a sticky header or footer.
++  float inset_top = 0.f;
++  float inset_bottom = 0.f;
++  // Which content and layout the key refers to. The request waits until the
++  // host reports this generation ready.
++  std::uint64_t generation = 0;
++};
++
++enum struct AnchorStatus { Pending, Applied, Unavailable, Cancelled };
++
++struct HasScrollItemAnchor : BaseComponent {
++  ScrollItemAnchor anchor;
++  AnchorStatus status = AnchorStatus::Pending;
++  std::uint64_t scroll_serial = 0;
++};
++
++namespace detail {
++inline float anchor_band(const ScrollItemAnchor &a, float viewport) {
++  return std::max(0.f, viewport - a.inset_top - a.inset_bottom);
++}
++} // namespace detail
++
++/// The anchor that would put `item` back where it is now. `fraction` picks
++/// which point of the viewport band to remember -- usually where the reader
++/// is looking, near the top.
++inline ScrollItemAnchor capture_scroll_anchor(const HasScrollView &scroll,
++                                              std::string key, ItemGeometry item,
++                                              float fraction, float inset_top = 0.f,
++                                              float inset_bottom = 0.f) {
++  ScrollItemAnchor a{std::move(key), 0.f, fraction, inset_top, inset_bottom, 0};
++  const float y = scroll.scroll_offset.y + inset_top +
++                  fraction * detail::anchor_band(a, scroll.viewport_or_zero().y);
++  a.within = item.height > 0.f ? (y - item.top) / item.height : 0.f;
++  return a;
++}
++
++/// Replaces any pending request. User scrolling from here on cancels it.
++inline void request_scroll_anchor(Entity &view, ScrollItemAnchor anchor) {
++  auto &state = view.addComponentIfMissing<HasScrollItemAnchor>();
++  state.anchor = std::move(anchor);
++  state.status = AnchorStatus::Pending;
++  state.scroll_serial = view.get<HasScrollView>().user_scroll_serial;
++}
++
++/// Applies a pending request once `ready_generation` matches its generation
++/// and the viewport is measured. `resolve(key)` returns the item's current
++/// geometry, or nullopt when the ready content no longer has it. A
++/// generation past the requested one is Unavailable: the content the key
++/// named was replaced. Returns the request's status (Applied etc. stay put
++/// until the next request); a view never asked returns Unavailable.
++template <typename Resolve>
++AnchorStatus resolve_scroll_anchor(Entity &view, std::uint64_t ready_generation,
++                                   Resolve &&resolve) {
++  if (!view.has<HasScrollItemAnchor>() || !view.has<HasScrollView>())
++    return AnchorStatus::Unavailable;
++  auto &state = view.get<HasScrollItemAnchor>();
++  if (state.status != AnchorStatus::Pending)
++    return state.status;
++  auto &scroll = view.get<HasScrollView>();
++  if (scroll.user_scroll_serial != state.scroll_serial)
++    return state.status = AnchorStatus::Cancelled;
++  if (ready_generation < state.anchor.generation || !scroll.viewport_size)
++    return state.status;
++  if (ready_generation > state.anchor.generation)
++    return state.status = AnchorStatus::Unavailable;
++  const std::optional<ItemGeometry> item = resolve(std::string_view(state.anchor.key));
++  if (!item)
++    return state.status = AnchorStatus::Unavailable;
++  const auto &a = state.anchor;
++  const float y = item->top + a.within * item->height - a.inset_top -
++                  a.fraction * detail::anchor_band(a, scroll.viewport_size->y);
++  scroll.jump_to_y(std::clamp(y, 0.f, scroll.bottom_offset()));
++  // The item is the anchor now; a pinned child entity would fight it.
++  scroll.anchor_child = -1;
++  return state.status = AnchorStatus::Applied;
++}
++
++} // namespace ui
++} // namespace afterhours
+diff --git a/src/plugins/ui/systems.h b/src/plugins/ui/systems.h
+index 6d3d1c8..f13994b 100644
+--- a/src/plugins/ui/systems.h
++++ b/src/plugins/ui/systems.h
+@@ -2063,6 +2063,7 @@ struct HandleScrollbarDrag : SystemWithUIContext<HasScrollView> {
+         scroll.scroll_offset.x = value;
+         scroll.scroll_target.x = value;
+       }
++      scroll.user_scroll_serial++;
+       scroll.clamp_scroll();
+     };
+ 
+@@ -2240,6 +2241,9 @@ struct HandleScrollInput : SystemWithUIContext<HasScrollView> {
+       scroll_state.scroll_target.x +=
+           direction * wheel_v.x * scroll_state.scroll_speed;
+     }
++    if ((scroll_state.vertical_enabled && wheel_v.y != 0.0f) ||
++        (scroll_state.horizontal_enabled && wheel_v.x != 0.0f))
++      scroll_state.user_scroll_serial++;
+ 
+     scroll_state.clamp_scroll();
+   }
+diff --git a/tests/Makefile b/tests/Makefile
+index 688b6c0..2af8645 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -178,6 +178,7 @@ ALL_TESTS := \
+ 	config_size_test \
+ 	overdraw_audit_test \
+ 	virtual_list_test \
++	scroll_item_anchor_test \
+ 	text_action_names_test \
+ 	sizing_repro_test \
+ 	slider_test \
+@@ -211,6 +212,7 @@ endif
+ 
+ RAYLIB_TESTS := \
+ 	border_width_test \
++	scroll_item_anchor_test \
+ 	text_visibility_test \
+ 	image_tint_test \
+ 	scroll_input_gate_test \
+@@ -280,7 +282,7 @@ $(RAYLIB_BINS): LDFLAGS_T  = $(LDFLAGS_RAYLIB)
+ # with no window, so the modifier half of a chord cannot be tested at all.
+ $(OUT)/input_device_activity_test: LDFLAGS_T = $(subst $(RAYLIB_LIB)/libraylib.a,-L$(RAYLIB_LIB) -lraylib,$(LDFLAGS_RAYLIB))
+ 
+-$(OUT)/text_area_test $(OUT)/scroll_input_gate_test: CXXFLAGS_T = $(CXXFLAGS_RAYLIB) -DAFTER_HOURS_ENABLE_E2E_TESTING
++$(OUT)/text_area_test $(OUT)/scroll_input_gate_test $(OUT)/scroll_item_anchor_test: CXXFLAGS_T = $(CXXFLAGS_RAYLIB) -DAFTER_HOURS_ENABLE_E2E_TESTING
+ 
+ # Filter to sources: the .d files list every header as a prerequisite, and a
+ # bare $^ would hand them all to clang. .cc is the sokol implementation TU.
+diff --git a/tests/scroll_item_anchor_test.cpp b/tests/scroll_item_anchor_test.cpp
+new file mode 100644
+index 0000000..0439f1d
+--- /dev/null
++++ b/tests/scroll_item_anchor_test.cpp
+@@ -0,0 +1,184 @@
++// scroll_item_anchor_test.cpp
++// A logical anchor keeps an item -- named by a key the app owns -- at a place
++// in the viewport, across delayed content, replaced entities, removed rows,
++// zoom and resizes, and stops the moment the user scrolls.
++
++#include "ui_test_harness.h"
++#include <afterhours/src/plugins/ui/scroll_item_anchor.h>
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using ui_test::ImmTestHarness;
++
++namespace {
++struct Reader {
++  ImmTestHarness h;
++  std::vector<std::string> items;
++  float zoom = 1.f;
++  float view_height = 200.f;
++  int slot = 0;
++  EntityID list = -1;
++
++  static float height_of(const std::string &item) { return 18.f + 7.f * (item.size() % 4); }
++
++  void frame() {
++    h.context().theme.ui_scale = zoom;
++    h.begin_frame();
++    auto result = virtual_list(
++        h.context(), mk(h.root(), slot), items.size(),
++        [&](size_t i) { return height_of(items[i]); }, [](size_t, Entity &) {},
++        ComponentConfig{}.with_size({pixels(300), pixels(view_height)})
++            .with_scaling_mode(ScalingMode::Adaptive));
++    list = result.id();
++    h.coll.merge_entity_arrays();
++    std::vector<Entity *> mapping;
++    for (const auto &e : h.coll.get_entities()) {
++      if (!e) continue;
++      mapping.resize(std::max(mapping.size(), static_cast<size_t>(e->id) + 1));
++      mapping[static_cast<size_t>(e->id)] = e.get();
++      if (e->has<UIComponent>()) e->get<UIComponent>().was_rendered_to_screen = true;
++    }
++    AutoLayout::autolayout(h.root().get<UIComponent>(), {800, 600}, mapping, false, zoom);
++    MeasureScrollViews{}.for_each_with(view(), scroll(), view().get<UIComponent>(), 0.f);
++  }
++  Entity &view() { return AutoLayout::to_ent_static(list); }
++  HasScrollView &scroll() { return view().get<HasScrollView>(); }
++  std::optional<ItemGeometry> geometry(std::string_view key) {
++    const auto it = std::find(items.begin(), items.end(), key);
++    if (it == items.end()) return std::nullopt;
++    const size_t i = static_cast<size_t>(it - items.begin());
++    const auto &index = view().get<HasVirtualListIndex>();
++    return ItemGeometry{virtual_row_offset(view(), i), index.heights[i] * index.last_scale};
++  }
++  AnchorStatus resolve(std::uint64_t generation) {
++    return resolve_scroll_anchor(view(), generation,
++                                 [&](std::string_view key) { return geometry(key); });
++  }
++  // Where `fraction` of the item's height sits, as a fraction of the band.
++  float band_fraction(const std::string &key, float within, float top = 0.f, float bottom = 0.f) {
++    const auto item = *geometry(key);
++    const float y = item.top + within * item.height - scroll().scroll_offset.y - top;
++    return y / (scroll().viewport_size->y - top - bottom);
++  }
++};
++
++std::vector<std::string> numbered(size_t n) {
++  std::vector<std::string> out;
++  for (size_t i = 0; i < n; i++) out.push_back("row" + std::to_string(i));
++  return out;
++}
++} // namespace
++
++TEST(waits_for_delayed_content_then_applies_once) {
++  Reader r;
++  r.frame();
++  request_scroll_anchor(r.view(), {"row120", .5f, .25f, 0.f, 0.f, 2});
++  for (int i = 0; i < 5; i++) {
++    r.frame();
++    CHECK(r.resolve(1) == AnchorStatus::Pending); // no frame-count give-up
++  }
++  r.items = numbered(400);
++  r.frame();
++  CHECK(r.resolve(2) == AnchorStatus::Applied);
++  CHECK_APPROX(r.band_fraction("row120", .5f) * 100.f, 25.f);
++  const auto &s = r.scroll();
++  CHECK(s.scroll_offset.y == s.scroll_target.y && s.scroll_target.y == s.last_eased_offset.y);
++  // One-shot: later layout changes do not drag the view back.
++  r.scroll().jump_to_y(0.f);
++  CHECK(r.resolve(2) == AnchorStatus::Applied);
++  CHECK(r.scroll().scroll_offset.y == 0.f);
++}
++
++TEST(resolves_on_a_replaced_view_entity) {
++  Reader r;
++  r.items = numbered(400);
++  r.frame();
++  r.scroll().jump_to_y(1500.f);
++  r.frame();
++  auto anchor = capture_scroll_anchor(r.scroll(), "row90", *r.geometry("row90"), .1f);
++  const EntityID old = r.list;
++  r.slot = 1; // the app rebuilt its reader under a new entity
++  r.frame();
++  CHECK(r.list != old);
++  request_scroll_anchor(r.view(), anchor);
++  CHECK(r.resolve(0) == AnchorStatus::Applied);
++  CHECK_APPROX(r.band_fraction("row90", anchor.within) * 100.f, 10.f);
++}
++
++TEST(a_removed_anchor_row_is_unavailable_and_leaves_the_view) {
++  Reader r;
++  r.items = numbered(400);
++  r.frame();
++  r.scroll().jump_to_y(700.f);
++  r.frame();
++  request_scroll_anchor(r.view(), {"row50", 0.f, 0.f, 0.f, 0.f, 3});
++  r.items.erase(r.items.begin() + 50);
++  r.frame();
++  CHECK(r.resolve(3) == AnchorStatus::Unavailable);
++  CHECK(r.scroll().scroll_offset.y == 700.f);
++  // Content that moved past the requested generation is unavailable too.
++  request_scroll_anchor(r.view(), {"row60", 0.f, 0.f, 0.f, 0.f, 3});
++  CHECK(r.resolve(4) == AnchorStatus::Unavailable);
++}
++
++TEST(survives_zoom_resize_and_occlusion) {
++  for (const float zoom : {1.4f, 2.f}) {
++    Reader r;
++    r.items = numbered(400);
++    r.frame();
++    r.scroll().jump_to_y(2000.f);
++    r.frame();
++    auto anchor = capture_scroll_anchor(r.scroll(), "row101", *r.geometry("row101"), .4f);
++    r.zoom = zoom;
++    r.frame();
++    request_scroll_anchor(r.view(), anchor);
++    CHECK(r.resolve(0) == AnchorStatus::Applied);
++    CHECK_APPROX(r.band_fraction("row101", anchor.within) * 100.f, 40.f);
++
++    r.view_height = 320.f;
++    r.frame();
++    request_scroll_anchor(r.view(), anchor);
++    CHECK(r.resolve(0) == AnchorStatus::Applied);
++    CHECK_APPROX(r.band_fraction("row101", anchor.within) * 100.f, 40.f);
++
++    anchor.inset_top = 30.f * zoom; // a sticky header
++    anchor.inset_bottom = 20.f * zoom;
++    request_scroll_anchor(r.view(), anchor);
++    CHECK(r.resolve(0) == AnchorStatus::Applied);
++    CHECK_APPROX(r.band_fraction("row101", anchor.within, 30.f * zoom, 20.f * zoom) * 100.f, 40.f);
++  }
++}
++
++TEST(real_wheel_input_cancels_a_pending_anchor) {
++  Reader r;
++  r.items = numbered(400);
++  r.frame();
++  request_scroll_anchor(r.view(), {"row200", 0.f, 0.f, 0.f, 0.f, 5});
++  CHECK(r.resolve(4) == AnchorStatus::Pending);
++
++  const auto rect = r.view().get<UIComponent>().rect();
++  r.h.context().mouse.pos = {rect.x + 20, rect.y + 20};
++  HandleScrollInput<ui_test::TestInputAction> wheel;
++  wheel.context = &r.h.context();
++  testing::test_input::detail::test_mode = true;
++  testing::input_injector::reset_all();
++  testing::input_injector::set_mouse_wheel(0, -3);
++  wheel.for_each_with(r.view(), r.view().get<UIComponent>(), r.scroll(), 1.f / 60.f);
++  testing::input_injector::reset_all();
++  testing::test_input::detail::test_mode = false;
++  const float wheeled = r.scroll().scroll_target.y;
++  CHECK(wheeled > 0.f);
++
++  r.frame();
++  CHECK(r.resolve(5) == AnchorStatus::Cancelled);
++  CHECK(r.scroll().scroll_target.y == wheeled);
++
++  // Clamping and the list's own writes are not user input.
++  request_scroll_anchor(r.view(), {"row200", 0.f, 0.f, 0.f, 0.f, 5});
++  r.scroll().scroll_target.y = 1e9f;
++  r.frame();
++  CHECK(r.resolve(5) == AnchorStatus::Applied);
++}
++
++int main() { return ui_test::run_registered_tests("scroll_item_anchor"); }
+-- 
+2.50.1
+
+
+From dd17d59b7110413258befb1133c6cb2daacd7eea Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 07:09:44 -0400
+Subject: [PATCH 3/6] UI: focus-scoped shortcut routing with single consumption
+
+ShortcutRouter offers a mapped action or raw key chord to the focused
+control, then each containing ShortcutScope, then the host command
+callback. A focused text field keeps typing and caret keys (Option+Left
+included) and its Text* actions; ConsumesDirectionalInput keeps Up/Down; an
+exclusive scope stops untaken input at a dialog; an input gate that blocks
+the focused control swallows it; app commands wait while a gate is
+installed unless app_when_gated. A taken action is cleared from UIContext
+and a repeated dispatch in the same frame reports Repeated, so a later
+widget or system cannot run it again.
+---
+ src/plugins/ui/shortcut_routing.h | 228 ++++++++++++++++++++++++++++++
+ tests/Makefile                    |   1 +
+ tests/shortcut_routing_test.cpp   | 202 ++++++++++++++++++++++++++
+ 3 files changed, 431 insertions(+)
+ create mode 100644 src/plugins/ui/shortcut_routing.h
+ create mode 100644 tests/shortcut_routing_test.cpp
+
+diff --git a/src/plugins/ui/shortcut_routing.h b/src/plugins/ui/shortcut_routing.h
+new file mode 100644
+index 0000000..0f6c3ca
+--- /dev/null
++++ b/src/plugins/ui/shortcut_routing.h
+@@ -0,0 +1,228 @@
++#pragma once
++
++// Ordered shortcut dispatch: the focused control, then the scopes containing
++// it, then the app. The first taker consumes the shortcut, once per frame.
++//
++// Polling raw keys in app systems bypasses focus, so the same chord can run a
++// global command while the user types into a field, or reach a control under
++// an open menu. Here a chord -- a mapped InputAction or a raw key -- is
++// offered along the focus chain instead:
++//
++//   1. If an input gate blocks the focused control, it is swallowed.
++//   2. From the focused entity up, each ShortcutScope may take it. A control
++//      editing text keeps typing and editing keys for itself; a control with
++//      ConsumesDirectionalInput keeps Up/Down. An exclusive scope (a dialog)
++//      stops it from going any further out.
++//   3. Then ShortcutRouter::app, the host command callback, unless an input
++//      gate is installed (a modal is open) and app_when_gated is false.
++//
++// A taken mapped action is cleared from UIContext, so a widget polling
++// pressed() later in the frame does not run it again, and a second dispatch
++// of the same chord in the frame reports Repeated. Native menus and test
++// injection call dispatch() or `app` directly, so every path reaches the
++// same callback. What a chord means is the app's business.
++//
++//   router.app = [&](const ShortcutEvent &e) {
++//     if (e.is_key(keys::F, KeyChord::MOD_SUPER)) { open_find(); return true; }
++//     return false;
++//   };
++//   canvas.addComponent<ShortcutScope>([&](const ShortcutEvent &e) {
++//     return e.is_key(keys::F, 0) && fire();
++//   });
++
++#include <algorithm>
++#include <functional>
++#include <string_view>
++#include <vector>
++
++#include "../../ecs.h"
++#include "../input_system.h"
++#include "context.h"
++#include "text_input/state.h"
++#include "text_input/text_area_state.h"
++
++namespace afterhours {
++namespace ui {
++
++struct ShortcutEvent {
++  int action = -1; // a mapped InputAction's value, or -1 for a raw key
++  int key = 0;     // raw key code when action is -1
++  uint8_t modifiers = 0; // input::KeyChord::MOD_* held
++  bool repeat = false;
++
++  template <typename Action>
++  static ShortcutEvent of(Action a, uint8_t modifiers = 0, bool repeat = false) {
++    return {static_cast<int>(a), 0, modifiers, repeat};
++  }
++  static ShortcutEvent raw(int key, uint8_t modifiers = 0, bool repeat = false) {
++    return {-1, key, modifiers, repeat};
++  }
++  template <typename Action> [[nodiscard]] bool is(Action a) const {
++    return action == static_cast<int>(a);
++  }
++  [[nodiscard]] bool is_key(int k, uint8_t mods) const {
++    return action < 0 && key == k && modifiers == mods;
++  }
++  bool operator==(const ShortcutEvent &) const = default;
++};
++
++/// Who took a shortcut. Control, Scope, App and Blocked consume it; the rest
++/// leave a mapped action in UIContext for widgets to poll.
++enum struct ShortcutRoute {
++  Unhandled, // nobody took it
++  Control,   // the focused control's own scope
++  Scope,     // a scope containing the focused control
++  App,       // the app callback
++  Editing,   // focus is editing text or owns the arrows: left for that widget
++  Contained, // an exclusive scope stopped it, untaken, inside itself
++  Blocked,   // an input gate owns input; swallowed
++  Repeated,  // already dispatched this frame
++};
++
++/// Offers shortcuts to the entity's subtree. Return true to take one.
++struct ShortcutScope : BaseComponent {
++  std::function<bool(const ShortcutEvent &)> handle;
++  // A dialog or overlay: untaken shortcuts stop here rather than reaching
++  // the scopes and app behind it.
++  bool exclusive = false;
++
++  ShortcutScope() = default;
++  explicit ShortcutScope(std::function<bool(const ShortcutEvent &)> fn,
++                         bool exclusive_ = false)
++      : handle(std::move(fn)), exclusive(exclusive_) {}
++};
++
++namespace detail {
++// Keys a focused text field means for itself: typing (no Ctrl/Super), and
++// caret movement and deletion with any modifier, Option+Left included.
++inline bool text_editing_key(const ShortcutEvent &e) {
++  if (e.key == keys::LEFT || e.key == keys::RIGHT || e.key == keys::UP ||
++      e.key == keys::DOWN || e.key == keys::HOME || e.key == keys::END ||
++      e.key == keys::PAGE_UP || e.key == keys::PAGE_DOWN ||
++      e.key == keys::BACKSPACE || e.key == keys::DELETE_KEY)
++    return true;
++  const uint8_t command = input::KeyChord::MOD_CTRL | input::KeyChord::MOD_SUPER;
++  return e.key >= 32 && e.key < 256 && !(e.modifiers & command);
++}
++
++template <typename Action>
++bool owns_shortcut(const Entity &entity, bool focused, const ShortcutEvent &e) {
++  const std::string_view name =
++      e.action >= 0 ? magic_enum::enum_name(static_cast<Action>(e.action)) : "";
++  if (entity.has<text_input::HasTextInputState>() ||
++      entity.has<text_input::HasTextAreaState>()) {
++    if (e.action < 0 ? text_editing_key(e)
++                     : name.starts_with("Text") || name == "WidgetLeft" ||
++                           name == "WidgetRight")
++      return true;
++  }
++  return focused && entity.has<ConsumesDirectionalInput>() &&
++         (e.action < 0 ? e.key == keys::UP || e.key == keys::DOWN
++                       : name == "WidgetUp" || name == "WidgetDown");
++}
++} // namespace detail
++
++struct ShortcutRouter : BaseComponent {
++  // The host command callback: the last stop, and what native menus call.
++  std::function<bool(const ShortcutEvent &)> app;
++  // Let app shortcuts through while an input gate (a modal) is installed.
++  bool app_when_gated = false;
++  // Raw chords pressed_chords() polls for dispatch_frame.
++  std::vector<input::KeyChord> watched;
++  std::vector<ShortcutEvent> dispatched; // this frame
++
++  void begin_frame() { dispatched.clear(); }
++
++  template <typename Action>
++  ShortcutRoute route(UIContext<Action> &ctx, const ShortcutEvent &e) const {
++    if (ctx.focus_id != ctx.ROOT && !ctx.is_input_allowed(ctx.focus_id))
++      return ShortcutRoute::Blocked;
++    EntityID current = ctx.focus_id;
++    for (int depth = 0; current >= 0 && depth < 64; depth++) {
++      OptEntity opt = UICollectionHolder::getEntityForID(current);
++      if (!opt.valid())
++        break;
++      Entity &entity = opt.asE();
++      const bool focused = current == ctx.focus_id;
++      if (entity.has<ShortcutScope>() && ctx.is_input_allowed(current)) {
++        auto &scope = entity.get<ShortcutScope>();
++        if (scope.handle && scope.handle(e))
++          return focused ? ShortcutRoute::Control : ShortcutRoute::Scope;
++      }
++      if (detail::owns_shortcut<Action>(entity, focused, e))
++        return ShortcutRoute::Editing;
++      if (entity.has<ShortcutScope>() && entity.get<ShortcutScope>().exclusive)
++        return ShortcutRoute::Contained;
++      if (!entity.has<UIComponent>())
++        break;
++      current = entity.get<UIComponent>().parent;
++    }
++    if (app && (ctx.input_gates.empty() || app_when_gated) && app(e))
++      return ShortcutRoute::App;
++    return ShortcutRoute::Unhandled;
++  }
++
++  /// Offer one shortcut along the focus chain.
++  template <typename Action>
++  ShortcutRoute dispatch(UIContext<Action> &ctx, const ShortcutEvent &e) {
++    if (std::find(dispatched.begin(), dispatched.end(), e) != dispatched.end())
++      return ShortcutRoute::Repeated;
++    dispatched.push_back(e);
++    const ShortcutRoute taken = route(ctx, e);
++    if (e.action >= 0 && (taken == ShortcutRoute::Control || taken == ShortcutRoute::Scope ||
++                          taken == ShortcutRoute::App || taken == ShortcutRoute::Blocked)) {
++      const auto action = static_cast<Action>(e.action);
++      if (ctx.last_action == action)
++        ctx.last_action = Action::None;
++      if (const auto idx = magic_enum::enum_index(action))
++        ctx.all_actions_repeat[*idx] = false;
++    }
++    return taken;
++  }
++
++  /// Offer this frame's input: the mapped action pressed, held actions
++  /// repeating, then the raw chords in `raw` (see pressed_chords).
++  template <typename Action>
++  void dispatch_frame(UIContext<Action> &ctx, const std::vector<ShortcutEvent> &raw,
++                      uint8_t held_modifiers) {
++    const Action pressed = ctx.last_action;
++    if (pressed != Action::None)
++      dispatch(ctx, ShortcutEvent::of(pressed, held_modifiers));
++    for (const Action a : magic_enum::enum_values<Action>())
++      if (a != pressed && ctx.all_actions_repeat[*magic_enum::enum_index(a)])
++        dispatch(ctx, ShortcutEvent::of(a, held_modifiers, true));
++    for (const auto &e : raw)
++      dispatch(ctx, e);
++  }
++};
++
++/// The watched chords pressed (or repeating) this frame, as raw events.
++inline std::vector<ShortcutEvent> pressed_chords(const std::vector<input::KeyChord> &watched,
++                                                 uint8_t held_modifiers) {
++  std::vector<ShortcutEvent> out;
++  for (const auto &chord : watched) {
++    if (chord.has_explicit_modifiers && chord.required_modifiers != held_modifiers)
++      continue;
++    if (input::is_key_pressed(chord.key))
++      out.push_back(ShortcutEvent::raw(chord.key, held_modifiers));
++    else if (input::is_key_pressed_repeat(chord.key))
++      out.push_back(ShortcutEvent::raw(chord.key, held_modifiers, true));
++  }
++  return out;
++}
++
++/// Runs the router on the context entity each frame. Register it after
++/// BeginUIContextManager and before the systems that build screens, so
++/// shortcuts are taken before widgets poll the same actions.
++template <typename Action>
++struct RouteShortcuts : System<UIContext<Action>, ShortcutRouter> {
++  void for_each_with(Entity &, UIContext<Action> &ctx, ShortcutRouter &router,
++                     float) override {
++    router.begin_frame();
++    const uint8_t held = input::get_current_modifiers();
++    router.dispatch_frame(ctx, pressed_chords(router.watched, held), held);
++  }
++};
++
++} // namespace ui
++} // namespace afterhours
+diff --git a/tests/Makefile b/tests/Makefile
+index 2af8645..8ac2a67 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -179,6 +179,7 @@ ALL_TESTS := \
+ 	overdraw_audit_test \
+ 	virtual_list_test \
+ 	scroll_item_anchor_test \
++	shortcut_routing_test \
+ 	text_action_names_test \
+ 	sizing_repro_test \
+ 	slider_test \
+diff --git a/tests/shortcut_routing_test.cpp b/tests/shortcut_routing_test.cpp
+new file mode 100644
+index 0000000..4a2704a
+--- /dev/null
++++ b/tests/shortcut_routing_test.cpp
+@@ -0,0 +1,202 @@
++// shortcut_routing_test.cpp
++// One chord, one owner, once per frame: the focused control, then its
++// scopes, then the app, with typing, arrows, dialogs and input gates each
++// keeping what is theirs.
++
++#include "ui_test_harness.h"
++#include <afterhours/src/plugins/ui/shortcut_routing.h>
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using ui_test::ImmTestHarness;
++using Action = ui_test::TestInputAction;
++using Chord = input::KeyChord;
++
++namespace {
++struct Counter {
++  std::vector<ShortcutEvent> seen;
++  std::function<bool(const ShortcutEvent &)> take(std::function<bool(const ShortcutEvent &)> wants) {
++    return [this, wants](const ShortcutEvent &e) {
++      if (!wants(e)) return false;
++      seen.push_back(e);
++      return true;
++    };
++  }
++};
++
++EntityID node(ImmTestHarness &h, Entity &parent, int slot) {
++  return div(h.context(), mk(parent, slot), ComponentConfig{}.with_size({pixels(50), pixels(20)}))
++      .ent().id;
++}
++Entity &ent(EntityID id) { return UICollectionHolder::getEntityForIDEnforce(id); }
++} // namespace
++
++TEST(typing_in_a_field_over_a_reader_or_canvas_keeps_its_keys) {
++  ImmTestHarness h;
++  auto &ctx = h.context();
++  const EntityID canvas = node(h, h.root(), 0);
++  const EntityID input = node(h, ent(canvas), 0); // a field drawn over the canvas
++  const EntityID field = node(h, ent(input), 0);  // the focusable inner field
++  ent(input).addComponent<text_input::HasTextInputState>();
++  const EntityID overlay = node(h, h.root(), 1);  // a field in a sibling panel
++  const EntityID area = node(h, ent(overlay), 0);
++  ent(area).addComponent<text_input::HasTextAreaState>();
++
++  Counter fire, find, back;
++  ent(canvas).addComponent<ShortcutScope>(fire.take([](auto &e) { return e.is_key(keys::F, 0); }));
++  ShortcutRouter router;
++  router.app = [&](const ShortcutEvent &e) {
++    if (e.is_key(keys::F, Chord::MOD_SUPER)) { find.seen.push_back(e); return true; }
++    if (e.is_key(keys::LEFT, Chord::MOD_ALT)) { back.seen.push_back(e); return true; }
++    return false;
++  };
++
++  for (const EntityID typing_in : {field, area}) {
++    ctx.focus_id = typing_in;
++    router.begin_frame();
++    CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::F)) == ShortcutRoute::Editing);
++    CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::F, Chord::MOD_SHIFT)) == ShortcutRoute::Editing);
++    // Option+Left is word-left while editing, not the app's Back.
++    CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::LEFT, Chord::MOD_ALT)) == ShortcutRoute::Editing);
++    // A held command modifier makes it a command again.
++    CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::F, Chord::MOD_SUPER)) == ShortcutRoute::App);
++    // Editing actions stay queued for the field to poll.
++    ctx.last_action = Action::TextWordLeft;
++    router.dispatch_frame(ctx, {}, Chord::MOD_ALT);
++    CHECK(ctx.pressed(Action::TextWordLeft));
++  }
++  CHECK(fire.seen.empty());
++  CHECK(back.seen.empty());
++  CHECK(find.seen.size() == 2);
++
++  ctx.focus_id = canvas;
++  router.begin_frame();
++  CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::F)) == ShortcutRoute::Control);
++  CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::LEFT, Chord::MOD_ALT)) == ShortcutRoute::App);
++  CHECK(fire.seen.size() == 1);
++  CHECK(back.seen.size() == 1);
++}
++
++TEST(a_taken_action_runs_once_per_frame) {
++  ImmTestHarness h;
++  auto &ctx = h.context();
++  const EntityID viewer = node(h, h.root(), 0);
++  const EntityID later_field = node(h, h.root(), 1);
++  Counter copy;
++  ent(viewer).addComponent<ShortcutScope>(copy.take([](auto &e) { return e.is(Action::TextCopy); }));
++  ShortcutRouter router;
++  int app_calls = 0;
++  router.app = [&](const ShortcutEvent &) { app_calls++; return true; };
++
++  ctx.focus_id = viewer;
++  ctx.last_action = Action::TextCopy;
++  router.begin_frame();
++  router.dispatch_frame(ctx, {}, Chord::MOD_SUPER);
++  // Another system offering the same chord this frame gets nothing.
++  CHECK(router.dispatch(ctx, ShortcutEvent::of(Action::TextCopy, Chord::MOD_SUPER)) ==
++        ShortcutRoute::Repeated);
++  // A field focused later in the frame cannot run the copy again.
++  ctx.focus_id = later_field;
++  CHECK(!ctx.pressed(Action::TextCopy));
++  CHECK(copy.seen.size() == 1);
++  CHECK(app_calls == 0);
++
++  // Next frame is a new press.
++  ctx.focus_id = viewer;
++  ctx.last_action = Action::TextCopy;
++  router.begin_frame();
++  router.dispatch_frame(ctx, {}, Chord::MOD_SUPER);
++  CHECK(copy.seen.size() == 2);
++
++  // Held actions repeat through the same route, flagged as repeats.
++  Counter step;
++  ent(viewer).get<ShortcutScope>().handle = step.take([](auto &e) { return e.is(Action::WidgetDown); });
++  ctx.last_action = Action::None;
++  ctx.all_actions_repeat[*magic_enum::enum_index(Action::WidgetDown)] = true;
++  router.begin_frame();
++  router.dispatch_frame(ctx, {}, 0);
++  CHECK(step.seen.size() == 1 && step.seen[0].repeat);
++  CHECK(!ctx.pressed_or_repeat(Action::WidgetDown));
++}
++
++TEST(nested_dialogs_close_one_at_a_time_and_contain_their_input) {
++  ImmTestHarness h;
++  auto &ctx = h.context();
++  const EntityID outer = node(h, h.root(), 0);
++  const EntityID outer_button = node(h, ent(outer), 0);
++  const EntityID inner = node(h, ent(outer), 1);
++  const EntityID inner_button = node(h, ent(inner), 0);
++  Counter close_outer, close_inner;
++  const auto escape = [](const ShortcutEvent &e) { return e.is(Action::MenuBack); };
++  ent(outer).addComponent<ShortcutScope>(close_outer.take(escape), true);
++  ent(inner).addComponent<ShortcutScope>(close_inner.take(escape), true);
++  ShortcutRouter router;
++  int app_calls = 0;
++  router.app = [&](const ShortcutEvent &) { app_calls++; return true; };
++
++  ctx.focus_id = inner_button;
++  ctx.last_action = Action::MenuBack;
++  router.begin_frame();
++  router.dispatch_frame(ctx, {}, 0);
++  CHECK(close_inner.seen.size() == 1);
++  CHECK(close_outer.seen.empty());
++
++  ctx.focus_id = outer_button; // the inner dialog closed and returned focus
++  ctx.last_action = Action::MenuBack;
++  router.begin_frame();
++  router.dispatch_frame(ctx, {}, 0);
++  CHECK(close_outer.seen.size() == 1);
++
++  // Tab is no dialog's: it stops inside and stays queued for tabbing.
++  ctx.last_action = Action::WidgetNext;
++  router.begin_frame();
++  CHECK(router.dispatch(ctx, ShortcutEvent::of(Action::WidgetNext)) == ShortcutRoute::Contained);
++  CHECK(ctx.last_action == Action::WidgetNext);
++  CHECK(app_calls == 0);
++}
++
++TEST(input_gates_and_directional_owners_hold_their_input) {
++  ImmTestHarness h;
++  auto &ctx = h.context();
++  const EntityID page = node(h, h.root(), 0);
++  const EntityID behind = node(h, ent(page), 0);
++  const EntityID menu = node(h, h.root(), 1);
++  const EntityID spinner = node(h, ent(page), 1);
++  Counter page_keys;
++  ent(page).addComponent<ShortcutScope>(page_keys.take([](auto &) { return true; }));
++  ShortcutRouter router;
++  int app_calls = 0;
++  router.app = [&](const ShortcutEvent &) { app_calls++; return true; };
++
++  // A menu gate: focus stranded behind it must not activate anything.
++  ctx.add_input_gate("menu", [&](EntityID id) { return ctx.contains_in_subtree(menu, id); });
++  ctx.focus_id = behind;
++  ctx.last_action = Action::WidgetPress;
++  router.begin_frame();
++  router.dispatch_frame(ctx, {}, 0);
++  CHECK(!ctx.pressed(Action::WidgetPress));
++  CHECK(page_keys.seen.empty());
++  // Nothing focused, gate installed: app commands wait for the modal...
++  ctx.focus_id = ctx.ROOT;
++  CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::F, Chord::MOD_SUPER)) == ShortcutRoute::Unhandled);
++  CHECK(app_calls == 0);
++  // ...unless the app says its commands work under one.
++  router.app_when_gated = true;
++  CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::Q, Chord::MOD_SUPER)) == ShortcutRoute::App);
++  ctx.remove_input_gate("menu");
++
++  ent(spinner).addComponent<ConsumesDirectionalInput>();
++  ctx.focus_id = spinner;
++  router.begin_frame();
++  CHECK(router.dispatch(ctx, ShortcutEvent::of(Action::WidgetDown)) == ShortcutRoute::Editing);
++  CHECK(router.dispatch(ctx, ShortcutEvent::raw(keys::UP)) == ShortcutRoute::Editing);
++  CHECK(router.dispatch(ctx, ShortcutEvent::of(Action::WidgetNext)) == ShortcutRoute::Scope);
++  CHECK(page_keys.seen.size() == 1);
++}
++
++// The per-frame system has to compile against a real InputAction enum; it
++// polls the backend for modifiers, which the headless backend cannot answer.
++[[maybe_unused]] static RouteShortcuts<Action> route_system;
++
++int main() { return ui_test::run_registered_tests("shortcut_routing"); }
+-- 
+2.50.1
+
+
+From 923060d5a31e806625756a1d2e50a1a9a2e55dac Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 07:15:08 -0400
+Subject: [PATCH 4/6] UI: focus-return tokens that survive rebuilt controls
+
+FocusKey names a control by owning scope and control id; FocusToken
+captures that (plus the UI collection) instead of a raw entity id.
+FocusReturnStack::opened/closed/resolve restores focus after layout only if
+the owning scope still exists and the control resolves to a focusable
+entity -- a composite wrapper hands focus to its first focusable descendant
+-- else an explicit fallback, else nothing. Overlays nest; closing an outer
+one closes those opened inside it. A close caused by clicking elsewhere
+keeps the clicked control's focus. Hosts can supply a resolver and an
+owner check for controls the FocusKey scan cannot see.
+---
+ src/plugins/ui/focus_return.h | 210 +++++++++++++++++++++++++++++++++
+ tests/Makefile                |   1 +
+ tests/focus_return_test.cpp   | 216 ++++++++++++++++++++++++++++++++++
+ 3 files changed, 427 insertions(+)
+ create mode 100644 src/plugins/ui/focus_return.h
+ create mode 100644 tests/focus_return_test.cpp
+
+diff --git a/src/plugins/ui/focus_return.h b/src/plugins/ui/focus_return.h
+new file mode 100644
+index 0000000..1b469e7
+--- /dev/null
++++ b/src/plugins/ui/focus_return.h
+@@ -0,0 +1,210 @@
++#pragma once
++
++// Focus return that survives rebuilt controls and closed scopes.
++//
++// Modal::previously_focused_element and HasMenuState::restore_focus hold a
++// raw entity id. An immediate-mode screen that rebuilds its invoker under a
++// new id, or closes the panel the invoker lived in, leaves that id pointing
++// at nothing -- or at whatever reused it. A FocusToken names the control
++// logically instead: its UI collection, the scope that owns it, and a
++// control id within that scope (both from a FocusKey the app attaches).
++//
++//   button.ent().addComponentIfMissing<FocusKey>("inventory", "slot:12");
++//   returns.opened(ctx, popover.id, FocusToken{.scope = "inventory",
++//                                              .control = "grid"});
++//   ...
++//   returns.closed(ctx, popover.id);       // when it closes
++//   returns.resolve(ctx);                  // each frame, after layout
++//
++// resolve() restores the token only when its owning scope still exists and
++// the control resolves to an entity that can take focus -- a wrapper such as
++// a text input hands focus to its first focusable descendant. Otherwise the
++// explicit fallback, otherwise nothing. Overlays nest as a stack. A close
++// caused by clicking elsewhere does not steal focus back from what was
++// clicked.
++
++#include <algorithm>
++#include <functional>
++#include <string>
++#include <string_view>
++#include <vector>
++
++#include "../../ecs.h"
++#include "systems.h"
++
++namespace afterhours {
++namespace ui {
++
++/// A control's logical identity: the scope that owns it and its id within
++/// that scope. An entity with an empty control is the scope's own
++/// destination, e.g. a list region whose focusable child varies.
++struct FocusKey : BaseComponent {
++  std::string scope;
++  std::string control;
++  FocusKey() = default;
++  FocusKey(std::string scope_, std::string control_ = {})
++      : scope(std::move(scope_)), control(std::move(control_)) {}
++};
++
++struct FocusToken {
++  const EntityCollection *collection = nullptr; // null: the UI collection
++  std::string scope;
++  std::string control;
++  // What held focus when captured, used only for a token with no scope.
++  EntityID entity = -1;
++
++  [[nodiscard]] bool empty() const { return scope.empty() && entity < 0; }
++};
++
++enum struct FocusReturnResult {
++  Nothing,     // no overlay closed since the last resolve
++  Restored,    // focus is back on the token's control
++  FellBack,    // the token was gone or ineligible; the fallback has focus
++  Kept,        // focus had already moved outside the overlay (outside click)
++  Unavailable, // neither the token nor the fallback resolved
++};
++
++/// The token for whatever holds focus: the nearest FocusKey at or above it,
++/// or the raw entity when nothing names it.
++template <typename InputAction>
++FocusToken capture_focus(UIContext<InputAction> &ctx) {
++  FocusToken token{&UICollectionHolder::get().collection, {}, {}, ctx.focus_id};
++  EntityID current = ctx.focus_id;
++  for (int depth = 0; current >= 0 && depth < 64; depth++) {
++    OptEntity opt = UICollectionHolder::getEntityForID(current);
++    if (!opt.valid())
++      break;
++    if (opt.asE().has<FocusKey>()) {
++      token.scope = opt.asE().get<FocusKey>().scope;
++      token.control = opt.asE().get<FocusKey>().control;
++      return token;
++    }
++    if (!opt.asE().has<UIComponent>())
++      break;
++    current = opt.asE().get<UIComponent>().parent;
++  }
++  return token;
++}
++
++struct FocusReturnStack : BaseComponent {
++  struct Entry {
++    EntityID overlay = -1;
++    FocusToken target;
++    FocusToken fallback;
++  };
++  struct Closing {
++    Entry entry;
++    EntityID focus_at_close = -1;
++    bool focus_was_inside = false;
++  };
++  std::vector<Entry> open;
++  std::vector<Closing> closing;
++  // Host overrides. resolver finds a control the FocusKey scan cannot (-1
++  // when it has nothing); owner_alive decides whether a scope still exists.
++  std::function<EntityID(const FocusToken &)> resolver;
++  std::function<bool(std::string_view scope)> owner_alive;
++
++  /// An overlay opened: remember what had focus, and where to go instead.
++  template <typename InputAction>
++  void opened(UIContext<InputAction> &ctx, EntityID overlay, FocusToken fallback = {}) {
++    if (std::none_of(open.begin(), open.end(),
++                     [&](const Entry &e) { return e.overlay == overlay; }))
++      open.push_back({overlay, capture_focus(ctx), std::move(fallback)});
++  }
++
++  /// An overlay closed. Any overlays opened from inside it close with it.
++  template <typename InputAction>
++  void closed(UIContext<InputAction> &ctx, EntityID overlay) {
++    const auto at = std::find_if(open.begin(), open.end(),
++                                 [&](const Entry &e) { return e.overlay == overlay; });
++    if (at == open.end())
++      return;
++    const bool inside =
++        ctx.focus_id == ctx.ROOT || ctx.contains_in_subtree(overlay, ctx.focus_id);
++    closing.push_back({*at, ctx.focus_id, inside});
++    open.erase(at, open.end());
++  }
++
++  /// Apply closes, once rebuilt controls are laid out (after the UI
++  /// post-layout systems and click handling). Returns the last outcome.
++  template <typename InputAction>
++  FocusReturnResult resolve(UIContext<InputAction> &ctx) {
++    FocusReturnResult result = FocusReturnResult::Nothing;
++    for (const auto &c : closing) {
++      const EntityID overlay = c.entry.overlay;
++      // Something outside took focus -- the click that dismissed it.
++      if (!(ctx.focus_id == ctx.ROOT || ctx.contains_in_subtree(overlay, ctx.focus_id) ||
++            (c.focus_was_inside && ctx.focus_id == c.focus_at_close))) {
++        result = FocusReturnResult::Kept;
++        continue;
++      }
++      EntityID to = destination(ctx, c.entry.target);
++      result = FocusReturnResult::Restored;
++      if (to < 0) {
++        to = destination(ctx, c.entry.fallback);
++        result = FocusReturnResult::FellBack;
++      }
++      if (to < 0) {
++        result = FocusReturnResult::Unavailable;
++        continue;
++      }
++      ctx.set_focus(to, ctx.focus_modality);
++    }
++    closing.clear();
++    return result;
++  }
++
++  /// Where a token would put focus now, or -1.
++  template <typename InputAction>
++  EntityID destination(UIContext<InputAction> &ctx, const FocusToken &token) const {
++    auto &ui = UICollectionHolder::get().collection;
++    if (token.empty() || (token.collection && token.collection != &ui))
++      return -1;
++    const auto rendered = [](const Entity &e) {
++      return e.has<UIComponent>() && e.get<UIComponent>().was_rendered_to_screen &&
++             !e.get<UIComponent>().should_hide;
++    };
++    EntityID found = -1;
++    if (token.scope.empty()) {
++      found = token.entity;
++    } else {
++      bool owner = false;
++      if (resolver)
++        found = resolver(token);
++      for (Entity &e : EntityQuery(ui, {.ignore_temp_warning = true})
++                           .whereHasComponent<FocusKey>()
++                           .gen()) {
++        const auto &key = e.get<FocusKey>();
++        if (key.scope != token.scope || !rendered(e))
++          continue;
++        owner = true;
++        if (found < 0 && key.control == token.control)
++          found = e.id;
++      }
++      if (owner_alive)
++        owner = owner_alive(token.scope);
++      if (!owner)
++        return -1;
++    }
++    return eligible(ctx, found, 0);
++  }
++
++private:
++  // The entity itself if it can take focus, else its first descendant that
++  // can: a composite control's inner field, a region's focusable child.
++  template <typename InputAction>
++  static EntityID eligible(UIContext<InputAction> &ctx, EntityID id, int depth) {
++    OptEntity opt = UICollectionHolder::getEntityForID(id);
++    if (id < 0 || depth > 16 || !opt.valid() || !opt.asE().has<UIComponent>())
++      return -1;
++    if (can_be_focused(ctx, opt.asE()))
++      return id;
++    for (const EntityID child : opt.asE().get<UIComponent>().children)
++      if (const EntityID hit = eligible(ctx, child, depth + 1); hit >= 0)
++        return hit;
++    return -1;
++  }
++};
++
++} // namespace ui
++} // namespace afterhours
+diff --git a/tests/Makefile b/tests/Makefile
+index 8ac2a67..e1c1821 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -180,6 +180,7 @@ ALL_TESTS := \
+ 	virtual_list_test \
+ 	scroll_item_anchor_test \
+ 	shortcut_routing_test \
++	focus_return_test \
+ 	text_action_names_test \
+ 	sizing_repro_test \
+ 	slider_test \
+diff --git a/tests/focus_return_test.cpp b/tests/focus_return_test.cpp
+new file mode 100644
+index 0000000..44a6d4c
+--- /dev/null
++++ b/tests/focus_return_test.cpp
+@@ -0,0 +1,216 @@
++// focus_return_test.cpp
++// Closing an overlay returns focus to the control that opened it, named
++// logically so a rebuilt control still counts, only while its owner exists
++// and it can take focus, through nested overlays, and never over a control
++// the user just clicked.
++
++#include "ui_test_harness.h"
++#include <afterhours/src/plugins/ui/focus_return.h>
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using ui_test::ImmTestHarness;
++
++namespace {
++struct Screen {
++  ImmTestHarness h;
++  FocusReturnStack returns;
++  bool panel = true, dialog = false, nested = false, wrapped = false;
++  int invoker_slot = 0;
++  std::function<void()> extra; // more of the screen, built after the rest
++  EntityID invoker = -1, search = -1, dialog_root = -1, ok = -1, nested_root = -1,
++           nested_button = -1;
++
++  struct Key { std::string scope; std::string control = {}; };
++  EntityID box(Entity &parent, int slot, Key key, bool focusable) {
++    auto e = div(h.context(), mk(parent, slot), ComponentConfig{}.with_size({pixels(40), pixels(20)}));
++    if (!key.scope.empty()) e.ent().addComponentIfMissing<FocusKey>(key.scope, key.control);
++    if (focusable) e.ent().addComponentIfMissing<HasClickListener>([](Entity &) {});
++    return e.ent().id;
++  }
++  Entity &ent(EntityID id) { return UICollectionHolder::getEntityForIDEnforce(id); }
++
++  void frame() {
++    auto &root = h.root();
++    h.begin_frame();
++    if (panel) {
++      const EntityID p = box(root, 0, {"panel"}, false);
++      if (wrapped) {
++        // A composite control: the named wrapper cannot take focus, its
++        // second child can; the first is decoration.
++        invoker = box(ent(p), invoker_slot, {"panel", "open"}, false);
++        box(ent(invoker), 0, {}, false);
++        box(ent(invoker), 1, {}, true);
++      } else {
++        invoker = box(ent(p), invoker_slot, {"panel", "open"}, true);
++      }
++    }
++    const EntityID toolbar = box(root, 1, {"toolbar"}, false);
++    search = box(ent(toolbar), 0, {"toolbar", "search"}, true);
++    if (dialog) {
++      dialog_root = box(root, 2, {"dialog"}, false);
++      ok = box(ent(dialog_root), 0, {"dialog", "ok"}, true);
++      if (nested) {
++        nested_root = box(ent(dialog_root), 1, {"confirm"}, false);
++        nested_button = box(ent(nested_root), 0, {"confirm", "yes"}, true);
++      }
++    }
++    if (extra) extra();
++    h.layout_only();
++    // Only what this frame built counts as on screen, as
++    // TrackIfComponentWillBeRendered would mark it.
++    for (const auto &e : h.coll.get_entities())
++      if (e && e->has<UIComponent>()) e->get<UIComponent>().was_rendered_to_screen = false;
++    const std::function<void(EntityID)> mark = [&](EntityID id) {
++      ent(id).get<UIComponent>().was_rendered_to_screen = true;
++      for (const EntityID child : ent(id).get<UIComponent>().children) mark(child);
++    };
++    mark(root.id);
++  }
++  UIContext<ui_test::TestInputAction> &ctx() { return h.context(); }
++  FocusReturnResult close(EntityID overlay) {
++    returns.closed(ctx(), overlay);
++    frame();
++    return returns.resolve(ctx());
++  }
++};
++} // namespace
++
++TEST(a_rebuilt_invoker_gets_focus_back) {
++  for (const bool wrapped : {false, true}) {
++    Screen s;
++    s.wrapped = wrapped;
++    s.frame();
++    const EntityID old = s.invoker;
++    s.ctx().set_focus(wrapped ? s.ent(old).get<UIComponent>().children[1] : old);
++    s.dialog = true;
++    s.frame();
++    s.returns.opened(s.ctx(), s.dialog_root);
++    s.ctx().set_focus(s.ok);
++    s.dialog = false;
++    s.invoker_slot = 7; // the panel rebuilt its button under a new entity
++    const EntityID dialog = s.dialog_root;
++    CHECK(s.close(dialog) == FocusReturnResult::Restored);
++    CHECK(s.invoker != old);
++    const EntityID expected = wrapped ? s.ent(s.invoker).get<UIComponent>().children[1] : s.invoker;
++    CHECK(s.ctx().focus_id == expected);
++  }
++}
++
++TEST(a_closed_owner_falls_back_explicitly_or_not_at_all) {
++  for (const bool with_fallback : {true, false}) {
++    Screen s;
++    s.frame();
++    s.ctx().set_focus(s.invoker);
++    s.dialog = true;
++    s.frame();
++    s.returns.opened(s.ctx(), s.dialog_root,
++                     with_fallback ? FocusToken{nullptr, "toolbar", "search"} : FocusToken{});
++    s.ctx().set_focus(s.ok);
++    s.dialog = false;
++    s.panel = false; // the action closed the panel that owned the invoker
++    const EntityID ok = s.ok;
++    const auto result = s.close(s.dialog_root);
++    if (with_fallback) {
++      CHECK(result == FocusReturnResult::FellBack);
++      CHECK(s.ctx().focus_id == s.search);
++    } else {
++      CHECK(result == FocusReturnResult::Unavailable);
++      CHECK(s.ctx().focus_id == ok); // left for the framework to drop
++    }
++  }
++}
++
++TEST(an_ineligible_invoker_is_not_focused) {
++  Screen s;
++  s.frame();
++  s.ctx().set_focus(s.invoker);
++  s.dialog = true;
++  s.frame();
++  s.returns.opened(s.ctx(), s.dialog_root, {nullptr, "toolbar", "search"});
++  s.ctx().set_focus(s.ok);
++  s.dialog = false;
++  // Still on screen, but something else owns input now.
++  s.ctx().add_input_gate("busy", [&](EntityID id) { return id != s.invoker; });
++  CHECK(s.close(s.dialog_root) == FocusReturnResult::FellBack);
++  CHECK(s.ctx().focus_id == s.search);
++}
++
++TEST(nested_overlays_return_one_level_at_a_time) {
++  Screen s;
++  s.frame();
++  s.ctx().set_focus(s.invoker);
++  s.dialog = true;
++  s.frame();
++  s.returns.opened(s.ctx(), s.dialog_root);
++  s.ctx().set_focus(s.ok);
++  s.nested = true;
++  s.frame();
++  s.returns.opened(s.ctx(), s.nested_root);
++  s.ctx().set_focus(s.nested_button);
++
++  s.nested = false;
++  CHECK(s.close(s.nested_root) == FocusReturnResult::Restored);
++  CHECK(s.ctx().focus_id == s.ok);
++  s.dialog = false;
++  CHECK(s.close(s.dialog_root) == FocusReturnResult::Restored);
++  CHECK(s.ctx().focus_id == s.invoker);
++
++  // Closing the outer one closes the inner with it, back to the invoker.
++  s.dialog = s.nested = true;
++  s.frame();
++  s.returns.opened(s.ctx(), s.dialog_root);
++  s.ctx().set_focus(s.ok);
++  s.returns.opened(s.ctx(), s.nested_root);
++  s.ctx().set_focus(s.nested_button);
++  s.dialog = s.nested = false;
++  CHECK(s.close(s.dialog_root) == FocusReturnResult::Restored);
++  CHECK(s.ctx().focus_id == s.invoker);
++  CHECK(s.returns.open.empty());
++}
++
++TEST(dismissal_by_an_outside_click_keeps_the_click) {
++  Screen s;
++  s.frame();
++  s.ctx().set_focus(s.invoker);
++  s.dialog = true;
++  s.frame();
++  s.returns.opened(s.ctx(), s.dialog_root);
++  s.ctx().set_focus(s.ok);
++  // The click lands on the toolbar, which dismisses the overlay -- in either
++  // order relative to the close.
++  for (const bool click_first : {true, false}) {
++    if (click_first) s.ctx().set_focus(s.search);
++    s.returns.closed(s.ctx(), s.dialog_root);
++    if (!click_first) s.ctx().set_focus(s.search);
++    s.frame();
++    CHECK(s.returns.resolve(s.ctx()) == FocusReturnResult::Kept);
++    CHECK(s.ctx().focus_id == s.search);
++    s.ctx().set_focus(s.ok);
++    s.returns.opened(s.ctx(), s.dialog_root);
++    s.returns.open.back().target = capture_focus(s.ctx());
++  }
++}
++
++TEST(a_host_resolver_finds_unnamed_rebuilt_controls) {
++  Screen s;
++  s.frame();
++  EntityID dynamic = -1;
++  s.returns.resolver = [&](const FocusToken &t) { return t.control == "row:9" ? dynamic : -1; };
++  s.dialog = true;
++  s.frame();
++  s.returns.opened(s.ctx(), s.dialog_root);
++  s.returns.open.back().target = {nullptr, "toolbar", "row:9"};
++  s.ctx().set_focus(s.ok);
++  s.dialog = false;
++  s.extra = [&] { dynamic = s.box(s.h.root(), 9, {}, true); };
++  CHECK(s.close(s.dialog_root) == FocusReturnResult::Restored);
++  CHECK(s.ctx().focus_id == dynamic);
++  // A token from another collection never resolves here.
++  EntityCollection other;
++  CHECK(s.returns.destination(s.ctx(), {&other, "toolbar", "search"}) == -1);
++  CHECK(s.returns.destination(s.ctx(), {nullptr, "toolbar", "search"}) == s.search);
++}
++
++int main() { return ui_test::run_registered_tests("focus_return"); }
+-- 
+2.50.1
+
+
+From 1456a3e5d8e350f51e0722123c3171a86665fdf4 Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 07:20:01 -0400
+Subject: [PATCH 5/6] UI: read-only selection over a virtualized text source
+
+source_selection.h keeps selection endpoints as source positions (line,
+byte) behind a TextSource concept, so a selection survives its rows leaving
+a virtual list. Display mapping expands tabs with nearest-edge snapping,
+soft-wrap fragments give every position exactly one row (the line end stays
+on the last fragment), and hit/row_highlight reuse text_selection's
+measuring. Keyboard movement covers characters across CRLF, identifier
+words, display-column Up/Down, pages, line and document ends; select_word,
+select_line and edge_autoscroll cover pointer gestures. copy_text returns
+the exact source bytes, reading a line at a time, and reports
+LimitExceeded or OutOfRange instead of truncating.
+---
+ src/plugins/ui/source_selection.h | 404 ++++++++++++++++++++++++++++++
+ tests/Makefile                    |   1 +
+ tests/source_selection_test.cpp   | 212 ++++++++++++++++
+ 3 files changed, 617 insertions(+)
+ create mode 100644 src/plugins/ui/source_selection.h
+ create mode 100644 tests/source_selection_test.cpp
+
+diff --git a/src/plugins/ui/source_selection.h b/src/plugins/ui/source_selection.h
+new file mode 100644
+index 0000000..01a948d
+--- /dev/null
++++ b/src/plugins/ui/source_selection.h
+@@ -0,0 +1,404 @@
++#pragma once
++
++// Read-only selection over a text source that is only partly rendered.
++//
++// text_selection.h measures and copies from the lines currently laid out.
++// A virtualized log, transcript or code view renders a window of rows, so an
++// endpoint whose row scrolled away cannot be resolved from what is rendered.
++// Here endpoints are source positions -- line and byte -- that stay valid
++// whatever is on screen. The host adapts its text to the TextSource concept
++// (line_count(), and line(i) with its terminator); rows supply geometry
++// through the display mapping when they are drawn or hit-tested.
++//
++// Display text expands tabs; a soft-wrapped line is a list of fragments of
++// that display text. Copy reads the source a line at a time, keeps tabs, CRLF
++// and every other byte as they are, and refuses -- rather than truncates --
++// a selection larger than the caller's limit. Revision identity, sides of a
++// diff and location headers stay with the host.
++
++#include <algorithm>
++#include <concepts>
++#include <cstddef>
++#include <optional>
++#include <string>
++#include <string_view>
++#include <utility>
++#include <vector>
++
++#include "text_selection.h"
++
++namespace afterhours {
++namespace ui {
++namespace source_text {
++
++template <typename S>
++concept TextSource = requires(const S &s, size_t i) {
++  { s.line_count() } -> std::convertible_to<size_t>;
++  { s.line(i) } -> std::convertible_to<std::string_view>;
++};
++
++/// A line and a byte within its content (terminator excluded).
++struct Position {
++  size_t line = 0;
++  size_t byte = 0;
++  auto operator<=>(const Position &) const = default;
++};
++
++/// The line without its "\n" or "\r\n".
++inline std::string_view content(std::string_view line) {
++  if (line.ends_with("\r\n")) return line.substr(0, line.size() - 2);
++  if (line.ends_with('\n')) return line.substr(0, line.size() - 1);
++  return line;
++}
++
++inline bool is_continuation(unsigned char c) { return (c & 0xC0) == 0x80; }
++
++/// A whole string as a source, lines keeping their terminators.
++struct StringSource {
++  std::string text;
++  std::vector<size_t> starts{0};
++
++  explicit StringSource(std::string t) : text(std::move(t)) {
++    for (size_t i = 0; i < text.size(); i++)
++      if (text[i] == '\n') starts.push_back(i + 1);
++  }
++  [[nodiscard]] size_t line_count() const { return starts.size(); }
++  [[nodiscard]] std::string_view line(size_t i) const {
++    const size_t end = i + 1 < starts.size() ? starts[i + 1] : text.size();
++    return std::string_view(text).substr(starts[i], end - starts[i]);
++  }
++};
++
++// ---------------------------------------------------------------------------
++// Display mapping
++// ---------------------------------------------------------------------------
++
++/// A line as drawn: tabs expanded to the next multiple of tab_width columns.
++/// source[d] is the source byte for display byte d; one longer than text.
++struct DisplayLine {
++  std::string text;
++  std::vector<size_t> source;
++};
++
++inline DisplayLine display_line(std::string_view line_content, size_t tab_width = 4) {
++  DisplayLine out;
++  tab_width = std::max<size_t>(tab_width, 1);
++  size_t column = 0;
++  for (size_t i = 0; i < line_content.size(); i++) {
++    const unsigned char c = static_cast<unsigned char>(line_content[i]);
++    if (c == '\t') {
++      const size_t width = tab_width - column % tab_width;
++      out.text.append(width, ' ');
++      out.source.insert(out.source.end(), width, i);
++      column += width;
++      continue;
++    }
++    out.text += static_cast<char>(c);
++    out.source.push_back(i);
++    if (!is_continuation(c)) column++;
++  }
++  out.source.push_back(line_content.size());
++  return out;
++}
++
++/// The source byte at a display byte. Inside an expanded tab -- a run of
++/// display bytes sharing one source byte -- snaps to the nearer edge.
++inline size_t to_source(const DisplayLine &d, size_t display_byte) {
++  const size_t at = std::min(display_byte, d.source.size() - 1);
++  size_t begin = at, end = at;
++  while (begin > 0 && d.source[begin - 1] == d.source[at]) begin--;
++  while (end + 1 < d.source.size() && d.source[end] == d.source[at]) end++;
++  return (at - begin) * 2 < end - begin ? d.source[at] : d.source[end];
++}
++
++/// The display byte where a source byte begins.
++inline size_t to_display(const DisplayLine &d, size_t source_byte) {
++  return static_cast<size_t>(std::lower_bound(d.source.begin(), d.source.end(), source_byte) -
++                             d.source.begin());
++}
++
++/// Codepoints before display byte d: the column a caret sits in.
++inline size_t display_column(const DisplayLine &d, size_t display_byte) {
++  size_t column = 0;
++  for (size_t i = 0; i < std::min(display_byte, d.text.size()); i++)
++    if (!is_continuation(static_cast<unsigned char>(d.text[i]))) column++;
++  return column;
++}
++
++inline size_t display_byte_at_column(const DisplayLine &d, size_t column) {
++  for (size_t i = 0; i < d.text.size(); i++)
++    if (!is_continuation(static_cast<unsigned char>(d.text[i])) && column-- == 0) return i;
++  return d.text.size();
++}
++
++/// One visual row of a soft-wrapped line: display bytes [begin, end).
++struct Fragment {
++  size_t begin = 0;
++  size_t end = 0;
++};
++
++/// Greedy soft wrap at `width`, breaking after the last space that fits, or
++/// mid-word when a word is wider than the row. Never splits a codepoint.
++template <typename MeasureFn>
++std::vector<Fragment> wrap_fragments(const DisplayLine &d, float width, MeasureFn &&measure) {
++  std::vector<Fragment> out;
++  size_t begin = 0;
++  while (begin < d.text.size()) {
++    size_t end = begin, space = std::string::npos;
++    while (end < d.text.size()) {
++      size_t next = end + std::max<size_t>(1, utf8_char_length(d.text, end));
++      if (width > 0.f && next - begin > 0 && end > begin &&
++          measure(std::string_view(d.text).substr(begin, next - begin)) > width)
++        break;
++      if (d.text[end] == ' ') space = next;
++      end = next;
++    }
++    if (end < d.text.size() && space != std::string::npos && space > begin) end = space;
++    out.push_back({begin, end});
++    begin = end;
++  }
++  if (out.empty()) out.push_back({0, 0});
++  return out;
++}
++
++/// Which fragment a display byte belongs to. A boundary belongs to the
++/// fragment it starts -- except the end of the line, which belongs to the
++/// last fragment -- so a caret is drawn on exactly one row.
++inline size_t fragment_of(const std::vector<Fragment> &rows, size_t display_byte) {
++  for (size_t i = 0; i < rows.size(); i++)
++    if (display_byte < rows[i].end) return i;
++  return rows.empty() ? 0 : rows.size() - 1;
++}
++
++/// The source position under x on a rendered row.
++template <typename MeasureFn>
++Position hit(size_t line, const DisplayLine &d, Fragment row, float x, MeasureFn &&measure) {
++  const std::string text = d.text.substr(row.begin, row.end - row.begin);
++  const size_t within = text_selection::detail_sel::offset_nearest_x(
++      text, x, [&](const std::string &s) { return measure(std::string_view(s)); });
++  return {line, to_source(d, row.begin + within)};
++}
++
++/// The highlight's horizontal extent on a rendered row, if the selection
++/// [first, last) touches it.
++template <typename MeasureFn>
++std::optional<std::pair<float, float>> row_highlight(size_t line, const DisplayLine &d, Fragment row,
++                                                     Position first, Position last,
++                                                     MeasureFn &&measure) {
++  if (line < first.line || line > last.line || first == last) return std::nullopt;
++  const size_t from = line == first.line ? std::max(row.begin, to_display(d, first.byte)) : row.begin;
++  const size_t to = line == last.line ? std::min(row.end, to_display(d, last.byte)) : row.end;
++  if (to < from || (to == from && line == last.line)) return std::nullopt;
++  const std::string_view text(d.text);
++  return std::pair{measure(text.substr(row.begin, from - row.begin)),
++                   measure(text.substr(row.begin, to - row.begin))};
++}
++
++// ---------------------------------------------------------------------------
++// Selection and movement
++// ---------------------------------------------------------------------------
++
++/// Identifier words by default: ASCII letters, digits, '_' and any non-ASCII
++/// byte, so `alpha_éλ` is one word.
++inline bool identifier_byte(unsigned char c) {
++  return c >= 0x80 || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') ||
++         (c >= 'A' && c <= 'Z');
++}
++using WordPolicy = bool (*)(unsigned char);
++
++enum struct Move {
++  Left, Right, WordLeft, WordRight, Up, Down, LineStart, LineEnd,
++  PageUp, PageDown, DocumentStart, DocumentEnd,
++};
++
++struct Selection {
++  Position anchor;
++  Position head;
++  // Display column Up/Down aim for, so a short line does not lose it.
++  std::optional<size_t> goal_column;
++
++  [[nodiscard]] bool empty() const { return anchor == head; }
++  [[nodiscard]] std::pair<Position, Position> ordered() const {
++    return anchor <= head ? std::pair{anchor, head} : std::pair{head, anchor};
++  }
++  /// Mouse down (shift-click extends), then drag.
++  void press(Position p, bool extend) {
++    head = p;
++    if (!extend) anchor = p;
++    goal_column.reset();
++  }
++  void drag(Position p) {
++    head = p;
++    goal_column.reset();
++  }
++};
++
++/// A position moved onto the source: an existing line, inside its content,
++/// on a codepoint boundary.
++template <TextSource S> Position clamp(const S &source, Position p) {
++  if (source.line_count() == 0) return {};
++  p.line = std::min(p.line, source.line_count() - 1);
++  const auto line = source.line(p.line);
++  const std::string_view text = content(line);
++  p.byte = std::min(p.byte, text.size());
++  while (p.byte > 0 && p.byte < text.size() && is_continuation(static_cast<unsigned char>(text[p.byte])))
++    p.byte--;
++  return p;
++}
++
++template <TextSource S>
++void move(Selection &sel, const S &source, Move how, bool extend, size_t page_lines = 20,
++          size_t tab_width = 4, WordPolicy word = identifier_byte) {
++  const size_t lines = source.line_count();
++  if (lines == 0) return;
++  // Collapsing a selection with Left/Right lands on its edge.
++  if (!extend && !sel.empty() && (how == Move::Left || how == Move::Right)) {
++    const auto [first, last] = sel.ordered();
++    sel.anchor = sel.head = how == Move::Left ? first : last;
++    sel.goal_column.reset();
++    return;
++  }
++  Position p = clamp(source, sel.head);
++  const auto line_text = [&](size_t i) {
++    const auto line = source.line(i);
++    return std::string(content(line));
++  };
++  std::string text = line_text(p.line);
++  const auto vertical = [&](long delta) {
++    const DisplayLine here = display_line(text, tab_width);
++    if (!sel.goal_column) sel.goal_column = display_column(here, to_display(here, p.byte));
++    const long target = std::clamp(static_cast<long>(p.line) + delta, 0L, static_cast<long>(lines) - 1);
++    if (target == static_cast<long>(p.line)) {
++      p.byte = delta < 0 ? 0 : text.size();
++      return;
++    }
++    p.line = static_cast<size_t>(target);
++    const DisplayLine there = display_line(line_text(p.line), tab_width);
++    p.byte = to_source(there, display_byte_at_column(there, *sel.goal_column));
++  };
++  const bool keeps_goal = how == Move::Up || how == Move::Down || how == Move::PageUp ||
++                          how == Move::PageDown;
++  switch (how) {
++  case Move::Left:
++    if (p.byte > 0) {
++      do p.byte--;
++      while (p.byte > 0 && is_continuation(static_cast<unsigned char>(text[p.byte])));
++    } else if (p.line > 0) {
++      p.line--;
++      p.byte = line_text(p.line).size();
++    }
++    break;
++  case Move::Right:
++    if (p.byte < text.size()) p.byte += std::max<size_t>(1, utf8_char_length(text, p.byte));
++    else if (p.line + 1 < lines) p = {p.line + 1, 0};
++    break;
++  case Move::WordLeft:
++    if (p.byte == 0 && p.line > 0) { p.line--; text = line_text(p.line); p.byte = text.size(); }
++    while (p.byte > 0 && !word(static_cast<unsigned char>(text[p.byte - 1]))) p.byte--;
++    while (p.byte > 0 && word(static_cast<unsigned char>(text[p.byte - 1]))) p.byte--;
++    break;
++  case Move::WordRight:
++    if (p.byte == text.size() && p.line + 1 < lines) { p = {p.line + 1, 0}; text = line_text(p.line); }
++    while (p.byte < text.size() && !word(static_cast<unsigned char>(text[p.byte]))) p.byte++;
++    while (p.byte < text.size() && word(static_cast<unsigned char>(text[p.byte]))) p.byte++;
++    break;
++  case Move::Up: vertical(-1); break;
++  case Move::Down: vertical(1); break;
++  case Move::PageUp: vertical(-static_cast<long>(page_lines)); break;
++  case Move::PageDown: vertical(static_cast<long>(page_lines)); break;
++  case Move::LineStart: p.byte = 0; break;
++  case Move::LineEnd: p.byte = text.size(); break;
++  case Move::DocumentStart: p = {}; break;
++  case Move::DocumentEnd: p = {lines - 1, line_text(lines - 1).size()}; break;
++  }
++  if (!keeps_goal) sel.goal_column.reset();
++  sel.head = p;
++  if (!extend) sel.anchor = p;
++}
++
++/// Double-click: the word (or run of non-word bytes) at p.
++template <TextSource S>
++void select_word(Selection &sel, const S &source, Position p, WordPolicy word = identifier_byte) {
++  p = clamp(source, p);
++  const auto line = source.line(p.line);
++  const std::string_view text = content(line);
++  if (text.empty()) { sel.anchor = sel.head = p; return; }
++  const size_t at = std::min(p.byte, text.size() - 1);
++  const bool kind = word(static_cast<unsigned char>(text[at]));
++  size_t begin = at, end = at;
++  while (begin > 0 && word(static_cast<unsigned char>(text[begin - 1])) == kind) begin--;
++  while (end < text.size() && word(static_cast<unsigned char>(text[end])) == kind) end++;
++  while (end < text.size() && is_continuation(static_cast<unsigned char>(text[end]))) end++;
++  sel.anchor = {p.line, begin};
++  sel.head = {p.line, end};
++  sel.goal_column.reset();
++}
++
++/// Triple-click: the whole line, through its terminator.
++template <TextSource S> void select_line(Selection &sel, const S &source, size_t line) {
++  const Position p = clamp(source, {line, 0});
++  sel.anchor = p;
++  sel.head = p.line + 1 < source.line_count() ? Position{p.line + 1, 0}
++                                               : Position{p.line, content(source.line(p.line)).size()};
++  sel.goal_column.reset();
++}
++
++/// Pixels to scroll this frame while dragging near or past an edge of the
++/// view along one axis: negative toward the start, zero inside the margins,
++/// up to max_step once the pointer is a margin's width beyond the edge.
++inline float edge_autoscroll(float pointer, float view_start, float view_end, float margin,
++                             float max_step) {
++  margin = std::max(margin, 1.f);
++  if (pointer < view_start + margin)
++    return -max_step * std::min(1.f, (view_start + margin - pointer) / (2.f * margin));
++  if (pointer > view_end - margin)
++    return max_step * std::min(1.f, (pointer - view_end + margin) / (2.f * margin));
++  return 0.f;
++}
++
++// ---------------------------------------------------------------------------
++// Copy
++// ---------------------------------------------------------------------------
++
++enum struct CopyStatus {
++  Copied,
++  Empty,         // nothing selected
++  OutOfRange,    // an endpoint is not in this source (it changed underneath)
++  LimitExceeded, // larger than the caller's limit; nothing copied
++};
++
++struct CopyResult {
++  CopyStatus status = CopyStatus::Empty;
++  std::string text;
++};
++
++/// The exact source bytes between two positions, terminators included where
++/// the range crosses them. Reads one line at a time and stops as soon as the
++/// output would pass `limit` bytes.
++template <TextSource S>
++CopyResult copy_text(const S &source, Position a, Position b, size_t limit) {
++  if (a > b) std::swap(a, b);
++  const auto valid = [&](Position p) {
++    if (p.line >= source.line_count()) return false;
++    const auto line = source.line(p.line);
++    const std::string_view text = content(line);
++    return p.byte <= text.size() &&
++           (p.byte == text.size() || !is_continuation(static_cast<unsigned char>(text[p.byte])));
++  };
++  if (!valid(a) || !valid(b)) return {CopyStatus::OutOfRange, {}};
++  if (a == b) return {CopyStatus::Empty, {}};
++  CopyResult out{CopyStatus::Copied, {}};
++  for (size_t i = a.line; i <= b.line; i++) {
++    const auto line = source.line(i);
++    const std::string_view whole = line;
++    const size_t begin = i == a.line ? a.byte : 0;
++    const size_t end = i == b.line ? b.byte : whole.size();
++    if (end - begin > limit - out.text.size()) return {CopyStatus::LimitExceeded, {}};
++    out.text.append(whole.substr(begin, end - begin));
++  }
++  return out;
++}
++
++} // namespace source_text
++} // namespace ui
++} // namespace afterhours
+diff --git a/tests/Makefile b/tests/Makefile
+index e1c1821..bb14f32 100644
+--- a/tests/Makefile
++++ b/tests/Makefile
+@@ -181,6 +181,7 @@ ALL_TESTS := \
+ 	scroll_item_anchor_test \
+ 	shortcut_routing_test \
+ 	focus_return_test \
++	source_selection_test \
+ 	text_action_names_test \
+ 	sizing_repro_test \
+ 	slider_test \
+diff --git a/tests/source_selection_test.cpp b/tests/source_selection_test.cpp
+new file mode 100644
+index 0000000..76c7e69
+--- /dev/null
++++ b/tests/source_selection_test.cpp
+@@ -0,0 +1,212 @@
++// source_selection_test.cpp
++// Selection endpoints are source positions, so a selection survives its rows
++// scrolling out of a virtual list, and copy returns the source's exact bytes
++// -- tabs, CRLF, multi-byte UTF-8 -- or says it is too large.
++
++#include "ui_test_harness.h"
++#include <afterhours/src/plugins/ui/source_selection.h>
++
++using namespace afterhours;
++using namespace afterhours::ui;
++using namespace afterhours::ui::imm;
++using namespace afterhours::ui::source_text;
++using ui_test::ImmTestHarness;
++
++namespace {
++// Monospace: every codepoint is 10px wide.
++float mono(std::string_view s) {
++  float w = 0.f;
++  for (const char c : s)
++    if (!is_continuation(static_cast<unsigned char>(c))) w += 10.f;
++  return w;
++}
++
++std::string corpus(size_t lines) {
++  const char *shapes[] = {"\tint alpha_éλ = %zu;", "日本語\tテキスト %zu", "emoji 🙂\t🙂 %zu",
++                          "  spaced\t\ttabs %zu  ", "", "plain ascii line %zu"};
++  std::string out;
++  char buf[128];
++  for (size_t i = 0; i < lines; i++) {
++    snprintf(buf, sizeof buf, shapes[i % 6], i);
++    out += buf;
++    if (i + 1 < lines) out += i % 3 == 0 ? "\r\n" : "\n";
++  }
++  return out; // no terminator on the last line
++}
++
++size_t absolute(const StringSource &s, Position p) { return s.starts[p.line] + p.byte; }
++
++// A virtual list of source lines, and hit-testing against only the rows it
++// built this frame.
++struct Viewer {
++  ImmTestHarness h;
++  const StringSource &source;
++  EntityID list = -1;
++  std::vector<std::pair<size_t, EntityID>> rows;
++  static constexpr float row_h = 20.f, view_h = 200.f;
++
++  explicit Viewer(const StringSource &s) : source(s) {}
++  void frame() {
++    h.begin_frame();
++    rows.clear();
++    list = virtual_list(h.context(), mk(h.root(), 0), source.line_count(), row_h,
++                        [&](size_t i, Entity &row) { rows.emplace_back(i, row.id); },
++                        ComponentConfig{}.with_size({pixels(400), pixels(view_h)}))
++               .id();
++    h.layout_only();
++    auto &scroll = this->scroll();
++    scroll.viewport_size = {400.f, view_h};
++    scroll.content_size = {400.f, row_h * static_cast<float>(source.line_count())};
++  }
++  HasScrollView &scroll() { return AutoLayout::to_ent_static(list).get<HasScrollView>(); }
++  bool rendered(size_t line) const {
++    return std::any_of(rows.begin(), rows.end(), [&](auto &r) { return r.first == line; });
++  }
++  // y relative to the viewport top; clamped into it, as a drag past the
++  // edge selects on the edge row.
++  Position hit_at(float x, float y) {
++    y = std::clamp(y, 0.f, view_h - 1.f);
++    const float list_y = AutoLayout::to_cmp_static(list).rect().y;
++    for (const auto &[line, id] : rows) {
++      const float top = AutoLayout::to_cmp_static(id).rect().y - list_y - scroll().scroll_offset.y;
++      if (y >= top && y < top + row_h) {
++        const auto d = display_line(content(source.line(line)));
++        return hit(line, d, Fragment{0, d.text.size()}, x, mono);
++      }
++    }
++    return {};
++  }
++};
++} // namespace
++
++TEST(selection_beyond_the_viewport_copies_the_exact_source_bytes) {
++  const StringSource source(corpus(3000));
++  Viewer v(source);
++  v.frame();
++  Selection sel;
++  // Press on line 3 at display column 11, the right half of the first tab in
++  // "  spaced\t\ttabs": it snaps to that tab's end.
++  sel.press(v.hit_at(10.f * 11 + 2.f, 3 * Viewer::row_h + 5.f), false);
++  const Position start = sel.anchor;
++  CHECK(start.line == 3);
++  CHECK(start.byte == 9);
++
++  // Drag below the view: edge autoscroll carries the list ~2000 lines down.
++  for (int frame = 0; frame < 4000 && sel.head.line < 2000; frame++) {
++    const float pointer = Viewer::view_h + 40.f;
++    const float step = edge_autoscroll(pointer, 0.f, Viewer::view_h, 20.f, 30.f);
++    CHECK(step > 0.f);
++    v.scroll().jump_to_y(std::min(v.scroll().scroll_offset.y + step, v.scroll().bottom_offset()));
++    v.frame();
++    sel.drag(v.hit_at(35.f, pointer));
++  }
++  CHECK(sel.head.line >= 2000);
++  CHECK(!v.rendered(start.line)); // the anchor's row is long gone
++  CHECK(sel.anchor == start);
++  auto copied = copy_text(source, sel.anchor, sel.head, 1 << 20);
++  CHECK(copied.status == CopyStatus::Copied);
++  CHECK(copied.text == source.text.substr(absolute(source, start),
++                                          absolute(source, sel.head) - absolute(source, start)));
++  CHECK(copied.text.find("\r\n") != std::string::npos);
++  CHECK(copied.text.find("🙂") != std::string::npos);
++
++  // Back to the starting row and before the anchor: a backwards selection.
++  v.scroll().jump_to_y(0.f);
++  v.frame();
++  sel.drag(v.hit_at(0.f, 1 * Viewer::row_h + 5.f));
++  CHECK(sel.anchor == start);
++  CHECK((sel.head == Position{1, 0}));
++  copied = copy_text(source, sel.anchor, sel.head, 1 << 20);
++  CHECK(copied.text == source.text.substr(absolute(source, sel.head),
++                                          absolute(source, start) - absolute(source, sel.head)));
++
++  // Too large for the caller's limit: refused whole, never truncated.
++  const size_t size = absolute(source, {2000, 0}) - absolute(source, start);
++  CHECK(copy_text(source, start, {2000, 0}, size - 1).status == CopyStatus::LimitExceeded);
++  CHECK(copy_text(source, start, {2000, 0}, size - 1).text.empty());
++  CHECK(copy_text(source, start, {2000, 0}, size).text.size() == size);
++  CHECK(copy_text(source, start, {5000, 0}, size).status == CopyStatus::OutOfRange);
++  CHECK(copy_text(source, start, start, size).status == CopyStatus::Empty);
++}
++
++TEST(tabs_map_between_source_and_display) {
++  const auto d = display_line("\tab\tc", 4);
++  CHECK(d.text == "    ab  c");
++  CHECK(to_display(d, 0) == 0);
++  CHECK(to_display(d, 1) == 4);
++  CHECK(to_display(d, 3) == 6);
++  CHECK(to_display(d, 4) == 8);
++  CHECK(to_source(d, 1) == 0); // inside the first tab, nearer its start
++  CHECK(to_source(d, 3) == 1); // nearer its end
++  CHECK(to_source(d, 7) == 4); // the 2-column tab, at its middle
++  CHECK(to_source(d, 9) == 5);
++  CHECK(hit(0, d, {0, d.text.size()}, 12.f, mono).byte == 0);
++  CHECK(hit(0, d, {0, d.text.size()}, 31.f, mono).byte == 1);
++  // A multi-byte character is one column and never split.
++  const auto u = display_line("é\tx", 4);
++  CHECK(u.text == "é   x");
++  CHECK(display_column(u, to_display(u, 3)) == 4);
++  CHECK(hit(0, u, {0, u.text.size()}, 6.f, mono).byte == 2);
++}
++
++TEST(soft_wrapped_fragments_give_each_position_one_row) {
++  const auto d = display_line("aaaa bbbb cccccccccc", 4);
++  const auto rows = wrap_fragments(d, 60.f, mono);
++  CHECK(rows.size() == 4);
++  CHECK(rows[0].begin == 0 && rows[0].end == 5);  // "aaaa "
++  CHECK(rows[1].begin == 5 && rows[1].end == 10); // "bbbb "
++  CHECK(rows[2].end == 16);                       // an over-wide word breaks
++  CHECK(fragment_of(rows, 5) == 1);  // a boundary starts the next row
++  CHECK(fragment_of(rows, 4) == 0);
++  CHECK(fragment_of(rows, d.text.size()) == 3); // the line end stays on the last
++  CHECK(hit(0, d, rows[1], 20.f, mono).byte == 7);
++  // Highlight geometry for a selection crossing rows.
++  const auto mid = row_highlight(0, d, rows[1], {0, 2}, {0, 7}, mono);
++  CHECK(mid && mid->first == 0.f && mid->second == 20.f);
++  CHECK(!row_highlight(0, d, rows[2], {0, 2}, {0, 7}, mono));
++  CHECK(wrap_fragments(display_line(""), 60.f, mono).size() == 1);
++}
++
++TEST(keyboard_movement_follows_source_positions) {
++  const StringSource source("a🙂b\r\n\tx\nlonger line here\nalpha_éλ beta\n");
++  Selection sel;
++  move(sel, source, Move::LineEnd, false);
++  CHECK((sel.head == Position{0, 6}));
++  move(sel, source, Move::Right, false); // across CRLF in one step
++  CHECK((sel.head == Position{1, 0}));
++  move(sel, source, Move::Left, false); // back across the CRLF
++  move(sel, source, Move::Left, false); // over 'b'
++  move(sel, source, Move::Left, false); // over the 4-byte emoji in one step
++  CHECK((sel.head == Position{0, 1}));
++  // Up/Down keep the display column through a tab.
++  sel = {};
++  sel.anchor = sel.head = {2, 5};
++  move(sel, source, Move::Up, false);
++  CHECK((sel.head == Position{1, 2})); // "\tx" ends at column 5
++  move(sel, source, Move::Down, true);
++  CHECK((sel.head == Position{2, 5})); // and the goal column comes back
++  CHECK((sel.anchor == Position{1, 2}));
++  move(sel, source, Move::Left, false); // collapses to the selection start
++  CHECK((sel.head == Position{1, 2}) && sel.empty());
++  // Identifier words keep '_' and non-ASCII letters.
++  sel.anchor = sel.head = {3, 0};
++  move(sel, source, Move::WordRight, true);
++  CHECK((sel.head == Position{3, 10}));
++  select_word(sel, source, {3, 9});
++  CHECK(copy_text(source, sel.anchor, sel.head, 64).text == "alpha_éλ");
++  select_line(sel, source, 0);
++  CHECK(copy_text(source, sel.anchor, sel.head, 64).text == "a🙂b\r\n");
++  move(sel, source, Move::DocumentEnd, false);
++  CHECK((sel.head == Position{4, 0}));
++  CHECK((clamp(source, {0, 3}) == Position{0, 1})); // mid-codepoint snaps back
++}
++
++TEST(edge_autoscroll_ramps_with_distance_past_the_edge) {
++  CHECK(edge_autoscroll(100.f, 0.f, 200.f, 20.f, 30.f) == 0.f);
++  CHECK(edge_autoscroll(190.f, 0.f, 200.f, 20.f, 30.f) > 0.f);
++  CHECK(edge_autoscroll(190.f, 0.f, 200.f, 20.f, 30.f) < edge_autoscroll(230.f, 0.f, 200.f, 20.f, 30.f));
++  CHECK(edge_autoscroll(500.f, 0.f, 200.f, 20.f, 30.f) == 30.f);
++  CHECK(edge_autoscroll(-500.f, 0.f, 200.f, 20.f, 30.f) == -30.f);
++}
++
++int main() { return ui_test::run_registered_tests("source_selection"); }
+-- 
+2.50.1
+
+
+From b237946d1503330f4a59c829abfda50ad3bba902 Mon Sep 17 00:00:00 2001
+From: Gabe Ochoa <urgentcactus@gmail.com>
+Date: Tue, 6 Oct 2026 07:47:20 -0400
+Subject: [PATCH 6/6] Docs: shortcut routing, focus return, scroll anchors,
+ keyed lists, source selection
+
+---
+ CHANGELOG.md             |  6 ++++++
+ src/plugins/ui/README.md | 14 ++++++++++++++
+ 2 files changed, 20 insertions(+)
+
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 5ae4108..760ecfa 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -30,6 +30,12 @@ Started partway through the project's life, so it does not go all the way back.
+ - **Menu shortcuts sit one pad in from the panel edge** — they were flush, clipping the last glyph in half.
+ 
+ ### New APIs
++- **Focus-scoped shortcut routing** (`ui/shortcut_routing.h`). `ShortcutRouter::dispatch` offers a mapped action or a raw chord to the focused control, then each containing `ShortcutScope`, then the app callback `router.app`. Native menus and tests call that same callback. One taker per frame: a taken action is cleared from `UIContext`, so a widget polling `pressed()` later cannot run it again, and a second dispatch reports `Repeated`. Text fields keep typing and caret keys, Option+Left included. Exclusive scopes contain dialogs. A gated focus swallows input. Register `RouteShortcuts<Action>` after `BeginUIContextManager`.
++- **Focus return by logical identity** (`ui/focus_return.h`). Attach `FocusKey{scope, control}` to controls and call `FocusReturnStack::opened/closed/resolve` around an overlay. Focus returns to the rebuilt control, under whatever entity id it has now, only if its scope still exists and it can take focus. Otherwise it goes to the fallback you named. Nested overlays and outside-click dismissal are handled. `Modal` and `menu` still keep their raw-id restore; this is opt-in.
++- **Logical scroll anchors** (`ui/scroll_item_anchor.h`). `request_scroll_anchor(view, {key, within, fraction, insets, generation})` waits for your content generation and a measured viewport, then applies once. The result is `Applied`, `Unavailable` or `Cancelled`; no frame-count retries. `HasScrollView::user_scroll_serial` and `jump_to_y()` are new; wheel input and scrollbar drags bump the serial.
++- **`VirtualListOptions` / `virtual_list_window` / `VirtualListMetrics`.** Overscan in rows or pixels, and accepts precomputed logical row heights. The window is now bounded around the actual viewport: a scrollbar drag used to favour the far target and could build a window that omitted the rows on screen. The shortest row is cached instead of rescanned per build. Default overscan is unchanged.
++- **`keyed_virtual_list(ctx, ep, count, revision, key_of, height_of, render_row)`** keeps the top item (or its nearest survivor) and keyboard focus with their items when the sequence changes. A change re-measures every row.
++- **Read-only source selection** (`ui/source_selection.h`). Selection over a `TextSource` (line_count/line) by `(line, byte)`, so it survives a virtualized viewport. It provides tab and soft-wrap display mapping, hit-testing and highlight extents, keyboard movement with identifier words, `select_word`/`select_line`, `edge_autoscroll`, and `copy_text`, which keeps tabs, CRLF and UTF-8 byte-exact and refuses output over a limit.
+ - **`polyline::draw_dashed(pts, thickness, color, dash, gap, phase)`** (`polyline.h`) draws a patterned run. `draw_line_ex` was solid-only, so a dashed cable, marquee or tick run had to be hand-rolled. Arc length accumulates across vertices, so a dash straddling a corner stays one dash, and `phase` is what animates it.
+ - **`polyline::resample_by_arclength(pts, step)`** returns evenly spaced points. A bezier sampler walks uniformly in `t`, which is not uniform in screen distance, so anything spaced along the result bunches where the curve is tight.
+ - **`draw_line_ex` is recorded by capture**, so a test can assert on a dashed pattern. The `none` backend used to log `@notimplemented` and draw nothing.
+diff --git a/src/plugins/ui/README.md b/src/plugins/ui/README.md
+index 761ba86..16f96b9 100644
+--- a/src/plugins/ui/README.md
++++ b/src/plugins/ui/README.md
+@@ -103,6 +103,20 @@ own only when you want UI actions fused with your game bindings.
+ | `children()` | Shrink-wrap to content |
+ | `expand(weight)` / `flex_grow(weight)` | Fill remaining space proportionally |
+ 
++## Focus, shortcuts, scrolling and selection
++
++Optional headers for screens that rebuild controls, virtualize content, or mix
++app shortcuts with text fields. Include them directly; `ui.h` does not.
++
++| API | Header | Contract |
++|-----|--------|----------|
++| `ShortcutRouter`, `ShortcutScope`, `RouteShortcuts` | `shortcut_routing.h` | A mapped action or raw chord goes to the focused control, then each containing `ShortcutScope`, then `router.app`. The first taker consumes it once per frame and clears it from `UIContext`. Focused text fields keep typing, caret keys and `Text*` actions. `ConsumesDirectionalInput` keeps Up/Down. An exclusive scope stops untaken input at its edge. A gated focus swallows input; app commands wait while a gate is installed unless `app_when_gated`. |
++| `FocusKey`, `FocusToken`, `FocusReturnStack` | `focus_return.h` | `opened` captures the focused control by scope and control id. After `closed`, `resolve` runs after layout. It restores focus only if the owner scope still exists and the control or its first focusable descendant can take focus. Otherwise it uses the explicit fallback. Overlays nest. A close caused by an outside click keeps the clicked control. |
++| `request_scroll_anchor`, `resolve_scroll_anchor` | `scroll_item_anchor.h` | Keeps an app-keyed item at a fraction of the viewport band minus occlusion insets. The request waits for the matching content generation and a measured viewport, then resolves once to `Applied`, `Unavailable` or `Cancelled`. Wheel and scrollbar input bump `HasScrollView::user_scroll_serial`, which cancels the request. |
++| `virtual_list(..., VirtualListOptions)`, `virtual_list_window`, `VirtualListMetrics` | `imm_virtual_list.h` | Row heights are logical pixels, scaled in Adaptive mode. The window reaches toward a distant easing target, bounded around the actual viewport, with row and pixel overscan. |
++| `keyed_virtual_list` | `imm_virtual_list.h` | When `revision` changes, the top item stays put; if it was removed, the nearest survivor takes its place. Focus inside a row follows its item to whichever pooled row now draws it. |
++| `source_text::Selection`, `move`, `hit`, `copy_text` | `source_selection.h` | Endpoints are source `(line, byte)` positions behind a `TextSource` concept. Tabs and soft wraps map through `DisplayLine`/`Fragment`. `copy_text` returns exact bytes, or `LimitExceeded`/`OutOfRange`; it never truncates. |
++
+ ## Composition and lifetime
+ 
+ `vsplit`/`hsplit` return regions from a list of Sizes; the cross axis fills the
+-- 
+2.50.1
+

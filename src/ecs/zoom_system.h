@@ -9,6 +9,8 @@
 namespace ecs {
 
 struct ZoomSystem : afterhours::System<> {
+    float lastZoom = 0.0f;
+
     bool should_iterate() const override { return false; }
 
     void once(float) override {
@@ -17,6 +19,17 @@ struct ZoomSystem : afterhours::System<> {
         // or has been running for a second.
         const float pinch = afterhours::input::get_pinch_delta();
         if (pinch != 0.0f) ui::zoom::scale_by(1.0f + pinch);
+
+        // fontstash caches glyphs per 0.1 px of size in one fixed atlas that
+        // afterhours never empties, so a pinch (a new size every frame) filled
+        // it and every glyph after that was dropped for good. Old-zoom glyphs
+        // are dead weight once the zoom moves; drop them here, before this
+        // frame measures or draws, since the reset recreates the atlas image.
+        const float zoom = ui::zoom::get();
+        if (lastZoom != 0.0f && zoom != lastZoom)
+            fonsResetAtlas(afterhours::graphics::metal_detail::g_fons_ctx,
+                           AFTERHOURS_FONT_ATLAS_SIZE, AFTERHOURS_FONT_ATLAS_SIZE);
+        lastZoom = zoom;
 
         // afterhours::input, not graphics: only the former consults the e2e
         // injector, so raw graphics polling is invisible to a test script.
