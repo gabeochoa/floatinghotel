@@ -121,7 +121,9 @@ inline void poll_semantic(RepoComponent& repo) {
         case semantic::Kind::Definition:
             if (outcome.locations.size() == 1) { open_semantic_location(repo, outcome.locations.front()); return; }
             break;
-        default:
+        case semantic::Kind::References:
+        case semantic::Kind::Incoming:
+        case semantic::Kind::Outgoing:
             break;
     }
     if (outcome.locations.empty()) {

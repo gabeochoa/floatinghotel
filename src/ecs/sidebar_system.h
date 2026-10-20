@@ -2075,7 +2075,7 @@ private:
         publish(std::move(rows));
     }
 
-    size_t active_file_count(const RepoComponent& repo) const {
+    size_t active_file_count(const RepoComponent&) const {
         if (allFilesMode_) return treeRows_.size();
         if (treeMode_) return treeRows_.size();
         return fileIndices_.size();

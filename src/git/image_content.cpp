@@ -53,7 +53,7 @@ unsigned char* imageio_pixels(const ImageIOSource& source) {
     auto* pixels = static_cast<unsigned char*>(std::malloc(stride * static_cast<size_t>(source.height)));
     if (!pixels) return nullptr;
     Owned<CGContextRef> context(CGBitmapContextCreate(pixels, static_cast<size_t>(source.width), static_cast<size_t>(source.height), 8, stride,
-        space.get(), kCGImageAlphaPremultipliedLast | kCGBitmapByteOrder32Big));
+        space.get(), static_cast<CGBitmapInfo>(kCGImageAlphaPremultipliedLast) | kCGBitmapByteOrder32Big));
     if (!context) { std::free(pixels); return nullptr; }
     CGContextClearRect(context.get(), CGRectMake(0, 0, source.width, source.height));
     CGContextDrawImage(context.get(), CGRectMake(0, 0, source.width, source.height), image.get());

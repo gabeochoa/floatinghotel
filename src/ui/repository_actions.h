@@ -117,7 +117,6 @@ struct RepositoryActionsSystem : afterhours::System<UIContext<InputAction>> {
         }
         if (repo->pushDestinationFuture.valid() && repo->pushDestinationFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
             repo->pushDestination = repo->pushDestinationFuture.get();
-        auto& root = ui_imm::getUIRootEntity();
         auto modal = afterhours::modal::detail::modal_impl(ctx, ui::dialog_parent(586300), repo->pushDialogOpen,
             afterhours::ModalConfig{}.with_size(pixels(std::min(560.f, ctx.screen_width / ui::zoom::get() - 32.f)), pixels(380)).with_title("Push destination").with_backdrop_color({0, 0, 0, 0}));
         if (!modal) { repo->pushDestinationFuture = {}; ctx.remove_input_gate("push_dialog"); return; }

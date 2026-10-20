@@ -132,7 +132,7 @@ bool install(const std::string& app_title, CommandId quit_command,
             native_item.target = action_target;
             native_item.tag = static_cast<NSInteger>(item.command);
             apply_item(native_item, item);
-            const bool inserted = command_items.emplace(item.command, native_item).second;
+            [[maybe_unused]] const bool inserted = command_items.emplace(item.command, native_item).second;
             assert(inserted && item.command != quit_command);
             [submenu addItem:native_item];
             [native_item release];

@@ -763,13 +763,13 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     // Shift extends the selection for plain keyboard navigation, but a
     // shifted vim key (G, $) is a motion, not a selection.
     const bool extendSelection = shift && !vimConsumed;
-    if (!motion && !vimGotoLine || diffs.empty()) return;
+    if ((!motion && !vimGotoLine) || diffs.empty()) return;
     auto point = document->caret.value_or(reading::CodePosition{diffs.front().filePath});
     const auto file = std::find_if(diffs.begin(), diffs.end(), [&](const ecs::FileDiff& value) { return value.filePath == point.path; });
     if (file == diffs.end() || file->isBinary) return;
     auto lines = code_lines(*file, point.side, file->isFullContent ? repo.fullFilePage.begin.column : 1);
-    for (const auto& [key, entry] : repo.hunkContext.entries)
-        if (key.starts_with(file->filePath + "\n")) append_code_lines(lines, entry.result.lines, point.side);
+    for (const auto& [contextKey, entry] : repo.hunkContext.entries)
+        if (contextKey.starts_with(file->filePath + "\n")) append_code_lines(lines, entry.result.lines, point.side);
     std::stable_sort(lines.begin(), lines.end(), [](const auto& a, const auto& b) { return a.number < b.number; });
     lines.erase(std::unique(lines.begin(), lines.end(), [](const auto& a, const auto& b) { return a.number == b.number; }), lines.end());
     if (lines.empty()) return;
@@ -1909,7 +1909,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             // Slightly darker than the panel to read as "no line here".
             bg = theme::DIFF_EMPTY_BG;
             fg = theme::TEXT_SECONDARY; break;
-        default:
+        case SbsKind::Context:
             bg = theme::PANEL_BG; fg = theme::TEXT_PRIMARY; break;
     }
 

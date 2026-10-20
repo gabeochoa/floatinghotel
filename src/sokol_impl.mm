@@ -332,10 +332,10 @@ extern "C" void metal_take_screenshot(const char* filename) {
         snprintf(wid_str, sizeof(wid_str), "%u", windowID);
 
         char* argv[] = {
-            (char*)"/usr/sbin/screencapture",
-            (char*)"-x", (char*)"-o",
-            (char*)"-l", wid_str,
-            (char*)filename,
+            const_cast<char*>("/usr/sbin/screencapture"),
+            const_cast<char*>("-x"), const_cast<char*>("-o"),
+            const_cast<char*>("-l"), wid_str,
+            const_cast<char*>(filename),
             nullptr
         };
 
@@ -412,13 +412,13 @@ extern "C" void metal_draw_first_frame_early(void) {
                            object:nil
                             queue:nil
                        usingBlock:^(NSNotification*) {
-        [nc removeObserver:will];
+        [[NSNotificationCenter defaultCenter] removeObserver:will];
         __block id did = nil;
-        did = [nc addObserverForName:NSApplicationDidFinishLaunchingNotification
+        did = [[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationDidFinishLaunchingNotification
                               object:nil
                                queue:nil
                           usingBlock:^(NSNotification*) {
-            [nc removeObserver:did];
+            [[NSNotificationCenter defaultCenter] removeObserver:did];
             NSWindow* w = (__bridge NSWindow*)sapp_macos_get_window();
             MTKView* v = (MTKView*)[w contentView];
             if (v) {
