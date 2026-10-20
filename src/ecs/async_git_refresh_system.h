@@ -8,8 +8,8 @@
 #include <optional>
 #include <unordered_map>
 
-#include "../../vendor/afterhours/src/core/system.h"
-#include "../../vendor/afterhours/src/logging.h"
+#include <afterhours/src/core/system.h>
+#include <afterhours/src/logging.h>
 #include "../git/git_parser.h"
 #include "../git/content_reader.h"
 #include "../git/git_runner.h"

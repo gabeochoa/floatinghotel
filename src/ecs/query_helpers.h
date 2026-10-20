@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../vendor/afterhours/src/core/entity_query.h"
+#include <afterhours/src/core/entity_query.h>
 
 namespace ecs {
 

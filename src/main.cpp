@@ -53,7 +53,7 @@ extern "C" void metal_wait_all_screenshots(void);
 #include <afterhours/src/plugins/ui/validation_systems.h>
 #include "util/process.h"
 
-#include "../vendor/afterhours/src/ecs.h"
+#include <afterhours/src/ecs.h>
 
 #include "ecs/components.h"
 #include "ecs/app_reset.h"

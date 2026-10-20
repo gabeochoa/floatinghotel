@@ -4,7 +4,7 @@
 #include "../util/file_page.h"
 #include "../util/hunk_syntax.h"
 #include "../util/markdown_preview.h"
-#include "../../vendor/afterhours/src/logging.h"
+#include <afterhours/src/logging.h>
 
 #include <filesystem>
 #include <array>

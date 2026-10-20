@@ -15,8 +15,8 @@
 #include <string>
 #include <vector>
 
-#include "../../vendor/afterhours/src/core/base_component.h"
-#include "../../vendor/afterhours/src/core/entity_helper.h"
+#include <afterhours/src/core/base_component.h>
+#include <afterhours/src/core/entity_helper.h>
 #include "../git/git_runner.h"
 #include "../git/history_query.h"
 #include "../git/history_scope.h"

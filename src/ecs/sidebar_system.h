@@ -34,9 +34,9 @@
 #include "../ui/file_tree_style.h"
 #include "../ui/chrome_icons.h"
 
-#include "../../vendor/afterhours/src/plugins/clipboard.h"
-#include "../../vendor/afterhours/src/plugins/modal.h"
-#include "../../vendor/afterhours/src/plugins/ui/text_input/text_input.h"
+#include <afterhours/src/plugins/clipboard.h>
+#include <afterhours/src/plugins/modal.h>
+#include <afterhours/src/plugins/ui/text_input/text_input.h>
 
 namespace ecs {
 

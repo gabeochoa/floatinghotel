@@ -2,7 +2,7 @@
 #include "git_parser.h"
 #include "commit_patch_cache.h"
 #include "../util/shared_read.h"
-#include "../../vendor/afterhours/src/logging.h"
+#include <afterhours/src/logging.h>
 #include <filesystem>
 #include <mutex>
 #include <sstream>

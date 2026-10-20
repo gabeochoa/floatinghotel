@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-#include "../../vendor/afterhours/src/logging.h"
+#include <afterhours/src/logging.h>
 
 #ifdef __APPLE__
 #include <CoreServices/CoreServices.h>

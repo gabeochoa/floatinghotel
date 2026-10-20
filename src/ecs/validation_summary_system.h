@@ -4,9 +4,9 @@
 #include <string>
 #include <vector>
 
-#include "../../vendor/afterhours/src/core/system.h"
-#include "../../vendor/afterhours/src/logging.h"
-#include "../../vendor/afterhours/src/plugins/ui/validation_config.h"
+#include <afterhours/src/core/system.h>
+#include <afterhours/src/logging.h>
+#include <afterhours/src/plugins/ui/validation_config.h>
 
 namespace ecs {
 

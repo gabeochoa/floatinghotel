@@ -3,7 +3,7 @@
 #include <chrono>
 #include <filesystem>
 
-#include "../../vendor/afterhours/src/core/system.h"
+#include <afterhours/src/core/system.h>
 #include "../platform/file_watcher.h"
 #include "../util/lfs_pointer.h"
 #include "components.h"

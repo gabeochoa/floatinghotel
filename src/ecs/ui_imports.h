@@ -4,7 +4,7 @@
 // Include this at file scope (before any namespace block) to bring
 // commonly-used afterhours UI types into the translation unit.
 
-#include "../../vendor/afterhours/src/core/system.h"
+#include <afterhours/src/core/system.h>
 #include "../input_mapping.h"
 #include "../rl.h"
 #include "../ui/presets.h"

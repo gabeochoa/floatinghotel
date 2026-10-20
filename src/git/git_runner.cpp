@@ -2,7 +2,7 @@
 #include "repository_lock.h"
 #include "log_redaction.h"
 
-#include "../../vendor/afterhours/src/logging.h"
+#include <afterhours/src/logging.h>
 
 #include <chrono>
 #include <cstdlib>

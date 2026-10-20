@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cstdlib>
 
-#include "../../vendor/afterhours/src/plugins/toast.h"
+#include <afterhours/src/plugins/toast.h>
 #include "../ui/context_menu_render.h"
 #include "../ui/menu_setup.h"
 #include "../ui/zoom.h"
