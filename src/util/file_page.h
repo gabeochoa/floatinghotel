@@ -41,15 +41,15 @@ class Collector {
             code_lexer::advance_with_lookahead(lexical_, language_, std::string_view(pending_).substr(at, code_lexer::lookaheadSize));
             return;
         }
-        std::array<char, code_lexer::lookaheadSize> next{};
+        std::array<char, code_lexer::lookaheadSize> ahead{};
         size_t count = 0;
-        for (size_t offset = at; offset + 1 < pending_.size() && count < next.size(); offset += 2) {
+        for (size_t offset = at; offset + 1 < pending_.size() && count < ahead.size(); offset += 2) {
             const auto a = static_cast<unsigned char>(pending_[offset]);
             const auto b = static_cast<unsigned char>(pending_[offset + 1]);
             const auto unit = encoding == "utf16le" ? a | (b << 8) : (a << 8) | b;
-            next[count++] = unit <= 127 ? static_cast<char>(unit) : static_cast<char>(128);
+            ahead[count++] = unit <= 127 ? static_cast<char>(unit) : static_cast<char>(128);
         }
-        code_lexer::advance_with_lookahead(lexical_, language_, {next.data(), count});
+        code_lexer::advance_with_lookahead(lexical_, language_, {ahead.data(), count});
     }
 
     size_t unit_size(size_t at, bool eof) const {

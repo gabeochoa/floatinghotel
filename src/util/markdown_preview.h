@@ -233,11 +233,11 @@ inline std::vector<Block> parse(std::string_view text) {
             while (hashes < stripped.size() && stripped[hashes] == '#') ++hashes;
             std::vector<Span> spans;
             if (hashes <= 6 && hashes < stripped.size() && stripped[hashes] == ' ') {
-                auto text = inline_spans(trim(std::string_view(stripped).substr(hashes + 1)), spans);
-                blocks.push_back({Kind::Heading, std::move(text), static_cast<int>(hashes), 1, 1, std::move(spans)});
+                auto body = inline_spans(trim(std::string_view(stripped).substr(hashes + 1)), spans);
+                blocks.push_back({Kind::Heading, std::move(body), static_cast<int>(hashes), 1, 1, std::move(spans)});
             } else {
-                auto text = inline_spans(stripped, spans);
-                blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(spans)});
+                auto body = inline_spans(stripped, spans);
+                blocks.push_back({Kind::Paragraph, std::move(body), 0, 1, 1, std::move(spans)});
             }
         } else if (stripped.starts_with('|')) {
             auto cells = table_cells(stripped);
@@ -247,12 +247,12 @@ inline std::vector<Block> parse(std::string_view text) {
             blocks.push_back({Kind::Table, stripped, rule ? 1 : 0, 1, 1, {}, std::move(cells)});
         } else if (stripped.starts_with("- ") || stripped.starts_with("* ")) {
             std::vector<Span> spans;
-            auto text = "• " + inline_spans(std::string_view(stripped).substr(2), spans, std::string_view("• ").size());
-            blocks.push_back({Kind::ListItem, std::move(text), 0, 1, 1, std::move(spans)});
+            auto body = "• " + inline_spans(std::string_view(stripped).substr(2), spans, std::string_view("• ").size());
+            blocks.push_back({Kind::ListItem, std::move(body), 0, 1, 1, std::move(spans)});
         } else {
             std::vector<Span> spans;
-            auto text = inline_spans(stripped, spans);
-            blocks.push_back({Kind::Paragraph, std::move(text), 0, 1, 1, std::move(spans)});
+            auto body = inline_spans(stripped, spans);
+            blocks.push_back({Kind::Paragraph, std::move(body), 0, 1, 1, std::move(spans)});
         }
         if (blocks.size() != count) {
             auto& block = blocks.back();

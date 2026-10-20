@@ -303,11 +303,11 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
     scrollOwner.repository = repository;
     scrollOwner.zoom = ui::zoom::get();
     if (revealSelected && listEntity.has<afterhours::ui::HasScrollView>()) {
-        const auto row = std::find_if(repo.repoSearchRows.begin(), repo.repoSearchRows.end(),
+        const auto selected = std::find_if(repo.repoSearchRows.begin(), repo.repoSearchRows.end(),
             [&](const auto& value) { return value.match == repo.repoSearchSelected; });
         auto& scroll = listEntity.get<afterhours::ui::HasScrollView>();
         const float rowHeight = 32.f * ui::zoom::get();
-        const float top = static_cast<float>(row - repo.repoSearchRows.begin()) * rowHeight;
+        const float top = static_cast<float>(selected - repo.repoSearchRows.begin()) * rowHeight;
         const float viewport = (available - previewHeight) * ui::zoom::get();
         float target = scroll.scroll_offset.y;
         if (top < target) target = top;

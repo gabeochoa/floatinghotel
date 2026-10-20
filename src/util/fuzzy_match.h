@@ -68,7 +68,7 @@ inline std::vector<std::string> rank(const std::vector<std::string>& paths, cons
             scored.push_back({false, found == recency.end() ? 0 : found->second, path});
         } else if (auto value = score(query, std::string_view(path).substr(filename_start(path)))) {
             scored.push_back({true, *value, path});
-        } else if (auto value = score(query, path)) scored.push_back({false, *value, path});
+        } else if (auto full = score(query, path)) scored.push_back({false, *full, path});
     }
     std::sort(scored.begin(), scored.end(), [](const auto& a, const auto& b) {
         if (a.filename != b.filename) return a.filename > b.filename;

@@ -90,10 +90,10 @@ inline void replace_tree_rows(UIContext<InputAction>& ctx, afterhours::ui::imm::
         auto row = std::find_if(current.begin(), current.end(), [&](const auto& item) { return item.path == state.viewport->path; });
         if (scroll && row != current.end() && !state.pendingReveal) {
             const float offset = (static_cast<float>(row - current.begin()) + state.viewport->fraction) * rowHeight;
-            const float target = std::clamp(offset, 0.f, std::max(0.f, static_cast<float>(current.size()) * rowHeight - scroll->viewport_or_zero().y));
-            scroll->scroll_offset.y = scroll->scroll_target.y = scroll->last_eased_offset.y = target;
+            const float clamped = std::clamp(offset, 0.f, std::max(0.f, static_cast<float>(current.size()) * rowHeight - scroll->viewport_or_zero().y));
+            scroll->scroll_offset.y = scroll->scroll_target.y = scroll->last_eased_offset.y = clamped;
             scroll->anchor_child = -1;
-            state.viewportOffset = target;
+            state.viewportOffset = clamped;
         }
     }
     previous = std::move(current);
