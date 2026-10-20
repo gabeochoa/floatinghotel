@@ -82,7 +82,7 @@ CXXFLAGS_SUPPRESS := -Wno-deprecated-volatile -Wno-missing-field-initializers \
     -Wno-long-long -Wno-missing-format-attribute \
     -Wno-missing-noreturn -Wno-packed -Wno-redundant-decls \
     -Wno-sequence-point -Wno-trigraphs -Wno-variadic-macros \
-    -Wno-volatile-register-var
+    -Wno-volatile-register-var -Wno-switch-default
 
 # Accessibility enforcement (warn and clamp small font sizes)
 ACCESSIBILITY_CXXFLAGS := -DAFTERHOURS_ENFORCE_MIN_FONT_SIZE
@@ -176,7 +176,7 @@ $(OBJ_DIR)/main/platform/native_menu.o: CXXFLAGS += -fno-objc-arc
 $(OBJ_DIR)/main/vendor_afterhours_files.o: vendor/afterhours/src/plugins/files.cpp | $(OBJ_DIR)/main
 	@echo "Compiling vendor/afterhours/src/plugins/files.cpp..."
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
+	$(CXX) $(CXXFLAGS) -w $(INCLUDES) -c $< -o $@ -MD -MP -MF $(@:.o=.d) -MT $@
 
 # Force dependency regeneration
 deps:

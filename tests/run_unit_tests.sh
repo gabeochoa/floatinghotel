@@ -13,7 +13,8 @@ CXX="${CXX:-clang++}"
 CXXSTD="-std=c++23"
 CXXFLAGS="$CXXSTD -g -O0 -Wall -Wextra -Wpedantic \
     -Wno-deprecated-volatile -Wno-missing-field-initializers \
-    -Wno-sign-conversion -Wno-implicit-int-float-conversion"
+    -Wno-sign-conversion -Wno-implicit-int-float-conversion \
+    -Wno-inconsistent-missing-override"  # afterhours files.cpp is compiled as a source, so -isystem can't hide core/system.h
 
 if [ "$(uname -s)" = Darwin ]; then
     CXXFLAGS="$CXXFLAGS -framework CoreFoundation -framework ImageIO -framework CoreGraphics"
