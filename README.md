@@ -46,9 +46,11 @@ macOS (sokol/Metal backend):
 
 ```sh
 git submodule update --init --recursive
-make
+zig build            # or: make (wraps zig build; OPT=-O0 for an unoptimised build)
 ./output/floatinghotel.exe <path-to-a-git-repo>
 ```
+
+Needs zig 0.16. `zig build -l` lists the other steps (run, test, bundle, validate).
 
 ## Keyboard shortcuts
 

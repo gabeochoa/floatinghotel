@@ -4,7 +4,7 @@ cd "$(dirname "$0")/.."
 mkdir -p output/live-resize
 nice -n 10 clang++ -std=c++23 -O0 -fno-sanitize=undefined -fobjc-arc -fblocks \
     -isystem vendor/afterhours/vendor tests/native/live_resize.mm \
-    output/objs/_O2/main/sokol_impl.o \
+    output/objs/sokol_impl.o \
     -framework Cocoa -framework Metal -framework MetalKit -framework QuartzCore \
     -o output/live-resize/native-test
 nice -n 10 python3 - <<'PYTHON'

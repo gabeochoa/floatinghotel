@@ -90,3 +90,7 @@ tests/screenshots/
 !docs/screenshots/*.png
 
 # Note: vendor/afterhours should be a symlink, not ignored
+
+# Zig build cache
+.zig-cache/
+zig-out/
