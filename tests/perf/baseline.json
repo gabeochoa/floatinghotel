@@ -1,0 +1,16 @@
+{
+  "scenario": "cold_start",
+  "size": "small",
+  "git_runs": 8,
+  "marks_ms_median": {
+    "cold_start": 420.9,
+    "quick_open": 649.4,
+    "warm_refresh": 483.8,
+    "resize_sweep": 753.5
+  },
+  "resize_sweep": {
+    "size": "small",
+    "steps": 74,
+    "resized_mark_ms_median": 606
+  }
+}

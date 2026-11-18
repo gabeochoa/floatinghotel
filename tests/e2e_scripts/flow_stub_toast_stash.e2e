@@ -1,5 +1,4 @@
-# Tier B stub: Stash sidebar toolbar button shows "not yet implemented" toast
-# The sidebar toolbar is visible when the sidebar is shown (default state).
+# Flow: Stash sidebar button opens the stash dialog (was a stub toast).
 make_test_repo
 resize 1280 720
 wait_frames 5
@@ -11,5 +10,11 @@ validate sidebar_visible=true
 # Click Stash in sidebar toolbar
 click_text "Stash"
 wait_frames 5
-expect_text "not yet implemented"
+expect_text "Stash Changes"
+expect_text "Include untracked"
 screenshot stub_toast_stash_01
+
+# Cancel closes it without stashing
+click_ui cancel_stash
+wait_frames 3
+expect_no_text "Include untracked"

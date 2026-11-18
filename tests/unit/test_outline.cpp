@@ -137,6 +137,15 @@ TEST(unsupported_languages_have_no_outline) {
     ASSERT_FALSE(symbol_outline::supported("data.json"));
 }
 
+TEST(cached_scan_reuses_results_per_content_identity) {
+    const std::string text = "int alpha() { return 1; }\nint beta() { return 2; }\n";
+    const auto& first = symbol_outline::cached_scan("x.cpp", text);
+    ASSERT_EQ(first.size(), symbol_outline::scan("x.cpp", text).size());
+    ASSERT_TRUE(&first == &symbol_outline::cached_scan("x.cpp", text));
+    const auto& changed = symbol_outline::cached_scan("x.cpp", text + "int gamma() { return 3; }\n");
+    ASSERT_EQ(changed.size(), first.size() + 1);
+}
+
 TEST(declaration_guess_for_one_search_result_line) {
     ASSERT_TRUE(symbol_outline::declares("u.h", "inline std::string greet(const std::string& name) {", "greet"));
     ASSERT_TRUE(symbol_outline::declares("a.cpp", "void Widget::draw() const", "draw"));

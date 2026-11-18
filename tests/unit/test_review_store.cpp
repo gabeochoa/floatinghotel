@@ -174,6 +174,15 @@ TEST(changing_feedback_scope_keeps_the_current_reading_panel_open) {
     ASSERT_FALSE(review.reviewing);
 }
 
+
+// switch_review_scope now loads on a worker; drain it like the app does.
+static void drain_review_load(ecs::ReviewComponent& review) {
+    if (!review.reviewLoadFuture.valid()) return;
+    auto loaded = review.reviewLoadFuture.get();
+    review.reviewLoadFuture = {};
+    review_store::apply_loaded_review(review, std::move(loaded));
+}
+
 TEST(review_state_is_isolated_by_branch_and_revision) {
     const std::string repo = "/tmp/floatinghotel_scoped_review";
     ecs::ReviewComponent review;
@@ -182,16 +191,20 @@ TEST(review_state_is_isolated_by_branch_and_revision) {
     review.approvedHunks.insert("main approval");
     review.dirty = true;
     ASSERT_TRUE(review_store::switch_review_scope(repo, "other@one", review));
+    drain_review_load(review);
     ASSERT_TRUE(review.comments.empty());
     ASSERT_TRUE(review.approvedHunks.empty());
     review.comments.push_back({"wt", "code.cpp", 1, "other note"});
     review.dirty = true;
     ASSERT_TRUE(review_store::switch_review_scope(repo, "main@one", review));
+    drain_review_load(review);
     ASSERT_EQ(review.comments.front().text, "main note");
     ASSERT_TRUE(review.approvedHunks.contains("main approval"));
     ASSERT_TRUE(review_store::switch_review_scope(repo, "main@two", review));
+    drain_review_load(review);
     ASSERT_TRUE(review.comments.empty());
     ASSERT_TRUE(review_store::switch_review_scope(repo, "other@one", review));
+    drain_review_load(review);
     ASSERT_EQ(review.comments.front().text, "other note");
     for (const auto& scope : {"main@one", "other@one", "main@two"})
         std::filesystem::remove(review_store::review_path(repo, scope));

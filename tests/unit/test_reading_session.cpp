@@ -44,6 +44,26 @@ TEST(session_parser_drops_duplicate_destinations_and_mismatched_anchor_revisions
     ASSERT_FALSE(restored->documents.front().anchor.has_value());
 }
 
+TEST(session_round_trip_preserves_navigation_history) {
+    reading::ReadingSession session;
+    session.documents.push_back({reading::source("a.cpp"), "", 1, {}});
+    session.history = {{reading::source("a.cpp", "rev", 10), false, {}}, {reading::source("b.cpp", "rev", 20), true, {}}};
+    session.historyIndex = 1;
+    const auto restored = reading::decode_session(reading::encode_session(session));
+    ASSERT_TRUE(restored.has_value());
+    ASSERT_EQ(restored->history.size(), size_t{2});
+    ASSERT_EQ(restored->historyIndex, size_t{1});
+    ASSERT_TRUE(restored->history[0].location == session.history[0].location);
+    ASSERT_TRUE(restored->history[1].reviewing);
+    // Sessions written before history was saved still decode.
+    auto legacy = reading::encode_session(session);
+    legacy.erase("history");
+    legacy.erase("history_index");
+    const auto old = reading::decode_session(legacy);
+    ASSERT_TRUE(old.has_value());
+    ASSERT_TRUE(old->history.empty());
+}
+
 TEST(reading_columns_count_decoded_characters_across_wrapped_unicode) {
     const std::string text = "a日本z";
     ASSERT_EQ(reading::column_at_byte(text, 0), 1);

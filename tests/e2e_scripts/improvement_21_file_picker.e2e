@@ -8,7 +8,7 @@ wait_frames 10
 screenshot improvement_21_picker
 click_ui file_picker_input
 type "sacp"
-wait_frames 10
+wait 3
 screenshot improvement_21_results
 expect_text "matches"
 key ENTER

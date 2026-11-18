@@ -282,10 +282,12 @@ TEST(simultaneous_patch_requests_share_git_and_cancellation_preserves_the_other_
     git::set_log_callback([&](const auto& command, const auto&, const auto&, bool) { if (command.find(" show ") != std::string::npos) ++shows; });
     const auto shared = git::commit_patch_shared_reads();
     auto first = git::load_commit_patch_async({directory, "HEAD"});
-    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (!std::filesystem::exists(path / "started") && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+    // Generous deadline: under load each git spawn can take hundreds of ms,
+    // and this waits on several of them plus a shell script poll loop.
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    while (!std::filesystem::exists(path / "started") && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(std::chrono::milliseconds(5));
     auto second = git::load_commit_patch_async({directory, "HEAD"});
-    while (git::commit_patch_shared_reads() == shared && std::chrono::steady_clock::now() < deadline) std::this_thread::yield();
+    while (git::commit_patch_shared_reads() == shared && std::chrono::steady_clock::now() < deadline) std::this_thread::sleep_for(std::chrono::milliseconds(5));
     const bool joined = git::commit_patch_shared_reads() > shared;
     first.cancel();
     { std::ofstream release(path / "release"); release << "ready"; }

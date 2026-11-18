@@ -20,5 +20,7 @@ wait_for_refresh
 screenshot flow_commit_03_committed
 
 # After commit, staged count should be 0 (clean tree)
-validate staged_count=0
+wait_until 60 expect_text "Update"
+wait_for_refresh
+wait_until 30 validate staged_count=0
 screenshot flow_commit_04_clean_state

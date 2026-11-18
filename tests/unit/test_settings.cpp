@@ -23,10 +23,23 @@
 #include <fstream>
 #include <limits>
 #include <string>
+#include <thread>
 
 namespace fs = std::filesystem;
 
 // ---- Tests ----
+
+
+// Debounced saves now write on a worker; flush until the completion lands.
+static void flush_and_wait(Settings& s) {
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    for (int i = 0; i < 100; ++i) {
+        const auto before = s.save_write_count();
+        s.flush_pending_save(std::chrono::steady_clock::now());
+        if (s.save_write_count() != before) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+}
 
 TEST(settings_default_values) {
     auto& s = Settings::get();
@@ -146,6 +159,36 @@ TEST(settings_unstaged_policy_valid) {
     ASSERT_STREQ(s.get_unstaged_policy(), "staged_only");
     s.set_unstaged_policy("ask");
     ASSERT_STREQ(s.get_unstaged_policy(), "ask");
+}
+
+TEST(settings_command_usage_tracks_counts_recency_and_queries) {
+    auto& s = Settings::get();
+    s.record_command_use("File: Open", "open");
+    s.record_command_use("Edit: Find", "find");
+    s.record_command_use("File: Open", "open");
+    ASSERT_EQ(s.get_command_usage().at("File: Open"), 2);
+    ASSERT_EQ(s.get_command_recent().front(), std::string("File: Open"));
+    ASSERT_EQ(s.get_command_recent().at(1), std::string("Edit: Find"));
+    ASSERT_EQ(s.get_command_queries().front(), std::string("open"));
+    s.record_command_use("", "ignored");
+    ASSERT_EQ(s.get_command_queries().size(), size_t{2});
+}
+
+TEST(settings_recent_repos_keep_more_than_ten) {
+    auto& s = Settings::get();
+    for (int i = 0; i < 15; ++i) s.add_recent_repo("/tmp/fh-recent-" + std::to_string(i));
+    ASSERT_TRUE(s.get_recent_repos().size() > 10);
+    ASSERT_EQ(s.get_recent_repos().front(), std::string("/tmp/fh-recent-14"));
+    for (int i = 0; i < 15; ++i) s.add_recent_repo("/tmp/fh-recent-cleanup-" + std::to_string(i));
+}
+
+TEST(settings_git_path_defaults_empty_and_round_trips) {
+    auto& s = Settings::get();
+    ASSERT_STREQ(s.get_git_path(), "");
+    s.set_git_path("/usr/bin/git");
+    ASSERT_STREQ(s.get_git_path(), "/usr/bin/git");
+    s.set_git_path("");
+    ASSERT_STREQ(s.get_git_path(), "");
 }
 
 TEST(settings_unstaged_policy_invalid_resets_to_ask) {
@@ -427,6 +470,12 @@ TEST(settings_coalesces_resize_font_and_navigation_saves) {
     s.flush_pending_save(before + std::chrono::milliseconds(249));
     ASSERT_EQ(s.save_write_count(), 0u);
     s.flush_pending_save(after + std::chrono::milliseconds(250));
+    // The write itself runs on a worker now; completions are applied by
+    // the next flush call.
+    for (int i = 0; i < 200 && s.save_write_count() == 0u; ++i) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        s.flush_pending_save(std::chrono::steady_clock::now());
+    }
     ASSERT_EQ(s.save_write_count(), 1u);
     Settings restored;
     restored.auto_save_enabled = false;
@@ -439,7 +488,7 @@ TEST(settings_coalesces_resize_font_and_navigation_saves) {
         s.remember_window_size(1259, 859, false, 1259, 280.f);
         s.set_code_font_size(22.f);
         s.set_last_active_repo("/repo/59");
-        s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+        flush_and_wait(s);
     }
     ASSERT_EQ(s.save_write_count(), 1u);
     printf("60 resize/font/navigation updates: 1 write; 60 unchanged updates: 0 writes\n");
@@ -449,7 +498,7 @@ TEST(settings_shutdown_flushes_before_debounce_and_reload_cancels_pending) {
     Settings s;
     s.set_command_log_height(333.f);
     s.auto_save_enabled = false;
-    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    flush_and_wait(s);
     ASSERT_EQ(s.save_write_count(), 0u);
     s.write_save_file();
     ASSERT_EQ(s.save_write_count(), 1u);
@@ -459,7 +508,7 @@ TEST(settings_shutdown_flushes_before_debounce_and_reload_cancels_pending) {
     s.auto_save_enabled = true;
     s.set_command_log_height(444.f);
     ASSERT_TRUE(s.load_save_file());
-    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    flush_and_wait(s);
     ASSERT_EQ(s.save_write_count(), 1u);
     ASSERT_EQ(s.get_command_log_height(), 333.f);
 }
@@ -473,7 +522,7 @@ TEST(settings_unchanged_collections_do_not_schedule_writes) {
     s.set_code_bookmarks("/repo", {{"a.cpp", "HEAD", 3, "note"}});
     s.set_reading_session("/repo", {{{reading::source("a.cpp")}}, 0});
     s.set_review_display_mode("/repo", review_files::DisplayMode::AllFiles);
-    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    flush_and_wait(s);
     ASSERT_EQ(s.save_write_count(), 1u);
     s.add_open_repo("/repo");
     s.set_open_repos({"/repo"});
@@ -484,7 +533,7 @@ TEST(settings_unchanged_collections_do_not_schedule_writes) {
     s.set_code_bookmarks("/repo", {{"a.cpp", "HEAD", 3, "note"}});
     s.set_reading_session("/repo", {{{reading::source("a.cpp")}}, 0});
     s.set_review_display_mode("/repo", review_files::DisplayMode::AllFiles);
-    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    flush_and_wait(s);
     ASSERT_EQ(s.save_write_count(), 1u);
 }
 
@@ -527,7 +576,7 @@ TEST(settings_failed_relink_preserves_pending_save) {
     ASSERT_EQ(s.get_last_active_repo(), "/old");
     fs::remove(path);
     fs::rename(backup, path);
-    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    flush_and_wait(s);
     ASSERT_TRUE(s.saveError.empty());
     ASSERT_EQ(s.save_write_count(), 2u);
     Settings restored;

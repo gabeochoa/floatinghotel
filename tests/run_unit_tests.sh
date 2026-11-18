@@ -20,6 +20,10 @@ if [ "$(uname -s)" = Darwin ]; then
     CXXFLAGS="$CXXFLAGS -framework CoreFoundation -framework ImageIO -framework CoreGraphics"
 fi
 
+# afterhours defaults to raylib when no backend is named (config.h, 729cbb0);
+# unit tests run without a window, so pick the none backend explicitly.
+CXXFLAGS="$CXXFLAGS -DAFTER_HOURS_USE_NONE"
+
 INCLUDES="-isystem vendor/ -isystem vendor/afterhours/vendor/ -I."
 
 OUT_DIR="output/tests"
@@ -91,6 +95,18 @@ fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_document_cycle" ]; then
     run_test "test_document_cycle" "tests/unit/test_document_cycle.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_repo_picker" ]; then
+    run_test "test_repo_picker" "tests/unit/test_repo_picker.cpp" "src/git/git_runner.cpp" "src/util/process.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_bindings" ]; then
+    run_test "test_bindings" "tests/unit/test_bindings.cpp"
+fi
+
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_resize_draw_policy" ]; then
+    run_test "test_resize_draw_policy" "tests/unit/test_resize_draw_policy.cpp"
 fi
 
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_tab_strip" ]; then

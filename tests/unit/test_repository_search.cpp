@@ -1,5 +1,6 @@
 #include "test_framework.h"
 #include "../../src/git/repository_search.h"
+#include "../../src/git/git_runner.h"
 #include "../../src/util/path_glob.h"
 #include "../../src/util/grep_capture.h"
 #include <filesystem>
@@ -226,6 +227,27 @@ TEST(search_keyboard_navigation_skips_headers_and_collapsed_matches) {
     for (auto& group : groups) group.collapsed = true;
     ASSERT_FALSE(search_results::adjacent_match(search_results::visible_rows(groups), 1, 1).has_value());
     ASSERT_FALSE(search_results::adjacent_match({}, {}, -1).has_value());
+}
+
+TEST(repository_search_streams_batches_before_completion) {
+    char pattern[] = "/tmp/fh-search-stream.XXXXXX";
+    const auto dir = mkdtemp(pattern);
+    ASSERT_TRUE(dir != nullptr);
+    const std::filesystem::path root(dir);
+    ASSERT_TRUE(git::git_run(root.string(), {"init", "-q", "-b", "main"}).success());
+    for (int i = 0; i < 150; ++i) {
+        std::ofstream out(root / ("file" + std::to_string(i) + ".cpp"));
+        out << "int needle_value_" << i << " = 1;\n";
+    }
+    auto batches = std::make_shared<ecs::SearchBatchQueue>();
+    ecs::SearchQuery query{root.string(), "", "needle_value_"};
+    auto result = git::search_repository_async(query, batches).get();
+    ASSERT_TRUE(result.error.empty());
+    ASSERT_EQ(result.matches.size(), 150u);
+    std::lock_guard lock(batches->mutex);
+    ASSERT_TRUE(batches->pending.size() >= 100);
+    ASSERT_TRUE(batches->pending.size() <= result.matches.size());
+    std::filesystem::remove_all(root);
 }
 
 int main() { RUN_ALL_TESTS(); }

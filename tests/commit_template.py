@@ -28,11 +28,13 @@ git('config', 'commit.template', '.gitmessage')
 (repo / 'a.txt').write_text('changed\n')
 git('add', 'a.txt')
 
+# Only the subject line is asserted on screen: the box is one line tall and
+# labels clip to their own box (afterhours 6327e72), so the body line is
+# scrolled out of view. The committed message below checks the body.
 script = '''resize 1280 720
 wait_for_refresh
 wait_frames 10
 expect_text "add summary"
-expect_text "Refs: TICKET"
 expect_no_text "Say why"
 screenshot prefilled
 click_ui commit_msg_input

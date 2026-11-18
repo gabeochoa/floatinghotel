@@ -1,0 +1,23 @@
+# Flow: persistent outline panel follows the caret; click scrolls, toggle hides it.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+hold_key 343
+key P
+release_key 343
+wait_frames 5
+click_ui file_picker_input
+type "src/app.cpp"
+wait 2
+key ENTER
+wait_for_refresh
+wait_frames 5
+click_ui outline_toggle
+wait_frames 5
+screenshot outline_open
+click_ui outline_symbol_0
+wait_frames 5
+screenshot outline_clicked
+click_ui outline_toggle
+wait_frames 3
+screenshot outline_closed

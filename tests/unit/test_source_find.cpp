@@ -119,4 +119,23 @@ TEST(column_targeted_pages_keep_the_complete_cross_boundary_match) {
     ASSERT_TRUE(page.raw.size() <= file_page::byteLimit);
 }
 
+TEST(project_symbols_scan_repo_files_and_match_last_segment) {
+    char pattern[] = "/tmp/fh-proj-symbols.XXXXXX";
+    const auto dir = mkdtemp(pattern);
+    ASSERT_TRUE(dir != nullptr);
+    const std::filesystem::path root(dir);
+    { std::ofstream out(root / "a.cpp"); out << "int alpha() { return 1; }\nint beta() { return 2; }\n"; }
+    { std::ofstream out(root / "b.py"); out << "def gamma():\n    pass\n"; }
+    { std::ofstream out(root / "notes.txt"); out << "alpha mentioned in prose\n"; }
+    auto task = git::project_symbols_async(root.string(), {"a.cpp", "b.py", "notes.txt"}, "beta");
+    auto result = task.get();
+    ASSERT_EQ(result.symbols.size(), 1u);
+    ASSERT_EQ(result.symbols[0].name, std::string("beta"));
+    ASSERT_EQ(result.symbols[0].path, std::string("a.cpp"));
+    auto qualified = git::project_symbols_async(root.string(), {"a.cpp", "b.py"}, "ns::gamma").get();
+    ASSERT_EQ(qualified.symbols.size(), 1u);
+    ASSERT_EQ(qualified.symbols[0].path, std::string("b.py"));
+    std::filesystem::remove_all(root);
+}
+
 int main() { RUN_ALL_TESTS(); }

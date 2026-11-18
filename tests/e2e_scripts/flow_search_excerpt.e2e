@@ -1,0 +1,23 @@
+# Flow: repository search results expand inline excerpts (Shift+Enter).
+make_test_repo
+resize 1280 800
+wait_for_refresh
+hold_key 343
+hold_key 340
+key F
+release_key 340
+release_key 343
+wait_frames 5
+click_ui repo_search_input
+key CMD+A
+type "greet"
+wait_until 15 expect_text "4 matches"
+screenshot excerpt_results
+key DOWN
+wait_frames 3
+hold_key 340
+key ENTER
+release_key 340
+wait 2
+screenshot excerpt_expanded
+expect_text "update 2"

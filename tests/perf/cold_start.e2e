@@ -1,0 +1,4 @@
+perf_mark start
+wait_for_refresh
+perf_mark commits_visible
+perf_report output/perf/cold_start.json

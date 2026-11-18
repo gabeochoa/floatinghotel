@@ -1,0 +1,154 @@
+perf_mark start
+wait_for_refresh
+wait_frames 5
+resize 1260 800
+wait_frames 1
+resize 1240 800
+wait_frames 1
+resize 1220 800
+wait_frames 1
+resize 1200 800
+wait_frames 1
+resize 1180 800
+wait_frames 1
+resize 1160 800
+wait_frames 1
+resize 1140 800
+wait_frames 1
+resize 1120 800
+wait_frames 1
+resize 1100 800
+wait_frames 1
+resize 1080 800
+wait_frames 1
+resize 1060 800
+wait_frames 1
+resize 1040 800
+wait_frames 1
+resize 1020 800
+wait_frames 1
+resize 1000 800
+wait_frames 1
+resize 980 800
+wait_frames 1
+resize 960 800
+wait_frames 1
+resize 940 800
+wait_frames 1
+resize 920 800
+wait_frames 1
+resize 900 800
+wait_frames 1
+resize 880 800
+wait_frames 1
+resize 860 800
+wait_frames 1
+resize 840 800
+wait_frames 1
+resize 820 800
+wait_frames 1
+resize 800 800
+wait_frames 1
+resize 780 800
+wait_frames 1
+resize 760 800
+wait_frames 1
+resize 740 800
+wait_frames 1
+resize 720 800
+wait_frames 1
+resize 700 800
+wait_frames 1
+resize 720 800
+wait_frames 1
+resize 740 800
+wait_frames 1
+resize 760 800
+wait_frames 1
+resize 780 800
+wait_frames 1
+resize 800 800
+wait_frames 1
+resize 820 800
+wait_frames 1
+resize 840 800
+wait_frames 1
+resize 860 800
+wait_frames 1
+resize 880 800
+wait_frames 1
+resize 900 800
+wait_frames 1
+resize 920 800
+wait_frames 1
+resize 940 800
+wait_frames 1
+resize 960 800
+wait_frames 1
+resize 980 800
+wait_frames 1
+resize 1000 800
+wait_frames 1
+resize 1020 800
+wait_frames 1
+resize 1040 800
+wait_frames 1
+resize 1060 800
+wait_frames 1
+resize 1080 800
+wait_frames 1
+resize 1100 800
+wait_frames 1
+resize 1120 800
+wait_frames 1
+resize 1140 800
+wait_frames 1
+resize 1160 800
+wait_frames 1
+resize 1180 800
+wait_frames 1
+resize 1200 800
+wait_frames 1
+resize 1220 800
+wait_frames 1
+resize 1240 800
+wait_frames 1
+resize 1260 800
+wait_frames 1
+resize 1280 800
+wait_frames 1
+resize 1300 800
+wait_frames 1
+resize 1320 800
+wait_frames 1
+resize 1340 800
+wait_frames 1
+resize 1360 800
+wait_frames 1
+resize 1380 800
+wait_frames 1
+resize 1400 800
+wait_frames 1
+resize 1420 800
+wait_frames 1
+resize 1440 800
+wait_frames 1
+resize 1460 800
+wait_frames 1
+resize 1480 800
+wait_frames 1
+resize 1500 800
+wait_frames 1
+resize 1520 800
+wait_frames 1
+resize 1540 800
+wait_frames 1
+resize 1560 800
+wait_frames 1
+resize 1580 800
+wait_frames 1
+resize 1600 800
+wait_frames 1
+bench_frames 60
+perf_mark resized
+perf_report output/perf/resize_sweep.json

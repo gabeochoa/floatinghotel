@@ -10,8 +10,6 @@ screenshot flow_r2_unstage_file_files_navigation
 validate staged_count=1
 
 # Select the staged file by clicking it in the sidebar
-click_text "Staged"
-wait_frames 5
 click_text ".gitignore"
 wait_frames 5
 screenshot r2_01_staged_file_selected

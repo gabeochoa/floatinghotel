@@ -1,5 +1,6 @@
 #include "test_framework.h"
 #include "../../src/util/file_query.h"
+#include "../../src/ui/token_cache.h"
 #include "../../src/ecs/components.h"
 #include "../../src/ui/code_highlight.h"
 #include "../../src/util/fuzzy_match.h"
@@ -170,6 +171,20 @@ TEST(navigation_history_truncates_forward_after_a_new_destination) {
     ASSERT_EQ(repo.workspace().history().size(), 3u);
     navigation::step(repo, -1);
     ASSERT_EQ(repo.selectedFilePath(), "first.txt");
+}
+
+TEST(navigation_history_records_only_jumps_of_ten_rows_within_a_document) {
+    ecs::RepoComponent repo;
+    navigation::open(repo, reading::source("a.cpp", "rev", 100));
+    const auto entries = repo.workspace().history().size();
+    navigation::open(repo, reading::source("a.cpp", "rev", 105));
+    ASSERT_EQ(repo.workspace().history().size(), entries);
+    navigation::open(repo, reading::source("a.cpp", "rev", 105));
+    ASSERT_EQ(repo.workspace().history().size(), entries);
+    navigation::open(repo, reading::source("a.cpp", "rev", 120));
+    ASSERT_EQ(repo.workspace().history().size(), entries + 1);
+    navigation::open(repo, reading::source("b.cpp", "rev", 121));
+    ASSERT_EQ(repo.workspace().history().size(), entries + 2);
 }
 
 TEST(source_navigation_preserves_the_review_and_its_origin) {
@@ -416,6 +431,100 @@ TEST(file_query_prefers_exact_colon_paths_and_parses_positive_positions) {
     ASSERT_TRUE(file_query::line("").error.empty());
     ASSERT_EQ(file_query::line("12:4").position->column, 4);
     ASSERT_FALSE(file_query::line("12:4:5").error.empty());
+}
+
+TEST(file_query_parses_line_ranges) {
+    const std::vector<std::string> paths{"a.cpp"};
+    auto ranged = file_query::parse("a.cpp:10-20", paths);
+    ASSERT_EQ(ranged.position->line, 10); ASSERT_EQ(ranged.position->endLine, 20);
+    auto withColumn = file_query::parse("a.cpp:10-20:5", paths);
+    ASSERT_EQ(withColumn.path, std::string("a.cpp"));
+    ASSERT_EQ(withColumn.position->line, 10); ASSERT_EQ(withColumn.position->endLine, 20);
+    ASSERT_EQ(withColumn.position->column, 5);
+    ASSERT_EQ(file_query::line("7-9").position->endLine, 9);
+    ASSERT_EQ(file_query::line("7").position->endLine, 0);
+    ASSERT_FALSE(file_query::line("20-10").error.empty());
+    ASSERT_FALSE(file_query::line("10-").error.empty());
+    ASSERT_FALSE(file_query::parse("a.cpp:10-x", paths).error.empty());
+}
+
+TEST(fuzzy_rank_blends_recency_into_nonempty_queries) {
+    const std::vector<std::string> paths{"src/apple.cpp", "src/apply.cpp", "docs/app.md"};
+    const std::vector<std::string> recent{"docs/app.md", "src/apply.cpp"};
+    const auto ranked = fuzzy::rank(paths, "app", recent);
+    ASSERT_EQ(ranked.at(0), std::string("docs/app.md"));
+    ASSERT_EQ(ranked.at(1), std::string("src/apply.cpp"));
+    // Without recency the recent pair is not promoted in recency order.
+    ASSERT_TRUE(fuzzy::rank(paths, "app").at(0) != std::string("docs/app.md") ||
+                fuzzy::rank(paths, "app").at(1) != std::string("src/apply.cpp"));
+    // An exact path still beats a recent match.
+    ASSERT_EQ(fuzzy::rank(paths, "src/apple.cpp", recent).at(0), std::string("src/apple.cpp"));
+}
+
+TEST(search_excerpt_spans_carry_syntax_colours) {
+    // The excerpt renderer maps these token kinds to theme syntax colours.
+    const auto tokens = code_highlight::token_cache().get(
+        "int main() { return greet(\"world\"); }", "src/app.cpp");
+    bool keyword = false, string = false;
+    for (const auto& token : *tokens) {
+        if (token.text == "int" && token.kind == code_highlight::Kind::Keyword) keyword = true;
+        if (token.text.find("world") != std::string::npos && token.kind == code_highlight::Kind::String) string = true;
+    }
+    ASSERT_TRUE(keyword);
+    ASSERT_TRUE(string);
+}
+
+TEST(fuzzy_score_uses_the_optimal_alignment_not_the_greedy_one) {
+    // Greedy takes m@0,n@2 (13); the optimal run takes m@6 after '-' and
+    // n@7 consecutively (19), so both the score and the highlights move.
+    ASSERT_EQ(fuzzy::matched_ranges("mn", "mXn n-mn"), (std::vector<fuzzy::Range>{{6, 7}, {7, 8}}));
+    // camelCase and '.' boundaries score as boundaries.
+    ASSERT_TRUE(fuzzy::score("fb", "fooBar").has_value());
+    ASSERT_EQ(fuzzy::matched_ranges("fb", "fooBar"), (std::vector<fuzzy::Range>{{0, 1}, {3, 4}}));
+}
+
+TEST(fuzzy_elide_middle_shortens_long_paths) {
+    ASSERT_EQ(fuzzy::elide_middle("short/path", 72), std::string("short/path"));
+    const auto elided = fuzzy::elide_middle("aaaaaaaaaaaaaaaaaaaa/bbbbbbbbbbbbbbbbbbbb/cccccccccccccccccccc", 21);
+    ASSERT_EQ(elided, std::string("aaaaaaaaaa…cccccccccc"));
+    ASSERT_EQ(fuzzy::elide_middle("日本語の長いパスです", 5), std::string("日本語の長いパスです"));
+}
+
+TEST(fuzzy_rank_tie_breaks_by_proximity_to_active_directory) {
+    const std::vector<std::string> paths{"aaa/util.cpp", "src/ui/util.cpp"};
+    // Equal filename scores: the file near the active document wins, and
+    // without an active directory the order is alphabetical.
+    ASSERT_EQ(fuzzy::rank(paths, "util").at(0), std::string("aaa/util.cpp"));
+    ASSERT_EQ(fuzzy::rank(paths, "util", {}, "src/ui/").at(0), std::string("src/ui/util.cpp"));
+}
+
+TEST(fuzzy_rank_puts_an_exact_path_first) {
+    const std::vector<std::string> paths{"src/app.cpp", "app.cpp", "src/crabapple.cpp"};
+    ASSERT_EQ(fuzzy::rank(paths, "src/app.cpp").front(), std::string("src/app.cpp"));
+    ASSERT_EQ(fuzzy::rank(paths, "app.cpp").front(), std::string("app.cpp"));
+}
+
+TEST(file_query_line_accepts_relative_moves) {
+    ASSERT_EQ(file_query::line("+5", 10).position->line, 15);
+    ASSERT_EQ(file_query::line("-5", 10).position->line, 5);
+    ASSERT_EQ(file_query::line("+5:3", 10).position->column, 3);
+    ASSERT_EQ(file_query::line("-1", 2).position->line, 1);
+    ASSERT_FALSE(file_query::line("-1", 1).error.empty());
+    ASSERT_FALSE(file_query::line("-5", 3).error.empty());
+    ASSERT_FALSE(file_query::line("+5").error.empty());
+    ASSERT_FALSE(file_query::line("+0", 10).error.empty());
+    ASSERT_FALSE(file_query::line("-x", 10).error.empty());
+    ASSERT_FALSE(file_query::line("+5:0", 10).error.empty());
+}
+
+TEST(file_query_strips_git_diff_side_prefix_only_for_known_paths) {
+    const std::vector<std::string> paths{"src/f1.cpp", "a/real.cpp"};
+    ASSERT_EQ(file_query::parse("b/src/f1.cpp", paths).path, std::string("src/f1.cpp"));
+    auto positioned = file_query::parse("a/src/f1.cpp:12", paths);
+    ASSERT_EQ(positioned.path, std::string("src/f1.cpp")); ASSERT_EQ(positioned.position->line, 12);
+    ASSERT_EQ(file_query::parse("a/real.cpp", paths).path, std::string("a/real.cpp"));
+    ASSERT_EQ(file_query::parse("a/missing.cpp", paths).path, std::string("a/missing.cpp"));
+    ASSERT_EQ(file_query::parse("b/sr", paths).path, std::string("b/sr"));
 }
 
 TEST(find_state_belongs_to_document_and_survives_close_reopen) {

@@ -34,5 +34,11 @@ PLIST
 # The linker signed the bare executable; resources added since make that
 # signature invalid and Gatekeeper refuses the app. Re-sign the bundle
 # (ad hoc; distribution needs a Developer ID and notarization).
-codesign --force --sign - "$APP"
+# PERF=1 adds get-task-allow so xctrace/sample can attach for signpost
+# drill-down (never ship a PERF build).
+if [ "${PERF:-}" = "1" ]; then
+  codesign --force --sign - --entitlements scripts/perf.entitlements "$APP"
+else
+  codesign --force --sign - "$APP"
+fi
 echo "Built $APP"

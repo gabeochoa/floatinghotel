@@ -10,7 +10,10 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--output", type=Path, required=True)
 args = parser.parse_args()
 out = args.output.resolve()
-out.mkdir(parents=True, exist_ok=False)
+if out.exists():
+    import shutil
+    shutil.rmtree(out)
+out.mkdir(parents=True)
 repo = out / "fixture"
 repo.mkdir()
 

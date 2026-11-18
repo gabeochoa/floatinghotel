@@ -13,8 +13,14 @@ click_button Refs
 wait_frames 5
 screenshot flow_branch_02_refs_tab
 
-# Click the feature branch to check it out
+# A single click no longer checks out (it used to, dirty tree or not)
 click_text "feature/add-logging"
+wait_frames 5
+wait_for_refresh
+validate branch=main
+
+# Double-click the feature branch to check it out
+double_click_ui branch_row_feature/add-logging
 wait_for_refresh
 screenshot flow_branch_03_on_feature
 

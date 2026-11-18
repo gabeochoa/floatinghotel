@@ -732,4 +732,34 @@ TEST(historical_source_reads_in_a_shallow_clone_without_parent_objects) {
     std::filesystem::remove_all(root);
 }
 
+TEST(new_and_plain_files_resolve_syntax_without_a_background_read) {
+    auto file = [](std::string path, int oldStart, int oldCount, int newStart, int newCount) {
+        ecs::FileDiff diff;
+        diff.filePath = std::move(path);
+        ecs::DiffHunk hunk;
+        hunk.oldStart = oldStart; hunk.oldCount = oldCount; hunk.newStart = newStart; hunk.newCount = newCount;
+        hunk.lines = {"+int f() {", "+  return \"}\";", "+}"};
+        diff.hunks.push_back(hunk);
+        return diff;
+    };
+    ASSERT_FALSE(ui::diff_syntax::needs_seeds(file("src/new.cpp", 0, 0, 1, 3)));
+    ASSERT_FALSE(ui::diff_syntax::needs_seeds(file("notes.txt", 40, 3, 40, 3)));
+    ASSERT_TRUE(ui::diff_syntax::needs_seeds(file("src/old.cpp", 40, 3, 40, 3)));
+    ASSERT_TRUE(ui::diff_syntax::needs_seeds(file("src/old.cpp", 0, 0, 12, 3)));
+    // Renamed from a lexed language into plain text still seeds the old side.
+    auto renamed = file("notes.txt", 40, 3, 40, 3);
+    renamed.oldPath = "notes.cpp";
+    ASSERT_TRUE(ui::diff_syntax::needs_seeds(renamed));
+
+    std::vector<ecs::FileDiff> files;
+    for (int i = 0; i < 40; ++i) files.push_back(file("src/new" + std::to_string(i) + ".cpp", 0, 0, 1, 3));
+    files.push_back(file("src/old.cpp", 40, 3, 40, 3));
+    ui::diff_syntax::resolve_unseeded(files, 32);
+    ASSERT_EQ(std::count_if(files.begin(), files.end(), [](const auto& f) { return f.syntaxResolved; }), 32);
+    ASSERT_FALSE(files[0].hunks[0].syntaxAfter.empty());
+    ui::diff_syntax::resolve_unseeded(files, 32);
+    ASSERT_TRUE(std::all_of(files.begin(), files.begin() + 40, [](const auto& f) { return f.syntaxResolved; }));
+    ASSERT_FALSE(files.back().syntaxResolved);
+}
+
 int main() { RUN_ALL_TESTS(); }

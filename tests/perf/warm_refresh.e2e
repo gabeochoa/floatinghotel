@@ -1,0 +1,7 @@
+resize 1280 800
+wait_for_refresh
+perf_mark warm_start
+touch_file warm-change.txt "warm change"
+wait_for_refresh
+perf_mark warm_refresh_done
+perf_report output/perf/warm_refresh.json

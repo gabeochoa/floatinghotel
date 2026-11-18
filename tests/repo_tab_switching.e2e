@@ -1,0 +1,40 @@
+# Repo tab keyboard switching, refresh-on-return, and double-click checkout.
+# Driven by tests/check_repo_tab_switching.sh: tabs are [alpha, beta] with beta
+# active at startup; __BETA_FILE__ is an absolute path inside beta.
+wait_for_refresh
+expect_text "beta (main)"
+expect_text "beta-only.txt"
+hold_key 343
+key 1
+release_key 343
+wait_frames 3
+wait_for_refresh
+screenshot repo_tabs_alpha
+expect_text "alpha-only.txt"
+expect_no_text "beta-only.txt"
+touch_file __BETA_FILE__ text "written while beta was in the background"
+wait_frames 3
+hold_key 343
+hold_key 340
+key RIGHT_BRACKET
+release_key 340
+release_key 343
+wait_frames 3
+wait_for_refresh
+wait_frames 3
+screenshot repo_tabs_beta_refreshed
+expect_text "beta-only.txt"
+expect_text "background-change.txt"
+click_text "Refs"
+wait_frames 3
+click_ui branch_row_feature/other
+wait_frames 5
+wait_for_refresh
+screenshot repo_tabs_single_click
+expect_text "beta (main)"
+double_click_ui branch_row_feature/other
+wait_frames 5
+wait_for_refresh
+wait_frames 3
+screenshot repo_tabs_checked_out
+expect_text "beta (feature/other)"

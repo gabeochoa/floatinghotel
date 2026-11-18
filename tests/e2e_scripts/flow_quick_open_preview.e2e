@@ -1,0 +1,55 @@
+# Flow: Quick Open live preview — moving the highlight previews the file,
+# Enter confirms it, and Escape after moving restores the confirmed document.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+hold_key 343
+key P
+release_key 343
+wait_frames 5
+click_ui file_picker_input
+key CMD+A
+type "src/app.cpp"
+wait 2
+key ENTER
+wait_for_refresh
+wait_frames 5
+key CTRL+G
+wait_frames 3
+type "20"
+key ENTER
+wait_frames 5
+validate visible_source_line:20=true
+screenshot quick_open_preview_anchor
+hold_key 343
+key P
+release_key 343
+wait_frames 5
+click_ui file_picker_input
+key CMD+A
+type "main"
+wait 2
+key DOWN
+wait 1
+screenshot quick_open_preview_down
+key UP
+wait 1
+key ENTER
+wait_for_refresh
+wait_frames 5
+screenshot quick_open_preview_confirmed
+hold_key 343
+key P
+release_key 343
+wait_frames 5
+click_ui file_picker_input
+key CMD+A
+type "app"
+wait 2
+key DOWN
+wait 1
+screenshot quick_open_preview_again
+key ESCAPE
+wait_frames 8
+screenshot quick_open_preview_restored
+expect_text "int main"

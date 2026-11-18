@@ -1,0 +1,36 @@
+# Flow: Minimap (off by default) adds a bucketed line-density column to the
+# full-file view; clicking a strip jumps to its line.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+hold_key 343
+key P
+release_key 343
+wait_frames 5
+click_ui file_picker_input
+type "src/app.cpp"
+wait 2
+key ENTER
+wait_for_refresh
+wait_frames 5
+screenshot minimap_off
+key CMD+K
+wait_frames 5
+click_ui command_palette_input
+type "Minimap"
+wait_frames 5
+key ENTER
+wait_frames 5
+assert_ui minimap hidden=false
+screenshot minimap_on
+click_ui minimap_strip_2
+wait_frames 5
+screenshot minimap_clicked
+key CMD+K
+wait_frames 5
+click_ui command_palette_input
+type "Minimap"
+wait_frames 5
+key ENTER
+wait_frames 5
+screenshot minimap_off_again

@@ -23,18 +23,23 @@ click_text "main.cpp"
 wait_frames 5
 screenshot flow_browse_03_maincpp_diff
 
+key UP
+wait_frames 3
+key UP
+wait_frames 3
 click_text "Staged"
 wait_frames 5
 click_text ".gitignore"
 wait_frames 5
 screenshot flow_browse_04_staged_diff
 
-# Click an untracked file. There is no Untracked tab anymore: untracked
-# files are rows in the same tree, below the fold — scroll the file list
-# itself to reveal TODO.md, then click it.
-mouse_move 140 480
-scroll_wheel 0 -1000
-wait_frames 5
-click_text "TODO.md"
+# Open an untracked file. Untracked files are rows in the same grouped
+# list, below the fold — keyboard navigation skips the section headers
+# and reveals the row.
+click_text "app.cpp"
+wait_frames 3
+key DOWN
+wait_frames 3
+key ENTER
 wait_frames 5
 screenshot flow_browse_05_untracked

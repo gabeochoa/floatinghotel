@@ -3,7 +3,10 @@
 # sidebar still drills into just that file, and clicking the Unstaged
 # segment again returns to the all-files page.
 make_test_repo
-resize 1280 900
+# Tall enough for every file's diff: untracked TODO.md and icon.png sort
+# before main.cpp, and when their review loads first (as in the full suite)
+# a 900px window pushed main.cpp's hunk below the fold.
+resize 1280 1600
 wait_frames 10
 wait_for_refresh
 wait_frames 10

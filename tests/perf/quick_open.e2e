@@ -1,0 +1,10 @@
+resize 1280 800
+perf_mark start
+hold_key 343
+key P
+release_key 343
+click_ui file_picker_input
+type "file00"
+wait_until 30 expect_text "matches"
+perf_mark quick_open_results
+perf_report output/perf/quick_open.json

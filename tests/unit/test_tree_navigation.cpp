@@ -219,4 +219,16 @@ TEST(filter_compaction_preserves_the_corresponding_directory) {
     ASSERT_EQ(surviving_path(before, flatten({"src/ui/a.cpp"}, {"src/ui/"}), "src/ui/a.cpp"), std::string("src/ui/"));
 }
 
+TEST(arrows_skip_section_headers) {
+    std::vector<Row> rows;
+    rows.push_back({.section = true, .label = "Staged  1"});
+    rows.push_back({"staged.cpp", 0, 0, false});
+    rows.push_back({.section = true, .label = "Changes  1"});
+    rows.push_back({"work.cpp", 1, 0, false});
+    ASSERT_EQ(navigate(rows, {}, "staged.cpp", Key::Down)->path, std::string("work.cpp"));
+    ASSERT_EQ(navigate(rows, {}, "work.cpp", Key::Up)->path, std::string("staged.cpp"));
+    ASSERT_TRUE(navigate(rows, {}, "staged.cpp", Key::Enter)->open);
+    ASSERT_FALSE(navigate(rows, {}, "", Key::Enter).has_value());
+}
+
 int main() { RUN_ALL_TESTS(); }

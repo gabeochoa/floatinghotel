@@ -1,0 +1,34 @@
+# Flow: Blame Gutter (toggle) shows per-line author/date in the full-file
+# view, loaded async from git blame. Toggled via the command palette (the
+# View dropdown is already full height).
+make_test_repo
+resize 1280 800
+wait_for_refresh
+hold_key 343
+key P
+release_key 343
+wait_frames 5
+click_ui file_picker_input
+type "src/app.cpp"
+wait 2
+key ENTER
+wait_for_refresh
+wait_frames 5
+screenshot blame_gutter_off
+key CMD+K
+wait_frames 5
+click_ui command_palette_input
+type "Blame Gutter"
+wait_frames 5
+key ENTER
+wait 3
+wait_frames 5
+screenshot blame_gutter_on
+key CMD+K
+wait_frames 5
+click_ui command_palette_input
+type "Blame Gutter"
+wait_frames 5
+key ENTER
+wait_frames 5
+screenshot blame_gutter_off_again

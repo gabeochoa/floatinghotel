@@ -1,0 +1,40 @@
+# Flow: global repo picker (Cmd+Alt+O) switches between open repos by
+# fuzzy path match, and the Ctrl+Alt+Tab MRU switcher jumps back.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+set_open_path tests/fixture_repo
+key CMD+O
+wait_frames 6
+wait_for_refresh
+wait_frames 5
+validate tab_count=2
+validate active_tab_label=fixture_repo (main)
+hold_key 343
+hold_key 342
+key O
+release_key 342
+release_key 343
+wait_frames 5
+screenshot repo_picker_open
+click_ui repo_picker_input
+key CMD+A
+type "floatinghotel_test"
+wait 1
+screenshot repo_picker_filtered
+key ENTER
+wait_for_refresh
+wait_frames 5
+validate tab_count=2
+validate active_tab_label=floatinghotel_test_repo (main)
+screenshot repo_picker_switched
+hold_key 341
+hold_key 342
+key TAB
+wait_frames 3
+screenshot repo_mru_panel
+release_key 342
+release_key 341
+wait_frames 5
+validate active_tab_label=fixture_repo (main)
+screenshot repo_mru_switched

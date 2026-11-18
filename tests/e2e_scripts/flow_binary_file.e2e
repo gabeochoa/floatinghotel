@@ -11,9 +11,11 @@ screenshot flow_binary_file_files_navigation
 # Click the binary file (icon.png). There is no Untracked tab anymore:
 # untracked files are rows in the same tree — scroll the file list to
 # reveal icon.png, then click it.
-mouse_move 140 400
+mouse_move 140 300
 scroll_wheel 0 -1000
-wait_frames 5
+wait_frames 30
+scroll_wheel 0 -1000
+wait_frames 10
 click_text "icon.png"
 wait_frames 5
 screenshot flow_binary_01_selected

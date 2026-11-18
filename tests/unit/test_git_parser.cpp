@@ -53,6 +53,31 @@ TEST(blame_line_preserves_original_location_and_author) {
     ASSERT_TRUE(git::parse_blame_line("malformed output").hash.empty());
 }
 
+TEST(blame_porcelain_collects_every_line_with_author_and_date) {
+    const std::string hashA(40, 'a'), hashB(40, 'b');
+    auto lines = git::parse_blame_porcelain(
+        hashA + " 1 1 2\nauthor Ada Lovelace\nauthor-time 1767225600\nsummary One\nfilename f.cpp\n\tfirst\n" +
+        hashA + " 2 2 2\nauthor Ada Lovelace\nauthor-time 1767225600\nsummary One\nfilename f.cpp\n\tsecond\n" +
+        hashB + " 5 3 1\nauthor Bob\nauthor-time 1767312000\nsummary Two\nfilename f.cpp\n\tthird\n");
+    ASSERT_EQ(lines.size(), size_t{3});
+    ASSERT_EQ(lines[0].finalLine, 1);
+    ASSERT_EQ(lines[0].author, "Ada Lovelace");
+    ASSERT_EQ(lines[0].date, "2026-01-01");
+    ASSERT_EQ(lines[2].author, "Bob");
+    ASSERT_EQ(lines[2].date, "2026-01-02");
+    ASSERT_EQ(lines[2].content, "third");
+    // Real porcelain abbreviates later lines of a commit group to a bare
+    // header; they inherit the group's author/date.
+    auto grouped = git::parse_blame_porcelain(
+        hashA + " 1 1 7\nauthor Ada Lovelace\nauthor-time 1767225600\nsummary One\nfilename f.cpp\n\tfirst\n" +
+        hashA + " 2 2\n\tsecond\n" + hashA + " 3 3\n\tthird\n");
+    ASSERT_EQ(grouped.size(), size_t{3});
+    ASSERT_EQ(grouped[1].author, "Ada Lovelace");
+    ASSERT_EQ(grouped[2].date, "2026-01-01");
+    ASSERT_TRUE(git::parse_blame_porcelain("").empty());
+    ASSERT_TRUE(git::parse_blame_porcelain("not porcelain").empty());
+}
+
 // ===========================================================================
 // parse_status tests
 // ===========================================================================
@@ -63,6 +88,19 @@ TEST(status_empty_output) {
     ASSERT_TRUE(r.stagedFiles.empty());
     ASSERT_TRUE(r.unstagedFiles.empty());
     ASSERT_TRUE(r.untrackedFiles.empty());
+}
+
+TEST(status_unmerged_entries_land_in_both_lists_for_conflict_detection) {
+    std::string input =
+        "# branch.head main\n"
+        "u UU N 100644 100644 100644 100644 aaaa bbbb cccc conflict.txt\n"
+        "1 .M S 100644 100644 100644 aaaa aaaa changed.txt\n";
+    auto r = git::parse_status(input);
+    ASSERT_EQ(r.stagedFiles.size(), static_cast<size_t>(1));
+    ASSERT_EQ(r.unstagedFiles.size(), static_cast<size_t>(2));
+    ASSERT_EQ(r.stagedFiles[0].path, std::string("conflict.txt"));
+    ASSERT_EQ(r.stagedFiles[0].indexStatus, 'U');
+    ASSERT_EQ(r.unstagedFiles[0].path, std::string("conflict.txt"));
 }
 
 TEST(status_branch_name) {
@@ -639,6 +677,43 @@ TEST(branch_single_current) {
     ASSERT_TRUE(branches[0].isLocal);
     ASSERT_STREQ(branches[0].upstream, "origin/main");
     ASSERT_STREQ(branches[0].tracking, "[ahead 1]");
+}
+
+TEST(branch_full_refnames_classify_local_and_remote) {
+    std::string input =
+        "refs/heads/main|abc1234|*|origin/main|[ahead 1]\n"
+        "refs/remotes/origin/main|abc1234| ||\n"
+        "refs/remotes/origin/HEAD|abc1234| ||\n"
+        "refs/remotes/upstream/dev|def5678| ||\n";
+    auto branches = git::parse_branch_list(input);
+    ASSERT_EQ(branches.size(), static_cast<size_t>(3));
+    ASSERT_TRUE(branches[0].isLocal);
+    ASSERT_EQ(branches[0].name, std::string("main"));
+    ASSERT_FALSE(branches[1].isLocal);
+    ASSERT_EQ(branches[1].name, std::string("origin/main"));
+    ASSERT_EQ(branches[2].name, std::string("upstream/dev"));
+}
+
+TEST(branch_list_skips_tags_and_tag_list_extracts_them) {
+    std::string input =
+        "refs/heads/main|abc1234|*|origin/main|[ahead 1]\n"
+        "refs/tags/v1.0|abc1234| ||\n"
+        "refs/tags/v2.0|def5678| ||\n";
+    auto branches = git::parse_branch_list(input);
+    ASSERT_EQ(branches.size(), static_cast<size_t>(1));
+    auto tags = git::parse_tag_list(input);
+    ASSERT_EQ(tags.size(), static_cast<size_t>(2));
+    ASSERT_EQ(tags[0], std::string("v1.0"));
+    ASSERT_EQ(tags[1], std::string("v2.0"));
+    ASSERT_TRUE(git::parse_tag_list("").empty());
+}
+
+TEST(branch_tracking_counts_parse_ahead_behind_and_gone) {
+    ASSERT_EQ(git::parse_ahead_behind("[ahead 2, behind 1]"), (std::pair{2, 1}));
+    ASSERT_EQ(git::parse_ahead_behind("[ahead 12]"), (std::pair{12, 0}));
+    ASSERT_EQ(git::parse_ahead_behind("[behind 3]"), (std::pair{0, 3}));
+    ASSERT_EQ(git::parse_ahead_behind("[gone]"), (std::pair{0, 0}));
+    ASSERT_EQ(git::parse_ahead_behind(""), (std::pair{0, 0}));
 }
 
 TEST(branch_non_current) {

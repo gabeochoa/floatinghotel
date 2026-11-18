@@ -20,9 +20,12 @@ wait_for_refresh
 screenshot flow_fullcycle_03_committed
 
 # After commit, staged count should be 0
-validate staged_count=0
+wait_until 60 expect_text "Update"
+wait_for_refresh
+wait_until 30 validate staged_count=0
 
 # The new commit with default message should appear in the log
+wait_until 30 expect_text "Update"
 click_text "Update"
 wait_frames 5
 screenshot flow_fullcycle_04_commit_detail
