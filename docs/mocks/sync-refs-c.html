@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>floatinghotel · Sync & refs — C: git panel</title>
+<style>
+:root{color-scheme:dark;font-size:13px;--bg:#15171b;--sidebar:#1b1d22;--border:#2c2f36;--text:#e4e6eb;--muted:#9ca2af;--quiet:#7e8592;--accent:#b9cfef;--mod:#e3b341;--add:#57a64a;--del:#dc4c47;--ren:#4e9adc;--untr:#808080;--conf:#dc8c32;--input:#202329;--btn:#3e526f;--hover:#272b33;--sel:#28303d;--seg:#333740;--addbg:#1b2b25;--addtx:#a1d6b5;--delbg:#302225;--deltx:#df9c9c;--hunkbg:#1d252e;--hunk:#9cafc6;--menu:#2d2d2d;--menub:#3a3a3a;--clean:#73c991;--fb:#3a445e;--disabled:#303034;--mono:"SF Mono",Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:13px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased;padding:18px 0 40px;min-width:1240px}
+button,input,textarea{font:inherit;color:inherit}
+button{border:0;background:none;cursor:pointer;padding:0}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+kbd{font:10.5px var(--mono);color:var(--quiet);border:1px solid #ffffff16;border-radius:4px;padding:1px 4px;white-space:nowrap}
+.mono{font-family:var(--mono)}.muted{color:var(--muted)}.quiet{color:var(--quiet)}.grow{flex:1;min-width:0}
+.add{color:var(--add)}.del{color:var(--del)}.modc{color:var(--mod)}.accent{color:var(--accent)}
+[hidden]{display:none!important}
+
+/* annotation strip */
+.notes{width:1200px;margin:0 auto 14px;border:1px solid var(--border);border-radius:10px;background:var(--sidebar);padding:14px 18px;display:grid;grid-template-columns:1fr 260px;gap:4px 30px}
+.notes h1{font-size:15px;margin:0 0 2px;font-weight:600;letter-spacing:-.01em}
+.notes .lede{color:var(--muted);margin:0 0 8px}
+.notes ol{margin:0;padding-left:18px;line-height:1.6}
+.notes ol li::marker{color:var(--quiet)}
+.notes b{font-weight:600;color:var(--accent)}
+.cost{display:flex;flex-direction:column;align-items:flex-start;gap:6px;margin-bottom:10px;color:var(--muted);font-size:12px;line-height:1.4}
+.cost .size{font:600 18px var(--mono);border:1px solid var(--border);border-radius:6px;padding:2px 10px;color:var(--accent);background:var(--input)}
+.states{display:flex;flex-direction:column;gap:3px}
+.states .lbl{font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--quiet);margin-bottom:2px}
+.states button{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:6px;color:var(--muted);text-align:left;border:1px solid transparent}
+.states button kbd{margin-left:auto}
+.states button[aria-pressed=true]{background:var(--sel);color:var(--text);border-color:var(--border)}
+.states button:hover{background:var(--hover)}
+
+/* frame */
+.frame{width:1200px;height:760px;margin:0 auto;border:1px solid var(--border);border-radius:10px;overflow:hidden;display:grid;grid-template-rows:32px minmax(0,1fr) 24px;background:var(--bg);box-shadow:0 20px 50px #0006;position:relative}
+.titlebar{display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--sidebar);border-bottom:1px solid var(--border)}
+.traffic{display:flex;gap:7px}.traffic i{width:11px;height:11px;border-radius:50%;background:#ed6a60}.traffic i:nth-child(2){background:#f4be50}.traffic i:nth-child(3){background:#62c655}
+.repotab{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text);background:var(--input);border:1px solid var(--border);border-radius:6px;padding:3px 10px}
+.repotab i{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.titlebar .mocklbl{margin-left:auto;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--quiet)}
+.ws{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:0}
+.sb{background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;position:relative}
+.main{display:flex;flex-direction:column;min-width:0;min-height:0;position:relative}
+.status{display:flex;align-items:center;gap:14px;padding:0 10px;background:var(--sidebar);border-top:1px solid var(--border);font-size:11.5px;color:var(--muted)}
+.status .r{margin-left:auto;display:flex;gap:14px;align-items:center}
+.status svg{width:12px;height:12px}
+.status .it{display:flex;align-items:center;gap:5px}
+
+/* sidebar atoms */
+.rh{display:flex;align-items:center;gap:10px;padding:12px 10px 8px 12px}
+.rsym{width:30px;height:30px;border-radius:7px;border:1px solid var(--border);background:var(--input);display:grid;place-items:center;color:var(--accent)}
+.rname{font-weight:600;font-size:14px}
+.rsub{display:flex;align-items:center;gap:5px;color:var(--muted);font-size:12px;margin-top:1px;white-space:nowrap;overflow:hidden}
+.rsub svg{width:12px;height:12px}
+.dirty{width:6px;height:6px;border-radius:50%;background:var(--mod);display:inline-block}
+.sec{display:flex;align-items:center;gap:6px;height:26px;padding:0 8px 0 10px;font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--quiet);cursor:default;user-select:none;flex-shrink:0}
+.sec .chev{width:12px;height:12px;transition:transform .12s}
+.sec .n{letter-spacing:0;font-weight:500;color:var(--muted);font-size:11px}
+.sec .acts{margin-left:auto;display:flex;gap:1px;opacity:0}
+.sec:hover .acts,.sec .acts.show{opacity:1}
+.grp.collapsed>.body{display:none}
+.grp.collapsed>.sec .chev{transform:rotate(-90deg)}
+.ib{width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;color:var(--muted)}
+.ib:hover{background:var(--hover);color:var(--text)}
+.ib svg{width:13px;height:13px}
+.row{display:flex;align-items:center;gap:8px;height:26px;padding:0 8px 0 14px;color:var(--text);position:relative;white-space:nowrap;cursor:default}
+.row:hover,.row.hover{background:var(--hover)}
+.row.sel{background:var(--sel)}
+.row.sel::before,.row.cur::before{content:"";position:absolute;left:0;top:0;bottom:0;width:2px;background:var(--accent)}
+.row .name{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.row .dir{color:var(--quiet);font-size:11.5px;overflow:hidden;text-overflow:ellipsis;flex-shrink:1;min-width:0}
+.row .meta{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--quiet);font-size:11px;flex-shrink:0}
+.row>svg{color:var(--quiet);width:13px;height:13px}
+.row.cur>svg{color:var(--accent)}
+.st{font:600 11px var(--mono);width:12px;text-align:center;flex-shrink:0}
+.st.M{color:var(--mod)}.st.A{color:var(--add)}.st.D{color:var(--del)}.st.U{color:var(--untr)}.st.C{color:var(--conf)}
+.viewed{width:11px;height:11px;border:1.5px solid #5a606b;border-radius:50%;flex-shrink:0}
+.ab{font:11px var(--mono);display:inline-flex;align-items:center;gap:1px;color:var(--muted)}
+.ab svg{width:11px;height:11px;stroke-width:1.8}
+.ab.up{color:var(--accent)}.ab.down{color:var(--mod)}
+.chip{font-size:10.5px;padding:1px 6px;border-radius:4px;border:1px solid #ffffff19;color:var(--muted);white-space:nowrap}
+.hov{opacity:0;display:flex;gap:1px}.row:hover .hov,.row.hover .hov{opacity:1}
+.ib.danger:hover{color:var(--deltx);background:var(--delbg)}
+.hist .c{display:flex;align-items:center;gap:9px;height:24px;padding:0 10px 0 15px;font-size:12.5px;color:var(--muted);white-space:nowrap;position:relative}
+.hist .c .dotc{width:9px;height:9px;border:1.5px solid var(--quiet);border-radius:50%;flex-shrink:0;background:var(--sidebar);z-index:1}
+.hist .c.head .dotc{background:var(--accent);border-color:var(--accent)}
+.hist .c.head{color:var(--text)}
+.hist .c.out .dotc{border-color:var(--accent)}
+.hist .c.in{color:var(--quiet);font-style:italic}.hist .c.in .dotc{border-style:dashed;border-color:var(--mod)}
+.hist .c .t{margin-left:auto;color:var(--quiet);font-size:11px;display:flex;gap:6px;align-items:center}
+.hist .c .msg{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hist .rail{position:relative}.hist .rail::before{content:"";position:absolute;left:19px;top:12px;bottom:12px;width:1px;background:var(--border)}
+
+/* menus, popovers */
+.menu{position:absolute;z-index:20;background:var(--menu);border:1px solid var(--menub);border-radius:8px;box-shadow:0 14px 34px #000a;padding:5px;min-width:230px;font-size:12.5px}
+.mi{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:5px;color:var(--text);white-space:nowrap}
+.mi svg{color:var(--muted)}
+.mi:hover,.mi.on{background:var(--btn)}
+.mi .k{margin-left:auto;font:11px var(--mono);color:var(--quiet);padding-left:16px}
+.mi .sub{color:var(--quiet);font-size:11.5px}
+.mi.dis{color:var(--quiet)}.mi.dis:hover{background:none}
+.mi.danger,.mi.danger svg{color:var(--deltx)}
+.msep{height:1px;background:var(--menub);margin:4px 2px}
+.mhead{padding:4px 8px 6px;font-size:11px;color:var(--quiet);display:flex;gap:6px;align-items:center}
+.pop{position:absolute;z-index:20;background:var(--menu);border:1px solid var(--menub);border-radius:9px;box-shadow:0 14px 34px #000a;padding:12px;font-size:12.5px;display:flex;flex-direction:column;gap:9px}
+.pop .pt{display:flex;align-items:center;gap:8px;font-weight:600}
+.ck{display:flex;align-items:center;gap:8px;color:var(--text)}
+.box{width:14px;height:14px;border:1.5px solid #5a606b;border-radius:3px;display:inline-grid;place-items:center;flex-shrink:0}
+.box.on{background:var(--btn);border-color:var(--accent)}.box.on svg{width:10px;height:10px;stroke-width:2.2;color:var(--text)}
+
+/* buttons, inputs */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:26px;padding:0 10px;border-radius:6px;background:var(--input);border:1px solid var(--border);color:var(--text);font-size:12.5px;white-space:nowrap}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--btn);border-color:transparent}
+.btn.primary kbd{color:var(--accent);border-color:#ffffff26}
+.btn.ghost{background:none;border-color:transparent;color:var(--muted)}
+.btn[disabled]{background:var(--disabled);color:#8c8c92;border-color:transparent;cursor:default}
+.input{display:block;background:var(--input);border:1px solid var(--border);border-radius:6px;padding:6px 8px;color:var(--text);width:100%;outline:0;resize:none}
+.input::placeholder{color:var(--quiet)}
+.input.focus,.input:focus{border-color:var(--accent);box-shadow:0 0 0 2px #b9cfef22}
+
+/* main pane */
+.doctabs{height:36px;display:flex;align-items:stretch;border-bottom:1px solid var(--border);background:var(--sidebar);padding-left:6px;flex-shrink:0}
+.doctab{display:flex;align-items:center;gap:8px;padding:0 14px;color:var(--muted);font-size:12.5px;position:relative;white-space:nowrap}
+.doctab svg{width:13px;height:13px}
+.doctab.on{color:var(--text);background:var(--bg)}
+.doctab.on::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:2px;background:var(--accent)}
+.doctab .x{width:10px;height:10px;color:var(--quiet)}
+.mainbody{padding:16px 22px;overflow:auto;min-height:0;flex:1}
+.toolbar{display:flex;align-items:center;gap:10px;margin-bottom:14px;color:var(--muted)}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:6px;padding:2px;gap:2px}
+.seg span{padding:3px 10px;border-radius:4px;font-size:12px;color:var(--muted)}.seg span.on{background:var(--seg);color:var(--text)}
+.card{border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:14px}
+.cardh{display:flex;align-items:center;gap:10px;padding:7px 12px;background:var(--sidebar);border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12.5px}
+.cardh .p{color:var(--quiet)}
+.cardh .act{font:12px -apple-system,BlinkMacSystemFont,sans-serif;color:var(--muted);display:flex;align-items:center;gap:6px}
+.code{font:12px/21px var(--mono)}
+.ln{display:grid;grid-template-columns:40px 40px 18px 1fr;color:#c9ced8}
+.ln>span:nth-child(-n+2){text-align:right;padding-right:8px;color:var(--quiet)}
+.ln.h{background:var(--hunkbg);color:var(--hunk);display:block;padding-left:12px}
+.ln.a{background:var(--addbg);color:var(--addtx)}
+.ln.d{background:var(--delbg);color:var(--deltx)}
+.cardf{padding:6px 12px;font-size:11.5px;color:var(--quiet);border-top:1px solid var(--border)}
+
+
+.rh{padding:10px 8px 8px 12px;gap:8px;border-bottom:1px solid var(--border)}
+.rsym{width:24px;height:24px;border-radius:6px}
+.rsym svg{width:12px;height:12px}
+.brchip{display:inline-flex;align-items:center;gap:4px;height:22px;padding:0 7px;border-radius:5px;border:1px solid var(--border);background:var(--input);color:var(--text);font-size:12px;max-width:130px}
+.brchip svg{width:12px;height:12px;color:var(--muted)}
+.acc{flex:1;min-height:0;overflow:auto;padding-bottom:6px}
+.acc .grp>.sec{position:sticky;top:0;background:var(--sidebar);z-index:2;height:28px;border-top:1px solid #2c2f3680}
+.acc .grp:first-child>.sec{border-top:0}
+.acc .grp>.sec .kh{margin-left:4px;font:10px var(--mono);letter-spacing:0;color:#5a606b;text-transform:none;font-weight:400}
+.acc .grp.collapsed>.sec .summary{display:flex}
+.summary{display:none;gap:5px;letter-spacing:0;text-transform:none;font-weight:500;margin-left:2px}
+.summary .st{width:auto;font-size:10.5px}
+.subh{display:flex;align-items:center;gap:6px;height:22px;padding:0 8px 0 26px;font-size:11px;color:var(--quiet)}
+.subh .n{font:10.5px var(--mono);color:var(--muted)}
+.subh .acts{margin-left:auto;opacity:0;display:flex}
+.subh:hover .acts{opacity:1}
+.acc .row{padding-left:26px}
+.acc .row.indent{padding-left:32px}
+.reviewrow{display:flex;align-items:center;gap:8px;margin:4px 10px 4px 12px;padding:6px 9px;border-radius:6px;background:var(--sel);color:var(--text);font-size:12.5px}
+.reviewrow svg{color:var(--accent)}
+.reviewrow .p{margin-left:auto;font-size:11px;color:var(--quiet)}
+.hist{border:0}
+.hist .c{padding-left:26px}.hist .rail::before{left:30px}
+.syncfoot{display:flex;align-items:center;gap:8px;height:32px;padding:0 6px 0 12px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);flex-shrink:0;background:var(--sidebar)}
+.syncfoot .sb-sync{display:flex;align-items:center;gap:6px;height:24px;padding:0 7px;border-radius:5px;border:1px solid var(--border);background:var(--input)}
+.syncfoot .sb-sync:hover{background:var(--hover)}
+.syncfoot .lbl{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* main docs */
+.dochead{padding:18px 24px 12px;border-bottom:1px solid var(--border)}
+.eyebrow{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted);margin-bottom:6px}
+.eyebrow svg{width:12px;height:12px}
+.dochead h2{font-size:18px;font-weight:600;letter-spacing:-.02em;margin:0 0 8px}
+.dochead .acts{display:flex;gap:8px;align-items:center;margin-top:10px}
+.msgbox{border:1px solid var(--accent);border-radius:8px;background:var(--input);box-shadow:0 0 0 2px #b9cfef22;overflow:hidden}
+.msgbox .subj{display:flex;align-items:center;border-bottom:1px solid var(--border);padding:8px 10px;font-size:14px;font-weight:500}
+.msgbox .subj .ct{margin-left:auto;font:11px var(--mono);color:var(--quiet)}
+.msgbox .bodytxt{padding:8px 10px;min-height:54px;color:var(--quiet);font-size:12.5px}
+.incl{display:flex;align-items:center;gap:8px;margin:14px 0 8px;font-size:10.5px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--quiet)}
+.excl{margin-top:4px;padding:8px 10px;border:1px dashed var(--border);border-radius:7px;font-size:12px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.excl .st{width:auto}
+</style>
+</head>
+<body>
+<svg style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><defs>
+<symbol id="branch" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="11.5" cy="4.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><path d="M4.5 5.1v5.8M11.5 6.1c0 3.6-7 1.2-7 4.8"/></symbol>
+<symbol id="up" viewBox="0 0 16 16"><path d="M8 13V3.5M4 7.5l4-4 4 4"/></symbol>
+<symbol id="down" viewBox="0 0 16 16"><path d="M8 3v9.5M4 8.5l4 4 4-4"/></symbol>
+<symbol id="fetch" viewBox="0 0 16 16"><path d="M13 8a5 5 0 1 1-1.6-3.7M13.2 2.5v2.8h-2.8"/></symbol>
+<symbol id="stash" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="3" rx=".8"/><path d="M3 6v6.5h10V6M6.5 9h3"/></symbol>
+<symbol id="tag" viewBox="0 0 16 16"><path d="M2.5 2.5h5l6 6-5 5-6-6z"/><circle cx="5.5" cy="5.5" r=".9"/></symbol>
+<symbol id="cloud" viewBox="0 0 16 16"><path d="M4.6 12.5a3 3 0 0 1-.4-6 4 4 0 0 1 7.6.9 2.6 2.6 0 0 1 .2 5.1z"/></symbol>
+<symbol id="chev" viewBox="0 0 16 16"><path d="m4 6 4 4 4-4"/></symbol>
+<symbol id="chevr" viewBox="0 0 16 16"><path d="m6 4 4 4-4 4"/></symbol>
+<symbol id="more" viewBox="0 0 16 16"><circle cx="3.5" cy="8" r=".6"/><circle cx="8" cy="8" r=".6"/><circle cx="12.5" cy="8" r=".6"/></symbol>
+<symbol id="plus" viewBox="0 0 16 16"><path d="M8 3v10M3 8h10"/></symbol>
+<symbol id="minus" viewBox="0 0 16 16"><path d="M3 8h10"/></symbol>
+<symbol id="check" viewBox="0 0 16 16"><path d="m3.5 8.5 3 3 6-7"/></symbol>
+<symbol id="trash" viewBox="0 0 16 16"><path d="M3 4.5h10M6.2 4.5V3h3.6v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5"/></symbol>
+<symbol id="warn" viewBox="0 0 16 16"><path d="M8 2.2 14.3 13.5H1.7zM8 6.5v3.2M8 11.6v.1"/></symbol>
+<symbol id="commit" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3"/><path d="M1 8h4m6 0h4"/></symbol>
+<symbol id="folder" viewBox="0 0 16 16"><path d="M1.8 4h4.4l1.6 1.6h6.4v7.4H1.8z"/></symbol>
+<symbol id="eye" viewBox="0 0 16 16"><path d="M1.5 8S4 3.6 8 3.6 14.5 8 14.5 8 12 12.4 8 12.4 1.5 8 1.5 8z"/><circle cx="8" cy="8" r="1.9"/></symbol>
+<symbol id="search" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.3"/><path d="m10.3 10.3 3.2 3.2"/></symbol>
+<symbol id="x" viewBox="0 0 16 16"><path d="m4 4 8 8M12 4l-8 8"/></symbol>
+<symbol id="files" viewBox="0 0 16 16"><path d="M4 1.8h5l3.2 3.2v9.2H4zM9 1.8V5h3.2"/></symbol>
+<symbol id="message" viewBox="0 0 16 16"><path d="M2.5 2.8h11v8h-7l-4 3.2z"/></symbol>
+<symbol id="clock" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.8"/><path d="M8 4.8V8l2.2 1.4"/></symbol>
+<symbol id="merge" viewBox="0 0 16 16"><circle cx="4.5" cy="3.5" r="1.6"/><circle cx="4.5" cy="12.5" r="1.6"/><circle cx="11.5" cy="9" r="1.6"/><path d="M4.5 5.1v5.8M4.5 5.5c0 3 3.5 3.5 5.4 3.5"/></symbol>
+<symbol id="apply" viewBox="0 0 16 16"><path d="M8 2.5v7M5 6.5l3 3 3-3M2.5 11v2.5h11V11"/></symbol>
+<symbol id="sync" viewBox="0 0 16 16"><path d="M5 2.5v9M2.5 9 5 11.5 7.5 9M11 13.5v-9M8.5 7 11 4.5 13.5 7"/></symbol>
+</defs></svg>
+<section class="notes">
+<div><h1>Direction C — One git panel, actions as documents</h1><p class="lede">No tabs at all: a single scrollable panel of collapsible sections (Zed/VS Code style). Git objects open as reviewable documents in the main pane.</p><ol><li><b>One accordion</b>: Changes · Stashes · Branches · Remotes · Tags · History, with sticky headers, counts, a status summary when collapsed (<i>2M 2U</i>), and <kbd>g</kbd> + letter to jump. This replaces both tab strips and the history splitter. Collapse state persists per repo (Settings::set_section_collapsed already exists).</li>
+<li><b>Sync moves to a sidebar footer</b> (↓1 ↑2 · origin/main · 4m ago, with Pull / Push / Fetch icons), like a status bar. The header keeps only repo + branch switcher.</li>
+<li><b>Commit is a document, not a box</b>: ⌘↵ opens “Commit to main” in the main pane. The message sits on top, the staged diff below, and excluded files are listed explicitly. You review exactly what you commit.</li>
+<li><b>Stashes are reviewable</b>: ↵ opens a stash as a diff document with Apply / Pop / Branch. Every row has a context menu (⇧F10 / right-click / ⋯).</li>
+<li><b>Destructive actions only in menus</b>, always last, red, and confirmed (Drop stash…, Delete branch…). No row-level delete buttons anywhere.</li></ol></div>
+<div><div class="cost"><span class="size">L</span><span>~3 weeks. Accordion with sticky headers and cross-section keyboard focus in immediate mode; virtualizing one list across sections; two new document types (commit composer, stash diff via the existing revision diff on stash@{n}); context menus for every ref kind.</span></div>
+<div class="states"><div class="lbl">States · press number, Esc closes temporary UI</div><button data-s="1" aria-pressed="false">Changes · 2 ahead / 1 behind<kbd>1</kbd></button>
+<button data-s="2" aria-pressed="false">Refs sections expanded<kbd>2</kbd></button>
+<button data-s="3" aria-pressed="false">Stash ⋯ menu + stash review<kbd>3</kbd></button>
+<button data-s="4" aria-pressed="false">Commit as a document<kbd>4</kbd></button></div></div>
+</section>
+<div class="frame" data-state="1" data-esc="3 4">
+<header class="titlebar"><div class="traffic" aria-hidden="true"><i></i><i></i><i></i></div><span class="repotab"><i></i>repo (main)</span><span class="mocklbl">Design preview · sidebar at 280px</span></header>
+<div class="ws">
+<aside class="sb" aria-label="Repository sidebar">
+
+<div class="rh"><div class="rsym"><svg><use href="#folder"/></svg></div><span class="rname" style="font-size:13px">repo</span>
+<button class="brchip" title="Switch branch  ⌘⇧B"><svg><use href="#branch"/></svg>main<span class="dirty"></span><svg><use href="#chev"/></svg></button>
+<span class="grow"></span><button class="ib" title="Worktrees, submodules, reflog, pin"><svg><use href="#more"/></svg></button></div>
+
+<div class="acc">
+<section class="grp" data-open="1 4"><div class="sec"><svg class="chev"><use href="#chev"/></svg>Changes<span class="n">4</span><span class="summary"><span class="st M">2M</span><span class="st U">2U</span></span><span class="kh">g c</span><span class="acts show"><button class="ib" title="Review all changes  R"><svg><use href="#eye"/></svg></button><button class="ib" title="Commit staged…  ⌘↵" data-go="4"><svg><use href="#commit"/></svg></button><button class="ib" title="Stash changes…  ⌘⇧S"><svg><use href="#stash"/></svg></button><button class="ib" title="More"><svg><use href="#more"/></svg></button></span></div>
+<div class="body">
+<div class="reviewrow"><svg><use href="#eye"/></svg>Review changes<span class="p">0 / 4 viewed</span></div>
+<div class="subh">Staged <span class="n">1</span><span class="acts"><button class="ib" title="Unstage all"><svg><use href="#minus"/></svg></button></span></div>
+<div data-show="1"><div class="row"><span class="st M">M</span><span class="name">f3.cpp</span><span class="dir">src</span><span class="grow"></span><span class="viewed" title="Not viewed"></span></div></div><div data-show="4"><div class="row sel"><span class="st M">M</span><span class="name">f3.cpp</span><span class="dir">src</span><span class="grow"></span><span class="viewed" title="Not viewed"></span></div></div>
+<div class="subh">Unstaged <span class="n">1</span><span class="acts"><button class="ib" title="Stage all"><svg><use href="#plus"/></svg></button></span></div>
+<div data-show="1"><div class="row sel"><span class="st M">M</span><span class="name">f1.cpp</span><span class="dir">src</span><span class="grow"></span><span class="viewed" title="Not viewed"></span></div></div><div data-show="4"><div class="row"><span class="st M">M</span><span class="name">f1.cpp</span><span class="dir">src</span><span class="grow"></span><span class="viewed" title="Not viewed"></span></div></div>
+<div class="subh">Untracked <span class="n">2</span><span class="acts"><button class="ib" title="Stage all"><svg><use href="#plus"/></svg></button></span></div>
+<div class="row"><span class="st U">U</span><span class="name">notes.md</span><span class="dir">docs</span><span class="grow"></span><span class="viewed" title="Not viewed"></span></div><div class="row"><span class="st U">U</span><span class="name">scratch.txt</span><span class="grow"></span><span class="viewed" title="Not viewed"></span></div>
+</div></section>
+
+<section class="grp" data-open="2 3"><div class="sec"><svg class="chev"><use href="#chev"/></svg>Stashes<span class="n">2</span><span class="summary"></span><span class="kh">g s</span><span class="acts"><button class="ib" title="Stash changes…  ⌘⇧S"><svg><use href="#plus"/></svg></button></span></div>
+<div class="body">
+<div class="row" data-show="1 2 4" title="stash@{0} · on main"><svg><use href="#stash"/></svg><span class="name">WIP: experiment with layout</span><span class="meta">2h</span></div>
+<div class="row sel" data-show="3" title="stash@{0} · on main"><svg><use href="#stash"/></svg><span class="name">WIP: experiment with layout</span><span class="meta">2h</span></div>
+<div class="row" title="stash@{1} · on main"><svg><use href="#stash"/></svg><span class="name">WIP: readme tweaks</span><span class="meta">1d</span></div>
+</div></section>
+
+<section class="grp" data-open="2"><div class="sec"><svg class="chev"><use href="#chev"/></svg>Branches<span class="n">4</span><span class="summary"></span><span class="kh">g b</span><span class="acts"><button class="ib" title="New branch…  ⌘⇧N"><svg><use href="#plus"/></svg></button></span></div>
+<div class="body">
+<div class="row cur"><svg><use href="#branch"/></svg><span class="name"><b>main</b></span><span class="meta"><span class="ab down" title="1 behind"><svg><use href="#down"/></svg>1</span><span class="ab up" title="2 ahead"><svg><use href="#up"/></svg>2</span></span></div>
+<div class="row"><svg><use href="#branch"/></svg><span class="name">agent/refactor-lexer</span></div>
+<div class="row hover"><svg><use href="#branch"/></svg><span class="name">feature/sidebar-polish</span><span class="meta"><span class="hov"><button class="ib" title="Review vs main"><svg><use href="#eye"/></svg></button><button class="ib" title="Actions  ⇧F10"><svg><use href="#more"/></svg></button></span></span></div>
+<div class="row"><svg><use href="#branch"/></svg><span class="name">fix/crash-on-open</span></div>
+</div></section>
+
+<section class="grp" data-open="2"><div class="sec"><svg class="chev"><use href="#chev"/></svg>Remotes<span class="n">1</span><span class="summary"></span><span class="kh">g r</span><span class="acts"><button class="ib" title="Fetch all"><svg><use href="#fetch"/></svg></button></span></div>
+<div class="body">
+<div class="subh"><svg><use href="#cloud"/></svg>origin <span class="quiet" style="margin-left:auto">fetched 4m ago</span></div>
+<div class="row indent"><svg><use href="#branch"/></svg><span class="name">main</span><span class="meta"><span class="ab down"><svg><use href="#down"/></svg>1</span></span></div>
+<div class="row indent"><svg><use href="#branch"/></svg><span class="name">agent/refactor-lexer</span></div>
+</div></section>
+
+<section class="grp" data-open="2"><div class="sec"><svg class="chev"><use href="#chev"/></svg>Tags<span class="n">2</span><span class="summary"></span><span class="kh">g t</span><span class="acts"></span></div>
+<div class="body">
+<div class="row"><svg><use href="#tag"/></svg><span class="name">v0.2.0</span><span class="meta mono">3f2a1c9</span></div>
+<div class="row"><svg><use href="#tag"/></svg><span class="name">v0.1.0</span><span class="meta mono">8be04d2</span></div>
+</div></section>
+
+<div class="grp hist" data-open="1 3 4"><div class="sec"><svg class="chev"><use href="#chev"/></svg>History<span class="acts show"><button class="chip" style="display:flex;gap:3px;align-items:center">main<svg><use href="#chev"/></svg></button></span></div>
+<div class="body rail"><div class="c in"><span class="dotc"></span><span class="msg">Bump version to 0.2.1</span><span class="t"><span class="chip">origin/main</span>incoming</span></div>
+<div class="c head out"><span class="dotc"></span><span class="msg">Second local commit</span><span class="t"><span class="chip">HEAD</span>now</span></div>
+<div class="c out"><span class="dotc"></span><span class="msg">Local work not yet pushed</span><span class="t">now</span></div>
+<div class="c"><span class="dotc"></span><span class="msg">Fix off-by-one in tokenizer</span><span class="t"><span class="chip">v0.2.0</span>now</span></div>
+<div class="c"><span class="dotc"></span><span class="msg">Wire up config loader</span><span class="t">now</span></div>
+<div class="c"><span class="dotc"></span><span class="msg">Add parser</span><span class="t"><span class="chip">v0.1.0</span>now</span></div>
+<div class="c"><span class="dotc"></span><span class="msg">Initial scaffold</span><span class="t">now</span></div>
+</div></div>
+</div>
+
+<div class="syncfoot">
+<button class="sb-sync" title="Sync menu  ⌘⇧Y"><span class="ab down" title="1 behind"><svg><use href="#down"/></svg>1</span><span class="ab up" title="2 ahead"><svg><use href="#up"/></svg>2</span></button>
+<span class="lbl grow" title="Tracking origin/main · fetched 4 minutes ago">origin · 4m ago</span>
+<button class="ib" title="Pull 1  ⌘⇧L"><svg><use href="#down"/></svg></button><button class="ib" title="Push 2  ⌘⇧P"><svg><use href="#up"/></svg></button><button class="ib" title="Fetch  ⌘⇧F"><svg><use href="#fetch"/></svg></button>
+</div>
+
+<div class="menu" data-show="3" style="top:96px;left:248px;width:250px">
+<div class="mhead"><svg><use href="#stash"/></svg>stash@{0} · on main · 2h ago</div>
+<div class="mi on"><svg><use href="#eye"/></svg>Review stash<span class="k">↵</span></div>
+<div class="mi"><svg><use href="#apply"/></svg>Apply<span class="k">A</span></div>
+<div class="mi">Pop (apply and drop)<span class="k">P</span></div>
+<div class="mi"><svg><use href="#branch"/></svg>Create branch from stash…</div>
+<div class="mi">Rename…<span class="k">F2</span></div>
+<div class="msep"></div>
+<div class="mi danger"><svg><use href="#trash"/></svg>Drop stash…<span class="k">⌘⌫</span></div>
+</div>
+
+</aside>
+<main class="main">
+<div data-show="1 2" style="display:contents"><div class="doctabs"><div class="doctab on"><svg><use href="#files"/></svg>Unstaged changes<svg class="x"><use href="#x"/></svg></div></div>
+<div class="mainbody">
+<div class="toolbar"><span>3 files changed <span class="add">+3</span> <span class="del">−0</span></span><span class="grow"></span><span class="seg"><span class="on">Unified</span><span>Split</span></span><button class="btn"><svg><use href="#message"/></svg>Feedback 0</button><button class="btn primary"><svg><use href="#check"/></svg>Finish review</button></div>
+<div class="card"><div class="cardh"><svg><use href="#chev"/></svg><span><span class="p">src/</span>f1.cpp</span><span class="grow"></span><span class="add">+1</span><span class="del">−0</span><span class="act">Open file</span><span class="act"><span class="box"></span>Viewed</span><span class="act">Stage file</span></div>
+<div class="code"><div class="ln h">@@ -4,3 +4,4 @@ int f1() {</div>
+<div class="ln"><span>4</span><span>4</span><span></span><span>  // Add parser</span></div>
+<div class="ln"><span>5</span><span>5</span><span></span><span>  // Wire up config loader</span></div>
+<div class="ln"><span>6</span><span>6</span><span></span><span>  // Fix off-by-one in tokenizer</span></div>
+<div class="ln a"><span></span><span>7</span><span>+</span><span>  // unstaged change</span></div></div>
+<div class="cardf">Initial context: 3 lines · C++</div></div>
+<div class="card"><div class="cardh"><svg><use href="#chev"/></svg><span><span class="p">docs/</span>notes.md</span><span class="grow"></span><span class="act quiet">New file</span><span class="add">+1</span><span class="act"><span class="box"></span>Viewed</span><span class="act">Stage file</span></div>
+<div class="code"><div class="ln h">@@ -0,0 +1,1 @@ (new file)</div><div class="ln a"><span></span><span>1</span><span>+</span><span>notes</span></div></div></div>
+<div class="card"><div class="cardh"><svg><use href="#chev"/></svg><span><span class="p"></span>scratch.txt</span><span class="grow"></span><span class="act quiet">New file</span><span class="add">+1</span><span class="act"><span class="box"></span>Viewed</span><span class="act">Stage file</span></div>
+<div class="code"><div class="ln h">@@ -0,0 +1,1 @@ (new file)</div><div class="ln a"><span></span><span>1</span><span>+</span><span>scratch</span></div></div></div>
+</div></div>
+<div data-show="3" style="display:contents"><div class="doctabs"><div class="doctab"><svg><use href="#files"/></svg>Unstaged changes<svg class="x"><use href="#x"/></svg></div><div class="doctab on"><svg><use href="#stash"/></svg>Stash · WIP: experiment with layout<svg class="x"><use href="#x"/></svg></div></div>
+<div class="dochead">
+<div class="eyebrow"><svg><use href="#stash"/></svg><span class="mono">stash@{0}</span>· on main at <span class="mono">a91c03e</span>· 2 hours ago</div>
+<h2>WIP: experiment with layout</h2>
+<div class="muted" style="font-size:12px">2 files changed <span class="add">+6</span> <span class="del">−2</span> · includes 1 untracked file</div>
+<div class="acts"><button class="btn primary"><svg><use href="#apply"/></svg>Apply<kbd>A</kbd></button><button class="btn">Pop<kbd>P</kbd></button><button class="btn"><svg><use href="#branch"/></svg>Branch from stash…</button><span class="grow"></span><span class="quiet" style="font-size:11.5px">Applying never touches the index. Drop is only in the ⋯ menu.</span></div>
+</div>
+<div class="mainbody">
+<div class="card"><div class="cardh"><svg><use href="#chev"/></svg><span><span class="p">src/</span>f1.cpp</span><span class="grow"></span><span class="add">+4</span><span class="del">−2</span></div>
+<div class="code"><div class="ln h">@@ -1,6 +1,8 @@ int f1() {</div>
+<div class="ln"><span>1</span><span>1</span><span></span><span>int f1() {</span></div>
+<div class="ln d"><span>2</span><span></span><span>−</span><span>  // layout: single column</span></div>
+<div class="ln d"><span>3</span><span></span><span>−</span><span>  return 1;</span></div>
+<div class="ln a"><span></span><span>2</span><span>+</span><span>  // layout: try two columns</span></div>
+<div class="ln a"><span></span><span>3</span><span>+</span><span>  const int columns = 2;</span></div>
+<div class="ln a"><span></span><span>4</span><span>+</span><span>  // TODO: measure sidebar width</span></div>
+<div class="ln a"><span></span><span>5</span><span>+</span><span>  return columns;</span></div>
+<div class="ln"><span>4</span><span>6</span><span></span><span>}</span></div></div></div>
+<div class="card"><div class="cardh"><svg><use href="#chev"/></svg><span>layout-notes.md</span><span class="grow"></span><span class="act quiet">Untracked in stash</span><span class="add">+2</span></div>
+<div class="code"><div class="ln a"><span></span><span>1</span><span>+</span><span># Layout experiment</span></div><div class="ln a"><span></span><span>2</span><span>+</span><span>Two columns above 1400px.</span></div></div></div>
+</div></div>
+<div data-show="4" style="display:contents"><div class="doctabs"><div class="doctab"><svg><use href="#files"/></svg>Unstaged changes<svg class="x"><use href="#x"/></svg></div><div class="doctab on"><svg><use href="#commit"/></svg>Commit to main<svg class="x"><use href="#x"/></svg></div></div>
+<div class="mainbody" style="max-width:860px">
+<div class="eyebrow"><svg><use href="#commit"/></svg>New commit on <b style="color:var(--text);font-weight:500">main</b> · will be 3 ahead of origin/main</div>
+<div class="msgbox"><div class="subj">Mark f3 as staged fixture<span class="ct">26 / 72</span></div><div class="bodytxt">Optional description…</div></div>
+<div class="toolbar" style="margin-top:10px"><button class="btn primary"><svg><use href="#check"/></svg>Commit 1 file<kbd>⌘↵</kbd></button><button class="btn">Amend “Second local commit”</button><span class="grow"></span><span class="quiet" style="font-size:11.5px"><kbd>esc</kbd> closes · draft is kept</span></div>
+<div class="incl">Included · 1 staged file <span class="grow"></span></div>
+<div class="card"><div class="cardh"><svg><use href="#chev"/></svg><span><span class="p">src/</span>f3.cpp</span><span class="grow"></span><span class="add">+1</span><span class="del">−0</span><span class="act">Unstage</span></div>
+<div class="code"><div class="ln h">@@ -1,3 +1,4 @@</div>
+<div class="ln"><span>1</span><span>1</span><span></span><span>int f3() {</span></div>
+<div class="ln"><span>2</span><span>2</span><span></span><span>  return 3;</span></div>
+<div class="ln"><span>3</span><span>3</span><span></span><span>}</span></div>
+<div class="ln a"><span></span><span>4</span><span>+</span><span>// staged</span></div></div></div>
+<div class="excl"><svg><use href="#warn"/></svg>Not included: <span class="st M">M</span> src/f1.cpp · <span class="st U">U</span> docs/notes.md · <span class="st U">U</span> scratch.txt<span class="grow"></span><button class="btn" style="height:22px;font-size:11.5px">Stage…</button></div>
+</div></div>
+</main>
+</div>
+<footer class="status"><span class="it"><svg><use href="#branch"/></svg>main</span><span class="r"><span>g c · g s · g b · g r · g t jump to section</span><span>100%</span></span></footer>
+</div>
+<script>
+(function(){
+const frame=document.querySelector('.frame');
+const btns=[...document.querySelectorAll('.states button')];
+function setState(s){
+  frame.dataset.state=s;
+  document.querySelectorAll('[data-show]').forEach(el=>el.hidden=!el.dataset.show.split(' ').includes(s));
+  document.querySelectorAll('[data-on]').forEach(el=>el.classList.toggle('on',el.dataset.on.split(' ').includes(s)));
+  document.querySelectorAll('[data-open]').forEach(el=>el.classList.toggle('collapsed',!el.dataset.open.split(' ').includes(s)));
+  btns.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.s===s)));
+}
+btns.forEach(b=>b.addEventListener('click',()=>setState(b.dataset.s)));
+document.querySelectorAll('[data-go]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();setState(el.dataset.go)}));
+document.querySelectorAll('.grp>.sec').forEach(h=>h.addEventListener('click',e=>{if(e.target.closest('button'))return;h.parentElement.classList.toggle('collapsed')}));
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'){const back=frame.dataset.esc&&frame.dataset.esc.split(' ').includes(frame.dataset.state);if(back){setState('1');document.activeElement.blur();}return;}
+  if(e.target.matches('input,textarea')||e.metaKey||e.ctrlKey)return;
+  if(btns.some(b=>b.dataset.s===e.key))setState(e.key);
+});
+const h=location.hash.slice(1);setState(btns.some(b=>b.dataset.s===h)?h:'1');
+addEventListener('hashchange',()=>{const k=location.hash.slice(1);if(btns.some(b=>b.dataset.s===k))setState(k);});
+})();
+</script>
+</body>
+</html>

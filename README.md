@@ -61,3 +61,6 @@ Needs zig 0.16. `zig build -l` lists the other steps (run, test, bundle, validat
 | `c` | Comment on the current hunk |
 | `⌘⏎` | Send all feedback |
 | `Esc` | Dismiss the topmost temporary UI |
+| `⌘1` … `⌘9` | Switch to repository tab (`⌘9` is the last) |
+| `⌘⇧[` / `⌘⇧]` | Previous / next repository tab |
+| `⌘⇧/` | Full shortcut reference |

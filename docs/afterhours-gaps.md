@@ -2738,3 +2738,82 @@ the summary out of view (`flow_commit_detail_regression`). Also, a uniform
 an edge flush with the viewport. The diff's file-card overlays therefore hang
 off the zero-height `diff_headers_end` marker and are inset 1px. Skipping
 `absolute` children in both loops would let overlays sit in the scroll view.
+
+## Zed-parity research (November 15, 2026)
+
+Found while working through [todo.md](../todo.md). None of these block the work;
+each is a workaround in app code that upstream could make reusable.
+
+### Shortcut chords have no display label or introspection
+
+`input::KeyChord` already carries `MOD_SHIFT`/`MOD_CTRL`/`MOD_ALT`/`MOD_SUPER`,
+but floatinghotel still hard-codes ~30 shortcuts as `is_key_down` +
+`is_key_pressed` pairs across `main_content_system.h`, `tab_bar_system.h`,
+`menu_bar_system.h` and `document_switcher.h`. The shortcut sheet
+(`keyboard_shortcuts.h`), menu labels (`menu_setup.h`) and the command palette
+each repeat the same chords as hand-typed strings, and they drift: the sheet was
+missing nine bindings. Moving to `GameMapping` would fix dispatch, but the app
+would still need (a) a formatter from a `KeyChord` to a platform label
+("⌘⇧P" / "Ctrl+Shift+P"), (b) a way to enumerate an action's chords so the
+sheet, menus and palette render from the mapping, and (c) a conflict check for
+two actions bound to the same chord. Workaround: strings kept by hand.
+
+### Double-click on a clickable div
+
+`HasClickListener` reports `down` but not a click count, so each double-click
+site keeps its own last-target + timestamp (500 ms): document tabs in
+`navigation.h` and now branch rows in `sidebar_system.h`. `text_area` already
+tracks `click_count` internally. Exposing a click count (or `double_clicked`)
+on `HasClickListener`, using the platform double-click interval, would replace
+both and match the OS setting.
+
+### Background work handoff for immediate-mode pickers
+
+Zed's pickers match off the UI thread, keep the previous results on screen until
+the new set lands, cancel stale searches with a flag + generation id, and queue
+an Enter pressed mid-search. floatinghotel's Quick Open ranks on the main thread
+per keystroke. `async_task.h` in the app covers one-shot jobs. A small upstream
+"latest-wins" async slot (submit with generation, cancel previous, poll result
+on the frame) would serve Quick Open, the palette, repository search and the
+repo picker alike, plus any game that filters large lists.
+
+### `children()` height ignores wrapped rows
+
+A row container with `with_wrap()` and `ComponentSize{percent(1.f), children()}`
+lays its overflowing children onto a second line, but its own height stays one
+line tall, so the wrapped line draws over the next sibling. Seen with the Quick
+Open category chips in the narrow picker opened from the repository `…` menu
+(November 16, 2026). Workaround: keep the fixed-height row and avoid wrapping.
+Sizing a wrapping container's cross axis to the sum of its line heights would
+let chip rows and tag lists wrap safely.
+
+## Bump b385dc9 → e9d5f67 (November 16, 2026)
+
+228 upstream commits. No afterhours code was changed; the app adapted:
+
+- `ui::detail::apply_scroll_offset` → `apply_ancestor_transform` (545de11; now
+  also composes parent scale/translate). Renamed at every call site.
+- `ui::RenderScrollbars` is gone (6931c61): the renderer draws each layer's
+  scrollbars itself. `RenderFloatingScrollbars` was deleted and the floating-UI
+  renderer now sits at bridge index 2 (`[held, RenderImm, floating, debug]`).
+- `perf_commands::builtin_profile::totals()` → `profiling::default_collector()
+  .snapshot().systems` (`bench_frames`, `dump_profile` provider).
+- `measure_text_internal` dropped (30c6ad6): the `font_atlas_ok` probe measures
+  through `FontManager` + `measure_text` directly, bypassing `TextMeasureCache`.
+- No backend define now means raylib (729cbb0). The unit runner passes
+  `-DAFTER_HOURS_USE_NONE`; previously the absence of a define meant "none".
+- The E2E parser hands quoted arguments over already unquoted. The app's
+  `touch_file … text`, `show_toast`, `native_menu_action` and
+  `expect_review_export` re-joined args and parsed them with `std::quoted`, so
+  only the first word survived. `e2e_text_arg` accepts both forms.
+- Labels clip to their own box (6327e72). `tests/commit_template.py` asserted a
+  template body line that only showed because text overflowed the one-line
+  commit box; it now relies on the committed message for the body.
+- Layout overflow/wrap warnings are logged once per (child, parent) (f9d5b77),
+  which ends the Quick Open log flood noted above.
+
+Found during the bump, app-side: `CollectCurrentResolution` was never
+registered, so `ProvidesCurrentResolution` kept the startup window size (280 by
+default) and every modal, including the framework backdrop, was sized for it.
+Now registered in `main.cpp`. The "`children()` height ignores wrapped rows"
+entry above was observed on b385dc9 and has not been re-checked on e9d5f67.
