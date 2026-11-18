@@ -1,6 +1,7 @@
 #include "git_runner.h"
 #include "repository_lock.h"
 #include "log_redaction.h"
+#include "../util/signpost.h"
 
 #include <afterhours/src/logging.h>
 
@@ -63,6 +64,45 @@ void set_log_callback(LogCallback cb) {
     g_log_callback = std::move(cb);
 }
 
+static GitStats g_stats;
+static std::mutex g_stats_mutex;
+
+GitStats git_stats() {
+    std::lock_guard lock(g_stats_mutex);
+    return g_stats;
+}
+
+static std::string g_git_override;
+
+void set_git_executable_override(std::string path) { g_git_override = std::move(path); }
+
+const std::string& git_executable() {
+    static const std::string path = [] {
+        std::string resolved = "git";
+        if (const char* override = std::getenv("FH_GIT"); override && *override) resolved = override;
+        else if (!g_git_override.empty()) resolved = g_git_override;
+        // Report an absolute path when the name came from PATH, so perf
+        // output names exactly which git ran (wrapper vs real binary).
+        if (resolved.find('/') == std::string::npos) {
+            if (const char* pathEnv = std::getenv("PATH")) {
+                std::string_view dirs(pathEnv);
+                while (!dirs.empty()) {
+                    const auto colon = dirs.find(':');
+                    const auto dir = dirs.substr(0, colon);
+                    std::error_code error;
+                    const auto candidate = std::filesystem::path(dir) / resolved;
+                    if (!dir.empty() && std::filesystem::is_regular_file(candidate, error)) { resolved = candidate.string(); break; }
+                    if (colon == std::string_view::npos) break;
+                    dirs.remove_prefix(colon + 1);
+                }
+            }
+        }
+        log_info("git executable: {}", resolved);
+        return resolved;
+    }();
+    return path;
+}
+
 namespace {
 
 template <class Fn, class... Args>
@@ -117,7 +157,10 @@ static bool is_network(const std::vector<std::string>& args) {
 GitResult git_run(const std::string& repo_path,
                   const std::vector<std::string>& args, std::stop_token stop,
                   std::function<bool(std::string_view)> consumeOutput) {
-    std::vector<std::string> cmd = {"git"};
+    static auto signpostLog = signpost::log_for("git");
+    signpost::Interval signpostInterval(signpostLog, "git_run",
+                                        args.empty() ? std::string{} : args[0]);
+    std::vector<std::string> cmd = {git_executable()};
     if (!repo_path.empty()) {
         cmd.push_back("-C");
         cmd.push_back(repo_path);
@@ -152,6 +195,12 @@ GitResult git_run(const std::string& repo_path,
     const auto t2 = clock::now();
     result.lockMs = std::chrono::duration<double, std::milli>(t1 - t0).count();
     result.processMs = std::chrono::duration<double, std::milli>(t2 - t1).count();
+    {
+        std::lock_guard lock(g_stats_mutex);
+        ++g_stats.runs;
+        g_stats.lockMs += result.lockMs;
+        g_stats.processMs += result.processMs;
+    }
     auto ms = [](auto d) {
         return std::chrono::duration_cast<std::chrono::milliseconds>(d).count();
     };
@@ -178,8 +227,19 @@ GitResult git_run(const std::string& repo_path,
 async_work::Task<GitResult> git_run_async(
     const std::string& repo_path,
     const std::vector<std::string>& args, async_work::Priority priority) {
-    return async_work::launch([repo_path, args](std::stop_token stop) {
-        return git_run(repo_path, args, stop);
+    const auto submitted = std::chrono::steady_clock::now();
+    return async_work::launch([repo_path, args, submitted](std::stop_token stop) {
+        auto result = git_run(repo_path, args, stop);
+        result.queueMs = std::chrono::duration<double, std::milli>(
+            std::chrono::steady_clock::now() - submitted).count() - result.lockMs - result.processMs;
+        if (result.queueMs < 0) result.queueMs = 0;
+        {
+            std::lock_guard lock(g_stats_mutex);
+            g_stats.queueMs += result.queueMs;
+        }
+        log_info("git queue: {} ms before lock+process ({})", static_cast<long long>(result.queueMs),
+                 args.empty() ? std::string() : args[0]);
+        return result;
     }, priority, GitResult{{"", "Background queue is full; retry the action", -1}}, is_read_only(args) || is_network(args));
 }
 
@@ -244,13 +304,16 @@ GitResult git_commit(const std::string& repo_path,
 }
 
 GitResult git_branch_list(const std::string& repo_path, std::stop_token stop) {
-    // Machine-readable branch listing:
-    // refname|objectname|HEAD|upstream|upstream_track
+    // Machine-readable refs listing (local + remote + tags in one spawn):
+    // refname|objectname|HEAD|upstream|upstream_track. parse_branch_list
+    // skips refs/tags/, parse_tag_list extracts them — one process answers
+    // what used to take `branch -a` plus a separate tags for-each-ref.
     return git_run(
         repo_path,
-        {"branch", "--list",
-         "--format=%(refname:short)|%(objectname:short)"
-                   "|%(HEAD)|%(upstream:short)|%(upstream:track)"}, stop);
+        {"for-each-ref",
+         "--format=%(refname)|%(objectname:short)"
+                   "|%(HEAD)|%(upstream:short)|%(upstream:track)",
+         "refs/heads", "refs/remotes", "refs/tags"}, stop);
 }
 
 GitResult git_rev_parse_head(const std::string& repo_path, std::stop_token stop) {

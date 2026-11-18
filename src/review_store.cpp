@@ -174,6 +174,57 @@ bool persist_review(const std::string& repoPath, ecs::ReviewComponent& review) {
     return true;
 }
 
+// Move the durable fields parsed by load_review into the live component.
+static void move_loaded_fields(ecs::ReviewComponent& target_, ecs::ReviewComponent& loaded) {
+        target_.reviewing = std::move(loaded.reviewing);
+        target_.basketOpen = std::move(loaded.basketOpen);
+        target_.comments = std::move(loaded.comments);
+        target_.drafts = std::move(loaded.drafts);
+        target_.composingKey = std::move(loaded.composingKey);
+        target_.composingText = std::move(loaded.composingText);
+        target_.composingFocus = std::move(loaded.composingFocus);
+        target_.composingFile = std::move(loaded.composingFile);
+        target_.composingScope = std::move(loaded.composingScope);
+        target_.composingLine = std::move(loaded.composingLine);
+        target_.composingEndLine = std::move(loaded.composingEndLine);
+        target_.composingRanges = std::move(loaded.composingRanges);
+        target_.composingOldSide = std::move(loaded.composingOldSide);
+        target_.composingRevision = std::move(loaded.composingRevision);
+        target_.composingCodeContext = std::move(loaded.composingCodeContext);
+        target_.composingKind = std::move(loaded.composingKind);
+        target_.editingComment = std::move(loaded.editingComment);
+        target_.editingCommentText = std::move(loaded.editingCommentText);
+        target_.editingCommentKind = std::move(loaded.editingCommentKind);
+        target_.dirty = std::move(loaded.dirty);
+        target_.approvedHunks = std::move(loaded.approvedHunks);
+        target_.reviewedFiles = std::move(loaded.reviewedFiles);
+        target_.verdicts = std::move(loaded.verdicts);
+        target_.queue = std::move(loaded.queue);
+        target_.foldedHunks = std::move(loaded.foldedHunks);
+        target_.seenSig = std::move(loaded.seenSig);
+        target_.baselineHead = std::move(loaded.baselineHead);
+        target_.baselineDiffSig = std::move(loaded.baselineDiffSig);
+        target_.baselineSnapshot = std::move(loaded.baselineSnapshot);
+        target_.baselineCapturedAt = std::move(loaded.baselineCapturedAt);
+}
+
+void apply_loaded_review(ecs::ReviewComponent& target, ecs::ReviewComponent loaded) {
+    move_loaded_fields(target, loaded);
+    target.loadError = std::move(loaded.loadError);
+}
+
+async_work::Task<ecs::ReviewComponent> load_review_async(std::string repoPath, std::string scope) {
+    return async_work::launch(
+        [repoPath = std::move(repoPath), scope = std::move(scope)](std::stop_token) {
+            ecs::ReviewComponent review;
+            review.storageRepoPath = repoPath;
+            review.storageScope = scope;
+            load_review(repoPath, review);
+            return review;
+        },
+        async_work::Priority::Background, ecs::ReviewComponent{});
+}
+
 void load_review(const std::string& repoPath, ecs::ReviewComponent& target) {
     if (repoPath.empty()) return;
     target.loadError.clear();
@@ -261,36 +312,7 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& target) {
         review.baselineSnapshot = j.value("baseline_snapshot", std::string{});
         review.baselineCapturedAt = j.value("baseline_captured_at", int64_t{0});
 
-        target.reviewing = std::move(review.reviewing);
-        target.basketOpen = std::move(review.basketOpen);
-        target.comments = std::move(review.comments);
-        target.drafts = std::move(review.drafts);
-        target.composingKey = std::move(review.composingKey);
-        target.composingText = std::move(review.composingText);
-        target.composingFocus = std::move(review.composingFocus);
-        target.composingFile = std::move(review.composingFile);
-        target.composingScope = std::move(review.composingScope);
-        target.composingLine = std::move(review.composingLine);
-        target.composingEndLine = std::move(review.composingEndLine);
-        target.composingRanges = std::move(review.composingRanges);
-        target.composingOldSide = std::move(review.composingOldSide);
-        target.composingRevision = std::move(review.composingRevision);
-        target.composingCodeContext = std::move(review.composingCodeContext);
-        target.composingKind = std::move(review.composingKind);
-        target.editingComment = std::move(review.editingComment);
-        target.editingCommentText = std::move(review.editingCommentText);
-        target.editingCommentKind = std::move(review.editingCommentKind);
-        target.dirty = std::move(review.dirty);
-        target.approvedHunks = std::move(review.approvedHunks);
-        target.reviewedFiles = std::move(review.reviewedFiles);
-        target.verdicts = std::move(review.verdicts);
-        target.queue = std::move(review.queue);
-        target.foldedHunks = std::move(review.foldedHunks);
-        target.seenSig = std::move(review.seenSig);
-        target.baselineHead = std::move(review.baselineHead);
-        target.baselineDiffSig = std::move(review.baselineDiffSig);
-        target.baselineSnapshot = std::move(review.baselineSnapshot);
-        target.baselineCapturedAt = std::move(review.baselineCapturedAt);
+        move_loaded_fields(target, review);
         if (path != destination && !save_review(repoPath, target)) target.loadError = "Legacy review loaded, but migration could not be saved";
         log_info("Review loaded from {}", path);
     } catch (const std::exception& e) {
@@ -308,7 +330,13 @@ bool switch_review_scope(const std::string& repoPath, const std::string& scope,
     ecs::reset_review(review);
     review.storageRepoPath = repoPath;
     review.storageScope = scope;
-    if (persist) load_review(repoPath, review);
+    if (persist) {
+        // Parse on a worker; main_content applies it when it lands and
+        // the scope still matches (see reviewLoadFuture polling).
+        review.reviewLoadRepoPath = repoPath;
+        review.reviewLoadScope = scope;
+        review.reviewLoadFuture = load_review_async(repoPath, scope);
+    }
     review.reviewing = reading;
     return true;
 }

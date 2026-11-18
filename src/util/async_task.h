@@ -90,7 +90,18 @@ public:
 };
 
 inline Executor& executor() {
-    static Executor pool;
+    // Jobs here mostly wait on a child git process, not the CPU. A full
+    // refresh issues 6-7 background reads; with 3 background slots they ran
+    // as two waves of process startup. Eight threads keep one slot for
+    // foreground work and let a whole refresh run at once.
+    // FH_EXECUTOR_THREADS overrides the size (low-core machines, A/B perf).
+    static Executor pool([] {
+        if (const char* text = std::getenv("FH_EXECUTOR_THREADS")) {
+            const int parsed = std::atoi(text);
+            if (parsed >= 1 && parsed <= 16) return static_cast<size_t>(parsed);
+        }
+        return size_t{8};
+    }());
     return pool;
 }
 

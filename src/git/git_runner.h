@@ -14,7 +14,7 @@ namespace git {
 
 struct GitResult {
     ProcessResult raw;
-    double lockMs = 0, processMs = 0;
+    double lockMs = 0, processMs = 0, queueMs = 0;
     bool success() const { return raw.success(); }
     const std::string& stdout_str() const { return raw.stdout_str; }
     const std::string& stderr_str() const { return raw.stderr_str; }
@@ -39,6 +39,16 @@ using LogCallback = std::function<void(const std::string& command,
 
 // Set the global log callback (called by T038 command log)
 void set_log_callback(LogCallback cb);
+
+// Resolved once, at first use: $FH_GIT, else the override below, else PATH.
+const std::string& git_executable();
+
+// Cumulative counts/timings of every git_run, for perf reporting.
+struct GitStats { long runs = 0; double queueMs = 0, lockMs = 0, processMs = 0; };
+GitStats git_stats();
+// Settings "git_path" value; call before the first git command (main does,
+// right after loading settings). Ignored once the executable is resolved.
+void set_git_executable_override(std::string path);
 
 // Synchronous git execution
 // Runs: git -C <repo_path> <args...>

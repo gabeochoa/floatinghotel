@@ -29,9 +29,13 @@ struct Settings::Data {
     std::vector<std::string> openRepos;
     std::string lastActiveRepo;
     std::string unstagedPolicy = "ask";
+    std::string gitPath;
     std::vector<std::string> recentRepos;
     std::vector<std::string> pinnedRepos;
     std::map<std::string, std::string> repositoryHeads;
+    std::map<std::string, int> commandUsage;
+    std::vector<std::string> commandRecent;
+    std::vector<std::string> commandQueries;
     std::map<std::string, std::set<std::string>> collapsedSections;
     std::map<std::string, std::vector<CodeBookmark>> codeBookmarks;
     std::map<std::string, reading::ReadingSession> readingSessions;
@@ -82,6 +86,9 @@ bool Settings::load_save_file() {
         if (!j.is_object()) throw std::runtime_error("Settings must be an object");
         if (j.value("schema_version", 0) > 1) throw std::runtime_error("Settings were written by a newer version");
         data_->repositoryHeads = j.value("repository_heads", std::map<std::string, std::string>{});
+        data_->commandUsage = j.value("command_usage", std::map<std::string, int>{});
+        data_->commandRecent = j.value("command_recent", std::vector<std::string>{});
+        data_->commandQueries = j.value("command_queries", std::vector<std::string>{});
         data_->pinnedRepos = j.value("pinned_repos", std::vector<std::string>{});
         data_->collapsedSections = j.value("collapsed_sections", std::map<std::string, std::set<std::string>>{});
 
@@ -105,6 +112,7 @@ bool Settings::load_save_file() {
             j.value("open_repos", std::vector<std::string>{});
         data_->lastActiveRepo = j.value("last_active_repo", std::string{});
         data_->unstagedPolicy = j.value("commit_unstaged_policy", std::string{"ask"});
+        data_->gitPath = j.value("git_path", std::string{});
         data_->recentRepos =
             j.value("recent_repos", std::vector<std::string>{});
         data_->reviewDisplayModes.clear();
@@ -158,12 +166,13 @@ bool Settings::load_save_file() {
     }
 }
 
-void Settings::write_save_file() {
-    pendingSave_.reset();
-    if (!loadError.empty()) { saveError = "Settings file was not overwritten: " + loadError; return; }
+std::string Settings::build_settings_json() const {
     nlohmann::json j;
     j["schema_version"] = 1;
     j["repository_heads"] = data_->repositoryHeads;
+    j["command_usage"] = data_->commandUsage;
+    j["command_recent"] = data_->commandRecent;
+    j["command_queries"] = data_->commandQueries;
     j["pinned_repos"] = data_->pinnedRepos;
     j["collapsed_sections"] = data_->collapsedSections;
     j["window_width"] = data_->windowWidth;
@@ -181,6 +190,7 @@ void Settings::write_save_file() {
     j["open_repos"] = data_->openRepos;
     j["last_active_repo"] = data_->lastActiveRepo;
     j["commit_unstaged_policy"] = data_->unstagedPolicy;
+    j["git_path"] = data_->gitPath;
     j["recent_repos"] = data_->recentRepos;
     nlohmann::json bookmarks = nlohmann::json::object();
     for (const auto& [repo, values] : data_->codeBookmarks) {
@@ -206,8 +216,22 @@ void Settings::write_save_file() {
     for (const auto& [repo, session] : data_->readingSessions)
         j["reading_sessions"][repo] = reading::encode_session(session);
 
+    return j.dump(2);
+}
+
+void Settings::write_save_file() {
+    // A worker write may still be in flight; finish it first so writes
+    // land in order.
+    if (writeFuture_.valid()) {
+        const auto error = writeFuture_.get();
+        writeFuture_ = {};
+        if (!error.empty()) { saveError = "Failed to save settings: " + error; log_error("{}", saveError); }
+        else { ++saveWriteCount_; saveError.clear(); }
+    }
+    pendingSave_.reset();
+    if (!loadError.empty()) { saveError = "Settings file was not overwritten: " + loadError; return; }
     std::string path = get_settings_path();
-    if (!afterhours::files::write_string_atomic(path, j.dump(2))) {
+    if (!afterhours::files::write_string_atomic(path, build_settings_json())) {
         saveError = "Failed to save settings: " + path;
         log_error("{}", saveError);
         return;
@@ -222,7 +246,25 @@ void Settings::save_if_auto() {
 }
 
 void Settings::flush_pending_save(std::chrono::steady_clock::time_point now) {
-    if (auto_save_enabled && pendingSave_ && now >= *pendingSave_) write_save_file();
+    // Apply a finished worker write first (count / error surface here).
+    if (writeFuture_.valid() &&
+        writeFuture_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        const auto error = writeFuture_.get();
+        writeFuture_ = {};
+        if (!error.empty()) { saveError = "Failed to save settings: " + error; log_error("{}", saveError); }
+        else { ++saveWriteCount_; saveError.clear(); log_info("Settings saved"); }
+    }
+    if (!auto_save_enabled || !pendingSave_ || now < *pendingSave_ || writeFuture_.valid()) return;
+    pendingSave_.reset();
+    if (!loadError.empty()) { saveError = "Settings file was not overwritten: " + loadError; return; }
+    // Serialise on this thread; only the file write goes to a worker.
+    auto text = build_settings_json();
+    auto path = get_settings_path();
+    writeFuture_ = async_work::launch(
+        [path, text = std::move(text)](std::stop_token) {
+            return afterhours::files::write_string_atomic(path, text) ? std::string{} : path;
+        },
+        async_work::Priority::Background, std::string{"Background queue is full"});
 }
 
 float Settings::get_command_log_height() const { return data_->commandLogHeight; }
@@ -359,6 +401,32 @@ void Settings::set_unstaged_policy(const std::string& policy) {
     save_if_auto();
 }
 
+const std::map<std::string, int>& Settings::get_command_usage() const { return data_->commandUsage; }
+const std::vector<std::string>& Settings::get_command_recent() const { return data_->commandRecent; }
+const std::vector<std::string>& Settings::get_command_queries() const { return data_->commandQueries; }
+
+void Settings::record_command_use(const std::string& label, const std::string& query) {
+    if (label.empty()) return;
+    ++data_->commandUsage[label];
+    std::erase(data_->commandRecent, label);
+    data_->commandRecent.insert(data_->commandRecent.begin(), label);
+    if (data_->commandRecent.size() > 50) data_->commandRecent.resize(50);
+    if (!query.empty()) {
+        std::erase(data_->commandQueries, query);
+        data_->commandQueries.insert(data_->commandQueries.begin(), query);
+        if (data_->commandQueries.size() > 10) data_->commandQueries.resize(10);
+    }
+    save_if_auto();
+}
+
+const std::string& Settings::get_git_path() const { return data_->gitPath; }
+
+void Settings::set_git_path(const std::string& path) {
+    if (data_->gitPath == path) return;
+    data_->gitPath = path;
+    save_if_auto();
+}
+
 // Recent repos
 std::vector<std::string> Settings::get_recent_repos() const {
     return data_->recentRepos;
@@ -371,9 +439,9 @@ void Settings::add_recent_repo(const std::string& path) {
         std::remove(data_->recentRepos.begin(), data_->recentRepos.end(), path),
         data_->recentRepos.end());
     data_->recentRepos.insert(data_->recentRepos.begin(), path);
-    // Keep max 10
-    if (data_->recentRepos.size() > 10) {
-        data_->recentRepos.resize(10);
+    // Keep max 50; the welcome list scrolls (virtual list).
+    if (data_->recentRepos.size() > 50) {
+        data_->recentRepos.resize(50);
     }
     save_if_auto();
 }

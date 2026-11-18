@@ -3,10 +3,12 @@
 #include <afterhours/src/singleton.h>
 
 #include <chrono>
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "util/async_task.h"
 #include "util/code_bookmark.h"
 #include "util/fold_defaults.h"
 #include "util/reading_session.h"
@@ -72,6 +74,17 @@ struct Settings {
     std::string get_unstaged_policy() const;
     void set_unstaged_policy(const std::string& policy);
 
+    // Git executable override ("git_path" in settings.json; empty = PATH).
+    const std::string& get_git_path() const;
+    void set_git_path(const std::string& path);
+
+    // Command-palette usage: counts per label, most-recent-first labels,
+    // and recent palette queries (for Up recall).
+    const std::map<std::string, int>& get_command_usage() const;
+    const std::vector<std::string>& get_command_recent() const;
+    const std::vector<std::string>& get_command_queries() const;
+    void record_command_use(const std::string& label, const std::string& query);
+
     // Recent repos (for welcome screen)
     std::vector<std::string> get_recent_repos() const;
     void add_recent_repo(const std::string& path);
@@ -109,6 +122,10 @@ struct Settings {
 private:
     struct Data;
     Data* data_;
+    std::string build_settings_json() const;
     std::optional<std::chrono::steady_clock::time_point> pendingSave_;
+    // Debounced saves are serialised here but written on a worker; the
+    // completion (count / error) is applied by the next flush or save.
+    async_work::Task<std::string> writeFuture_;
     size_t saveWriteCount_ = 0;
 };

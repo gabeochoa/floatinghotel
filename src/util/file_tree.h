@@ -13,7 +13,9 @@ struct Row {
     size_t sourceIndex = 0;
     size_t depth = 0;
     bool directory = false;
+    bool section = false;  // group header (Staged / Changes / Untracked)
     std::string label;
+    std::string scope;  // section rows: review scope the header opens
 };
 
 inline bool directory_collapsed(const Row& row, const std::set<std::string>& collapsed) {

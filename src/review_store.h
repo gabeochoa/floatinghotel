@@ -2,6 +2,8 @@
 
 #include <string>
 
+#include "util/async_task.h"
+
 namespace ecs { struct ReviewComponent; }
 
 // Durable per-repo persistence for ballroom review state (comments, approvals,
@@ -27,5 +29,10 @@ bool switch_review_scope(const std::string& repoPath, const std::string& scope,
 
 // Hydrate the durable fields of `review` from disk. No-op if no file exists.
 void load_review(const std::string& repoPath, ecs::ReviewComponent& review);
+
+// Parse the review file on a worker; apply with apply_loaded_review once
+// the future lands and the scope still matches.
+async_work::Task<ecs::ReviewComponent> load_review_async(std::string repoPath, std::string scope);
+void apply_loaded_review(ecs::ReviewComponent& target, ecs::ReviewComponent loaded);
 
 }  // namespace review_store

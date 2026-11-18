@@ -92,8 +92,16 @@ inline std::optional<Move> navigate(const std::vector<Row>& rows, const std::set
     const auto previous = index;
     if (current != rows.end()) {
         switch (key) {
-            case Key::Up: if (index > 0) --index; break;
-            case Key::Down: if (index + 1 < rows.size()) ++index; break;
+            case Key::Up:
+                if (index > 0) --index;
+                while (index > 0 && rows[index].section) --index;
+                if (rows[index].section) return {};
+                break;
+            case Key::Down:
+                if (index + 1 < rows.size()) ++index;
+                while (index + 1 < rows.size() && rows[index].section) ++index;
+                if (rows[index].section) return {};
+                break;
             case Key::Left:
                 if (current->directory && !directory_collapsed(*current, collapsed)) return Move{path, path};
                 for (size_t i = index; i > 0; --i)
@@ -104,11 +112,13 @@ inline std::optional<Move> navigate(const std::vector<Row>& rows, const std::set
                 if (current->directory && index + 1 < rows.size() && rows[index + 1].depth > current->depth) ++index;
                 break;
             case Key::Enter:
+                if (current->section) return {};
                 if (current->directory) return Move{path, path};
                 return Move{path, {}, true, true};
         }
         if (index == previous) return {};
     }
+    if (rows[index].section) return {};
     return Move{rows[index].path, {}, !rows[index].directory, key == Key::Enter};
 }
 

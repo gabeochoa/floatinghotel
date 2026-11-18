@@ -115,9 +115,10 @@ std::vector<ecs::SearchMatch> parse_search_matches(const std::string& output, co
     return matches;
 }
 
-async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery query) {
+async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery query,
+    std::shared_ptr<ecs::SearchBatchQueue> batches) {
     ecs::SearchResult rejected{query.revision, {}, "Background queue is full; search again to retry"};
-    return async_work::launch([query = std::move(query)](std::stop_token stop) mutable {
+    return async_work::launch([query = std::move(query), batches = std::move(batches)](std::stop_token stop) mutable {
         ecs::SearchResult out;
         SearchHighlighter highlighter(query);
         if (query.changedOnly) {
@@ -139,8 +140,25 @@ async_work::Task<ecs::SearchResult> search_repository_async(ecs::SearchQuery que
             if (primary) out.revision = part.revision;
             grep_capture::Collector capture(grep_capture::byteLimit - out.capturedBytes,
                                             grep_capture::matchLimit - out.matches.size());
+            size_t emitted = 0;
             auto result = git_run(part.repoPath, repository_search_args(part), stop,
-                [&](std::string_view chunk) { return capture.consume(chunk); });
+                [&](std::string_view chunk) {
+                    const bool more = capture.consume(chunk);
+                    // Stream batches of complete records to the UI while
+                    // git is still producing output.
+                    if (batches && capture.completedMatches() - emitted >= 100) {
+                        auto fresh = parse_search_matches(std::string(capture.completed()), part.revision);
+                        if (fresh.size() > emitted) {
+                            std::vector<ecs::SearchMatch> batch(std::make_move_iterator(fresh.begin() + static_cast<long>(emitted)),
+                                                                std::make_move_iterator(fresh.end()));
+                            emitted = capture.completedMatches();
+                            std::lock_guard lock(batches->mutex);
+                            batches->pending.insert(batches->pending.end(),
+                                std::make_move_iterator(batch.begin()), std::make_move_iterator(batch.end()));
+                        }
+                    }
+                    return more;
+                });
             capture.finish();
             out.capturedBytes += capture.bytes();
             out.truncated = capture.truncated();

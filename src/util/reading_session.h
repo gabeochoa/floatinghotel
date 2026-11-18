@@ -17,6 +17,8 @@ struct SavedDocument {
 struct ReadingSession {
     std::vector<SavedDocument> documents;
     size_t active = 0;
+    std::vector<Visit> history;
+    size_t historyIndex = 0;
     bool operator==(const ReadingSession&) const = default;
 };
 
@@ -49,6 +51,8 @@ inline ReadingSession save_session(const ReadingWorkspace& workspace) {
         mostRecent = std::max(mostRecent, document.lastActivated);
         session.documents.push_back({document.location, document.subject, document.lastActivated, document.anchor});
     }
+    session.history = workspace.history();
+    session.historyIndex = workspace.history_index();
     return session;
 }
 
@@ -151,7 +155,14 @@ inline nlohmann::json encode_session(const ReadingSession& session) {
         if (document.anchor) value["anchor"] = encode_anchor(*document.anchor);
         documents.push_back(std::move(value));
     }
-    return {{"version", 1}, {"active", session.active}, {"documents", std::move(documents)}};
+    nlohmann::json history = nlohmann::json::array();
+    for (const auto& visit : session.history) {
+        nlohmann::json value{{"location", encode_location(visit.location)}, {"reviewing", visit.reviewing}};
+        if (visit.anchor) value["anchor"] = encode_anchor(*visit.anchor);
+        history.push_back(std::move(value));
+    }
+    return {{"version", 1}, {"active", session.active}, {"documents", std::move(documents)},
+            {"history", std::move(history)}, {"history_index", session.historyIndex}};
 }
 
 inline std::optional<ReadingSession> decode_session(const nlohmann::json& value) {
@@ -172,6 +183,16 @@ inline std::optional<ReadingSession> decode_session(const nlohmann::json& value)
             } catch (const std::exception&) {}
         }
         if (session.documents.empty()) return {};
+        if (value.contains("history") && value.at("history").is_array())
+            for (const auto& entry : value.at("history")) {
+                try {
+                    Visit visit{decode_location(entry.at("location")), entry.value("reviewing", false), {}};
+                    if (entry.contains("anchor")) visit.anchor = decode_anchor(entry.at("anchor"), anchor_revision(visit.location));
+                    session.history.push_back(std::move(visit));
+                } catch (const std::exception&) {}
+            }
+        session.historyIndex = session.history.empty() ? 0 :
+            std::min(value.value("history_index", size_t{0}), session.history.size() - 1);
         return session;
     } catch (const std::exception&) { return {}; }
 }

@@ -7,6 +7,8 @@
 #include "code_lexer.h"
 #include <algorithm>
 #include <cctype>
+#include <map>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -249,6 +251,23 @@ inline std::vector<Symbol> scan(std::string_view path, std::string_view text, si
     }
     if (out.size() > limit) out.resize(limit);
     return out;
+}
+
+// scan() memoised by (path, content identity), so reopening Go to Symbol on
+// an unchanged file does not rescan it. Bounded; keyed by an FNV-1a hash of
+// the text plus its size.
+inline const std::vector<Symbol>& cached_scan(std::string_view path, std::string_view text, size_t limit = 5000) {
+    static std::mutex mutex;
+    static std::map<std::string, std::vector<Symbol>> cache;
+    size_t hash = 1469598103934665603ull;
+    for (char c : text) { hash ^= static_cast<unsigned char>(c); hash *= 1099511628211ull; }
+    std::string key{path};
+    key += '\n' + std::to_string(text.size()) + ':' + std::to_string(hash) + ':' + std::to_string(limit);
+    std::lock_guard lock(mutex);
+    auto found = cache.find(key);
+    if (found != cache.end()) return found->second;
+    if (cache.size() >= 32) cache.clear();
+    return cache.emplace(std::move(key), scan(path, text, limit)).first->second;
 }
 
 // Whether `line` on its own reads as a declaration of `name`. Approximate: a

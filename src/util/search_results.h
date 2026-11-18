@@ -4,6 +4,8 @@
 #include <bitset>
 #include <iterator>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <vector>
@@ -45,6 +47,13 @@ struct SearchResult {
     std::string error;
     bool truncated = false;
     size_t capturedBytes = 0;
+};
+
+// Incremental search results posted by the worker while a search runs;
+// the UI drains this so matches appear in batches instead of all at once.
+struct SearchBatchQueue {
+    std::mutex mutex;
+    std::vector<SearchMatch> pending;
 };
 
 struct SearchPreview {

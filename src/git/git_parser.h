@@ -10,6 +10,7 @@ namespace git {
 std::vector<std::string> parse_null_paths(const std::string& output);
 std::vector<ecs::SearchMatch> parse_grep_matches(const std::string& output);
 ecs::BlameLine parse_blame_line(const std::string& output);
+std::vector<ecs::BlameLine> parse_blame_porcelain(const std::string& output);
 
 // ---- Status Parser (T012) ----
 
@@ -43,5 +44,8 @@ std::vector<ecs::FileDiff> parse_diff(const std::string& diff_output);
 
 // Parse output of: git branch --list --format="%(refname:short)|%(objectname:short)|%(HEAD)|%(upstream:short)|%(upstream:track)"
 std::vector<ecs::BranchInfo> parse_branch_list(const std::string& branch_output);
+std::vector<std::string> parse_tag_list(const std::string& branch_output);
+// "[ahead 2, behind 1]" / "[gone]" from %(upstream:track) -> counts.
+std::pair<int, int> parse_ahead_behind(const std::string& tracking);
 
 }  // namespace git

@@ -421,8 +421,13 @@ struct navigation {
         workspace.current().lastActivated = workspace.generation_;
         const auto recent = reading::recent_documents(workspace);
         for (auto id = recent.rbegin(); id != recent.rend(); ++id) workspace.remember_source(workspace.document(*id)->location);
-        workspace.history_ = {{workspace.location(), reviewing}};
-        workspace.index_ = 0;
+        if (!session.history.empty()) {
+            workspace.history_ = session.history;
+            workspace.index_ = std::min(session.historyIndex, workspace.history_.size() - 1);
+        } else {
+            workspace.history_ = {{workspace.location(), reviewing}};
+            workspace.index_ = 0;
+        }
         repo.reading = {};
         finish(repo, before, true);
     }

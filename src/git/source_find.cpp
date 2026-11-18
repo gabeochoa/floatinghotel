@@ -1,6 +1,9 @@
 #include "source_find.h"
 #include "../util/reading_anchor.h"
 #include "../util/file_page.h"
+#include "../util/fuzzy_match.h"
+#include <filesystem>
+#include <fstream>
 
 namespace git {
 
@@ -93,7 +96,7 @@ async_work::Task<ecs::OutlineResult> outline_source_async(FileRequest request) {
                 }
             if (text.size() > (64u << 20)) { result.error = "File is too large to outline (over 64 MiB)"; return result; }
             if (content.page.next.offset >= content.page.totalBytes) {
-                result.symbols = symbol_outline::scan(request.path, text);
+                result.symbols = symbol_outline::cached_scan(request.path, text);
                 return result;
             }
             if (content.page.next.offset <= content.page.begin.offset) { result.error = "Could not read through the file"; return result; }
@@ -103,6 +106,31 @@ async_work::Task<ecs::OutlineResult> outline_source_async(FileRequest request) {
         result.error = "Symbol scan cancelled";
         return result;
     }, async_work::Priority::Background, ecs::OutlineResult{.error = "Reader queue is full; reopen Go to Symbol"});
+}
+
+async_work::Task<ecs::ProjectSymbolsResult> project_symbols_async(std::string repoPath,
+    std::vector<std::string> paths, std::string query) {
+    return async_work::launch([repoPath = std::move(repoPath), paths = std::move(paths), query = std::move(query)](std::stop_token stop) {
+        ecs::ProjectSymbolsResult result;
+        // `a::b::c` matches on the last segment.
+        std::string needle = query;
+        if (const auto cut = needle.rfind("::"); cut != std::string::npos) needle = needle.substr(cut + 2);
+        for (const auto& path : paths) {
+            if (result.symbols.size() >= 100 || stop.stop_requested()) break;
+            if (!symbol_outline::supported(path)) continue;
+            std::ifstream input(std::filesystem::path(repoPath) / path, std::ios::binary);
+            if (!input) continue;
+            std::string text((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+            if (text.size() > (2u << 20)) continue;
+            if (text.substr(0, 4096).find('\0') != std::string::npos) continue;
+            for (const auto& symbol : symbol_outline::cached_scan(path, text)) {
+                if (result.symbols.size() >= 100) break;
+                if (needle.empty() || fuzzy::score(needle, symbol.name))
+                    result.symbols.push_back({symbol.name, symbol.kind, path, symbol.line});
+            }
+        }
+        return result;
+    }, async_work::Priority::Background, ecs::ProjectSymbolsResult{.error = "Reader queue is full; reopen project symbols"});
 }
 
 }

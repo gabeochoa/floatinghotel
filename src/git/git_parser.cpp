@@ -5,6 +5,9 @@
 #include <algorithm>
 #include <charconv>
 #include <cstdio>
+#include <cstdlib>
+#include <ctime>
+#include <map>
 #include <sstream>
 
 namespace git {
@@ -25,6 +28,72 @@ ecs::BlameLine parse_blame_line(const std::string& output) {
         else if (line.starts_with('\t')) { result.content = line.substr(1); break; }
     }
     return result;
+}
+
+std::vector<ecs::BlameLine> parse_blame_porcelain(const std::string& output) {
+    std::vector<ecs::BlameLine> lines;
+    std::istringstream stream(output);
+    std::string line;
+    ecs::BlameLine current;
+    long long authorTime = 0;
+    bool inEntry = false;
+    // Porcelain prints author metadata once per commit group; later lines
+    // of the group carry a bare header, so inherit by hash.
+    std::map<std::string, ecs::BlameLine> metadataByHash;
+    auto dateOf = [](long long time) {
+        if (time <= 0) return std::string{};
+        const std::time_t value = static_cast<std::time_t>(time);
+        std::tm utc{};
+        gmtime_r(&value, &utc);
+        char buffer[16] = {};
+        std::strftime(buffer, sizeof(buffer), "%Y-%m-%d", &utc);
+        return std::string(buffer);
+    };
+    auto finish = [&] {
+        if (!inEntry) return;
+        if (!current.author.empty()) {
+            current.date = dateOf(authorTime);
+            metadataByHash[current.hash] = current;
+        } else if (auto found = metadataByHash.find(current.hash); found != metadataByHash.end()) {
+            current.author = found->second.author;
+            current.date = found->second.date;
+            if (current.summary.empty()) current.summary = found->second.summary;
+        }
+        lines.push_back(std::move(current));
+        current = {};
+        authorTime = 0;
+        inEntry = false;
+    };
+    while (std::getline(stream, line)) {
+        if (line.starts_with('\t')) {
+            current.content = line.substr(1);
+            finish();
+            continue;
+        }
+        // Entry header: "<40-hex> <orig> <final> <count>".
+        if (line.size() > 42 && line[40] == ' ' &&
+            line.substr(0, 40).find_first_not_of("0123456789abcdef") == std::string::npos) {
+            finish();
+            std::istringstream header(line);
+            int count = 0;
+            // The group-size count is present only on a group's first line.
+            if ((header >> current.hash >> current.originalLine >> current.finalLine) &&
+                current.finalLine >= 1) {
+                header >> count;
+                inEntry = true;
+            }
+            continue;
+        }
+        if (!inEntry) continue;
+        if (line.starts_with("author ")) current.author = line.substr(7);
+        else if (line.starts_with("author-time ")) authorTime = std::atoll(line.c_str() + 12);
+        else if (line.starts_with("summary ")) current.summary = line.substr(8);
+        else if (line.starts_with("filename ")) current.file = line.substr(9);
+    }
+    finish();
+    std::sort(lines.begin(), lines.end(),
+              [](const ecs::BlameLine& a, const ecs::BlameLine& b) { return a.finalLine < b.finalLine; });
+    return lines;
 }
 
 std::vector<ecs::SearchMatch> parse_grep_matches(const std::string& output) {
@@ -438,6 +507,15 @@ std::vector<ecs::BranchInfo> parse_branch_list(const std::string& output) {
         info.shortHash = fields[1];
         info.isCurrent = (fields[2] == "*");
         info.isLocal = true;
+        // Full refnames: classify and strip the prefix. Tags share the
+        // same for-each-ref spawn now; they are not branches.
+        if (info.name.starts_with("refs/tags/")) continue;
+        if (info.name.starts_with("refs/heads/")) info.name = info.name.substr(11);
+        else if (info.name.starts_with("refs/remotes/")) {
+            info.name = info.name.substr(13);
+            info.isLocal = false;
+            if (info.name.ends_with("/HEAD")) continue;  // symbolic remote HEAD
+        }
 
         if (fields.size() > 3) {
             info.upstream = fields[3];
@@ -462,6 +540,33 @@ std::vector<ecs::BranchInfo> parse_branch_list(const std::string& output) {
               });
 
     return branches;
+}
+
+std::vector<std::string> parse_tag_list(const std::string& output) {
+    std::vector<std::string> tags;
+    std::istringstream stream(output);
+    std::string line;
+    while (std::getline(stream, line)) {
+        const auto bar = line.find('|');
+        const std::string ref = bar == std::string::npos ? line : line.substr(0, bar);
+        if (ref.starts_with("refs/tags/")) tags.push_back(ref.substr(10));
+    }
+    return tags;
+}
+
+std::pair<int, int> parse_ahead_behind(const std::string& tracking) {
+    std::pair<int, int> counts{0, 0};
+    auto numberAfter = [&](const std::string& word) {
+        const auto at = tracking.find(word);
+        if (at == std::string::npos) return 0;
+        int value = 0;
+        for (size_t i = at + word.size(); i < tracking.size() && std::isdigit(static_cast<unsigned char>(tracking[i])); ++i)
+            value = value * 10 + (tracking[i] - '0');
+        return value;
+    };
+    counts.first = numberAfter("ahead ");
+    counts.second = numberAfter("behind ");
+    return counts;
 }
 
 }  // namespace git

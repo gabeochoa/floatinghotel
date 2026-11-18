@@ -398,6 +398,25 @@ private:
         const auto* nextReview = std::get_if<ReviewLocation>(&visit.location);
         const bool changedFile = previousReview && nextReview && !nextReview->file.empty() && same_document(location(), visit.location) &&
             previousReview->file != nextReview->file;
+        // Small same-document line moves replace the current entry instead
+        // of flooding Back/Forward; only jumps of 10+ rows (or explicit
+        // cross-document opens) record a new entry. Entries dedupe by
+        // (document, row).
+        auto rowOf = [](const Location& loc, const std::optional<ReadingAnchor>& anchor) -> std::optional<int> {
+            if (anchor) return anchor->line;
+            if (const auto* source = std::get_if<SourceLocation>(&loc); source && source->line > 0) return source->line;
+            return std::nullopt;
+        };
+        if (!changedFile && same_document(location(), visit.location)) {
+            const auto currentRow = rowOf(location(), history_[index_].anchor);
+            const auto nextRow = rowOf(visit.location, visit.anchor);
+            if (currentRow && nextRow && std::abs(*currentRow - *nextRow) < 10) {
+                history_[index_] = visit;
+                select(visit.location, mode);
+                if (anchor) { current().anchor = std::move(anchor); current().restoreAnchor = true; }
+                return true;
+            }
+        }
         history_.resize(index_ + 1);
         history_.push_back(visit);
         if (history_.size() > 256) history_.erase(history_.begin());
@@ -551,6 +570,7 @@ enum class FocusPolicy { Document, Caller };
 struct NavigationEffect {
     bool changed = false;
     bool dismissedPanel = false;
+    bool keepPicker = false;
     FocusPolicy focus = FocusPolicy::Document;
     std::optional<bool> reviewing;
 };

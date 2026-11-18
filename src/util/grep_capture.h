@@ -61,6 +61,9 @@ public:
         if (output_.size() != complete_) stop();
     }
     const std::string& output() const { return output_; }
+    // Bytes forming complete records so far (safe to parse incrementally).
+    std::string_view completed() const { return {output_.data(), complete_}; }
+    size_t completedMatches() const { return matches_; }
     size_t bytes() const { return bytes_; }
     size_t matches() const { return matches_; }
     bool truncated() const { return truncated_; }
