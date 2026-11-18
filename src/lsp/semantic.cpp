@@ -1,7 +1,9 @@
 #include "semantic.h"
 
 #include "lsp_client.h"
+#include "../util/signpost.h"
 
+#include <atomic>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -63,11 +65,86 @@ std::string describe(Kind kind) {
 struct Session::State {
     std::string repo, canonicalRepo;
     std::mutex mutex;  // one request at a time per repository: servers answer in order anyway
+    std::shared_ptr<std::atomic<Lsp>> lspHolder;  // Session::lsp_, shared with worker tasks
     std::map<std::string, std::unique_ptr<lsp::Client>> clients;
-    std::map<std::string, std::pair<int, std::string>> documents;  // uri -> version, text
+    struct Document {
+        int version = 0;
+        std::string text;
+        std::string server;
+    };
+    std::map<std::string, Document> documents;  // uri -> version, text, owning server
+    // didClose paths queued by Session::close_document (header); drained
+    // by run() before/after a request and by flush_closed_documents()
+    // so the UI thread never blocks on `mutex` while Busy.
+    std::shared_ptr<std::mutex> pendingMutex;
+    std::shared_ptr<std::set<std::string>> pendingCloses;
+
+    void set_lsp(Lsp next) {
+        if (!lspHolder) return;
+        const Lsp old = lspHolder->exchange(next);
+        if (old == next) return;
+        static auto log = signpost::log_for("semantic");
+        signpost::event(log, "lsp_transition",
+                        std::string(lsp_name(old)) + " -> " + std::string(lsp_name(next)));
+    }
+
+    // Caller holds `mutex`. Drops the version entry and notifies the
+    // owning server, so a reopen sends didOpen at version 1 again.
+    void close_document_locked(const std::string& uri) {
+        auto found = documents.find(uri);
+        if (found == documents.end()) return;
+        const std::string server = found->second.server;
+        documents.erase(found);
+        auto client = clients.find(server);
+        if (client != clients.end() && client->second && client->second->alive())
+            client->second->notify("textDocument/didClose", {{"textDocument", {{"uri", uri}}}});
+    }
+
+    void process_pending_closes() {
+        std::set<std::string> pending;
+        {
+            std::lock_guard lock(*pendingMutex);
+            pending.swap(*pendingCloses);
+        }
+        for (const auto& path : pending)
+            close_document_locked(lsp::uri_from_path((fs::path(canonicalRepo) / path).string()));
+    }
+
+    // Sole transition into Ready (and into Starting/Dead/Failed on the
+    // way): returns the live client for `server`, starting it when
+    // `create` and it is Unstarted/Dead/Failed. A dead client drops its
+    // documents, which the replacement server never opened.
+    lsp::Client* ensure_client(const Server& server, std::string& error, bool create = true) {
+        auto& client = clients[server.name];
+        if (client && client->alive()) {
+            set_lsp(Lsp::Ready);
+            return client.get();
+        }
+        if (client) {
+            set_lsp(Lsp::Dead);
+            client.reset();
+            for (auto it = documents.begin(); it != documents.end();) {
+                if (it->second.server == server.name) it = documents.erase(it);
+                else ++it;
+            }
+        }
+        if (!create) return nullptr;
+        set_lsp(Lsp::Starting);
+        auto started = lsp::Client::start(server.command, canonicalRepo, error);
+        if (!started) {
+            set_lsp(Lsp::Failed);
+            return nullptr;
+        }
+        client = std::move(started);
+        set_lsp(Lsp::Ready);
+        return client.get();
+    }
 };
 
 Session::Session(std::string repo) : state_(std::make_shared<State>()) {
+    state_->lspHolder = lsp_;
+    state_->pendingMutex = pendingMutex_;
+    state_->pendingCloses = pendingCloses_;
     state_->repo = std::move(repo);
     std::error_code ec;
     state_->canonicalRepo = fs::canonical(state_->repo, ec).string();
@@ -75,6 +152,12 @@ Session::Session(std::string repo) : state_(std::make_shared<State>()) {
 }
 
 Session::~Session() = default;
+
+void Session::flush_closed_documents() {
+    if (!state_->mutex.try_lock()) return;
+    state_->process_pending_closes();
+    state_->mutex.unlock();
+}
 
 static std::string read_line(const fs::path& file, int line) {
     std::ifstream in(file, std::ios::binary);
@@ -117,25 +200,26 @@ async_work::Task<Outcome> Session::run(Kind kind, std::string path, std::string 
         if (!server) { out.error = missing.empty() ? "No language server handles this file type" : missing + " (not found on PATH)"; return out; }
         out.server = server->name;
         std::lock_guard lock(state->mutex);
-        auto& client = state->clients[server->name];
-        if (client && !client->alive()) client.reset();
-        if (!client) {
-            std::string error;
-            client = lsp::Client::start(server->command, state->canonicalRepo, error);
-            if (!client) { out.error = "Could not start " + server->name + ": " + error; return out; }
-        }
+        state->process_pending_closes();
+        std::string startError;
+        auto* client = state->ensure_client(*server, startError);
+        if (!client) { out.error = "Could not start " + server->name + ": " + startError; return out; }
         const auto file = fs::path(state->canonicalRepo) / path;
         const auto uri = lsp::uri_from_path(file.string());
+        if (auto found = state->documents.find(uri);
+            found != state->documents.end() && found->second.server != server->name)
+            state->close_document_locked(uri);
         auto& document = state->documents[uri];
-        if (document.first == 0) {
-            document = {1, text};
+        if (document.version == 0) {
+            document = {1, text, server->name};
             client->notify("textDocument/didOpen", {{"textDocument", {{"uri", uri}, {"languageId", fs::path(path).extension().string().substr(1)},
                                                                      {"version", 1}, {"text", text}}}});
-        } else if (document.second != text) {
-            document = {document.first + 1, text};
-            client->notify("textDocument/didChange", {{"textDocument", {{"uri", uri}, {"version", document.first}}},
+        } else if (document.text != text) {
+            document = {document.version + 1, text, server->name};
+            client->notify("textDocument/didChange", {{"textDocument", {{"uri", uri}, {"version", document.version}}},
                                                        {"contentChanges", {{{"text", text}}}}});
         }
+        state->set_lsp(Lsp::Busy);
         std::string caretLine;
         { std::stringstream lines(text); for (int i = 1; i <= line && std::getline(lines, caretLine); ++i) {} }
         nlohmann::json at{{"textDocument", {{"uri", uri}}},
@@ -144,10 +228,15 @@ async_work::Task<Outcome> Session::run(Kind kind, std::string path, std::string 
         auto ask = [&](const std::string& method, nlohmann::json params) -> std::optional<nlohmann::json> {
             auto pending = client->request(method, std::move(params));
             while (pending.result.wait_for(std::chrono::milliseconds(20)) != std::future_status::ready) {
-                if (stop.stop_requested()) { client->cancel(pending.id); out.error = "cancelled"; return std::nullopt; }
+                if (stop.stop_requested()) { client->cancel(pending.id); out.cancelled = true; return std::nullopt; }
             }
             auto reply = pending.result.get();
-            if (reply.contains("error")) { out.error = server->name + ": " + reply["error"].get<std::string>(); return std::nullopt; }
+            if (reply.contains("error")) {
+                const auto message = reply["error"].get<std::string>();
+                if (stop.stop_requested() || message == "cancelled") { out.cancelled = true; return std::nullopt; }
+                out.error = server->name + ": " + message;
+                return std::nullopt;
+            }
             return reply["result"];
         };
         std::set<std::tuple<std::string, int, int>> seen;
@@ -205,6 +294,14 @@ async_work::Task<Outcome> Session::run(Kind kind, std::string path, std::string 
             }
             default: break;
         }
+        // Settle Busy -> Ready (alive) or Dead (gone) through the same
+        // sole transition into Ready, then send any didClose queued
+        // while this request held the session.
+        {
+            std::string settleError;
+            state->ensure_client(*server, settleError, false);
+        }
+        state->process_pending_closes();
         return out;
     }, async_work::Priority::Foreground, Outcome{.error = "Background queue is full; retry"});
 }

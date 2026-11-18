@@ -28,7 +28,18 @@ bool switch_review_scope(const std::string& repoPath, const std::string& scope,
                          ecs::ReviewComponent& review, bool persist = true);
 
 // Hydrate the durable fields of `review` from disk. No-op if no file exists.
+// Drives ReviewStorePhase: Loading -> Ready on success/missing file,
+// Loading -> LoadFailed on an unreadable or mismatched file (in-memory
+// state is preserved and saves stay blocked in that phase).
 void load_review(const std::string& repoPath, ecs::ReviewComponent& review);
+
+// Recovery transition out of LoadFailed: re-run the load for the review's
+// stored repo/scope. Returns true once the store is no longer LoadFailed;
+// preserved in-memory work that was blocked from saving becomes Dirty
+// when the file is simply gone, so persist_review can write it. A still-
+// unreadable/mismatched file stays LoadFailed and keeps blocking saves.
+bool retry_load(ecs::ReviewComponent& review);
+bool retry_load(const std::string& repoPath, ecs::ReviewComponent& review);
 
 // Parse the review file on a worker; apply with apply_loaded_review once
 // the future lands and the scope still matches.

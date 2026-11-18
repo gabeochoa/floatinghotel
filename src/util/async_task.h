@@ -109,16 +109,22 @@ template<class T>
 class Task {
     std::future<T> future_;
     std::stop_source stop_{std::nostopstate};
+    bool rejected_ = false;
 public:
     Task() = default;
-    Task(std::future<T> future, std::stop_source stop)
-        : future_(std::move(future)), stop_(std::move(stop)) {}
-    Task(Task&&) noexcept = default;
+    Task(std::future<T> future, std::stop_source stop, bool rejected = false)
+        : future_(std::move(future)), stop_(std::move(stop)), rejected_(rejected) {}
+    Task(Task&& other) noexcept
+        : future_(std::move(other.future_)), stop_(std::move(other.stop_)), rejected_(other.rejected_) {
+        other.rejected_ = false;
+    }
     Task& operator=(Task&& other) noexcept {
         if (this != &other) {
             cancel();
             future_ = std::move(other.future_);
             stop_ = std::move(other.stop_);
+            rejected_ = other.rejected_;
+            other.rejected_ = false;
         }
         return *this;
     }
@@ -126,6 +132,12 @@ public:
     Task& operator=(const Task&) = delete;
     ~Task() { cancel(); }
     bool valid() const { return future_.valid(); }
+    // True only when launch_on could not enqueue the job (queue full or
+    // executor shutting down) and the future holds the caller-supplied
+    // rejected value instead of a computed result. Lets owners tell a
+    // queue rejection apart from a genuine empty/failed result without
+    // comparing sentinel error strings.
+    bool rejected() const { return rejected_; }
     bool can_cancel() const { return valid() && stop_.stop_possible(); }
     bool cancellation_requested() const { return stop_.stop_requested(); }
     void cancel() { stop_.request_stop(); }
@@ -148,9 +160,10 @@ auto launch_on(Executor& pool, Fn fn, Priority priority = Priority::Foreground,
         try { promise->set_value(fn(token)); }
         catch (...) { promise->set_exception(std::current_exception()); }
     };
-    if (!pool.submit(std::move(run), stop, priority, cancellable))
+    const bool accepted = pool.submit(std::move(run), stop, priority, cancellable);
+    if (!accepted)
         promise->set_value(std::move(rejected));
-    return Task<Result>(std::move(future), cancellable ? std::move(stop) : std::stop_source{std::nostopstate});
+    return Task<Result>(std::move(future), cancellable ? std::move(stop) : std::stop_source{std::nostopstate}, !accepted);
 }
 
 template<class Fn>

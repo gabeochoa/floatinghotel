@@ -6,6 +6,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "util/async_task.h"
@@ -30,6 +31,19 @@ struct Settings {
     void write_save_file();
     void flush_pending_save(std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now());
     size_t save_write_count() const { return saveWriteCount_; }
+
+    enum class Save { Clean, Pending, Writing, Blocked, Failed };
+    static std::string_view name(Save state) {
+        switch (state) {
+            case Save::Clean: return "Clean";
+            case Save::Pending: return "Pending";
+            case Save::Writing: return "Writing";
+            case Save::Blocked: return "Blocked";
+            case Save::Failed: return "Failed";
+        }
+        return "Clean";
+    }
+    Save save_state() const { return saveState_; }
 
     // Window geometry
     int get_window_width() const;
@@ -128,4 +142,6 @@ private:
     // completion (count / error) is applied by the next flush or save.
     async_work::Task<std::string> writeFuture_;
     size_t saveWriteCount_ = 0;
+    Save saveState_ = Save::Clean;
+    void apply_write_result(Save outcome, std::string error);
 };

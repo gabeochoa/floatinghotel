@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ecs/components.h"
+#include "../ecs/query_helpers.h"
 #include "../settings.h"
 
 #include "reading_session.h"
@@ -73,9 +74,8 @@ struct navigation {
                                    reading::CodePosition position, std::optional<reading::CodeMotion> motion = {}) {
         cancel_anchor(repo);
         request.sourceIdentity = repo.fullFilePage.sourceIdentity;
-        repo.fullFilePageRequest = std::move(request);
+        repo.fullFileLoad.request_page(std::move(request));
         repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
-        repo.fullFileCacheKey.clear();
         repo.pendingCaret = std::move(position);
         repo.pendingCaretMotion = motion;
     }
@@ -122,7 +122,7 @@ struct navigation {
         auto& counts = repo.workspace_.current().contextLines;
         if (!counts.contains(key) && counts.size() >= 256) return;
         counts[key] = std::min(kContextAll, counts[key] + amount);
-        repo.hunkContext.future = {};
+        repo.hunkContext.slot.cancel();
     }
 
     // One click reveals the whole folded gap; git::context_range clamps the
@@ -131,7 +131,7 @@ struct navigation {
         auto& counts = repo.workspace_.current().contextLines;
         if (!counts.contains(key) && counts.size() >= 256) return;
         counts[key] = kContextAll;
-        repo.hunkContext.future = {};
+        repo.hunkContext.slot.cancel();
     }
 
     static bool follow_rewritten_tip(ecs::RepoComponent& repo, const std::string& from, const std::string& to) {
@@ -155,9 +155,7 @@ struct navigation {
 
     static void open_find(ecs::RepoComponent& repo, std::string seed = {}, std::optional<reading::ReadingAnchor> position = {}) {
         auto& state = find(repo);
-        state.open = state.focus = true;
-        state.navigate = false;
-        state.pendingStep = 0;
+        state.open();
         if (!seed.empty()) {
             state.query = std::move(seed);
             state.index = 0;
@@ -165,11 +163,21 @@ struct navigation {
         }
     }
 
+    // The scan side of the unified find close: cancelling the source
+    // scan demotes a Scanning find back to Editing (never leaves it
+    // stuck in Scanning with no scan in flight).
+    static void cancel_source_find(ecs::RepoComponent& repo) {
+        repo.sourceFind.cancel_scan();
+        find(repo).sync_scanning(false);
+    }
+
+    // The one close path for find (Esc via close_top_popup, the bar's
+    // close button): closing find cancels the source scan, and the
+    // phase goes Closed. Query/index/position are retained per
+    // document, as before.
     static void close_find(ecs::RepoComponent& repo) {
-        if (repo.sourceFind.future.valid()) repo.sourceFind = {};
-        auto& state = find(repo);
-        state.open = state.focus = state.navigate = false;
-        state.pendingStep = 0;
+        cancel_source_find(repo);
+        find(repo).close();
         focus_document(repo, reading::focus::Region::Code);
     }
 
@@ -186,7 +194,7 @@ struct navigation {
         layout.filePickerQuery.clear();
         layout.filePickerCacheKey.clear();
         layout.filePickerPosition = {};
-        layout.filePickerOpen = layout.filePickerFocus = true;
+        layout.open_picker(ecs::PickerMode::Files, repo);
     }
 
     static bool accepts(const ecs::RepoComponent& repo, const reading::RequestStamp& request, const std::string& key) {
@@ -229,8 +237,8 @@ struct navigation {
     }
 
     static void release_inactive_review(const ecs::RepoComponent& repo, ecs::CommitDetailCache& cache) {
-        if (repo.workspace_.active() == reading::Slot::Source || repo.selectedCommitHash() != cache.cachedCommitHash ||
-            ecs::selected_commit_parent(repo) != cache.cachedParentHash || repo.repoPath != cache.cachedRepoPath)
+        if (repo.workspace_.active() == reading::Slot::Source || repo.selectedCommitHash() != cache.patch.key.commit ||
+            ecs::selected_commit_parent(repo) != cache.patch.key.parent || repo.repoPath != cache.patch.key.repo)
             static_cast<ecs::CommitDetailRuntime&>(cache) = {};
     }
 
@@ -238,22 +246,18 @@ struct navigation {
         repo.sourceFoldIdentity = 0;
         std::vector<source_folding::Range>{}.swap(repo.sourceFoldRanges);
         repo.diffSyntax.clear();
-        repo.sourceFind = {};
+        repo.sourceFind.clear();
         repo.selectionCopy = {};
         repo.pendingCaret.reset();
         repo.pendingCaretMotion.reset();
-        repo.fullFileFuture = {};
-        repo.fullFileCacheKey.clear();
-        repo.fullFileSourceKey.clear();
+        repo.fullFileLoad.reset();
         std::vector<ecs::FileDiff>{}.swap(repo.fullFileDiff);
         repo.sourceWindow = {};
-        repo.fullFileExtendRequest = false;
         std::string{}.swap(repo.fullFileDecodedText);
         repo.fullFileHexPreview = {};
-        repo.fullFileHexPreviewKey.clear();
+        repo.fullFileHexPreviewKey.reset();
         repo.fullFileMarkdownCache = {};
-        repo.fullFileError.clear();
-        repo.blameFuture = {};
+        repo.blame.cancel();
         repo.blameLine = {};
         repo.blameOpen = false;
     }
@@ -266,14 +270,21 @@ struct navigation {
         effect.dismissedPanel |= repo.fileHistoryOpen || repo.commitSearchOpen;
         repo.fileHistoryOpen = repo.commitSearchOpen = false;
         if (!changed) return;
-        repo.comparisonEditorOpen = false;
+        if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
+            layout->close_modal(reading::focus::Popup::ComparisonEditor);
         effect.reviewing = repo.workspace_.history()[repo.workspace_.history_index()].reviewing;
         const auto after = repo.workspace_.location();
         const auto* source = std::get_if<reading::SourceLocation>(&after);
         const auto* oldSource = std::get_if<reading::SourceLocation>(&before);
         if (source && repo.workspace_.current().restoreAnchor && repo.workspace_.current().anchor)
             repo.workspace_.current().sourceFolds.reveal(repo.workspace_.current().anchor->line);
-        if (!reading::same_document(before, after)) release_source(repo);
+        if (!reading::same_document(before, after)) {
+            // release_source cancels the source scan; the document left
+            // behind must not stay Scanning with no scan in flight.
+            for (auto& document : repo.workspace_.documents_)
+                if (reading::same_document(document.location, before)) document.find.sync_scanning(false);
+            release_source(repo);
+        }
         if (!reading::same_document(before, after) || repo.workspace_.current().contextLines.empty()) repo.hunkContext = {};
         repo.originFileSummaries.clear();
         if (source) {
@@ -296,10 +307,7 @@ struct navigation {
             std::vector<ecs::FileDiff>{}.swap(repo.comparisonDiff);
             repo.comparisonLoadedScope.clear();
         }
-        if (repo.fullFileFuture.valid()) {
-            repo.fullFileFuture = {};
-            repo.fullFileCacheKey.clear();
-        }
+        if (repo.fullFileLoad.task.valid()) repo.fullFileLoad.drop_task();
         if (source) {
             if (!oldSource || oldSource->destination != source->destination) {
                 repo.fullFileNavigateFrames = source->line > 0 ? 3 : 0;
@@ -311,8 +319,7 @@ struct navigation {
             repo.cachedFilePath.clear();
         }
         repo.rangeDiff.enabled = false;
-        repo.rangeDiff.future = {};
-        std::vector<ecs::FileDiff>{}.swap(repo.rangeDiff.display);
+        repo.rangeDiff.reset();
         if (repo.comparisonScope() != repo.comparisonLoadedScope) {
             repo.comparisonFuture = {};
             std::vector<ecs::FileDiff>{}.swap(repo.comparisonDiff);
@@ -325,6 +332,7 @@ struct navigation {
                 repo.comparisonTarget = std::move(target);
             }
         }
+        repo.sync_comparison_phase();
     }
 
     static void open(ecs::RepoComponent& repo, reading::Location location, std::optional<bool> reviewing = {},
@@ -534,7 +542,15 @@ struct navigation {
 
     static void close(ecs::RepoComponent& repo, reading::DocumentId id) {
         auto before = repo.workspace_.location();
+        std::string closedSourcePath;
+        if (const auto* closing = repo.workspace_.document(id))
+            if (const auto* source = std::get_if<reading::SourceLocation>(&closing->location))
+                closedSourcePath = source->destination.path;
         bool changed = repo.workspace_.close(id, repo.workspace_.history()[repo.workspace_.history_index()].reviewing);
+        // The document actually left the open set: tell the language
+        // server (didClose) so its version for this file does not drift.
+        if (!closedSourcePath.empty() && repo.semanticSession && !repo.workspace_.document(id))
+            repo.semanticSession->close_document(closedSourcePath);
         finish(repo, before, changed);
         if (changed) restore_anchor(repo);
     }
@@ -581,16 +597,17 @@ struct navigation {
 
     static void comparison_editor(ecs::RepoComponent& repo) {
         activate(repo, reading::Slot::Review);
-        repo.comparisonEditorOpen = true;
+        if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
+            layout->open_modal(reading::focus::Popup::ComparisonEditor);
+        repo.open_comparison_editor();
     }
 
     static void reset(ecs::RepoComponent& repo) {
         auto before = repo.workspace_.location();
         repo.workspace_.reset();
         repo.reading = {};
-        repo.fullFileFuture = {};
-        repo.fullFileCacheKey.clear();
-        repo.fullFileSourceKey.clear();
+        repo.fullFileLoad.drop_task();
+        repo.fullFileLoad.source.reset();
         finish(repo, before, true);
     }
 
@@ -611,10 +628,11 @@ struct navigation {
     static bool complete_comparison(ecs::RepoComponent& repo, const reading::RequestStamp& request,
                                     const std::string& base, const std::string& target) {
         if (!accepts_comparison(repo, request)) return false;
-        if (repo.comparisonEditorOpen || !repo.workspace_.resolve_comparison(request.generation, base, target))
+        if ((ecs::find_singleton<ecs::LayoutComponent>() && ecs::find_singleton<ecs::LayoutComponent>()->modal_is(reading::focus::Popup::ComparisonEditor)) || !repo.workspace_.resolve_comparison(request.generation, base, target))
             open(repo, reading::review("compare:" + base + ":" + target));
         repo.comparisonLoadedScope = repo.comparisonScope();
         repo.comparisonNeedsLoad = false;
+        repo.finish_comparison_load();
         return true;
     }
 
@@ -623,9 +641,9 @@ struct navigation {
     }
 
     static void restore_draft(ecs::RepoComponent& repo, const ecs::ReviewComponent& review) {
-        if (!review.composingKey.empty()) open(repo, reading::review(review.composingScope, review.composingFile));
-        else if (review.editingComment >= 0 && static_cast<size_t>(review.editingComment) < review.comments.size()) {
-            const auto& comment = review.comments[review.editingComment];
+        if (review.composer == ecs::Composer::Composing) open(repo, reading::review(review.composerDraft.scope, review.composerDraft.file));
+        else if (review.editing_index() >= 0 && static_cast<size_t>(review.editing_index()) < review.comments.size()) {
+            const auto& comment = review.comments[static_cast<size_t>(review.editing_index())];
             open(repo, reading::review(comment.scope, comment.file));
         }
     }

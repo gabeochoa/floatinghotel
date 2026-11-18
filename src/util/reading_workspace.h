@@ -194,14 +194,56 @@ struct FileSummary {
     bool partial = false;
 };
 
+// Find-in-file lifecycle (fsm_todo.md M12): Closed -> Editing on
+// open_find; Editing -> Scanning while the async source scan is in
+// flight (diff find is synchronous and stays Editing); Scanning ->
+// Editing when the scan lands, is stale, or is cancelled; any open
+// phase -> Closed via the unified close (which also cancels the scan).
+// `focus`/`navigate` are one-shot transients, not phases: focus requests
+// input focus on the next render, navigate requests a jump to the
+// current match once matches exist. `pendingStep` accumulates next/
+// previous steps taken while Scanning (no matches yet) and is applied
+// — then cleared — once the scan lands, exactly as before.
+enum class Find { Closed, Editing, Scanning };
+
+inline std::string_view find_name(Find find) {
+    switch (find) {
+        case Find::Closed: return "Closed";
+        case Find::Editing: return "Editing";
+        case Find::Scanning: return "Scanning";
+    }
+    return "Closed";
+}
+
 struct FindState {
+    Find phase = Find::Closed;
     int pendingStep = 0;
-    bool open = false;
     bool focus = false;
     std::string query;
     size_t index = 0;
     std::optional<ReadingAnchor> position;
     bool navigate = false;
+
+    bool is_open() const { return phase != Find::Closed; }
+    bool scanning() const { return phase == Find::Scanning; }
+
+    void open() {
+        phase = Find::Editing;
+        focus = true;
+        navigate = false;
+        pendingStep = 0;
+    }
+    void close() {
+        phase = Find::Closed;
+        focus = false;
+        navigate = false;
+        pendingStep = 0;
+    }
+    // Reflect the source scan's flight state; a closed find stays closed.
+    void sync_scanning(bool inFlight) {
+        if (phase == Find::Closed) return;
+        phase = inFlight ? Find::Scanning : Find::Editing;
+    }
 };
 
 struct CodePosition {
@@ -221,6 +263,30 @@ struct CodeSelection {
     bool operator==(const CodeSelection&) const = default;
 };
 
+// Source-edit lifecycle (fsm_todo.md M25): Viewing (read-only) ->
+// Seeding (entered edit mode, buffer not yet read from disk) ->
+// EditingClean <-> EditingDirty -> Saving -> EditingClean on success
+// or SaveFailed (dirty retained) on failure; Seeding -> Viewing on
+// seed failure with `editError` retained for the notice. Stopping
+// editing returns to Viewing with the buffer retained; re-entering
+// goes through Seeding, which resumes the retained buffer. The
+// former editMode/editSeeded/editDirty bools are deleted: seeded is
+// the Editing*/Saving/SaveFailed phases, dirty is EditingDirty/
+// Saving/SaveFailed.
+enum class Edit { Viewing, Seeding, EditingClean, EditingDirty, Saving, SaveFailed };
+
+inline std::string_view edit_name(Edit edit) {
+    switch (edit) {
+        case Edit::Viewing: return "Viewing";
+        case Edit::Seeding: return "Seeding";
+        case Edit::EditingClean: return "EditingClean";
+        case Edit::EditingDirty: return "EditingDirty";
+        case Edit::Saving: return "Saving";
+        case Edit::SaveFailed: return "SaveFailed";
+    }
+    return "Viewing";
+}
+
 struct Document {
     DocumentId id;
     Location location = ReviewLocation{};
@@ -238,11 +304,43 @@ struct Document {
     std::optional<CodePosition> caret;
     std::optional<CodeSelection> selection;
     // Working-tree edit mode (source documents only): the buffer is the
-    // authoritative text while editMode is on; editGeneration bumps on
+    // authoritative text while editing; editGeneration bumps on
     // every mutation so the view can rebuild its rendered lines.
-    bool editMode = false;
-    bool editSeeded = false;
-    bool editDirty = false;
+    Edit edit = Edit::Viewing;
+    std::string editError;
+    bool edit_mode() const { return edit != Edit::Viewing; }
+    bool edit_seeded() const {
+        return edit == Edit::EditingClean || edit == Edit::EditingDirty ||
+            edit == Edit::Saving || edit == Edit::SaveFailed;
+    }
+    bool edit_dirty() const {
+        return edit == Edit::EditingDirty || edit == Edit::Saving ||
+            edit == Edit::SaveFailed;
+    }
+    void begin_edit() { if (edit == Edit::Viewing) edit = Edit::Seeding; }
+    void stop_edit() { if (edit != Edit::Viewing) edit = Edit::Viewing; }
+    void finish_edit_seed(bool dirty) {
+        edit = dirty ? Edit::EditingDirty : Edit::EditingClean;
+        editError.clear();
+    }
+    void fail_edit_seed(std::string message) {
+        edit = Edit::Viewing;
+        editError = std::move(message);
+    }
+    void begin_edit_save() { if (edit_seeded()) edit = Edit::Saving; }
+    void finish_edit_save() {
+        edit = Edit::EditingClean;
+        editError.clear();
+    }
+    void fail_edit_save(std::string message) {
+        edit = Edit::SaveFailed;
+        editError = std::move(message);
+    }
+    void mark_edit_dirty() {
+        if (!edit_seeded()) return;
+        edit = Edit::EditingDirty;
+        editError.clear();
+    }
     bool editCrlf = false;
     bool editTrailingNewline = true;
     unsigned editGeneration = 0;

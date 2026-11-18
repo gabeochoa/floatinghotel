@@ -71,10 +71,12 @@ std::string Settings::get_settings_path() const {
 
 bool Settings::load_save_file() {
     pendingSave_.reset();
+    if (!writeFuture_.valid() && saveState_ == Save::Pending) saveState_ = Save::Clean;
     std::string path = get_settings_path();
     loadError.clear();
     std::error_code fileError;
     if (!std::filesystem::exists(path, fileError) && !fileError) {
+        if (!writeFuture_.valid() && saveState_ == Save::Blocked) saveState_ = Save::Clean;
         log_info("No settings file found at {}, using defaults", path);
         return false;
     }
@@ -155,11 +157,13 @@ bool Settings::load_save_file() {
             }
         }
 
+        if (!writeFuture_.valid() && saveState_ == Save::Blocked) saveState_ = Save::Clean;
         log_info("Settings loaded from {}", path);
         return true;
     } catch (const std::exception& e) {
         *data_ = std::move(previous);
         loadError = std::string("Settings could not be loaded: ") + e.what();
+        if (!writeFuture_.valid()) saveState_ = Save::Blocked;
         log_warn("Failed to parse settings file {}: {} (preserving existing settings)",
                  path, e.what());
         return false;
@@ -219,30 +223,45 @@ std::string Settings::build_settings_json() const {
     return j.dump(2);
 }
 
+void Settings::apply_write_result(Save outcome, std::string error) {
+    if (outcome == Save::Clean) {
+        ++saveWriteCount_;
+        saveError.clear();
+        saveState_ = pendingSave_ ? Save::Pending : Save::Clean;
+        return;
+    }
+    saveError = std::move(error);
+    saveState_ = outcome;
+    log_error("{}", saveError);
+}
+
 void Settings::write_save_file() {
     // A worker write may still be in flight; finish it first so writes
     // land in order.
     if (writeFuture_.valid()) {
         const auto error = writeFuture_.get();
         writeFuture_ = {};
-        if (!error.empty()) { saveError = "Failed to save settings: " + error; log_error("{}", saveError); }
-        else { ++saveWriteCount_; saveError.clear(); }
+        if (error.empty()) apply_write_result(Save::Clean, {});
+        else apply_write_result(Save::Failed, "Failed to save settings: " + error);
     }
     pendingSave_.reset();
-    if (!loadError.empty()) { saveError = "Settings file was not overwritten: " + loadError; return; }
-    std::string path = get_settings_path();
-    if (!afterhours::files::write_string_atomic(path, build_settings_json())) {
-        saveError = "Failed to save settings: " + path;
-        log_error("{}", saveError);
+    if (!loadError.empty()) {
+        apply_write_result(Save::Blocked, "Settings file was not overwritten: " + loadError);
         return;
     }
-    ++saveWriteCount_;
-    saveError.clear();
+    std::string path = get_settings_path();
+    if (!afterhours::files::write_string_atomic(path, build_settings_json())) {
+        apply_write_result(Save::Failed, "Failed to save settings: " + path);
+        return;
+    }
+    apply_write_result(Save::Clean, {});
     log_info("Settings saved to {}", path);
 }
 
 void Settings::save_if_auto() {
-    if (auto_save_enabled) pendingSave_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+    if (!auto_save_enabled) return;
+    pendingSave_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+    if (!writeFuture_.valid()) saveState_ = Save::Pending;
 }
 
 void Settings::flush_pending_save(std::chrono::steady_clock::time_point now) {
@@ -251,12 +270,19 @@ void Settings::flush_pending_save(std::chrono::steady_clock::time_point now) {
         writeFuture_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         const auto error = writeFuture_.get();
         writeFuture_ = {};
-        if (!error.empty()) { saveError = "Failed to save settings: " + error; log_error("{}", saveError); }
-        else { ++saveWriteCount_; saveError.clear(); log_info("Settings saved"); }
+        if (error.empty()) {
+            apply_write_result(Save::Clean, {});
+            log_info("Settings saved");
+        } else {
+            apply_write_result(Save::Failed, "Failed to save settings: " + error);
+        }
     }
     if (!auto_save_enabled || !pendingSave_ || now < *pendingSave_ || writeFuture_.valid()) return;
     pendingSave_.reset();
-    if (!loadError.empty()) { saveError = "Settings file was not overwritten: " + loadError; return; }
+    if (!loadError.empty()) {
+        apply_write_result(Save::Blocked, "Settings file was not overwritten: " + loadError);
+        return;
+    }
     // Serialise on this thread; only the file write goes to a worker.
     auto text = build_settings_json();
     auto path = get_settings_path();
@@ -265,6 +291,7 @@ void Settings::flush_pending_save(std::chrono::steady_clock::time_point now) {
             return afterhours::files::write_string_atomic(path, text) ? std::string{} : path;
         },
         async_work::Priority::Background, std::string{"Background queue is full"});
+    saveState_ = Save::Writing;
 }
 
 float Settings::get_command_log_height() const { return data_->commandLogHeight; }

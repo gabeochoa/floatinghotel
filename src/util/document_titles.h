@@ -62,7 +62,7 @@ inline std::vector<DocumentTitle> document_titles(const std::vector<Document>& d
             // file shows no hash at all.
             if (otherRevision) title.badge = compact(revision);
             title.tooltip = path + " @ " + (revision.empty() ? "working tree" : revision);
-            if (document.editDirty) {
+            if (document.edit_dirty()) {
                 title.label += " •";
                 title.tooltip += "\nUnsaved changes";
             }

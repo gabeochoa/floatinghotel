@@ -109,7 +109,9 @@ std::string copy_repository_reviews(const std::string& oldPath, const std::strin
 }
 
 bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review) {
-    if (repoPath.empty() || !review.loadError.empty()) return false;
+    // LoadFailed blocks every save until retry_load succeeds: overwriting
+    // a file we could not read would silently lose the saved review.
+    if (repoPath.empty() || review.storePhase == ecs::ReviewStorePhase::LoadFailed) return false;
     const auto path = review_path(repoPath, review.storageScope);
     const auto existing = afterhours::files::read_string(path);
     std::error_code readError;
@@ -133,16 +135,18 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     for (const auto& c : review.comments) comments.push_back(encode_comment(c));
     j["comments"] = std::move(comments);
     auto drafts = review.drafts;
-    if (!review.composingKey.empty()) {
-        if (review.composingText.empty()) drafts.erase(review.composingKey);
-        else drafts[review.composingKey] = ecs::pending_comment(review);
+    const bool composing = review.composer == ecs::Composer::Composing;
+    if (composing) {
+        if (review.composerDraft.text.empty()) drafts.erase(review.composing_key());
+        else drafts[review.composing_key()] = ecs::pending_comment(review);
     }
+    const bool editing = review.composer == ecs::Composer::EditingExisting;
     j["drafts"] = nlohmann::json::object();
     for (const auto& [key, draft] : drafts) j["drafts"][key] = encode_comment(draft);
-    j["active_draft"] = review.composingKey;
-    j["editing_comment"] = review.editingComment;
-    j["editing_text"] = review.editingCommentText;
-    j["editing_kind"] = review_comment_kind_label(review.editingCommentKind);
+    j["active_draft"] = composing ? review.composing_key() : std::string{};
+    j["editing_comment"] = editing ? review.editing_index() : -1;
+    j["editing_text"] = editing ? review.composerDraft.text : std::string{};
+    j["editing_kind"] = review_comment_kind_label(editing ? review.composerDraft.kind : ReviewCommentKind::Comment);
 
     j["approved_hunks"] = review.approvedHunks;  // set<string> -> array
     j["reviewed_files"] = review.reviewedFiles;
@@ -157,7 +161,7 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
     j["seen_sig"] = review.seenSig;              // map<string,string> -> object
     j["baseline_head"] = review.baselineHead;
     j["baseline_diff_sig"] = review.baselineDiffSig;
-    j["baseline_snapshot"] = review.baselineSnapshot;
+    j["baseline_snapshot"] = review.baselineSnapshot.value_or("");
     j["baseline_captured_at"] = review.baselineCapturedAt;
 
     if (!afterhours::files::write_string_atomic(path, j.dump(2))) {
@@ -168,9 +172,16 @@ bool save_review(const std::string& repoPath, const ecs::ReviewComponent& review
 }
 
 bool persist_review(const std::string& repoPath, ecs::ReviewComponent& review) {
-    if (!review.dirty) return true;
-    if (!save_review(repoPath, review)) return false;
-    review.dirty = false;
+    if (!review.dirty()) return true;
+    if (review.storePhase == ecs::ReviewStorePhase::LoadFailed) return false;
+    review.begin_save();
+    if (!save_review(repoPath, review)) {
+        // Keep the unsaved work: SaveFailed still counts as dirty, so the
+        // caller's nextSaveAttempt retry loop will try again.
+        review.fail_save("Review could not be saved");
+        return false;
+    }
+    review.finish_save();
     return true;
 }
 
@@ -180,28 +191,17 @@ static void move_loaded_fields(ecs::ReviewComponent& target_, ecs::ReviewCompone
         target_.basketOpen = std::move(loaded.basketOpen);
         target_.comments = std::move(loaded.comments);
         target_.drafts = std::move(loaded.drafts);
-        target_.composingKey = std::move(loaded.composingKey);
-        target_.composingText = std::move(loaded.composingText);
-        target_.composingFocus = std::move(loaded.composingFocus);
-        target_.composingFile = std::move(loaded.composingFile);
-        target_.composingScope = std::move(loaded.composingScope);
-        target_.composingLine = std::move(loaded.composingLine);
-        target_.composingEndLine = std::move(loaded.composingEndLine);
-        target_.composingRanges = std::move(loaded.composingRanges);
-        target_.composingOldSide = std::move(loaded.composingOldSide);
-        target_.composingRevision = std::move(loaded.composingRevision);
-        target_.composingCodeContext = std::move(loaded.composingCodeContext);
-        target_.composingKind = std::move(loaded.composingKind);
-        target_.editingComment = std::move(loaded.editingComment);
-        target_.editingCommentText = std::move(loaded.editingCommentText);
-        target_.editingCommentKind = std::move(loaded.editingCommentKind);
-        target_.dirty = std::move(loaded.dirty);
+        target_.composer = loaded.composer;
+        target_.composerTarget = std::move(loaded.composerTarget);
+        target_.composerDraft = std::move(loaded.composerDraft);
+        target_.composerFocus = loaded.composerFocus;
         target_.approvedHunks = std::move(loaded.approvedHunks);
         target_.reviewedFiles = std::move(loaded.reviewedFiles);
         target_.verdicts = std::move(loaded.verdicts);
         target_.queue = std::move(loaded.queue);
         target_.foldedHunks = std::move(loaded.foldedHunks);
         target_.seenSig = std::move(loaded.seenSig);
+        target_.baseline = loaded.baseline;
         target_.baselineHead = std::move(loaded.baselineHead);
         target_.baselineDiffSig = std::move(loaded.baselineDiffSig);
         target_.baselineSnapshot = std::move(loaded.baselineSnapshot);
@@ -209,8 +209,43 @@ static void move_loaded_fields(ecs::ReviewComponent& target_, ecs::ReviewCompone
 }
 
 void apply_loaded_review(ecs::ReviewComponent& target, ecs::ReviewComponent loaded) {
+    // A failed load preserves the live review: only the failure lands.
+    if (loaded.storePhase == ecs::ReviewStorePhase::LoadFailed) {
+        target.fail_load(std::move(loaded.storeError));
+        return;
+    }
     move_loaded_fields(target, loaded);
-    target.loadError = std::move(loaded.loadError);
+    target.finish_load();
+}
+
+namespace {
+
+bool has_durable_review_content(const ecs::ReviewComponent& review) {
+    return review.reviewing || !review.comments.empty() || !review.drafts.empty() ||
+        review.composer != ecs::Composer::Closed || !review.approvedHunks.empty() ||
+        !review.reviewedFiles.empty() || !review.verdicts.empty() ||
+        !review.queue.commits.empty() || !review.foldedHunks.empty() ||
+        !review.seenSig.empty() || !review.baselineHead.empty();
+}
+
+}  // namespace
+
+bool retry_load(const std::string& repoPath, ecs::ReviewComponent& review) {
+    if (review.storePhase != ecs::ReviewStorePhase::LoadFailed) return false;
+    if (repoPath.empty()) return false;
+    const bool hadContent = has_durable_review_content(review);
+    const std::string path = review_path(repoPath, review.storageScope);
+    std::error_code error;
+    const bool fileGone = !std::filesystem::exists(path, error) && !error;
+    load_review(repoPath, review);
+    if (review.storePhase == ecs::ReviewStorePhase::LoadFailed) return false;
+    // Missing-file load is a no-op, so preserved work is still unsaved.
+    if (fileGone && hadContent) review.mark_dirty();
+    return true;
+}
+
+bool retry_load(ecs::ReviewComponent& review) {
+    return retry_load(review.storageRepoPath, review);
 }
 
 async_work::Task<ecs::ReviewComponent> load_review_async(std::string repoPath, std::string scope) {
@@ -227,7 +262,7 @@ async_work::Task<ecs::ReviewComponent> load_review_async(std::string repoPath, s
 
 void load_review(const std::string& repoPath, ecs::ReviewComponent& target) {
     if (repoPath.empty()) return;
-    target.loadError.clear();
+    target.begin_load();
     ecs::ReviewComponent review;
     review.storageScope = target.storageScope;
     review.storageRepoPath = target.storageRepoPath;
@@ -243,7 +278,8 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& target) {
     std::optional<std::string> contents = afterhours::files::read_string(path);
     if (!contents) {
         std::error_code error;
-        if (std::filesystem::exists(path, error) || error) target.loadError = "Review file is unreadable: " + path;
+        if (std::filesystem::exists(path, error) || error) target.fail_load("Review file is unreadable: " + path);
+        else target.finish_load();
         return;
     }
 
@@ -264,23 +300,20 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& target) {
             }
         }
         review.drafts.clear();
-        review.composingKey.clear();
-        review.composingText.clear();
         if (j.contains("drafts")) {
             for (auto it = j["drafts"].begin(); it != j["drafts"].end(); ++it)
                 review.drafts[it.key()] = decode_comment(it.value());
         }
         auto activeDraft = j.value("active_draft", std::string{});
         if (review.drafts.contains(activeDraft)) ecs::begin_comment(review, activeDraft, review.drafts.at(activeDraft));
-        review.editingComment = j.value("editing_comment", -1);
-        review.editingCommentText = j.value("editing_text", std::string{});
-        review.editingCommentKind = parse_review_comment_kind(j.value("editing_kind", std::string{}));
-        if (review.editingComment < 0 || static_cast<size_t>(review.editingComment) >= review.comments.size()) {
-            review.editingComment = -1;
-            review.editingCommentText.clear();
+        const auto editingIndex = j.value("editing_comment", -1);
+        if (editingIndex >= 0 && static_cast<size_t>(editingIndex) < review.comments.size()) {
+            // An unsaved edit wins over the active draft: beginning the
+            // edit preserves that draft in `drafts` (draft-on-dismiss).
+            ecs::begin_comment(review, static_cast<ecs::ReviewComponent::CommentIndex>(editingIndex));
+            review.composerDraft.text = j.value("editing_text", review.composerDraft.text);
+            review.composerDraft.kind = parse_review_comment_kind(j.value("editing_kind", std::string{}));
         }
-        review.dirty = false;
-
         review.approvedHunks =
             j.value("approved_hunks", std::set<std::string>{});
         review.reviewedFiles = j.value("reviewed_files", std::map<std::string, std::string>{});
@@ -309,14 +342,21 @@ void load_review(const std::string& repoPath, ecs::ReviewComponent& target) {
             j.value("seen_sig", std::map<std::string, std::string>{});
         review.baselineHead = j.value("baseline_head", std::string{});
         review.baselineDiffSig = j.value("baseline_diff_sig", std::string{});
-        review.baselineSnapshot = j.value("baseline_snapshot", std::string{});
+        if (auto snapshot = j.value("baseline_snapshot", std::string{}); !snapshot.empty()) {
+            review.baselineSnapshot = std::move(snapshot);
+            review.baseline = ecs::Baseline::Ready;
+        }
         review.baselineCapturedAt = j.value("baseline_captured_at", int64_t{0});
 
         move_loaded_fields(target, review);
-        if (path != destination && !save_review(repoPath, target)) target.loadError = "Legacy review loaded, but migration could not be saved";
+        if (path != destination && !save_review(repoPath, target)) {
+            target.fail_save("Legacy review loaded, but migration could not be saved");
+        } else {
+            target.finish_load();
+        }
         log_info("Review loaded from {}", path);
     } catch (const std::exception& e) {
-        target.loadError = std::string("Review could not be loaded: ") + e.what();
+        target.fail_load(std::string("Review could not be loaded: ") + e.what());
         log_warn("Failed to parse review file {}: {} (ignoring)", path, e.what());
     }
 }
@@ -333,9 +373,12 @@ bool switch_review_scope(const std::string& repoPath, const std::string& scope,
     if (persist) {
         // Parse on a worker; main_content applies it when it lands and
         // the scope still matches (see reviewLoadFuture polling).
+        review.begin_load();
         review.reviewLoadRepoPath = repoPath;
         review.reviewLoadScope = scope;
         review.reviewLoadFuture = load_review_async(repoPath, scope);
+    } else {
+        review.finish_load();
     }
     review.reviewing = reading;
     return true;

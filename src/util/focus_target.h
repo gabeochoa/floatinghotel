@@ -5,7 +5,34 @@
 namespace reading::focus {
 
 enum class Region { Tree, History, DocumentTabs, Code, Picker, Find, Search, SearchPreview, Feedback, Menu };
-enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory, Composer, Options, Snapshot, ComparisonEditor, CommitDetails, PushDialog, RelinkDialog, Shortcuts };
+enum class Popup { Menu, ContextMenu, Picker, Find, Search, SearchPreview, Feedback, CommitSearch, FileHistory, Composer, Options, Snapshot, ComparisonEditor, CommitDetails, PushDialog, RelinkDialog, Shortcuts, NewBranch, DeleteBranch, ForceDeleteBranch, Stash };
+
+inline std::string_view popup_name(Popup popup) {
+    switch (popup) {
+        case Popup::Menu: return "Menu";
+        case Popup::ContextMenu: return "ContextMenu";
+        case Popup::Picker: return "Picker";
+        case Popup::Find: return "Find";
+        case Popup::Search: return "Search";
+        case Popup::SearchPreview: return "SearchPreview";
+        case Popup::Feedback: return "Feedback";
+        case Popup::CommitSearch: return "CommitSearch";
+        case Popup::FileHistory: return "FileHistory";
+        case Popup::Composer: return "Composer";
+        case Popup::Options: return "Options";
+        case Popup::Snapshot: return "Snapshot";
+        case Popup::ComparisonEditor: return "ComparisonEditor";
+        case Popup::CommitDetails: return "CommitDetails";
+        case Popup::PushDialog: return "PushDialog";
+        case Popup::RelinkDialog: return "RelinkDialog";
+        case Popup::Shortcuts: return "Shortcuts";
+        case Popup::NewBranch: return "NewBranch";
+        case Popup::DeleteBranch: return "DeleteBranch";
+        case Popup::ForceDeleteBranch: return "ForceDeleteBranch";
+        case Popup::Stash: return "Stash";
+    }
+    return "Menu";
+}
 
 struct Target {
     std::string repository;

@@ -5,6 +5,11 @@
 
 namespace git {
 
+// Commit-log page size: every log read (first page and lazy pages)
+// requests exactly this many commits; `hasMore` is whether a read
+// returned a full page (see ecs::commit_log_has_more).
+inline constexpr std::size_t kCommitLogPageSize = 100;
+
 struct HistoryScope {
     enum class Mode { Current, Branch, All };
     Mode mode = Mode::Current;
@@ -15,7 +20,7 @@ struct HistoryScope {
 };
 
 inline std::vector<std::string> history_scope_args(const HistoryScope& scope, size_t offset = 0) {
-    std::vector<std::string> args{"log", "--topo-order", "-100", "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P", "--skip=" + std::to_string(offset)};
+    std::vector<std::string> args{"log", "--topo-order", "-" + std::to_string(kCommitLogPageSize), "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P", "--skip=" + std::to_string(offset)};
     if (scope.mode == HistoryScope::Mode::All) {
         if (!scope.remotes) args.push_back("--exclude=refs/remotes/*");
         args.push_back("--all");
