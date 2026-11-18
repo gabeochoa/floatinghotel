@@ -345,7 +345,7 @@ static void trace_navigation_frame() {
         selected = repo->selectedCommitHash();
         log_info("NAV commit_click_accepted {:.2f}", elapsed);
     }
-    if (detail && !selected.empty() && detail->cachedCommitHash == selected && !detail->patchFuture.valid() &&
+    if (detail && !selected.empty() && detail->patch.key.commit == selected && !detail->patch_loading() &&
         !detail->commitDetailDiff.empty() && installed != selected) {
         installed = selected;
         log_info("NAV commit_patch_rendered {:.2f}", elapsed);
@@ -463,7 +463,7 @@ static void app_init() {
         auto& repo = tab.addComponent<ecs::RepoComponent>();
         repo.repoPath = path;
         if (!path.empty()) {
-            repo.refreshRequested = true;
+            repo.request_refresh();
             Settings::get().add_recent_repo(path);
             tab.get<ecs::Tab>().label = ecs::repo_display_name(path);
         }
@@ -757,11 +757,11 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                 const auto& scope = layout->filePickerScope;
                 refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.future.valid() &&
                     !layout->filePickerPosition.symbols.valid();
-                if (layout->filePickerOpen && !layout->filePickerPosition.lineMode && !layout->filePickerPosition.commandMode)
+                if (layout->picker.is_open() && layout->picker.mode == ecs::PickerMode::Files)
                     refreshDone = refreshDone && scope.catalogStarted && !scope.catalogDue &&
                         !scope.localFuture.valid() && !scope.remoteFuture.valid() && !scope.commitsFuture.valid() &&
                         !scope.extraFuture.valid() && !scope.statusFuture.valid() && !scope.changesFuture.valid();
-                refreshDone = refreshDone && !layout->relinkFuture.valid();
+                refreshDone = refreshDone && !layout->relinkDialog.future.valid();
             }
             // Menu git ops (stage/unstage/push...) request their refresh only
             // once they finish, so the gate has to cover them too.
@@ -769,45 +769,13 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                 refreshDone = refreshDone && ops->pending.empty();
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
-                refreshDone = refreshDone && !repo->refreshRequested && !repo->isRefreshing;
-                refreshDone = refreshDone && (repo->untrackedFiles.empty() ||
-                    (repo->untrackedReviewGeneration == repo->dataGeneration &&
-                     repo->untrackedReviewRepository == repo->repoPath && !repo->untrackedReviewFuture.valid()));
-                refreshDone = refreshDone && (repo->fullFilePath().empty() || !repo->fullFileFuture.valid() ||
-                    repo->fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->selectionCopy.future.valid() ||
-                    repo->selectionCopy.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->sourceFind.future.valid() ||
-                    repo->sourceFind.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                // Iterate the slot registry: gates_idle entries reproduce
+                // exactly the per-field conditions this gate used to spell
+                // out, now self-described by RepoComponent::async_slots().
+                for (const auto& slot : repo->async_slots())
+                    if (slot.gates_idle) refreshDone = refreshDone && !slot.busy(*repo);
                 if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>())
-                    refreshDone = refreshDone && (editor->templateLoaded || !repo->hasLoadedOnce);
-                for (auto& [scope, syntax] : repo->diffSyntax)
-                    refreshDone = refreshDone && (!syntax.future.valid() ||
-                        syntax.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && !frame_pacer::in_flight(repo->hunkScopes.future);
-                refreshDone = refreshDone && (!repo->hunkContext.future.valid() ||
-                    repo->hunkContext.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && !(repo->repoSearchOpen && repo->repoSearchDue);
-                refreshDone = refreshDone && (!repo->repoSearchFuture.valid() ||
-                    repo->repoSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->repoSearchPreviewFuture.valid() ||
-                    repo->repoSearchPreviewFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->codeownersFuture.valid() ||
-                    repo->codeownersFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->fileHistoryFuture.valid() ||
-                    repo->fileHistoryFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->blameFuture.valid() ||
-                    repo->blameFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->commitSearchFuture.valid() ||
-                    repo->commitSearchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->comparisonFuture.valid() ||
-                    repo->comparisonFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && (!repo->reviewQueueFuture.valid() ||
-                    repo->reviewQueueFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
-                refreshDone = refreshDone && !repo->rangeDiff.future.valid();
-                refreshDone = refreshDone && !repo->commitLogPage.requested && !repo->commitLogPage.future.valid();
-                refreshDone = refreshDone && !repo->historyScopeRequested && !repo->historyScopeFuture.valid();
-                refreshDone = refreshDone && !repo->pushDestinationFuture.valid();
+                    refreshDone = refreshDone && (editor->templateLoaded || !repo->has_loaded_once());
             }
             const auto waited =
                 std::chrono::steady_clock::now() - app_state::refreshWaitStart;
@@ -815,8 +783,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                 refreshDone = refreshDone && (!review->snapshotFuture.valid() ||
                     review->snapshotFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
             if (auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>()) {
-                refreshDone = refreshDone && (!detail->patchFuture.valid() ||
-                    detail->patchFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                refreshDone = refreshDone && (!detail->patch_loading() ||
+                    detail->patch.task.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
             }
             if (!refreshDone && waited > MAX_REFRESH_WAIT) {
                 log_warn("wait_for_refresh: refresh still running after {} s",
@@ -847,7 +815,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             bool refreshDone = true;
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (repo) {
-                refreshDone = !repo->refreshRequested && !repo->isRefreshing;
+                refreshDone = !repo->refresh_busy();
             }
             const auto waited =
                 std::chrono::steady_clock::now() - app_state::fileChangeWaitStart;
@@ -971,17 +939,17 @@ static bool app_has_pending_work() {
         .whereHasComponent<ecs::ActiveTab>()
         .for_each_stream([&](afterhours::Entity& entity) {
             const auto& repo = entity.get<ecs::RepoComponent>();
-            pending = pending || repo.refreshRequested || repo.isRefreshing ||
-                frame_pacer::in_flight(repo.untrackedReviewFuture) ||
-                frame_pacer::in_flight(repo.fullFileFuture) || repo.selectionCopy.future.valid() || frame_pacer::in_flight(repo.repoSearchFuture) ||
+            pending = pending || repo.refresh_busy() ||
+                frame_pacer::in_flight(repo.untrackedReview.task) ||
+                frame_pacer::in_flight(repo.fullFileLoad.task) || repo.selectionCopy.slot.task.valid() || frame_pacer::in_flight(repo.repoSearchFuture) ||
                 frame_pacer::in_flight(repo.repoSearchPreviewFuture) || frame_pacer::in_flight(repo.codeownersFuture) ||
-                frame_pacer::in_flight(repo.fileHistoryFuture) || frame_pacer::in_flight(repo.blameFuture) ||
-                frame_pacer::in_flight(repo.commitSearchFuture) || frame_pacer::in_flight(repo.comparisonFuture) ||
-                frame_pacer::in_flight(repo.reviewQueueFuture) || frame_pacer::in_flight(repo.rangeDiff.future) ||
-                frame_pacer::in_flight(repo.hunkScopes.future) || frame_pacer::in_flight(repo.markdownLink.future) ||
-                repo.commitLogPage.requested || frame_pacer::in_flight(repo.commitLogPage.future) ||
+                frame_pacer::in_flight(repo.fileHistory.task) || frame_pacer::in_flight(repo.blame.task) ||
+                frame_pacer::in_flight(repo.commitSearch.task) || frame_pacer::in_flight(repo.comparisonFuture) ||
+                frame_pacer::in_flight(repo.reviewQueue.task) || frame_pacer::in_flight(repo.rangeDiff.future) ||
+                frame_pacer::in_flight(repo.hunkScopes.slot.task) || frame_pacer::in_flight(repo.hunkContext.slot.task) || frame_pacer::in_flight(repo.markdownLink.slot.task) ||
+                (repo.commitLogPage.phase == ecs::LogPhase::LoadingPage) || frame_pacer::in_flight(repo.commitLogPage.future) ||
                 std::any_of(repo.diffSyntax.begin(), repo.diffSyntax.end(), [](const auto& entry) {
-                    return frame_pacer::in_flight(entry.second.future);
+                    return frame_pacer::in_flight(entry.second.slot.task);
                 });
         });
     if (pending) return true;
@@ -998,7 +966,7 @@ static bool app_has_pending_work() {
         .whereHasComponent<ecs::ActiveTab>()
         .for_each_stream([&](afterhours::Entity& entity) {
             const auto& detail = entity.get<ecs::CommitDetailCache>();
-            pending = pending || frame_pacer::in_flight(detail.patchFuture);
+            pending = pending || (detail.patch_loading() && frame_pacer::in_flight(detail.patch.task));
         });
     if (pending) return true;
     if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>())
@@ -1203,14 +1171,14 @@ static void app_frame() {
         if (metal_window_resize_pending()) return;
         auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if ((!repo || repo->repoPath.empty() ||
-             (repo->hasLoadedOnce && !repo->refreshRequested && !repo->isRefreshing)) &&
+             (repo->has_loaded_once() && !repo->refresh_busy())) &&
             !ui::image_diff::pending() && !ui::submodule_view::pending()) {
             static bool logged = false;
             if (!logged && std::getenv("FH_NAVIGATION_TIMING")) {
                 int loaded = 0;
                 for (const auto& entity : afterhours::EntityHelper::get_entities())
                     if (entity && entity->has<ecs::RepoComponent>() &&
-                        entity->get<ecs::RepoComponent>().hasLoadedOnce) ++loaded;
+                        entity->get<ecs::RepoComponent>().has_loaded_once()) ++loaded;
                 const auto elapsed = std::chrono::duration<double, std::milli>(
                     std::chrono::high_resolution_clock::now() - app_state::startTime).count();
                 log_info("NAV startup_ready loaded_tabs={} active_commits={} elapsed_ms={:.2f}", loaded,
@@ -1463,12 +1431,12 @@ int main(int argc, char* argv[]) {
         } else if (key == "edit_mode") {
             if (auto* r = repo()) {
                 const auto* doc = r->workspace().document(r->workspace().active_id());
-                return doc && doc->editMode ? "true" : "false";
+                return doc && doc->edit_mode() ? "true" : "false";
             }
         } else if (key == "edit_dirty") {
             if (auto* r = repo()) {
                 const auto* doc = r->workspace().document(r->workspace().active_id());
-                return doc && doc->editDirty ? "true" : "false";
+                return doc && doc->edit_dirty() ? "true" : "false";
             }
         } else if (key == "commit_message") {
             if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent,
@@ -1512,7 +1480,7 @@ int main(int argc, char* argv[]) {
                 return std::to_string(ecs::unresolved_comment_count(*r));
         } else if (key == "review_dirty") {
             if (auto* r = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
-                return r->dirty ? "true" : "false";
+                return r->dirty() ? "true" : "false";
         } else if (key == "diff_selected_text") {
             return ui::diff_sel::build_copy_text(ui::diff_sel::state(), false);
         } else if (key == "diff_has_selection") {
@@ -1607,8 +1575,63 @@ int main(int argc, char* argv[]) {
             if (auto* e = ecs::find_singleton<ecs::CommitEditorComponent,
                                               ecs::ActiveTab>())
                 return e->isAmend ? "true" : "false";
+        } else if (key.starts_with("async:")) {
+            if (key == "async:network_ops") {
+                if (auto* ops = ecs::find_singleton<ecs::NetworkOpsComponent>())
+                    return std::string(async_slot::name(ops->phase()));
+            }
+            if (key == "async:commit_patch") {
+                if (auto* detail = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
+                    return std::string(async_slot::name(detail->patch.phase));
+            }
+            if (key == "async:review_store") {
+                if (auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
+                    return std::string(ecs::review_store_phase_name(review->storePhase));
+            }
+            if (key == "async:commit_flow") {
+                if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>())
+                    return std::string(ecs::commit_flow_name(editor->flow));
+            }
+            if (key == "async:baseline") {
+                if (auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
+                    return std::string(ecs::baseline_name(review->baseline));
+            }
+            if (key == "async:composer") {
+                if (auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>())
+                    return std::string(ecs::composer_name(review->composer));
+            }
+            if (key == "async:picker") {
+                if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
+                    return std::string(ecs::picker_phase_name(layout->picker.phase));
+            }
+            if (key == "async:modal") {
+                if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
+                    return std::string(layout->modal_name());
+            }
+            if (key == "async:picker_mode") {
+                if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>())
+                    return std::string(ecs::picker_mode_name(layout->picker.mode));
+            }
+            if (key == "async:find") {
+                if (auto* r = repo())
+                    if (const auto* doc = r->workspace().document(r->workspace().active_id()))
+                        return std::string(reading::find_name(doc->find.phase));
+            }
+            if (key == "async:edit") {
+                if (auto* r = repo())
+                    if (const auto* doc = r->workspace().document(r->workspace().active_id()))
+                        return std::string(reading::edit_name(doc->edit));
+            }
+            if (key == "async:watch") {
+                if (app_state::fileWatcher)
+                    return std::string(ecs::watch_name(app_state::fileWatcher->phase()));
+            }
+            if (auto* r = repo()) {
+                if (auto phase = r->async_slot_phase(key.substr(6)))
+                    return std::string(*phase);
+            }
         } else if (key == "refresh_requested") {
-            if (auto* r = repo()) return r->refreshRequested ? "true" : "false";
+            if (auto* r = repo()) return r->refresh_requested() ? "true" : "false";
         } else if (key == "last_refresh_scope") {
             if (auto* r = repo()) return r->lastRefreshScope;
         } else if (key == "idle_rendered_frames") {

@@ -109,8 +109,8 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("Go to File...", "Cmd+P", [] {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) {
                 l->filePickerPosition = {};
-                l->filePickerOpen = true;
-                l->filePickerFocus = true;
+                if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) l->open_picker(ecs::PickerMode::Files, *repo);
+                else l->open_picker(ecs::PickerMode::Files);
             }
         }),
         MenuItem::item("Go to Line...", "Ctrl+G", [] {
@@ -144,7 +144,6 @@ inline std::vector<Menu> createMenuBar() {
             ecs::capture_repo_search_scope(*repo);
             ecs::open_repo_search(*repo);
             // An explicit command: search now rather than after the typing pause.
-            repo->repoSearchObservedText = {repo->repoSearchQuery, repo->repoSearchIncludeGlob, repo->repoSearchExcludeGlob};
             ecs::start_repo_search(*repo);
         }),
         MenuItem::item("Go to Definition", "F12", [] {
@@ -237,19 +236,19 @@ inline std::vector<Menu> createMenuBar() {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (!repo) return;
             repo->ignoreWhitespace = !repo->ignoreWhitespace;
-            repo->refreshRequested = true;
+            repo->request_refresh();
             repo->cachedFilePath.clear();
             if (auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
-                cache->cachedCommitHash.clear();
+                cache->patch.invalidate();
             set_pending_toast(repo->ignoreWhitespace ? "Whitespace differences ignored" : "All differences shown");
         }),
         MenuItem::item("Zero-context Diff (toggle)", "", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
                 repo->diffContext = repo->diffContext == 0 ? 3 : 0;
-                repo->refreshRequested = true;
+                repo->request_refresh();
                 repo->cachedFilePath.clear();
                 if (auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>())
-                    cache->cachedCommitHash.clear();
+                    cache->patch.invalidate();
                 set_pending_toast(repo->diffContext == 0 ? "Only changed lines shown" : "Three surrounding lines shown");
             }
         }),
@@ -322,7 +321,7 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::separator(),
         MenuItem::item("Commit...", "Cmd+Enter", [] {
             auto* e = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>();
-            if (e) e->commitRequested = true;
+            if (e) e->request_commit();
         }),
         MenuItem::item("Amend Last Commit", "", [] {
             auto* e = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>();
@@ -331,8 +330,9 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::separator(),
         MenuItem::item("New Branch...", "Cmd+Shift+B", [] {
             auto* bd = ecs::find_singleton<ecs::BranchDialogState, ecs::ActiveTab>();
-            if (bd) {
-                bd->showNewBranchDialog = true;
+            auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+            if (bd && layout) {
+                layout->open_modal(reading::focus::Popup::NewBranch);
                 bd->newBranchName.clear();
             }
         }),
@@ -361,7 +361,7 @@ inline std::vector<Menu> createMenuBar() {
     // Help menu
     menus.push_back({"Help", {
         MenuItem::item("Keyboard Shortcuts", "Cmd+Shift+/", [] {
-            if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) layout->shortcutsOpen = true;
+            if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) layout->open_modal(reading::focus::Popup::Shortcuts);
         }),
         MenuItem::item("Command Log", "", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();

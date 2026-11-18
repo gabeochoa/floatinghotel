@@ -19,16 +19,34 @@ inline int requested(const ecs::RepoComponent& repo, const std::string& key) {
 
 inline void poll(ecs::RepoComponent& repo, bool codeFocused) {
     auto& runtime = repo.hunkContext;
-    if (!runtime.future.valid() || runtime.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
-    auto result = runtime.future.get();
-    if (!navigation::accepts(repo, runtime.request, runtime.version)) return;
+    auto& slot = runtime.slot;
+    if (slot.phase == async_slot::Phase::Failed) {
+        // Cache an exception failure once so content() renders the error
+        // instead of relaunching for the same version every frame.
+        if (!slot.key.identity.empty()) {
+            auto found = runtime.entries.find(slot.key.identity);
+            if (found == runtime.entries.end() || found->second.version != slot.key.version)
+                runtime.entries[slot.key.identity] = {slot.key.version, {{}, slot.error}};
+        }
+        return;
+    }
+    auto landed = slot.poll(repo);
+    if (!landed) {
+        if (slot.phase == async_slot::Phase::Failed && !slot.key.identity.empty())
+            runtime.entries[slot.key.identity] = {slot.key.version, {{}, slot.error}};
+        return;
+    }
+    auto result = std::move(*landed);
+    const auto slotKey = slot.key;
     size_t bytes = result.bytes, lines = result.lines.lines.size();
-    for (const auto& [key, entry] : runtime.entries) if (key != runtime.pending) {
+    for (const auto& [entryKey, entry] : runtime.entries) if (entryKey != slotKey.identity) {
         bytes += entry.result.bytes;
         lines += entry.result.lines.lines.size();
     }
     if (bytes > 256 * 1024 || lines > 4096) result = {{}, "Expanded context is limited to 256 KiB and 4,096 lines; open source to read more"};
-    runtime.entries[runtime.pending] = {runtime.version, std::move(result)};
+    const bool failed = !result.error.empty();
+    runtime.entries[slotKey.identity] = {slotKey.version, result};
+    if (failed) slot.fail(result.error);
     navigation::restore_anchor(repo);
     if (codeFocused) navigation::focus_document(repo, reading::focus::Region::Code);
 }
@@ -45,16 +63,18 @@ inline const ecs::HunkContextResult* content(ecs::RepoComponent& repo, const ecs
     auto& runtime = repo.hunkContext;
     auto found = runtime.entries.find(identity);
     if (found != runtime.entries.end() && found->second.version == version) return &found->second.result;
-    if (!runtime.future.valid()) {
-        runtime.pending = identity;
-        runtime.version = version;
-        runtime.request = navigation::stamp(repo, version);
+    // Failed for this exact version is cached above as an entry; any
+    // other Failed slot may be superseded by a new request below.
+    if (!runtime.slot.busy() &&
+        !(runtime.slot.phase == async_slot::Phase::Failed && runtime.slot.key.identity == identity &&
+          runtime.slot.key.version == version)) {
         auto [oldRevision, newRevision] = diff_revisions(scope);
         git::FileRequest before{repo.repoPath, file.oldPath.empty() ? file.filePath : file.oldPath, oldRevision};
         git::FileRequest after{repo.repoPath, file.filePath, newRevision};
-        runtime.future = async_work::launch([before, after, wanted](std::stop_token stop) {
-            return git::read_hunk_context(before, after, wanted, stop);
-        }, async_work::Priority::Background, ecs::HunkContextResult{{}, "Context reader is busy; try again"});
+        runtime.slot.request({identity, version}, navigation::stamp(repo, version),
+            async_work::launch([before, after, wanted](std::stop_token stop) {
+                return git::read_hunk_context(before, after, wanted, stop);
+            }, async_work::Priority::Background, ecs::HunkContextResult{{}, "Context reader is busy; try again"}));
     }
     if (found == runtime.entries.end() || !found->second.version.starts_with(source)) return nullptr;
     const auto& lines = found->second.result.lines;

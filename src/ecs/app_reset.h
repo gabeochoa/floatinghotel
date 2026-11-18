@@ -12,11 +12,8 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.focusRepositoryOwner = -1;
     layout.filePickerScope = {};
     layout.filePickerPosition = {};
-    layout.filePickerOpen = false;
-    layout.repoPickerOpen = false;
-    layout.repoPickerFuture = {};
-    layout.repoPickerResolved.clear();
-    layout.repoPickerResolveKey.clear();
+    layout.picker.reset();
+    layout.repoPicker = {};
     layout.filePickerFocus = false;
     layout.filePickerQuery.clear();
     layout.filePickerCacheKey.clear();
@@ -30,10 +27,11 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.reviewTab = LayoutComponent::ReviewTab::ToReview;
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
-    layout.shortcutsOpen = false;
+    layout.modal.reset();
+    layout.modalByOwner.clear();
+    layout.relinkDialog = {};
     // An earlier script that opened diff Options left the filter rows open,
     // pushing the next script's diff below the fold (flow_unstaged_all_files).
-    layout.diffOptionsOpen = false;
     layout.visibleWhitespace = false;
     layout.blameGutter = false;
     layout.minimap = false;
@@ -63,10 +61,9 @@ inline void reset_commit_editor(CommitEditorComponent& editor) {
     editor.body.clear();
     editor.isVisible = false;
     editor.isAmend = false;
-    editor.commitRequested = false;
+    editor.flow = CommitFlow::Editing;
     editor.commitFuture = {};
     editor.commitPolicyOverride.reset();
-    editor.showUnstagedDialog = false;
     editor.rememberChoice = false;
 }
 

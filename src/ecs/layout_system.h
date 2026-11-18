@@ -43,7 +43,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             bool hasRepoForShelf = shelfRepo && !shelfRepo->repoPath.empty();
             bool nothingSelected = hasRepoForShelf && shelfRepo->workspace().documents().size() == 1 && !source_tab_active(*shelfRepo) &&
                                    shelfRepo->selectedFilePath().empty() &&
-                                   shelfRepo->selectedCommitHash().empty() && !layout.filePickerOpen && !shelfRepo->repoSearchOpen && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen && !shelfRepo->comparisonOpen();
+                                   shelfRepo->selectedCommitHash().empty() && !layout.picker.is_open() && !shelfRepo->repo_search_open() && !shelfRepo->fileHistoryOpen && !shelfRepo->commitSearchOpen && !shelfRepo->comparisonOpen();
             // The lone document is the untouched blank one only until the
             // user navigates: explicitly opening the changes document
             // (no file picked — it shows the whole section) counts as a
@@ -96,12 +96,12 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const float tabStripH = std::min(28.f, availableH);
         const float menuH = native_menu::is_installed() ? 0.f : std::min(26.f, availableH - tabStripH);
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
-        const bool sidebarShown = layout.sidebarVisible || (repo && repo->repoSearchOpen);
+        const bool sidebarShown = layout.sidebarVisible || (repo && repo->repo_search_open());
         const float toolbarH = !sidebarShown && repo && !repo->reviewWorkspace
             ? std::min(42.f, availableH - tabStripH - menuH) : 0.f;
         const float topY = tabStripH + menuH + toolbarH;
         const float bodyH = availableH - topY;
-        const bool sidebarOnly = sidebarShown && layout.shelfCollapsed && !(repo && repo->repoSearchOpen);
+        const bool sidebarOnly = sidebarShown && layout.shelfCollapsed && !(repo && repo->repo_search_open());
         const auto sidebarState = !sidebarShown ? review_layout::Sidebar::Hidden
             : sidebarOnly ? review_layout::Sidebar::Collapsed
             : review_layout::Sidebar::Expanded;

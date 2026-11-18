@@ -23,15 +23,15 @@ struct ReadingLayoutSystem : afterhours::System<UIContext<InputAction>> {
         const bool userScroll = scroll.dragging_scrollbar ||
             ((wheel.x != 0.f || wheel.y != 0.f) && afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(**entity)));
         if (userScroll) navigation::cancel_anchor(*repo);
-        if (!state.ready || !repo->hasLoadedOnce || repo->isRefreshing || repo->refreshRequested ||
-            (source_tab_active(*repo) && repo->fullFileFuture.valid() && !repo->fullFileExtendRequest)) return;
+        if (!state.ready || !repo->has_loaded_once() || repo->refresh_busy() ||
+            (source_tab_active(*repo) && repo->fullFileLoad.task.valid() && !repo->fullFileLoad.extending())) return;
         const auto* document = repo->workspace().document(repo->workspace().active_id());
         const bool changedLayout = state.previousDocument == document->id &&
             (state.previousKey != state.key || std::fabs(state.width - viewport.width) > .5f || std::fabs(state.height - viewport.height) > .5f ||
              (!(source_tab_active(*repo) && state.codeRows) && std::fabs(state.contentHeight - scroll.content_size.y) > .5f));
         const auto* review = find_singleton<ReviewComponent, ActiveTab>();
-        const bool composing = review && !review->composingKey.empty() && !source_tab_active(*repo) &&
-            review->composingScope == reading::scope(repo->workspace().review());
+        const bool composing = review && review->composer == Composer::Composing && !source_tab_active(*repo) &&
+            review->composerDraft.scope == reading::scope(repo->workspace().review());
         const bool revealing = repo->fullFileNavigateFrames > 0 || repo->diffTargetFrames > 0;
         if (changedLayout && !userScroll && !revealing && !composing) navigation::restore_anchor(*repo);
         std::optional<reading::ReadingAnchor> sample;

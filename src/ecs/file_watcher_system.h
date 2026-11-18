@@ -2,6 +2,8 @@
 
 #include <chrono>
 #include <filesystem>
+#include <optional>
+#include <string_view>
 
 #include <afterhours/src/core/system.h>
 #include "../platform/file_watcher.h"
@@ -13,6 +15,14 @@ namespace ecs {
 struct FileWatcherSystem : afterhours::System<RepoComponent> {
 
     bool disabled = false;
+
+    Watch phase() const {
+        if (swapFuture_.valid()) return Watch::Swapping;
+        if (watched_path_.empty()) return Watch::Idle;
+        if (pendingScope_.has_value()) return Watch::CoolingDown;
+        return Watch::Watching;
+    }
+    const std::optional<refresh_scope::Scope>& pending_scope() const { return pendingScope_; }
     // Times the watcher has requested a refresh. The E2E gate
     // `wait_for_file_change` arms on this, since headless ticks run far faster
     // than the wall clock the cooldown and FSEvents latency are measured in.
@@ -41,8 +51,7 @@ struct FileWatcherSystem : afterhours::System<RepoComponent> {
         if (repo.repoPath != watched_path_ || repo.repoVersion != watched_version_) {
             watched_path_ = repo.repoPath;
             watched_version_ = repo.repoVersion;
-            pending_ = false;
-            pending_scope_ = refresh_scope::Scope::None;
+            pendingScope_.reset();
             cooldown_until_ = clock::now() + COOLDOWN;
             if (swapFuture_.valid()) swapTarget_ = repo.repoPath;  // coalesce rapid switches
             else launch_watch_swap(repo.repoPath);
@@ -52,21 +61,18 @@ struct FileWatcherSystem : afterhours::System<RepoComponent> {
         // Events left in the watcher queue could be cleared by a re-watch
         // (tab/repo switch) and an amend landing mid-refresh was then lost.
         for (const auto& event : watcher_.poll_events()) {
-            pending_scope_ = refresh_scope::merge(pending_scope_,
+            pendingScope_ = refresh_scope::merge(pendingScope_.value_or(refresh_scope::Scope::None),
                 refresh_scope::classify(resolved_root_, common_git_dir_, event.path, event.mustRescan));
-            pending_ = true;
         }
-        if (!pending_) return;
-        if (repo.refreshRequested || repo.isRefreshing) {
+        if (!pendingScope_.has_value()) return;
+        if (repo.refresh_busy()) {
             cooldown_until_ = clock::now() + COOLDOWN;
             return;
         }
         if (clock::now() < cooldown_until_) return;
         ++fired;
-        repo.refreshScope = refresh_scope::merge(repo.refreshScope, pending_scope_);
-        repo.refreshRequested = true;
-        pending_ = false;
-        pending_scope_ = refresh_scope::Scope::None;
+        repo.request_refresh(*pendingScope_);
+        pendingScope_.reset();
         cooldown_until_ = clock::now() + COOLDOWN;
     }
 
@@ -102,8 +108,7 @@ private:
     std::string resolved_root_;
     std::filesystem::path common_git_dir_;
     unsigned watched_version_ = 0;
-    refresh_scope::Scope pending_scope_ = refresh_scope::Scope::None;
-    bool pending_ = false;
+    std::optional<refresh_scope::Scope> pendingScope_;
     clock::time_point cooldown_until_{};
 };
 

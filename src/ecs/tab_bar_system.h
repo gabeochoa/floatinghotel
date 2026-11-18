@@ -329,7 +329,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         if (!target || *target >= tabStrip.tabOrder.size()) return;
         auto tab = EntityHelper::getEntityForID(tabStrip.tabOrder[*target]);
         if (!tab.valid() || tab->cleanup || !tab->has<Tab>() || tab->has<ActiveTab>()) return;
-        layout.filePickerOpen = false;
+        layout.cancel_picker();
         switch_to_tab(tab.asE(), layout);
     }
 
@@ -384,12 +384,11 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             // saving) went unseen. Keep showing the cached state and
             // revalidate it; a quick bounce between tabs does not re-run git.
             const auto awayFor = now - newTab.get<Tab>().deactivatedAt;
-            if (oldActiveEnt && oldActiveEnt->id != newTab.id && repo.hasLoadedOnce && !repo.repoPath.empty() &&
+            if (oldActiveEnt && oldActiveEnt->id != newTab.id && repo.has_loaded_once() && !repo.repoPath.empty() &&
                 awayFor >= refresh_after_away()) {
                 using refresh_scope::Scope;
-                repo.refreshScope = refresh_scope::merge(repo.refreshScope,
+                repo.request_refresh(
                     refresh_scope::merge(Scope::Worktree, refresh_scope::merge(Scope::Index, Scope::Refs)));
-                repo.refreshRequested = true;
             }
         }
 
@@ -438,7 +437,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
     static void open_repository(const std::string& path, LayoutComponent& layout, bool forceNewTab = false) {
         auto* strip = find_singleton<TabStripComponent>();
         if (!strip || path.empty()) return;
-        layout.repositoryPickerFocusPending = true;
+        layout.repoPicker.focusPending = true;
         std::error_code error;
         const auto canonical = std::filesystem::weakly_canonical(path, error);
         if (error) return;
@@ -456,8 +455,8 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         active = find_singleton<RepoComponent, ActiveTab>();
         if (!active) return;
         active->repoPath = canonical.string();
-        active->refreshRequested = true;
-        layout.filePickerOpen = false;
+        active->request_refresh();
+        layout.cancel_picker();
         Settings::get().add_recent_repo(active->repoPath);
         Settings::get().add_open_repo(active->repoPath);
         Settings::get().set_last_active_repo(active->repoPath);

@@ -54,7 +54,7 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
                     else {
                         layout->filePickerPosition = {};
                         layout->filePickerQuery = prefix + "/";
-                        layout->filePickerOpen = layout->filePickerFocus = true;
+                        layout->open_picker(PickerMode::Files, repo);
                     }
                 }
             }
@@ -108,14 +108,18 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
     // editable buffer; committed and index content stays read-only.
     if (source_edit_eligible(repo)) {
         const auto* doc = repo.workspace().document(repo.workspace().active_id());
-        const bool editing = doc && doc->editMode;
-        const bool dirty = doc && doc->editDirty;
-        auto pill = button(ctx, mk(header.ent(), 4), preset::Button(editing ? (dirty ? "Editing •" : "Editing") : "Read-only")
+        const bool editing = doc && doc->edit_mode();
+        const bool dirty = doc && doc->edit_dirty();
+        const bool saveFailed = doc && doc->edit == reading::Edit::SaveFailed;
+        auto pill = button(ctx, mk(header.ent(), 4), preset::Button(saveFailed ? "Save failed" : editing ? (dirty ? "Editing •" : "Editing") : "Read-only")
             .with_size(ComponentSize{pixels(compact ? 62 : 84), pixels(28)})
             .with_font_size(pixels(12)).with_debug_name("source_edit_toggle"));
-        ui::set_tooltip(pill.ent(), editing ? "Switch back to read-only (unsaved changes are kept in the buffer)" : "Edit this file");
+        ui::set_tooltip(pill.ent(), saveFailed && doc ? doc->editError : editing ? "Switch back to read-only (unsaved changes are kept in the buffer)" : "Edit this file");
         if (pill) {
-            if (auto* editDoc = navigation::active_edit_document(repo)) editDoc->editMode = !editing;
+            if (auto* editDoc = navigation::active_edit_document(repo)) {
+                if (editing) editDoc->stop_edit();
+                else editDoc->begin_edit();
+            }
         }
     } else {
         auto pill = div(ctx, mk(header.ent(), 4), ComponentConfig{}
@@ -212,10 +216,10 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
                 std::vector<std::string> args{"blame", "--line-porcelain", "-L", std::to_string(selectedLine) + "," + std::to_string(selectedLine)};
                 if (!active->fullFileRevision().empty()) args.push_back(active->fullFileRevision());
                 args.insert(args.end(), {"--", active->fullFilePath()});
-                active->blameFutureStamp = navigation::stamp(*active, std::to_string(selectedLine));
-                active->blameFuture = git::git_run_async(active->repoPath, args);
                 active->blameLine = {};
-                active->blameError.clear();
+                active->blame.request(std::to_string(selectedLine),
+                    navigation::stamp(*active, std::to_string(selectedLine)),
+                    git::git_run_async(active->repoPath, args));
                 active->blameOpen = true;
             }
         }, selectedLine > 0 && revision != "INDEX"));
@@ -226,23 +230,23 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
     }));
     if (source_edit_eligible(repo)) {
         items.push_back(ui::ContextMenuItem::separator());
-        if (!document->editMode) {
+        if (!document->edit_mode()) {
             items.push_back(ui::ContextMenuItem::item("Edit file", [current] {
                 if (auto* active = current())
-                    if (auto* doc = navigation::active_edit_document(*active)) doc->editMode = true;
+                    if (auto* doc = navigation::active_edit_document(*active)) doc->begin_edit();
             }));
         } else {
             items.push_back(ui::ContextMenuItem::item("Save", [current] {
                 if (auto* active = current())
                     if (auto* doc = navigation::active_edit_document(*active)) save_edit_buffer(*active, *doc);
-            }, document->editDirty, document->editDirty ? "" : "No unsaved changes"));
+            }, document->edit_dirty(), document->edit_dirty() ? "" : "No unsaved changes"));
             items.push_back(ui::ContextMenuItem::item("Discard changes", [current] {
                 if (auto* active = current())
                     if (auto* doc = navigation::active_edit_document(*active)) discard_edit_buffer(*doc);
-            }, document->editDirty, document->editDirty ? "" : "No unsaved changes"));
+            }, document->edit_dirty(), document->edit_dirty() ? "" : "No unsaved changes"));
             items.push_back(ui::ContextMenuItem::item("Stop editing", [current] {
                 if (auto* active = current())
-                    if (auto* doc = navigation::active_edit_document(*active)) doc->editMode = false;
+                    if (auto* doc = navigation::active_edit_document(*active)) doc->stop_edit();
             }));
         }
     }
@@ -263,9 +267,9 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
             choices.push_back(ui::ContextMenuItem::item(label, [current, encoding] {
                 if (auto* source = current(); source && source->fullFileEncodingOverride != encoding) {
                     source->fullFileEncodingOverride = encoding;
-                    source->fullFileCacheKey.clear();
+                    source->fullFileLoad.invalidate_key();
                     source->fullFilePage = {};
-                    source->fullFilePageRequest = {};
+                    source->fullFileLoad.request = {};
                     navigation::clear_source_reveal(*source);
                     source->fullFileRequestedTargetLine = source->fullFileRequestedTargetColumn = 0;
                 }

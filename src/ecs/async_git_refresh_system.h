@@ -114,30 +114,26 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
         auto id = entity.id;
 
-        if (entity.has<ActiveTab>() && repo.hasLoadedOnce) sawActiveLoaded_ = true;
-        if (!entity.has<ActiveTab>() && !repo.hasLoadedOnce && !repo.isRefreshing) {
+        if (entity.has<ActiveTab>() && repo.has_loaded_once()) sawActiveLoaded_ = true;
+        if (!entity.has<ActiveTab>() && !repo.has_loaded_once() && !repo.refreshing()) {
             // Warm one restored inactive tab at a time once the active tab
             // has loaded, so first activation is not a cold refresh.
             if (!sawActiveLoaded_ || warming_ || repo.repoPath.empty()) return;
             warming_ = true;
             warmingId_ = id;
-            repo.refreshRequested = true;
+            repo.request_refresh();
             log_info("refresh: warming restored tab {}", repo.repoPath);
         }
 
         // Phase 1: kick off async operations for any tab that requests refresh
-        if (repo.refreshRequested && !repo.isRefreshing) {
+        if (repo.refresh_requested()) {
             if (repo.repoPath.empty()) {
-                repo.refreshRequested = false;
+                repo.abandon_refresh();
                 return;
             }
 
-            repo.refreshRequested = false;
-            repo.isRefreshing = true;
             refreshStart_[id] = std::chrono::steady_clock::now();
-            auto scope = repo.refreshScope;
-            if (scope == refresh_scope::Scope::None) scope = refresh_scope::Scope::Full;
-            repo.refreshScope = refresh_scope::Scope::None;
+            auto scope = repo.begin_refresh();
             auto plan = refresh_scope::plan(scope);
             if (plan.log) repo.commitLogPage = {};
             repo.lastRefreshScope = refresh_scope::name(scope);
@@ -185,7 +181,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 pf.stashes = git::git_run_async(path, {"stash", "list"}, async_work::Priority::Background);
             }
             if (plan.stagedDiff) pf.stagedDiff = parsed_async<ParsedDiff>(git::git_run_async(path, stagedArgs, async_work::Priority::Background), [](const std::string& out) { return git::parse_diff(out); });
-            repo.commitLogLoading = plan.log;
+            if (plan.log) repo.commitLogPage.begin_scope();
             // No rev-parse HEAD: the first log entry is HEAD, and every
             // subprocess is one more spawn on the startup path.
         }
@@ -193,15 +189,12 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
         update_history_scope(repo);
         update_history_page(repo);
         load_commit_template(entity, repo);
-        if (!repo.isRefreshing) {
-            if (repo.untrackedReviewFuture.valid() &&
-                (repo.untrackedReviewGeneration != repo.dataGeneration || repo.untrackedReviewRepository != repo.repoPath))
-                repo.untrackedReviewFuture = {};
-            if (repo.untrackedReviewFuture.valid() && repo.untrackedReviewFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-                auto result = repo.untrackedReviewFuture.get();
-                repo.untrackedReviewNotice = std::move(result.notice);
+        if (!repo.refreshing()) {
+            if (repo.untrackedReview.stale_in_flight(repo.dataGeneration, repo.repoPath))
+                repo.untrackedReview.invalidate();
+            if (auto result = repo.untrackedReview.poll()) {
                 bool appended = false;
-                for (auto& file : result.files) {
+                for (auto& file : result->files) {
                     auto existing = std::find_if(repo.currentDiff.begin(), repo.currentDiff.end(), [&](const auto& value) {
                         return value.filePath == file.filePath;
                     });
@@ -210,14 +203,13 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 }
                 if (appended) ++repo.patchGeneration;
             }
-            if (repo.hasLoadedOnce && (repo.untrackedReviewGeneration != repo.dataGeneration ||
-                                      repo.untrackedReviewRepository != repo.repoPath)) {
-                repo.untrackedReviewGeneration = repo.dataGeneration;
-                repo.untrackedReviewRepository = repo.repoPath;
-                repo.untrackedReviewNotice.clear();
+            if (repo.has_loaded_once() && repo.untrackedReview.needs_read(repo.dataGeneration, repo.repoPath)) {
                 if (!repo.untrackedFiles.empty()) {
                     repo.untrackedReviewLoading.restart();
-                    repo.untrackedReviewFuture = git::read_untracked_review_files_async(repo.repoPath, repo.untrackedFiles);
+                    repo.untrackedReview.begin(repo.dataGeneration, repo.repoPath,
+                        git::read_untracked_review_files_async(repo.repoPath, repo.untrackedFiles));
+                } else {
+                    repo.untrackedReview.settle(repo.dataGeneration, repo.repoPath);
                 }
             }
             return;
@@ -225,15 +217,14 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
         auto it = pending_.find(id);
         if (it == pending_.end()) {
-            repo.isRefreshing = false;
+            repo.abandon_refresh();
             return;
         }
         auto& pf = it->second;
         if (pf.repository != repo.repoPath) {
             pending_.erase(it);
-            repo.isRefreshing = false;
+            repo.requeue_refresh();
             repo.statusKnown = repo.branchKnown = false;
-            repo.refreshRequested = true;
             return;
         }
 
@@ -246,7 +237,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             pf.status.reset();
             const auto& result = outcome.raw;
             log_info("refresh: status ready at {} ms", ms_since(id));
-            bool statusChanged = !repo.hasLoadedOnce;
+            bool statusChanged = !repo.has_loaded_once();
             if (result.success()) {
                 auto parsed = std::move(outcome.parsed);
                 statusChanged = statusChanged || repo.headCommitHash != parsed.headHash ||
@@ -298,7 +289,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 }
             }
             if (!result.success()) { repo.statusKnown = false; repo.statusError = result.stderr_str().empty() ? "Unable to read working changes" : result.stderr_str(); }
-            repo.hasLoadedOnce = true;
+            repo.note_refresh_loaded();
             if (statusChanged) ++repo.dataGeneration;
         }
 
@@ -307,10 +298,13 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
             auto outcome = pf.log->get();
             pf.log.reset();
             const auto& result = outcome.raw;
-            if (!repo.historyScopeFuture.valid()) repo.commitLogLoading = false;
+            if (!repo.historyScopeFuture.valid() && repo.commitLogPage.phase == LogPhase::LoadingScope)
+                repo.commitLogPage.phase = LogPhase::Idle;
             if (result.success() && pf.historyKey == repo.historyScope.key() && !repo.historyScopeFuture.valid()) {
                 repo.historyError.clear();
+                repo.commitLogPage.requestedPageSize = git::kCommitLogPageSize;
                 auto parsedLog = std::move(outcome.parsed);
+                const size_t returned = parsedLog.size();
                 if (!diff_reconcile::commit_log_equal(repo.commitLog, parsedLog)) {
                     repo.commitLog = std::move(parsedLog);
                     // Amended/rebased tip: a view pinned to the old HEAD hash
@@ -321,13 +315,14 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                         repo.commitLog.front().hash != pf.headBefore)
                         navigation::follow_rewritten_tip(repo, pf.headBefore, repo.commitLog.front().hash);
                 }
-                repo.commitLogLoaded =
-                    static_cast<int>(repo.commitLog.size());
-                repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
+                repo.commitLogPage.finish(returned);
                 if (repo.historyScope.mode == git::HistoryScope::Mode::Current && !repo.historyScope.remotes)
                     repo.headCommitHash = repo.commitLog.empty() ? std::string() : repo.commitLog.front().hash;
             }
-            if (!result.success() && pf.historyKey == repo.historyScope.key()) repo.historyError = result.stderr_str();
+            if (!result.success() && pf.historyKey == repo.historyScope.key()) {
+                repo.historyError = result.stderr_str();
+                if (!repo.historyScopeFuture.valid()) repo.commitLogPage.fail(repo.historyError);
+            }
             log_info("commits loaded: {} commits, {} ms after refresh "
                      "requested, {} ms since process start",
                      repo.commitLog.size(), ms_since(id),
@@ -347,7 +342,7 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 // Untracked previews are appended to currentDiff, not in git diff:
                 // reconcile just dropped them, so re-read them even if status is unchanged.
                 if (!repo.untrackedFiles.empty())
-                    repo.untrackedReviewGeneration.reset();
+                    repo.untrackedReview.invalidate();
             }
         }
 
@@ -403,9 +398,8 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 ++repo.allFilePathsGeneration;
             }
         }
-        if (!pf.status && !pf.log && !pf.diff && !pf.stagedDiff && !pf.branches && !pf.files && !pf.stashes) {
-            repo.isRefreshing = false;
-            repo.hasLoadedOnce = true;
+        if (pf.done()) {
+            repo.finish_refresh();
             // A warmed (never-activated) tab's deactivatedAt is the epoch,
             // so switching to it looked like returning after an eternity
             // and re-ran git despite the warm data. Stamp the warm time:
@@ -429,17 +423,21 @@ private:
                 [](const std::string& out) { return git::parse_log(out); });
             repo.commitLogPage = {};
             repo.commitLog.clear();
-            repo.commitLogLoading = true;
+            repo.commitLogPage.begin_scope();
             repo.historyError.clear();
         }
         if (repo.historyScopeFuture.valid() && repo.historyScopeFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto outcome = repo.historyScopeFuture.get();
             if (key != repo.historyScopeRequestKey) return;
-            repo.commitLogLoading = false;
-            if (!outcome.raw.success()) { repo.historyError = outcome.raw.stderr_str(); return; }
+            if (!outcome.raw.success()) {
+                repo.historyError = outcome.raw.stderr_str();
+                repo.commitLogPage.fail(repo.historyError);
+                return;
+            }
+            const size_t returned = outcome.parsed.size();
+            repo.commitLogPage.requestedPageSize = git::kCommitLogPageSize;
             repo.commitLog = std::move(outcome.parsed);
-            repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
-            repo.commitLogHasMore = repo.commitLog.size() == 100;
+            repo.commitLogPage.finish(returned);
             repo.historyRestorePosition = true;
         }
     }
@@ -450,20 +448,20 @@ private:
                 page.offset != repo.commitLog.size())) page = {};
         if (page.future.valid() && page.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto outcome = page.future.get();
+            page.future = {};
             if (outcome.raw.success()) {
                 auto commits = std::move(outcome.parsed);
-                repo.commitLogHasMore = commits.size() == 100;
+                const size_t returned = commits.size();
                 repo.commitLog.insert(repo.commitLog.end(), std::make_move_iterator(commits.begin()), std::make_move_iterator(commits.end()));
-                repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
-                page.error.clear();
-            } else page.error = outcome.raw.stderr_str().empty() ? "Unable to load older commits" : outcome.raw.stderr_str();
+                page.finish(returned);
+            } else page.fail(outcome.raw.stderr_str().empty() ? "Unable to load older commits" : outcome.raw.stderr_str());
         }
-        if (!page.requested || page.future.valid() || repo.isRefreshing || repo.refreshRequested) return;
-        page.requested = false;
-        if (!repo.commitLogHasMore || repo.commitLog.empty()) return;
+        if (page.phase != LogPhase::LoadingPage || page.future.valid() || repo.refresh_busy()) return;
+        if (!page.hasMore || repo.commitLog.empty()) { page.phase = LogPhase::Idle; return; }
         page.repository = repo.repoPath;
         page.head = repo.headCommitHash;
         page.offset = repo.commitLog.size();
+        page.requestedPageSize = git::kCommitLogPageSize;
         page.error.clear();
         auto args = git::history_scope_args(repo.historyScope, page.offset);
         if (repo.historyScope.mode == git::HistoryScope::Mode::Current && !repo.historyScope.remotes)
@@ -508,6 +506,11 @@ private:
         std::optional<async_work::Task<ParsedDiff>> stagedDiff;
         std::optional<async_work::Task<ParsedBranches>> branches;
         std::optional<async_work::Task<git::GitResult>> stashes;
+        // Refresh completion (M1): every per-read future consumed. The
+        // refresh poll drives Running -> Settled from this alone.
+        bool done() const {
+            return !status && !log && !diff && !stagedDiff && !branches && !files && !stashes;
+        }
     };
 
     std::unordered_map<afterhours::EntityID, PendingFutures> pending_;

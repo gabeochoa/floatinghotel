@@ -47,7 +47,7 @@ inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx
         state.shown.reset();
         return true;
     }
-    if (step && !blocked && !layout.filePickerOpen && !is_context_menu_open()) {
+    if (step && !blocked && !layout.picker.is_open() && !is_context_menu_open()) {
         static_cast<void>(ctx.pressed(InputAction::WidgetNext));
         if (!state.cycle) {
             state.cycle = reading::DocumentCycle{reading::recent_documents(repo->workspace())};

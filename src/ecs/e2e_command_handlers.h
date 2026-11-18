@@ -233,24 +233,29 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             navigation::reset(repo);
             repo.ignoreWhitespace = false;
             repo.diffContext = 3;
-            repo.fullFileCacheKey.clear();
+            repo.fullFileLoad.invalidate_key();
             repo.fullFileMarkdownPreview = false;
             repo.markdownLink = {};
             if (theme::current_theme_name != theme::ThemeName::Dark) apply_ui_theme(false);
-            repo.repoSearchOpen = false;
+            repo.close_search();
+            repo.repoSearchOptionsOpen = false;
+            repo.repoSearchChangedOnly = false;
+            repo.repoSearchIncludeGlob.clear();
+            repo.repoSearchExcludeGlob.clear();
             repo.fileHistoryOpen = false;
-            repo.fileHistoryFuture = {};
+            repo.fileHistory.invalidate();
             repo.fileHistoryEntries.clear();
             repo.commitSearchOpen = false;
-            repo.commitSearchFuture = {};
+            repo.commitSearch.invalidate();
             repo.commitSearchEntries.clear();
             repo.commitSearchQuery = {};
             repo.comparisonFuture = {};
             repo.comparisonLoadedScope.clear();
+            repo.close_comparison();
             repo.blameOpen = false;
-            repo.pushDialogOpen = false;
-            repo.comparisonEditorOpen = false;
-            repo.blameFuture = {};
+            if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) layout->modal.reset();
+            repo.blame.cancel();
+            repo.blameGutter.cancel();
             repo.diffTargetFrames = 0;
             repo.repoSearchFuture = {};
             repo.repoSearchPreviewFuture = {};
@@ -266,7 +271,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
 
             auto* detailCache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
             if (detailCache) {
-                detailCache->cachedCommitHash.clear();
+                detailCache->patch.key.commit.clear();
                 detailCache->commitDetailDiff.clear();
                 detailCache->commitDetailBody.clear();
                 detailCache->commitDetailAuthorEmail.clear();
@@ -275,11 +280,8 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
 
             auto* branchDialog = ecs::find_singleton<ecs::BranchDialogState, ecs::ActiveTab>();
             if (branchDialog) {
-                branchDialog->showNewBranchDialog = false;
                 branchDialog->newBranchName.clear();
-                branchDialog->showDeleteBranchDialog = false;
                 branchDialog->deleteBranchName.clear();
-                branchDialog->showForceDeleteDialog = false;
             }
 
             auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
@@ -298,8 +300,8 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
                 ecs::reset_menus(*menu);
             }
 
-            repo.refreshRequested = true;
-            repo.isRefreshing = true;
+            repo.request_refresh();
+            (void)repo.begin_refresh();
 
             auto statusResult = git::git_status(repoPath);
             if (statusResult.success()) {
@@ -316,19 +318,17 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
                                !repo.untrackedFiles.empty();
             }
 
-            auto logResult = git::git_log(repoPath, 100, 0);
+            auto logResult = git::git_log(repoPath, static_cast<int>(git::kCommitLogPageSize), 0);
             if (logResult.success()) {
                 repo.commitLog = git::parse_log(logResult.stdout_str());
-                repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
-                repo.commitLogHasMore = (repo.commitLogLoaded >= 100);
+                repo.commitLogPage.requestedPageSize = git::kCommitLogPageSize;
+                repo.commitLogPage.finish(repo.commitLog.size());
             }
 
             auto diffResult = git::git_diff(repoPath);
             auto stagedResult = git::git_run(repoPath, {"diff", "--cached"});
             repo.stagedDiff = stagedResult.success() ? git::parse_diff(stagedResult.stdout_str()) : std::vector<ecs::FileDiff>{};
-            repo.untrackedReviewFuture = {};
-            repo.untrackedReviewGeneration.reset();
-            repo.untrackedReviewNotice.clear();
+            repo.untrackedReview = {};
             ++repo.dataGeneration;
             auto filesResult = git::git_run(repoPath, {"ls-files", "--cached", "--others", "--exclude-standard", "-z"});
             repo.allFilePaths = git::parse_null_paths(filesResult.stdout_str());
@@ -352,9 +352,7 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
                 }
             }
 
-            repo.isRefreshing = false;
-            repo.refreshRequested = false;
-            repo.hasLoadedOnce = true;
+            repo.settle_refresh();
             repo.repoVersion++;
         } else {
             log_warn("make_test_repo: no RepoComponent entity found!");

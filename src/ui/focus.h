@@ -86,11 +86,11 @@ inline bool shortcuts_blocked(const ecs::LayoutComponent& layout) {
     const auto* menu = ecs::find_singleton<ecs::MenuComponent>();
     const auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
     const bool details = repo && repo->workspace().document(repo->workspace().active_id())->detailsExpanded;
-    return layout.shortcutsOpen || layout.relinkOpen || details || (repo && repo->pushDialogOpen) || is_context_menu_open() || (menu && menu->activeMenuIndex >= 0);
+    return layout.modal_is(reading::focus::Popup::Shortcuts) || layout.modal_is(reading::focus::Popup::RelinkDialog) || details || layout.modal_is(reading::focus::Popup::PushDialog) || is_context_menu_open() || (menu && menu->activeMenuIndex >= 0);
 }
 
 inline bool reader_visible(const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
-    return !layout.shelfCollapsed && !layout.filePickerOpen &&
+    return !layout.shelfCollapsed && !layout.picker.is_open() &&
         !repo.commitSearchOpen && !repo.fileHistoryOpen;
 }
 
@@ -105,28 +105,29 @@ inline bool reader_shortcuts(UIContext<InputAction>& ctx, const ecs::RepoCompone
         shortcut_owner(ctx, repo).reader();
 }
 
-inline std::vector<reading::focus::Popup> open_popups(const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
+// Projection of stored popup state (M24): every entry reads a stored
+// machine — menu/context singletons, picker phase, workspace find,
+// search/composer/baseline enums, page-open flags, and the one stored
+// LayoutComponent::modal for all dialogs. focus::State::sync consumes
+// this list exactly as it consumed the old derived view.
+inline std::vector<reading::focus::Popup> stored_popups(const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
     using reading::focus::Popup;
     std::vector<Popup> visible;
     if (const auto* menu = ecs::find_singleton<ecs::MenuComponent>(); menu && menu->activeMenuIndex >= 0) visible.push_back(Popup::Menu);
     if (is_context_menu_open()) visible.push_back(Popup::ContextMenu);
-    if (layout.filePickerOpen) visible.push_back(Popup::Picker);
-    if (repo.workspace().document(repo.workspace().active_id())->find.open) visible.push_back(Popup::Find);
-    if (repo.repoSearchOpen) visible.push_back(Popup::Search);
-    if (repo.repoSearchOpen && repo.repoSearchPreviewOpen) visible.push_back(Popup::SearchPreview);
+    if (layout.picker.is_open()) visible.push_back(Popup::Picker);
+    if (repo.workspace().document(repo.workspace().active_id())->find.is_open()) visible.push_back(Popup::Find);
+    if (repo.repo_search_open()) visible.push_back(Popup::Search);
+    if (repo.repo_search_open() && repo.repoSearchPreviewOpen) visible.push_back(Popup::SearchPreview);
     if (const auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>()) {
         if (review->basketOpen && layout.feedback.width > 0.f) visible.push_back(Popup::Feedback);
-        if (!review->composingKey.empty()) visible.push_back(Popup::Composer);
+        if (review->composer == ecs::Composer::Composing) visible.push_back(Popup::Composer);
         if (review->sinceReviewOpen) visible.push_back(Popup::Snapshot);
     }
-    if (repo.comparisonEditorOpen) visible.push_back(Popup::ComparisonEditor);
     if (repo.commitSearchOpen) visible.push_back(Popup::CommitSearch);
     if (repo.fileHistoryOpen) visible.push_back(Popup::FileHistory);
     if (repo.workspace().document(repo.workspace().active_id())->detailsExpanded) visible.push_back(Popup::CommitDetails);
-    if (repo.pushDialogOpen) visible.push_back(Popup::PushDialog);
-    if (layout.relinkOpen) visible.push_back(Popup::RelinkDialog);
-    if (layout.shortcutsOpen) visible.push_back(Popup::Shortcuts);
-    if (layout.diffOptionsOpen) visible.push_back(Popup::Options);
+    if (layout.modal) visible.push_back(*layout.modal);
     return visible;
 }
 

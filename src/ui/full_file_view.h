@@ -56,15 +56,16 @@ inline void follow_markdown_link(RepoComponent& repo, const std::string& link) {
     const auto digits = runtime.anchor.size() > 1 && runtime.anchor[0] == 'L' &&
         std::all_of(runtime.anchor.begin() + 1, runtime.anchor.end(), [](unsigned char c) { return std::isdigit(c); });
     if (runtime.anchor.empty() || digits) return open_markdown_link(repo, digits ? std::atoi(runtime.anchor.c_str() + 1) : 0);
-    runtime.request = navigation::stamp(repo, path + "#" + runtime.anchor);
-    runtime.future = git::outline_source_async({repo.repoPath, path, repo.fullFileRevision(), {}, repo.fullFileEncodingOverride});
+    const auto key = path + "#" + runtime.anchor;
+    runtime.slot.request(key, navigation::stamp(repo, key),
+        git::outline_source_async({repo.repoPath, path, repo.fullFileRevision(), {}, repo.fullFileEncodingOverride}));
 }
 
 inline void poll_markdown_link(RepoComponent& repo) {
     auto& runtime = repo.markdownLink;
-    if (!runtime.future.valid() || runtime.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
-    const auto result = runtime.future.get();
-    if (!navigation::accepts(repo, runtime.request, runtime.request.key)) return;
+    const auto landed = runtime.slot.poll(repo);
+    if (!landed) return;
+    const auto& result = *landed;
     int line = 0;
     for (const auto& symbol : result.symbols)
         if (symbol.kind == "heading" && markdown_preview::slug(symbol.name.substr(symbol.name.find(' ') + 1)) == runtime.anchor) {
@@ -80,9 +81,10 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     // read pipeline below is bypassed entirely and the same code renderer
     // draws the buffer instead.
     if (auto* editDoc = navigation::active_edit_document(repo);
-        editDoc && editDoc->editMode && source_edit_eligible(repo)) {
-        if (!editDoc->editSeeded && !seed_edit_buffer(repo, *editDoc)) editDoc->editMode = false;
-        if (editDoc->editMode) {
+        editDoc && editDoc->edit_mode() && source_edit_eligible(repo)) {
+        if (editDoc->edit == reading::Edit::Seeding && !seed_edit_buffer(repo, *editDoc))
+            edit_notice(editDoc->editError);
+        if (editDoc->edit_seeded()) {
             if (render_source_header(ctx, parent, repo, layout)) return;
             bool rebuilt = false;
             if (!repo.editRendered || repo.editRenderedGeneration != editDoc->editGeneration) {
@@ -100,13 +102,13 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         }
     }
     if (repo.fullFileNavigateFrames > 0) repo.fullFileMarkdownPreview = false;
-    std::string sourceKey = repo.repoPath + "\n" + repo.fullFileRevision() + "\n" + repo.fullFilePath();
-    if (repo.fullFileRevision().empty() || repo.fullFileRevision() == "INDEX") sourceKey += ":" + std::to_string(repo.dataGeneration);
-    if (repo.fullFileSourceKey != sourceKey) {
-        repo.fullFileSourceKey = sourceKey;
+    auto& load = repo.fullFileLoad;
+    const FileSource source = make_file_source(repo.repoPath, repo.fullFileRevision(), repo.fullFilePath(), repo.dataGeneration);
+    if (!load.source || *load.source != source) {
+        load.source = source;
         repo.fullFilePage = {};
         repo.sourceWindow = {};
-        repo.fullFilePageRequest = {};
+        load.request = {};
         repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
     }
     const int targetColumn = repo.workspace().active_source()->column;
@@ -118,42 +120,39 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             const int leading = document->restoreAnchor && document->anchor
                 ? static_cast<int>(std::ceil(layout.mainContent.height * document->anchor->viewportFraction /
                     (Settings::get().get_code_font_size() + 8.f))) + 1 : 0;
-            repo.fullFilePageRequest = {FilePageRequest::Action::TargetLine, {}, repo.fullFileTargetLine(), {}, leading, targetColumn};
+            load.request = {FilePageRequest::Action::TargetLine, {}, repo.fullFileTargetLine(), {}, leading, targetColumn};
         }
     }
-    const auto& pageRequest = repo.fullFilePageRequest;
-    std::string key = sourceKey + "\n" + repo.fullFileEncodingOverride + ":" +
-        std::to_string(static_cast<int>(pageRequest.action)) + ":" + std::to_string(pageRequest.cursor.offset) + ":" + std::to_string(pageRequest.targetLine) + ":" + std::to_string(pageRequest.leadingLines) + ":" + std::to_string(pageRequest.targetColumn);
-    bool changed = repo.fullFileCacheKey != key;
+    const auto& pageRequest = load.request;
+    const PageKey key = make_page_key(source, repo.fullFileEncodingOverride, pageRequest);
+    bool changed = load.needs_load(key);
     if (changed) {
-        repo.fullFileCacheKey = key;
-        repo.fullFileExtendRequest = !repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary &&
+        const bool extend = !repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary &&
             !repo.fullFileMarkdownPreview && !repo.sourceWindow.pages.empty() &&
             ((pageRequest.action == FilePageRequest::Action::Next && pageRequest.cursor.offset == repo.fullFilePage.next.offset) ||
              (pageRequest.action == FilePageRequest::Action::Previous && pageRequest.cursor.offset == repo.fullFilePage.begin.offset));
-        if (!repo.fullFileExtendRequest) {
+        if (!extend) {
             repo.fullFileDiff.clear();
             repo.sourceFoldRanges.clear();
             repo.sourceFoldIdentity = 0;
             repo.sourceWindow = {};
             repo.fullFileDecodedText.clear();
         }
-        repo.fullFileError.clear();
         repo.blameOpen = false;
-        repo.blameFuture = {};
-        repo.fullFileRequestStamp = navigation::stamp(repo, key);
-        repo.fullFileLoading.restart();
+        repo.blame.cancel();
         const git::FileRequest request{repo.repoPath, repo.fullFilePath(), repo.fullFileRevision(),
             pageRequest, repo.fullFileEncodingOverride, repo.fullFilePage.encoding};
-        repo.fullFileRevalidate = {};
+        async_work::Task<FullFileContent> task;
+        async_work::Task<FullFileContent> revalidate;
         if (auto cached = git::peek_file(request)) {
-            repo.fullFileFuture = async_work::completed(std::move(*cached));
-            repo.fullFileRevalidate = git::read_file_async(request);
-        } else repo.fullFileFuture = git::read_file_async(request);
-        if (repo.fullFileExtendRequest) changed = false;
+            task = async_work::completed(std::move(*cached));
+            revalidate = git::read_file_async(request);
+        } else task = git::read_file_async(request);
+        load.begin(key, navigation::stamp(repo, {}), std::move(task), std::move(revalidate), extend);
+        if (extend) changed = false;
     }
     bool pageLayoutReady = true;
-    if (repo.fullFileExtendRequest && !repo.pendingCaret) {
+    if (load.extending() && !repo.pendingCaret) {
         const auto* document = repo.workspace().document(repo.workspace().active_id());
         auto viewport = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
         pageLayoutReady = document->anchor && !document->restoreAnchor && viewport.valid() &&
@@ -167,28 +166,29 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 std::fabs(repo.reading.offset - scroll.scroll_offset.y) < .5f;
         }
     }
-    if (!repo.fullFileFuture.valid() && repo.fullFileRevalidate.valid() &&
-        repo.fullFileRevalidate.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-        auto checked = repo.fullFileRevalidate.get();
-        if (navigation::accepts(repo, repo.fullFileRequestStamp, key) &&
+    if (!load.task.valid() && load.revalidate.valid() &&
+        load.revalidate.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto checked = load.revalidate.get();
+        if (navigation::accepts(repo, load.stamp, load.stamp.key) &&
             (!checked.error.empty() || checked.page.sourceIdentity != repo.fullFilePage.sourceIdentity))
-            repo.fullFileFuture = async_work::completed(std::move(checked));
+            load.task = async_work::completed(std::move(checked));
+        load.settle_revalidation();
     }
-    if (pageLayoutReady && repo.fullFileFuture.valid() && repo.fullFileFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-        auto content = repo.fullFileFuture.get();
-        if (!navigation::accepts(repo, repo.fullFileRequestStamp, key)) {
-            repo.fullFileCacheKey.clear();
+    if (pageLayoutReady && load.task.valid() && load.task.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto content = load.task.get();
+        if (!navigation::accepts(repo, load.stamp, load.stamp.key)) {
+            load.drop_stale();
             return;
         }
         reading_load::Publishing publication(repo.fullFileTrace, content.trace);
-        if (navigation::resolve_source(repo, repo.fullFileRequestStamp, content.resolvedRevision)) {
-            auto resolvedKey = repo.repoPath + "\n" + repo.fullFileRevision() + "\n" + repo.fullFilePath();
-            repo.fullFileCacheKey.replace(0, sourceKey.size(), resolvedKey);
-            repo.fullFileSourceKey = resolvedKey;
+        if (navigation::resolve_source(repo, load.stamp, content.resolvedRevision)) {
+            const FileSource resolved = make_file_source(repo.repoPath, repo.fullFileRevision(), repo.fullFilePath(), repo.dataGeneration);
+            load.source = resolved;
+            if (load.key) load.key->source = resolved;
         }
-        repo.fullFileError = std::move(content.error);
-        if (repo.fullFileError.empty()) {
-            if (repo.fullFileExtendRequest) {
+        load.error = std::move(content.error);
+        if (load.error.empty()) {
+            if (load.extending()) {
                 if (source_pages::extend(repo.sourceWindow, std::move(content.page), std::move(content.raw))) {
                     repo.fullFilePage = source_pages::range(repo.sourceWindow);
                     auto decoded = file_page::decode(repo.sourceWindow.raw, repo.fullFilePage.encoding, repo.fullFilePage.begin.offset);
@@ -201,7 +201,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                     repo.fullFileEncodingLabel = std::move(decoded.encoding);
                     if (markdown_preview::is_markdown_path(repo.fullFilePath())) repo.fullFileDecodedText = std::move(decoded.text);
                     navigation::restore_anchor(repo);
-                } else repo.fullFileError = "Source changed while scrolling. Reload file to continue.";
+                } else load.error = "Source changed while scrolling. Reload file to continue.";
             } else {
                 repo.sourceWindow = {{content.page}, std::move(content.raw)};
                 repo.fullFilePage = std::move(content.page);
@@ -211,8 +211,9 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 repo.fullFileDiff.push_back(std::move(content.diff));
             }
         }
+        load.land();
         if (!repo.fullFileDiff.empty() && !repo.fullFileDiff.front().isBinary) {
-            repo.fullFileHexPreviewKey.clear();
+            repo.fullFileHexPreviewKey.reset();
             repo.fullFileHexPreview = {};
         }
         if (repo.pendingCaret) {
@@ -220,7 +221,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             const auto motion = repo.pendingCaretMotion;
             repo.pendingCaret.reset();
             repo.pendingCaretMotion.reset();
-            if (repo.fullFileError.empty() && !repo.fullFileDiff.front().isBinary) {
+            if (load.error.empty() && !repo.fullFileDiff.front().isBinary) {
                 auto lines = ui::diff_sel::code_lines(repo.fullFileDiff.front(), reading::DiffSide::After, repo.fullFilePage.begin.column);
                 if (!lines.empty()) {
                     if (motion) position = reading::move_code(position, *motion, lines);
@@ -256,29 +257,28 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
     if (render_source_header(ctx, parent, repo, layout)) return;
     const auto& page = repo.fullFilePage;
     bool partial = page.begin.offset != 0 || page.next.offset < page.totalBytes;
-    const bool manualPages = repo.fullFileMarkdownPreview || !repo.fullFileHexPreviewKey.empty() ||
+    const bool manualPages = repo.fullFileMarkdownPreview || repo.fullFileHexPreviewKey.has_value() ||
         (!repo.fullFileDiff.empty() && repo.fullFileDiff.front().isBinary);
-    float pageHeight = manualPages && (partial || repo.fullFileFuture.valid() || !repo.fullFileError.empty()) ? 64.f : 0.f;
+    float pageHeight = manualPages && (partial || load.task.valid() || !load.error.empty()) ? 64.f : 0.f;
     if (pageHeight > 0) {
         auto controls = div(ctx, mk(parent, 585020), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_flex_direction(FlexDirection::Row));
         auto requestPage = [&](FilePageRequest request) {
             navigation::cancel_anchor(repo);
             repo.reading = {};
-            repo.fullFilePageRequest = std::move(request);
+            load.request_page(std::move(request));
             navigation::clear_source_reveal(repo);
             repo.fullFileRequestedTargetLine = repo.fullFileRequestedTargetColumn = 0;
             repo.fullFileNavigateFrames = 0;
-            repo.fullFileCacheKey.clear();
             repo.fullFileDiff.clear();
             repo.fullFileDecodedText.clear();
         };
         if (button(ctx, mk(controls.ent(), 0), preset::Button("Previous page")
-                .with_size(ComponentSize{expand(), pixels(30)}).with_disabled(page.begin.offset == 0 || repo.fullFileFuture.valid())
+                .with_size(ComponentSize{expand(), pixels(30)}).with_disabled(page.begin.offset == 0 || load.task.valid())
                 .with_debug_name("file_page_previous")))
             requestPage({FilePageRequest::Action::Previous, page.begin, 0, page.sourceIdentity});
         if (button(ctx, mk(controls.ent(), 1), preset::Button("Next page")
-                .with_size(ComponentSize{expand(), pixels(30)}).with_disabled(page.next.offset >= page.totalBytes || repo.fullFileFuture.valid())
+                .with_size(ComponentSize{expand(), pixels(30)}).with_disabled(page.next.offset >= page.totalBytes || load.task.valid())
                 .with_debug_name("file_page_next")))
             requestPage({FilePageRequest::Action::Next, page.next, 0, page.sourceIdentity});
         if (button(ctx, mk(controls.ent(), 2), preset::Button("Reload from start")
@@ -286,7 +286,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             repo.fullFilePage.encoding.clear();
             requestPage({});
         }
-        auto range = repo.fullFileFuture.valid() ? "Loading bounded file page..." :
+        auto range = load.task.valid() ? "Loading bounded file page..." :
             "Loaded lines " + std::to_string(page.begin.line) + "–" + std::to_string(page.next.line - (page.next.continuation ? 0 : 1)) +
             " · bytes " + std::to_string(page.begin.offset) + "–" + std::to_string(page.next.offset) + " of " + std::to_string(page.totalBytes) +
             (page.begin.continuation || (page.next.offset < page.totalBytes && page.next.continuation) ? " · line fragment" : "");
@@ -294,14 +294,11 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_size(ComponentSize{percent(1.f), pixels(32)}).with_font_size(pixels(12))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("file_page_range"));
     }
-    if (repo.blameFuture.valid() && repo.blameFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-        auto result = repo.blameFuture.get();
-        if (!navigation::accepts(repo, repo.blameFutureStamp, repo.blameFutureStamp.key)) return;
-        repo.blameFuture = {};
-        if (result.success()) {
-            repo.blameLine = git::parse_blame_line(result.stdout_str());
-            if (repo.blameLine.hash.empty()) repo.blameError = "Unable to read line attribution";
-        } else repo.blameError = result.stderr_str();
+    if (auto result = repo.blame.poll(repo)) {
+        if (result->success()) {
+            repo.blameLine = git::parse_blame_line(result->stdout_str());
+            if (repo.blameLine.hash.empty()) repo.blame.fail("Unable to read line attribution");
+        } else repo.blame.fail(result->stderr_str());
     }
     float blameHeight = 0.f;
     if (repo.blameOpen) {
@@ -312,7 +309,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             label = line.hash == std::string(40, '0') ? "Not committed yet" : line.hash + " · " + line.author + "\n" + line.summary;
             label += "\n" + line.file + ":" + std::to_string(line.originalLine) + " → line " + std::to_string(line.finalLine);
         }
-        if (!repo.blameError.empty()) label = repo.blameError;
+        if (!repo.blame.error.empty()) label = repo.blame.error;
         auto panel = div(ctx, mk(parent, 585002), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(blameHeight)}).with_flex_direction(FlexDirection::Row)
             .with_custom_background(theme::PANEL_BG));
@@ -322,18 +319,18 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         if (button(ctx, mk(panel.ent(), 1), preset::Button("Close")
                 .with_size(ComponentSize{pixels(65), pixels(30)}))) repo.blameOpen = false;
     }
-    if (repo.fullFileFuture.valid() && repo.fullFileDiff.empty()) {
-        if (repo.fullFileLoading.visible(true)) div(ctx, mk(parent, 585003), ComponentConfig{}
+    if (load.task.valid() && repo.fullFileDiff.empty()) {
+        if (load.loading.visible(true)) div(ctx, mk(parent, 585003), ComponentConfig{}
             .with_label("Loading file...").with_size(ComponentSize{percent(1.f), pixels(40)})
             .with_font_size(pixels(14)).with_debug_name("full_file_loading"));
-    } else if (!repo.fullFileError.empty() && repo.fullFileDiff.empty()) {
+    } else if (!load.error.empty() && repo.fullFileDiff.empty()) {
         div(ctx, mk(parent, 585001), ComponentConfig{}
-            .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(100)})
+            .with_label(load.error).with_size(ComponentSize{percent(1.f), pixels(100)})
             .with_font_size(pixels(14)).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
             .with_debug_name("full_file_error"));
     } else if (!repo.fullFileDiff.empty() && repo.fullFileDiff.front().isBinary) {
-        if (repo.fullFileHexPreviewKey != repo.fullFileCacheKey) {
-            repo.fullFileHexPreviewKey = repo.fullFileCacheKey;
+        if (repo.fullFileHexPreviewKey != load.key) {
+            repo.fullFileHexPreviewKey = load.key;
             repo.fullFileHexPreview = hex_view::make(repo.sourceWindow.raw, 0, 4096, repo.fullFilePage.begin.offset);
         }
         const auto& preview = repo.fullFileHexPreview;
@@ -378,7 +375,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         const auto bodyFont = fonts.get_font(afterhours::ui::UIComponent::DEFAULT_FONT);
         const auto codeFont = fonts.get_font("mono");
         const float zoom = ui::zoom::get();
-        markdown_preview::update(cache, repo.fullFileCacheKey, repo.fullFileDecodedText,
+        markdown_preview::update(cache, page_key_string(load.key.value_or(PageKey{})), repo.fullFileDecodedText,
             std::max(1.f, layout.mainContent.width - 48.f), 1.f,
             Settings::get().get_code_font_size(), 1.f,
             [&](const std::string& text, markdown_preview::Kind kind, float size) {
@@ -392,7 +389,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             .with_custom_background(theme::PANEL_BG)
             .with_padding(Padding{.top = pixels(8), .right = pixels(16), .bottom = pixels(8), .left = pixels(16)})
             .with_debug_name("markdown_preview"));
-        ui::bind_reading_view(repo, body.ent(), "markdown:" + repo.fullFileCacheKey);
+        ui::bind_reading_view(repo, body.ent(), "markdown:" + page_key_string(load.key.value_or(PageKey{})));
         auto& state = repo.reading;
         state.codeRows = false;
         state.key += ":" + std::to_string(cache.width) + ":" + std::to_string(cache.codeFontSize) + ":" + std::to_string(zoom);
@@ -486,30 +483,44 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         } blameGutterGuard;
         if (layout.blameGutter && !repo.fullFileDiff.empty() && repo.fullFileDiff.front().isFullContent &&
             !repo.fullFilePath().empty()) {
-            const std::string key = repo.repoPath + "\n" + repo.fullFilePath() + "\n" +
+            const std::string blameKey = repo.repoPath + "\n" + repo.fullFilePath() + "\n" +
                 repo.fullFileRevision() + "\n" + std::to_string(repo.dataGeneration);
-            if (repo.blameGutterFuture.valid() &&
-                repo.blameGutterFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-                auto result = repo.blameGutterFuture.get();
-                repo.blameGutterFuture = {};
-                if (navigation::accepts(repo, repo.blameGutterStamp, repo.blameGutterStamp.key)) {
-                    repo.blameGutterError = result.success() ? "" : result.stderr_str();
-                    repo.blameGutterLines = result.success() ? git::parse_blame_porcelain(result.stdout_str())
-                                                             : std::vector<BlameLine>{};
+            if (auto result = repo.blameGutter.poll(repo)) {
+                if (repo.blameGutter.key == blameKey) {
+                    if (result->success()) repo.blameGutterLines = git::parse_blame_porcelain(result->stdout_str());
+                    else {
+                        repo.blameGutterLines.clear();
+                        repo.blameGutter.fail(result->stderr_str());
+                    }
                 }
             }
-            if (repo.blameGutterKey != key && !repo.blameGutterFuture.valid()) {
-                repo.blameGutterKey = key;
+            if (repo.blameGutter.key != blameKey && !repo.blameGutter.busy()) {
                 repo.blameGutterLines.clear();
-                repo.blameGutterError.clear();
                 std::vector<std::string> args{"blame", "--porcelain"};
                 if (!repo.fullFileRevision().empty() && repo.fullFileRevision() != "INDEX")
                     args.push_back(repo.fullFileRevision());
                 args.insert(args.end(), {"--", repo.fullFilePath()});
-                repo.blameGutterStamp = navigation::stamp(repo, key);
-                repo.blameGutterFuture = git::git_run_async(repo.repoPath, args);
+                repo.blameGutter.request(blameKey, navigation::stamp(repo, blameKey),
+                    git::git_run_async(repo.repoPath, args));
             }
-            if (repo.blameGutterKey == key && !repo.blameGutterLines.empty()) {
+            if (repo.blameGutter.busy() && repo.blameGutter.key == blameKey) {
+                // Visible loading state: an empty gutter used to mean
+                // loading *or* empty; now it reads as loading.
+                code_gutter::blameChars = 14;
+                code_gutter::blameFor = [](int) {
+                    std::string out = "Loading blame";
+                    out += std::string(static_cast<size_t>(code_gutter::blameChars) - out.size(), ' ');
+                    return out;
+                };
+            } else if (repo.blameGutter.phase == async_slot::Phase::Failed && repo.blameGutter.key == blameKey) {
+                code_gutter::blameChars = 14;
+                code_gutter::blameFor = [](int) {
+                    std::string out = "Blame failed";
+                    out += std::string(static_cast<size_t>(code_gutter::blameChars) - out.size(), ' ');
+                    return out;
+                };
+            }
+            if (repo.blameGutter.key == blameKey && !repo.blameGutterLines.empty()) {
                 const auto& lines = repo.blameGutterLines;
                 size_t authorWidth = 0;
                 for (const auto& line : lines) authorWidth = std::max(authorWidth, std::min(line.author.size(), size_t{14}));
@@ -660,9 +671,9 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
                         bodyHeight2, false, changed, false,
                         repo.repoPath, nullptr, "file:" + repo.fullFileRevision());
-        if (!repo.fullFileError.empty()) {
+        if (!load.error.empty()) {
             div(ctx, mk(parent, 585001), ComponentConfig{}.with_skip_grid_snap()
-                .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(32)})
+                .with_label(load.error).with_size(ComponentSize{percent(1.f), pixels(32)})
                 .with_absolute_position(0.f, headerHeight).with_font_size(pixels(12))
                 .with_custom_background(theme::PANEL_BG).with_debug_name("full_file_error"));
         }
@@ -690,7 +701,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 }
             }
         }
-        if (!changed && !repo.fullFileFuture.valid() && repo.fullFileError.empty() && !repo.pendingCaret &&
+        if (!changed && !load.task.valid() && load.error.empty() && !repo.pendingCaret &&
             !repo.workspace().document(repo.workspace().active_id())->restoreAnchor) {
             auto viewport = afterhours::ui::UICollectionHolder::getEntityForID(repo.reading.entity);
             if (viewport.valid() && (**viewport).has<afterhours::ui::HasScrollView>()) {
@@ -703,8 +714,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                     else if (scroll.scroll_offset.y < height * .75f && page.begin.offset > 0)
                         next = FilePageRequest{FilePageRequest::Action::Previous, page.begin, 0, page.sourceIdentity};
                     if (next) {
-                        repo.fullFilePageRequest = std::move(*next);
-                        repo.fullFileCacheKey.clear();
+                        load.request_page(std::move(*next));
                     }
                 }
             }

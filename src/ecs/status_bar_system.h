@@ -45,10 +45,12 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
 
         const auto& settings = Settings::get();
         const auto* review = find_singleton<ReviewComponent, ActiveTab>();
-        const bool storageError = !settings.loadError.empty() || !settings.saveError.empty() || (review && !review->loadError.empty());
+        const bool storageError = !settings.loadError.empty() || !settings.saveError.empty() ||
+            (review && review->storePhase == ReviewStorePhase::LoadFailed);
         if (!settings.loadError.empty()) counts = "Settings unavailable: " + settings.loadError;
         else if (!settings.saveError.empty()) counts = "Settings not saved: " + settings.saveError;
-        else if (review && !review->loadError.empty()) counts = "Review unavailable: " + review->loadError;
+        else if (review && review->storePhase == ReviewStorePhase::LoadFailed) counts = "Review unavailable: " + review->storeError;
+        else if (review && review->storePhase == ReviewStorePhase::SaveFailed) counts = "Review not saved: " + review->storeError;
 
         std::string activity;
         std::function<void()> cancelRead;
@@ -58,13 +60,24 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
             if (task.can_cancel() && !task.cancellation_requested()) cancelRead = [&task] { task.cancel(); };
         };
         if (repo) {
-            observe(repo->fullFileFuture, "Loading source");
+            observe(repo->fullFileLoad.task, "Loading source");
             observe(repo->comparisonFuture, "Loading comparison");
             observe(repo->repoSearchFuture, "Searching repository");
-            if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>()) observe(cache->patchFuture, "Loading commit");
+            if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>(); cache && !cache->patchRevalidating) observe(cache->patch.task, "Loading commit");
             if (auto* operations = find_singleton<NetworkOpsComponent>())
-                for (auto& operation : operations->pending)
-                    if (operation.repository == repo->repoPath) observe(operation.future, operation.label);
+                for (auto& operation : operations->pending) {
+                    if (!activity.empty() || operation.repository != repo->repoPath || !operation.busy()) continue;
+                    const bool cancelling = operation.slot.task.cancellation_requested();
+                    activity = cancelling ? "Cancelling " + operation.label + "..."
+                                          : operation.label + "...";
+                    if (!cancelling) {
+                        const auto secs = std::chrono::duration_cast<std::chrono::seconds>(
+                            operation.elapsed()).count();
+                        if (secs >= 1) activity += " (" + std::to_string(secs) + "s)";
+                    }
+                    if (operation.slot.task.can_cancel() && !cancelling)
+                        cancelRead = [&operation] { operation.cancel(); };
+                }
         }
         if (!activity.empty() && !storageError) { if (width < 620.f) branch = activity; else counts = activity; }
         if (storageError && width < 620.f) branch = counts;

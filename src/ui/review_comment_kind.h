@@ -8,7 +8,7 @@ namespace ui {
 
 inline void render_comment_kind(UIContext<InputAction>& ctx, Entity& parent, int id,
         ecs::ReviewComponent& review, bool editing) {
-    auto kind = editing ? review.editingCommentKind : review.composingKind;
+    auto kind = review.composerDraft.kind;
     if (button(ctx, mk(parent, id), preset::Button(review_comment_kind_label(kind))
             .with_size(ComponentSize{pixels(110), pixels(26)}).with_font_size(pixels(12))
             .with_custom_background(theme::BUTTON_SECONDARY)
@@ -18,13 +18,13 @@ inline void render_comment_kind(UIContext<InputAction>& ctx, Entity& parent, int
                 ReviewCommentKind::Blocker, ReviewCommentKind::Nit}) {
             choices.push_back(ContextMenuItem::item(review_comment_kind_label(value),
                 [value, editing, scope = review.storageScope, path = review.storageRepoPath,
-                 key = review.composingKey, index = review.editingComment] {
+                 key = review.composing_key(), index = review.editing_index()] {
                     auto* active = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
                     if (!active || active->storageScope != scope || active->storageRepoPath != path) return;
-                    if (editing && active->editingComment == index) active->editingCommentKind = value;
-                    else if (!editing && active->composingKey == key) active->composingKind = value;
+                    if (editing && active->composer == ecs::Composer::EditingExisting && active->editing_index() == index) active->composerDraft.kind = value;
+                    else if (!editing && active->composer == ecs::Composer::Composing && active->composing_key() == key) active->composerDraft.kind = value;
                     else return;
-                    active->dirty = true;
+                    active->mark_dirty();
                 }));
         }
         show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));

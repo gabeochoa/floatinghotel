@@ -13,7 +13,7 @@ inline std::optional<file_tree::Move> tree_keys(UIContext<InputAction>& ctx, ecs
         const std::vector<file_tree::Row>& rows, const std::set<std::string>& collapsed) {
     if (state.context != context) state = {context};
     if (ctx.mouse.just_pressed) state.pendingFocus = false;
-    if (shortcuts_blocked(layout) || layout.filePickerOpen || rows.empty()) return {};
+    if (shortcuts_blocked(layout) || layout.picker.is_open() || rows.empty()) return {};
     auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
     const auto target = focused.valid() ? focus_target(**focused) : std::nullopt;
     const auto owner = shortcut_owner(ctx, repo);

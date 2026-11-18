@@ -14,8 +14,8 @@ inline const std::vector<ecs::FileDiff>* review_files(ecs::RepoComponent& repo) 
     if (repo.comparisonOpen())
         return repo.comparisonFuture.valid() || repo.comparisonLoadedScope != scope ? nullptr : &repo.comparisonDiff;
     const auto* cache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
-    if (!cache || cache->patchFuture.valid() || cache->cachedCommitHash != repo.selectedCommitHash() ||
-        cache->cachedParentHash != ecs::selected_commit_parent(repo)) return nullptr;
+    if (!cache || cache->patch_loading() || cache->patch.key.commit != repo.selectedCommitHash() ||
+        cache->patch.key.parent != ecs::selected_commit_parent(repo)) return nullptr;
     return &cache->commitDetailDiff;
 }
 

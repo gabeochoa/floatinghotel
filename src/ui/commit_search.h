@@ -7,25 +7,23 @@
 namespace ecs {
 
 inline void load_commit_search(RepoComponent& repo) {
-    repo.commitSearchError.clear();
     auto args = git::history_search_args(repo.commitSearchQuery, repo.commitSearchLimit);
-    if (!args) { repo.commitSearchError = "Use valid YYYY-MM-DD dates, with Since before Until."; return; }
+    if (!args) {
+        repo.commitSearch.cancel();
+        repo.commitSearch.error = "Use valid YYYY-MM-DD dates, with Since before Until.";
+        return;
+    }
     std::string key;
     for (const auto& arg : *args) key += arg + "\n";
-    repo.commitSearchFutureStamp = navigation::stamp(repo, std::move(key));
-    repo.commitSearchFuture = git::git_run_async(repo.repoPath, *args);
+    repo.commitSearch.request(key, navigation::stamp(repo, key), git::git_run_async(repo.repoPath, *args));
 }
 
 inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
                                   RepoComponent& repo, LayoutComponent& layout) {
     ui::bind_focus(parent, repo, reading::focus::Region::Search);
-    using namespace std::chrono_literals;
-    if (repo.commitSearchFuture.valid() && repo.commitSearchFuture.wait_for(0s) == std::future_status::ready) {
-        auto result = repo.commitSearchFuture.get();
-        if (!navigation::accepts(repo, repo.commitSearchFutureStamp, repo.commitSearchFutureStamp.key)) return;
-        repo.commitSearchFuture = {};
-        if (result.success()) repo.commitSearchEntries = git::parse_log(result.stdout_str());
-        else repo.commitSearchError = result.stderr_str();
+    if (auto result = repo.commitSearch.poll(repo)) {
+        if (result->success()) repo.commitSearchEntries = git::parse_log(result->stdout_str());
+        else repo.commitSearch.error = result->stderr_str();
     }
     div(ctx, mk(parent, 589000), ComponentConfig{}
         .with_label("Search commits · all refs · case-insensitive text · all filters combined")
@@ -55,15 +53,15 @@ inline void render_commit_search(UIContext<InputAction>& ctx, Entity& parent,
     }
     if (button(ctx, mk(actions.ent(), 1), preset::Button("Close")
             .with_size(ComponentSize{pixels(70), pixels(30)}))) repo.commitSearchOpen = false;
-    if (!repo.commitSearchFuture.valid() && static_cast<int>(repo.commitSearchEntries.size()) == repo.commitSearchLimit) {
+    if (!repo.commitSearch.busy() && static_cast<int>(repo.commitSearchEntries.size()) == repo.commitSearchLimit) {
         if (button(ctx, mk(actions.ent(), 2), preset::Button("Load more")
                 .with_size(ComponentSize{pixels(100), pixels(30)}))) {
             repo.commitSearchLimit += 200;
             load_commit_search(repo);
         }
     }
-    auto status = repo.commitSearchFuture.valid() ? "Searching..." : std::to_string(repo.commitSearchEntries.size()) + " matching commits";
-    if (!repo.commitSearchError.empty()) status = repo.commitSearchError;
+    auto status = repo.commitSearch.busy() ? "Searching..." : std::to_string(repo.commitSearchEntries.size()) + " matching commits";
+    if (!repo.commitSearch.error.empty()) status = repo.commitSearch.error;
     div(ctx, mk(parent, id++), ComponentConfig{}.with_label(status)
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)));
     afterhours::ui::imm::virtual_list(ctx, mk(parent, id++), repo.commitSearchEntries.size(), 34.f,

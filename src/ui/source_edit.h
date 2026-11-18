@@ -3,7 +3,7 @@
 // Working-tree source editing: a document opened from the working tree can
 // switch from read-only to an editable buffer. Everything else (index,
 // revisions, diffs) stays read-only. The buffer lives on the Document and
-// is authoritative while editMode is on; saving writes it back to disk.
+// is authoritative while editing; saving writes it back to disk.
 
 #include <filesystem>
 #include <fstream>
@@ -20,33 +20,9 @@ inline bool source_edit_eligible(const RepoComponent& repo) {
     return repo.fullFileRevision().empty() && !repo.fullFilePath().empty();
 }
 
-inline bool seed_edit_buffer(RepoComponent& repo, reading::Document& document) {
-    const auto full = std::filesystem::path(repo.repoPath) / repo.fullFilePath();
-    std::error_code ec;
-    const auto size = std::filesystem::file_size(full, ec);
-    if (ec || size > 4 * 1024 * 1024) return false;
-    std::ifstream in(full, std::ios::binary);
-    if (!in) return false;
-    std::ostringstream stream;
-    stream << in.rdbuf();
-    if (in.bad()) return false;
-    std::string text = stream.str();
-    document.editCrlf = text.find("\r\n") != std::string::npos;
-    document.editTrailingNewline = text.empty() || text.back() == '\n';
-    document.editLines.clear();
-    std::string line;
-    for (char c : text) {
-        if (c == '\n') {
-            if (!line.empty() && line.back() == '\r') line.pop_back();
-            document.editLines.push_back(std::move(line));
-            line.clear();
-        } else line += c;
-    }
-    if (!line.empty() || document.editLines.empty()) document.editLines.push_back(std::move(line));
-    document.editSeeded = true;
-    document.editDirty = false;
-    ++document.editGeneration;
-    return true;
+inline void edit_notice(const std::string& message) {
+    if (auto* menu = find_singleton<MenuComponent>())
+        menu->pendingToasts.push_back({message, MenuComponent::Notice::Kind::Error});
 }
 
 inline std::string edit_buffer_text(const reading::Document& document) {
@@ -60,22 +36,70 @@ inline std::string edit_buffer_text(const reading::Document& document) {
     return text;
 }
 
+// Seeding -> EditingClean/EditingDirty on success (a retained buffer
+// resumes and is dirty exactly when it differs from disk), or ->
+// Viewing with the failure retained in editError on failure; the
+// caller surfaces that as a notice instead of silently exiting.
+inline bool seed_edit_buffer(RepoComponent& repo, reading::Document& document) {
+    const auto full = std::filesystem::path(repo.repoPath) / repo.fullFilePath();
+    const std::string failure = "Couldn't open " + repo.fullFilePath() + " for editing";
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(full, ec);
+    if (ec || size > 4 * 1024 * 1024) { document.fail_edit_seed(failure); return false; }
+    std::ifstream in(full, std::ios::binary);
+    if (!in) { document.fail_edit_seed(failure); return false; }
+    std::ostringstream stream;
+    stream << in.rdbuf();
+    if (in.bad()) { document.fail_edit_seed(failure); return false; }
+    std::string text = stream.str();
+    if (!document.editLines.empty()) {
+        document.finish_edit_seed(edit_buffer_text(document) != text);
+        return true;
+    }
+    document.editCrlf = text.find("\r\n") != std::string::npos;
+    document.editTrailingNewline = text.empty() || text.back() == '\n';
+    document.editLines.clear();
+    std::string line;
+    for (char c : text) {
+        if (c == '\n') {
+            if (!line.empty() && line.back() == '\r') line.pop_back();
+            document.editLines.push_back(std::move(line));
+            line.clear();
+        } else line += c;
+    }
+    if (!line.empty() || document.editLines.empty()) document.editLines.push_back(std::move(line));
+    document.finish_edit_seed(false);
+    ++document.editGeneration;
+    return true;
+}
+
+// Saving -> EditingClean only on a successful write; a failed write
+// lands in SaveFailed with the buffer still dirty, never cleared.
 inline bool save_edit_buffer(RepoComponent& repo, reading::Document& document) {
+    if (!document.edit_seeded()) return false;
+    document.begin_edit_save();
     const auto full = std::filesystem::path(repo.repoPath) / repo.fullFilePath();
     std::ofstream out(full, std::ios::binary | std::ios::trunc);
-    if (!out) return false;
+    if (!out) {
+        document.fail_edit_save("Couldn't save " + repo.fullFilePath());
+        edit_notice(document.editError);
+        return false;
+    }
     out << edit_buffer_text(document);
     out.flush();
-    if (!out) return false;
-    document.editDirty = false;
-    repo.refreshRequested = true;
+    if (!out) {
+        document.fail_edit_save("Couldn't save " + repo.fullFilePath());
+        edit_notice(document.editError);
+        return false;
+    }
+    document.finish_edit_save();
+    repo.request_refresh();
     return true;
 }
 
 inline void discard_edit_buffer(reading::Document& document) {
-    document.editMode = false;
-    document.editSeeded = false;
-    document.editDirty = false;
+    document.stop_edit();
+    document.editError.clear();
     document.editLines.clear();
     ++document.editGeneration;
 }
@@ -109,7 +133,7 @@ inline std::optional<reading::CodePosition> delete_selection(RepoComponent& repo
 }
 
 inline void mark_changed(RepoComponent& repo, reading::Document& document, reading::CodePosition caret) {
-    document.editDirty = true;
+    document.mark_edit_dirty();
     ++document.editGeneration;
     navigation::set_caret(repo, std::move(caret));
 }
@@ -121,7 +145,7 @@ inline void mark_changed(RepoComponent& repo, reading::Document& document, readi
 // current. No-ops unless the code region owns the keyboard.
 inline void apply_edit_input(UIContext<InputAction>& ctx, RepoComponent& repo, LayoutComponent& layout) {
     auto* document = navigation::active_edit_document(repo);
-    if (!document || !document->editMode || !document->editSeeded) return;
+    if (!document || !document->edit_seeded()) return;
     if (!ui::reader_shortcuts(ctx, repo, layout)) return;
     using namespace source_edit_detail;
     const std::string path = repo.fullFilePath();

@@ -45,16 +45,17 @@ inline std::vector<repo_picker::Entry> current_repo_picker_entries(LayoutCompone
             tabs.push_back({repo.repoPath, repo.currentBranch, repo.isDirty, repo.statusKnown});
         }
     std::map<std::string, repo_picker::Resolved> resolved;
-    for (const auto& item : layout.repoPickerResolved)
+    for (const auto& item : layout.repoPicker.resolved)
         resolved[repo_picker::normalize(item.path)] = item;
     return repo_picker::build(tabs, Settings::get().get_pinned_repos(),
                                Settings::get().get_recent_repos(), resolved);
 }
 
 inline void open_repo_picker(LayoutComponent& layout) {
-    layout.repoPickerOpen = true;
-    layout.repoPickerFocus = true;
-    layout.repoPickerIndex = 0;
+    // Opens instantly from settings on the shared Picker shell, then the
+    // async resolution (existence + worktree grouping) fills in. The
+    // shared query is kept; the shell resets focus + selection.
+    layout.open_repo_picker_shell();
     std::string key;
     std::vector<std::string> paths;
     auto collect = [&](const std::string& path) {
@@ -71,9 +72,9 @@ inline void open_repo_picker(LayoutComponent& layout) {
         }
     for (const auto& path : Settings::get().get_pinned_repos()) collect(path);
     for (const auto& path : Settings::get().get_recent_repos()) collect(path);
-    if (layout.repoPickerResolveKey != key && !layout.repoPickerFuture.valid()) {
-        layout.repoPickerResolveKey = key;
-        layout.repoPickerFuture = async_work::launch(
+    if (layout.repoPicker.resolveKey != key && !layout.repoPicker.future.valid()) {
+        layout.repoPicker.resolveKey = key;
+        layout.repoPicker.future = async_work::launch(
             [paths](std::stop_token stop) { return resolve_repo_picker_paths(paths, stop); },
             async_work::Priority::Background, std::vector<repo_picker::Resolved>{});
     }
@@ -87,13 +88,13 @@ struct RepoPickerSystem : afterhours::System<UIContext<InputAction>> {
                            afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER);
         const bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) ||
                          afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
-        if (!layout->repoPickerOpen && super && alt && !ui::shortcuts_blocked(*layout) &&
+        if (!layout->repo_picker_open() && super && alt && !ui::shortcuts_blocked(*layout) &&
             afterhours::input::is_key_pressed(afterhours::keys::O))
             open_repo_picker(*layout);
-        if (layout->repoPickerFuture.valid() &&
-            layout->repoPickerFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            layout->repoPickerResolved = layout->repoPickerFuture.get();
-            layout->repoPickerFuture = {};
+        if (layout->repoPicker.future.valid() &&
+            layout->repoPicker.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            layout->repoPicker.resolved = layout->repoPicker.future.get();
+            layout->repoPicker.future = {};
         }
         auto& root = ui_imm::getUIRootEntity();
         const float zoom = ui::zoom::get();
@@ -101,10 +102,14 @@ struct RepoPickerSystem : afterhours::System<UIContext<InputAction>> {
         const float screenHeight = ctx.screen_height / zoom;
         const float width = std::max(100.f, std::min(620.f, screenWidth - 32.f));
         const float height = std::max(160.f, std::min(440.f, screenHeight - 80.f));
-        auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 596100), layout->repoPickerOpen,
+        bool pickerOpen = layout->repo_picker_open();
+        auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 596100), pickerOpen,
             afterhours::ModalConfig{}.with_size(pixels(width), pixels(height))
                 .with_show_close_button(false).with_closed_by(afterhours::ClosedBy::Any)
                 .with_backdrop_color({0, 0, 0, 0}));
+        // The modal itself closed it (Esc/backdrop): a cancel on the
+        // shared shell, exactly as the file picker handles it.
+        if (!pickerOpen && layout->repo_picker_open()) layout->cancel_picker();
         if (!modal) {
             ctx.remove_input_gate("repo_picker");
             return;
@@ -125,41 +130,38 @@ struct RepoPickerSystem : afterhours::System<UIContext<InputAction>> {
         });
         div(ctx, mk(body.ent(), 0), ComponentConfig{}.with_label("Repositories")
             .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(14)));
-        auto input = afterhours::text_input::text_input(ctx, mk(body.ent(), 1), layout->repoPickerQuery,
+        auto input = afterhours::text_input::text_input(ctx, mk(body.ent(), 1), layout->repoPicker.query,
             ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)})
                 .with_debug_name("repo_picker_input"));
-        if (layout->repoPickerFocus) {
+        if (layout->repoPicker.focusPending) {
             ui::focus_control(ctx, input.ent());
-            layout->repoPickerFocus = false;
+            layout->repoPicker.focusPending = false;
         }
         const char* homeEnv = std::getenv("HOME");
         const std::string home = homeEnv ? homeEnv : "";
         const auto entries = current_repo_picker_entries(*layout);
-        const auto ranked = repo_picker::rank(entries, layout->repoPickerQuery, home);
-        layout->repoPickerIndex = ranked.empty() ? 0
-            : std::clamp(layout->repoPickerIndex, 0, static_cast<int>(ranked.size()) - 1);
+        const auto ranked = repo_picker::rank(entries, layout->repoPicker.query, home);
+        // Shared clamp/step with the welcome surface; Enter stays here
+        // because its action (switch/open/relink) is repo-specific.
+        layout->repoPicker.apply_keys(static_cast<int>(ranked.size()),
+            afterhours::input::is_key_pressed(afterhours::keys::DOWN),
+            afterhours::input::is_key_pressed(afterhours::keys::UP));
         auto activate = [&](const repo_picker::Entry& entry, bool newTab) {
-            layout->repoPickerOpen = false;
+            layout->confirm_picker();
             if (!entry.exists) {
-                layout->relinkOpen = true;
-                layout->relinkOld = entry.path;
-                layout->relinkNew.clear();
-                layout->relinkError.clear();
+                layout->open_modal(reading::focus::Popup::RelinkDialog);
+                layout->relinkDialog.oldPath = entry.path;
+                layout->relinkDialog.newPath.clear();
+                layout->relinkDialog.error.clear();
                 return;
             }
             TabBarSystem::open_repository(entry.path, *layout, newTab);
         };
-        if (!ranked.empty()) {
-            if (afterhours::input::is_key_pressed(afterhours::keys::DOWN))
-                layout->repoPickerIndex = std::min(layout->repoPickerIndex + 1, static_cast<int>(ranked.size()) - 1);
-            if (afterhours::input::is_key_pressed(afterhours::keys::UP))
-                layout->repoPickerIndex = std::max(0, layout->repoPickerIndex - 1);
-            if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) {
-                activate(entries[ranked[static_cast<size_t>(layout->repoPickerIndex)]], super);
-                return;
-            }
+        if (!ranked.empty() && afterhours::input::is_key_pressed(afterhours::keys::ENTER)) {
+            activate(entries[ranked[static_cast<size_t>(layout->repoPicker.index)]], super);
+            return;
         }
-        const bool resolving = layout->repoPickerFuture.valid();
+        const bool resolving = layout->repoPicker.resolving();
         div(ctx, mk(body.ent(), 2), ComponentConfig{}
             .with_label(ranked.empty() ? (resolving ? std::string("Finding repositories...") : std::string("No repositories match"))
                                        : std::to_string(ranked.size()) + " repositories · Enter switch/open · Cmd+Enter new tab · Esc close")
@@ -173,7 +175,7 @@ struct RepoPickerSystem : afterhours::System<UIContext<InputAction>> {
         int rowId = 0;
         for (size_t r = 0; r < ranked.size(); ++r) {
             const auto& entry = entries[ranked[r]];
-            if (layout->repoPickerQuery.empty() && lastSection != entry.section) {
+            if (layout->repoPicker.query.empty() && lastSection != entry.section) {
                 lastSection = entry.section;
                 div(ctx, mk(list.ent(), 1000 + rowId++), ComponentConfig{}
                     .with_label(repo_picker::section_label(entry.section))
@@ -187,7 +189,7 @@ struct RepoPickerSystem : afterhours::System<UIContext<InputAction>> {
             if (entry.members.size() > 1)
                 detail += " · +" + std::to_string(entry.members.size() - 1) + " worktree" + (entry.members.size() > 2 ? "s" : "");
             if (!entry.exists) detail += " · folder missing — Enter to relink";
-            const bool selected = static_cast<int>(r) == layout->repoPickerIndex;
+            const bool selected = static_cast<int>(r) == layout->repoPicker.index;
             auto row = button(ctx, mk(list.ent(), rowId++), preset::Button(ui::welcome::repo_display_name(entry.path))
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_alignment(TextAlignment::Left)
                 .with_custom_background(selected ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
@@ -235,7 +237,7 @@ inline bool render_repo_switcher(afterhours::ui::UIContext<InputAction>& ctx, ec
         state.order.clear();
         return true;
     }
-    if (step && !blocked && !layout.filePickerOpen && !layout.repoPickerOpen) {
+    if (step && !blocked && !layout.picker.is_open()) {
         if (!state.open) {
             state.order = strip->mruOrder;
             // Tabs never switched to are missing from MRU; append in strip order.

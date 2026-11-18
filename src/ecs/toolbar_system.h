@@ -139,7 +139,7 @@ private:
         };
 
         if (toolbarButton("Refresh", hasRepo)) {
-            repo->refreshRequested = true;
+            repo->request_refresh();
         }
         if (toolbarButton("Stage All", hasRepo && hasUnstaged)) {
             enqueue_network_op("Stage All", git::git_run_async(repo->repoPath, {"add", "-A"}));
@@ -152,7 +152,7 @@ private:
 
         if (toolbarButton("Commit", hasRepo && hasStaged)) {
             auto* editor = ::ecs::find_singleton<CommitEditorComponent, ActiveTab>();
-            if (editor) editor->commitRequested = true;
+            if (editor) editor->request_commit();
         }
         if (toolbarButton("Push", hasRepo)) {
             enqueue_network_op("Push", git::git_run_async(repo->repoPath, {"push"}));

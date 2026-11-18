@@ -70,7 +70,7 @@ inline void update_file_picker_paths(RepoComponent& repo, LayoutComponent& layou
     }
     if (scope.future.valid() && scope.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto result = scope.future.get();
-        if (layout.filePickerOpen && navigation::accepts(repo, scope.request, key)) {
+        if (layout.picker.is_open() && navigation::accepts(repo, scope.request, key)) {
             scope.listing = std::move(result);
             if (!repo.headCommitHash.empty()) {
                 auto& cached = picker_source_cache()[repo.repoPath];
@@ -123,7 +123,7 @@ inline const std::vector<FileDiff>* line_picker_diffs(const RepoComponent& repo)
         return working->staged ? &repo.stagedDiff : &repo.currentDiff;
     if (std::holds_alternative<reading::ComparisonReview>(target)) return &repo.comparisonDiff;
     const auto* cache = find_singleton<CommitDetailCache, ActiveTab>();
-    return cache && cache->cachedRepoPath == repo.repoPath && cache->cachedCommitHash == repo.selectedCommitHash()
+    return cache && cache->patch.key.repo == repo.repoPath && cache->patch.key.commit == repo.selectedCommitHash()
         ? &cache->commitDetailDiff : nullptr;
 }
 
@@ -153,16 +153,14 @@ inline std::optional<reading::ReadingAnchor> picker_file(RepoComponent& repo) {
 
 inline void open_line_picker(RepoComponent& repo, LayoutComponent& layout) {
     layout.filePickerPosition = {};
-    layout.filePickerPosition.lineMode = true;
     layout.filePickerPosition.point = picker_file(repo);
     layout.filePickerScope = {};
-    layout.filePickerOpen = layout.filePickerFocus = true;
+    layout.open_picker(PickerMode::Line, repo);
 }
 
 inline void open_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
     layout.filePickerPosition = {};
     auto& position = layout.filePickerPosition;
-    position.commandMode = position.symbolMode = true;
     position.point = picker_file(repo);
     if (!position.point) position.error = "Open a file to list its symbols";
     else if (position.point->side == reading::DiffSide::Before) position.error = "Deleted files have no symbols";
@@ -172,18 +170,17 @@ inline void open_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
     layout.filePickerScope = {};
     layout.filePickerCacheKey.clear();
     layout.filePickerIndex = 0;
-    layout.filePickerOpen = layout.filePickerFocus = true;
+    layout.open_picker(PickerMode::Symbol, repo);
 }
 
 inline void open_project_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
     layout.filePickerPosition = {};
     auto& position = layout.filePickerPosition;
-    position.commandMode = position.projectSymbolMode = true;
     position.projectSymbols = git::project_symbols_async(repo.repoPath, repo.allFilePaths, "");
     layout.filePickerScope = {};
     layout.filePickerCacheKey.clear();
     layout.filePickerIndex = 0;
-    layout.filePickerOpen = layout.filePickerFocus = true;
+    layout.open_picker(PickerMode::ProjectSymbol, repo);
 }
 
 inline void go_to_symbol(RepoComponent& repo, reading::ReadingAnchor point, int line) {
@@ -252,7 +249,7 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
     if (valid && (position.parsed.position->line != position.previewLine || position.parsed.position->column != position.previewColumn)) {
         position.previewLine = position.parsed.position->line;
         position.previewColumn = position.parsed.position->column;
-        layout.filePickerPreviewing = true;
+        layout.picker.begin_preview("line:" + std::to_string(position.previewLine) + ":" + std::to_string(position.previewColumn));
         if (const auto* source = std::get_if<reading::SourceLocation>(&repo.workspace().location())) {
             auto target = *source;
             target.line = position.previewLine;
@@ -293,7 +290,7 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
         .with_size(ComponentSize{pixels(64), pixels(28)}).with_debug_name("line_picker_go"));
     const bool enter = ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && afterhours::input::is_key_pressed(afterhours::keys::ENTER);
     if (!valid || position.future.valid() || (!pressed && !enter)) return;
-    layout.filePickerPreviewing = false;
+    layout.picker.clear_preview();
     auto point = *position.point;
     point.revision = reading::anchor_revision(repo.workspace().location());
     point.line = position.parsed.position->line;
@@ -338,7 +335,7 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
             layout.filePickerIndex = best;
         }
     }
-    if (position.projectSymbolMode) {
+    if (layout.picker.mode == PickerMode::ProjectSymbol) {
         if (position.projectSymbols.valid() && position.projectSymbols.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
             auto result = position.projectSymbols.get();
             position.error = std::move(result.error);
@@ -366,7 +363,7 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
             }
         }
     }
-    div(ctx, mk(parent, 588000), ComponentConfig{}.with_label(position.projectSymbolMode ? "Go to symbol in project" : position.symbolMode ? "Go to symbol" : "Commands")
+    div(ctx, mk(parent, 588000), ComponentConfig{}.with_label(layout.picker.mode == PickerMode::ProjectSymbol ? "Go to symbol in project" : layout.picker.mode == PickerMode::Symbol ? "Go to symbol" : "Commands")
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(14)));
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 588001), position.input,
         ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)}).with_debug_name("command_palette_input"));
@@ -392,7 +389,7 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
             left.pop_back();
         }
     }
-    if (!position.symbolMode && !position.projectSymbolMode) {
+    if (layout.picker.mode == PickerMode::Commands) {
         // Previously used commands first, most recently used ahead.
         const auto& recent = Settings::get().get_command_recent();
         std::unordered_map<std::string, size_t> usedRank;
@@ -409,16 +406,15 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
     // Close first: the command may open a picker of its own.
     auto run = [&](size_t index) {
         auto action = position.commands[index].action;
-        if (!position.symbolMode && !position.projectSymbolMode) Settings::get().record_command_use(position.commands[index].label, position.input);
-        layout.filePickerPreviewing = false;
-        layout.filePickerOpen = false;
+        if (layout.picker.mode == PickerMode::Commands) Settings::get().record_command_use(position.commands[index].label, position.input);
+        layout.confirm_picker();
         action();
     };
     if (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && !results.empty()) {
         if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
         if (afterhours::input::is_key_pressed(afterhours::keys::UP)) {
             // Up on the first row recalls previous palette queries.
-            if (layout.filePickerIndex == 0 && !position.symbolMode && !position.projectSymbolMode && !position.queryHistory.empty()) {
+            if (layout.filePickerIndex == 0 && layout.picker.mode == PickerMode::Commands && !position.queryHistory.empty()) {
                 position.queryRecall = std::min(position.queryRecall + 1, static_cast<int>(position.queryHistory.size()) - 1);
                 position.input = position.queryHistory[static_cast<size_t>(position.queryRecall)];
             } else layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
@@ -426,23 +422,23 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
         if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) return run(results[layout.filePickerIndex]);
     }
     div(ctx, mk(parent, 588002), ComponentConfig{}
-        .with_label(position.projectSymbolMode ? (position.projectSymbols.valid() ? std::string("Scanning project symbols...")
+        .with_label(layout.picker.mode == PickerMode::ProjectSymbol ? (position.projectSymbols.valid() ? std::string("Scanning project symbols...")
                 : !position.error.empty() ? position.error
                 : std::to_string(results.size()) + " project symbols · Enter go · Esc close")
-            : !position.symbolMode ? std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close"
+            : layout.picker.mode == PickerMode::Commands ? std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close"
             : position.symbols.valid() ? std::string("Scanning symbols...")
             : !position.error.empty() ? position.error
             : std::to_string(results.size()) + " symbols · approximate, text-based · Enter go · Esc close")
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)).with_debug_name("command_palette_status"));
     // Go to Symbol live preview: scroll the real view to the highlighted
     // symbol; Escape snaps back via the picker's saved restore point.
-    if (position.symbolMode && position.point && !results.empty() &&
+    if (layout.picker.mode == PickerMode::Symbol && position.point && !results.empty() &&
         layout.filePickerIndex != position.previewIndex &&
         layout.filePickerIndex < static_cast<int>(results.size())) {
         const auto& command = position.commands[results[static_cast<size_t>(layout.filePickerIndex)]];
         if (command.line > 0) {
             position.previewIndex = layout.filePickerIndex;
-            layout.filePickerPreviewing = true;
+            layout.picker.begin_preview("symbol:" + std::to_string(command.line));
             auto point = *position.point;
             point.line = command.line;
             point.column = 1;
@@ -675,8 +671,22 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     if (button(ctx, mk(categories.ent(), 11), preset::Button("Repositories")
             .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
             .with_debug_name("quick_open_category_Repositories"))) {
-        layout.filePickerOpen = false;
+        // Same Picker shell, new mode: restore a live preview exactly as
+        // closing the file picker would, then confirm so no restore is
+        // left pending for the repo picker to inherit.
+        if (!layout.picker.previewKey.empty() && layout.picker.restoreLocation) {
+            navigation::open(repo, *layout.picker.restoreLocation, {}, reading::OpenMode::Keep,
+                             layout.picker.restoreAnchor);
+            // The restore's navigation effect must not close the repo
+            // picker that is about to open on the same shell.
+            if (repo.navigationEffect) {
+                repo.navigationEffect->keepPicker = true;
+                repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+            }
+        }
+        layout.confirm_picker();
         open_repo_picker(layout);
+        return;
     }
     if (button(ctx, mk(categories.ent(), 10), preset::Button("More")
         .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12)).with_debug_name("quick_open_more"))) {
@@ -714,9 +724,9 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
             const auto slash = source->destination.path.rfind('/');
             if (slash != std::string::npos) activeDir = source->destination.path.substr(0, slash + 1);
         }
-        scope.matchSearchId = ++scope.searchId;
-        scope.matchKey = key;
+        scope.matchStamp = navigation::stamp(repo, key);
         scope.matchApplied = false;
+        layout.picker.begin_matching();
         scope.matchPendingKey.clear();
         scope.matchDue.reset();
         scope.matchFuture = async_work::launch(
@@ -733,7 +743,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     };
     if (key != layout.filePickerCacheKey) position.parsed = file_query::parse(layout.filePickerQuery, paths);
     // Previous results stay on screen until the new set lands.
-    if (key != scope.matchKey && key != scope.matchPendingKey) {
+    if (key != scope.matchStamp.key && key != scope.matchPendingKey) {
         if (scope.matchFuture.valid()) {
             // Debounce only while a match is already in flight.
             scope.matchPendingKey = key;
@@ -745,15 +755,14 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         else if (scope.matchPendingKey != key) {
             scope.matchPendingKey.clear();
             scope.matchDue.reset();
-            if (key != scope.matchKey) launchMatch();
+            if (key != scope.matchStamp.key) launchMatch();
         }
     }
     if (poll_file_picker_position(repo, layout, key)) return;
     auto open = [&](const git::catalog::Entry& entry, bool keep) {
-        layout.filePickerPreviewing = false;
         // Keep the key so the preview trigger below does not re-preview the
         // just-confirmed entry in the same frame.
-        layout.filePickerPreviewKey = entry.key();
+        layout.picker.end_preview(entry.key());
         if (entry.kind == git::catalog::Kind::Diagnostic) { afterhours::clipboard::set_text(entry.title + ": " + entry.detail); return; }
         if (entry.kind == git::catalog::Kind::Submodule) {
             auto status = scope.worktreeStatus.find(entry.identity);
@@ -790,13 +799,13 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
             request_file_picker_position(repo, layout, std::move(target), keep ? reading::OpenMode::Keep : reading::OpenMode::Preview);
         } else navigation::click(repo, std::move(target), keep, reading::ClickRegion::Picker);
     };
-    // Land a finished match: only the latest search id for the current key
+    // Land a finished match: only the latest stamp for the current key
     // applies; stale completions are dropped.
     auto applyMatch = [&] {
         if (!scope.matchFuture.valid() || scope.matchFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
         auto matched = scope.matchFuture.get();
         scope.matchFuture = {};
-        if (scope.matchSearchId != scope.searchId || scope.matchKey != key) return;
+        if (!navigation::accepts(repo, scope.matchStamp, key)) { layout.picker.finish_matching(); return; }
         scope.results = std::move(matched);
         scope.matchApplied = true;
         layout.filePickerCacheKey = key;
@@ -804,9 +813,11 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         for (size_t i = 0; i < scope.results.size(); ++i)
             if (scope.results[i].key() == layout.filePickerSelectedPath) layout.filePickerIndex = static_cast<int>(i);
         revealSelection = true;
-        if (scope.confirmWhenReady) {
-            scope.confirmWhenReady = false;
-            if (!scope.results.empty()) open(scope.results[layout.filePickerIndex], scope.confirmKeep);
+        layout.picker.finish_matching();
+        if (layout.picker.phase == PickerPhase::Confirming) {
+            const bool keep = layout.picker.confirmKeep;
+            layout.picker.consume_confirm();
+            if (!scope.results.empty()) open(scope.results[layout.filePickerIndex], keep);
         }
     };
     applyMatch();
@@ -824,18 +835,17 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
             // brief chance to land, otherwise confirm when it does.
             if (scope.matchFuture.valid()) scope.matchFuture.wait_for(std::chrono::milliseconds(16));
             applyMatch();
-            const bool current = scope.matchApplied && !scope.matchFuture.valid() && scope.matchPendingKey.empty() && scope.matchKey == key;
+            const bool current = scope.matchApplied && !scope.matchFuture.valid() && scope.matchPendingKey.empty() && scope.matchStamp.key == key;
             if (!results.empty() && current) open(results[layout.filePickerIndex], !alt);
-            else { scope.confirmWhenReady = true; scope.confirmKeep = !alt; }
+            else layout.picker.request_confirm(!alt);
         }
     }
     // Live preview: moving the highlight previews the file in the main
     // pane (preview tab); confirming replaces it, Escape restores.
     if (!results.empty() && results[layout.filePickerIndex].kind == git::catalog::Kind::File &&
-        results[layout.filePickerIndex].key() != layout.filePickerPreviewKey && !position.parsed.position) {
+        results[layout.filePickerIndex].key() != layout.picker.previewKey && !position.parsed.position) {
         const auto& entry = results[layout.filePickerIndex];
-        layout.filePickerPreviewKey = entry.key();
-        layout.filePickerPreviewing = true;
+        layout.picker.begin_preview(entry.key());
         auto target = reading::SourceLocation{{entry.identity, entry.object.empty() ? scope.listing.revision : reading::source_revision(entry.object)}};
         navigation::click(repo, std::move(target), false, reading::ClickRegion::Picker);
         if (repo.navigationEffect) {
@@ -927,22 +937,40 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         auto* layout = find_singleton<LayoutComponent>();
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
         if (!layout) return;
-        if (!repo || repo->repoPath.empty()) layout->filePickerOpen = false;
-        if (layout->filePickerOpen && repo) {
+        // The repo picker owns the Picker shell in Repositories mode and
+        // RepoPickerSystem renders it; settle the file-picker scope the
+        // way a close would and leave the shell (and its focus gate) to
+        // that system.
+        if (layout->repo_picker_open()) {
+            if (layout->filePickerScope.owner) {
+                layout->filePickerScope = {};
+                layout->filePickerPosition = {};
+                layout->filePickerCacheKey.clear();
+            }
+            ctx.remove_input_gate("file_picker");
+            return;
+        }
+        if (!repo || repo->repoPath.empty()) layout->cancel_picker();
+        if (layout->picker.is_open() && repo) {
             auto& scope = layout->filePickerScope;
             if (!scope.owner || scope.owner->repository != repo->repoPath ||
-                    (!layout->filePickerPreviewing && (scope.owner->generation != repo->workspace().generation() ||
+                    (!layout->picker.previewing() && (scope.owner->generation != repo->workspace().generation() ||
                     scope.owner->dataGeneration != repo->dataGeneration ||
                     !reading::same_document(scope.owner->document, repo->workspace().location())))) {
                 scope = {};
                 scope.owner = navigation::stamp(*repo, {});
                 scope.documentRevision = reading::source_revision_for(repo->workspace().location());
                 layout->filePickerCacheKey.clear();
-                layout->filePickerRestoreLocation = repo->workspace().location();
-                if (const auto* document = repo->workspace().document(repo->workspace().active_id()))
-                    layout->filePickerRestoreAnchor = document->anchor;
-                layout->filePickerPreviewing = false;
-                layout->filePickerPreviewKey.clear();
+                // open_picker() saved the restore point on the open path;
+                // a scope reset (repo switch while open) re-saves it here,
+                // exactly as the pre-Picker reset did.
+                {
+                    std::optional<reading::ReadingAnchor> anchor;
+                    if (const auto* document = repo->workspace().document(repo->workspace().active_id()))
+                        anchor = document->anchor;
+                    layout->picker.save_restore(repo->workspace().location(), anchor);
+                }
+                layout->picker.clear_preview();
             }
         }
         auto& root = ui_imm::getUIRootEntity();
@@ -950,27 +978,30 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         const float screenWidth = ctx.screen_width / zoom;
         const float screenHeight = ctx.screen_height / zoom;
         const float width = std::max(100.f, std::min(620.f, screenWidth - 32.f));
-        const float height = layout->filePickerPosition.lineMode ? 204.f : std::max(160.f, std::min(440.f, screenHeight - 80.f));
-        auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 586100), layout->filePickerOpen,
+        const float height = layout->picker.mode == PickerMode::Line ? 204.f : std::max(160.f, std::min(440.f, screenHeight - 80.f));
+        bool pickerOpen = layout->picker.is_open();
+        auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 586100), pickerOpen,
             afterhours::ModalConfig{}.with_size(pixels(width), pixels(height))
                 .with_show_close_button(false).with_closed_by(afterhours::ClosedBy::Any)
                 .with_backdrop_color({0, 0, 0, 0}));
         modal.ent().get<afterhours::modal::Modal>().previously_focused_element = -1;
-        if (!modal || !repo) {
+        // The modal itself closed it (Esc/backdrop): a cancel, so the
+        // restore point below still applies.
+        if (!pickerOpen && layout->picker.is_open()) layout->cancel_picker();
+        if (!modal || !repo || !layout->picker.is_open()) {
             // Closed without a confirmed open: restore the exact document
-            // and scroll anchor saved when the picker opened.
-            if (repo && layout->filePickerPreviewing && layout->filePickerRestoreLocation) {
-                navigation::open(*repo, *layout->filePickerRestoreLocation, {}, reading::OpenMode::Keep,
-                                 layout->filePickerRestoreAnchor);
-                layout->filePickerPreviewing = false;
-                layout->filePickerPreviewKey.clear();
+            // and scroll anchor saved when the picker opened. A confirmed
+            // close cleared both, so it restores nothing.
+            if (repo && !layout->picker.previewKey.empty() && layout->picker.restoreLocation) {
+                navigation::open(*repo, *layout->picker.restoreLocation, {}, reading::OpenMode::Keep,
+                                 layout->picker.restoreAnchor);
             }
             if (layout->filePickerScope.owner) {
                 layout->filePickerScope = {};
                 layout->filePickerPosition = {};
-                layout->filePickerResults.clear();
                 layout->filePickerCacheKey.clear();
             }
+            if (!layout->picker.is_open()) layout->picker.reset();
             ctx.remove_input_gate("file_picker");
             return;
         }
@@ -988,8 +1019,9 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         ctx.add_input_gate("file_picker", [modalId](afterhours::EntityID id) {
             return afterhours::modal::detail::is_entity_in_tree(modalId, id);
         });
-        if (layout->filePickerPosition.lineMode) render_line_picker(ctx, body.ent(), *repo, *layout);
-        else if (layout->filePickerPosition.commandMode) render_command_palette(ctx, body.ent(), *repo, *layout, height - 48.f);
+        if (layout->picker.mode == PickerMode::Line) render_line_picker(ctx, body.ent(), *repo, *layout);
+        else if (layout->picker.mode == PickerMode::Symbol || layout->picker.mode == PickerMode::ProjectSymbol ||
+                 layout->picker.mode == PickerMode::Commands) render_command_palette(ctx, body.ent(), *repo, *layout, height - 48.f);
         else render_file_picker(ctx, body.ent(), *repo, *layout, height - 48.f);
     }
 };

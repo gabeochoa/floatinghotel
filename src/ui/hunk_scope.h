@@ -2,6 +2,7 @@
 
 #include "../git/source_find.h"
 #include "../util/diff_revisions.h"
+#include "../util/navigation.h"
 
 namespace ui::hunk_scope {
 
@@ -15,18 +16,26 @@ inline std::string enclosing(ecs::RepoComponent& repo, const ecs::FileDiff& file
     const auto& path = before && !file.oldPath.empty() ? file.oldPath : file.filePath;
     if (!symbol_outline::supported(path)) return {};
     auto& runtime = repo.hunkScopes;
-    if (runtime.future.valid() && runtime.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+    if (auto landed = runtime.slot.poll(repo)) {
         if (runtime.outlines.size() >= 64) runtime.outlines.clear();  // bounded; rescans are cheap
-        runtime.outlines[runtime.pending] = runtime.future.get().symbols;
+        if (!landed->error.empty()) {
+            runtime.failed.insert(runtime.slot.key);
+            runtime.slot.fail(landed->error);
+        } else {
+            runtime.outlines[runtime.slot.key] = landed->symbols;
+        }
+    } else if (runtime.slot.phase == async_slot::Phase::Failed && !runtime.slot.key.empty()) {
+        runtime.failed.insert(runtime.slot.key);
     }
     const auto [oldRevision, newRevision] = diff_revisions(scope);
     const auto& revision = before ? oldRevision : newRevision;
     const auto key = scope + "\n" + path + "\n" + revision + "\n" + std::to_string(repo.dataGeneration);
     const auto found = runtime.outlines.find(key);
     if (found == runtime.outlines.end()) {
-        if (!runtime.future.valid()) {
-            runtime.pending = key;
-            runtime.future = git::outline_source_async({repo.repoPath, path, revision});
+        if (!runtime.slot.busy() && !runtime.failed.contains(key) &&
+            !(runtime.slot.phase == async_slot::Phase::Failed && runtime.slot.key == key)) {
+            runtime.slot.request(key, navigation::stamp(repo, key),
+                git::outline_source_async({repo.repoPath, path, revision}));
         }
         return {};
     }

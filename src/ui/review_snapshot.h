@@ -15,10 +15,10 @@ namespace ecs {
 inline void start_review_snapshot(RepoComponent& repo, ReviewComponent& review, bool capture) {
     if (review.snapshotFuture.valid()) return;
     review.snapshotError.clear();
-    review.snapshotCapturing = capture;
+    if (capture) review.begin_baseline_capture();
     review.snapshotContext = repo.diffContext;
     review.snapshotIgnoreWhitespace = repo.ignoreWhitespace;
-    auto path = capture ? review_store::review_path(repo.repoPath, review.storageScope) + ".baseline.cbor" : review.baselineSnapshot;
+    auto path = capture ? review_store::review_path(repo.repoPath, review.storageScope) + ".baseline.cbor" : review.baselineSnapshot.value_or("");
     if (capture && app_state::testModeEnabled) path = repo.repoPath + "/.git/floatinghotel-baseline.cbor";
     review.snapshotFuture = review_store::snapshot_async(repo.repoPath, path, repo.headCommitHash,
         capture, repo.diffContext, repo.ignoreWhitespace);
@@ -28,14 +28,17 @@ inline void poll_review_snapshot(ReviewComponent& review) {
     if (!review.snapshotFuture.valid() || review.snapshotFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
     auto result = review.snapshotFuture.get();
     review.snapshotFuture = {};
-    if (!result.success()) { review.snapshotError = result.stderr_str(); return; }
-    if (review.snapshotCapturing) {
+    if (!result.success()) {
+        review.fail_baseline(result.stderr_str());
+        return;
+    }
+    if (review.baseline == Baseline::Capturing) {
         const auto saved = nlohmann::json::parse(result.stdout_str());
-        review.baselineSnapshot = saved.at("path").get<std::string>();
-        review.baselineHead = saved.at("head").get<std::string>();
-        review.baselineCapturedAt = saved.at("captured_at").get<int64_t>();
-        review.dirty = true;
+        review.finish_baseline_capture(saved.at("path").get<std::string>(),
+            saved.at("head").get<std::string>(), saved.at("captured_at").get<int64_t>());
+        review.mark_dirty();
     } else {
+        review.finish_baseline_compare();
         review.sinceReviewDiff.clear();
         for (const auto& entry : nlohmann::json::parse(result.stdout_str())) {
             auto diffs = git::parse_diff(entry.at("patch").get<std::string>());
@@ -60,7 +63,7 @@ inline std::string baseline_label(const ReviewComponent& review) {
 }
 
 inline void open_saved_review(RepoComponent& repo, ReviewComponent& review) {
-    if (review.baselineSnapshot.empty() || review.snapshotFuture.valid()) return;
+    if (!review.baselineSnapshot || review.snapshotFuture.valid()) return;
     review.sinceReviewOpen = true;
     repo.reading.rows.clear();
     if (auto* layout = find_singleton<LayoutComponent>()) layout->readingPanelCollapsed = false;

@@ -12,8 +12,8 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
     if (button(ctx, mk(parent, 598000), preset::Button(repo.rangeDiff.enabled ? "Compare revisions" : "Compare commit series")
             .with_size(ComponentSize{pixels(240), pixels(30)}).with_debug_name("comparison_mode"))) {
         repo.rangeDiff.enabled = !repo.rangeDiff.enabled;
-        repo.rangeDiff.future = {};
-        if (repo.rangeDiff.enabled) repo.comparisonFuture = {};
+        repo.rangeDiff.abandon();
+        if (repo.rangeDiff.enabled) repo.cancel_comparison_load();
     }
     if (repo.rangeDiff.enabled) {
         render_range_diff(ctx, parent, repo, layout);
@@ -28,6 +28,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         repo.comparisonLoading.restart();
         repo.comparisonFuture = git::git_compare_async(repo.repoPath, base, target, false,
             repo.diffContext, repo.ignoreWhitespace);
+        repo.begin_comparison_load();
         repo.comparisonContext = repo.diffContext;
         repo.comparisonIgnoreWhitespace = repo.ignoreWhitespace;
         repo.comparisonNeedsLoad = false;
@@ -41,7 +42,7 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
             repo.comparisonDiff = git::parse_diff(result.patch.stdout_str());
             navigation::remember_review_files(repo, repo.comparisonDiff);
             changed = true;
-        } else repo.comparisonError = result.patch.stderr_str().empty() ? "Unable to compare revisions; they may have no common ancestor." : result.patch.stderr_str();
+        } else repo.fail_comparison(result.patch.stderr_str().empty() ? "Unable to compare revisions; they may have no common ancestor." : result.patch.stderr_str());
     }
     ui::diff_syntax::update(repo, repo.comparisonDiff, repo.comparisonScope());
     auto field = [&](int id, const std::string& label, std::string& text, const std::string& name) {
@@ -69,26 +70,30 @@ inline void render_revision_comparison(UIContext<InputAction>& ctx, Entity& pare
         repo.comparisonNeedsLoad = false;
         repo.comparisonContext = repo.diffContext;
         repo.comparisonIgnoreWhitespace = repo.ignoreWhitespace;
-        if (repo.comparisonBase.empty() || repo.comparisonTarget.empty()) repo.comparisonError = "Enter both revisions (branch, tag, or commit).";
+        if (repo.comparisonBase.empty() || repo.comparisonTarget.empty()) repo.fail_comparison("Enter both revisions (branch, tag, or commit).");
         else {
             repo.comparisonRequest = RepoComponent::ComparisonRequest::SubmittedForm;
             repo.comparisonRequestStamp = navigation::stamp(repo, navigation::comparison_request_key(repo));
             repo.comparisonLoading.restart();
             repo.comparisonFuture = git::git_compare_async(repo.repoPath, repo.comparisonBase, repo.comparisonTarget,
                 repo.comparisonMergeBase, repo.diffContext, repo.ignoreWhitespace);
+            repo.begin_comparison_load();
         }
     }
     if (button(ctx, mk(actions.ent(), 2), preset::Button("Close")
-            .with_size(ComponentSize{pixels(65), pixels(30)}))) navigation::open(repo, reading::review("wt"));
+            .with_size(ComponentSize{pixels(65), pixels(30)}))) {
+        navigation::open(repo, reading::review("wt"));
+        repo.close_comparison();
+        layout.close_modal(reading::focus::Popup::ComparisonEditor);
+    }
     if (review && !repo.comparisonScope().empty() && button(ctx, mk(actions.ent(), 3), preset::Button("Review commits")
             .with_size(ComponentSize{pixels(140), pixels(30)}).with_debug_name("review_range_commits"))) {
         auto [base, target] = diff_revisions(repo.comparisonScope());
-        repo.reviewQueueScope = "queue:" + base + ":" + target;
-        repo.reviewQueueError.clear();
-        repo.reviewQueueFuture = git::git_run_async(repo.repoPath, {"log", "--reverse", "--topo-order",
-            "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P", base + ".." + target, "--"});
+        const std::string scope = "queue:" + base + ":" + target;
         navigation::open(repo, reading::review("wt"));
-        repo.reviewQueueFutureStamp = navigation::stamp(repo, repo.reviewQueueScope);
+        repo.reviewQueue.request(scope, navigation::stamp(repo, scope),
+            git::git_run_async(repo.repoPath, {"log", "--reverse", "--topo-order",
+                "--format=%H%x00%h%x00%s%x00%an%x00%aI%x00%D%x00%P", base + ".." + target, "--"}));
     }
     auto status = repo.comparisonFuture.valid() ? (repo.comparisonLoading.visible(true) ? "Comparing revisions..." : "") : repo.comparisonScope().empty() ? "Choose revisions to compare" :
         "Resolved revisions: " + diff_revisions(repo.comparisonScope()).first.substr(0, 12) + " → " + diff_revisions(repo.comparisonScope()).second.substr(0, 12);

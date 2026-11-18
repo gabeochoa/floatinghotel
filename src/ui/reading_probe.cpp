@@ -110,11 +110,11 @@ void rendered() {
     bool ready = false;
     // An extension (the page above or below loading for scroll context) is
     // not the destination: its page is already on screen.
-    if (source) ready = (!repo->fullFileFuture.valid() || repo->fullFileExtendRequest) &&
-        !repo->fullFileDiff.empty() && repo->fullFileError.empty();
-    else if (probe.revision.empty()) ready = !repo->isRefreshing && !repo->refreshRequested;
+    if (source) ready = (!repo->fullFileLoad.task.valid() || repo->fullFileLoad.extending()) &&
+        !repo->fullFileDiff.empty() && repo->fullFileLoad.error.empty();
+    else if (probe.revision.empty()) ready = !repo->refresh_busy();
     else if (detail)
-        ready = detail->cachedCommitHash == probe.revision && !detail->patchFuture.valid() &&
+        ready = detail->patch.key.commit == probe.revision && !detail->patch_loading() &&
             !detail->commitDetailDiff.empty() && detail->commitDetailError.empty();
     if (ready && probe.line > 0) {
         ready = false;
@@ -230,7 +230,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                     {"anchor_line", tab.selection->anchor.line}, {"anchor_column", tab.selection->anchor.column},
                     {"head_line", tab.selection->head.line}, {"head_column", tab.selection->head.column},
                     {"source_path", tab.selection->source.path}, {"revision", reading::revision_text(tab.selection->source.revision)}};
-                value["find"] = {{"open", tab.find.open}, {"query", tab.find.query}, {"index", tab.find.index}};
+                value["find"] = {{"open", tab.find.is_open()}, {"phase", reading::find_name(tab.find.phase)}, {"query", tab.find.query}, {"index", tab.find.index}};
                 if (tab.find.position) value["find"]["position"] = {
                     {"path", tab.find.position->path}, {"line", tab.find.position->line},
                     {"column", tab.find.position->column}, {"sign", std::string(1, tab.find.position->sign)}};
@@ -254,7 +254,7 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                             bytes += entry.result.bytes;
                             lines += entry.result.lines.lines.size();
                         }
-                        return nlohmann::json{{"bytes", bytes}, {"owned_bytes", owned_context_bytes(repo->hunkContext)}, {"lines", lines}, {"ranges", ranges}, {"loading", repo->hunkContext.future.valid()}};
+                        return nlohmann::json{{"bytes", bytes}, {"owned_bytes", owned_context_bytes(repo->hunkContext)}, {"lines", lines}, {"ranges", ranges}, {"loading", repo->hunkContext.slot.busy()}, {"phase", async_slot::name(repo->hunkContext.slot.phase)}};
                     }()},
                     {"source_folds", {{"ranges", [&] {
                         auto ranges = nlohmann::json::array();
@@ -268,12 +268,12 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                                 {"last_line", page.next.line}, {"first_column", page.begin.column}, {"last_column", page.next.column},
                                 {"identity", page.sourceIdentity}});
                         return nlohmann::json{{"pages", pages}, {"raw_bytes", repo->sourceWindow.raw.size()},
-                            {"owned_bytes", source_pages::owned_bytes(repo->sourceWindow)}, {"error", repo->fullFileError},
+                            {"owned_bytes", source_pages::owned_bytes(repo->sourceWindow)}, {"error", repo->fullFileLoad.error},
                             {"bounded", source_pages::bounded(repo->sourceWindow) && file_page::stats(repo->sourceWindow.raw,
                                 repo->fullFileDiff, repo->fullFileDecodedText).bounded(repo->sourceWindow.pages.size())},
-                            {"loading", repo->fullFileFuture.valid()}};
+                            {"loading", repo->fullFileLoad.task.valid()}};
                     }()},
-                    {"source_find", {{"matches", repo->sourceFind.result.matches.size()}, {"loading", repo->sourceFind.future.valid()},
+                    {"source_find", {{"matches", repo->sourceFind.result.matches.size()}, {"loading", repo->sourceFind.busy()}, {"phase", async_slot::name(repo->sourceFind.slot.phase)},
                         {"match_bytes", repo->sourceFind.result.matches.capacity() * sizeof(ecs::SourceFindMatch)},
                         {"limited", repo->sourceFind.result.limited}, {"error", repo->sourceFind.result.error},
                         {"scanned_bytes", repo->sourceFind.result.scannedBytes}, {"max_page_bytes", repo->sourceFind.result.maxPageBytes},
@@ -296,12 +296,13 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         const auto* review = ecs::find_singleton<ecs::ReviewComponent, ecs::ActiveTab>();
                         return review ? nlohmann::json{{"cursor", review->cursor}, {"hunks", review->hunkCount},
                             {"approve_pending", review->cursorApprove}, {"comment_pending", review->cursorComment},
-                            {"approved", review->approvedHunks.size()}, {"baseline", review->baselineSnapshot},
+                            {"approved", review->approvedHunks.size()}, {"baseline", review->baselineSnapshot.value_or("")},
+                            {"baseline_phase", ecs::baseline_name(review->baseline)}, {"composer", ecs::composer_name(review->composer)},
                             {"baseline_head", review->baselineHead}, {"baseline_captured_at", review->baselineCapturedAt},
                             {"snapshot_open", review->sinceReviewOpen}, {"snapshot_pending", review->snapshotFuture.valid()},
-                            {"composing", review->composingKey}, {"composing_line", review->composingLine},
-                            {"composing_end_line", review->composingEndLine}, {"composing_old_side", review->composingOldSide},
-                            {"folded_hunks", review->foldedHunks.size()}, {"draft", review->composingText}, {"comments", review->comments.size()}} : nlohmann::json{};
+                            {"composing", review->composing_key()}, {"composing_line", review->composerDraft.line},
+                            {"composing_end_line", review->composerDraft.endLine}, {"composing_old_side", review->composerDraft.oldSide},
+                            {"folded_hunks", review->foldedHunks.size()}, {"draft", review->composerDraft.text}, {"comments", review->comments.size()}} : nlohmann::json{};
                     }()}, {"trees", [&] {
                         auto value = [](const file_tree::NavigationState& state) {
                             return nlohmann::json{{"path", state.path}, {"reveal_path", state.revealPath},
@@ -311,10 +312,10 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         };
                         return nlohmann::json{{"review", value(repo->reviewTreeNavigation)}, {"files", value(repo->filesTreeNavigation)},
                             {"generation", repo->workspace().generation()}};
-                    }()}, {"search", {{"open", repo->repoSearchOpen}, {"query", repo->repoSearchQuery},
+                    }()}, {"search", {{"open", repo->repo_search_open()}, {"query", repo->repoSearchQuery},
                         {"revision", repo->repoSearchScope.revision}, {"submissions", repo->repoSearchGeneration},
                         {"matches", repo->repoSearchResults.size()}, {"scroll", repo->repoSearchScroll},
-                        {"pending", repo->repoSearchDue.has_value()}, {"loading", repo->repoSearchFuture.valid()},
+                        {"pending", repo->repoSearchPhase == ecs::Search::Debouncing}, {"loading", repo->repoSearchPhase == ecs::Search::Running}, {"phase", std::string(ecs::search_name(repo->repoSearchPhase))},
                         {"submitted_query", repo->repoSearchSubmittedQuery}, {"captured_bytes", repo->repoSearchCapturedBytes},
                         {"truncated", repo->repoSearchTruncated},
                         {"visible_rows", repo->repoSearchRows.size()},
@@ -328,8 +329,8 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                         }()},
                         {"selected", repo->repoSearchSelected ? nlohmann::json(*repo->repoSearchSelected) : nlohmann::json{}},
                         {"include", repo->repoSearchIncludeGlob}, {"exclude", repo->repoSearchExcludeGlob},
-                        {"changed_only", repo->repoSearchChangedOnly}}}, {"commit_log", {{"count", repo->commitLog.size()}, {"has_more", repo->commitLogHasMore},
-                        {"loading", repo->commitLogPage.requested || repo->commitLogPage.future.valid()},
+                        {"changed_only", repo->repoSearchChangedOnly}}}, {"commit_log", {{"count", repo->commitLog.size()}, {"has_more", repo->commitLogPage.hasMore}, {"phase", std::string(ecs::log_phase_name(repo->commitLogPage.phase))},
+                        {"loading", repo->commitLogPage.busy() || repo->commitLogPage.future.valid()},
                         {"error", repo->commitLogPage.error}, {"hashes", [&] {
                             auto hashes = nlohmann::json::array();
                             for (const auto& commit : repo->commitLog) hashes.push_back(commit.hash);

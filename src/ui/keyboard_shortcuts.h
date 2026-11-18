@@ -9,17 +9,19 @@ namespace ui {
 
 inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutComponent& layout) {
     if (const auto* binding = bindings::find("Cmd+Shift+/"); binding && bindings::chord_pressed(*binding))
-        layout.shortcutsOpen = true;
-    bool active = layout.shortcutsOpen;
+        layout.open_modal(reading::focus::Popup::Shortcuts);
+    bool active = layout.modal_is(reading::focus::Popup::Shortcuts);
     auto& root = ui_imm::getUIRootEntity();
     const float screenWidth = ctx.screen_width / zoom::get();
     const float screenHeight = ctx.screen_height / zoom::get();
     float width = std::min(620.f, screenWidth - 32.f);
     float height = std::min(580.f, screenHeight - 32.f);
-    auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 595000), layout.shortcutsOpen,
+    bool shortcutsOpen = layout.modal_is(reading::focus::Popup::Shortcuts);
+    auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 595000), shortcutsOpen,
         afterhours::ModalConfig{}.with_size(pixels(width), pixels(height))
             .with_title("Keyboard Shortcuts").with_show_close_button(false)
             .with_backdrop_color({0, 0, 0, 0}));
+    if (!shortcutsOpen) layout.close_modal(reading::focus::Popup::Shortcuts);
     if (!modal) return active;
     modal.cmp().absolute_pos_x = (ctx.screen_width - width * zoom::get()) * 0.5f;
     modal.cmp().absolute_pos_y = (ctx.screen_height - height * zoom::get()) * 0.5f;
@@ -52,7 +54,7 @@ inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutCo
         .with_text_overflow(afterhours::ui::TextOverflow::Wrap).with_font_size(pixels(12)).with_render_layer(1001));
     if (button(ctx, mk(modal.ent(), 3), preset::Button("Close")
         .with_size(ComponentSize{pixels(80), pixels(28)}).with_render_layer(1001)
-        .with_debug_name("shortcuts_close"))) layout.shortcutsOpen = false;
+        .with_debug_name("shortcuts_close"))) layout.close_modal(reading::focus::Popup::Shortcuts);
     return true;
 }
 

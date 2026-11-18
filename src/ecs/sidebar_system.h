@@ -125,6 +125,7 @@ inline bool begin_commit(RepoComponent& repo,
     if (!editor.templateText.empty() && commit_message::strip_template(message) == editor.templateText) {
         if (auto* menu = find_singleton<MenuComponent>())
             menu->pendingToasts.push_back({"Fill in the commit template first", MenuComponent::Notice::Kind::Error});
+        editor.abort_commit();
         return false;
     }
     editor.commitMessage = message;
@@ -139,6 +140,7 @@ inline bool begin_commit(RepoComponent& repo,
             return outcome;
         }, async_work::Priority::Foreground,
         CommitEditorComponent::CommitOutcome{true, git::GitResult{{"", "Background queue is full; commit again", -1}}});
+    editor.begin_committing();
     return true;
 }
 
@@ -148,20 +150,20 @@ inline void poll_commit(RepoComponent& repo, CommitEditorComponent& editor) {
         editor.commitFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
     auto outcome = editor.commitFuture.get();
     editor.commitFuture = {};
-    if (outcome.stageFailed) { toast_on_git_failure(outcome.result, "Stage All"); return; }
+    if (outcome.stageFailed) { editor.abort_commit(); toast_on_git_failure(outcome.result, "Stage All"); return; }
     const auto& result = outcome.result;
     if (result.success()) {
         editor.subject = editor.templateText;
         editor.placeCaret = 0;
         editor.body.clear();
         editor.isVisible = false;
-        repo.refreshRequested = true;
+        repo.request_refresh();
         auto* review = find_singleton<ReviewComponent, ActiveTab>();
         if (review && std::ranges::any_of(review->comments, [](const auto& c) { return c.scope == "wt" || c.scope == "index"; })) {
             auto patch = git::read_commit_patch({repo.repoPath, "HEAD"});
             auto carried = patch.error.empty() ? review_anchor::carry_to_commit(review->comments, patch.resolvedCommit, patch.files)
                                                : review_anchor::Carried{};
-            if (carried.moved) review->dirty = true;
+            if (carried.moved) review->mark_dirty();
             auto* menu = find_singleton<MenuComponent>();
             if (menu && carried.moved) menu->pendingToasts.push_back({"Moved " + std::to_string(carried.moved) +
                 " comment" + (carried.moved == 1 ? "" : "s") + " to commit " + patch.resolvedCommit.substr(0, 7), MenuComponent::Notice::Kind::Info});
@@ -169,8 +171,10 @@ inline void poll_commit(RepoComponent& repo, CommitEditorComponent& editor) {
                 " comment" + (carried.ambiguous == 1 ? "" : "s") + " left on the working tree: matches several places in the commit",
                 MenuComponent::Notice::Kind::Info});
         }
+        editor.finish_commit();
         return;
     }
+    editor.abort_commit();
     toast_on_git_failure(result, "Commit");
 }
 
@@ -182,33 +186,30 @@ inline void handle_commit_request(RepoComponent& repo,
     bool hasUnstaged = !repo.unstagedFiles.empty() ||
                        !repo.untrackedFiles.empty();
 
-    if (!hasStaged) return; // Nothing to commit
+    if (!hasStaged) return; // Nothing to commit yet: stay Committing (pending)
 
     if (!hasUnstaged) {
         // No unstaged changes — commit directly
         begin_commit(repo, editor, false);
-        editor.commitRequested = false;
         return;
     }
 
-    // Both staged and unstaged exist — check policy
+    // Both staged and unstaged exist — check policy. The one-shot
+    // split-button override is consumed here exactly as before (only
+    // on this both-present path), so the main button keeps Ask.
     const auto policy = editor.commitPolicyOverride.value_or(editor.unstagedPolicy);
     editor.commitPolicyOverride.reset();
     switch (policy) {
         case CommitEditorComponent::UnstagedPolicy::StageAll:
             begin_commit(repo, editor, true);
-            editor.commitRequested = false;
             break;
         case CommitEditorComponent::UnstagedPolicy::CommitStagedOnly:
             begin_commit(repo, editor, false);
-            editor.commitRequested = false;
             break;
         case CommitEditorComponent::UnstagedPolicy::Ask:
         default:
             // Open the dialog
-            editor.showUnstagedDialog = true;
-            editor.rememberChoice = false;
-            editor.commitRequested = false;
+            editor.await_policy();
             break;
     }
 }
@@ -253,9 +254,9 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         focusedCommit_.clear();
         if (lastPrefetchMouse_.x != ctx.mouse.pos.x || lastPrefetchMouse_.y != ctx.mouse.pos.y) hoverPrefetch_ = true;
         lastPrefetchMouse_ = ctx.mouse.pos;
-        if (repoPtr && (!layout.sidebarVisible || layout.sidebar.width <= 0.f || repoPtr->repoSearchOpen))
+        if (repoPtr && (!layout.sidebarVisible || layout.sidebar.width <= 0.f || repoPtr->repo_search_open()))
             repoPtr->commitPrefetch.observe({});
-        if ((!layout.sidebarVisible && !(repoPtr && repoPtr->repoSearchOpen)) || layout.sidebar.width <= 0.f) return;
+        if ((!layout.sidebarVisible && !(repoPtr && repoPtr->repo_search_open())) || layout.sidebar.width <= 0.f) return;
 
         // Working tree clean = nothing staged/unstaged/untracked. Used to hide
         // the commit area and shrink the empty files pane (#8, #24).
@@ -290,7 +291,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
 
         render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
-        if (repoPtr && repoPtr->repoSearchOpen) {
+        if (repoPtr && repoPtr->repo_search_open()) {
             auto pane = div(ctx, mk(sidebarRoot.ent(), 2090), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), expand()})
                 .with_padding(Padding{.top = pixels(8), .right = pixels(8), .bottom = pixels(8), .left = pixels(8)})
@@ -461,7 +462,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 const auto context = repoPtr->repoPath + "\nfiles:" + scope + ":" + std::to_string(static_cast<int>(layout.fileViewMode)) +
                     ":" + std::to_string(static_cast<int>(active_review_tab()));
                 update_file_tree(ctx, fileList, *repoPtr, layout, context);
-                if (!repoPtr->isRefreshing && !repoPtr->refreshRequested && file_tree::reveal_navigation(state, context,
+                if (!repoPtr->refresh_busy() && file_tree::reveal_navigation(state, context,
                         repoPtr->workspace().generation(), file_tree::destination_path(repoPtr->workspace(),
                             allFilesMode_ || scope == "wt" ? file_tree::Scope::Working : file_tree::Scope::Index),
                         allFilesMode_ ? repoPtr->allFilePaths : treePaths_, collapsed)) update_file_tree(ctx, fileList, *repoPtr, layout, context);
@@ -632,7 +633,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             .with_debug_name("commit_log_scroll");
         const size_t logRows = repoPtr && !historyCollapsed ? repoPtr->commitLog.size() : 0;
         const bool windowedLog = repoPtr && logRows > 0;
-        const bool logHasMore = windowedLog && repoPtr->commitLogHasMore;
+        const bool logHasMore = windowedLog && repoPtr->commitLogPage.hasMore;
         constexpr float commitRowPx = theme::layout::COMMIT_ROW_HEIGHT;
         constexpr float lazyRowPx = 24.f;
         if (repoPtr) {
@@ -645,7 +646,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         const auto historyTarget = focusedHistory.valid() ? ui::focus_target(**focusedHistory) : std::nullopt;
         const bool retryFinished = repoPtr && historyTarget && historyTarget->repository == repoPtr->repoPath &&
             historyTarget->control == "lazy_load" && !repoPtr->commitLogPage.future.valid() &&
-            !repoPtr->commitLogPage.requested && repoPtr->commitLogPage.error.empty();
+            repoPtr->commitLogPage.phase == LogPhase::Idle && repoPtr->commitLogPage.error.empty();
         if (retryFinished) {
             auto [listEntity, listOwner] = afterhours::ui::imm::deref(logList);
             ctx.set_focus(listEntity.id);
@@ -676,8 +677,8 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 if (repoPtr->historyRestorePosition) {
                     auto found = std::find_if(repoPtr->commitLog.begin(), repoPtr->commitLog.end(), [&](const auto& commit) { return commit.hash == position.top; });
                     const float offset = found == repoPtr->commitLog.end() ? 0.f : (static_cast<float>(found - repoPtr->commitLog.begin()) + position.fraction) * rowHeight;
-                    if (found == repoPtr->commitLog.end() && !position.top.empty() && repoPtr->commitLogHasMore && repoPtr->commitLog.size() < 5000) {
-                        repoPtr->commitLogPage.requested = true;
+                    if (found == repoPtr->commitLog.end() && !position.top.empty() && repoPtr->commitLogPage.hasMore && repoPtr->commitLog.size() < 5000) {
+                        repoPtr->commitLogPage.request_page();
                     } else {
                         scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = offset;
                         scroll.anchor_child = -1;
@@ -718,13 +719,12 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         // === Commit workflow + Unstaged Changes Dialog (T030) ===
         if (repoPtr && repoPtr->reviewWorkspace) {
             if (auto* editor = find_singleton<CommitEditorComponent, ActiveTab>()) {
-                editor->commitRequested = false;
-                editor->showUnstagedDialog = false;
+                editor->cancel_request();
             }
-            if (auto* branchDialog = find_singleton<BranchDialogState, ActiveTab>()) {
-                branchDialog->showNewBranchDialog = false;
-                branchDialog->showDeleteBranchDialog = false;
-                branchDialog->showForceDeleteDialog = false;
+            if (auto* layout = find_singleton<LayoutComponent>()) {
+                using reading::focus::Popup;
+                if (layout->modal_is(Popup::NewBranch) || layout->modal_is(Popup::DeleteBranch) ||
+                    layout->modal_is(Popup::ForceDeleteBranch)) layout->close_top_modal();
             }
         }
         if (repoPtr && !repoPtr->reviewWorkspace) {
@@ -734,7 +734,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (editor) {
 
                 // Process commit request
-                if (editor->commitRequested) {
+                if (editor->commit_requested()) {
                     commit_workflow::handle_commit_request(repo, *editor);
                 }
                 commit_workflow::poll_commit(repo, *editor);
@@ -745,11 +745,12 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
 
             // === Branch dialogs (T031) ===
             auto* branchDialog = find_singleton<BranchDialogState, ActiveTab>();
-            if (branchDialog) {
-                render_new_branch_dialog(ctx, uiRoot, repo, *branchDialog);
-                render_delete_branch_dialog(ctx, uiRoot, repo, *branchDialog);
-                render_force_delete_dialog(ctx, uiRoot, repo, *branchDialog);
-                render_stash_dialog(ctx, uiRoot, repo, *branchDialog);
+            auto* layoutPtr = find_singleton<LayoutComponent>();
+            if (branchDialog && layoutPtr) {
+                render_new_branch_dialog(ctx, uiRoot, repo, *branchDialog, *layoutPtr);
+                render_delete_branch_dialog(ctx, uiRoot, repo, *branchDialog, *layoutPtr);
+                render_force_delete_dialog(ctx, uiRoot, repo, *branchDialog, *layoutPtr);
+                render_stash_dialog(ctx, uiRoot, repo, *branchDialog, *layoutPtr);
             }
         }
     }
@@ -896,15 +897,13 @@ private:
                 repo->comparisonLoading.visible(repo->comparisonFuture.valid()) ? "Loading comparison files..." : "";
         } else if (repo && !repo->selectedCommitHash().empty()) {
             scope = commit_review_scope(*repo);
-            const bool matching = cache && cache->cachedRepoPath == repo->repoPath &&
-                cache->cachedCommitHash == repo->selectedCommitHash() &&
-                cache->cachedParentHash == selected_commit_parent(*repo) &&
-                cache->cachedContext == repo->diffContext && cache->cachedIgnoreWhitespace == repo->ignoreWhitespace;
-            if (matching && !cache->patchFuture.valid()) {
+            const bool matching = cache && cache->patch.key == PatchKey{repo->repoPath, repo->selectedCommitHash(),
+                selected_commit_parent(*repo), repo->diffContext, repo->ignoreWhitespace};
+            if (matching && !cache->patch_loading()) {
                 if (cache->commitDetailError.empty()) files = &cache->commitDetailDiff;
                 else empty = "Unable to load commit files";
-            } else empty = matching && cache->loading.visible(cache->patchFuture.valid()) ? "Loading commit files..." : "";
-        } else if (repo && repo->hasLoadedOnce) {
+            } else empty = matching && cache->loading.visible(cache->patch_loading()) ? "Loading commit files..." : "";
+        } else if (repo && repo->has_loaded_once()) {
             scope = repo->selectedFileStaged() ? "index" : "wt";
             files = repo->selectedFileStaged() ? &repo->stagedDiff : &repo->currentDiff;
         }
@@ -1438,7 +1437,8 @@ private:
             enqueue_network_op("Fetch", git::git_run_async(repo->repoPath, {"fetch", "--all"}));
         if (syncBtn(2089, "Stash", hasRepo, "sync_stash")) {
             auto* bd = find_singleton<BranchDialogState, ActiveTab>();
-            if (bd) bd->showStashDialog = true;
+            auto* layout = find_singleton<LayoutComponent>();
+            if (bd && layout) layout->open_modal(reading::focus::Popup::Stash);
         }
 
         // Upstream + last-fetched line under the buttons.
@@ -1545,7 +1545,7 @@ private:
                     navigation::open(repo, reading::review("wt"), review->reviewing);
                 } else {
                     review->reviewing = !review->reviewing;
-                    review->dirty = true;
+                    review->mark_dirty();
                     if (review->reviewing) {
                         for (auto& fd : repo.currentDiff) {
                             review->seenSig[fd.filePath] = diff_signature(fd);
@@ -1678,7 +1678,7 @@ private:
             .get<afterhours::text_input::HasTextInputListener>()
             .on_submit = [](Entity&) {
                 auto* ed = find_singleton<CommitEditorComponent, ActiveTab>();
-                if (ed) ed->commitRequested = true;
+                if (ed) ed->request_commit();
             };
 
         // Split button: Commit keeps the configured unstaged policy (ask
@@ -1692,7 +1692,7 @@ private:
                 .with_size(ComponentSize{expand(), pixels(24)})
                 .with_font_size(pixels(14))
                 .with_debug_name("commit_btn_inline"));
-        if (commitBtn && hasStaged) editor.commitRequested = true;
+        if (commitBtn && hasStaged) editor.request_commit();
         auto splitBtn = button(ctx, mk(commitRow.ent(), 1),
             preset::Button("v", hasStaged)
                 .with_size(ComponentSize{pixels(28), pixels(24)})
@@ -1704,7 +1704,7 @@ private:
             auto item = [ed](const std::string& label, CommitEditorComponent::UnstagedPolicy policy) {
                 return ui::ContextMenuItem::item(label, [ed, policy] {
                     ed->commitPolicyOverride = policy;
-                    ed->commitRequested = true;
+                    ed->request_commit();
                 });
             };
             ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
@@ -1756,8 +1756,9 @@ private:
 
             if (newBranchBtn) {
                 auto* bd = find_singleton<BranchDialogState, ActiveTab>();
-                if (bd) {
-                    bd->showNewBranchDialog = true;
+                auto* layout = find_singleton<LayoutComponent>();
+                if (bd && layout) {
+                    layout->open_modal(reading::focus::Popup::NewBranch);
                     bd->newBranchName.clear();
                 }
             }
@@ -1944,9 +1945,10 @@ private:
         if (branch.isLocal && !isCurrent && !repo.reviewWorkspace) {
             auto askDelete = [this, &branch] {
                 auto* bd = find_singleton<BranchDialogState, ActiveTab>();
-                if (bd) {
+                auto* layout = find_singleton<LayoutComponent>();
+                if (bd && layout) {
                     bd->deleteBranchName = branch.name;
-                    bd->showDeleteBranchDialog = true;
+                    layout->open_modal(reading::focus::Popup::DeleteBranch);
                 }
             };
             if (afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(rowResult.ent()))) {
@@ -1962,9 +1964,10 @@ private:
                 ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
                     ui::ContextMenuItem::item("Delete branch...", [name = branch.name] {
                         auto* bd = find_singleton<BranchDialogState, ActiveTab>();
-                        if (bd) {
+                        auto* layout = find_singleton<LayoutComponent>();
+                        if (bd && layout) {
                             bd->deleteBranchName = name;
-                            bd->showDeleteBranchDialog = true;
+                            layout->open_modal(reading::focus::Popup::DeleteBranch);
                         }
                     })});
             }
@@ -1976,20 +1979,22 @@ private:
     void render_new_branch_dialog(UIContext<InputAction>& ctx,
                                    Entity& uiRoot,
                                    RepoComponent& repo,
-                                   BranchDialogState& bd) {
-        if (!bd.showNewBranchDialog) return;
+                                   BranchDialogState& bd, LayoutComponent& layout) {
+        if (!layout.modal_is(reading::focus::Popup::NewBranch)) return;
 
         using namespace afterhours;
 
         constexpr int MODAL_ID = 8100;
         constexpr int CONTENT_LAYER = 1001;
 
+        bool dialogOpen = true;
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, MODAL_ID), bd.showNewBranchDialog,
+            ctx, mk(uiRoot, MODAL_ID), dialogOpen,
             ModalConfig{}
                 .with_size(pixels(380), pixels(180))
                 .with_title("New Branch")
                 .with_show_close_button(false));
+        if (!dialogOpen) layout.close_modal(reading::focus::Popup::NewBranch);
 
         if (!modalResult) return;
         auto& modalEnt = modalResult.ent();
@@ -2035,7 +2040,7 @@ private:
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_new_branch"))) {
-            bd.showNewBranchDialog = false;
+            layout.close_modal(reading::focus::Popup::NewBranch);
             bd.newBranchName.clear();
         }
 
@@ -2049,9 +2054,9 @@ private:
                 auto result = git::create_branch(repo.repoPath, bd.newBranchName);
                 toast_on_git_failure(result, "Create Branch");
                 if (result.success()) {
-                    repo.refreshRequested = true;
+                    repo.request_refresh();
                 }
-                bd.showNewBranchDialog = false;
+                layout.close_modal(reading::focus::Popup::NewBranch);
                 bd.newBranchName.clear();
             }
         }
@@ -2059,14 +2064,16 @@ private:
 
     // ---- Stash dialog ----
     void render_stash_dialog(UIContext<InputAction>& ctx, Entity& uiRoot,
-                             RepoComponent& repo, BranchDialogState& bd) {
-        if (!bd.showStashDialog) return;
+                             RepoComponent& repo, BranchDialogState& bd, LayoutComponent& layout) {
+        if (!layout.modal_is(reading::focus::Popup::Stash)) return;
         using namespace afterhours;
         constexpr int MODAL_ID = 8400;
         constexpr int CONTENT_LAYER = 1001;
+        bool dialogOpen = true;
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, MODAL_ID), bd.showStashDialog,
+            ctx, mk(uiRoot, MODAL_ID), dialogOpen,
             ModalConfig{}.with_size(pixels(400), pixels(210)).with_title("Stash Changes").with_show_close_button(false));
+        if (!dialogOpen) layout.close_modal(reading::focus::Popup::Stash);
         if (!modalResult) return;
         auto& modalEnt = modalResult.ent();
         div(ctx, mk(modalEnt, 1), ComponentConfig{}.with_label("Message (optional):")
@@ -2089,7 +2096,7 @@ private:
                 .with_margin(Margin{.right = pixels(8)})
                 .with_custom_background(theme::BUTTON_SECONDARY).with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER).with_debug_name("cancel_stash"))) {
-            bd.showStashDialog = false;
+            layout.close_modal(reading::focus::Popup::Stash);
             bd.stashMessage.clear();
         }
         if (button(ctx, mk(btnRow.ent(), 2), preset::Button("Stash")
@@ -2098,7 +2105,7 @@ private:
                 bd.stashMessage.empty() ? std::string("Stashed via floatinghotel") : bd.stashMessage};
             if (bd.stashIncludeUntracked) args.push_back("--include-untracked");
             enqueue_network_op("Stash", git::git_run_async(repo.repoPath, std::move(args)));
-            bd.showStashDialog = false;
+            layout.close_modal(reading::focus::Popup::Stash);
             bd.stashMessage.clear();
             bd.stashIncludeUntracked = false;
         }
@@ -2108,8 +2115,8 @@ private:
     void render_delete_branch_dialog(UIContext<InputAction>& ctx,
                                       Entity& uiRoot,
                                       RepoComponent& repo,
-                                      BranchDialogState& bd) {
-        if (!bd.showDeleteBranchDialog) return;
+                                      BranchDialogState& bd, LayoutComponent& layout) {
+        if (!layout.modal_is(reading::focus::Popup::DeleteBranch)) return;
 
         using namespace afterhours;
 
@@ -2120,12 +2127,14 @@ private:
             "This will delete the local branch. If it has unmerged\n"
             "changes, you will be prompted to force delete.";
 
+        bool dialogOpen = true;
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, MODAL_ID), bd.showDeleteBranchDialog,
+            ctx, mk(uiRoot, MODAL_ID), dialogOpen,
             ModalConfig{}
                 .with_size(pixels(420), pixels(180))
                 .with_title("Delete Branch")
                 .with_show_close_button(false));
+        if (!dialogOpen) layout.close_modal(reading::focus::Popup::DeleteBranch);
 
         if (!modalResult) return;
         auto& modalEnt = modalResult.ent();
@@ -2152,7 +2161,7 @@ private:
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_delete"))) {
-            bd.showDeleteBranchDialog = false;
+            layout.close_modal(reading::focus::Popup::DeleteBranch);
             bd.deleteBranchName.clear();
         }
 
@@ -2165,12 +2174,11 @@ private:
             auto result = git::delete_branch(repo.repoPath,
                                               bd.deleteBranchName, false);
             if (result.success()) {
-                repo.refreshRequested = true;
-                bd.showDeleteBranchDialog = false;
+                repo.request_refresh();
+                layout.close_modal(reading::focus::Popup::DeleteBranch);
                 bd.deleteBranchName.clear();
             } else {
-                bd.showDeleteBranchDialog = false;
-                bd.showForceDeleteDialog = true;
+                layout.open_modal(reading::focus::Popup::ForceDeleteBranch);
             }
         }
     }
@@ -2179,8 +2187,8 @@ private:
     void render_force_delete_dialog(UIContext<InputAction>& ctx,
                                      Entity& uiRoot,
                                      RepoComponent& repo,
-                                     BranchDialogState& bd) {
-        if (!bd.showForceDeleteDialog) return;
+                                     BranchDialogState& bd, LayoutComponent& layout) {
+        if (!layout.modal_is(reading::focus::Popup::ForceDeleteBranch)) return;
 
         using namespace afterhours;
 
@@ -2192,12 +2200,14 @@ private:
             "Force delete will permanently lose these changes.\n"
             "Are you sure?";
 
+        bool dialogOpen = true;
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, MODAL_ID), bd.showForceDeleteDialog,
+            ctx, mk(uiRoot, MODAL_ID), dialogOpen,
             ModalConfig{}
                 .with_size(pixels(420), pixels(200))
                 .with_title("Force Delete Branch")
                 .with_show_close_button(false));
+        if (!dialogOpen) layout.close_modal(reading::focus::Popup::ForceDeleteBranch);
 
         if (!modalResult) return;
         auto& modalEnt = modalResult.ent();
@@ -2225,7 +2235,7 @@ private:
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_render_layer(CONTENT_LAYER)
                 .with_debug_name("cancel_force_delete"))) {
-            bd.showForceDeleteDialog = false;
+            layout.close_modal(reading::focus::Popup::ForceDeleteBranch);
             bd.deleteBranchName.clear();
         }
 
@@ -2238,9 +2248,9 @@ private:
             auto result = git::delete_branch(repo.repoPath,
                                               bd.deleteBranchName, true);
             if (result.success()) {
-                repo.refreshRequested = true;
+                repo.request_refresh();
             }
-            bd.showForceDeleteDialog = false;
+            layout.close_modal(reading::focus::Popup::ForceDeleteBranch);
             bd.deleteBranchName.clear();
         }
     }
@@ -2559,7 +2569,7 @@ private:
             if (button(ctx, mk(scrollParent, 2500), preset::Button("Retry repository read")
                     .with_size(ComponentSize{percent(1.0f), pixels(28)})
                     .with_debug_name("retry_repository_read")))
-                repo.refreshRequested = true;
+                repo.request_refresh();
             div(ctx, mk(scrollParent, 2501), preset::EmptyStateText(
                     repo.filesError.substr(0, repo.filesError.find('\n')))
                 .with_size(ComponentSize{percent(1.0f), pixels(28)})
@@ -2570,7 +2580,7 @@ private:
         if (allFilesMode_) {
             // Only reached when the explorer tree is empty (the windowed
             // list handles the non-empty case).
-            div(ctx, mk(scrollParent, 2500), preset::EmptyStateText(repo.hasLoadedOnce ? "No files in this repository" : "Loading files...")
+            div(ctx, mk(scrollParent, 2500), preset::EmptyStateText(repo.has_loaded_once() ? "No files in this repository" : "Loading files...")
                 .with_size(ComponentSize{percent(1.0f), pixels(28)})
                 .with_debug_name("explorer_empty"));
             return;
@@ -2580,7 +2590,7 @@ private:
                      repo.untrackedFiles.empty();
 
         if (empty) {
-            if (!repo.hasLoadedOnce) {
+            if (!repo.has_loaded_once()) {
                 // Initial load in progress — show spinner
                 static int spinIdx = 0;
                 static int frameCounter = 0;
@@ -2829,7 +2839,7 @@ private:
             // On a loaded machine the log can trail the diff by seconds;
             // "No commits yet" during that window reads as a broken sidebar.
             div(ctx, mk(scrollParent, 0),
-                preset::EmptyStateText(repo.commitLogLoading ? "Loading commits..." : !repo.historyError.empty() ? repo.historyError : "No commits yet")
+                preset::EmptyStateText(repo.commitLogPage.busy() ? "Loading commits..." : !repo.historyError.empty() ? repo.historyError : !repo.commitLogPage.error.empty() && repo.commitLogPage.phase == LogPhase::Error ? repo.commitLogPage.error : "No commits yet")
                     .with_size(ComponentSize{percent(1.0f), pixels(32)})
                     .with_padding(Padding{
                         .top = pixels(16), .right = pixels(8),
@@ -2844,14 +2854,14 @@ private:
             render_commit_row(ctx, scrollParent, i, repo.commitLog[i], repo);
         }
 
-        if (repo.commitLogHasMore) render_lazy_load_row(ctx, scrollParent, repo);
+        if (repo.commitLogPage.hasMore) render_lazy_load_row(ctx, scrollParent, repo);
     }
 
     // Lazy load indicator at the bottom of the log.
     void render_lazy_load_row(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo) {
         auto& page = repo.commitLogPage;
-        if (page.error.empty() && !page.future.valid() && !repo.commitLogLoading) page.requested = true;
-        const bool loading = page.requested || page.future.valid() || repo.commitLogLoading;
+        if (page.error.empty() && !page.future.valid() && !page.busy()) page.request_page();
+        const bool loading = page.busy() || page.future.valid();
         auto row = button(ctx, mk(parent, 9990),
             ComponentConfig{}
                 .with_label(loading ? "Loading older commits..." : "Load failed · Retry")
@@ -2869,7 +2879,7 @@ private:
                 .with_debug_name("lazy_load"));
         ui::bind_focus(row.ent(), repo, reading::focus::Region::History);
         if (!page.error.empty()) ui::set_tooltip(row.ent(), page.error);
-        if (row && !loading) page.requested = true;
+        if (row && !loading) page.request_page();
     }
 
     commit_graph::Graph graph_;
@@ -2879,7 +2889,7 @@ private:
             const LayoutComponent& layout, afterhours::ui::imm::EntityParent parent) {
         const auto owner = ui::shortcut_owner(ctx, repo);
         if (owner.region != reading::focus::Region::History || owner.text || repo.commitLog.empty() ||
-            ui::shortcuts_blocked(layout) || layout.filePickerOpen) return {};
+            ui::shortcuts_blocked(layout) || layout.picker.is_open()) return {};
         if (any_modifier_down()) return {};
         const bool up = afterhours::input::is_key_pressed(afterhours::keys::UP);
         const bool down = afterhours::input::is_key_pressed(afterhours::keys::DOWN);
@@ -3191,12 +3201,17 @@ private:
         const float zoom = ::ui::zoom::get();
         const float width = std::min(640.f, ctx.screen_width / zoom - 32.f);
         const float height = std::min(560.f, ctx.screen_height / zoom - 32.f);
+        // The dialog is open exactly in AwaitingPolicy; modal_impl
+        // mutates this local (Esc/pending close), which dismisses back
+        // to Editing — no stored dialog bool remains.
+        bool dialogOpen = editor.flow == CommitFlow::AwaitingPolicy;
         auto modalResult = afterhours::modal::detail::modal_impl(
-            ctx, mk(uiRoot, DIALOG_ID), editor.showUnstagedDialog,
+            ctx, mk(uiRoot, DIALOG_ID), dialogOpen,
             ModalConfig{}
                 .with_size(pixels(width), pixels(height))
                 .with_title("Unstaged Changes")
                 .with_show_close_button(false));
+        if (!dialogOpen) editor.dismiss_policy();
 
         if (!modalResult) return;
         modalResult.cmp().absolute_pos_x = (ctx.screen_width - width * zoom) * 0.5f;
@@ -3367,7 +3382,7 @@ private:
                 .with_debug_name("cancel_btn"));
 
         if (cancelBtn) {
-            editor.showUnstagedDialog = false;
+            editor.dismiss_policy();
         }
 
         // "Commit Staged Only" button (primary blue)
@@ -3386,7 +3401,6 @@ private:
                 commit_workflow::save_policy(editor.unstagedPolicy);
             }
             commit_workflow::begin_commit(repo, editor, false);
-            editor.showUnstagedDialog = false;
         }
 
         // "Stage All & Commit" button (green)
@@ -3403,7 +3417,6 @@ private:
                 commit_workflow::save_policy(editor.unstagedPolicy);
             }
             commit_workflow::begin_commit(repo, editor, true);
-            editor.showUnstagedDialog = false;
         }
     }
 };

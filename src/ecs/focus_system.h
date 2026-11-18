@@ -16,12 +16,15 @@ struct BeginFocusFrame : afterhours::System<UIContext<InputAction>> {
                 // Stash the outgoing repo's focus and restore the incoming
                 // one's instead of resetting on every switch.
                 if (layout->focusRepositoryOwner >= 0) {
+                    layout->modalByOwner[layout->focusRepositoryOwner] = layout->modal;
                     layout->focusByOwner[layout->focusRepositoryOwner] = layout->focus;
                     if (layout->focusByOwner.size() > 8) layout->focusByOwner.erase(layout->focusByOwner.begin());
                 }
                 const int next = owner ? owner->id : -1;
                 auto saved = layout->focusByOwner.find(next);
                 layout->focus = saved != layout->focusByOwner.end() ? saved->second : reading::focus::State{};
+                auto savedModal = layout->modalByOwner.find(next);
+                layout->modal = savedModal != layout->modalByOwner.end() ? savedModal->second : std::nullopt;
                 layout->focusRepositoryOwner = next;
                 return;
             }
@@ -42,14 +45,17 @@ struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
         const auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
         if (layout->focusRepositoryOwner != owner->id) {
             if (layout->focusRepositoryOwner >= 0) {
+                layout->modalByOwner[layout->focusRepositoryOwner] = layout->modal;
                 layout->focusByOwner[layout->focusRepositoryOwner] = layout->focus;
                 if (layout->focusByOwner.size() > 8) layout->focusByOwner.erase(layout->focusByOwner.begin());
             }
             auto saved = layout->focusByOwner.find(owner->id);
             layout->focus = saved != layout->focusByOwner.end() ? saved->second : reading::focus::State{};
+            auto savedModal = layout->modalByOwner.find(owner->id);
+            layout->modal = savedModal != layout->modalByOwner.end() ? savedModal->second : std::nullopt;
             layout->focusRepositoryOwner = owner->id;
         }
-        const auto visible = ui::open_popups(*repo, *layout);
+        const auto visible = ui::stored_popups(*repo, *layout);
         auto& state = layout->focus;
         state.sync(repo->repoPath, repo->workspace().generation(), visible);
         if (repo->readingFocus) {

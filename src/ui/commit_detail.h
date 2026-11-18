@@ -81,12 +81,12 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     auto requestKey = [&] {
         return commit_review_scope(repo) + "\n" + std::to_string(repo.diffContext) + ":" + std::to_string(repo.ignoreWhitespace);
     };
+    const PatchKey desiredKey{repo.repoPath, repo.selectedCommitHash(), selectedParent,
+        repo.diffContext, repo.ignoreWhitespace};
     std::optional<CommitPatch> peeked;
-    bool staleRequest = (detailCache.patchFuture.valid() || detailCache.revalidateFuture.valid()) &&
-        !navigation::accepts(repo, detailCache.requestStamp, requestKey());
-    bool commitJustChanged = staleRequest || detailCache.cachedCommitHash != repo.selectedCommitHash() || detailCache.cachedRepoPath != repo.repoPath ||
-        detailCache.cachedParentHash != selectedParent || detailCache.cachedContext != repo.diffContext ||
-        detailCache.cachedIgnoreWhitespace != repo.ignoreWhitespace;
+    bool staleRequest = detailCache.patch.task.valid() &&
+        !navigation::accepts(repo, detailCache.patch.stamp, requestKey());
+    bool commitJustChanged = staleRequest || detailCache.patch.key != desiredKey;
     if (commitJustChanged) {
         static_cast<CommitDetailRuntime&>(detailCache) = {};
         detailCache.entry.hash = repo.selectedCommitHash();
@@ -95,37 +95,47 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
         for (const auto* entries : {&repo.commitLog, &repo.fileHistoryEntries, &repo.commitSearchEntries})
             for (const auto& entry : *entries)
                 if (entry.hash == repo.selectedCommitHash()) detailCache.entry = entry;
-        detailCache.requestStamp = navigation::stamp(repo, requestKey());
         detailCache.loading.restart();
         const git::CommitPatchRequest request{repo.repoPath, repo.selectedCommitHash(), selectedParent,
             repo.diffContext, repo.ignoreWhitespace};
+        const auto stamp = navigation::stamp(repo, requestKey());
+        // Peek-then-revalidate: a cached patch is shown at once and the
+        // same slot task validates it behind the peek (patchRevalidating).
         if (auto cached = git::peek_commit_patch(request)) {
-            detailCache.revalidateFuture = git::load_commit_patch_async(request);
+            detailCache.patch.request(desiredKey, stamp, git::load_commit_patch_async(request));
+            detailCache.patchRevalidating = true;
             peeked = std::move(*cached);
             peeked->trace.cacheHit = true;
             peeked->trace.submitted = peeked->trace.started = peeked->trace.finished = reading_load::Clock::now();
-        } else detailCache.patchFuture = git::load_commit_patch_async(request);
-        detailCache.cachedCommitHash = repo.selectedCommitHash();
-        detailCache.cachedParentHash = selectedParent;
-        detailCache.cachedRepoPath = repo.repoPath;
-        detailCache.cachedContext = repo.diffContext;
-        detailCache.cachedIgnoreWhitespace = repo.ignoreWhitespace;
+        } else {
+            detailCache.patch.request(desiredKey, stamp, git::load_commit_patch_async(request));
+            detailCache.patchRevalidating = false;
+        }
     }
-    auto ready = [](auto& task) { return task.valid() && task.wait_for(std::chrono::seconds(0)) == std::future_status::ready; };
-    auto& arrived = ready(detailCache.patchFuture) ? detailCache.patchFuture : detailCache.revalidateFuture;
-    if (peeked || ready(arrived)) {
+    std::optional<CommitPatch> arrivedPatch;
+    bool revalidated = false;
+    if (!peeked) {
+        const bool wasReady = detailCache.patch.ready();
+        arrivedPatch = detailCache.patch.poll(repo);
+        if (!arrivedPatch && wasReady && detailCache.patch.phase == async_slot::Phase::Idle) return;
+        if (!arrivedPatch && detailCache.patch.phase == async_slot::Phase::Failed)
+            detailCache.commitDetailError = detailCache.patch.error;
+        if (arrivedPatch) revalidated = detailCache.patchRevalidating;
+    }
+    if (peeked || arrivedPatch) {
         try {
-            const bool revalidated = !peeked && &arrived == &detailCache.revalidateFuture;
-            auto patch = peeked ? std::move(*peeked) : arrived.get();
-            if (!navigation::accepts(repo, detailCache.requestStamp, requestKey())) return;
+            auto patch = peeked ? std::move(*peeked) : std::move(*arrivedPatch);
+            if (!navigation::accepts(repo, detailCache.patch.stamp, requestKey())) return;
             // The trace describes how the shown content arrived; revalidating
             // it afterwards is not part of that.
             reading_load::Trace discarded;
             reading_load::Publishing publication(revalidated ? discarded : detailCache.trace, patch.trace);
-            navigation::resolve_review(repo, detailCache.requestStamp, patch.resolvedCommit, patch.resolvedParent);
-            detailCache.cachedCommitHash = repo.selectedCommitHash();
-            detailCache.cachedParentHash = selected_commit_parent(repo);
-            detailCache.requestStamp = navigation::stamp(repo, requestKey());
+            navigation::resolve_review(repo, detailCache.patch.stamp, patch.resolvedCommit, patch.resolvedParent);
+            // Resolving a ref to its OID retargets the key/stamp to the
+            // post-resolve identity, so the next frame does not reload.
+            detailCache.patch.key = PatchKey{repo.repoPath, repo.selectedCommitHash(),
+                selected_commit_parent(repo), repo.diffContext, repo.ignoreWhitespace};
+            detailCache.patch.stamp = navigation::stamp(repo, requestKey());
             detailCache.commitDetailDiff = std::move(patch.files);
             navigation::remember_review_files(repo, detailCache.commitDetailDiff);
             detailCache.commitDetailError = std::move(patch.error);
@@ -158,7 +168,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     int nextId = 3050;
     constexpr float PAD = 16.0f;
     float contentW = layout.mainContent.width;
-    float controlsHeight = ui::diff_controls_height(contentW, layout.diffOptionsOpen,
+    float controlsHeight = ui::diff_controls_height(contentW, layout.modal_is(reading::focus::Popup::Options),
         true, !detailCache.commitDetailDiff.empty());
     auto boundedLines = [&](std::string_view input, float width, const std::string& font, float size, size_t limit) {
         size_t end = std::min(input.size(), size_t{512});
@@ -199,7 +209,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     ui::bind_reading_view(repo, scrollContainer.ent(), "commit:" + reviewScope +
         (layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide ? "\nsplit" : "\ninline"),
-        !detailCache.patchFuture.valid());
+        !detailCache.patch_loading());
     if (review) render_review_queue(ctx, scrollContainer.ent(), nextId++, repo, *review, detailCache);
 
     auto subjectLabel = div(ctx, mk(heading.ent(), nextId++),
@@ -438,7 +448,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
 
     }
 
-    if (detailCache.patchFuture.valid()) {
+    if (detailCache.patch_loading()) {
         if (detailCache.loading.visible(true)) div(ctx, mk(scrollContainer.ent(), nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("Loading commit details...")
             .with_size(ComponentSize{percent(1.f), pixels(50)}).with_font_size(pixels(14))
             .with_debug_name("commit_detail_loading"));
@@ -455,7 +465,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
             preset::Button("Retry loading commit")
                 .with_size(ComponentSize{children(), pixels(32)})
                 .with_debug_name("commit_load_retry"));
-        if (retry) detailCache.cachedCommitHash.clear();
+        if (retry) detailCache.patch.invalidate();
     } else if (detailCache.commitDetailDiff.empty()) {
         div(ctx, mk(scrollContainer.ent(), nextId++),
             ComponentConfig{}.with_skip_grid_snap()
@@ -469,7 +479,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name("empty_diff_msg"));
-    } else if (layout.diffOptionsOpen || detailCache.fileOverviewExpanded) {
+    } else if (layout.modal_is(reading::focus::Popup::Options) || detailCache.fileOverviewExpanded) {
         int totalAdd = 0, totalDel = 0;
         for (auto& d : detailCache.commitDetailDiff) {
             totalAdd += d.additions;
@@ -678,7 +688,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_roundness(0.0f)
                 .with_debug_name("diff_sep"));
     }
-    if (!detailCache.patchFuture.valid() && detailCache.commitDetailError.empty()) {
+    if (!detailCache.patch_loading() && detailCache.commitDetailError.empty()) {
         ui::render_diff(ctx, scrollContainer.ent(),
                                detailCache.commitDetailDiff,
                                layout.mainContent.width,

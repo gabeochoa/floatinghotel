@@ -55,7 +55,7 @@ inline std::size_t document_titles_key(const reading::ReadingWorkspace& workspac
     for (const auto& document : workspace.documents()) {
         std::size_t h = std::hash<std::string>{}(document.subject);
         h = h * 31 + document.id.value;
-        h = h * 31 + (document.editDirty ? 1u : 0u);
+        h = h * 31 + (document.edit_dirty() ? 1u : 0u);
         h = h * 31 + document.location.index();
         if (const auto* source = std::get_if<reading::SourceLocation>(&document.location))
             h = h * 31 + std::hash<std::string>{}(source->destination.path);
@@ -71,7 +71,7 @@ inline bool review_persistence_enabled() {
 
 inline void persist_pending_review(UIContext<InputAction>& ctx, ReviewComponent& review,
                                     RepoComponent* repo, bool immediate = false) {
-    if (!review_persistence_enabled() || !review.dirty || !repo || repo->repoPath.empty()) return;
+    if (!review_persistence_enabled() || !review.dirty() || !repo || repo->repoPath.empty()) return;
     auto now = std::chrono::steady_clock::now();
     if (!immediate && now < review.nextSaveAttempt) return;
     if (!review_store::persist_review(review.storageRepoPath.empty() ? repo->repoPath : review.storageRepoPath, review)) {
@@ -200,9 +200,9 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 else if (c.scope == repo->comparisonScope()) anchorFiles = &repo->comparisonDiff;
                 else if (auto* cache = find_singleton<CommitDetailCache, ActiveTab>(); cache) {
                     const auto target = diff_target(c.scope);
-                    if (cache->cachedCommitHash == target.after &&
-                        ((target.kind == DiffTarget::Kind::Commit && cache->cachedParentHash.empty()) ||
-                         (target.kind == DiffTarget::Kind::ParentComparison && cache->cachedParentHash == target.before)))
+                    if (cache->patch.key.commit == target.after &&
+                        ((target.kind == DiffTarget::Kind::Commit && cache->patch.key.parent.empty()) ||
+                         (target.kind == DiffTarget::Kind::ParentComparison && cache->patch.key.parent == target.before)))
                         anchorFiles = &cache->commitDetailDiff;
                 }
             }
@@ -213,7 +213,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 commentText += "\nSaved: " + review_anchor::preview(anchor.saved) + "\nNow: " + review_anchor::preview(anchor.current);
             float textH = afterhours::ui::measure_text_wrapped(
                 measure, commentText, "mono", fontSize * zoom, (txtW - 10.f) * zoom).height / zoom + 10.f;
-            bool editing = review.editingComment == i;
+            bool editing = review.composer == Composer::EditingExisting && review.editing_index() == i;
             if (editing) textH = 104.f;
             auto itemRow = div(ctx, mk(list.ent(), id++),
                 ComponentConfig{}
@@ -249,14 +249,14 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     reading::review(c.scope, c.file)));
             }
             if (editing) {
-                auto previousEdit = review.editingCommentText;
-                ui::text_area(ctx, mk(itemRow.ent(), 5), review.editingCommentText,
+                auto previousEdit = review.composerDraft.text;
+                ui::text_area(ctx, mk(itemRow.ent(), 5), review.composerDraft.text,
                     ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})
                         .with_font("mono", pixels(fontSize)).with_line_height(pixels(22.f))
                         .with_corner_radius(6.f).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                         .with_word_wrap(true).with_overflow(Overflow::Hidden)
                         .with_debug_name("basket_edit_input"));
-                if (previousEdit != review.editingCommentText) review.dirty = true;
+                if (previousEdit != review.composerDraft.text) review.mark_dirty();
                 auto actions = div(ctx, mk(itemRow.ent(), 6), ComponentConfig{}
                     .with_size(ComponentSize{pixels(txtW), pixels(28)}).with_flex_direction(FlexDirection::Row)
                     .with_gap(pixels(8)));
@@ -274,9 +274,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 if (button(ctx, mk(actions.ent(), 1), preset::Button("Cancel")
                         .with_size(ComponentSize{pixels(60), pixels(28)}).with_font_size(pixels(12))
                         .with_debug_name("basket_edit_cancel"))) {
-                    review.editingComment = -1;
-                    review.editingCommentText.clear();
-                    review.dirty = true;
+                    dismiss_pending_comment(review);
                 }
                 ui::render_comment_kind(ctx, actions.ent(), 2, review, true);
             } else div(ctx, mk(itemRow.ent(), 0),
@@ -297,16 +295,13 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             if (button(ctx, mk(actions.ent(), 2), preset::Button("Edit")
                     .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
-                review.editingComment = i;
-                review.editingCommentText = c.text;
-                review.editingCommentKind = c.kind;
-                review.dirty = true;
+                begin_comment(review, static_cast<ReviewComponent::CommentIndex>(i));
             }
             if (button(ctx, mk(actions.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
                     .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_resolve"))) {
                 review.comments[i].resolved = !c.resolved;
-                review.dirty = true;
+                review.mark_dirty();
                 if (repo && (anchor.status == review_anchor::Status::Current || anchor.status == review_anchor::Status::Relocated)) {
                     auto target = c;
                     target.endLine = anchor.line + std::max(0, c.endLine - c.line);
@@ -336,15 +331,87 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_debug_name("basket_send_btn"));
     if (sendBtn) send_review(ctx, review, repo);
 
+    // Store-phase label in the existing basket header/footer area:
+    // SaveFailed and LoadFailed are rendered states, never silent.
+    const bool storeFailed = review.storePhase == ReviewStorePhase::SaveFailed ||
+        review.storePhase == ReviewStorePhase::LoadFailed;
     div(ctx, mk(panel.ent(), 902),
         ComponentConfig{}
-            .with_label(review.dirty ? "Local draft pending save" : "Local draft · Cmd+Enter to copy")
+            .with_label(review.storePhase == ReviewStorePhase::SaveFailed
+                    ? "Review could not be saved — retrying. Keep this tab open."
+                : review.storePhase == ReviewStorePhase::LoadFailed
+                    ? "Review could not be loaded — saves are paused until retry succeeds."
+                : review.storePhase == ReviewStorePhase::Saving
+                    ? "Saving review..."
+                : review.dirty() ? "Local draft pending save" : "Local draft · Cmd+Enter to copy")
             .with_size(ComponentSize{percent(1.0f), pixels(20)})
-            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_custom_text_color(storeFailed ? theme::STATUS_DELETED : theme::TEXT_SECONDARY)
             .with_font_size(pixels(12))
             .with_alignment(TextAlignment::Center)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("basket_path_hint"));
+    if (review.storePhase == ReviewStorePhase::LoadFailed) {
+        if (button(ctx, mk(panel.ent(), 905), preset::Button("Retry load")
+                .with_size(ComponentSize{percent(1.0f), pixels(28)}).with_font_size(pixels(12))
+                .with_debug_name("basket_retry_load"))) {
+            const std::string path = review.storageRepoPath.empty() && repo ? repo->repoPath : review.storageRepoPath;
+            if (!review_store::retry_load(path, review))
+                afterhours::toast::send_warning(ctx, "Review still could not be loaded. Saved review was not overwritten.", 3.f);
+            else if (repo) navigation::restore_draft(*repo, review);
+        }
+    }
+}
+
+// One Esc path for every popup (M24): closes the focus stack's topmost
+// popup and releases its side effects (futures, input gates are removed
+// by the owning dialog's next render when its modal closes).
+inline void close_top_popup(UIContext<InputAction>& ctx, RepoComponent& repo, LayoutComponent& layout) {
+    using reading::focus::Popup;
+    auto* review = find_singleton<ReviewComponent, ActiveTab>();
+    switch (*layout.focus.topmost()) {
+        case Popup::Menu:
+            if (auto* menu = find_singleton<MenuComponent>()) menu->activeMenuIndex = -1;
+            break;
+        case Popup::ContextMenu: ui::close_context_menu(); break;
+        case Popup::Picker: layout.cancel_picker(); break;
+        case Popup::Find: navigation::close_find(repo); break;
+        case Popup::SearchPreview: repo.repoSearchPreviewOpen = false; break;
+        case Popup::Search:
+            if (ui::shortcut_owner(ctx, repo).reader() && repo.repoSearchSelected &&
+                reading::same_document(repo.workspace().location(), repo_search_location(repo,
+                    repo.repoSearchResults[*repo.repoSearchSelected]))) repo.repoSearchFocus = true;
+            else close_repo_search(repo, layout);
+            break;
+        case Popup::CommitSearch: repo.commitSearchOpen = false; break;
+        case Popup::FileHistory: repo.fileHistoryOpen = false; break;
+        case Popup::Feedback: if (review) review->basketOpen = false; break;
+        case Popup::Composer:
+            if (review) {
+                const auto comment = pending_comment(*review);
+                dismiss_pending_comment(*review);
+                navigation::return_to_feedback(repo, comment);
+            }
+            break;
+        case Popup::CommitDetails: navigation::toggle_commit_details(repo); break;
+        case Popup::PushDialog: layout.close_top_modal(); repo.pushDialog.future = {}; break;
+        case Popup::RelinkDialog: layout.close_top_modal(); layout.relinkDialog.future = {}; break;
+        case Popup::Options: layout.close_top_modal(); break;
+        case Popup::Shortcuts: layout.close_top_modal(); break;
+        case Popup::NewBranch: case Popup::DeleteBranch:
+        case Popup::ForceDeleteBranch: case Popup::Stash:
+            layout.close_top_modal();
+            break;
+        case Popup::Snapshot:
+            if (review) review->sinceReviewOpen = false;
+            navigation::restore_anchor(repo);
+            break;
+        case Popup::ComparisonEditor:
+            layout.close_top_modal();
+            if (repo.comparisonFuture.valid()) repo.comparisonNeedsLoad = !repo.comparisonScope().empty();
+            repo.comparisonFuture = {};
+            repo.sync_comparison_phase();
+            break;
+    }
 }
 
 struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
@@ -396,7 +463,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 navigation::release_inactive_review(*repoPtr, *cache);
         }
         if (repoPtr) cancel_hidden_file_read(*repoPtr);
-        if (repoPtr && repoPtr->hasLoadedOnce) {
+        if (repoPtr && repoPtr->has_loaded_once()) {
             bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
             if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(afterhours::keys::LEFT)) navigation::step(*repoPtr, -1);
             if (!shortcutsActive && ui::history_shortcuts(ctx, *repoPtr, layout) && alt && afterhours::input::is_key_pressed(afterhours::keys::RIGHT)) navigation::step(*repoPtr, 1);
@@ -405,7 +472,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 layout.readingPanelCollapsed.reset();
                 auto effect = *repoPtr->navigationEffect;
                 repoPtr->navigationEffect.reset();
-                bool dismissPicker = layout.filePickerOpen;
+                bool dismissPicker = layout.picker.is_open();
                 if (effect.changed) {
                     layout.shelfCollapsed = false;
                     if (const auto* working = std::get_if<reading::WorkingChanges>(&repoPtr->workspace().review().destination);
@@ -421,12 +488,12 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         review->sinceReviewOpen = false;
                         if (effect.reviewing && review->reviewing != *effect.reviewing) {
                             review->reviewing = *effect.reviewing;
-                            review->dirty = true;
+                            review->mark_dirty();
                         }
                     }
                     ui::diff_sel::reset();
                 }
-                if (!effect.keepPicker) layout.filePickerOpen = false;
+                if (!effect.keepPicker) layout.confirm_picker();
                 if (effect.focus == reading::FocusPolicy::Document && (effect.changed || effect.dismissedPanel || dismissPicker)) navigation::focus_document(*repoPtr);
             }
         }
@@ -434,49 +501,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (!shortcutsActive && !cancelledTabDrag && afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) {
             (void)ctx.pressed(InputAction::MenuBack);
             if (repoPtr) {
-                layout.focus.sync(repoPtr->repoPath, repoPtr->workspace().generation(), ui::open_popups(*repoPtr, layout));
-                if (const auto popup = layout.focus.topmost()) {
-                    using reading::focus::Popup;
-                    auto* review = find_singleton<ReviewComponent, ActiveTab>();
-                    switch (*popup) {
-                        case Popup::Menu:
-                            if (auto* menu = find_singleton<MenuComponent>()) menu->activeMenuIndex = -1;
-                            break;
-                        case Popup::ContextMenu: ui::close_context_menu(); break;
-                        case Popup::Picker: layout.filePickerOpen = false; break;
-                        case Popup::Find: navigation::close_find(*repoPtr); break;
-                        case Popup::SearchPreview: repoPtr->repoSearchPreviewOpen = false; break;
-                        case Popup::Search:
-                            if (ui::shortcut_owner(ctx, *repoPtr).reader() && repoPtr->repoSearchSelected &&
-                                reading::same_document(repoPtr->workspace().location(), repo_search_location(*repoPtr,
-                                    repoPtr->repoSearchResults[*repoPtr->repoSearchSelected]))) repoPtr->repoSearchFocus = true;
-                            else close_repo_search(*repoPtr, layout);
-                            break;
-                        case Popup::CommitSearch: repoPtr->commitSearchOpen = false; break;
-                        case Popup::FileHistory: repoPtr->fileHistoryOpen = false; break;
-                        case Popup::Feedback: if (review) review->basketOpen = false; break;
-                        case Popup::Composer:
-                            if (review) {
-                                const auto comment = pending_comment(*review);
-                                dismiss_pending_comment(*review);
-                                navigation::return_to_feedback(*repoPtr, comment);
-                            }
-                            break;
-                        case Popup::CommitDetails: navigation::toggle_commit_details(*repoPtr); break;
-                        case Popup::PushDialog: repoPtr->pushDialogOpen = false; repoPtr->pushDestinationFuture = {}; break;
-                        case Popup::RelinkDialog: layout.relinkOpen = false; layout.relinkFuture = {}; break;
-                        case Popup::Options: layout.diffOptionsOpen = false; break;
-                        case Popup::Shortcuts: layout.shortcutsOpen = false; break;
-                        case Popup::Snapshot:
-                            if (review) review->sinceReviewOpen = false;
-                            navigation::restore_anchor(*repoPtr);
-                            break;
-                        case Popup::ComparisonEditor:
-                            repoPtr->comparisonEditorOpen = false;
-                            repoPtr->comparisonFuture = {};
-                            break;
-                    }
-                }
+                layout.focus.sync(repoPtr->repoPath, repoPtr->workspace().generation(), ui::stored_popups(*repoPtr, layout));
+                if (layout.focus.topmost()) close_top_popup(ctx, *repoPtr, layout);
             } else {
                 ui::close_context_menu();
                 if (auto* menu = find_singleton<MenuComponent>()) menu->activeMenuIndex = -1;
@@ -744,21 +770,21 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         bool hasRepo = repoPtr && !repoPtr->repoPath.empty();
         if (hasRepo) {
             if (repoPtr->fullFilePath().empty()) {
-                repoPtr->blameFuture = {};
+                repoPtr->blame.cancel();
                 repoPtr->blameOpen = false;
             }
-            if (!repoPtr->repoSearchOpen) {
+            if (!repoPtr->repo_search_open()) {
                 repoPtr->repoSearchFuture = {};
                 repoPtr->repoSearchPreviewFuture = {};
             }
-            if (!repoPtr->fileHistoryOpen) repoPtr->fileHistoryFuture = {};
-            if (!repoPtr->commitSearchOpen) repoPtr->commitSearchFuture = {};
+            if (!repoPtr->fileHistoryOpen && repoPtr->fileHistory.busy()) repoPtr->fileHistory.cancel();
+            if (!repoPtr->commitSearchOpen && repoPtr->commitSearch.busy()) repoPtr->commitSearch.cancel();
             if (!repoPtr->comparisonOpen()) repoPtr->comparisonFuture = {};
             if (repoPtr->selectedCommitHash().empty()) {
                 if (auto* detail = find_singleton<CommitDetailCache, ActiveTab>();
-                    detail && (detail->patchFuture.valid())) {
-                    detail->patchFuture = {};
-                    detail->cachedCommitHash.clear();
+                    detail && detail->patch.task.valid()) {
+                    detail->patch.invalidate();
+                    detail->patchRevalidating = false;
                 }
             }
         }
@@ -766,8 +792,8 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // Vim-style chunk cursor: j/k/n move, a approve, c comment. Gated on
         // no text input being focused so it never eats typed characters.
         auto* reviewPtr = find_singleton<ReviewComponent, ActiveTab>();
-        if (reviewPtr && hasRepo && repoPtr->hasLoadedOnce && !repoPtr->isRefreshing && !repoPtr->refreshRequested) {
-            auto scope = selected_review_storage_scope(*repoPtr, *reviewPtr);
+        if (reviewPtr && hasRepo && repoPtr->has_loaded_once() && !repoPtr->refresh_busy()) {
+            auto scope = selected_review_storage_scope(*repoPtr, *reviewPtr, layout.modal_is(reading::focus::Popup::ComparisonEditor));
             if (reviewPtr->storageScope != scope || reviewPtr->storageRepoPath != repoPtr->repoPath) {
                 if (!review_store::switch_review_scope(repoPtr->repoPath, scope, *reviewPtr, review_persistence_enabled())) {
                     div(ctx, mk(mainBg.ent(), 591000), ComponentConfig{}
@@ -795,9 +821,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             poll_review_snapshot(*reviewPtr);
             persist_pending_review(ctx, *reviewPtr, repoPtr);
         }
-        if (repoPtr && !repoPtr->reviewQueueScope.empty() && repoPtr->selectedCommitHash().empty()) {
+        if (repoPtr && !repoPtr->reviewQueue.key.empty() && repoPtr->selectedCommitHash().empty()) {
             div(ctx, mk(mainBg.ent(), 592000), ComponentConfig{}
-                .with_label(repoPtr->reviewQueueFuture.valid() ? "Loading review queue..." : repoPtr->reviewQueueError)
+                .with_label(repoPtr->reviewQueue.busy() ? "Loading review queue..." : repoPtr->reviewQueue.error)
                 .with_size(ComponentSize{percent(1.f), pixels(40)}).with_font_size(pixels(12)));
             if (button(ctx, mk(mainBg.ent(), 592001), preset::Button("Close review queue")
                     .with_size(ComponentSize{children(), pixels(30)}))) close_review_queue(*repoPtr);
@@ -816,15 +842,15 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         if (!shortcutsActive && !ui::shortcuts_blocked(layout) && cmdDown && afterhours::input::is_key_pressed(afterhours::keys::F)) {
             if (repoPtr && afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT)) {
                 open_repo_search(*repoPtr);
-                layout.filePickerOpen = false;
+                layout.cancel_picker();
             } else {
                 if (repoPtr) ui::open_find(*repoPtr);
             }
         }
         if (!shortcutsActive && !ui::shortcuts_blocked(layout) && cmdDown && afterhours::input::is_key_pressed(afterhours::keys::P)) {
             layout.filePickerPosition = {};
-            layout.filePickerOpen = true;
-            layout.filePickerFocus = true;
+            if (repoPtr) layout.open_picker(PickerMode::Files, *repoPtr);
+            else layout.open_picker(PickerMode::Files);
         }
         const bool readingKeys = repoPtr && !shortcutsActive && ui::reader_shortcuts(ctx, *repoPtr, layout);
         if (readingKeys && (afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL)) && afterhours::input::is_key_pressed(afterhours::keys::G))
@@ -840,11 +866,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             if (alt && shift && afterhours::input::is_key_pressed(afterhours::keys::O)) request_semantic(*repoPtr, semantic::Kind::Outgoing);
         }
         if (repoPtr) poll_semantic(*repoPtr);
-        if (readingKeys && !superDown && (!reviewPtr || reviewPtr->composingKey.empty()) &&
+        if (readingKeys && !superDown && (!reviewPtr || reviewPtr->composer != Composer::Composing) &&
             activeDocumentFocused && afterhours::input::is_key_pressed(afterhours::keys::ENTER))
             navigation::keep(*repoPtr, repoPtr->workspace().active_id());
         if (readingKeys && reviewPtr && !source_tab_active(*repoPtr) &&
-            reviewPtr->composingKey.empty()) {
+            reviewPtr->composer != Composer::Composing) {
             if (!superDown) {
                 int direction = 0;
                 if (afterhours::input::is_key_pressed(afterhours::keys::J) || afterhours::input::is_key_pressed(afterhours::keys::N)) direction = 1;
@@ -947,7 +973,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
                 .with_gap(pixels(4)));
             if (!reviewPtr->snapshotFuture.valid()) {
-                if (reviewPtr->baselineSnapshot.empty()) {
+                if (!reviewPtr->baselineSnapshot) {
                     if (button(ctx, mk(baselineActions.ent(), 0), preset::Button("Save review baseline")
                         .with_size(ComponentSize{pixels(165), pixels(28)}).with_debug_name("save_review_baseline")))
                         start_review_snapshot(repo, *reviewPtr, true);
@@ -974,7 +1000,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             }
             const std::string snapshotNotice = reviewPtr->snapshotFuture.valid() ? "Saving contents..." :
                 !reviewPtr->snapshotError.empty() ? reviewPtr->snapshotError :
-                repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading new files..." : "") : repo.untrackedReviewNotice;
+                repo.untrackedReview.busy() ? (repo.untrackedReviewLoading.visible(true) ? "Loading new files..." : "") : repo.untrackedReview.notice;
             if (!snapshotNotice.empty())
                 div(ctx, mk(baselineActions.ent(), 2), ComponentConfig{}.with_label(snapshotNotice)
                     .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12)));
@@ -990,7 +1016,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_debug_name("ballroom_done"));
                 div(ctx, mk(done.ent(), 1),
                     ComponentConfig{}
-                        .with_label(repo.untrackedReviewFuture.valid() ? (repo.untrackedReviewLoading.visible(true) ? "Loading working changes..." : "") : "No working changes")
+                        .with_label(repo.untrackedReview.busy() ? (repo.untrackedReviewLoading.visible(true) ? "Loading working changes..." : "") : "No working changes")
                         .with_size(ComponentSize{children(), children()})
                         .with_custom_text_color(theme::STATUS_ADDED)
                         .with_font_size(pixels(16))
@@ -1132,40 +1158,48 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             // on a large repo the whole `git diff` takes seconds, while one
             // file answers in milliseconds. Once the whole-repo diff for the
             // current generation lands, it takes over and this is dropped.
-            const bool wholeDiffReady = (repo.selectedFileStaged() ? repo.stagedDiffGeneration
-                                                                   : repo.currentDiffGeneration) == repo.dataGeneration;
+            const auto& wholeGeneration = repo.selectedFileStaged() ? repo.stagedDiffGeneration
+                                                                    : repo.currentDiffGeneration;
+            const bool wholeDiffReady = wholeGeneration.has_value() && *wholeGeneration == repo.dataGeneration;
             if (!wholeDiffReady && selectedDiffs.empty() && !repo.selectedFilePath().empty()) {
                 const std::string key = repo.repoPath + "\n" + repo.selectedFilePath() +
                     (repo.selectedFileStaged() ? "\nstaged\n" : "\nwt\n") + std::to_string(repo.dataGeneration) +
                     "\n" + std::to_string(repo.diffContext) + (repo.ignoreWhitespace ? "w" : "");
-                if (repo.selectedDiffFuture.valid() &&
-                    repo.selectedDiffFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-                    auto result = repo.selectedDiffFuture.get();
-                    repo.selectedDiffFuture = {};
-                    if (result.success() && repo.selectedDiffKey == key) {
-                        auto parsed = git::parse_diff(result.stdout_str());
-                        for (auto& diff : parsed)
-                            if (diff.filePath == repo.selectedFilePath()) {
-                                repo.selectedDiff = std::move(diff);
-                                break;
+                if (repo.selectedDiff.ready()) {
+                    try {
+                        auto result = repo.selectedDiff.take();
+                        if (repo.selectedDiff.key == key) {
+                            if (result.success()) {
+                                std::optional<FileDiff> found;
+                                for (auto& diff : git::parse_diff(result.stdout_str()))
+                                    if (diff.filePath == repo.selectedFilePath()) {
+                                        found = std::move(diff);
+                                        break;
+                                    }
+                                repo.selectedDiff.land(std::move(found));
+                            } else {
+                                repo.selectedDiff.fail(result.stderr_str().empty()
+                                    ? "git diff failed for this file" : result.stderr_str());
                             }
+                        }
+                    } catch (const std::exception& e) {
+                        if (repo.selectedDiff.key == key) repo.selectedDiff.fail(e.what());
+                    } catch (...) {
+                        if (repo.selectedDiff.key == key) repo.selectedDiff.fail("git diff failed for this file");
                     }
                 }
-                if (repo.selectedDiffKey != key && !repo.selectedDiffFuture.valid()) {
-                    repo.selectedDiffKey = key;
-                    repo.selectedDiff.reset();
+                if (repo.selectedDiff.key != key && !repo.selectedDiff.task.valid()) {
                     std::vector<std::string> args{"diff", "--unified=" + std::to_string(repo.diffContext)};
                     if (repo.ignoreWhitespace) args.push_back("--ignore-all-space");
                     if (repo.selectedFileStaged()) args.push_back("--cached");
                     args.insert(args.end(), {"--", repo.selectedFilePath()});
-                    repo.selectedDiffFuture = git::git_run_async(repo.repoPath, args, async_work::Priority::Foreground);
+                    repo.selectedDiff.begin(key, git::git_run_async(repo.repoPath, args, async_work::Priority::Foreground));
                 }
-                if (repo.selectedDiff && repo.selectedDiffKey == key)
-                    selectedDiffs.push_back(*repo.selectedDiff);
+                if (repo.selectedDiff.source == DiffSource::Single && repo.selectedDiff.diff &&
+                    repo.selectedDiff.key == key)
+                    selectedDiffs.push_back(*repo.selectedDiff.diff);
             } else if (wholeDiffReady) {
-                repo.selectedDiffKey.clear();
-                repo.selectedDiff.reset();
-                repo.selectedDiffFuture = {};
+                repo.selectedDiff.use_whole();
             }
 
             if (!selectedDiffs.empty()) {
@@ -1175,7 +1209,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 if (reviewPtr) {
                     std::string sig = ui::diff_metrics().signature(selectedDiffs[0]);
                     std::string& slot = reviewPtr->seenSig[repo.selectedFilePath()];
-                    if (slot != sig) { slot = sig; reviewPtr->dirty = true; }
+                    if (slot != sig) { slot = sig; reviewPtr->mark_dirty(); }
                 }
                 bool sideBySide = (layout.diffViewMode ==
                     LayoutComponent::DiffViewMode::SideBySide);
@@ -1187,6 +1221,35 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                                diffW, layout.mainContent.height, false, fileJustChanged, sideBySide,
                                repo.repoPath, repo.selectedFileStaged() ? nullptr : review,
                                repo.selectedFileStaged() ? "index" : "wt");
+            } else if (repo.selectedDiff.failed()) {
+                // The single-file read failed: say so instead of silently
+                // keeping the previous file's diff or claiming no diff.
+                auto failedBox = div(ctx, mk(mainBg.ent(), 3050),
+                    ComponentConfig{}
+                        .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
+                        .with_flex_direction(FlexDirection::Column)
+                        .with_justify_content(JustifyContent::Center)
+                        .with_align_items(AlignItems::Center)
+                        .with_transparent_bg()
+                        .with_roundness(0.0f)
+                        .with_debug_name("diff_failed"));
+                div(ctx, mk(failedBox.ent(), 1),
+                    ComponentConfig{}
+                        .with_label("Couldn't load the diff for this file")
+                        .with_size(ComponentSize{children(), children()})
+                        .with_custom_text_color(theme::STATUS_DELETED)
+                        .with_font_size(pixels(16))
+                        .with_transparent_bg()
+                        .with_debug_name("diff_failed_msg"));
+                div(ctx, mk(failedBox.ent(), 2),
+                    ComponentConfig{}
+                        .with_label(repo.selectedDiff.error.empty()
+                            ? repo.selectedFilePath() : repo.selectedDiff.error)
+                        .with_size(ComponentSize{children(), children()})
+                        .with_custom_text_color(theme::TEXT_SECONDARY)
+                        .with_font_size(pixels(14))
+                        .with_transparent_bg()
+                        .with_debug_name("diff_failed_detail"));
             } else if (reviewing && !selUntracked) {
                 // Reviewed file fully approved (staged) — celebrate instead of
                 // faking a "new file" diff. (No auto-advance: the sidebar still
@@ -1335,7 +1398,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_roundness(0.0f)
                     .with_debug_name("empty_state"));
 
-            if (!repo.hasLoadedOnce && (repo.isRefreshing || repo.refreshRequested)) {
+            if (!repo.has_loaded_once() && repo.refresh_busy()) {
                 static int mainSpinIdx = 0;
                 static int mainFrameCounter = 0;
                 constexpr const char* spinFrames[] = {
@@ -1591,7 +1654,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_roundness(0.0f)
                     .with_margin(Margin{.bottom = h720(16)})
                     .with_debug_name("welcome_controls"));
-            auto filterInput = afterhours::text_input::text_input(ctx, mk(controls.ent(), 7), pickerLayout->repositoryPickerQuery,
+            auto filterInput = afterhours::text_input::text_input(ctx, mk(controls.ent(), 7), pickerLayout->repoPicker.query,
                 ComponentConfig{}
                     .with_size(ComponentSize{expand(), pixels(36)})
                     .with_font_size(pixels(14))
@@ -1601,34 +1664,32 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_corner_radius(10.0f)
                     .with_placeholder("Filter repositories...")
                     .with_debug_name("repository_picker_query"));
-            if (pickerLayout->repositoryPickerFocusPending) {
+            if (pickerLayout->repoPicker.focusPending) {
                 ui::focus_control(ctx, filterInput.ent());
-                pickerLayout->repositoryPickerFocusPending = false;
+                pickerLayout->repoPicker.focusPending = false;
             }
-            if (button(ctx, mk(controls.ent(), 8), preset::Button(pickerLayout->repositoryPickerAlphabetical ? "Sort: name" : "Sort: recent")
+            if (button(ctx, mk(controls.ent(), 8), preset::Button(pickerLayout->repoPicker.alphabetical ? "Sort: name" : "Sort: recent")
                 .with_size(ComponentSize{w1280(124), pixels(36)})
                 .with_corner_radius(10.0f)
                 .with_debug_name("repository_picker_sort")))
-                pickerLayout->repositoryPickerAlphabetical = !pickerLayout->repositoryPickerAlphabetical;
+                pickerLayout->repoPicker.alphabetical = !pickerLayout->repoPicker.alphabetical;
             // A query ranks by match quality (folder-name matches first), the
             // way Quick Open does; without one, pinned then recent/name order.
-            if (!pickerLayout->repositoryPickerQuery.empty())
-                recentRepos = fuzzy::rank(recentRepos, pickerLayout->repositoryPickerQuery);
+            if (!pickerLayout->repoPicker.query.empty())
+                recentRepos = fuzzy::rank(recentRepos, pickerLayout->repoPicker.query);
             else std::stable_sort(recentRepos.begin(), recentRepos.end(), [&](const auto& a, const auto& b) {
                 const bool ap = std::find(pinned.begin(), pinned.end(), a) != pinned.end();
                 const bool bp = std::find(pinned.begin(), pinned.end(), b) != pinned.end();
                 if (ap != bp) return ap;
-                return pickerLayout->repositoryPickerAlphabetical && ui::welcome::repo_display_name(a) < ui::welcome::repo_display_name(b);
+                return pickerLayout->repoPicker.alphabetical && ui::welcome::repo_display_name(a) < ui::welcome::repo_display_name(b);
             });
-            // Arrow/Enter navigation over the filtered list.
-            pickerLayout->repositoryPickerIndex = recentRepos.empty() ? 0 :
-                std::clamp(pickerLayout->repositoryPickerIndex, 0, static_cast<int>(recentRepos.size()) - 1);
-            if (!recentRepos.empty() && afterhours::input::is_key_pressed(afterhours::keys::DOWN))
-                pickerLayout->repositoryPickerIndex = std::min(pickerLayout->repositoryPickerIndex + 1, static_cast<int>(recentRepos.size()) - 1);
-            if (!recentRepos.empty() && afterhours::input::is_key_pressed(afterhours::keys::UP))
-                pickerLayout->repositoryPickerIndex = std::max(0, pickerLayout->repositoryPickerIndex - 1);
+            // Arrow/Enter navigation over the filtered list (clamp/step
+            // shared with the global repo picker via RepoPickerScope).
+            pickerLayout->repoPicker.apply_keys(static_cast<int>(recentRepos.size()),
+                afterhours::input::is_key_pressed(afterhours::keys::DOWN),
+                afterhours::input::is_key_pressed(afterhours::keys::UP));
             if (afterhours::input::is_key_pressed(afterhours::keys::ENTER) && !recentRepos.empty())
-                TabBarSystem::open_repository(recentRepos[static_cast<size_t>(pickerLayout->repositoryPickerIndex)], *pickerLayout);
+                TabBarSystem::open_repository(recentRepos[static_cast<size_t>(pickerLayout->repoPicker.index)], *pickerLayout);
         }
 
         if (!recentRepos.empty()) {
@@ -1677,7 +1738,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // from the card + 4px gaps), hover fills, 10px radius.
                 auto row = button(ctx, mk(rowHost, 100 + ri),
                     ComponentConfig{}
-                        .with_custom_background(pickerLayout && ri == pickerLayout->repositoryPickerIndex ? theme::SELECTED_BG : afterhours::Color{0, 0, 0, 0})
+                        .with_custom_background(pickerLayout && ri == pickerLayout->repoPicker.index ? theme::SELECTED_BG : afterhours::Color{0, 0, 0, 0})
                         .with_size(ComponentSize{percent(1.0f), h720(44)})
                         .with_flex_direction(FlexDirection::Row)
                         .with_align_items(AlignItems::Center)
@@ -1773,10 +1834,10 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         }),
                         ui::ContextMenuItem::item("Relink moved repository", [path] {
                             if (auto* layout = find_singleton<LayoutComponent>()) {
-                                layout->relinkOpen = true;
-                                layout->relinkOld = path;
-                                layout->relinkNew.clear();
-                                layout->relinkError.clear();
+                                layout->open_modal(reading::focus::Popup::RelinkDialog);
+                                layout->relinkDialog.oldPath = path;
+                                layout->relinkDialog.newPath.clear();
+                                layout->relinkDialog.error.clear();
                             }
                         })});
                 }

@@ -51,7 +51,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         for (auto& menu : menus)
             for (auto& item : menu.items)
                 if (item.label == "Since last review")
-                    item.enabled = review && !review->baselineSnapshot.empty() && !review->snapshotFuture.valid();
+                    item.enabled = review && review->baselineSnapshot.has_value() && !review->snapshotFuture.valid();
         return menus;
     }
 
@@ -84,7 +84,6 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         if (!find_singleton<RepoComponent, ActiveTab>()) return;
         layout.filePickerPosition = {};
         auto& position = layout.filePickerPosition;
-        position.commandMode = true;
         position.queryHistory = Settings::get().get_command_queries();
         for (auto& group : current_menus())
             for (auto& item : group.items)
@@ -126,7 +125,8 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         layout.filePickerScope = {};
         layout.filePickerCacheKey.clear();
         layout.filePickerIndex = 0;
-        layout.filePickerOpen = layout.filePickerFocus = true;
+        if (auto* repo = find_singleton<RepoComponent, ActiveTab>()) layout.open_picker(PickerMode::Commands, *repo);
+        else layout.open_picker(PickerMode::Commands);
     }
 
     void drain_notices(UIContext<InputAction>& ctx, MenuComponent& menu) {

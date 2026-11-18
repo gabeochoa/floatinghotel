@@ -10,39 +10,38 @@ namespace ecs {
 
 inline void start_range_diff(RepoComponent& repo) {
     auto& state = repo.rangeDiff;
-    state.future = {};
-    state.display.clear();
-    state.error.clear();
-    state.resolved = {};
-    state.next = 0;
+    state.begin();
     auto oldRange = parse_revision_range(state.oldRange);
     auto newRange = parse_revision_range(state.newRange);
     if (!oldRange || !newRange) {
-        state.error = "Enter two ranges with explicit endpoints, such as main..topic";
+        state.fail("Enter two ranges with explicit endpoints, such as main..topic");
         return;
     }
-    state.requestStamp = navigation::stamp(repo, state.oldRange + "\n" + state.newRange);
-    state.revisions = {oldRange->first, oldRange->second, newRange->first, newRange->second};
+    auto stamp = navigation::stamp(repo, state.oldRange + "\n" + state.newRange);
+    std::array<std::string, 4> revisions{oldRange->first, oldRange->second, newRange->first, newRange->second};
     std::vector<std::string> args{"rev-parse", "--end-of-options"};
-    for (const auto& revision : state.revisions) args.push_back(revision + "^{commit}");
-    state.future = git::git_run_async(repo.repoPath, std::move(args));
+    for (const auto& revision : revisions) args.push_back(revision + "^{commit}");
+    state.begin_resolving(std::move(stamp), std::move(revisions),
+                          git::git_run_async(repo.repoPath, std::move(args)));
 }
 
 inline void poll_range_diff(RepoComponent& repo) {
     auto& state = repo.rangeDiff;
     if (!repo.comparisonOpen() || !state.enabled) {
-        state.future = {};
+        state.abandon();
         return;
     }
-    if (!state.future.valid() || state.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+    if (!state.busy() || !state.future.valid() || state.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
     auto result = state.future.get();
-    if (!navigation::accepts(repo, state.requestStamp, state.oldRange + "\n" + state.newRange)) return;
-    state.future = {};
-    if (!result.success() && (!result.raw.outputStopped || result.raw.cancelled)) {
-        state.error = result.stderr_str().empty() ? "Unable to compare commit series" : result.stderr_str();
+    if (!navigation::accepts(repo, state.requestStamp, state.oldRange + "\n" + state.newRange)) {
+        state.abandon();
         return;
     }
-    if (state.next < state.resolved.size()) {
+    if (!result.success() && (!result.raw.outputStopped || result.raw.cancelled)) {
+        state.fail(result.stderr_str().empty() ? "Unable to compare commit series" : result.stderr_str());
+        return;
+    }
+    if (state.step == RangeDiff::Step::Resolving) {
         std::vector<std::string> hashes;
         std::istringstream lines(result.stdout_str());
         for (std::string hash; std::getline(lines, hash);) {
@@ -53,12 +52,11 @@ inline void poll_range_diff(RepoComponent& repo) {
             if (hex) hashes.push_back(std::move(hash));
         }
         if (hashes.size() != state.resolved.size()) {
-            state.error = "Unable to compare commit series";
+            state.fail("Unable to compare commit series");
             return;
         }
         for (size_t i = 0; i < hashes.size(); ++i) state.resolved[i] = std::move(hashes[i]);
-        state.next = state.resolved.size();
-        state.future = async_work::launch([path = repo.repoPath, resolved = state.resolved](std::stop_token stop) {
+        state.begin_comparing(async_work::launch([path = repo.repoPath, resolved = state.resolved](std::stop_token stop) {
             std::string output;
             constexpr size_t limit = 256 * 1024;
             auto result = git::git_run(path, {"range-diff", "--no-color", "--no-ext-diff", "--no-textconv",
@@ -69,7 +67,7 @@ inline void poll_range_diff(RepoComponent& repo) {
                 });
             result.raw.stdout_str = std::move(output);
             return result;
-        }, async_work::Priority::Foreground, git::GitResult{{"", "Background queue is full; retry comparing series", -1}});
+        }, async_work::Priority::Foreground, git::GitResult{{"", "Background queue is full; retry comparing series", -1}}));
         return;
     }
     FileDiff file;
@@ -87,7 +85,7 @@ inline void poll_range_diff(RepoComponent& repo) {
     }
     hunk.oldCount = hunk.newCount = static_cast<int>(hunk.lines.size());
     file.hunks.push_back(std::move(hunk));
-    state.display = {std::move(file)};
+    state.finish({std::move(file)});
 }
 
 inline void render_range_diff(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo, LayoutComponent& layout) {
@@ -109,10 +107,16 @@ inline void render_range_diff(UIContext<InputAction>& ctx, Entity& parent, RepoC
     if (button(ctx, mk(actions.ent(), 1), preset::Button("Close")
             .with_size(ComponentSize{pixels(70), pixels(30)}).with_debug_name("range_diff_close"))) {
         navigation::open(repo, reading::review("wt"));
-        state.future = {};
+        state.abandon();
+        // Already on the working-tree document the open above is a
+        // no-op, so close the stored phase (and the editor modal)
+        // explicitly instead of relying on navigation side effects.
+        repo.close_comparison();
+        layout.close_modal(reading::focus::Popup::ComparisonEditor);
     }
     std::string status = "Compare rewritten, reordered, added, or dropped commits";
-    if (state.future.valid()) status = state.next < 4 ? "Resolving range endpoints..." : "Comparing commit series...";
+    if (state.step == RangeDiff::Step::Resolving) status = "Resolving range endpoints...";
+    else if (state.step == RangeDiff::Step::Comparing) status = "Comparing commit series...";
     else if (!state.error.empty()) status = state.error;
     else if (!state.display.empty()) status = "Resolved series: " + state.resolved[0].substr(0, 12) + ".." + state.resolved[1].substr(0, 12) +
         " vs " + state.resolved[2].substr(0, 12) + ".." + state.resolved[3].substr(0, 12);

@@ -49,13 +49,13 @@ inline void request_semantic(RepoComponent& repo, semantic::Kind kind) {
     }
     if (!repo.semanticSession) repo.semanticSession = std::make_shared<semantic::Session>(repo.repoPath);
     std::string text;
-    if (document->editMode && document->editSeeded) {
+    if (document->edit_seeded()) {
         for (size_t i = 0; i < document->editLines.size(); ++i)
             text += document->editLines[i] + (i + 1 < document->editLines.size() || document->editTrailingNewline ? "\n" : "");
     }
     repo.semanticDocument = document->id.value;
     repo.semanticPath = repo.fullFilePath();
-    repo.semanticEdited = document->editMode;
+    repo.semanticEdited = document->edit_mode();
     repo.semanticStamp = semantic_file_stamp(repo, repo.semanticPath);
     repo.semanticSymbol = ui::selected_identifier(repo);
     repo.semanticFuture = repo.semanticSession->run(kind, repo.fullFilePath(), std::move(text), document->caret->line, document->caret->column);
@@ -77,16 +77,14 @@ inline void show_semantic_results(RepoComponent& repo, const semantic::Outcome& 
     repo.repoSearchQuery = repo.semanticSymbol;
     repo.repoSearchMatching = {.regularExpression = false, .caseSensitive = true, .wholeWord = true};
     open_repo_search(repo);
-    // The panel searches when its text changes; these results are not a search.
-    repo.repoSearchObservedText = {repo.repoSearchQuery, repo.repoSearchIncludeGlob, repo.repoSearchExcludeGlob};
-    repo.repoSearchSubmittedQuery = repo.repoSearchQuery;
     repo.repoSearchPath = repo.repoPath;
-    repo.repoSearchDue.reset();
     repo.repoSearchResults = std::move(matches);
     repo.repoSearchGroups = search_results::group(repo.repoSearchResults);
     repo.repoSearchRebuildRows = true;
-    repo.repoSearchSource = std::to_string(outcome.locations.size()) + " " + semantic::describe(outcome.kind) +
-        (repo.semanticSymbol.empty() ? "" : " of " + repo.semanticSymbol) + " · " + outcome.server;
+    // External is a first-class state: these are language-server results,
+    // not a text search, so the panel will not re-search over them.
+    repo.show_search_external(std::to_string(outcome.locations.size()) + " " + semantic::describe(outcome.kind) +
+        (repo.semanticSymbol.empty() ? "" : " of " + repo.semanticSymbol) + " · " + outcome.server);
 }
 
 inline void open_semantic_location(RepoComponent& repo, const semantic::Location& location) {
@@ -96,6 +94,8 @@ inline void open_semantic_location(RepoComponent& repo, const semantic::Location
 }
 
 inline void poll_semantic(RepoComponent& repo) {
+    // Send any queued didClose promptly while no request is in flight.
+    if (repo.semanticSession) repo.semanticSession->flush_closed_documents();
     if (!repo.semanticFuture.valid()) return;
     // A different document is active: the question no longer applies.
     if (repo.workspace().active_id().value != repo.semanticDocument) {
@@ -105,7 +105,7 @@ inline void poll_semantic(RepoComponent& repo) {
     if (repo.semanticFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
     auto outcome = repo.semanticFuture.get();
     repo.semanticFuture = {};
-    if (outcome.error == "cancelled") return;
+    if (outcome.cancelled) return;
     if (!outcome.error.empty()) {
         semantic_notice(outcome.error, MenuComponent::Notice::Kind::Error);
         return;

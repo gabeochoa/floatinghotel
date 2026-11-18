@@ -415,18 +415,19 @@ inline std::string copy_selection(bool withLocation, bool snippet = false) {
     runtime.selection = selection;
     runtime.withLocation = withLocation;
     runtime.snippet = snippet;
-    runtime.request = navigation::stamp(*repo, "selection-copy");
-    runtime.future = git::copy_source_selection_async({repo->repoPath, selection.source.path,
-        reading::revision_text(selection.source.revision), {}, repo->workspace().active_source() ? repo->fullFileEncodingOverride : "auto"}, selection, withLocation && !snippet);
+    runtime.slot.request("selection-copy", navigation::stamp(*repo, "selection-copy"),
+        git::copy_source_selection_async({repo->repoPath, selection.source.path,
+            reading::revision_text(selection.source.revision), {}, repo->workspace().active_source() ? repo->fullFileEncodingOverride : "auto"}, selection, withLocation && !snippet));
     return {};
 }
 
 inline void poll_copy(UIContext<InputAction>& ctx, ecs::RepoComponent& repo) {
     auto& runtime = repo.selectionCopy;
-    if (!runtime.future.valid() || runtime.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
-    auto result = runtime.future.get();
+    auto landed = runtime.slot.poll(repo);
+    if (!landed) return;
+    auto result = *landed;
     const auto& selection = repo.workspace().document(repo.workspace().active_id())->selection;
-    if (!navigation::accepts(repo, runtime.request, "selection-copy") || !selection || *selection != runtime.selection) return;
+    if (!selection || *selection != runtime.selection) return;
     if (runtime.snippet) git::make_snippet(result, runtime.selection);
     if (!result.error.empty()) afterhours::toast::send_info(ctx, result.error, 4.f);
     else {
@@ -666,7 +667,7 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     int vimRepeat = 1;
     std::optional<int> vimGotoLine;
     bool vimConsumed = false;
-    const bool vimActive = document && Settings::get().get_vim_mode() && !document->editMode &&
+    const bool vimActive = document && Settings::get().get_vim_mode() && !document->edit_mode() &&
         std::get_if<reading::SourceLocation>(&document->location);
     if (vimActive && !command && !control && !alt) {
         namespace keys = afterhours::keys;
@@ -1616,7 +1617,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 if (auto* review = currentReview()) {
                     if (folded) review->foldedHunks.erase(key);
                     else review->foldedHunks.insert(key);
-                    review->dirty = true;
+                    review->mark_dirty();
                 }
             }));
             if ((sel->reviewScope == "wt" || sel->reviewScope == "index") && owner && !owner->get<ecs::RepoComponent>().reviewWorkspace) {
@@ -1775,7 +1776,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     } // headerVisible
 
     // Inline compose row for this hunk.
-    if (reviewOn && sel->review->composingKey == hkey) {
+    if (reviewOn && sel->review->composer == ecs::Composer::Composing && sel->review->composing_key() == hkey) {
         if (vp) { vp->flush(ctx, parent, nextId); vp->built(diff_detail::COMMENT_COMPOSE_H); }
         auto composeRow = div(ctx, mk(parent, nextId++),
             ComponentConfig{}.with_skip_grid_snap()
@@ -1788,21 +1789,21 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                     .bottom = pixels(2), .left = pixels(12)})
                 .with_debug_name("comment_compose_row"));
         float editorH = diff_detail::COMMENT_COMPOSE_H - 8.f;
-        std::string addLabel = "Add L" + std::to_string(sel->review->composingLine) +
-            (sel->review->composingEndLine > sel->review->composingLine ? "-" + std::to_string(sel->review->composingEndLine) : "") +
-            (sel->review->composingOldSide ? " (old)" : "");
+        std::string addLabel = "Add L" + std::to_string(sel->review->composerDraft.line) +
+            (sel->review->composerDraft.endLine > sel->review->composerDraft.line ? "-" + std::to_string(sel->review->composerDraft.endLine) : "") +
+            (sel->review->composerDraft.oldSide ? " (old)" : "");
         std::string rangeLabel;
-        for (const auto& range : sel->review->composingRanges) {
+        for (const auto& range : sel->review->composerDraft.ranges) {
             if (!rangeLabel.empty()) rangeLabel += ", ";
             rangeLabel += std::string(range.oldSide ? "before " : "after ") + std::to_string(range.first);
             if (range.last != range.first) rangeLabel += "-" + std::to_string(range.last);
         }
-        if (!rangeLabel.empty()) addLabel = "Add · " + std::to_string(sel->review->composingRanges.size()) + " ranges";
+        if (!rangeLabel.empty()) addLabel = "Add · " + std::to_string(sel->review->composerDraft.ranges.size()) + " ranges";
         float addWidth = static_cast<float>(afterhours::graphics::measure_text(addLabel.c_str(),
             static_cast<int>(12.f * zoom::get()))) / zoom::get() + 24.f;
-        auto previousDraft = sel->review->composingText;
+        auto previousDraft = sel->review->composerDraft.text;
         auto input = ui::text_area(
-            ctx, mk(composeRow.ent(), 0), sel->review->composingText,
+            ctx, mk(composeRow.ent(), 0), sel->review->composerDraft.text,
             ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 134.f)), pixels(editorH)})
                 .with_custom_background(theme::INPUT_BG)
@@ -1814,13 +1815,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 .with_debug_name("comment_input"));
         if (sel->owner) {
             sel->owner->reading.editorEntity = composeRow.ent().id;
-            sel->owner->reading.revealEditor = sel->review->composingFocus;
+            sel->owner->reading.revealEditor = sel->review->composerFocus;
         }
-        if (sel->review->composingFocus) {
+        if (sel->review->composerFocus) {
             focus_control(ctx, input.ent());
-            sel->review->composingFocus = false;
+            sel->review->composerFocus = false;
         }
-        if (previousDraft != sel->review->composingText) sel->review->dirty = true;
+        if (previousDraft != sel->review->composerDraft.text) sel->review->mark_dirty();
         render_comment_kind(ctx, composeRow.ent(), 2, *sel->review, false);
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
             preset::Button(addLabel).with_tooltip(rangeLabel)
@@ -1851,7 +1852,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             1, std::numeric_limits<int>::max(), true});
         if (expand) {
             sel->review->foldedHunks.erase(hkey);
-            sel->review->dirty = true;
+            sel->review->mark_dirty();
         }
         return;
     }
@@ -2362,7 +2363,7 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
                         begin_diff_comment(*review, reviewScope + "\n" + diff_metrics().hunk_key(fileDiff, hunk),
                             {reviewScope, range->oldSide && !fileDiff.oldPath.empty() ? fileDiff.oldPath : fileDiff.filePath,
                              range->first, "", range->last, range->oldSide}, hunk);
-                        review->foldedHunks.erase(review->composingKey);
+                        review->foldedHunks.erase(review->composing_key());
                         diff_sel::reset();
                         break;
                     }
@@ -2432,7 +2433,7 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
                 for (const auto& hunk : fileDiff.hunks)
                     review->approvedHunks.insert(reviewScope + "\n" + diff_metrics().hunk_key(fileDiff, hunk));
             }
-            review->dirty = true;
+            review->mark_dirty();
         }
     }
     if ((reviewScope == "wt" || reviewScope == "index") && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
@@ -2637,7 +2638,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                             if (!active || active->storageScope != storage || active->storageRepoPath != path) return;
                             active->verdicts[scope] = {value, signature};
                             if (value == ReviewVerdict::InProgress) active->queue.completed.erase(diff_target(scope).after);
-                            active->dirty = true;
+                            active->mark_dirty();
                         }, value != ReviewVerdict::Approved || counts.can_approve()));
                 show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
             }
@@ -2648,10 +2649,13 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_transparent_bg().with_border(theme::BORDER, pixels(1))
                 .with_debug_name("diff_options_toggle"));
         set_tooltip(options.ent(), "Diff options");
-        if (options) layout->diffOptionsOpen = !layout->diffOptionsOpen;
+        if (options) {
+            if (layout->modal_is(reading::focus::Popup::Options)) layout->close_modal(reading::focus::Popup::Options);
+            else layout->open_modal(reading::focus::Popup::Options);
+        }
         findHeight = narrow ? 72.f : 36.f;
     }
-    if (filterRepo && filterable && layout && layout->diffOptionsOpen) {
+    if (filterRepo && filterable && layout && layout->modal_is(reading::focus::Popup::Options)) {
         auto filters = div(ctx, mk(findParent ? *findParent : parent, 597000), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row)
             .with_debug_name("review_file_filters"));
@@ -2791,7 +2795,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     };
     auto fileOrder = ecs::visible_review_file_indices(diffs, filterRepo ? filterRepo->fileFilter : review_files::Filter{}, review, reviewScope);
     std::erase_if(fileOrder, [&](size_t index) { return !fileVisible(diffs[index]); });
-    if (layout && filterRepo && navigation::find(*filterRepo).open) {
+    if (layout && filterRepo && navigation::find(*filterRepo).is_open()) {
         auto& find = navigation::find(*filterRepo);
         const float width = std::min(420.f, std::max(180.f, layout->mainContent.width - 16.f));
         auto bar = div(ctx, mk(ui_imm::getUIRootEntity(), 580001), ComponentConfig{}.with_skip_grid_snap()
@@ -2824,23 +2828,33 @@ inline void render_diff(UIContext<InputAction>& ctx,
             const auto key = filterRepo->repoPath + "\n" + filterRepo->fullFilePath() + "\n" + filterRepo->fullFileRevision() +
                 "\n" + filterRepo->fullFileEncodingOverride + "\n" + filterRepo->fullFilePage.sourceIdentity +
                 "\n" + std::to_string(filterRepo->dataGeneration) + "\n" + find.query;
-            if (key != sourceRuntime.key) {
-                sourceRuntime = {};
-                sourceRuntime.key = key;
-                sourceRuntime.request = navigation::stamp(*filterRepo, key);
-                if (!find.query.empty()) sourceRuntime.future = git::find_source_async(
-                    {filterRepo->repoPath, filterRepo->fullFilePath(), filterRepo->fullFileRevision(), {}, filterRepo->fullFileEncodingOverride}, find.query);
+            if (key != sourceRuntime.slot.key) {
+                sourceRuntime.clear();
+                if (!find.query.empty()) {
+                    sourceRuntime.slot.request(key, navigation::stamp(*filterRepo, key), git::find_source_async(
+                        {filterRepo->repoPath, filterRepo->fullFilePath(), filterRepo->fullFileRevision(), {}, filterRepo->fullFileEncodingOverride}, find.query));
+                } else {
+                    // No scan for an empty query; retain the key so the
+                    // empty state is not relaunched every frame.
+                    sourceRuntime.slot.key = key;
+                }
             }
-            if (sourceRuntime.future.valid() && sourceRuntime.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-                auto result = sourceRuntime.future.get();
-                if (navigation::accepts(*filterRepo, sourceRuntime.request, key)) {
-                    if (result.error.empty() && result.sourceIdentity != filterRepo->fullFilePage.sourceIdentity) {
-                        result.matches.clear();
-                        result.error = "File changed. Reload before searching this version.";
-                    }
-                    sourceRuntime.result = std::move(result);
-                } else sourceRuntime.key.clear();
+            const bool wasBusy = sourceRuntime.busy();
+            if (auto landed = sourceRuntime.slot.poll(*filterRepo)) {
+                auto result = std::move(*landed);
+                if (result.error.empty() && result.sourceIdentity != filterRepo->fullFilePage.sourceIdentity) {
+                    result.matches.clear();
+                    result.error = "File changed. Reload before searching this version.";
+                }
+                sourceRuntime.result = std::move(result);
+            } else if (wasBusy && sourceRuntime.slot.phase == async_slot::Phase::Idle) {
+                // Stale stamp: the slot dropped the result; clearing the
+                // key relaunches on the next frame, as the old code did.
+                sourceRuntime.slot.invalidate();
+            } else if (sourceRuntime.slot.phase == async_slot::Phase::Failed) {
+                sourceRuntime.result.error = sourceRuntime.slot.error;
             }
+            find.sync_scanning(sourceRuntime.busy());
         }
         auto matches = sourceFind ? std::vector<ecs::DiffMatch>{} : ecs::find_diff_matches(diffs, find.query);
         std::set<std::string_view> visiblePaths;
@@ -2914,7 +2928,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     match.line, match.logicalColumn});
                 if (sourceFind && !filterRepo->fullFilePage.contains(match.line, match.logicalColumn,
                         reading::column_at_byte(find.query, find.query.size()) - 1)) {
-                    filterRepo->fullFilePageRequest = {ecs::FilePageRequest::Action::TargetLine, {}, match.line,
+                    filterRepo->fullFileLoad.request = {ecs::FilePageRequest::Action::TargetLine, {}, match.line,
                         sourceRuntime.result.sourceIdentity, 3, match.logicalColumn};
                     filterRepo->fullFileRequestedTargetLine = match.line;
                     filterRepo->fullFileRequestedTargetColumn = match.logicalColumn;
@@ -2922,12 +2936,12 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 }
             }
         }
-        if (!sourceFind || (!sourceRuntime.future.valid() && !sourceRuntime.key.empty())) {
+        if (!sourceFind || (!sourceRuntime.slot.task.valid() && !sourceRuntime.slot.key.empty())) {
             find.navigate = false;
             find.pendingStep = 0;
         }
         div(ctx, mk(bar.ent(), 3), ComponentConfig{}.with_skip_grid_snap()
-            .with_label(sourceFind && sourceRuntime.future.valid() ? "..." : count == 0 ? "0/0" : std::to_string(find.index + 1) + "/" + std::to_string(count))
+            .with_label(sourceFind && sourceRuntime.busy() ? "..." : count == 0 ? "0/0" : std::to_string(find.index + 1) + "/" + std::to_string(count))
             .with_size(ComponentSize{pixels(76), pixels(28)})
             .with_font_size(pixels(12)).with_debug_name("diff_find_count"));
         if (sourceFind && (sourceRuntime.result.limited || !sourceRuntime.result.error.empty()))
@@ -2941,7 +2955,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{pixels(28), pixels(28)}).with_debug_name("diff_find_close")))
             navigation::close_find(*filterRepo);
     }
-    if (!diffs.empty() && diffs.front().isFullContent && !(filterRepo && navigation::find(*filterRepo).open)) {
+    if (!diffs.empty() && diffs.front().isFullContent && !(filterRepo && navigation::find(*filterRepo).is_open())) {
         if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             repo && diff_target(reviewScope).kind == DiffTarget::Kind::File && repo->fullFileTargetLine() > 0 && !diffs.front().hunks.empty()) {
             const auto& lines = diffs.front().hunks.front().lines;
@@ -3153,7 +3167,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     const bool skipFiles = vp.active && vp.scroll && !sess.findNavigate &&
         !(filterRepo && (filterRepo->diffTargetFrames > 0 || filterRepo->fullFileNavigateFrames > 0)) &&
         !(skipDocument && (skipDocument->restoreAnchor || !skipDocument->contextLines.empty())) &&
-        !(review && (!review->composingKey.empty() || review->cursorMoved || review->cursorApprove || review->cursorComment));
+        !(review && (review->composer == ecs::Composer::Composing || review->cursorMoved || review->cursorApprove || review->cursorComment));
     size_t extentStamp = 0;
     if (skipFiles) {
         std::string key = std::to_string(contentWidth) + ":" + std::to_string(sess.fontSize) + ":" +
