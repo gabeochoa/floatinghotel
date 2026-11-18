@@ -42,6 +42,43 @@ TEST(queue_is_bounded_and_foreground_overtakes_background) {
     ASSERT_EQ(order, (std::vector<int>{3, 0, 1, 2}));
 }
 
+TEST(rejected_flag_marks_queue_full_and_shutdown_only) {
+    async_work::Executor pool(1, 4);
+    std::promise<void> entered, release;
+    auto gate = release.get_future().share();
+    auto running = async_work::launch_on(pool, [&entered, gate](std::stop_token) { entered.set_value(); gate.wait(); return 0; });
+    ASSERT_EQ(entered.get_future().wait_for(2s), std::future_status::ready);
+    ASSERT_FALSE(running.rejected());
+    std::vector<async_work::Task<int>> pending;
+    for (int i = 0; i < 3; ++i)
+        pending.push_back(async_work::launch_on(pool, [i](std::stop_token) { return i; }, async_work::Priority::Background));
+    for (auto& task : pending) ASSERT_FALSE(task.rejected());
+    auto rejectedBackground = async_work::launch_on(pool, [](std::stop_token) { return 9; }, async_work::Priority::Background, -1);
+    ASSERT_TRUE(rejectedBackground.rejected());
+    ASSERT_EQ(rejectedBackground.get(), -1);
+    auto foreground = async_work::launch_on(pool, [](std::stop_token) { return 3; });
+    ASSERT_FALSE(foreground.rejected());
+    auto rejectedForeground = async_work::launch_on(pool, [](std::stop_token) { return 9; }, async_work::Priority::Foreground, -2);
+    ASSERT_TRUE(rejectedForeground.rejected());
+    ASSERT_EQ(rejectedForeground.get(), -2);
+    // The flag travels with the task across a move.
+    auto moved = std::move(rejectedForeground);
+    ASSERT_TRUE(moved.rejected());
+    ASSERT_FALSE(rejectedForeground.rejected());
+    release.set_value();
+    ASSERT_EQ(foreground.get(), 3);
+    pool.shutdown();
+    auto afterShutdown = async_work::launch_on(pool, [](std::stop_token) { return 1; }, async_work::Priority::Foreground, -1);
+    ASSERT_TRUE(afterShutdown.rejected());
+    ASSERT_EQ(afterShutdown.get(), -1);
+    auto inHand = async_work::completed(42);
+    ASSERT_FALSE(inHand.rejected());
+    ASSERT_EQ(inHand.get(), 42);
+    async_work::Task<int> empty;
+    ASSERT_FALSE(empty.rejected());
+    ASSERT_FALSE(empty.valid());
+}
+
 TEST(shutdown_cancels_reads_and_drains_accepted_writes) {
     async_work::Executor pool(1, 4);
     std::promise<void> entered;

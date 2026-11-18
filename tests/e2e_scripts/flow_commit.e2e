@@ -6,6 +6,7 @@ screenshot flow_commit_files_navigation
 
 # Initial state: 1 staged file (.gitignore), unstaged + untracked files
 validate staged_count=1
+validate async:commit_flow=Editing
 screenshot flow_commit_01_initial
 
 # Click Commit in sidebar toolbar — opens unstaged dialog
@@ -23,4 +24,5 @@ screenshot flow_commit_03_committed
 wait_until 60 expect_text "Update"
 wait_for_refresh
 wait_until 30 validate staged_count=0
+wait_until 30 validate async:commit_flow=Done
 screenshot flow_commit_04_clean_state

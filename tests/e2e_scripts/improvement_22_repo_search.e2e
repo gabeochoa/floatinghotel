@@ -12,6 +12,7 @@ click_ui repo_search_input
 type "Alice"
 click_ui repo_search_submit
 wait_for_refresh
+wait_until 15 validate async:repo_search=Done
 wait_frames 10
 screenshot improvement_22_results
 expect_text "test_utils.cpp"

@@ -138,4 +138,59 @@ TEST(semantic_sessions_return_repository_relative_deduplicated_locations) {
     std::filesystem::remove_all(root);
 }
 
+TEST(lsp_name_covers_all_phases_and_cancelled_is_typed) {
+    ASSERT_STREQ(std::string(semantic::lsp_name(semantic::Lsp::Unstarted)), "Unstarted");
+    ASSERT_STREQ(std::string(semantic::lsp_name(semantic::Lsp::Starting)), "Starting");
+    ASSERT_STREQ(std::string(semantic::lsp_name(semantic::Lsp::Ready)), "Ready");
+    ASSERT_STREQ(std::string(semantic::lsp_name(semantic::Lsp::Busy)), "Busy");
+    ASSERT_STREQ(std::string(semantic::lsp_name(semantic::Lsp::Dead)), "Dead");
+    ASSERT_STREQ(std::string(semantic::lsp_name(semantic::Lsp::Failed)), "Failed");
+    semantic::Outcome outcome;
+    ASSERT_FALSE(outcome.cancelled);
+    ASSERT_TRUE(outcome.error.empty());
+    outcome.cancelled = true;
+    ASSERT_TRUE(outcome.cancelled);
+    ASSERT_TRUE(outcome.error.empty());
+}
+
+TEST(semantic_session_lsp_lifecycle_and_did_close_reopen) {
+    if (access("/usr/bin/clangd", X_OK) != 0) { printf("  (clangd not installed; skipped)\n"); return; }
+    char pattern[] = "/tmp/fh-semantic-lsp.XXXXXX";
+    const std::string root = mkdtemp(pattern);
+    std::filesystem::create_directories(root + "/src");
+    const std::string text = "int add(int a, int b) { return a + b; }\n"
+                             "int twice(int x) { return add(x, x); }\n"
+                             "int main() { return twice(2) + add(1, 2); }\n";
+    { std::ofstream(root + "/src/a.cpp") << text; }
+    { std::ofstream(root + "/compile_commands.json") << "[{\"directory\":\"" << root << "/src\",\"file\":\"a.cpp\","
+                                                       "\"arguments\":[\"clang++\",\"-std=c++17\",\"-c\",\"a.cpp\"]}]"; }
+    semantic::Session session(root);
+    ASSERT_TRUE(session.lsp_state() == semantic::Lsp::Unstarted);
+    auto definition = session.run(semantic::Kind::Definition, "src/a.cpp", text, 2, 27).get();
+    ASSERT_TRUE(definition.error.empty());
+    ASSERT_FALSE(definition.cancelled);
+    ASSERT_EQ(definition.locations.size(), 1u);
+    // ensure_client is the sole transition into Ready; a settled request
+    // leaves the client Ready, not Busy.
+    ASSERT_TRUE(session.lsp_state() == semantic::Lsp::Ready);
+    // didClose drops the version: reopening the same file didOpens fresh
+    // and the server still answers (a stale didChange-only reopen would
+    // be answered about the pre-close version).
+    session.close_document("src/a.cpp");
+    session.flush_closed_documents();
+    ASSERT_TRUE(session.lsp_state() == semantic::Lsp::Ready);
+    auto hover = session.run(semantic::Kind::Hover, "src/a.cpp", text, 1, 5).get();
+    ASSERT_TRUE(hover.error.empty());
+    ASSERT_FALSE(hover.cancelled);
+    ASSERT_TRUE(hover.hover.find("int add(int a, int b)") != std::string::npos);
+    ASSERT_TRUE(session.lsp_state() == semantic::Lsp::Ready);
+    // Closing a document that was never opened is a no-op.
+    session.close_document("src/never_opened.cpp");
+    ASSERT_TRUE(session.lsp_state() == semantic::Lsp::Ready);
+    auto references = session.run(semantic::Kind::References, "src/a.cpp", text, 1, 5).get();
+    ASSERT_TRUE(references.error.empty());
+    ASSERT_EQ(references.locations.size(), 3u);
+    std::filesystem::remove_all(root);
+}
+
 int main() { RUN_ALL_TESTS(); }

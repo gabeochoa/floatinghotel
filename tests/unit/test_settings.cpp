@@ -585,6 +585,127 @@ TEST(settings_failed_relink_preserves_pending_save) {
     ASSERT_EQ(restored.get_last_active_repo(), "/old");
 }
 
+static void flush_until_save_state(Settings& s, Settings::Save target) {
+    for (int i = 0; i < 200 && s.save_state() != target; ++i) {
+        s.flush_pending_save(std::chrono::steady_clock::now());
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+}
+
+TEST(settings_save_state_names) {
+    ASSERT_TRUE(Settings::name(Settings::Save::Clean) == "Clean");
+    ASSERT_TRUE(Settings::name(Settings::Save::Pending) == "Pending");
+    ASSERT_TRUE(Settings::name(Settings::Save::Writing) == "Writing");
+    ASSERT_TRUE(Settings::name(Settings::Save::Blocked) == "Blocked");
+    ASSERT_TRUE(Settings::name(Settings::Save::Failed) == "Failed");
+}
+
+TEST(settings_save_state_debounce_pending_writing_clean) {
+    Settings s;
+    ASSERT_EQ(s.save_state(), Settings::Save::Clean);
+    const auto before = std::chrono::steady_clock::now();
+    s.set_sidebar_width(321.f);
+    ASSERT_EQ(s.save_state(), Settings::Save::Pending);
+    s.flush_pending_save(before + std::chrono::milliseconds(249));
+    ASSERT_EQ(s.save_write_count(), 0u);
+    ASSERT_EQ(s.save_state(), Settings::Save::Pending);
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_EQ(s.save_state(), Settings::Save::Writing);
+    flush_until_save_state(s, Settings::Save::Clean);
+    ASSERT_EQ(s.save_state(), Settings::Save::Clean);
+    ASSERT_EQ(s.save_write_count(), 1u);
+    ASSERT_TRUE(s.saveError.empty());
+}
+
+TEST(settings_save_state_blocked_never_overwrites_on_load_error) {
+    Settings s;
+    s.auto_save_enabled = false;
+    const std::string path = s.get_settings_path();
+    const std::string corrupt = "{{{not json";
+    { std::ofstream out(path); out << corrupt; }
+    ASSERT_FALSE(s.load_save_file());
+    ASSERT_EQ(s.save_state(), Settings::Save::Blocked);
+    ASSERT_FALSE(s.loadError.empty());
+    s.write_save_file();
+    ASSERT_EQ(s.save_state(), Settings::Save::Blocked);
+    ASSERT_FALSE(s.saveError.empty());
+    ASSERT_EQ(afterhours::files::read_string(path).value(), corrupt);
+    ASSERT_EQ(s.save_write_count(), 0u);
+    s.auto_save_enabled = true;
+    s.set_sidebar_width(399.f);
+    ASSERT_EQ(s.save_state(), Settings::Save::Pending);
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_EQ(s.save_state(), Settings::Save::Blocked);
+    ASSERT_FALSE(s.saveError.empty());
+    ASSERT_EQ(afterhours::files::read_string(path).value(), corrupt);
+    ASSERT_EQ(s.save_write_count(), 0u);
+    fs::remove(path);
+    ASSERT_FALSE(s.load_save_file());
+    ASSERT_TRUE(s.loadError.empty());
+    ASSERT_EQ(s.save_state(), Settings::Save::Clean);
+    s.write_save_file();
+    ASSERT_EQ(s.save_state(), Settings::Save::Clean);
+    ASSERT_TRUE(s.saveError.empty());
+    ASSERT_EQ(s.save_write_count(), 1u);
+    fs::remove(path);
+}
+
+TEST(settings_save_state_failed_sync_and_async_then_recovers) {
+    const std::string path = Settings::get().get_settings_path();
+    fs::remove(path);
+    {
+        Settings s;
+        s.auto_save_enabled = false;
+        fs::create_directory(path);
+        s.write_save_file();
+        ASSERT_EQ(s.save_state(), Settings::Save::Failed);
+        ASSERT_FALSE(s.saveError.empty());
+        ASSERT_EQ(s.save_write_count(), 0u);
+        fs::remove(path);
+        s.write_save_file();
+        ASSERT_EQ(s.save_state(), Settings::Save::Clean);
+        ASSERT_TRUE(s.saveError.empty());
+        ASSERT_EQ(s.save_write_count(), 1u);
+    }
+    fs::remove(path);
+    fs::create_directory(path);
+    {
+        Settings s;
+        s.set_sidebar_width(432.f);
+        ASSERT_EQ(s.save_state(), Settings::Save::Pending);
+        s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+        ASSERT_EQ(s.save_state(), Settings::Save::Writing);
+        flush_until_save_state(s, Settings::Save::Failed);
+        ASSERT_EQ(s.save_state(), Settings::Save::Failed);
+        ASSERT_FALSE(s.saveError.empty());
+        ASSERT_EQ(s.save_write_count(), 0u);
+        fs::remove(path);
+        s.set_sidebar_width(433.f);
+        ASSERT_EQ(s.save_state(), Settings::Save::Pending);
+        s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+        ASSERT_EQ(s.save_state(), Settings::Save::Writing);
+        flush_until_save_state(s, Settings::Save::Clean);
+        ASSERT_EQ(s.save_state(), Settings::Save::Clean);
+        ASSERT_TRUE(s.saveError.empty());
+        ASSERT_EQ(s.save_write_count(), 1u);
+    }
+    fs::remove(path);
+}
+
+TEST(settings_save_state_sync_write_drains_async_write) {
+    Settings s;
+    const std::string path = s.get_settings_path();
+    fs::remove(path);
+    s.set_sidebar_width(444.f);
+    s.flush_pending_save(std::chrono::steady_clock::now() + std::chrono::seconds(1));
+    ASSERT_EQ(s.save_state(), Settings::Save::Writing);
+    s.write_save_file();
+    ASSERT_EQ(s.save_write_count(), 2u);
+    ASSERT_EQ(s.save_state(), Settings::Save::Clean);
+    ASSERT_TRUE(s.saveError.empty());
+    fs::remove(path);
+}
+
 int main() {
     // Initialize the files plugin with a temp directory so settings writes
     // go to an isolated location.

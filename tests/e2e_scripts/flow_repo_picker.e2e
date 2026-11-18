@@ -17,6 +17,8 @@ release_key 342
 release_key 343
 wait_frames 5
 screenshot repo_picker_open
+validate async:picker=Browsing
+validate async:picker_mode=Repositories
 click_ui repo_picker_input
 key CMD+A
 type "floatinghotel_test"
@@ -25,6 +27,7 @@ screenshot repo_picker_filtered
 key ENTER
 wait_for_refresh
 wait_frames 5
+validate async:picker=Closed
 validate tab_count=2
 validate active_tab_label=floatinghotel_test_repo (main)
 screenshot repo_picker_switched

@@ -54,6 +54,8 @@ TEST(review_store_roundtrip) {
     ASSERT_STREQ(r2.seenSig["src/foo.cpp"], "1,2,3");
     ASSERT_STREQ(r2.baselineHead, "deadbeef");
     ASSERT_EQ(r2.baselineSnapshot, r.baselineSnapshot);
+    ASSERT_TRUE(r2.baselineSnapshot.has_value());
+    ASSERT_EQ(r2.baseline, ecs::Baseline::Ready);
     ASSERT_EQ(r2.baselineCapturedAt, r.baselineCapturedAt);
 
     std::filesystem::remove(review_store::review_path(repo));
@@ -88,14 +90,16 @@ TEST(comparison_comments_keep_both_revisions_and_restore_the_comparison) {
 TEST(editing_a_comment_preserves_its_location) {
     ecs::ReviewComponent review;
     review.comments.push_back({"abc", "file.cpp", 12, "before", 14, true});
-    review.editingComment = 0;
-    review.editingCommentText = "after\nsecond line";
+    ecs::begin_comment(review, static_cast<ecs::ReviewComponent::CommentIndex>(0));
+    ASSERT_EQ(review.composer, ecs::Composer::EditingExisting);
+    review.composerDraft.text = "after\nsecond line";
     ASSERT_TRUE(ecs::save_comment_edit(review));
     ASSERT_EQ(review.comments.size(), 1u);
     ASSERT_EQ(review.comments.front().text, "after\nsecond line");
     ASSERT_EQ(ecs::comment_location(review.comments.front()), "file.cpp:12-14 (old)");
-    ASSERT_TRUE(review.dirty);
-    ASSERT_EQ(review.editingComment, -1);
+    ASSERT_TRUE(review.dirty());
+    ASSERT_EQ(review.composer, ecs::Composer::Closed);
+    ASSERT_EQ(review.editing_index(), -1);
     ASSERT_FALSE(ecs::save_comment_edit(review));
 }
 
@@ -117,31 +121,37 @@ TEST(resolved_comments_stay_saved_but_leave_the_feedback_export) {
 TEST(unfinished_comments_and_edits_survive_a_roundtrip) {
     ecs::ReviewComponent review;
     ecs::begin_comment(review, "hunk-a", {"wt", "a.cpp", 3, "", 5, false});
-    review.composingText = "Draft A";
+    review.composerDraft.text = "Draft A";
     ecs::begin_comment(review, "hunk-b", {"abc", "b.cpp", 8, "", 9, true});
-    review.composingText = "Draft B\nsecond line";
+    review.composerDraft.text = "Draft B\nsecond line";
     review.comments.push_back({"wt", "c.cpp", 1, "queued text"});
-    review.editingComment = 0;
-    review.editingCommentText = "Unsaved edit";
+    ecs::begin_comment(review, static_cast<ecs::ReviewComponent::CommentIndex>(0));
+    review.composerDraft.text = "Unsaved edit";
     const std::string path = "/tmp/floatinghotel_draft_roundtrip";
     review_store::save_review(path, review);
     ecs::ReviewComponent loaded;
     review_store::load_review(path, loaded);
-    ASSERT_EQ(loaded.composingText, "Draft B\nsecond line");
-    ASSERT_EQ(loaded.composingLine, 8);
-    ASSERT_TRUE(loaded.composingOldSide);
+    // The unsaved edit is the active composer on load; the composing
+    // draft survives alongside it in `drafts` (draft-on-dismiss).
+    ASSERT_EQ(loaded.composer, ecs::Composer::EditingExisting);
+    ASSERT_EQ(loaded.editing_index(), 0);
+    ASSERT_EQ(loaded.composerDraft.text, "Unsaved edit");
+    ASSERT_EQ(loaded.drafts.at("hunk-b").text, "Draft B\nsecond line");
+    ASSERT_EQ(loaded.drafts.at("hunk-b").line, 8);
+    ASSERT_TRUE(loaded.drafts.at("hunk-b").oldSide);
     ASSERT_EQ(loaded.drafts.at("hunk-a").text, "Draft A");
-    ASSERT_EQ(loaded.editingCommentText, "Unsaved edit");
     ASSERT_EQ(loaded.comments.front().text, "queued text");
-    ecs::begin_comment(loaded, "hunk-a", {});
-    ASSERT_EQ(loaded.composingText, "Draft A");
-    ecs::commit_pending_comment(loaded);
-    ASSERT_FALSE(loaded.drafts.contains("hunk-a"));
-    ASSERT_TRUE(loaded.drafts.contains("hunk-b"));
-    ASSERT_EQ(loaded.comments.size(), 2u);
     ecs::RepoComponent repo;
     navigation::restore_draft(repo, loaded);
     ASSERT_EQ(repo.selectedFilePath(), "c.cpp");
+    ecs::begin_comment(loaded, "hunk-a", {});
+    ASSERT_EQ(loaded.composer, ecs::Composer::Composing);
+    ASSERT_EQ(loaded.composerDraft.text, "Draft A");
+    ecs::commit_pending_comment(loaded);
+    ASSERT_EQ(loaded.composer, ecs::Composer::Closed);
+    ASSERT_FALSE(loaded.drafts.contains("hunk-a"));
+    ASSERT_TRUE(loaded.drafts.contains("hunk-b"));
+    ASSERT_EQ(loaded.comments.size(), 2u);
     std::filesystem::remove(review_store::review_path(path));
 }
 
@@ -152,12 +162,12 @@ TEST(deletion_is_persisted_and_failed_writes_keep_the_dirty_flag) {
     const std::string path = "/tmp/floatinghotel_delete_roundtrip";
     ASSERT_TRUE(review_store::save_review(path, review));
     ecs::erase_comment(review, 0);
-    ASSERT_TRUE(review.dirty);
+    ASSERT_TRUE(review.dirty());
     ASSERT_TRUE(review.foldedHunks.empty());
     ASSERT_FALSE(review_store::persist_review("", review));
-    ASSERT_TRUE(review.dirty);
+    ASSERT_TRUE(review.dirty());
     ASSERT_TRUE(review_store::persist_review(path, review));
-    ASSERT_FALSE(review.dirty);
+    ASSERT_FALSE(review.dirty());
     ecs::ReviewComponent loaded;
     review_store::load_review(path, loaded);
     ASSERT_TRUE(loaded.comments.empty());
@@ -189,13 +199,13 @@ TEST(review_state_is_isolated_by_branch_and_revision) {
     ASSERT_TRUE(review_store::switch_review_scope(repo, "main@one", review));
     review.comments.push_back({"wt", "code.cpp", 1, "main note"});
     review.approvedHunks.insert("main approval");
-    review.dirty = true;
+    review.mark_dirty();
     ASSERT_TRUE(review_store::switch_review_scope(repo, "other@one", review));
     drain_review_load(review);
     ASSERT_TRUE(review.comments.empty());
     ASSERT_TRUE(review.approvedHunks.empty());
     review.comments.push_back({"wt", "code.cpp", 1, "other note"});
-    review.dirty = true;
+    review.mark_dirty();
     ASSERT_TRUE(review_store::switch_review_scope(repo, "main@one", review));
     drain_review_load(review);
     ASSERT_EQ(review.comments.front().text, "main note");
@@ -309,16 +319,17 @@ TEST(typed_comments_preserve_drafts_edits_and_export) {
     ASSERT_TRUE(review_store::save_review(repo, review));
     ecs::ReviewComponent restored;
     review_store::load_review(repo, restored);
-    ASSERT_EQ(restored.composingKind, ReviewCommentKind::Question);
+    ASSERT_EQ(restored.composerDraft.kind, ReviewCommentKind::Question);
     ecs::commit_pending_comment(restored);
     ASSERT_EQ(restored.comments.front().kind, ReviewCommentKind::Question);
-    restored.editingComment = 0;
-    restored.editingCommentText = "Please change this value";
-    restored.editingCommentKind = ReviewCommentKind::Blocker;
+    ecs::begin_comment(restored, static_cast<ecs::ReviewComponent::CommentIndex>(0));
+    restored.composerDraft.text = "Please change this value";
+    restored.composerDraft.kind = ReviewCommentKind::Blocker;
     ASSERT_TRUE(review_store::save_review(repo, restored));
     ecs::ReviewComponent editing;
     review_store::load_review(repo, editing);
-    ASSERT_EQ(editing.editingCommentKind, ReviewCommentKind::Blocker);
+    ASSERT_EQ(editing.composer, ecs::Composer::EditingExisting);
+    ASSERT_EQ(editing.composerDraft.kind, ReviewCommentKind::Blocker);
     ASSERT_TRUE(ecs::save_comment_edit(editing));
     ASSERT_EQ(editing.comments.front().kind, ReviewCommentKind::Blocker);
     ASSERT_TRUE(ecs::build_review_markdown(editing, "main").find("Type: Blocker") != std::string::npos);
@@ -455,14 +466,14 @@ TEST(commit_review_queue_resumes_position_and_keeps_scope_isolated) {
 TEST(queue_completion_stale_uses_loaded_default_commit_verdict) {
     ecs::RepoComponent repo;
     navigation::open(repo, reading::review(std::string(40, 'a')));
-    repo.reviewQueueScope = "queue:base:target";
+    repo.reviewQueue.key = "queue:base:target";
     ecs::ReviewComponent review;
     review.queue.completed.insert(repo.selectedCommitHash());
     ecs::FileDiff file;
     file.filePath = "file.cpp";
     file.hunks.push_back({1, 1, 1, 1, "", {"-old", "+new"}});
     ecs::CommitDetailCache cache;
-    cache.cachedCommitHash = repo.selectedCommitHash();
+    cache.patch.key.commit = repo.selectedCommitHash();
     cache.commitDetailDiff = {file};
     auto key = repo.selectedCommitHash() + "\n" + ecs::ReviewComponent::hunk_key(file.filePath, file.hunks.front());
     review.approvedHunks.insert(key);
@@ -484,9 +495,9 @@ TEST(queue_completion_stale_uses_loaded_default_commit_verdict) {
     cache.commitDetailError = "Unable to read patch";
     ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
     cache.commitDetailError.clear();
-    cache.cachedCommitHash = std::string(40, 'c');
+    cache.patch.key.commit = std::string(40, 'c');
     ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
-    cache.cachedCommitHash = repo.selectedCommitHash();
+    cache.patch.key.commit = repo.selectedCommitHash();
     review.verdicts[repo.selectedCommitHash()].verdict = ReviewVerdict::ChangesRequested;
     ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
     review.verdicts[repo.selectedCommitHash()].verdict = ReviewVerdict::Approved;
@@ -495,27 +506,100 @@ TEST(queue_completion_stale_uses_loaded_default_commit_verdict) {
     review.queue.completed.insert(repo.selectedCommitHash());
     ASSERT_TRUE(ecs::review_queue_completion_is_stale(review, repo, cache));
     std::promise<ecs::CommitPatch> pending;
-    cache.patchFuture = async_work::Task<ecs::CommitPatch>(pending.get_future(), std::stop_source{});
+    cache.patch.request(cache.patch.key, {repo.repoPath, repo.workspace().location(), {}, repo.workspace().generation(), repo.dataGeneration},
+        async_work::Task<ecs::CommitPatch>(pending.get_future(), std::stop_source{}));
+    ASSERT_TRUE(cache.patch_loading());
     ASSERT_FALSE(ecs::review_queue_completion_is_stale(review, repo, cache));
 }
 
 TEST(dismissed_range_draft_reopens_and_saves_without_folding_code) {
     ecs::ReviewComponent review;
     ecs::begin_comment(review, "hunk", {"wt", "a.cpp", 5, "", 6, true});
-    review.composingText = "Keep this range visible";
+    review.composerDraft.text = "Keep this range visible";
     ecs::dismiss_pending_comment(review);
-    ASSERT_TRUE(review.composingKey.empty());
+    ASSERT_EQ(review.composer, ecs::Composer::Closed);
+    ASSERT_TRUE(review.composing_key().empty());
     ASSERT_EQ(review.drafts.at("hunk").text, "Keep this range visible");
     ecs::begin_comment(review, "hunk", {});
-    ASSERT_EQ(review.composingLine, 5);
-    ASSERT_EQ(review.composingEndLine, 6);
-    ASSERT_TRUE(review.composingOldSide);
+    ASSERT_EQ(review.composer, ecs::Composer::Composing);
+    ASSERT_EQ(review.composerDraft.line, 5);
+    ASSERT_EQ(review.composerDraft.endLine, 6);
+    ASSERT_TRUE(review.composerDraft.oldSide);
     ecs::commit_pending_comment(review);
     ASSERT_EQ(review.comments.size(), size_t{1});
     ASSERT_EQ(review.comments.front().text, "Keep this range visible");
     ASSERT_TRUE(review.foldedHunks.empty());
     ASSERT_TRUE(review.approvedHunks.empty());
     ASSERT_TRUE(review.drafts.empty());
+}
+
+TEST(baseline_phase_names_and_transitions) {
+    ASSERT_STREQ(std::string(ecs::baseline_name(ecs::Baseline::None)), "None");
+    ASSERT_STREQ(std::string(ecs::baseline_name(ecs::Baseline::Capturing)), "Capturing");
+    ASSERT_STREQ(std::string(ecs::baseline_name(ecs::Baseline::Ready)), "Ready");
+    ASSERT_STREQ(std::string(ecs::baseline_name(ecs::Baseline::Failed)), "Failed");
+    ecs::ReviewComponent review;
+    ASSERT_EQ(review.baseline, ecs::Baseline::None);
+    ASSERT_FALSE(review.baselineSnapshot.has_value());
+    review.begin_baseline_capture();
+    ASSERT_EQ(review.baseline, ecs::Baseline::Capturing);
+    review.finish_baseline_capture("/tmp/base.cbor", "deadbeef", 123);
+    ASSERT_EQ(review.baseline, ecs::Baseline::Ready);
+    ASSERT_EQ(review.baselineSnapshot.value(), "/tmp/base.cbor");
+    ASSERT_STREQ(review.baselineHead, "deadbeef");
+    ASSERT_EQ(review.baselineCapturedAt, 123);
+    // A failed re-capture keeps the held snapshot.
+    review.begin_baseline_capture();
+    review.fail_baseline("git failed");
+    ASSERT_EQ(review.baseline, ecs::Baseline::Failed);
+    ASSERT_STREQ(review.snapshotError, "git failed");
+    ASSERT_TRUE(review.baselineSnapshot.has_value());
+    // A successful compare recovers Failed -> Ready.
+    review.finish_baseline_compare();
+    ASSERT_EQ(review.baseline, ecs::Baseline::Ready);
+}
+
+TEST(composer_phase_names_targets_and_draft_on_dismiss) {
+    ASSERT_STREQ(std::string(ecs::composer_name(ecs::Composer::Closed)), "Closed");
+    ASSERT_STREQ(std::string(ecs::composer_name(ecs::Composer::Composing)), "Composing");
+    ASSERT_STREQ(std::string(ecs::composer_name(ecs::Composer::EditingExisting)), "EditingExisting");
+    ecs::ReviewComponent review;
+    ASSERT_EQ(review.composer, ecs::Composer::Closed);
+    ecs::begin_comment(review, "hunk-1", {"wt", "a.cpp", 3, "", 4, false});
+    ASSERT_EQ(review.composer, ecs::Composer::Composing);
+    ASSERT_TRUE(std::holds_alternative<ecs::ReviewComponent::HunkKey>(review.composerTarget));
+    ASSERT_EQ(review.composing_key(), "hunk-1");
+    ASSERT_EQ(review.editing_index(), -1);
+    review.composerDraft.text = "draft text";
+    ecs::dismiss_pending_comment(review);
+    ASSERT_EQ(review.composer, ecs::Composer::Closed);
+    ASSERT_EQ(review.drafts.at("hunk-1").text, "draft text");
+    // Editing an existing comment targets its index; commit writes back.
+    review.comments.push_back({"wt", "b.cpp", 7, "original"});
+    ecs::begin_comment(review, static_cast<ecs::ReviewComponent::CommentIndex>(0));
+    ASSERT_EQ(review.composer, ecs::Composer::EditingExisting);
+    ASSERT_TRUE(std::holds_alternative<ecs::ReviewComponent::CommentIndex>(review.composerTarget));
+    ASSERT_EQ(review.editing_index(), 0);
+    ASSERT_TRUE(review.composing_key().empty());
+    // The preserved draft is still waiting in drafts, not lost.
+    ASSERT_EQ(review.drafts.at("hunk-1").text, "draft text");
+    review.composerDraft.text = "revised";
+    ecs::commit_pending_comment(review);
+    ASSERT_EQ(review.composer, ecs::Composer::Closed);
+    ASSERT_EQ(review.comments.front().text, "revised");
+    // Dismissing an edit discards the buffer, original untouched.
+    ecs::begin_comment(review, static_cast<ecs::ReviewComponent::CommentIndex>(0));
+    review.composerDraft.text = "discard me";
+    ecs::dismiss_pending_comment(review);
+    ASSERT_EQ(review.comments.front().text, "revised");
+    // Erasing a comment before the edit target shifts the index.
+    review.comments.push_back({"wt", "c.cpp", 1, "second"});
+    ecs::begin_comment(review, static_cast<ecs::ReviewComponent::CommentIndex>(1));
+    ecs::erase_comment(review, 0);
+    ASSERT_EQ(review.composer, ecs::Composer::EditingExisting);
+    ASSERT_EQ(review.editing_index(), 0);
+    ecs::erase_comment(review, 0);
+    ASSERT_EQ(review.composer, ecs::Composer::Closed);
 }
 
 TEST(review_load_failure_preserves_memory_and_disk) {
@@ -527,7 +611,8 @@ TEST(review_load_failure_preserves_memory_and_disk) {
             std::string(R"({"repo_path":"/another/repository"})")}) {
         ASSERT_TRUE(afterhours::files::write_string_atomic(review_store::review_path(repo), contents));
         review_store::load_review(repo, review);
-        ASSERT_FALSE(review.loadError.empty());
+        ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::LoadFailed);
+        ASSERT_FALSE(review.storeError.empty());
         ASSERT_EQ(review.comments.size(), 1u);
         ASSERT_EQ(review.comments[0].text, std::string("keep this"));
         ASSERT_FALSE(review_store::save_review(repo, review));
@@ -535,7 +620,8 @@ TEST(review_load_failure_preserves_memory_and_disk) {
     }
     std::filesystem::remove(review_store::review_path(repo));
     review_store::load_review(repo, review);
-    ASSERT_TRUE(review.loadError.empty());
+    ASSERT_NE(review.storePhase, ecs::ReviewStorePhase::LoadFailed);
+    ASSERT_TRUE(review.storeError.empty());
     ASSERT_TRUE(review_store::save_review(repo, review));
     std::filesystem::remove(review_store::review_path(repo));
 }
@@ -573,12 +659,101 @@ TEST(review_store_migrates_legacy_keys_without_deleting_original) {
     ASSERT_TRUE(afterhours::files::write_string_atomic(legacy, R"({"repo_path":"/tmp/legacy-review-identity","comments":[{"file":"a.cpp","line":1,"text":"Keep me"}]})"));
     ecs::ReviewComponent loaded;
     review_store::load_review(repo, loaded);
-    ASSERT_TRUE(loaded.loadError.empty());
+    ASSERT_NE(loaded.storePhase, ecs::ReviewStorePhase::LoadFailed);
+    ASSERT_TRUE(loaded.storeError.empty());
     ASSERT_EQ(loaded.comments.size(), 1u);
     ASSERT_TRUE(std::filesystem::exists(legacy));
     ASSERT_TRUE(std::filesystem::exists(current));
     std::filesystem::remove(legacy);
     std::filesystem::remove(current);
+}
+
+TEST(review_store_phase_name_covers_all_phases) {
+    ASSERT_STREQ(std::string(ecs::review_store_phase_name(ecs::ReviewStorePhase::Unloaded)), "Unloaded");
+    ASSERT_STREQ(std::string(ecs::review_store_phase_name(ecs::ReviewStorePhase::Loading)), "Loading");
+    ASSERT_STREQ(std::string(ecs::review_store_phase_name(ecs::ReviewStorePhase::Ready)), "Ready");
+    ASSERT_STREQ(std::string(ecs::review_store_phase_name(ecs::ReviewStorePhase::Dirty)), "Dirty");
+    ASSERT_STREQ(std::string(ecs::review_store_phase_name(ecs::ReviewStorePhase::Saving)), "Saving");
+    ASSERT_STREQ(std::string(ecs::review_store_phase_name(ecs::ReviewStorePhase::SaveFailed)), "SaveFailed");
+    ASSERT_STREQ(std::string(ecs::review_store_phase_name(ecs::ReviewStorePhase::LoadFailed)), "LoadFailed");
+}
+
+TEST(review_store_dirty_save_and_save_failed_transitions) {
+    ecs::ReviewComponent review;
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Unloaded);
+    ASSERT_FALSE(review.dirty());
+    review_store::load_review("/tmp/fh_phase_missing_repo", review);
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Ready);
+    review.comments.push_back({"wt", "a.cpp", 1, "note"});
+    review.mark_dirty();
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Dirty);
+    ASSERT_TRUE(review.dirty());
+    const std::string path = "/tmp/fh_phase_save";
+    ASSERT_TRUE(review_store::persist_review(path, review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Ready);
+    ASSERT_FALSE(review.dirty());
+    // A failed write lands in SaveFailed and keeps the work dirty.
+    review.mark_dirty();
+    ASSERT_FALSE(review_store::persist_review("", review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::SaveFailed);
+    ASSERT_TRUE(review.dirty());
+    ASSERT_FALSE(review.storeError.empty());
+    // Editing while SaveFailed does not mask the failure.
+    review.mark_dirty();
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::SaveFailed);
+    // The retry loop recovers to Ready on the next successful write.
+    ASSERT_TRUE(review_store::persist_review(path, review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Ready);
+    std::filesystem::remove(review_store::review_path(path));
+}
+
+TEST(review_store_load_failed_retry_recovers_and_unblocks_saves) {
+    const std::string repo = "/tmp/fh_phase_load_failed";
+    std::filesystem::remove(review_store::review_path(repo));
+    ecs::ReviewComponent review;
+    review.comments.push_back({"wt", "keep.cpp", 4, "keep this"});
+    ASSERT_TRUE(afterhours::files::write_string_atomic(review_store::review_path(repo), R"({"schema_version":99})"));
+    review_store::load_review(repo, review);
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::LoadFailed);
+    ASSERT_FALSE(review_store::save_review(repo, review));
+    // Retry while the file is still corrupt stays LoadFailed and blocked.
+    ASSERT_FALSE(review_store::retry_load(repo, review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::LoadFailed);
+    ASSERT_FALSE(review_store::save_review(repo, review));
+    ASSERT_EQ(review.comments.front().text, std::string("keep this"));
+    // Removing the corrupt file is the recovery: preserved work becomes
+    // Dirty (not silently Ready) so persist can now write it.
+    std::filesystem::remove(review_store::review_path(repo));
+    ASSERT_TRUE(review_store::retry_load(repo, review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Dirty);
+    ASSERT_TRUE(review.dirty());
+    ASSERT_TRUE(review_store::persist_review(repo, review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Ready);
+    ecs::ReviewComponent loaded;
+    review_store::load_review(repo, loaded);
+    ASSERT_EQ(loaded.storePhase, ecs::ReviewStorePhase::Ready);
+    ASSERT_EQ(loaded.comments.front().text, std::string("keep this"));
+    std::filesystem::remove(review_store::review_path(repo));
+    // A repaired (valid) file retries straight to Ready.
+    ASSERT_TRUE(afterhours::files::write_string_atomic(review_store::review_path(repo), R"({"schema_version":99})"));
+    review_store::load_review(repo, review);
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::LoadFailed);
+    ASSERT_TRUE(afterhours::files::write_string_atomic(review_store::review_path(repo),
+        R"({"schema_version":2,"repo_path":"/tmp/fh_phase_load_failed","comments":[{"scope":"wt","file":"fixed.cpp","line":1,"text":"from disk"}]})"));
+    ASSERT_TRUE(review_store::retry_load(repo, review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Ready);
+    ASSERT_EQ(review.comments.front().file, std::string("fixed.cpp"));
+    std::filesystem::remove(review_store::review_path(repo));
+}
+
+TEST(review_store_async_load_names_loading_then_ready) {
+    const std::string repo = "/tmp/fh_phase_async_load";
+    ecs::ReviewComponent review;
+    ASSERT_TRUE(review_store::switch_review_scope(repo, "scope-a", review));
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Loading);
+    drain_review_load(review);
+    ASSERT_EQ(review.storePhase, ecs::ReviewStorePhase::Ready);
+    std::filesystem::remove(review_store::review_path(repo, "scope-a"));
 }
 
 TEST(disjoint_feedback_does_not_change_plain_selection_and_expires_on_refresh) {

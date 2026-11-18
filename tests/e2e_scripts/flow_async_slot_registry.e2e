@@ -1,0 +1,71 @@
+# Flow: slot registry validate keys + wait_for_refresh gate (fsm W0b)
+make_test_repo
+resize 1280 720
+wait_for_refresh
+wait_frames 5
+
+# After the gate settles, gating slots report Idle by name; the refresh
+# machine (M1) names its settled phase.
+validate async:refresh=Settled
+validate async:file_history=Idle
+validate async:commit_search=Idle
+validate async:review_queue=Idle
+validate async:range_diff=Idle
+validate async:comparison=Closed
+validate async:commit_log_page=Idle
+validate async:history_scope=Idle
+validate async:push_destination=Idle
+
+# Non-gating registered slots are addressable too.
+validate async:selected_diff=Whole
+validate async:blame_gutter=Idle
+
+# Untracked review sub-read (M4) and selected-file diff source (M3) name
+# their phases: the seeded repo's untracked read has settled, and no
+# single-file diff has been streamed.
+validate async:untracked_review=Ready
+
+# Network ops (M21) aggregate phase is addressable too.
+validate async:network_ops=Idle
+
+# Review session store (M17) names its phases too: the test-mode scope
+# switch loads (missing file = fresh) and settles Ready.
+validate async:review_store=Ready
+
+# Commit editor flow (M16) names its phases too.
+validate async:commit_flow=Editing
+
+# Review baseline (M19) and comment composer (M18) name their phases.
+validate async:baseline=None
+validate async:composer=Closed
+
+# Picker (M8+M9) names its phase and mode too.
+validate async:picker=Closed
+validate async:picker_mode=Files
+
+# Find (M12) names its phase and the source scan slot settles Idle.
+validate async:find=Closed
+validate async:source_find=Idle
+
+# Full-file paged reading (M5) names its FileLoad phase; no file is open.
+validate async:full_file=Idle
+
+# Semantic/LSP (M11) names its Lsp phase; no session has started a server.
+validate async:semantic=Unstarted
+
+# Source edit (M25) and file watcher (M20) name their phases too: no
+# document is being edited, and the (test-disabled) watcher watches
+# nothing yet.
+validate async:edit=Viewing
+validate async:watch=Idle
+
+# Repository search (M10) names its phase; the panel starts Closed.
+validate async:repo_search=Closed
+
+# Hunk context / scopes / diff syntax (M15) and blame (M13) name their
+# slot phases: the seeded diff settles its scope/syntax reads Ready,
+# while hunk context and line blame have not been requested.
+wait_until 30 validate async:hunk_scopes=Ready
+wait_until 30 validate async:diff_syntax=Ready
+validate async:hunk_context=Idle
+validate async:blame=Idle

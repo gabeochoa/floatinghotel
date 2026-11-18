@@ -17,11 +17,12 @@ TEST(closing_a_tab_cancels_its_refresh_reads_without_waiting_for_the_repository_
     tab.addComponent<ecs::ActiveTab>();
     auto& repo = tab.addComponent<ecs::RepoComponent>();
     repo.repoPath = path;
-    repo.refreshRequested = true;
+    repo.request_refresh();
     auto repositoryLock = git::repository_mutex(path);
     std::unique_lock held(*repositoryLock);
     refresh.for_each_with(tab, repo, 0);
-    ASSERT_TRUE(repo.isRefreshing);
+    ASSERT_TRUE(repo.refreshing());
+    ASSERT_EQ(repo.refreshPhase, ecs::RefreshPhase::Running);
     tab.cleanup = true;
     afterhours::EntityHelper::cleanup();
     auto started = std::chrono::steady_clock::now();
@@ -49,17 +50,18 @@ TEST(refresh_cleanup_preserves_live_tabs_and_their_results) {
     tab.addComponent<ecs::ActiveTab>();
     auto& repo = tab.addComponent<ecs::RepoComponent>();
     repo.repoPath = path;
-    repo.refreshRequested = true;
+    repo.request_refresh();
     refresh.for_each_with(tab, repo, 0);
-    ASSERT_TRUE(repo.isRefreshing);
+    ASSERT_TRUE(repo.refreshing());
+    ASSERT_EQ(repo.refreshPhase, ecs::RefreshPhase::Running);
     tab.removeComponent<ecs::ActiveTab>();
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
-    while (repo.isRefreshing && std::chrono::steady_clock::now() < deadline) {
+    while (repo.refreshing() && std::chrono::steady_clock::now() < deadline) {
         refresh.once(0);
         refresh.for_each_with(tab, repo, 0);
         std::this_thread::yield();
     }
-    bool completed = !repo.isRefreshing && repo.hasLoadedOnce && repo.filesError.empty();
+    bool completed = !repo.refreshing() && repo.refreshPhase == ecs::RefreshPhase::Settled && repo.has_loaded_once() && repo.filesError.empty();
     afterhours::EntityHelper::set_default_collection(nullptr);
     std::filesystem::remove_all(path);
     ASSERT_TRUE(completed);
@@ -94,15 +96,15 @@ TEST(refresh_after_amend_retargets_a_view_of_the_old_tip) {
     auto after = run({"rev-parse", "HEAD"}).stdout_str();
     after.erase(after.find_last_not_of("\r\n") + 1);
     ASSERT_TRUE(before != after);
-    repo.refreshRequested = true;
+    repo.request_refresh();
     refresh.for_each_with(tab, repo, 0);
     auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
-    while (repo.isRefreshing && std::chrono::steady_clock::now() < deadline) {
+    while (repo.refreshing() && std::chrono::steady_clock::now() < deadline) {
         refresh.once(0);
         refresh.for_each_with(tab, repo, 0);
         std::this_thread::yield();
     }
-    bool followed = !repo.isRefreshing && repo.selectedCommitHash() == after && repo.headCommitHash == after &&
+    bool followed = !repo.refreshing() && repo.refreshPhase == ecs::RefreshPhase::Settled && repo.selectedCommitHash() == after && repo.headCommitHash == after &&
                     repo.commitLog.size() == 1 && repo.commitLog.front().subject == "After amend";
     afterhours::EntityHelper::set_default_collection(nullptr);
     std::filesystem::remove_all(path);

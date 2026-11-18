@@ -16,12 +16,14 @@ click_text "app.cpp"
 wait_frames 8
 validate active_content=Source
 validate edit_mode=false
+validate async:edit=Viewing
 expect_text "Read-only"
 
 # Switch to editing.
 click_text "Read-only"
 wait_frames 5
 validate edit_mode=true
+validate async:edit=EditingClean
 validate edit_dirty=false
 expect_text "Editing"
 
@@ -33,6 +35,7 @@ wait_frames 2
 type "QXZ"
 wait_frames 5
 validate edit_dirty=true
+validate async:edit=EditingDirty
 expect_text "QXZ#include"
 screenshot edit_dirty
 
@@ -48,10 +51,12 @@ key S
 release_key 343
 wait_frames 5
 validate edit_dirty=false
+validate async:edit=EditingClean
 screenshot edit_saved
 
 # Back to read-only via the pill.
 click_text "Editing"
 wait_frames 5
 validate edit_mode=false
+validate async:edit=Viewing
 expect_text "Read-only"

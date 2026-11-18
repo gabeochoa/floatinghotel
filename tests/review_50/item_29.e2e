@@ -53,6 +53,7 @@ wait_for_refresh
 screenshot item_29_feedback_source
 assert_ui full_file_header hidden=false
 click_ui full_file_back
+wait_for_refresh
 screenshot item_29_feedback_return
 expect_text Resolved revisions:
 expect_no_text Resolved series:

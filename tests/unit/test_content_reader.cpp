@@ -315,28 +315,30 @@ TEST(hidden_pending_file_read_is_cancelled_and_will_retry_when_reopened) {
     ecs::RepoComponent repo;
     std::promise<ecs::FullFileContent> promise;
     std::stop_source source;
-    repo.fullFileFuture = {promise.get_future(), source};
-    repo.fullFileCacheKey = "pending request";
+    repo.fullFileLoad.task = {promise.get_future(), source};
+    repo.fullFileLoad.key = ecs::PageKey{};
+    repo.fullFileLoad.phase = ecs::FileLoad::Loading;
     ecs::cancel_hidden_file_read(repo);
     ASSERT_TRUE(source.stop_requested());
-    ASSERT_FALSE(repo.fullFileFuture.valid());
-    ASSERT_TRUE(repo.fullFileCacheKey.empty());
+    ASSERT_FALSE(repo.fullFileLoad.task.valid());
+    ASSERT_FALSE(repo.fullFileLoad.key.has_value());
+    ASSERT_EQ(repo.fullFileLoad.phase, ecs::FileLoad::Idle);
 }
 
 TEST(hidden_loaded_file_retains_its_cache_and_visible_pending_read_keeps_running) {
     ecs::RepoComponent repo;
-    repo.fullFileCacheKey = "loaded request";
+    repo.fullFileLoad.key = ecs::PageKey{};
     repo.sourceWindow.raw = "loaded source";
     ecs::cancel_hidden_file_read(repo);
-    ASSERT_EQ(repo.fullFileCacheKey, "loaded request");
+    ASSERT_TRUE(repo.fullFileLoad.key.has_value());
     ASSERT_EQ(repo.sourceWindow.raw, "loaded source");
     std::promise<ecs::FullFileContent> promise;
     std::stop_source source;
     navigation::open(repo, reading::source("visible.cpp"));
-    repo.fullFileFuture = {promise.get_future(), source};
+    repo.fullFileLoad.task = {promise.get_future(), source};
     ecs::cancel_hidden_file_read(repo);
     ASSERT_FALSE(source.stop_requested());
-    ASSERT_TRUE(repo.fullFileFuture.valid());
+    ASSERT_TRUE(repo.fullFileLoad.task.valid());
 }
 
 TEST(leaving_file_view_releases_a_worker_waiting_for_the_repository_lock) {
@@ -349,8 +351,8 @@ TEST(leaving_file_view_releases_a_worker_waiting_for_the_repository_lock) {
     async_work::Executor pool(1, 4);
     std::promise<void> entered;
     ecs::RepoComponent repo;
-    repo.fullFileCacheKey = "pending HEAD file";
-    repo.fullFileFuture = async_work::launch_on(pool, [&entered, path](std::stop_token stop) {
+    repo.fullFileLoad.key = ecs::PageKey{};
+    repo.fullFileLoad.task = async_work::launch_on(pool, [&entered, path](std::stop_token stop) {
         entered.set_value();
         return git::read_file({path, "file.cpp", "HEAD"}, stop);
     });
@@ -362,7 +364,7 @@ TEST(leaving_file_view_releases_a_worker_waiting_for_the_repository_lock) {
     barrier.get();
     std::filesystem::remove_all(path);
     ASSERT_EQ(ready, std::future_status::ready);
-    ASSERT_TRUE(repo.fullFileCacheKey.empty());
+    ASSERT_FALSE(repo.fullFileLoad.key.has_value());
 }
 
 TEST(historical_navigation_pins_a_revision_even_after_the_branch_moves) {
@@ -595,10 +597,10 @@ TEST(diff_syntax_publication_rejects_stale_document_generation_and_file_identity
         file.hunks.back().lines = {" body"};
         std::vector<ecs::FileDiff> files{file};
         auto& runtime = repo.diffSyntax["wt"];
-        runtime.identity = file.renderIdentity;
-        runtime.request = navigation::stamp(repo, "syntax:" + std::to_string(file.renderIdentity));
         std::promise<ecs::DiffSyntaxResult> promise;
-        runtime.future = {promise.get_future(), std::stop_source{}};
+        runtime.slot.request(file.renderIdentity,
+            navigation::stamp(repo, "syntax:" + std::to_string(file.renderIdentity)),
+            async_work::Task<ecs::DiffSyntaxResult>(promise.get_future(), std::stop_source{}));
         ecs::DiffSyntaxResult result;
         result.seeds.emplace_back(code_lexer::scan("/*", code_lexer::Language::Cpp), code_lexer::State{});
         promise.set_value(std::move(result));
@@ -607,7 +609,7 @@ TEST(diff_syntax_publication_rejects_stale_document_generation_and_file_identity
         if (stale == 2) files[0].renderIdentity = ecs::next_render_identity();
         if (stale == 3) navigation::open(repo, reading::review("index"));
         ui::diff_syntax::update(repo, files, "wt");
-        ASSERT_FALSE(runtime.future.valid());
+        ASSERT_FALSE(runtime.slot.task.valid());
         if (stale < 4) ASSERT_TRUE(files[0].hunks[0].syntaxBefore.empty());
         else ASSERT_EQ(hunk_syntax::at(files[0].hunks[0], 0, true).mode, code_lexer::Mode::BlockComment);
     }

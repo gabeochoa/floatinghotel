@@ -16,5 +16,6 @@ click_text "Commit..."
 wait_frames 5
 
 # The commit editor area should be visible/active
-# (commitRequested is ephemeral so we check for visible UI instead)
+# (the commit request is consumed into the unstaged-policy dialog,
+# so we check for visible UI instead)
 screenshot r3_01_commit_triggered

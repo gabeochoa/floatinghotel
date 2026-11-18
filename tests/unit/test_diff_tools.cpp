@@ -536,14 +536,17 @@ TEST(find_state_belongs_to_document_and_survives_close_reopen) {
     navigation::find(repo).index = 2;
     navigation::find(repo).position = reading::ReadingAnchor{"a.cpp", "", reading::DiffSide::After, 40, 8, .15f, ' '};
     navigation::open(repo, reading::source("b.cpp"), {}, reading::OpenMode::Keep);
-    ASSERT_FALSE(navigation::find(repo).open);
+    ASSERT_FALSE(navigation::find(repo).is_open());
+    ASSERT_EQ(navigation::find(repo).phase, reading::Find::Closed);
     navigation::open_find(repo, "beta");
+    ASSERT_EQ(navigation::find(repo).phase, reading::Find::Editing);
     navigation::activate(repo, a);
     ASSERT_EQ(navigation::find(repo).query, "alpha");
     ASSERT_EQ(navigation::find(repo).index, 2u);
     ASSERT_EQ(navigation::find(repo).position->line, 40);
     navigation::close_find(repo);
-    ASSERT_FALSE(navigation::find(repo).open);
+    ASSERT_FALSE(navigation::find(repo).is_open());
+    ASSERT_EQ(navigation::find(repo).phase, reading::Find::Closed);
     ASSERT_EQ(repo.readingFocus->region, reading::focus::Region::Code);
     navigation::close(repo, a);
     navigation::reopen_closed(repo);
@@ -552,6 +555,49 @@ TEST(find_state_belongs_to_document_and_survives_close_reopen) {
     navigation::open_find(repo);
     ASSERT_EQ(navigation::find(repo).index, 2u);
     ASSERT_FALSE(navigation::find(repo).navigate);
+}
+
+TEST(find_close_cancels_source_scan_and_scan_cancel_demotes_scanning) {
+    ecs::RepoComponent repo;
+    repo.repoPath = "fixture";
+    navigation::open(repo, reading::source("a.cpp"), {}, reading::OpenMode::Keep);
+    navigation::open_find(repo, "alpha");
+    // In-flight source scan: find is Scanning, pendingStep accumulates.
+    std::promise<ecs::SourceFindResult> pending;
+    std::stop_source stop;
+    repo.sourceFind.slot.request("k", navigation::stamp(repo, "k"),
+        async_work::Task<ecs::SourceFindResult>(pending.get_future(), stop));
+    navigation::find(repo).sync_scanning(repo.sourceFind.busy());
+    ASSERT_EQ(navigation::find(repo).phase, reading::Find::Scanning);
+    navigation::find(repo).pendingStep = 2;
+    // Closing find cancels the scan and goes Closed; pendingStep clears.
+    navigation::close_find(repo);
+    ASSERT_EQ(navigation::find(repo).phase, reading::Find::Closed);
+    ASSERT_TRUE(stop.stop_requested());
+    ASSERT_FALSE(repo.sourceFind.busy());
+    ASSERT_EQ(repo.sourceFind.slot.phase, async_slot::Phase::Idle);
+    ASSERT_EQ(navigation::find(repo).pendingStep, 0);
+    ASSERT_EQ(navigation::find(repo).query, "alpha");
+    pending.set_value(ecs::SourceFindResult{});
+
+    // Vice versa: cancelling the scan alone demotes Scanning to Editing.
+    navigation::open_find(repo, "alpha");
+    std::promise<ecs::SourceFindResult> pending2;
+    std::stop_source stop2;
+    repo.sourceFind.slot.request("k", navigation::stamp(repo, "k"),
+        async_work::Task<ecs::SourceFindResult>(pending2.get_future(), stop2));
+    navigation::find(repo).sync_scanning(true);
+    ASSERT_EQ(navigation::find(repo).phase, reading::Find::Scanning);
+    navigation::find(repo).pendingStep = -1;
+    navigation::cancel_source_find(repo);
+    ASSERT_EQ(navigation::find(repo).phase, reading::Find::Editing);
+    ASSERT_TRUE(navigation::find(repo).is_open());
+    ASSERT_TRUE(stop2.stop_requested());
+    ASSERT_FALSE(repo.sourceFind.busy());
+    // pendingStep is data, not phase: a scan cancel alone preserves it
+    // for the next landed scan (close_find above is what clears it).
+    ASSERT_EQ(navigation::find(repo).pendingStep, -1);
+    pending2.set_value(ecs::SourceFindResult{});
 }
 
 TEST(find_matches_keep_byte_and_decoded_columns) {
@@ -630,10 +676,12 @@ TEST(context_state_cancels_superseded_reads_and_releases_closed_documents) {
     ASSERT_EQ(repo.hunkContext.entries.size(), 1u);
     std::promise<ecs::HunkContextResult> promise;
     std::stop_source stop;
-    repo.hunkContext.future = {promise.get_future(), stop};
+    repo.hunkContext.slot.request({"a.cpp\nabove", "v1"}, navigation::stamp(repo, "v1"),
+        async_work::Task<ecs::HunkContextResult>(promise.get_future(), stop));
     navigation::expand_hunk_context(repo, "a.cpp\nabove");
     ASSERT_TRUE(stop.stop_requested());
-    ASSERT_FALSE(repo.hunkContext.future.valid());
+    ASSERT_FALSE(repo.hunkContext.slot.task.valid());
+    ASSERT_EQ(repo.hunkContext.slot.phase, async_slot::Phase::Idle);
     navigation::open(repo, reading::source("a.cpp"));
     ASSERT_TRUE(repo.hunkContext.entries.empty());
     navigation::activate(repo, reading::Slot::Review);
@@ -752,7 +800,7 @@ TEST(caret_reveal_does_not_append_visits_and_page_requests_cancel_on_navigation)
     ASSERT_EQ(repo.fullFileTargetLine(), 5000);
     repo.fullFilePage.sourceIdentity = "version-one";
     navigation::request_caret_page(repo, {ecs::FilePageRequest::Action::Previous, {90000}}, point, reading::CodeMotion::DocumentEnd);
-    ASSERT_EQ(repo.fullFilePageRequest.sourceIdentity, "version-one");
+    ASSERT_EQ(repo.fullFileLoad.request.sourceIdentity, "version-one");
     ASSERT_TRUE(repo.pendingCaret.has_value());
     ASSERT_EQ(repo.pendingCaretMotion, std::optional{reading::CodeMotion::DocumentEnd});
     auto stamp = navigation::stamp(repo, "pending-page");
@@ -771,13 +819,13 @@ TEST(selection_survives_closing_and_cancels_superseded_copy_work) {
     navigation::set_selection(repo, selection);
     std::promise<ecs::SelectionCopyResult> promise;
     std::stop_source stop;
-    repo.selectionCopy.future = {promise.get_future(), stop};
+    repo.selectionCopy.slot.task = {promise.get_future(), stop};
     navigation::set_selection(repo, selection);
     ASSERT_FALSE(stop.stop_requested());
     selection.head.line = 6000;
     navigation::set_selection(repo, selection);
     ASSERT_TRUE(stop.stop_requested());
-    ASSERT_FALSE(repo.selectionCopy.future.valid());
+    ASSERT_FALSE(repo.selectionCopy.slot.task.valid());
     const auto id = repo.workspace().active_id();
     navigation::close(repo, id);
     navigation::reopen_closed(repo);

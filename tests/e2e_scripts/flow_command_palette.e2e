@@ -33,6 +33,7 @@ wait_frames 5
 assert_ui command_palette_input hidden=false
 key ESCAPE
 wait_frames 5
+validate async:picker=Closed
 expect_no_text "Edit: Copy as snippet"
 validate visible_source_line:4=true
 # Reader shortcuts work again: Ctrl+G opens Go to line.

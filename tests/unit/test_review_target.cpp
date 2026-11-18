@@ -42,13 +42,11 @@ TEST(comparison_loading_does_not_restore_an_unrelated_branch_review) {
     ecs::ReviewComponent review;
     review.storageRepoPath = repo.repoPath;
     review.storageScope = "compare:old-base:old-target";
-    repo.comparisonEditorOpen = true;
-    ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), review.storageScope);
+    ASSERT_EQ(ecs::selected_review_storage_scope(repo, review, true), review.storageScope);
     open_kept(repo, reading::review("compare:new-base:new-target"));
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), repo.comparisonScope());
     open_kept(repo, reading::review("wt"));
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), ecs::review_scope(repo));
-    repo.comparisonEditorOpen = true;
     repo.repoPath = "other-repo";
     ASSERT_EQ(ecs::selected_review_storage_scope(repo, review), ecs::review_scope(repo));
 }
@@ -57,12 +55,16 @@ TEST(saved_review_target_exits_series_mode_and_discards_its_pending_result) {
     ecs::RepoComponent repo;
     repo.rangeDiff.enabled = true;
     std::promise<git::GitResult> previous;
-    repo.rangeDiff.future = async_work::Task<git::GitResult>(
-        previous.get_future(), std::stop_source{});
+    repo.rangeDiff.begin_resolving({}, {"a", "b", "c", "d"},
+        async_work::Task<git::GitResult>(previous.get_future(), std::stop_source{}));
+    ASSERT_EQ(repo.rangeDiff.step, ecs::RangeDiff::Step::Resolving);
     open_kept(repo, reading::review("compare:base:target", "file.cpp"));
     ASSERT_FALSE(repo.rangeDiff.enabled);
     ASSERT_FALSE(repo.rangeDiff.future.valid());
+    ASSERT_EQ(repo.rangeDiff.step, ecs::RangeDiff::Step::Idle);
     ASSERT_TRUE(repo.comparisonOpen());
+    ASSERT_EQ(repo.comparison, ecs::Comparison::Loading);
+    previous.set_value(git::GitResult{});
 }
 
 TEST(navigation_result_stamp_rejects_each_superseded_identity) {
@@ -113,14 +115,14 @@ TEST(reselecting_the_same_destination_keeps_pending_work) {
     open_kept(repo, reading::source("same.cpp"));
     std::promise<ecs::FullFileContent> promise;
     std::stop_source stop;
-    repo.fullFileFuture = {promise.get_future(), stop};
+    repo.fullFileLoad.task = {promise.get_future(), stop};
     auto generation = repo.workspace().generation();
     repo.navigationEffect.reset();
     open_kept(repo, reading::source("same.cpp"));
     ASSERT_FALSE(repo.navigationEffect->changed);
     ASSERT_FALSE(repo.navigationEffect->dismissedPanel);
     ASSERT_EQ(repo.workspace().generation(), generation);
-    ASSERT_TRUE(repo.fullFileFuture.valid());
+    ASSERT_TRUE(repo.fullFileLoad.task.valid());
     ASSERT_FALSE(stop.stop_requested());
     open_kept(repo, reading::source("next.cpp"));
     ASSERT_TRUE(stop.stop_requested());
@@ -141,12 +143,14 @@ TEST(comparison_resolution_updates_the_same_visit_and_ignores_late_results) {
     auto request = navigation::stamp(repo, navigation::comparison_request_key(repo));
     std::string base(40, 'a'), target(40, 'b');
     ASSERT_TRUE(navigation::complete_comparison(repo, request, base, target));
+    ASSERT_EQ(repo.comparison, ecs::Comparison::Loaded);
     ASSERT_EQ(repo.workspace().history().size(), count);
     ASSERT_EQ(repo.comparisonScope(), "compare:" + base + ":" + target);
     ASSERT_EQ(repo.selectedFilePath(), "changed.cpp");
     open_kept(repo, reading::review("wt"));
     ASSERT_FALSE(navigation::complete_comparison(repo, request, base, target));
     ASSERT_FALSE(repo.comparisonOpen());
+    ASSERT_EQ(repo.comparison, ecs::Comparison::Closed);
 }
 
 TEST(opening_source_keeps_the_retained_comparisons_review_storage) {
@@ -187,6 +191,8 @@ TEST(comparison_results_from_old_diff_options_are_not_applied) {
 TEST(submitted_comparison_rejects_edited_fields_and_merge_mode) {
     ecs::RepoComponent repo;
     navigation::comparison_editor(repo);
+    ASSERT_EQ(repo.comparison, ecs::Comparison::Editing);
+    ASSERT_TRUE(repo.comparisonOpen());
     repo.comparisonRequest = ecs::RepoComponent::ComparisonRequest::SubmittedForm;
     repo.comparisonBase = "main";
     repo.comparisonTarget = "topic";
@@ -265,7 +271,7 @@ TEST(inactive_documents_release_rendering_payloads_and_keep_file_summaries) {
     ecs::RepoComponent repo;
     ecs::CommitDetailCache cache;
     open_kept(repo, reading::review("commit"));
-    cache.cachedCommitHash = "commit";
+    cache.patch.key.commit = "commit";
     cache.commitDetailBody = std::string(10000, 'x');
     ecs::FileDiff file;
     file.filePath = "file.cpp";
@@ -498,13 +504,13 @@ TEST(keeping_a_preview_does_not_restart_its_pending_read) {
     navigation::open(repo, reading::source("same.cpp"));
     std::promise<ecs::FullFileContent> promise;
     std::stop_source stop;
-    repo.fullFileFuture = {promise.get_future(), stop};
+    repo.fullFileLoad.task = {promise.get_future(), stop};
     auto stamp = navigation::stamp(repo, "page");
     auto id = repo.workspace().active_id();
     navigation::keep(repo, id);
     ASSERT_FALSE(repo.workspace().document(id)->preview);
     ASSERT_TRUE(navigation::accepts(repo, stamp, "page"));
-    ASSERT_TRUE(repo.fullFileFuture.valid());
+    ASSERT_TRUE(repo.fullFileLoad.task.valid());
     ASSERT_FALSE(stop.stop_requested());
 }
 
@@ -634,11 +640,12 @@ TEST(closing_inactive_documents_preserves_the_active_read_and_selects_nearest_ne
     auto b = repo.workspace().active_id();
     open_kept(repo, reading::source("c.cpp"));
     auto c = repo.workspace().active_id();
-    repo.fullFileCacheKey = "c.cpp loaded";
+    repo.fullFileLoad.key = ecs::PageKey{{"/tmp/repo", "HEAD", "c.cpp", 0}, "auto"};
     auto stamp = navigation::stamp(repo, "c.cpp read");
     navigation::close(repo, b);
     ASSERT_EQ(repo.workspace().active_id(), c);
-    ASSERT_STREQ(repo.fullFileCacheKey, "c.cpp loaded");
+    ASSERT_TRUE(repo.fullFileLoad.key.has_value());
+    ASSERT_STREQ(repo.fullFileLoad.key->source.path, "c.cpp");
     ASSERT_TRUE(navigation::accepts(repo, stamp, "c.cpp read"));
     navigation::activate(repo, a);
     navigation::close(repo, a);
@@ -670,7 +677,7 @@ TEST(reordering_changes_only_order_and_preserves_requests_and_history) {
     const auto c = repo.workspace().active_id();
     const auto generation = repo.workspace().generation();
     const auto visits = repo.workspace().history();
-    repo.fullFileCacheKey = "retained";
+    repo.fullFileLoad.key = ecs::PageKey{{"/tmp/repo", "HEAD", "retained.cpp", 0}, "auto"};
     const auto request = navigation::stamp(repo, "reader");
     ASSERT_TRUE(navigation::reorder(repo, c, 0));
     ASSERT_EQ(repo.workspace().documents()[0].id.value, c.value);
@@ -678,7 +685,8 @@ TEST(reordering_changes_only_order_and_preserves_requests_and_history) {
     ASSERT_TRUE(repo.workspace().document(c)->preview);
     ASSERT_EQ(repo.workspace().generation(), generation);
     ASSERT_TRUE(repo.workspace().history() == visits);
-    ASSERT_EQ(repo.fullFileCacheKey, std::string("retained"));
+    ASSERT_TRUE(repo.fullFileLoad.key.has_value());
+    ASSERT_STREQ(repo.fullFileLoad.key->source.path, "retained.cpp");
     ASSERT_TRUE(navigation::accepts(repo, request, "reader"));
     ASSERT_TRUE(navigation::reorder(repo, c, 4));
     ASSERT_EQ(repo.workspace().documents()[3].id.value, c.value);
@@ -758,7 +766,7 @@ TEST(unresolved_saved_revisions_require_explicit_resolution) {
     navigation::resolve_saved_revision(repo);
     ASSERT_FALSE(repo.workspace().documents()[0].unresolvedSavedRevision);
     ASSERT_TRUE(repo.workspace().generation() > generation);
-    ASSERT_TRUE(repo.fullFileFuture.valid() == false);
+    ASSERT_FALSE(repo.fullFileLoad.task.valid());
     ASSERT_TRUE(repo.workspace().documents()[1].unresolvedSavedRevision);
 }
 
@@ -1048,7 +1056,7 @@ TEST(restored_sources_seed_recents_without_loading_documents) {
     ASSERT_EQ(repo.workspace().recent_source_paths(reading::WorkingTree{}), (std::vector<std::string>{"active.cpp", "first.cpp"}));
     ASSERT_EQ(repo.workspace().recent_source_paths(reading::ObjectId{std::string(40, 'a')}), (std::vector<std::string>{"old.cpp"}));
     ASSERT_TRUE(repo.sourceWindow.raw.empty());
-    ASSERT_FALSE(repo.fullFileFuture.valid());
+    ASSERT_FALSE(repo.fullFileLoad.task.valid());
 }
 
 TEST(explicit_review_line_visits_restore_logical_anchors_and_only_unfold_the_target) {
@@ -1173,7 +1181,7 @@ TEST(repeated_source_selection_preserves_pending_reads_caret_and_selection) {
     navigation::set_selection(repo, reading::CodeSelection{{"file.cpp", reading::DiffSide::After, 42, 2},
         {"file.cpp", reading::DiffSide::After, 42, 8}, {"file.cpp", reading::WorkingTree{}}});
     auto selected = repo.workspace().document(id)->selection;
-    repo.fullFileCacheKey = "loaded-key";
+    repo.fullFileLoad.key = ecs::PageKey{{"/tmp/repo", "HEAD", "loaded.cpp", 0}, "auto"};
     const auto history = repo.workspace().history().size();
     navigation::click(repo, reading::source("file.cpp"));
     navigation::activate(repo, id);
@@ -1181,7 +1189,8 @@ TEST(repeated_source_selection_preserves_pending_reads_caret_and_selection) {
     ASSERT_EQ(repo.workspace().history().size(), history);
     ASSERT_EQ(repo.workspace().document(id)->selection, selected);
     ASSERT_EQ(repo.workspace().document(id)->caret->line, 42);
-    ASSERT_EQ(repo.fullFileCacheKey, "loaded-key");
+    ASSERT_TRUE(repo.fullFileLoad.key.has_value());
+    ASSERT_STREQ(repo.fullFileLoad.key->source.path, "loaded.cpp");
     ASSERT_TRUE(navigation::accepts(repo, request, "source"));
     navigation::open(repo, reading::source("file.cpp", "", 70));
     ASSERT_FALSE(navigation::accepts(repo, request, "source"));

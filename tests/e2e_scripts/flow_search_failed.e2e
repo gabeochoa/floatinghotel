@@ -1,0 +1,21 @@
+# Flow: an invalid regex lands in Search Failed, distinct from no matches.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+hold_key 343
+hold_key 340
+key F
+release_key 340
+release_key 343
+wait_frames 5
+click_ui repo_search_options
+wait_frames 3
+click_ui repo_search_regex
+wait_frames 3
+click_ui repo_search_input
+type "["
+click_ui repo_search_submit
+wait_for_refresh
+wait_until 60 validate async:repo_search=Failed
+expect_no_text "No matches"
+screenshot search_failed

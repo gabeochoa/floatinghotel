@@ -14,8 +14,13 @@ screenshot file_watcher_01_initial
 # Create a new file externally — watcher should detect it.
 # `wait N` is simulated ticks (sub-millisecond each in headless); the watcher's
 # cooldown (1s) and FSEvents latency (0.5s) are wall clock, so gate on the event.
+# (No phase assert here: after a repo-recreation storm the watcher may still
+# be CoolingDown, and wait_until spends simulated, not wall, seconds.)
 touch_file watcher_test.txt
 wait_for_file_change
+wait_for_refresh
+# The detection cycle fired and drained: the watcher is back to Watching.
+wait_until 30 validate async:watch=Watching
 screenshot file_watcher_02_after_new_file
 
 # Untracked count should increase by 1
