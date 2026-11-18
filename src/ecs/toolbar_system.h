@@ -142,14 +142,10 @@ private:
             repo->refreshRequested = true;
         }
         if (toolbarButton("Stage All", hasRepo && hasUnstaged)) {
-            auto res = git::stage_all(repo->repoPath);
-            toast_on_git_failure(res, "Stage All");
-            repo->refreshRequested = true;
+            enqueue_network_op("Stage All", git::git_run_async(repo->repoPath, {"add", "-A"}));
         }
         if (toolbarButton("Unstage All", hasRepo && hasStaged)) {
-            auto res = git::unstage_all(repo->repoPath);
-            toast_on_git_failure(res, "Unstage All");
-            repo->refreshRequested = true;
+            enqueue_network_op("Unstage All", git::git_run_async(repo->repoPath, {"restore", "--staged", "."}));
         }
 
         toolbarSeparator();

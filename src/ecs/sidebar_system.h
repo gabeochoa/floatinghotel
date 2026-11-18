@@ -112,31 +112,44 @@ inline std::string build_message(const std::string& subject,
     return subject + "\n\n" + body;
 }
 
-// Execute the commit, optionally staging all first
-// Returns true on success
-inline bool execute_commit(RepoComponent& repo,
-                           CommitEditorComponent& editor,
-                           bool stageAllFirst) {
-    if (stageAllFirst) {
-        auto stageResult = git::stage_all(repo.repoPath);
-        if (!stageResult.success()) {
-            toast_on_git_failure(stageResult, "Stage All");
-            return false;
-        }
-    }
-
+// Start a commit off the UI thread (staging first when asked); the git
+// work runs async and poll_commit applies the outcome. Returns false when
+// the message is not committable or a commit is already in flight.
+inline bool begin_commit(RepoComponent& repo,
+                         CommitEditorComponent& editor,
+                         bool stageAllFirst) {
+    if (editor.commitFuture.valid()) return false;
     std::string message = build_message(editor.subject, editor.body);
-    if (message.empty()) {
-        message = "Update";
-    }
+    if (message.empty()) message = "Update";
     // git commit's editor refuses an untouched template; -m would not.
     if (!editor.templateText.empty() && commit_message::strip_template(message) == editor.templateText) {
         if (auto* menu = find_singleton<MenuComponent>())
             menu->pendingToasts.push_back({"Fill in the commit template first", MenuComponent::Notice::Kind::Error});
         return false;
     }
+    editor.commitMessage = message;
+    editor.commitFuture = async_work::launch(
+        [path = repo.repoPath, message, stageAllFirst](std::stop_token stop) {
+            CommitEditorComponent::CommitOutcome outcome;
+            if (stageAllFirst) {
+                outcome.result = git::stage_all(path);
+                if (!outcome.result.success()) { outcome.stageFailed = true; return outcome; }
+            }
+            outcome.result = git::git_commit(path, message);
+            return outcome;
+        }, async_work::Priority::Foreground,
+        CommitEditorComponent::CommitOutcome{true, git::GitResult{{"", "Background queue is full; commit again", -1}}});
+    return true;
+}
 
-    auto result = git::git_commit(repo.repoPath, message);
+// Finish an in-flight async commit (called every frame from the sidebar).
+inline void poll_commit(RepoComponent& repo, CommitEditorComponent& editor) {
+    if (!editor.commitFuture.valid() ||
+        editor.commitFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+    auto outcome = editor.commitFuture.get();
+    editor.commitFuture = {};
+    if (outcome.stageFailed) { toast_on_git_failure(outcome.result, "Stage All"); return; }
+    const auto& result = outcome.result;
     if (result.success()) {
         editor.subject = editor.templateText;
         editor.placeCaret = 0;
@@ -156,10 +169,9 @@ inline bool execute_commit(RepoComponent& repo,
                 " comment" + (carried.ambiguous == 1 ? "" : "s") + " left on the working tree: matches several places in the commit",
                 MenuComponent::Notice::Kind::Info});
         }
-        return true;
+        return;
     }
     toast_on_git_failure(result, "Commit");
-    return false;
 }
 
 // Handle the commit request — checks unstaged policy and either
@@ -174,19 +186,21 @@ inline void handle_commit_request(RepoComponent& repo,
 
     if (!hasUnstaged) {
         // No unstaged changes — commit directly
-        execute_commit(repo, editor, false);
+        begin_commit(repo, editor, false);
         editor.commitRequested = false;
         return;
     }
 
     // Both staged and unstaged exist — check policy
-    switch (editor.unstagedPolicy) {
+    const auto policy = editor.commitPolicyOverride.value_or(editor.unstagedPolicy);
+    editor.commitPolicyOverride.reset();
+    switch (policy) {
         case CommitEditorComponent::UnstagedPolicy::StageAll:
-            execute_commit(repo, editor, true);
+            begin_commit(repo, editor, true);
             editor.commitRequested = false;
             break;
         case CommitEditorComponent::UnstagedPolicy::CommitStagedOnly:
-            execute_commit(repo, editor, false);
+            begin_commit(repo, editor, false);
             editor.commitRequested = false;
             break;
         case CommitEditorComponent::UnstagedPolicy::Ask:
@@ -300,9 +314,9 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
                 layout.fileViewMode != LayoutComponent::FileViewMode::All &&
                 (!repoPtr->selectedCommitHash().empty() || !repoPtr->comparisonScope().empty());
-            const bool showViewsTrack = repoPtr &&
-                layout.fileViewMode != LayoutComponent::FileViewMode::All &&
-                layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
+            // Grouped file sections replaced the Unstaged/Staged segment:
+            // the list below always shows Staged / Changes / Untracked.
+            const bool showViewsTrack = false;
             const bool showGit = repoPtr && !repoPtr->repoPath.empty();
             const bool showCommit = showGit && !treeClean && editor && !reviewingDoc &&
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
@@ -351,20 +365,15 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 syncRowH = 34.f;
             }
 
-            // === Commit area (always-visible input + button, VS Code style) ===
-            // hint(16) + input + button(24) + gaps(6) + padding(6) + slack, tracked
-            // against the actual multi-line input height.
+            // === Commit area: rendered at the BOTTOM of the Changes pane
+            // (below the file list), only in Changes mode. Height is still
+            // reserved here so the file list math is unchanged. ===
             const float COMMIT_AREA_H = 54.0f + COMMIT_INPUT_H;
             float commitAreaH = 0.0f;
-            // Hide the commit input + button when there is nothing to commit (#24).
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
                 !treeClean && !reviewingDoc &&
-                layout.fileViewMode != LayoutComponent::FileViewMode::All) {
-                if (editor) {
-                    render_commit_area(ctx, controlsBody.ent(), *repoPtr, *editor);
-                    commitAreaH = COMMIT_AREA_H;
-                }
-            }
+                layout.fileViewMode != LayoutComponent::FileViewMode::All && editor)
+                commitAreaH = COMMIT_AREA_H;
 
             render_sidebar_mode_tabs(ctx, controlsBody.ent(), layout);
             float tabH = 28.f;
@@ -420,9 +429,16 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 viewsH = 36.f;
             }
 
+            float conflictH = 0.f;
+            if (repoPtr && !reviewingDoc && layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
+                layout.fileViewMode != LayoutComponent::FileViewMode::All) {
+                render_conflict_banner(ctx, controlsBody.ent(), *repoPtr);
+                conflictH = conflict_banner_height(*repoPtr);
+            }
+
             // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
             filesH = bodyH - tabH - commitAreaH - progressH -
-                           controlsH - syncRowH - viewsH;
+                           controlsH - syncRowH - viewsH - conflictH;
             if (filesH < 20.0f) filesH = 20.0f;
             if (useReviewTree) {
                 // The review tree in the Files view: the open commit's or
@@ -455,8 +471,17 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                         update_file_tree(ctx, fileList, *repoPtr, layout, context);
                     }
                     if (move->open) {
+                        // Staged rows open the index scope, others the
+                        // working tree - the row's section decides now.
+                        std::string rowScope = scope;
+                        if (!allFilesMode_)
+                            for (const auto& node : treeRows_)
+                                if (node.path == move->path && !node.directory && !node.section) {
+                                    rowScope = node.sourceIndex < treeKinds_.size() && treeKinds_[node.sourceIndex] == 'S' ? "index" : "wt";
+                                    break;
+                                }
                         reading::Location destination = allFilesMode_ ? reading::Location{reading::source(move->path)} :
-                            reading::Location{reading::review(scope, move->path)};
+                            reading::Location{reading::review(rowScope, move->path)};
                         if (move->keep) navigation::click(*repoPtr, std::move(destination), true);
                         else navigation::preview(*repoPtr, std::move(destination));
                     }
@@ -493,6 +518,9 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                     render_no_repo(ctx, filesBg.ent(), 2150, "no_repo_refs");
                 }
             }
+
+            // Commit box at the bottom of the Changes pane.
+            if (commitAreaH > 0.f && editor) render_commit_area(ctx, controlsBody.ent(), *repoPtr, *editor);
 
             commitsH = layout.sidebarLog.height;
             }
@@ -709,6 +737,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 if (editor->commitRequested) {
                     commit_workflow::handle_commit_request(repo, *editor);
                 }
+                commit_workflow::poll_commit(repo, *editor);
 
                 // Render unstaged changes dialog
                 render_unstaged_dialog(ctx, uiRoot, repo, *editor);
@@ -720,6 +749,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 render_new_branch_dialog(ctx, uiRoot, repo, *branchDialog);
                 render_delete_branch_dialog(ctx, uiRoot, repo, *branchDialog);
                 render_force_delete_dialog(ctx, uiRoot, repo, *branchDialog);
+                render_stash_dialog(ctx, uiRoot, repo, *branchDialog);
             }
         }
     }
@@ -736,20 +766,27 @@ private:
         std::string tooltip;
         std::string age;
     };
-    std::unordered_map<std::string, CommitRowText> commitRowText_;
-    std::string commitRowTextRepo_;
-    unsigned commitRowTextGeneration_ = 0;
-    long commitRowTextMinute_ = -1;
+    // Row text retained per (repo, generation, minute), up to 4 repos,
+    // so tab switches don't rebuild it.
+    struct CommitRowTextCache {
+        std::string repo;
+        unsigned generation = 0;
+        long minute = -1;
+        std::unordered_map<std::string, CommitRowText> rows;
+    };
+    std::vector<CommitRowTextCache> commitRowTextCaches_;
 
     const CommitRowText& commit_row_text(const CommitEntry& commit, const RepoComponent& repo) {
         const long minute = static_cast<long>(std::time(nullptr) / 60);
-        if (repo.repoPath != commitRowTextRepo_ || repo.dataGeneration != commitRowTextGeneration_ ||
-            minute != commitRowTextMinute_) {
-            commitRowText_.clear();
-            commitRowTextRepo_ = repo.repoPath;
-            commitRowTextGeneration_ = repo.dataGeneration;
-            commitRowTextMinute_ = minute;
+        auto found = std::find_if(commitRowTextCaches_.begin(), commitRowTextCaches_.end(), [&](const CommitRowTextCache& cache) {
+            return cache.repo == repo.repoPath && cache.generation == repo.dataGeneration && cache.minute == minute;
+        });
+        if (found == commitRowTextCaches_.end()) {
+            commitRowTextCaches_.insert(commitRowTextCaches_.begin(), {repo.repoPath, repo.dataGeneration, minute, {}});
+            if (commitRowTextCaches_.size() > 4) commitRowTextCaches_.pop_back();
+            found = commitRowTextCaches_.begin();
         }
+        auto& commitRowText_ = found->rows;
         auto [it, inserted] = commitRowText_.try_emplace(commit.hash);
         if (inserted) {
             it->second.badges = commit_log_detail::parse_decorations(commit.decorations);
@@ -1201,11 +1238,75 @@ private:
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
                 .with_debug_name("repo_header_label"));
-        div(ctx, mk(text.ent(), 1), ComponentConfig{}
-            .with_label(branch.empty() ? (repo && !repo->repoPath.empty() ? "Reading branch..." : "Open a repository") : branch + (dirty ? " *" : ""))
+        // Branch switcher: click lists local branches for checkout.
+        auto branchBtn = button(ctx, mk(text.ent(), 1), preset::Button(branch.empty() ? (repo && !repo->repoPath.empty() ? "Reading branch..." : "Open a repository") : branch + (dirty ? " *" : ""))
             .with_size(ComponentSize{percent(1.f), pixels(19)})
             .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
-            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("repo_branch_label"));
+            .with_alignment(TextAlignment::Left)
+            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("branch_switcher"));
+        ui::set_tooltip(branchBtn.ent(), "Switch branch");
+        if (branchBtn && repo && !repo->repoPath.empty()) {
+            std::vector<ui::ContextMenuItem> items;
+            for (const auto& candidate : repo->branches) {
+                if (!candidate.isLocal) continue;
+                items.push_back(ui::ContextMenuItem::item(
+                    candidate.name + (candidate.isCurrent ? " (current)" : ""),
+                    [path = repo->repoPath, name = candidate.name, dirty] {
+                        if (dirty) {
+                            if (auto* menu = find_singleton<MenuComponent>())
+                                menu->pendingToasts.push_back({"Checking out with uncommitted changes in the working tree",
+                                                               MenuComponent::Notice::Kind::Info});
+                        }
+                        enqueue_network_op("Checkout", git::git_run_async(path, {"switch", name}));
+                    }, !candidate.isCurrent));
+            }
+            if (!items.empty()) ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+        }
+        // Sync pill: ↓behind ↑ahead Sync ▾ with a menu whose items
+        // explain why they are disabled.
+        if (repo && !repo->repoPath.empty()) {
+            auto pill = div(ctx, mk(row.ent(), 4), ComponentConfig{}
+                .with_size(ComponentSize{children(), pixels(26)}).with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center).with_gap(pixels(3))
+                .with_custom_background(theme::BUTTON_SECONDARY)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
+                .with_padding(Padding{.left = pixels(6), .right = pixels(6)})
+                .with_debug_name("sync_pill"));
+            pill.ent().addComponentIfMissing<HasClickListener>([](Entity&) {});
+            if (repo->behindCount > 0) {
+                ui::chrome_icon(ctx, mk(pill.ent(), 0), ui::ChromeIcon::ArrowDown, theme::TEXT_SECONDARY, "sync_pill_behind_icon");
+                div(ctx, mk(pill.ent(), 1), ComponentConfig{}.with_label(std::to_string(repo->behindCount))
+                    .with_size(ComponentSize{children(), pixels(20)}).with_font_size(pixels(12))
+                    .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("sync_pill_behind"));
+            }
+            if (repo->aheadCount > 0) {
+                ui::chrome_icon(ctx, mk(pill.ent(), 2), ui::ChromeIcon::ArrowUp, theme::TEXT_SECONDARY, "sync_pill_ahead_icon");
+                div(ctx, mk(pill.ent(), 3), ComponentConfig{}.with_label(std::to_string(repo->aheadCount))
+                    .with_size(ComponentSize{children(), pixels(20)}).with_font_size(pixels(12))
+                    .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("sync_pill_ahead"));
+            }
+            div(ctx, mk(pill.ent(), 4), ComponentConfig{}.with_label("Sync")
+                .with_size(ComponentSize{children(), pixels(20)}).with_font_size(pixels(12))
+                .with_custom_text_color(theme::TEXT_PRIMARY).with_debug_name("sync_pill_label"));
+            ui::chrome_icon(ctx, mk(pill.ent(), 5), ui::ChromeIcon::ChevronDown, theme::TEXT_SECONDARY, "sync_pill_chevron");
+            ui::set_tooltip(pill.ent(), "Push, pull, or fetch");
+            if (pill.ent().get<HasClickListener>().down) {
+                const auto path = repo->repoPath;
+                const int ahead = repo->aheadCount, behind = repo->behindCount;
+                std::vector<ui::ContextMenuItem> items;
+                items.push_back(ui::ContextMenuItem::item(
+                    behind > 0 ? "Push - pull first (" + std::to_string(behind) + " behind)" : ahead == 0 ? "Push - nothing to push" : "Push (" + std::to_string(ahead) + " ahead)",
+                    [path] { enqueue_network_op("Push", git::git_run_async(path, {"push"})); },
+                    behind == 0 && ahead > 0));
+                items.push_back(ui::ContextMenuItem::item(
+                    behind == 0 ? "Pull - up to date" : "Pull (" + std::to_string(behind) + " behind)",
+                    [path] { enqueue_network_op("Pull", git::git_run_async(path, {"pull"})); }, behind > 0));
+                items.push_back(ui::ContextMenuItem::item("Fetch", [path] {
+                    enqueue_network_op("Fetch", git::git_run_async(path, {"fetch", "--all"}));
+                }));
+                ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+            }
+        }
         if (repo && !repo->repoPath.empty() && button(ctx, mk(row.ent(), 3), preset::Button("…")
             .with_size(ComponentSize{pixels(28), pixels(28)}).with_tooltip("Repository navigation")
             .with_debug_name("repository_navigation"))) {
@@ -1223,6 +1324,59 @@ private:
             }));
             ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
         }
+    }
+
+    // Pull-conflict banner + resolve rows. Marking resolved is explicit:
+    // staging a file says "this resolution is final"; completing the
+    // merge is a separate button once no conflicts remain.
+    static float conflict_banner_height(const RepoComponent& repo) {
+        if (!repo.conflictedFiles.empty())
+            return 30.f + static_cast<float>(std::min<size_t>(repo.conflictedFiles.size(), 5)) * 28.f;
+        return repo.mergeInProgress ? 58.f : 0.f;
+    }
+    void render_conflict_banner(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo) {
+        const float height = conflict_banner_height(repo);
+        if (height <= 0.f) return;
+        auto banner = div(ctx, mk(parent, 2070), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(height)}).with_flex_direction(FlexDirection::Column)
+            .with_custom_background(theme::STATUS_CONFLICT).with_debug_name("conflict_banner"));
+        div(ctx, mk(banner.ent(), 0), ComponentConfig{}
+            .with_label(repo.conflictedFiles.empty() ? "All conflicts resolved"
+                : std::to_string(repo.conflictedFiles.size()) + " merge conflict(s) need resolution")
+            .with_size(ComponentSize{percent(1.f), pixels(24)}).with_font_size(pixels(12))
+            .with_padding(Padding{.left = pixels(8)})
+            .with_custom_text_color(afterhours::Color{0, 0, 0, 255}).with_debug_name("conflict_banner_title"));
+        if (repo.conflictedFiles.empty() && repo.mergeInProgress) {
+            auto complete = button(ctx, mk(banner.ent(), 9), preset::Button("Complete merge")
+                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+                .with_debug_name("conflict_complete_merge"));
+            if (complete)
+                enqueue_network_op("Complete merge", git::git_run_async(repo.repoPath, {"commit", "--no-edit"}));
+            return;
+        }
+        const auto shown = std::min<size_t>(repo.conflictedFiles.size(), 5);
+        for (size_t i = 0; i < shown; ++i) {
+            const auto& path = repo.conflictedFiles[i];
+            auto line = div(ctx, mk(banner.ent(), static_cast<int>(1 + i)), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(26)}).with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center).with_debug_name("conflict_file_row"));
+            auto open = button(ctx, mk(line.ent(), 0), preset::Button(path)
+                .with_size(ComponentSize{expand(), pixels(24)}).with_alignment(TextAlignment::Left)
+                .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                .with_debug_name("conflict_open_" + std::to_string(i)));
+            ui::set_tooltip(open.ent(), "Open " + path + " to edit the conflict");
+            if (open) navigation::open(repo, reading::source(path), true, reading::OpenMode::Keep);
+            auto resolve = button(ctx, mk(line.ent(), 1), preset::Button("Mark resolved")
+                .with_size(ComponentSize{children(), pixels(24)}).with_font_size(pixels(12))
+                .with_debug_name("conflict_resolve_" + std::to_string(i)));
+            if (resolve)
+                enqueue_network_op("Mark resolved", git::git_run_async(repo.repoPath, {"add", "--", path}));
+        }
+        if (repo.conflictedFiles.size() > shown)
+            div(ctx, mk(banner.ent(), 8), ComponentConfig{}
+                .with_label("+" + std::to_string(repo.conflictedFiles.size() - shown) + " more in the file list")
+                .with_size(ComponentSize{percent(1.f), pixels(20)}).with_font_size(pixels(11))
+                .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("conflict_more"));
     }
 
     // Sync actions (Push / Pull / Stash) grouped under the repo header so they
@@ -1244,7 +1398,8 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("sync_row"));
 
-        auto syncBtn = [&](int id, const std::string& label, bool enabled) -> bool {
+        auto syncBtn = [&](int id, const std::string& label, bool enabled, const std::string& debugName,
+                           const std::string& tooltip = "") -> bool {
             // Compact, not expand(): stretching these across the row loses the
             // mock's look. Tighter side padding is what makes all three fit a
             // 200px sidebar, which is the minimum the divider can be dragged to.
@@ -1255,11 +1410,13 @@ private:
                     .bottom = pixels(3), .left = pixels(6)})
                 .with_font_size(pixels(14))
                 .with_cursor(afterhours::ui::CursorType::Pointer)
-                .with_debug_name("sync_btn");
+                .with_debug_name(debugName);
             if (enabled)
                 config = config.with_custom_background(theme::BUTTON_SECONDARY)
                                .with_custom_text_color(theme::TEXT_PRIMARY);
-            return static_cast<bool>(button(ctx, mk(row.ent(), id), config));
+            auto result = button(ctx, mk(row.ent(), id), config);
+            if (!tooltip.empty()) ui::set_tooltip(result.ent(), tooltip);
+            return static_cast<bool>(result);
         };
 
         // Plain ASCII labels (font atlas has no arrow glyphs); show ahead/behind
@@ -1271,14 +1428,58 @@ private:
         if (repo && repo->behindCount > 0)
             pullLabel += " (" + std::to_string(repo->behindCount) + ")";
 
-        if (syncBtn(2087, pushLabel, hasRepo))
+        const bool pushBlocked = hasRepo && repo->behindCount > 0;
+        if (syncBtn(2087, pushLabel, hasRepo && !pushBlocked, "sync_push",
+                    pushBlocked ? "Pull first: " + std::to_string(repo->behindCount) + " commit(s) behind upstream" : "Push to upstream"))
             open_push_dialog(*repo);
-        if (syncBtn(2088, pullLabel, hasRepo))
+        if (syncBtn(2088, pullLabel, hasRepo, "sync_pull", "Pull from upstream"))
             enqueue_network_op("Pull", git::git_run_async(repo->repoPath, {"pull"}));
-        if (syncBtn(2089, "Stash", hasRepo)) {
-            auto* menuComp = find_singleton<MenuComponent>();
-            if (menuComp)
-                menuComp->pendingToasts.push_back({"Stash is not yet implemented"});
+        if (syncBtn(2090, "Fetch", hasRepo, "sync_fetch", "Fetch all remotes"))
+            enqueue_network_op("Fetch", git::git_run_async(repo->repoPath, {"fetch", "--all"}));
+        if (syncBtn(2089, "Stash", hasRepo, "sync_stash")) {
+            auto* bd = find_singleton<BranchDialogState, ActiveTab>();
+            if (bd) bd->showStashDialog = true;
+        }
+
+        // Upstream + last-fetched line under the buttons.
+        if (hasRepo) {
+            std::string upstream;
+            for (const auto& branch : repo->branches)
+                if (branch.isCurrent && !branch.upstream.empty()) upstream = branch.upstream;
+            std::string stamp;
+            std::filesystem::path gitDir = std::filesystem::path(repo->repoPath) / ".git";
+            std::error_code ec;
+            if (std::filesystem::is_regular_file(gitDir, ec)) {
+                std::ifstream in(gitDir);
+                std::string line;
+                std::getline(in, line);
+                if (line.starts_with("gitdir: ")) gitDir = line.substr(8);
+            }
+            const auto fetchHead = gitDir / "FETCH_HEAD";
+            if (std::filesystem::exists(fetchHead, ec)) {
+                const auto written = std::filesystem::last_write_time(fetchHead, ec);
+                if (!ec) {
+                    const auto age = std::chrono::duration_cast<std::chrono::seconds>(
+                        std::filesystem::file_time_type::clock::now() - written).count();
+                    stamp = age < 60 ? " · fetched just now" : age < 3600 ? " · fetched " + std::to_string(age / 60) + "m ago"
+                        : age < 86400 ? " · fetched " + std::to_string(age / 3600) + "h ago"
+                        : " · fetched " + std::to_string(age / 86400) + "d ago";
+                }
+            }
+            if (!upstream.empty() || !stamp.empty()) {
+                auto info = div(ctx, mk(parent, 2086), ComponentConfig{}
+                    .with_size(ComponentSize{w, pixels(18)})
+                    .with_custom_background(theme::SIDEBAR_BG)
+                    .with_padding(Padding{.left = pixels(10)})
+                    .with_debug_name("sync_upstream"));
+                div(ctx, mk(info.ent(), 0), ComponentConfig{}
+                    .with_label((upstream.empty() ? repo->currentBranch + " · no upstream"
+                                                  : repo->currentBranch + " → " + upstream) + stamp)
+                    .with_size(ComponentSize{afterhours::ui::expand(), pixels(18)})
+                    .with_font_size(pixels(11)).with_custom_text_color(theme::TEXT_TERTIARY)
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("sync_upstream_label"));
+            }
         }
     }
 
@@ -1424,8 +1625,7 @@ private:
         // read by text_field only, and text_area ignores it without a word.
         {
             std::string branch = repo.currentBranch.empty() ? "main" : repo.currentBranch;
-            std::string hint = "Message (Enter to commit on \""
-                               + branch + "\")";
+            std::string hint = "Message (on \"" + branch + "\")";
             div(ctx, mk(commitArea.ent(), 0),
                 ComponentConfig{}
                     .with_label(hint)
@@ -1435,20 +1635,6 @@ private:
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("commit_hint"));
-        }
-
-        if (!editor.templateLoaded) {
-            editor.templateLoaded = true;
-            auto path = git::git_run(repo.repoPath, {"config", "--get", "--path", "commit.template"});
-            if (path.success()) {
-                std::filesystem::path file = commit_message::strip_template(path.stdout_str());
-                if (file.is_relative()) file = std::filesystem::path(repo.repoPath) / file;
-                editor.templateText = commit_message::strip_template(afterhours::files::read_string(file).value_or(""));
-                if (editor.subject.empty()) {
-                    editor.subject = editor.templateText;
-                    editor.placeCaret = 0;
-                }
-            }
         }
 
         // Multi-line message: Enter commits (submit_on_enter), Shift+Enter adds
@@ -1495,16 +1681,36 @@ private:
                 if (ed) ed->commitRequested = true;
             };
 
-        // Full-width blue Commit button
+        // Split button: Commit keeps the configured unstaged policy (ask
+        // by default); the chevron commits with a one-shot policy.
         bool hasStaged = !repo.stagedFiles.empty();
-        auto commitBtn = button(ctx, mk(commitArea.ent(), 2),
+        auto commitRow = div(ctx, mk(commitArea.ent(), 2), ComponentConfig{}
+            .with_size(ComponentSize{childW, pixels(24)}).with_flex_direction(FlexDirection::Row)
+            .with_no_wrap().with_gap(pixels(3)).with_debug_name("commit_split_row"));
+        auto commitBtn = button(ctx, mk(commitRow.ent(), 0),
             preset::Button("Commit", hasStaged)
-                .with_size(ComponentSize{childW, pixels(24)})
+                .with_size(ComponentSize{expand(), pixels(24)})
                 .with_font_size(pixels(14))
                 .with_debug_name("commit_btn_inline"));
-
-        if (commitBtn && hasStaged) {
-            editor.commitRequested = true;
+        if (commitBtn && hasStaged) editor.commitRequested = true;
+        auto splitBtn = button(ctx, mk(commitRow.ent(), 1),
+            preset::Button("v", hasStaged)
+                .with_size(ComponentSize{pixels(28), pixels(24)})
+                .with_font_size(pixels(12))
+                .with_debug_name("commit_split_btn"));
+        ui::set_tooltip(splitBtn.ent(), "Commit with a specific unstaged policy");
+        if (splitBtn && hasStaged) {
+            auto* ed = &editor;
+            auto item = [ed](const std::string& label, CommitEditorComponent::UnstagedPolicy policy) {
+                return ui::ContextMenuItem::item(label, [ed, policy] {
+                    ed->commitPolicyOverride = policy;
+                    ed->commitRequested = true;
+                });
+            };
+            ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+                item("Commit Staged Only", CommitEditorComponent::UnstagedPolicy::CommitStagedOnly),
+                item("Stage All & Commit", CommitEditorComponent::UnstagedPolicy::StageAll),
+            });
         }
     }
 
@@ -1527,8 +1733,9 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("refs_header"));
 
-        std::string branchLabel = "BRANCHES  " +
-            std::to_string(repo.branches.size());
+        const auto localCount = std::count_if(repo.branches.begin(), repo.branches.end(),
+            [](const BranchInfo& branch) { return branch.isLocal; });
+        std::string branchLabel = "BRANCHES  " + std::to_string(localCount);
         div(ctx, mk(headerRow.ent(), 1),
             preset::SectionHeader(branchLabel)
                 // expand(), not percent(1): "+ New" shares this row, and a
@@ -1561,7 +1768,7 @@ private:
         // a container nested inside filesBg fails to render its children after
         // the UI has been exercised (framework nested-container bug).
         (void)layout;
-        if (repo.branches.empty()) {
+        if (repo.branches.empty() && repo.tags.empty() && repo.stashes.empty()) {
             div(ctx, mk(parent, 2170),
                 ComponentConfig{}
                     .with_label("No branches found")
@@ -1576,11 +1783,63 @@ private:
             return;
         }
 
-        // Render each branch row
-        for (int i = 0; i < static_cast<int>(repo.branches.size()); ++i) {
-            render_branch_row(ctx, parent, i, repo.branches[i], repo);
+        int rowIndex = 0;
+        for (const auto& branch : repo.branches)
+            if (branch.isLocal) render_branch_row(ctx, parent, rowIndex++, branch, repo);
+
+        auto section = [&](int id, const std::string& label, const std::string& debugName) {
+            div(ctx, mk(parent, id), preset::SectionHeader(label)
+                .with_size(ComponentSize{percent(1.0f), children()})
+                .with_padding(Padding{.top = pixels(10), .left = pixels(8)})
+                .with_debug_name(debugName));
+        };
+        const auto remoteCount = static_cast<int>(repo.branches.size()) - static_cast<int>(localCount);
+        if (remoteCount > 0) {
+            section(2180, "REMOTES  " + std::to_string(remoteCount), "remotes_label");
+            for (const auto& branch : repo.branches)
+                if (!branch.isLocal) render_branch_row(ctx, parent, rowIndex++, branch, repo);
+        }
+        if (!repo.tags.empty()) {
+            section(2181, "TAGS  " + std::to_string(repo.tags.size()), "tags_label");
+            for (size_t i = 0; i < repo.tags.size(); ++i) {
+                auto tagRow = button(ctx, mk(parent, static_cast<int>(2400 + i)), preset::Button(repo.tags[i])
+                    .with_size(ComponentSize{percent(1.0f), pixels(26)}).with_alignment(TextAlignment::Left)
+                    .with_font_size(pixels(12)).with_debug_name("refs_tag_" + repo.tags[i]));
+                ui::set_tooltip(tagRow.ent(), "Review tag " + repo.tags[i]);
+                if (tagRow) navigation::click(repo, reading::review(repo.tags[i]), true, reading::ClickRegion::Tree);
+            }
+        }
+        if (!repo.stashes.empty()) {
+            section(2182, "STASHES  " + std::to_string(repo.stashes.size()), "stashes_label");
+            for (size_t i = 0; i < repo.stashes.size(); ++i) {
+                const auto& entry = repo.stashes[i];
+                const auto ref = entry.substr(0, entry.find(':'));
+                auto stashRow = button(ctx, mk(parent, static_cast<int>(2600 + i)), preset::Button(entry)
+                    .with_size(ComponentSize{percent(1.0f), pixels(26)}).with_alignment(TextAlignment::Left)
+                    .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("refs_stash_" + std::to_string(i)));
+                ui::set_tooltip(stashRow.ent(), entry + " · click to review, right-click for Apply / Pop / Drop");
+                if (stashRow)
+                    navigation::open(repo, reading::review("compare:" + ref + "^1:" + ref), true, reading::OpenMode::Keep);
+                if (ctx.is_right_click(stashRow.ent().id)) {
+                    const auto path = repo.repoPath;
+                    auto item = [&](const std::string& label, std::vector<std::string> args) {
+                        return ui::ContextMenuItem::item(label, [path, args = std::move(args), label] {
+                            enqueue_network_op(label, git::git_run_async(path, args));
+                        });
+                    };
+                    ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+                        item("Apply stash", {"stash", "apply", ref}),
+                        item("Pop stash", {"stash", "pop", ref}),
+                        item("Drop stash", {"stash", "drop", ref}),
+                    });
+                }
+            }
         }
     }
+
+    std::string lastBranchClick_;
+    std::chrono::steady_clock::time_point lastBranchClickAt_{};
 
     // Render a single branch row with checkout and delete actions
     void render_branch_row(UIContext<InputAction>& ctx,
@@ -1601,18 +1860,29 @@ private:
                     .top = pixels(0), .right = pixels(8),
                     .bottom = pixels(0), .left = pixels(0)})
                 .with_roundness(0.0f)
-                .with_debug_name("branch_row"));
-        ui::set_tooltip(rowResult.ent(), branch.name);
+                .with_debug_name("branch_row_" + branch.name));
+        ui::set_tooltip(rowResult.ent(), isCurrent || !branch.isLocal ? branch.name : branch.name + " · Double-click to check out");
 
         rowResult.ent().addComponentIfMissing<HasClickListener>([](Entity&){});
 
-        // Click -> checkout this branch
-        if (rowResult.ent().get<HasClickListener>().down && !isCurrent && !repo.reviewWorkspace) {
-            auto result = git::checkout_branch(repo.repoPath, branch.name);
-            toast_on_git_failure(result, "Checkout");
-            if (result.success()) {
-                repo.refreshRequested = true;
+        // Double-click -> checkout this branch. A single stray click used to
+        // switch branches immediately, dirty tree or not.
+        const bool clicked = rowResult.ent().get<HasClickListener>().down;
+        const auto now = std::chrono::steady_clock::now();
+        const bool doubleClicked = clicked && lastBranchClick_ == branch.name &&
+                                   now - lastBranchClickAt_ <= std::chrono::milliseconds(500);
+        if (clicked) {
+            lastBranchClick_ = doubleClicked ? std::string{} : branch.name;
+            lastBranchClickAt_ = now;
+        }
+        if (doubleClicked && branch.isLocal && !isCurrent && !repo.reviewWorkspace) {
+            const bool dirty = !repo.unstagedFiles.empty() || !repo.stagedFiles.empty() || !repo.untrackedFiles.empty();
+            if (dirty) {
+                if (auto* menu = find_singleton<MenuComponent>())
+                    menu->pendingToasts.push_back({"Checking out with uncommitted changes in the working tree",
+                                                   MenuComponent::Notice::Kind::Info});
             }
+            enqueue_network_op("Checkout", git::git_run_async(repo.repoPath, {"switch", branch.name}));
         }
 
         // Current branch indicator (green left border)
@@ -1625,21 +1895,8 @@ private:
                     .with_debug_name("current_indicator"));
         }
 
-        // Branch type badge
-        auto badgeBg = branch.isLocal ? theme::BADGE_BRANCH_BG
-                                      : theme::BADGE_REMOTE_BG;
-        div(ctx, mk(rowResult.ent(), 2),
-            preset::Badge(branch.isLocal ? "L" : "R", badgeBg,
-                          afterhours::Color{255, 255, 255, 255})
-                .with_size(ComponentSize{pixels(20), pixels(16)})
-                .with_padding(Padding{
-                    .top = pixels(1), .right = pixels(3),
-                    .bottom = pixels(1), .left = pixels(3)})
-                .with_margin(Margin{
-                    .top = {}, .bottom = {},
-                    .left = pixels(isCurrent ? 5.0f : 8.0f),
-                    .right = pixels(6)})
-                .with_debug_name("branch_badge"));
+        // No L/R badge: the section header already says whether these
+        // are local branches or remotes.
 
         // Branch name takes whatever the badge, tracking and delete button
         // leave. This used to subtract each sibling by hand because percent(1)
@@ -1649,6 +1906,7 @@ private:
         div(ctx, mk(rowResult.ent(), 3),
             ComponentConfig{}
                 .with_label(branch.name)
+                .with_margin(Margin{.left = pixels(8)})
                 .with_size(ComponentSize{afterhours::ui::expand(), pixels(ROW_H)})
                 .with_custom_text_color(nameColor)
                 .with_font_size(pixels(14))
@@ -1657,37 +1915,58 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("branch_name"));
 
-        // Tracking info (ahead/behind)
+        // Tracking as ↑/↓ icons with counts (the font has no arrows, so
+        // chrome_icons draws them).
         if (!branch.tracking.empty()) {
-            div(ctx, mk(rowResult.ent(), 4),
-                ComponentConfig{}
-                    .with_label(branch.tracking)
+            const auto [ahead, behind] = git::parse_ahead_behind(branch.tracking);
+            auto tracking = div(ctx, mk(rowResult.ent(), 4), ComponentConfig{}
+                .with_size(ComponentSize{children(), pixels(ROW_H)}).with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center).with_debug_name("branch_tracking"));
+            auto count = [&](int id, const std::string& text) {
+                div(ctx, mk(tracking.ent(), id), ComponentConfig{}.with_label(text)
                     .with_size(ComponentSize{children(), pixels(ROW_H)})
-                    .with_padding(Padding{
-                        .top = pixels(0), .right = pixels(4),
-                        .bottom = pixels(0), .left = pixels(4)})
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(14))
-                    .with_alignment(TextAlignment::Right)
-                    .with_roundness(0.0f)
-                    .with_debug_name("branch_tracking"));
+                    .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
+                    .with_debug_name("branch_tracking_count"));
+            };
+            if (ahead > 0) {
+                ui::chrome_icon(ctx, mk(tracking.ent(), 10), ui::ChromeIcon::ArrowUp, theme::TEXT_SECONDARY, "branch_ahead_icon");
+                count(11, std::to_string(ahead));
+            }
+            if (behind > 0) {
+                ui::chrome_icon(ctx, mk(tracking.ent(), 12), ui::ChromeIcon::ArrowDown, theme::TEXT_SECONDARY, "branch_behind_icon");
+                count(13, std::to_string(behind));
+            }
+            if (ahead == 0 && behind == 0) count(14, "gone");
+            ui::set_tooltip(tracking.ent(), branch.name + " vs " + branch.upstream + " " + branch.tracking);
         }
 
-        // Delete button (only for non-current branches)
-        if (!isCurrent && !repo.reviewWorkspace) {
-            auto deleteBtn = button(ctx, mk(rowResult.ent(), 5),
-                preset::Button("x")
-                    .with_size(ComponentSize{pixels(20), pixels(20)})
-                    .with_custom_background(theme::BUTTON_SECONDARY)
-                    .with_custom_text_color(theme::STATUS_DELETED)
-                    .with_debug_name("delete_branch_btn"));
-
-            if (deleteBtn) {
+        // Delete is a hover / context-menu action, never a red × on every row.
+        if (branch.isLocal && !isCurrent && !repo.reviewWorkspace) {
+            auto askDelete = [this, &branch] {
                 auto* bd = find_singleton<BranchDialogState, ActiveTab>();
                 if (bd) {
                     bd->deleteBranchName = branch.name;
                     bd->showDeleteBranchDialog = true;
                 }
+            };
+            if (afterhours::ui::is_mouse_inside(ctx.mouse.pos, ui::visible_rect(rowResult.ent()))) {
+                auto deleteBtn = button(ctx, mk(rowResult.ent(), 5),
+                    preset::Button("x")
+                        .with_size(ComponentSize{pixels(20), pixels(20)})
+                        .with_custom_background(theme::BUTTON_SECONDARY)
+                        .with_custom_text_color(theme::STATUS_DELETED)
+                        .with_debug_name("delete_branch_btn"));
+                if (deleteBtn) askDelete();
+            }
+            if (ctx.is_right_click(rowResult.ent().id)) {
+                ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
+                    ui::ContextMenuItem::item("Delete branch...", [name = branch.name] {
+                        auto* bd = find_singleton<BranchDialogState, ActiveTab>();
+                        if (bd) {
+                            bd->deleteBranchName = name;
+                            bd->showDeleteBranchDialog = true;
+                        }
+                    })});
             }
         }
 
@@ -1775,6 +2054,53 @@ private:
                 bd.showNewBranchDialog = false;
                 bd.newBranchName.clear();
             }
+        }
+    }
+
+    // ---- Stash dialog ----
+    void render_stash_dialog(UIContext<InputAction>& ctx, Entity& uiRoot,
+                             RepoComponent& repo, BranchDialogState& bd) {
+        if (!bd.showStashDialog) return;
+        using namespace afterhours;
+        constexpr int MODAL_ID = 8400;
+        constexpr int CONTENT_LAYER = 1001;
+        auto modalResult = afterhours::modal::detail::modal_impl(
+            ctx, mk(uiRoot, MODAL_ID), bd.showStashDialog,
+            ModalConfig{}.with_size(pixels(400), pixels(210)).with_title("Stash Changes").with_show_close_button(false));
+        if (!modalResult) return;
+        auto& modalEnt = modalResult.ent();
+        div(ctx, mk(modalEnt, 1), ComponentConfig{}.with_label("Message (optional):")
+            .with_size(ComponentSize{percent(1.0f), pixels(20)})
+            .with_padding(Padding{.top = pixels(8), .right = pixels(16), .bottom = pixels(4), .left = pixels(16)})
+            .with_custom_text_color(theme::TEXT_PRIMARY).with_alignment(TextAlignment::Left)
+            .with_render_layer(CONTENT_LAYER).with_debug_name("stash_label"));
+        afterhours::text_input::text_input(ctx, mk(modalEnt, 2), bd.stashMessage,
+            ComponentConfig{}.with_size(ComponentSize{percent(1.0f), pixels(32)})
+                .with_padding(Padding{.right = pixels(16), .left = pixels(16)})
+                .with_background(afterhours::ui::Theme::Usage::Surface)
+                .with_render_layer(CONTENT_LAYER).with_debug_name("stash_message_input"));
+        if (button(ctx, mk(modalEnt, 3), preset::Button(bd.stashIncludeUntracked ? "Include untracked: On" : "Include untracked: Off")
+                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+                .with_render_layer(CONTENT_LAYER).with_debug_name("stash_untracked_toggle")))
+            bd.stashIncludeUntracked = !bd.stashIncludeUntracked;
+        auto btnRow = div(ctx, mk(modalEnt, 4), preset::DialogButtonRow()
+            .with_render_layer(CONTENT_LAYER).with_debug_name("stash_buttons"));
+        if (button(ctx, mk(btnRow.ent(), 1), preset::Button("Cancel")
+                .with_margin(Margin{.right = pixels(8)})
+                .with_custom_background(theme::BUTTON_SECONDARY).with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_render_layer(CONTENT_LAYER).with_debug_name("cancel_stash"))) {
+            bd.showStashDialog = false;
+            bd.stashMessage.clear();
+        }
+        if (button(ctx, mk(btnRow.ent(), 2), preset::Button("Stash")
+                .with_render_layer(CONTENT_LAYER).with_debug_name("confirm_stash"))) {
+            std::vector<std::string> args{"stash", "push", "-m",
+                bd.stashMessage.empty() ? std::string("Stashed via floatinghotel") : bd.stashMessage};
+            if (bd.stashIncludeUntracked) args.push_back("--include-untracked");
+            enqueue_network_op("Stash", git::git_run_async(repo.repoPath, std::move(args)));
+            bd.showStashDialog = false;
+            bd.stashMessage.clear();
+            bd.stashIncludeUntracked = false;
         }
     }
 
@@ -2001,6 +2327,31 @@ private:
         bool operator==(const FileRowsKey&) const = default;
     };
     std::optional<FileRowsKey> fileRowsKey_;
+    // Built file rows retained per (repo, generations, mode) so switching
+    // back doesn't reflatten; capped at 4 entries.
+    struct FileTreeCache {
+        std::vector<file_tree::Row> rows;
+        std::vector<std::string> paths;
+        std::vector<char> kinds;
+        std::vector<size_t> indices;
+    };
+    std::map<std::string, FileTreeCache> fileTreeCache_;
+    std::vector<std::string> fileTreeCacheOrder_;
+    static std::string file_tree_cache_key(const FileRowsKey& key, bool treeMode) {
+        return key.repo + "\n" + std::to_string(key.generation) + ":" + std::to_string(key.patches) + ":" +
+               std::to_string(key.version) + ":" + std::to_string(key.paths) + ":" +
+               std::to_string(static_cast<int>(key.tab)) + ":" + std::to_string(static_cast<int>(key.mode)) +
+               (treeMode ? ":tree" : ":flat");
+    }
+    void store_file_tree_cache(const std::string& cacheKey) {
+        fileTreeCache_[cacheKey] = {treeRows_, treePaths_, treeKinds_, fileIndices_};
+        std::erase(fileTreeCacheOrder_, cacheKey);
+        fileTreeCacheOrder_.insert(fileTreeCacheOrder_.begin(), cacheKey);
+        while (fileTreeCacheOrder_.size() > 4) {
+            fileTreeCache_.erase(fileTreeCacheOrder_.back());
+            fileTreeCacheOrder_.pop_back();
+        }
+    }
 
     void update_file_tree(UIContext<InputAction>& ctx, afterhours::ui::imm::EntityParent list,
                           RepoComponent& repo, const LayoutComponent& layout, const std::string& context) {
@@ -2020,7 +2371,21 @@ private:
             const auto& collapsed = collapsedIt == layout.collapsedDirectories.end() ? noCollapsed : collapsedIt->second;
             if (!fileRowsKey_ || *fileRowsKey_ != key || collapsed != explorerCollapsed_) {
                 explorerCollapsed_ = collapsed;
-                publish(file_tree::flatten(repo.allFilePaths, explorerCollapsed_));
+                std::string collapsedKey;
+                for (const auto& dir : collapsed) collapsedKey += dir + "\n";
+                const auto explorerKey = file_tree_cache_key(key, true) + ":explorer:" + collapsedKey;
+                if (auto cached = fileTreeCache_.find(explorerKey); cached != fileTreeCache_.end()) {
+                    publish(cached->second.rows);
+                } else {
+                    publish(file_tree::flatten(repo.allFilePaths, explorerCollapsed_));
+                    fileTreeCache_[explorerKey] = {treeRows_, {}, {}, {}};
+                    std::erase(fileTreeCacheOrder_, explorerKey);
+                    fileTreeCacheOrder_.insert(fileTreeCacheOrder_.begin(), explorerKey);
+                    while (fileTreeCacheOrder_.size() > 4) {
+                        fileTreeCache_.erase(fileTreeCacheOrder_.back());
+                        fileTreeCacheOrder_.pop_back();
+                    }
+                }
                 fileRowsKey_ = std::move(key);
             }
             return;
@@ -2035,7 +2400,17 @@ private:
             }
             return;
         }
-        fileRowsKey_ = std::move(key);
+        const auto cacheKey = file_tree_cache_key(key, treeMode_);
+        if (auto cached = fileTreeCache_.find(cacheKey); cached != fileTreeCache_.end()) {
+            treePaths_ = cached->second.paths;
+            treeKinds_ = cached->second.kinds;
+            fileIndices_ = cached->second.indices;
+            treeCollapsed_ = collapsed;
+            fileRowsKey_ = std::move(key);
+            publish(cached->second.rows);
+            return;
+        }
+        fileRowsKey_ = key;
         std::vector<std::string> paths;
         fileIndices_.clear();
         // The working-changes list always shows every changed file. The
@@ -2069,16 +2444,54 @@ private:
         fileIndices_ = std::move(indices);
         treeKinds_ = std::move(kinds);
         treeCollapsed_ = collapsed;
+        // Grouped sections replace the old Unstaged/Staged segment: one
+        // list, Staged / Changes / Untracked headers, staged files marked
+        // by their section instead of a mode switch.
         std::vector<file_tree::Row> rows;
-        if (treeMode_) rows = file_tree::flatten(treePaths_, treeCollapsed_);
-        else for (size_t i = 0; i < treePaths_.size(); ++i) rows.push_back({treePaths_[i], i, 0, false});
+        auto header = [&](const std::string& label, const std::string& scope) {
+            file_tree::Row row;
+            row.section = true;
+            row.label = label;
+            row.scope = scope;
+            rows.push_back(std::move(row));
+        };
+        auto groupPaths = [&](char kind) {
+            std::vector<std::string> group;
+            for (size_t i = 0; i < treePaths_.size(); ++i)
+                if (treeKinds_[i] == kind) group.push_back(treePaths_[i]);
+            return group;
+        };
+        auto emit = [&](char kind, const std::string& label) {
+            const auto group = groupPaths(kind);
+            if (group.empty()) return;
+            header(label + "  " + std::to_string(group.size()), kind == 'S' ? "index" : "wt");
+            if (treeMode_) {
+                auto sub = file_tree::flatten(group, treeCollapsed_);
+                // flatten indexes into `group`; remap to treePaths_ indexes.
+                for (auto& row : sub) {
+                    if (!row.directory) {
+                        size_t at = 0;
+                        while (at < treePaths_.size() && !(treePaths_[at] == group[row.sourceIndex] && treeKinds_[at] == kind)) ++at;
+                        row.sourceIndex = at;
+                    }
+                    rows.push_back(std::move(row));
+                }
+            } else {
+                for (size_t i = 0; i < treePaths_.size(); ++i)
+                    if (treeKinds_[i] == kind) rows.push_back({treePaths_[i], i, 0, false});
+            }
+        };
+        emit('S', "Staged");
+        emit('U', "Changes");
+        emit('?', "Untracked");
         publish(std::move(rows));
+        store_file_tree_cache(cacheKey);
     }
 
     size_t active_file_count(const RepoComponent&) const {
-        if (allFilesMode_) return treeRows_.size();
-        if (treeMode_) return treeRows_.size();
-        return fileIndices_.size();
+        // Published rows include section headers; the virtual list must
+        // count them or the last files never render.
+        return treeRows_.size();
     }
 
     void render_active_file_row(UIContext<InputAction>& ctx, Entity& row,
@@ -2101,11 +2514,21 @@ private:
             render_file_row_impl(ctx, row, 0, path, status, repo, false, false, {}, node.depth);
             return;
         }
+        if (treeRows_[i].section) {
+            // Clicking a section header opens that scope's aggregate
+            // working-changes document (what the old segment did).
+            auto headerBtn = button(ctx, mk(row, 0), preset::Button(treeRows_[i].label)
+                .with_size(ComponentSize{percent(1.0f), pixels(26)}).with_alignment(TextAlignment::Left)
+                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_debug_name(treeRows_[i].scope == "index" ? "review_staged_changes" : "review_unstaged_changes"));
+            if (headerBtn) navigation::open(repo, reading::review(treeRows_[i].scope), true);
+            return;
+        }
         size_t depth = 0;
-        if (treeMode_) {
+        {
             const auto& node = treeRows_[i];
             depth = node.depth;
-            if (node.directory) {
+            if (treeMode_ && node.directory) {
                 if (ui::file_tree_style::directory(ctx, row, node, sidebarPixelWidth_,
                         file_tree::directory_collapsed(node, treeCollapsed_), "tree_directory:" + node.path, repo, repo.filesTreeNavigation)) {
                     auto& collapsed = find_singleton<LayoutComponent>()->collapsedDirectories[repo.repoPath];
@@ -2113,6 +2536,7 @@ private:
                 }
                 return;
             }
+            // Rows carry their treePaths_ index (headers offset the list).
             i = node.sourceIndex;
         }
         char kind = i < treeKinds_.size() ? treeKinds_[i] : 'U';
@@ -2961,7 +3385,7 @@ private:
                     CommitEditorComponent::UnstagedPolicy::CommitStagedOnly;
                 commit_workflow::save_policy(editor.unstagedPolicy);
             }
-            commit_workflow::execute_commit(repo, editor, false);
+            commit_workflow::begin_commit(repo, editor, false);
             editor.showUnstagedDialog = false;
         }
 
@@ -2978,7 +3402,7 @@ private:
                     CommitEditorComponent::UnstagedPolicy::StageAll;
                 commit_workflow::save_policy(editor.unstagedPolicy);
             }
-            commit_workflow::execute_commit(repo, editor, true);
+            commit_workflow::begin_commit(repo, editor, true);
             editor.showUnstagedDialog = false;
         }
     }

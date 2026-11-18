@@ -6,6 +6,35 @@
 
 namespace ui::diff_syntax {
 
+// git::read_syntax_seeds skips hunks that start on line 1 and files in a plain
+// language, so a file where every side is one of those needs no read at all.
+// New and untracked files are always like this.
+inline bool needs_seeds(const ecs::FileDiff& file) {
+    const auto plain = [](const std::string& path) { return code_lexer::language(path) == code_lexer::Language::Plain; };
+    const bool oldPlain = plain(file.oldPath.empty() ? file.filePath : file.oldPath);
+    const bool newPlain = plain(file.filePath);
+    for (const auto& hunk : file.hunks) {
+        if (!oldPlain && hunk.oldCount && hunk.oldStart > 1) return true;
+        if (!newPlain && hunk.newCount && hunk.newStart > 1) return true;
+    }
+    return false;
+}
+
+// Files that need no seeds are annotated on the frame instead of queueing one
+// background task each, one after another: 150 new files took ~11 s to settle.
+// Capped per frame so a large batch does not hitch.
+// Returns true when the budget ran out with files still waiting.
+inline bool resolve_unseeded(std::vector<ecs::FileDiff>& files, size_t budget = 32) {
+    for (auto& file : files) {
+        if (file.syntaxResolved || file.isFullContent || file.isBinary || file.hunks.empty() || needs_seeds(file)) continue;
+        if (!budget) return true;
+        for (auto& hunk : file.hunks) hunk_syntax::annotate(hunk, file.filePath, false, {}, {}, file.oldPath);
+        file.syntaxResolved = true;
+        --budget;
+    }
+    return false;
+}
+
 inline void update(ecs::RepoComponent& repo, std::vector<ecs::FileDiff>& files, const std::string& scope) {
     // One runtime per scope: the combined staged+unstaged page updates both
     // in the same frame, and a shared slot made them discard each other.
@@ -21,10 +50,11 @@ inline void update(ecs::RepoComponent& repo, std::vector<ecs::FileDiff>& files, 
         }
         pending->syntaxResolved = true;
     }
+    resolve_unseeded(files);
     if (runtime.future.valid()) return;
     auto candidate = files.end();
     for (auto file = files.begin(); file != files.end(); ++file) {
-        if (file->syntaxResolved || file->isFullContent || file->isBinary || file->hunks.empty()) continue;
+        if (file->syntaxResolved || file->isFullContent || file->isBinary || file->hunks.empty() || !needs_seeds(*file)) continue;
         if (candidate == files.end()) candidate = file;
         if (file->filePath == repo.selectedFilePath()) { candidate = file; break; }
     }

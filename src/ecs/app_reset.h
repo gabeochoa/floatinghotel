@@ -13,6 +13,10 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.filePickerScope = {};
     layout.filePickerPosition = {};
     layout.filePickerOpen = false;
+    layout.repoPickerOpen = false;
+    layout.repoPickerFuture = {};
+    layout.repoPickerResolved.clear();
+    layout.repoPickerResolveKey.clear();
     layout.filePickerFocus = false;
     layout.filePickerQuery.clear();
     layout.filePickerCacheKey.clear();
@@ -27,7 +31,12 @@ inline void reset_layout_defaults(LayoutComponent& layout) {
     layout.fileViewMode = LayoutComponent::FileViewMode::Flat;
     layout.diffViewMode = LayoutComponent::DiffViewMode::Inline;
     layout.shortcutsOpen = false;
+    // An earlier script that opened diff Options left the filter rows open,
+    // pushing the next script's diff below the fold (flow_unstaged_all_files).
+    layout.diffOptionsOpen = false;
     layout.visibleWhitespace = false;
+    layout.blameGutter = false;
+    layout.minimap = false;
     layout.showLineNumbers = true;
     // A script that drags the divider otherwise hands its last width to every
     // script after it, and the menu bar collapses into "More" at narrow
@@ -55,6 +64,8 @@ inline void reset_commit_editor(CommitEditorComponent& editor) {
     editor.isVisible = false;
     editor.isAmend = false;
     editor.commitRequested = false;
+    editor.commitFuture = {};
+    editor.commitPolicyOverride.reset();
     editor.showUnstagedDialog = false;
     editor.rememberChoice = false;
 }

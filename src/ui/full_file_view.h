@@ -13,6 +13,28 @@
 
 namespace ecs {
 
+// Symbols of the file being read, from the cached outline scan over the
+// reconstructed full-file text (bounded to 5000 lines).
+inline const std::vector<symbol_outline::Symbol>& full_file_symbols(RepoComponent& repo) {
+    static std::string key, text;
+    static std::vector<symbol_outline::Symbol> symbols;
+    size_t totalLines = 0;
+    for (const auto& file : repo.fullFileDiff) for (const auto& hunk : file.hunks) totalLines += hunk.lines.size();
+    const auto nextKey = repo.fullFilePath() + "\n" + std::to_string(repo.dataGeneration) + ":" + std::to_string(totalLines);
+    if (nextKey != key) {
+        key = nextKey;
+        text.clear();
+        symbols.clear();
+        if (totalLines <= 5000) {
+            for (const auto& file : repo.fullFileDiff)
+                for (const auto& hunk : file.hunks)
+                    for (const auto& line : hunk.lines) { text += line.substr(1); text += '\n'; }
+            symbols = symbol_outline::cached_scan(repo.fullFilePath(), text);
+        }
+    }
+    return symbols;
+}
+
 inline void open_markdown_link(RepoComponent& repo, int line) {
     auto target = repo.markdownLink.target;
     if (line <= 0) return navigation::open(repo, target, {}, reading::OpenMode::Keep);
@@ -444,14 +466,229 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         spacer(1, cache.offsets.back() - cache.offsets[last] + 16.f);
         if (followed) follow_markdown_link(repo, *followed);  // navigating resets `cache`
     } else {
+        float bodyHeight2 = layout.mainContent.height - headerHeight - blameHeight - pageHeight;
+        // Sticky scope: pin the enclosing symbol whose declaration has
+        // scrolled above the viewport top (projectedLine, kept by the
+        // diff renderer). Rendered in flow so it never hides under chrome.
+        const symbol_outline::Symbol* stickyScope = nullptr;
+        if (layout.stickyScopes && !repo.fullFileDiff.empty()) {
+            const int firstVisible = repo.reading.projectedLine.value_or(0);
+            if (firstVisible > 0)
+                for (const auto& symbol : full_file_symbols(repo))
+                    if (symbol.line < firstVisible) stickyScope = &symbol;
+        }
+        if (stickyScope) bodyHeight2 = std::max(24.f, bodyHeight2 - 24.f);
+        // Blame gutter: load whole-file blame on a worker (keyed by path,
+        // revision and data generation, so an external edit re-blames) and
+        // lend it to the gutter for this render only.
+        struct BlameGutterGuard {
+            ~BlameGutterGuard() { code_gutter::blameFor = nullptr; code_gutter::blameChars = 0; }
+        } blameGutterGuard;
+        if (layout.blameGutter && !repo.fullFileDiff.empty() && repo.fullFileDiff.front().isFullContent &&
+            !repo.fullFilePath().empty()) {
+            const std::string key = repo.repoPath + "\n" + repo.fullFilePath() + "\n" +
+                repo.fullFileRevision() + "\n" + std::to_string(repo.dataGeneration);
+            if (repo.blameGutterFuture.valid() &&
+                repo.blameGutterFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                auto result = repo.blameGutterFuture.get();
+                repo.blameGutterFuture = {};
+                if (navigation::accepts(repo, repo.blameGutterStamp, repo.blameGutterStamp.key)) {
+                    repo.blameGutterError = result.success() ? "" : result.stderr_str();
+                    repo.blameGutterLines = result.success() ? git::parse_blame_porcelain(result.stdout_str())
+                                                             : std::vector<BlameLine>{};
+                }
+            }
+            if (repo.blameGutterKey != key && !repo.blameGutterFuture.valid()) {
+                repo.blameGutterKey = key;
+                repo.blameGutterLines.clear();
+                repo.blameGutterError.clear();
+                std::vector<std::string> args{"blame", "--porcelain"};
+                if (!repo.fullFileRevision().empty() && repo.fullFileRevision() != "INDEX")
+                    args.push_back(repo.fullFileRevision());
+                args.insert(args.end(), {"--", repo.fullFilePath()});
+                repo.blameGutterStamp = navigation::stamp(repo, key);
+                repo.blameGutterFuture = git::git_run_async(repo.repoPath, args);
+            }
+            if (repo.blameGutterKey == key && !repo.blameGutterLines.empty()) {
+                const auto& lines = repo.blameGutterLines;
+                size_t authorWidth = 0;
+                for (const auto& line : lines) authorWidth = std::max(authorWidth, std::min(line.author.size(), size_t{14}));
+                code_gutter::blameChars = static_cast<int>(authorWidth) + 11;
+                code_gutter::blameFor = [&lines, authorWidth](int number) {
+                    std::string out;
+                    if (number >= 1 && static_cast<size_t>(number) <= lines.size() &&
+                        lines[static_cast<size_t>(number) - 1].finalLine == number) {
+                        const auto& line = lines[static_cast<size_t>(number) - 1];
+                        out = line.hash == std::string(40, '0') ? std::string("Not committed").substr(0, authorWidth)
+                                                                : line.author.substr(0, authorWidth);
+                        if (out.size() < authorWidth) out += std::string(authorWidth - out.size(), ' ');
+                        if (!line.date.empty()) out += " " + line.date;
+                    }
+                    if (static_cast<int>(out.size()) < code_gutter::blameChars)
+                        out += std::string(static_cast<size_t>(code_gutter::blameChars) - out.size(), ' ');
+                    return out.substr(0, static_cast<size_t>(code_gutter::blameChars));
+                };
+            }
+        }
+        if (layout.outlinePanelOpen && !repo.fullFileDiff.empty()) {
+            // Persistent outline: symbols of the current file, following
+            // the caret; single click scrolls (preview), double click jumps.
+            const auto& symbols = full_file_symbols(repo);
+            const auto* document = repo.workspace().document(repo.workspace().active_id());
+            const int cursorLine = document && document->caret ? document->caret->line :
+                document && document->anchor ? document->anchor->line : 0;
+            int enclosing = -1;
+            for (size_t i = 0; i < symbols.size(); ++i) if (symbols[i].line <= cursorLine) enclosing = static_cast<int>(i);
+            auto bodyRow = div(ctx, mk(parent, 585030), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Row)
+                .with_no_wrap().with_debug_name("outline_body"));
+            auto panel = div(ctx, mk(bodyRow.ent(), 0), ComponentConfig{}
+                .with_size(ComponentSize{pixels(220), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Column)
+                .with_custom_background(theme::PANEL_BG).with_debug_name("outline_panel"));
+            div(ctx, mk(panel.ent(), 0), ComponentConfig{}.with_label("Outline")
+                .with_size(ComponentSize{percent(1.f), pixels(26)}).with_font_size(pixels(12))
+                .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("outline_title"));
+            auto& mutableLayout = const_cast<LayoutComponent&>(layout);
+            ui::virtual_list(ctx, mk(panel.ent(), 1), symbols.size(), 24.f, [&](size_t i, Entity& row) {
+                const auto& symbol = symbols[i];
+                auto label = button(ctx, mk(row, 0), preset::Button(symbol.name)
+                    .with_size(ComponentSize{percent(1.f), pixels(24)}).with_alignment(TextAlignment::Left)
+                    .with_custom_background(static_cast<int>(i) == enclosing ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
+                    .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("outline_symbol_" + std::to_string(i)));
+                ui::set_tooltip(label.ent(), symbol.kind + " · line " + std::to_string(symbol.line));
+                if (!label) return;
+                const auto now = std::chrono::steady_clock::now();
+                const bool again = mutableLayout.outlinePanelClickLine == symbol.line &&
+                    now - mutableLayout.outlinePanelClickAt <= std::chrono::milliseconds(500);
+                mutableLayout.outlinePanelClickLine = symbol.line;
+                mutableLayout.outlinePanelClickAt = now;
+                auto anchor = reading::ReadingAnchor{repo.fullFilePath(), repo.fullFileRevision(),
+                    reading::DiffSide::After, symbol.line, 1, .15f, ' '};
+                auto target = reading::SourceLocation{{repo.fullFilePath(),
+                    reading::source_revision_for(repo.workspace().location())}, symbol.line};
+                navigation::open(repo, std::move(target), {}, again ? reading::OpenMode::Keep : reading::OpenMode::Preview, anchor);
+            }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(24.f, bodyHeight2 - 26.f))})
+                .with_debug_name("outline_list"));
+            auto content = div(ctx, mk(bodyRow.ent(), 1), ComponentConfig{}
+                .with_size(ComponentSize{expand(), pixels(bodyHeight2)}).with_debug_name("outline_content"));
+            ui::render_diff(ctx, content.ent(), repo.fullFileDiff, std::max(1.f, layout.mainContent.width - 224.f),
+                            bodyHeight2, false, changed, false,
+                            repo.repoPath, nullptr, "file:" + repo.fullFileRevision());
+        } else if (stickyScope) {
+            // The diff positions absolutely inside its parent, so render
+            // it into a container that starts below the sticky bar.
+            auto holder = div(ctx, mk(parent, 585041), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(bodyHeight2 + 24.f)})
+                .with_flex_direction(FlexDirection::Column).with_debug_name("sticky_body"));
+            auto sticky = div(ctx, mk(holder.ent(), 0), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(24)}).with_flex_direction(FlexDirection::Row)
+                .with_align_items(AlignItems::Center).with_custom_background(theme::PANEL_BG)
+                .with_debug_name("sticky_scope"));
+            auto jump = button(ctx, mk(sticky.ent(), 0), preset::Button(stickyScope->name + " · line " + std::to_string(stickyScope->line))
+                .with_size(ComponentSize{children(), pixels(22)}).with_font_size(pixels(12))
+                .with_custom_background(theme::SELECTED_BG).with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_debug_name("sticky_scope_jump"));
+            ui::set_tooltip(jump.ent(), "Jump to " + stickyScope->name);
+            if (jump) {
+                auto anchor = reading::ReadingAnchor{repo.fullFilePath(), repo.fullFileRevision(),
+                    reading::DiffSide::After, stickyScope->line, 1, .15f, ' '};
+                auto target = reading::SourceLocation{{repo.fullFilePath(),
+                    reading::source_revision_for(repo.workspace().location())}, stickyScope->line};
+                navigation::open(repo, std::move(target), {}, reading::OpenMode::Keep, anchor);
+            }
+            auto content = div(ctx, mk(holder.ent(), 1), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(bodyHeight2)}).with_debug_name("sticky_content"));
+            ui::render_diff(ctx, content.ent(), repo.fullFileDiff, layout.mainContent.width,
+                            bodyHeight2, false, changed, false,
+                            repo.repoPath, nullptr, "file:" + repo.fullFileRevision());
+        } else if (layout.minimap && !repo.fullFileDiff.empty()) {
+            // Minimap (off by default): bucketed line-density strips with a
+            // viewport marker; clicking a strip jumps to its first line.
+            auto bodyRow = div(ctx, mk(parent, 585050), ComponentConfig{}
+                .with_size(ComponentSize{percent(1.f), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Row)
+                .with_no_wrap().with_debug_name("minimap_body"));
+            auto content = div(ctx, mk(bodyRow.ent(), 0), ComponentConfig{}
+                .with_size(ComponentSize{expand(), pixels(bodyHeight2)}).with_debug_name("minimap_content"));
+            ui::render_diff(ctx, content.ent(), repo.fullFileDiff, std::max(1.f, layout.mainContent.width - 84.f),
+                            bodyHeight2, false, changed, false,
+                            repo.repoPath, nullptr, "file:" + repo.fullFileRevision());
+            const auto& file = repo.fullFileDiff.front();
+            std::vector<int> lineLengths(1, 0);
+            for (const auto& hunk : file.hunks) {
+                int lineNo = hunk.newStart;
+                for (const auto& line : hunk.lines) {
+                    if (!line.empty() && line.front() == '-') continue;
+                    if (static_cast<size_t>(lineNo) >= lineLengths.size()) lineLengths.resize(static_cast<size_t>(lineNo) + 1, 0);
+                    size_t length = line.size() > 1 ? line.size() - 1 : 0;
+                    while (length > 0 && (line[length] == ' ' || line[length] == '\t')) --length;
+                    lineLengths[static_cast<size_t>(lineNo)] = static_cast<int>(length);
+                    ++lineNo;
+                }
+            }
+            const int total = static_cast<int>(lineLengths.size()) - 1;
+            auto minimapCol = div(ctx, mk(bodyRow.ent(), 1), ComponentConfig{}
+                .with_size(ComponentSize{pixels(72), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Column)
+                .with_no_wrap().with_custom_background(theme::PANEL_BG).with_debug_name("minimap"));
+            if (total > 0) {
+                const int buckets = std::max(1, std::min(total, static_cast<int>(bodyHeight2 / 4.f)));
+                const int perBucket = (total + buckets - 1) / buckets;
+                const int firstVisible = repo.reading.projectedLine.value_or(1);
+                const int visibleLines = std::max(1, static_cast<int>(bodyHeight2 / 20.f));
+                const float bucketHeight = bodyHeight2 / static_cast<float>(buckets);
+                for (int b = 0; b < buckets; ++b) {
+                    const int begin = b * perBucket + 1;
+                    const int end = std::min(total, begin + perBucket - 1);
+                    int longest = 0;
+                    for (int line = begin; line <= end; ++line) longest = std::max(longest, lineLengths[static_cast<size_t>(line)]);
+                    const bool inView = end >= firstVisible && begin <= firstVisible + visibleLines;
+                    const float stripWidth = 4.f + 60.f * std::min(longest, 72) / 72.f;
+                    auto strip = button(ctx, mk(minimapCol.ent(), b), preset::Button("")
+                        .with_size(ComponentSize{pixels(stripWidth), pixels(bucketHeight)})
+                        .with_custom_background(inView ? theme::SELECTED_BG : longest > 0 ? theme::TEXT_TERTIARY : theme::PANEL_BG)
+                        .with_debug_name("minimap_strip_" + std::to_string(b)));
+                    if (strip) {
+                        auto anchor = reading::ReadingAnchor{repo.fullFilePath(), repo.fullFileRevision(),
+                            reading::DiffSide::After, begin, 1, .05f, ' '};
+                        auto target = reading::SourceLocation{{repo.fullFilePath(),
+                            reading::source_revision_for(repo.workspace().location())}, begin};
+                        navigation::open(repo, std::move(target), {}, reading::OpenMode::Keep, anchor);
+                    }
+                }
+            }
+        } else
         ui::render_diff(ctx, parent, repo.fullFileDiff, layout.mainContent.width,
-                        layout.mainContent.height - headerHeight - blameHeight - pageHeight, false, changed, false,
+                        bodyHeight2, false, changed, false,
                         repo.repoPath, nullptr, "file:" + repo.fullFileRevision());
         if (!repo.fullFileError.empty()) {
             div(ctx, mk(parent, 585001), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(repo.fullFileError).with_size(ComponentSize{percent(1.f), pixels(32)})
                 .with_absolute_position(0.f, headerHeight).with_font_size(pixels(12))
                 .with_custom_background(theme::PANEL_BG).with_debug_name("full_file_error"));
+        }
+        // Hover/type info anchored to its token; dismissed by moving the
+        // caret or pressing Escape.
+        if (!repo.hoverInfo.empty()) {
+            const auto* document = repo.workspace().document(repo.workspace().active_id());
+            const bool moved = !document || !document->caret || document->caret->path != repo.hoverAnchor.path ||
+                document->caret->line != repo.hoverAnchor.line || document->caret->column != repo.hoverAnchor.column;
+            if (moved || afterhours::input::is_key_pressed(afterhours::keys::ESCAPE)) repo.hoverInfo.clear();
+            else {
+                for (const auto& row : ui::diff_sel::state().lastLines) {
+                    if (row.filePath != repo.hoverAnchor.path || row.newLine != repo.hoverAnchor.line) continue;
+                    const float x = std::max(0.f, std::min(row.contentX0, layout.mainContent.width - 200.f));
+                    auto tip = div(ctx, mk(parent, 585050), ComponentConfig{}.with_skip_grid_snap()
+                        .with_label(repo.hoverInfo).with_size(ComponentSize{pixels(440), children()})
+                        .with_absolute_position(x, row.rect.y + row.rect.height + 2.f)
+                        .with_custom_background(theme::PANEL_BG).with_border(theme::BORDER, pixels(1))
+                        .with_corner_radius(6.f).with_render_layer(900)
+                        .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
+                        .with_padding(Padding{.top = pixels(6), .bottom = pixels(6), .left = pixels(8), .right = pixels(8)})
+                        .with_debug_name("hover_info"));
+                    (void)tip;
+                    break;
+                }
+            }
         }
         if (!changed && !repo.fullFileFuture.valid() && repo.fullFileError.empty() && !repo.pendingCaret &&
             !repo.workspace().document(repo.workspace().active_id())->restoreAnchor) {

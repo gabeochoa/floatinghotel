@@ -10,6 +10,21 @@
 
 namespace ecs {
 
+// Defined in repo_picker.h; the Quick Open "Repositories" category hands off.
+inline void open_repo_picker(LayoutComponent& layout);
+
+// Picker sources cached per repo + HEAD, so reopening Quick Open does not
+// re-fetch refs or the revision path list. HEAD movement invalidates.
+struct PickerSourceCache {
+    std::string head;
+    git::catalog::Page localRefs, remoteRefs;
+    git::PathList listing;
+};
+inline std::map<std::string, PickerSourceCache>& picker_source_cache() {
+    static std::map<std::string, PickerSourceCache> cache;
+    return cache;
+}
+
 inline std::string file_picker_revision_label(const reading::SourceRevision& revision) {
     if (std::holds_alternative<reading::WorkingTree>(revision)) return "Working tree";
     if (std::holds_alternative<reading::Index>(revision)) return "Staged";
@@ -28,8 +43,14 @@ inline void update_file_picker_paths(RepoComponent& repo, LayoutComponent& layou
         scope.listing = git::PathList{revision};
         scope.request = navigation::stamp(repo, key);
         layout.filePickerCacheKey.clear();
-        if (!std::holds_alternative<reading::WorkingTree>(revision))
-            scope.future = git::load_paths_async(repo.repoPath, revision);
+        if (!std::holds_alternative<reading::WorkingTree>(revision)) {
+            const auto cached = picker_source_cache().find(repo.repoPath);
+            if (cached != picker_source_cache().end() && cached->second.head == repo.headCommitHash &&
+                !repo.headCommitHash.empty() && cached->second.listing.revision == revision &&
+                !cached->second.listing.paths.empty()) {
+                scope.listing = cached->second.listing;
+            } else scope.future = git::load_paths_async(repo.repoPath, revision);
+        }
         scope.changesFuture = {};
         scope.changes = {};
         if (std::holds_alternative<reading::ObjectId>(revision)) {
@@ -51,6 +72,11 @@ inline void update_file_picker_paths(RepoComponent& repo, LayoutComponent& layou
         auto result = scope.future.get();
         if (layout.filePickerOpen && navigation::accepts(repo, scope.request, key)) {
             scope.listing = std::move(result);
+            if (!repo.headCommitHash.empty()) {
+                auto& cached = picker_source_cache()[repo.repoPath];
+                cached.head = repo.headCommitHash;
+                cached.listing = scope.listing;
+            }
             layout.filePickerCacheKey.clear();
         }
     }
@@ -80,7 +106,13 @@ inline std::vector<afterhours::ui::TextSpan> file_picker_label(const std::string
     append(filename, path.size());
     if (filename > 0) {
         spans.push_back({"  ", directoryColor});
-        append(0, filename - 1);
+        // Elide the middle of a long directory, unless a highlighted match
+        // lives there (those segments are preserved verbatim).
+        const bool dirHasMatch = std::any_of(ranges.begin(), ranges.end(),
+            [&](const fuzzy::Range& range) { return range.first < filename - 1; });
+        if (!dirHasMatch && filename - 1 > 72)
+            spans.push_back({fuzzy::elide_middle(std::string_view(path).substr(0, filename - 1), 72), directoryColor});
+        else append(0, filename - 1);
     }
     return spans;
 }
@@ -137,6 +169,17 @@ inline void open_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
     else if (!symbol_outline::supported(position.point->path)) position.error = "No outline for this file type";
     else position.symbols = git::outline_source_async({repo.repoPath, position.point->path,
         reading::revision_text(reading::source_revision_for(repo.workspace().location())), {}, repo.fullFileEncodingOverride});
+    layout.filePickerScope = {};
+    layout.filePickerCacheKey.clear();
+    layout.filePickerIndex = 0;
+    layout.filePickerOpen = layout.filePickerFocus = true;
+}
+
+inline void open_project_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
+    layout.filePickerPosition = {};
+    auto& position = layout.filePickerPosition;
+    position.commandMode = position.projectSymbolMode = true;
+    position.projectSymbols = git::project_symbols_async(repo.repoPath, repo.allFilePaths, "");
     layout.filePickerScope = {};
     layout.filePickerCacheKey.clear();
     layout.filePickerIndex = 0;
@@ -201,11 +244,48 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
         ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)})
             .with_debug_name("line_picker_input"));
     if (layout.filePickerFocus) { ui::focus_control(ctx, input.ent()); layout.filePickerFocus = false; }
-    position.parsed = file_query::line(position.input);
+    position.parsed = file_query::line(position.input, position.point ? position.point->line : 0);
     if (poll_file_picker_position(repo, layout, "line:" + position.input)) return;
     const bool valid = position.point && position.parsed.position && position.parsed.error.empty();
+    // Live preview: scroll the real view as the target changes; Escape
+    // snaps back via the picker's saved restore point.
+    if (valid && (position.parsed.position->line != position.previewLine || position.parsed.position->column != position.previewColumn)) {
+        position.previewLine = position.parsed.position->line;
+        position.previewColumn = position.parsed.position->column;
+        layout.filePickerPreviewing = true;
+        if (const auto* source = std::get_if<reading::SourceLocation>(&repo.workspace().location())) {
+            auto target = *source;
+            target.line = position.previewLine;
+            target.column = position.previewColumn;
+            auto anchor = *position.point;
+            anchor.line = target.line;
+            anchor.column = target.column;
+            navigation::open(repo, std::move(target), {}, reading::OpenMode::Preview, anchor);
+            if (repo.navigationEffect) {
+                repo.navigationEffect->keepPicker = true;
+                repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+            }
+        } else {
+            const auto* files = line_picker_diffs(repo);
+            auto* review = find_singleton<ReviewComponent, ActiveTab>();
+            if (files && review) for (const auto& file : *files) {
+                if (file.filePath != position.point->path) continue;
+                auto point = *position.point;
+                point.line = position.previewLine;
+                point.column = position.previewColumn;
+                if (const auto found = reading::position_in_diff(file, point)) {
+                    navigation::go_to_review_line(repo, *review, file, *found);
+                    if (repo.navigationEffect) {
+                        repo.navigationEffect->keepPicker = true;
+                        repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+                    }
+                }
+                break;
+            }
+        }
+    }
     const auto status = position.future.valid() ? "Checking line..." : !position.error.empty() ? position.error : position.parsed.error;
-    div(ctx, mk(parent, 587003), ComponentConfig{}.with_label(status.empty() ? "Line[:column] · Enter to go · Esc to return" : status)
+    div(ctx, mk(parent, 587003), ComponentConfig{}.with_label(status.empty() ? "Line[:column] or +N/-N · Enter to go · Esc to return" : status)
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
         .with_custom_text_color(theme::TEXT_PRIMARY)
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("line_picker_status"));
@@ -213,6 +293,7 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
         .with_size(ComponentSize{pixels(64), pixels(28)}).with_debug_name("line_picker_go"));
     const bool enter = ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && afterhours::input::is_key_pressed(afterhours::keys::ENTER);
     if (!valid || position.future.valid() || (!pressed && !enter)) return;
+    layout.filePickerPreviewing = false;
     auto point = *position.point;
     point.revision = reading::anchor_revision(repo.workspace().location());
     point.line = position.parsed.position->line;
@@ -242,13 +323,50 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
     if (position.symbols.valid() && position.symbols.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
         auto result = position.symbols.get();
         position.error = std::move(result.error);
+        const bool firstArrival = position.commands.empty();
         for (const auto& symbol : result.symbols)
             position.commands.push_back({symbol.name, symbol.kind + " · line " + std::to_string(symbol.line),
                 [point = *position.point, line = symbol.line] {
                     if (auto* active = find_singleton<RepoComponent, ActiveTab>()) go_to_symbol(*active, point, line);
-                }});
+                }, symbol.line});
+        // Empty query lists symbols in document order; preselect the deepest
+        // symbol at or before the cursor.
+        if (firstArrival && position.input.empty() && position.point) {
+            int best = 0;
+            for (size_t i = 0; i < result.symbols.size(); ++i)
+                if (result.symbols[i].line <= position.point->line) best = static_cast<int>(i);
+            layout.filePickerIndex = best;
+        }
     }
-    div(ctx, mk(parent, 588000), ComponentConfig{}.with_label(position.symbolMode ? "Go to symbol" : "Commands")
+    if (position.projectSymbolMode) {
+        if (position.projectSymbols.valid() && position.projectSymbols.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            auto result = position.projectSymbols.get();
+            position.error = std::move(result.error);
+            position.commands.clear();
+            for (const auto& symbol : result.symbols)
+                position.commands.push_back({symbol.name, symbol.path + ":" + std::to_string(symbol.line) + " · " + symbol.kind,
+                    [path = symbol.path, line = symbol.line] {
+                        if (auto* active = find_singleton<RepoComponent, ActiveTab>()) {
+                            auto target = reading::source(path, {}, line);
+                            navigation::open(*active, std::move(target), {}, reading::OpenMode::Keep);
+                        }
+                    }, symbol.line, symbol.path});
+            layout.filePickerIndex = 0;
+        }
+        // Re-scan for the typed query after a short debounce; the previous
+        // list stays on screen (and re-filters locally) meanwhile.
+        if (position.projectQuery != position.input && !position.projectDue)
+            position.projectDue = std::chrono::steady_clock::now() + std::chrono::milliseconds(300);
+        if (position.projectDue && std::chrono::steady_clock::now() >= *position.projectDue) {
+            position.projectDue.reset();
+            if (position.projectQuery != position.input) {
+                position.projectQuery = position.input;
+                if (!position.projectSymbols.valid())
+                    position.projectSymbols = git::project_symbols_async(repo.repoPath, repo.allFilePaths, position.input);
+            }
+        }
+    }
+    div(ctx, mk(parent, 588000), ComponentConfig{}.with_label(position.projectSymbolMode ? "Go to symbol in project" : position.symbolMode ? "Go to symbol" : "Commands")
         .with_size(ComponentSize{percent(1.f), pixels(30)}).with_font_size(pixels(14)));
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 588001), position.input,
         ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)}).with_debug_name("command_palette_input"));
@@ -274,24 +392,84 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
             left.pop_back();
         }
     }
+    if (!position.symbolMode && !position.projectSymbolMode) {
+        // Previously used commands first, most recently used ahead.
+        const auto& recent = Settings::get().get_command_recent();
+        std::unordered_map<std::string, size_t> usedRank;
+        for (size_t i = 0; i < recent.size(); ++i) usedRank.try_emplace(recent[i], i);
+        std::stable_sort(results.begin(), results.end(), [&](size_t a, size_t b) {
+            const auto rankA = usedRank.find(position.commands[a].label);
+            const auto rankB = usedRank.find(position.commands[b].label);
+            if ((rankA == usedRank.end()) != (rankB == usedRank.end())) return rankB == usedRank.end();
+            if (rankA != usedRank.end() && rankB != usedRank.end()) return rankA->second < rankB->second;
+            return false;
+        });
+    }
     layout.filePickerIndex = std::clamp(layout.filePickerIndex, 0, std::max(0, static_cast<int>(results.size()) - 1));
     // Close first: the command may open a picker of its own.
     auto run = [&](size_t index) {
         auto action = position.commands[index].action;
+        if (!position.symbolMode && !position.projectSymbolMode) Settings::get().record_command_use(position.commands[index].label, position.input);
+        layout.filePickerPreviewing = false;
         layout.filePickerOpen = false;
         action();
     };
     if (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && !results.empty()) {
         if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
-        if (afterhours::input::is_key_pressed(afterhours::keys::UP)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
+        if (afterhours::input::is_key_pressed(afterhours::keys::UP)) {
+            // Up on the first row recalls previous palette queries.
+            if (layout.filePickerIndex == 0 && !position.symbolMode && !position.projectSymbolMode && !position.queryHistory.empty()) {
+                position.queryRecall = std::min(position.queryRecall + 1, static_cast<int>(position.queryHistory.size()) - 1);
+                position.input = position.queryHistory[static_cast<size_t>(position.queryRecall)];
+            } else layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
+        }
         if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) return run(results[layout.filePickerIndex]);
     }
     div(ctx, mk(parent, 588002), ComponentConfig{}
-        .with_label(!position.symbolMode ? std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close"
+        .with_label(position.projectSymbolMode ? (position.projectSymbols.valid() ? std::string("Scanning project symbols...")
+                : !position.error.empty() ? position.error
+                : std::to_string(results.size()) + " project symbols · Enter go · Esc close")
+            : !position.symbolMode ? std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close"
             : position.symbols.valid() ? std::string("Scanning symbols...")
             : !position.error.empty() ? position.error
             : std::to_string(results.size()) + " symbols · approximate, text-based · Enter go · Esc close")
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)).with_debug_name("command_palette_status"));
+    // Go to Symbol live preview: scroll the real view to the highlighted
+    // symbol; Escape snaps back via the picker's saved restore point.
+    if (position.symbolMode && position.point && !results.empty() &&
+        layout.filePickerIndex != position.previewIndex &&
+        layout.filePickerIndex < static_cast<int>(results.size())) {
+        const auto& command = position.commands[results[static_cast<size_t>(layout.filePickerIndex)]];
+        if (command.line > 0) {
+            position.previewIndex = layout.filePickerIndex;
+            layout.filePickerPreviewing = true;
+            auto point = *position.point;
+            point.line = command.line;
+            point.column = 1;
+            if (std::holds_alternative<reading::ReviewLocation>(repo.workspace().location())) {
+                const auto* files = line_picker_diffs(repo);
+                auto* review = find_singleton<ReviewComponent, ActiveTab>();
+                bool jumped = false;
+                if (files && review) for (const auto& file : *files)
+                    if (file.filePath == point.path)
+                        if (const auto found = reading::position_in_diff(file, point)) {
+                            navigation::go_to_review_line(repo, *review, file, *found);
+                            jumped = true;
+                        }
+                if (!jumped) {
+                    auto target = reading::SourceLocation{{point.path, reading::source_revision_for(repo.workspace().location())}, command.line};
+                    navigation::open(repo, std::move(target), {}, reading::OpenMode::Preview, point);
+                }
+            } else {
+                auto target = reading::SourceLocation{{point.path, reading::source_revision_for(repo.workspace().location())}, command.line};
+                navigation::open(repo, std::move(target), {}, reading::OpenMode::Preview, point);
+            }
+            if (repo.navigationEffect) {
+                repo.navigationEffect->keepPicker = true;
+                repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+            }
+        }
+    }
     std::optional<size_t> clicked;
     ui::virtual_list(ctx, mk(parent, 588003), results.size(), 28.f, [&](size_t i, Entity& row) {
         const auto& command = position.commands[results[i]];
@@ -312,10 +490,18 @@ inline void update_picker_catalog(RepoComponent& repo, LayoutComponent& layout) 
     const auto path = repo.repoPath;
     if (!scope.catalogStarted) {
         scope.catalogStarted = true;
-        scope.localFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, false, stop); },
-            async_work::Priority::Foreground, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
-        scope.remoteFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, true, stop); },
-            async_work::Priority::Background, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
+        const auto cached = picker_source_cache().find(path);
+        if (cached != picker_source_cache().end() && cached->second.head == repo.headCommitHash && !repo.headCommitHash.empty()) {
+            scope.localRefs = cached->second.localRefs;
+            scope.remoteRefs = cached->second.remoteRefs;
+            scope.sourcesCached = true;
+            ++scope.catalogVersion;
+        } else {
+            scope.localFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, false, stop); },
+                async_work::Priority::Foreground, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
+            scope.remoteFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, true, stop); },
+                async_work::Priority::Background, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
+        }
         scope.catalogQuery = layout.filePickerQuery;
         scope.catalogDue = std::chrono::steady_clock::now();
     }
@@ -381,10 +567,55 @@ inline void update_picker_catalog(RepoComponent& repo, LayoutComponent& layout) 
         if (!scope.owner || !navigation::accepts(repo, *scope.owner, scope.owner->key)) return;
         page = std::move(result);
         ++scope.catalogVersion;
+        if (!repo.headCommitHash.empty()) {
+            auto& cached = picker_source_cache()[repo.repoPath];
+            cached.head = repo.headCommitHash;
+            cached.localRefs = scope.localRefs;
+            cached.remoteRefs = scope.remoteRefs;
+        }
     };
     poll(scope.localFuture, scope.localRefs);
     poll(scope.remoteFuture, scope.remoteRefs);
     poll(scope.commitsFuture, scope.commits);
+}
+
+inline std::vector<git::catalog::Entry> compute_picker_results(
+    git::catalog::Kind category, const file_query::Query& parsed, const std::string& query,
+    std::vector<std::string> searchable, std::map<std::string, std::string> changePaths,
+    const std::string& changesBefore, const std::vector<std::string>& recent,
+    const std::string& activeDir, const std::vector<git::catalog::Entry>& localRefs,
+    const std::vector<git::catalog::Entry>& remoteRefs, const std::vector<git::catalog::Entry>& commits,
+    const std::vector<git::catalog::Entry>& extra, const std::map<std::string, std::string>& worktreeStatus) {
+    std::vector<git::catalog::Entry> results;
+    if ((category == git::catalog::Kind::All || category == git::catalog::Kind::File) && parsed.error.empty()) {
+        for (const auto& [path, status] : changePaths)
+            if (status == "Deleted" && std::find(searchable.begin(), searchable.end(), path) == searchable.end()) searchable.push_back(path);
+        const auto ranked = fuzzy::rank(searchable, parsed.path, recent, activeDir);
+        for (const auto& path : ranked) {
+            const auto found = changePaths.find(path);
+            const auto status = found == changePaths.end() ? "" : found->second;
+            results.push_back({git::catalog::Kind::File, path, path, status, status == "Deleted" ? changesBefore : ""});
+        }
+    }
+    if (!parsed.position) {
+        std::vector<git::catalog::Entry> entries;
+        entries.insert(entries.end(), localRefs.begin(), localRefs.end());
+        entries.insert(entries.end(), remoteRefs.begin(), remoteRefs.end());
+        entries.insert(entries.end(), commits.begin(), commits.end());
+        auto matches = git::catalog::filter(entries, category, query);
+        if (git::catalog::hash_query(query)) results.insert(results.begin(), matches.begin(), matches.end());
+        else results.insert(results.end(), matches.begin(), matches.end());
+    }
+    if (category == git::catalog::Kind::Reflog || category == git::catalog::Kind::Stash ||
+        category == git::catalog::Kind::Worktree || category == git::catalog::Kind::Submodule || category == git::catalog::Kind::Diagnostic) {
+        results = git::catalog::filter(extra, category, category == git::catalog::Kind::Reflog ? "" : query);
+        if (category == git::catalog::Kind::Worktree || category == git::catalog::Kind::Submodule)
+            for (auto& entry : results) {
+                const auto found = worktreeStatus.find(entry.identity);
+                entry.detail = (found == worktreeStatus.end() ? "Checking status..." : found->second) + " · " + entry.detail;
+            }
+    }
+    return results;
 }
 
 inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
@@ -441,6 +672,12 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
             layout.filePickerFocus = true;
         }
     }
+    if (button(ctx, mk(categories.ent(), 11), preset::Button("Repositories")
+            .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+            .with_debug_name("quick_open_category_Repositories"))) {
+        layout.filePickerOpen = false;
+        open_repo_picker(layout);
+    }
     if (button(ctx, mk(categories.ent(), 10), preset::Button("More")
         .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12)).with_debug_name("quick_open_more"))) {
         std::vector<ui::ContextMenuItem> items;
@@ -461,54 +698,62 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     }
     std::string key = repo.repoPath + ":" + std::to_string(repo.dataGeneration) + ":" +
                       std::to_string(repo.repoVersion) + "\n" + scope.request.key + "\n" + layout.filePickerQuery + ":" + std::to_string(scope.catalogVersion) + ":" + std::to_string(static_cast<int>(scope.category));
-    if (key != layout.filePickerCacheKey) {
-        position.parsed = file_query::parse(layout.filePickerQuery, paths);
-        scope.results.clear();
-        if ((scope.category == git::catalog::Kind::All || scope.category == git::catalog::Kind::File) && position.parsed.error.empty()) {
-            auto searchable = paths;
-            auto changes = scope.changes;
-            if (working || std::holds_alternative<reading::Index>(scope.listing.revision)) {
-                changes.before = working ? "INDEX" : repo.headCommitHash;
-                const auto& files = working ? repo.unstagedFiles : repo.stagedFiles;
-                for (const auto& file : files) {
-                    const char status = working ? file.workTreeStatus : file.indexStatus;
-                    changes.paths[file.path] = status == 'A' ? "Added" : status == 'D' ? "Deleted" : status == 'R' ? "Renamed from " + file.origPath : "Modified";
-                }
-                if (working) for (const auto& path : repo.untrackedFiles) changes.paths[path] = "Untracked";
+    auto launchMatch = [&] {
+        auto changes = scope.changes;
+        if (working || std::holds_alternative<reading::Index>(scope.listing.revision)) {
+            changes.before = working ? "INDEX" : repo.headCommitHash;
+            const auto& files = working ? repo.unstagedFiles : repo.stagedFiles;
+            for (const auto& file : files) {
+                const char status = working ? file.workTreeStatus : file.indexStatus;
+                changes.paths[file.path] = status == 'A' ? "Added" : status == 'D' ? "Deleted" : status == 'R' ? "Renamed from " + file.origPath : "Modified";
             }
-            for (const auto& [path, status] : changes.paths)
-                if (status == "Deleted" && std::find(searchable.begin(), searchable.end(), path) == searchable.end()) searchable.push_back(path);
-            const auto ranked = fuzzy::rank(searchable, position.parsed.path, repo.workspace().recent_source_paths(scope.listing.revision));
-            for (const auto& path : ranked) {
-                const auto found = changes.paths.find(path);
-                const auto status = found == changes.paths.end() ? "" : found->second;
-                scope.results.push_back({git::catalog::Kind::File, path, path, status, status == "Deleted" ? changes.before : ""});
-            }
+            if (working) for (const auto& path : repo.untrackedFiles) changes.paths[path] = "Untracked";
         }
-        if (!position.parsed.position) {
-            std::vector<git::catalog::Entry> entries;
-            entries.insert(entries.end(), scope.localRefs.entries.begin(), scope.localRefs.entries.end());
-            entries.insert(entries.end(), scope.remoteRefs.entries.begin(), scope.remoteRefs.entries.end());
-            entries.insert(entries.end(), scope.commits.entries.begin(), scope.commits.entries.end());
-            auto matches = git::catalog::filter(entries, scope.category, layout.filePickerQuery);
-            if (git::catalog::hash_query(layout.filePickerQuery))
-                scope.results.insert(scope.results.begin(), matches.begin(), matches.end());
-            else scope.results.insert(scope.results.end(), matches.begin(), matches.end());
+        std::string activeDir;
+        if (const auto* source = std::get_if<reading::SourceLocation>(&repo.workspace().location())) {
+            const auto slash = source->destination.path.rfind('/');
+            if (slash != std::string::npos) activeDir = source->destination.path.substr(0, slash + 1);
         }
-        if (scope.category == git::catalog::Kind::Reflog || scope.category == git::catalog::Kind::Stash || (scope.category == git::catalog::Kind::Worktree || scope.category == git::catalog::Kind::Submodule || scope.category == git::catalog::Kind::Diagnostic)) {
-            scope.results = git::catalog::filter(scope.extra.entries, scope.category,
-                scope.category == git::catalog::Kind::Reflog ? "" : layout.filePickerQuery);
-            if (scope.category == git::catalog::Kind::Worktree || scope.category == git::catalog::Kind::Submodule)
-                for (auto& entry : scope.results) entry.detail = (scope.worktreeStatus.contains(entry.identity) ? scope.worktreeStatus.at(entry.identity) : "Checking status...") + " · " + entry.detail;
+        scope.matchSearchId = ++scope.searchId;
+        scope.matchKey = key;
+        scope.matchApplied = false;
+        scope.matchPendingKey.clear();
+        scope.matchDue.reset();
+        scope.matchFuture = async_work::launch(
+            [category = scope.category, parsed = position.parsed, query = layout.filePickerQuery,
+             searchable = paths, changePaths = std::move(changes.paths), before = changes.before,
+             recent = repo.workspace().recent_source_paths(scope.listing.revision), activeDir,
+             localRefs = scope.localRefs.entries, remoteRefs = scope.remoteRefs.entries,
+             commits = scope.commits.entries, extra = scope.extra.entries,
+             worktreeStatus = scope.worktreeStatus](std::stop_token) {
+                return compute_picker_results(category, parsed, query, searchable, changePaths, before,
+                                              recent, activeDir, localRefs, remoteRefs, commits, extra, worktreeStatus);
+            },
+            async_work::Priority::Foreground, std::vector<git::catalog::Entry>{});
+    };
+    if (key != layout.filePickerCacheKey) position.parsed = file_query::parse(layout.filePickerQuery, paths);
+    // Previous results stay on screen until the new set lands.
+    if (key != scope.matchKey && key != scope.matchPendingKey) {
+        if (scope.matchFuture.valid()) {
+            // Debounce only while a match is already in flight.
+            scope.matchPendingKey = key;
+            scope.matchDue = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
+        } else launchMatch();
+    }
+    if (!scope.matchFuture.valid() && !scope.matchPendingKey.empty()) {
+        if (scope.matchPendingKey == key && scope.matchDue && std::chrono::steady_clock::now() >= *scope.matchDue) launchMatch();
+        else if (scope.matchPendingKey != key) {
+            scope.matchPendingKey.clear();
+            scope.matchDue.reset();
+            if (key != scope.matchKey) launchMatch();
         }
-        layout.filePickerCacheKey = key;
-        layout.filePickerIndex = 0;
-        for (size_t i = 0; i < scope.results.size(); ++i)
-            if (scope.results[i].key() == layout.filePickerSelectedPath) layout.filePickerIndex = static_cast<int>(i);
-        revealSelection = true;
     }
     if (poll_file_picker_position(repo, layout, key)) return;
     auto open = [&](const git::catalog::Entry& entry, bool keep) {
+        layout.filePickerPreviewing = false;
+        // Keep the key so the preview trigger below does not re-preview the
+        // just-confirmed entry in the same frame.
+        layout.filePickerPreviewKey = entry.key();
         if (entry.kind == git::catalog::Kind::Diagnostic) { afterhours::clipboard::set_text(entry.title + ": " + entry.detail); return; }
         if (entry.kind == git::catalog::Kind::Submodule) {
             auto status = scope.worktreeStatus.find(entry.identity);
@@ -545,12 +790,58 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
             request_file_picker_position(repo, layout, std::move(target), keep ? reading::OpenMode::Keep : reading::OpenMode::Preview);
         } else navigation::click(repo, std::move(target), keep, reading::ClickRegion::Picker);
     };
+    // Land a finished match: only the latest search id for the current key
+    // applies; stale completions are dropped.
+    auto applyMatch = [&] {
+        if (!scope.matchFuture.valid() || scope.matchFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+        auto matched = scope.matchFuture.get();
+        scope.matchFuture = {};
+        if (scope.matchSearchId != scope.searchId || scope.matchKey != key) return;
+        scope.results = std::move(matched);
+        scope.matchApplied = true;
+        layout.filePickerCacheKey = key;
+        layout.filePickerIndex = 0;
+        for (size_t i = 0; i < scope.results.size(); ++i)
+            if (scope.results[i].key() == layout.filePickerSelectedPath) layout.filePickerIndex = static_cast<int>(i);
+        revealSelection = true;
+        if (scope.confirmWhenReady) {
+            scope.confirmWhenReady = false;
+            if (!scope.results.empty()) open(scope.results[layout.filePickerIndex], scope.confirmKeep);
+        }
+    };
+    applyMatch();
     auto& results = scope.results;
     const bool pickerKeys = !ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker);
-    if (pickerKeys && !results.empty()) {
-        if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
-        if (afterhours::input::is_key_pressed(afterhours::keys::UP)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
-        if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) open(results[layout.filePickerIndex], true);
+    if (pickerKeys) {
+        const bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
+                         afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER);
+        if (!results.empty()) {
+            if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
+            if (afterhours::input::is_key_pressed(afterhours::keys::UP)) layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
+        }
+        if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) {
+            // Queue Enter instead of dropping it: give an in-flight match a
+            // brief chance to land, otherwise confirm when it does.
+            if (scope.matchFuture.valid()) scope.matchFuture.wait_for(std::chrono::milliseconds(16));
+            applyMatch();
+            const bool current = scope.matchApplied && !scope.matchFuture.valid() && scope.matchPendingKey.empty() && scope.matchKey == key;
+            if (!results.empty() && current) open(results[layout.filePickerIndex], !alt);
+            else { scope.confirmWhenReady = true; scope.confirmKeep = !alt; }
+        }
+    }
+    // Live preview: moving the highlight previews the file in the main
+    // pane (preview tab); confirming replaces it, Escape restores.
+    if (!results.empty() && results[layout.filePickerIndex].kind == git::catalog::Kind::File &&
+        results[layout.filePickerIndex].key() != layout.filePickerPreviewKey && !position.parsed.position) {
+        const auto& entry = results[layout.filePickerIndex];
+        layout.filePickerPreviewKey = entry.key();
+        layout.filePickerPreviewing = true;
+        auto target = reading::SourceLocation{{entry.identity, entry.object.empty() ? scope.listing.revision : reading::source_revision(entry.object)}};
+        navigation::click(repo, std::move(target), false, reading::ClickRegion::Picker);
+        if (repo.navigationEffect) {
+            repo.navigationEffect->keepPicker = true;
+            repo.navigationEffect->focus = reading::FocusPolicy::Caller;
+        }
     }
     if (!results.empty()) layout.filePickerSelectedPath = results[layout.filePickerIndex].key();
     const bool includesFiles = scope.category == git::catalog::Kind::All || scope.category == git::catalog::Kind::File;
@@ -560,7 +851,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     if (includesCommits && !scope.commits.error.empty()) error = scope.commits.error;
     if (includesRefs && !scope.localRefs.error.empty()) error = scope.localRefs.error;
     if (includesRefs && !scope.remoteRefs.error.empty() && scope.category != git::catalog::Kind::Tag) error = scope.remoteRefs.error;
-    const bool searching = (includesCommits && (scope.commitsFuture.valid() || scope.catalogDue)) ||
+    const bool searching = scope.matchFuture.valid() || (includesCommits && (scope.commitsFuture.valid() || scope.catalogDue)) ||
         (includesRefs && (scope.localFuture.valid() || (scope.category != git::catalog::Kind::Tag && scope.remoteFuture.valid())));
     const std::string status = position.future.valid() ? "Checking line..." : !position.error.empty() ? position.error :
         !position.parsed.error.empty() && includesFiles ? position.parsed.error : !error.empty() ? error :
@@ -617,7 +908,8 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                 ui::set_truncated_tooltip(result.ent(), results[i].identity + "\n" + results[i].detail, result.ent());
             else ui::set_tooltip(result.ent(), results[i].identity + "\n" + results[i].detail);
             ui::bind_focus(result.ent(), repo, reading::focus::Region::Picker, results[i].kind == git::catalog::Kind::File ? results[i].identity : results[i].key());
-            if (result) open(results[i], false);
+            if (result) open(results[i], afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
+                                         afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER));
             if (results[i].kind == git::catalog::Kind::Tag && ctx.is_right_click(result.ent().id)) {
                 const auto targetRevision = reading::revision_text(reading::source_revision_for(repo.workspace().location()));
                 const bool historical = std::holds_alternative<reading::ObjectId>(reading::source_revision_for(repo.workspace().location()));
@@ -639,13 +931,18 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         if (layout->filePickerOpen && repo) {
             auto& scope = layout->filePickerScope;
             if (!scope.owner || scope.owner->repository != repo->repoPath ||
-                    scope.owner->generation != repo->workspace().generation() ||
+                    (!layout->filePickerPreviewing && (scope.owner->generation != repo->workspace().generation() ||
                     scope.owner->dataGeneration != repo->dataGeneration ||
-                    !reading::same_document(scope.owner->document, repo->workspace().location())) {
+                    !reading::same_document(scope.owner->document, repo->workspace().location())))) {
                 scope = {};
                 scope.owner = navigation::stamp(*repo, {});
                 scope.documentRevision = reading::source_revision_for(repo->workspace().location());
                 layout->filePickerCacheKey.clear();
+                layout->filePickerRestoreLocation = repo->workspace().location();
+                if (const auto* document = repo->workspace().document(repo->workspace().active_id()))
+                    layout->filePickerRestoreAnchor = document->anchor;
+                layout->filePickerPreviewing = false;
+                layout->filePickerPreviewKey.clear();
             }
         }
         auto& root = ui_imm::getUIRootEntity();
@@ -660,6 +957,14 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
                 .with_backdrop_color({0, 0, 0, 0}));
         modal.ent().get<afterhours::modal::Modal>().previously_focused_element = -1;
         if (!modal || !repo) {
+            // Closed without a confirmed open: restore the exact document
+            // and scroll anchor saved when the picker opened.
+            if (repo && layout->filePickerPreviewing && layout->filePickerRestoreLocation) {
+                navigation::open(*repo, *layout->filePickerRestoreLocation, {}, reading::OpenMode::Keep,
+                                 layout->filePickerRestoreAnchor);
+                layout->filePickerPreviewing = false;
+                layout->filePickerPreviewKey.clear();
+            }
             if (layout->filePickerScope.owner) {
                 layout->filePickerScope = {};
                 layout->filePickerPosition = {};

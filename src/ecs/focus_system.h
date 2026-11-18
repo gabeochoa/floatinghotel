@@ -2,16 +2,27 @@
 
 #include "../ui/focus.h"
 #include "../ui/context_menu.h"
+#include "../util/signpost.h"
 
 namespace ecs {
 
 struct BeginFocusFrame : afterhours::System<UIContext<InputAction>> {
     void for_each_with(Entity&, UIContext<InputAction>& ctx, float) override {
+        static auto signpostLog = signpost::log_for("frame");
+        signpost::event(signpostLog, "frame_tick", "");
         if (auto* layout = find_singleton<LayoutComponent>()) {
             const auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
             if (layout->focusRepositoryOwner != (owner ? owner->id : -1)) {
-                layout->focus = {};
-                layout->focusRepositoryOwner = owner ? owner->id : -1;
+                // Stash the outgoing repo's focus and restore the incoming
+                // one's instead of resetting on every switch.
+                if (layout->focusRepositoryOwner >= 0) {
+                    layout->focusByOwner[layout->focusRepositoryOwner] = layout->focus;
+                    if (layout->focusByOwner.size() > 8) layout->focusByOwner.erase(layout->focusByOwner.begin());
+                }
+                const int next = owner ? owner->id : -1;
+                auto saved = layout->focusByOwner.find(next);
+                layout->focus = saved != layout->focusByOwner.end() ? saved->second : reading::focus::State{};
+                layout->focusRepositoryOwner = next;
                 return;
             }
             auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
@@ -30,7 +41,12 @@ struct RestoreFocusSystem : afterhours::System<UIContext<InputAction>> {
         if (!layout || !repo) return;
         const auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
         if (layout->focusRepositoryOwner != owner->id) {
-            layout->focus = {};
+            if (layout->focusRepositoryOwner >= 0) {
+                layout->focusByOwner[layout->focusRepositoryOwner] = layout->focus;
+                if (layout->focusByOwner.size() > 8) layout->focusByOwner.erase(layout->focusByOwner.begin());
+            }
+            auto saved = layout->focusByOwner.find(owner->id);
+            layout->focus = saved != layout->focusByOwner.end() ? saved->second : reading::focus::State{};
             layout->focusRepositoryOwner = owner->id;
         }
         const auto visible = ui::open_popups(*repo, *layout);

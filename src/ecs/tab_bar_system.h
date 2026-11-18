@@ -42,6 +42,17 @@ namespace tab_colors {
 }
 
 struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
+    // How long a tab must have been in the background before returning to it
+    // revalidates its git state. FH_TAB_REFRESH_AFTER_MS overrides it for E2E
+    // runs, whose `wait` advances simulated time rather than the wall clock.
+    static std::chrono::milliseconds refresh_after_away() {
+        static const auto value = [] {
+            if (const char* text = std::getenv("FH_TAB_REFRESH_AFTER_MS")) return std::chrono::milliseconds(std::atoi(text));
+            return std::chrono::milliseconds(1000);
+        }();
+        return value;
+    }
+
     void for_each_with(Entity& /*ctxEntity*/, UIContext<InputAction>& ctx,
                        float) override {
         auto* layoutP = find_singleton<LayoutComponent>();
@@ -82,6 +93,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             }
             if (!chosen.empty()) open_repository(chosen, layout);
         }
+        handle_repo_tab_shortcuts(tabStrip, layout, shiftDown);
         if (auto* repo = find_singleton<RepoComponent, ActiveTab>()) {
             if (cmdDown && afterhours::input::is_key_pressed(afterhours::keys::W)) navigation::close(*repo, repo->workspace().active_id());
             if (cmdDown && shiftDown && afterhours::input::is_key_pressed(afterhours::keys::T)) navigation::reopen_closed(*repo);
@@ -290,11 +302,58 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         }
     }
 
+    // Cmd+1..8 select a repository tab, Cmd+9 the last one (browser
+    // convention), Cmd+Shift+[ / ] step through tabs in strip order. Real
+    // Command only: Control+digit stays free for the reader.
+    static void handle_repo_tab_shortcuts(TabStripComponent& tabStrip, LayoutComponent& layout, bool shiftDown) {
+        using namespace afterhours;
+        const bool super = input::is_key_down(keys::LEFT_SUPER) || input::is_key_down(keys::RIGHT_SUPER);
+        if (!super || tabStrip.tabOrder.empty()) return;
+        std::optional<size_t> target;
+        if (!shiftDown) {
+            for (int digit = 1; digit <= 9; ++digit) {
+                if (!input::is_key_pressed(keys::ZERO + digit)) continue;
+                target = digit == 9 ? tabStrip.tabOrder.size() - 1 : static_cast<size_t>(digit - 1);
+                break;
+            }
+        } else {
+            const int step = input::is_key_pressed(keys::RIGHT_BRACKET) ? 1 : input::is_key_pressed(keys::LEFT_BRACKET) ? -1 : 0;
+            if (step != 0) {
+                const auto* active = find_singleton_entity<Tab, ActiveTab>();
+                const auto found = active ? std::find(tabStrip.tabOrder.begin(), tabStrip.tabOrder.end(), active->id) : tabStrip.tabOrder.end();
+                const auto count = static_cast<long>(tabStrip.tabOrder.size());
+                const long current = found == tabStrip.tabOrder.end() ? 0 : static_cast<long>(found - tabStrip.tabOrder.begin());
+                target = static_cast<size_t>(((current + step) % count + count) % count);
+            }
+        }
+        if (!target || *target >= tabStrip.tabOrder.size()) return;
+        auto tab = EntityHelper::getEntityForID(tabStrip.tabOrder[*target]);
+        if (!tab.valid() || tab->cleanup || !tab->has<Tab>() || tab->has<ActiveTab>()) return;
+        layout.filePickerOpen = false;
+        switch_to_tab(tab.asE(), layout);
+    }
+
+    static void note_tab_used(TabStripComponent& strip, afterhours::EntityID id) {
+        auto& mru = strip.mruOrder;
+        mru.erase(std::remove(mru.begin(), mru.end(), id), mru.end());
+        mru.insert(mru.begin(), id);
+        // Prune tabs that no longer exist.
+        mru.erase(std::remove_if(mru.begin(), mru.end(), [&](afterhours::EntityID candidate) {
+                      if (candidate == id) return false;
+                      auto tab = EntityHelper::getEntityForID(candidate);
+                      return !tab.valid() || tab->cleanup || !tab->has<Tab>();
+                  }),
+                  mru.end());
+    }
+
     static void switch_to_tab(Entity& newTab, LayoutComponent& layout) {
+        if (auto* strip = find_singleton<TabStripComponent>()) note_tab_used(*strip, newTab.id);
         auto* oldActiveEnt = find_singleton_entity<Tab, ActiveTab>();
+        const auto now = std::chrono::steady_clock::now();
 
         if (oldActiveEnt) {
             auto& oldTab = *oldActiveEnt;
+            if (oldTab.id != newTab.id) oldTab.get<Tab>().deactivatedAt = now;
             // Save current layout state into the outgoing tab
             auto& oldTabComp = oldTab.get<Tab>();
             oldTabComp.sidebarMode = layout.sidebarMode;
@@ -302,6 +361,13 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             oldTabComp.diffViewMode = layout.diffViewMode;
             oldTabComp.sidebarVisible = layout.sidebarVisible;
             if (oldTab.id != newTab.id && oldTab.has<RepoComponent>()) oldTab.get<RepoComponent>().selectionCopy = {};
+            // Persist the outgoing reading session on switch (debounced by
+            // Settings), so a crash loses at most the current tab's moves.
+            if (oldTab.id != newTab.id && !app_state::testModeEnabled && oldTab.has<RepoComponent>()) {
+                const auto& oldRepo = oldTab.get<RepoComponent>();
+                if (!oldRepo.repoPath.empty() && oldRepo.readingSessionPath == oldRepo.repoPath)
+                    Settings::get().set_reading_session(oldRepo.repoPath, reading::save_session(oldRepo.workspace()));
+            }
             oldTab.removeComponent<ActiveTab>();
         }
 
@@ -312,6 +378,18 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             auto& repo = newTab.get<RepoComponent>();
             if (!repo.repoPath.empty()) {
                 Settings::get().set_last_active_repo(repo.repoPath);
+            }
+            // Only the active tab is watched, so anything that changed while
+            // this repo sat in the background (an agent committing, an editor
+            // saving) went unseen. Keep showing the cached state and
+            // revalidate it; a quick bounce between tabs does not re-run git.
+            const auto awayFor = now - newTab.get<Tab>().deactivatedAt;
+            if (oldActiveEnt && oldActiveEnt->id != newTab.id && repo.hasLoadedOnce && !repo.repoPath.empty() &&
+                awayFor >= refresh_after_away()) {
+                using refresh_scope::Scope;
+                repo.refreshScope = refresh_scope::merge(repo.refreshScope,
+                    refresh_scope::merge(Scope::Worktree, refresh_scope::merge(Scope::Index, Scope::Refs)));
+                repo.refreshRequested = true;
             }
         }
 
@@ -333,6 +411,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
             oldTabComp.fileViewMode = layout.fileViewMode;
             oldTabComp.diffViewMode = layout.diffViewMode;
             oldTabComp.sidebarVisible = layout.sidebarVisible;
+            oldTabComp.deactivatedAt = std::chrono::steady_clock::now();
             if (oldTab.has<RepoComponent>()) oldTab.get<RepoComponent>().selectionCopy = {};
             oldTab.removeComponent<ActiveTab>();
         }
@@ -347,6 +426,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         newEntity.addComponent<ReviewComponent>();
 
         tabStrip.tabOrder.push_back(newEntity.id);
+        note_tab_used(tabStrip, newEntity.id);
 
         // Reset layout to defaults for new tab
         layout.sidebarMode = LayoutComponent::SidebarMode::Changes;
@@ -355,13 +435,14 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         layout.sidebarVisible = true;
     }
 
-    static void open_repository(const std::string& path, LayoutComponent& layout) {
+    static void open_repository(const std::string& path, LayoutComponent& layout, bool forceNewTab = false) {
         auto* strip = find_singleton<TabStripComponent>();
         if (!strip || path.empty()) return;
+        layout.repositoryPickerFocusPending = true;
         std::error_code error;
         const auto canonical = std::filesystem::weakly_canonical(path, error);
         if (error) return;
-        for (const auto id : strip->tabOrder) {
+        if (!forceNewTab) for (const auto id : strip->tabOrder) {
             auto tab = EntityHelper::getEntityForID(id);
             if (!tab.valid() || tab->cleanup || !tab->has<RepoComponent>()) continue;
             const auto& existing = tab->get<RepoComponent>().repoPath;
@@ -385,6 +466,8 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
     static void close_tab(TabStripComponent& tabStrip, afterhours::EntityID tabId,
                            size_t index, bool wasActive, LayoutComponent& layout) {
         tabStrip.tabOrder.erase(tabStrip.tabOrder.begin() + static_cast<long>(index));
+        auto& mru = tabStrip.mruOrder;
+        mru.erase(std::remove(mru.begin(), mru.end(), tabId), mru.end());
 
         auto tabOpt = EntityHelper::getEntityForID(tabId);
         if (tabOpt.valid()) {
@@ -432,7 +515,11 @@ struct TabSyncSystem : afterhours::System<> {
             auto& repo = activeEnt->get<RepoComponent>();
             if (!app_state::testModeEnabled) Settings::get().remember_repository_identity(repo.repoPath, repo.headCommitHash);
             if (!repo.repoPath.empty()) {
-                std::string base = repo_display_name(repo.repoPath);
+                if (tab.labelPath != repo.repoPath) {
+                    tab.labelPath = repo.repoPath;
+                    tab.labelBase = repo_display_name(repo.repoPath);
+                }
+                const std::string& base = tab.labelBase;
                 if (!repo.currentBranch.empty()) {
                     tab.label = base + " (" + repo.currentBranch + ")";
                 } else {

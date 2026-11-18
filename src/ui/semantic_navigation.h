@@ -116,7 +116,11 @@ inline void poll_semantic(RepoComponent& repo) {
     }
     switch (outcome.kind) {
         case semantic::Kind::Hover:
-            semantic_notice(outcome.hover.empty() ? "No type information here" : outcome.hover);
+            if (outcome.hover.empty()) { semantic_notice("No type information here"); return; }
+            repo.hoverInfo = outcome.hover;
+            repo.hoverAnchor = {repo.semanticPath, reading::DiffSide::After, 1, 1};
+            if (const auto* document = repo.workspace().document(repo.workspace().active_id());
+                document && document->caret) repo.hoverAnchor = *document->caret;
             return;
         case semantic::Kind::Definition:
             if (outcome.locations.size() == 1) { open_semantic_location(repo, outcome.locations.front()); return; }

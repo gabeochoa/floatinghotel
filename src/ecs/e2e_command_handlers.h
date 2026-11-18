@@ -66,15 +66,19 @@ struct SkipResizeCommand : afterhours::System<afterhours::testing::PendingE2ECom
     }
 };
 
+// Text argument from args[start] on, space-joined. The script parser
+// already unquotes quoted arguments into single args.
+inline std::string e2e_joined_arg(const std::vector<std::string>& args, size_t start) {
+    std::string joined;
+    for (size_t i = start; i < args.size(); ++i) { if (!joined.empty()) joined += ' '; joined += args[i]; }
+    return joined;
+}
+
 struct HandleShowToast : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("show_toast")) return;
         if (!cmd.has_args(2)) { cmd.fail("show_toast requires a level and message"); return; }
-        std::string joined;
-        for (size_t i = 1; i < cmd.args.size(); ++i) { if (!joined.empty()) joined += ' '; joined += cmd.args[i]; }
-        std::istringstream input(joined);
-        std::string message;
-        input >> std::quoted(message);
+        const std::string message = e2e_joined_arg(cmd.args, 1);
         auto& ctx = afterhours::EntityHelper::get_singleton_cmp_enforce<ui_imm::UIContextType>();
         if (cmd.args[0] == "info") afterhours::toast::send_info(ctx, message);
         else if (cmd.args[0] == "success") afterhours::toast::send_success(ctx, message);
@@ -88,11 +92,7 @@ struct HandleShowToast : afterhours::System<afterhours::testing::PendingE2EComma
 struct HandleNativeMenuAction : afterhours::System<afterhours::testing::PendingE2ECommand> {
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("native_menu_action")) return;
-        std::string joined;
-        for (const auto& part : cmd.args) { if (!joined.empty()) joined += ' '; joined += part; }
-        std::istringstream input(joined);
-        std::string title;
-        input >> std::quoted(title);
+        const std::string title = e2e_joined_arg(cmd.args, 0);
         if (!native_menu::activate_for_test(title)) cmd.fail("Native menu item is unavailable: " + title);
         else cmd.consume();
     }
@@ -123,11 +123,7 @@ struct HandleExpectReviewExport : afterhours::System<afterhours::testing::Pendin
     void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
         if (cmd.is_consumed() || !cmd.is("expect_review_export")) return;
         if (!cmd.has_args(1)) { cmd.fail("expect_review_export requires text"); return; }
-        std::string joined;
-        for (const auto& arg : cmd.args) { if (!joined.empty()) joined += ' '; joined += arg; }
-        std::istringstream input(joined);
-        std::string expected;
-        input >> std::quoted(expected);
+        const std::string expected = e2e_joined_arg(cmd.args, 0);
         if (expected.empty()) { cmd.fail("expect_review_export requires nonempty text"); return; }
         auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         if (!repo) { cmd.fail("No active repository"); return; }
@@ -259,6 +255,14 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
             repo.repoSearchFuture = {};
             repo.repoSearchPreviewFuture = {};
             repo.repoSearchResults.clear();
+            repo.repoSearchQuery.clear();
+            repo.repoSearchSubmittedQuery.clear();
+            repo.repoSearchMatching = {};
+            repo.repoSearchScope = {};
+            repo.repoSearchSelected.reset();
+            repo.repoSearchExpanded.reset();
+            repo.repoSearchExcerptCache.clear();
+            repo.repoSearchBatches.reset();
 
             auto* detailCache = ecs::find_singleton<ecs::CommitDetailCache, ecs::ActiveTab>();
             if (detailCache) {
@@ -476,12 +480,7 @@ struct HandleTouchFile : afterhours::System<afterhours::testing::PendingE2EComma
         const bool text = cmd.has_args(3) && cmd.args[1] == "text";
         const int lines = cmd.has_args(2) && !text ? std::max(1, std::atoi(cmd.args[1].c_str())) : 0;
         if (text) {
-            std::string joined;
-            for (size_t i = 2; i < cmd.args.size(); ++i) { if (!joined.empty()) joined += ' '; joined += cmd.args[i]; }
-            std::istringstream input(joined);
-            std::string line;
-            input >> std::quoted(line);
-            ofs << line << "\n";
+            ofs << e2e_joined_arg(cmd.args, 2) << "\n";
         }
         else if (lines == 0) ofs << "# edited by e2e test\n";
         for (int i = 1; i <= lines; ++i) ofs << "e2e_line_" << i << "\n";

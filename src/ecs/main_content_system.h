@@ -22,6 +22,7 @@
 #include "../ui/review_snapshot.h"
 #include "../ui/keyboard_shortcuts.h"
 #include "../ui/document_switcher.h"
+#include "../ui/repo_picker.h"
 #include "../ui/zoom.h"
 #include "../ui/file_tree_style.h"
 #include "../ui/chrome_icons.h"
@@ -387,6 +388,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 navigation::restore_session(*repoPtr, *session, review && review->reviewing);
             }
         }
+        shortcutsActive |= ecs::render_repo_switcher(ctx, layout, shortcutsActive || tabDrag.has_value());
         shortcutsActive |= ui::render_document_switcher(ctx, layout, repoPtr, shortcutsActive || tabDrag.has_value());
         bool revealActiveDocument = false;
         if (repoPtr) {
@@ -424,7 +426,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     }
                     ui::diff_sel::reset();
                 }
-                layout.filePickerOpen = false;
+                if (!effect.keepPicker) layout.filePickerOpen = false;
                 if (effect.focus == reading::FocusPolicy::Document && (effect.changed || effect.dismissedPanel || dismissPicker)) navigation::focus_document(*repoPtr);
             }
         }
@@ -634,7 +636,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_transparent_bg().with_custom_hover_bg({0, 0, 0, 0})
                     .with_roundness(0.f).with_corner_radius(0.f)
                     .with_debug_name("close_document_" + std::to_string(document.id.value)));
-                auto closeRect = afterhours::ui::detail::apply_scroll_offset(close.ent(), close.ent().get<afterhours::ui::UIComponent>().rect());
+                auto closeRect = afterhours::ui::detail::apply_ancestor_transform(close.ent(), close.ent().get<afterhours::ui::UIComponent>().rect());
                 const float highlightSize = 20.f * ui::zoom::get();
                 Rectangle highlightRect{closeRect.x + (closeRect.width - highlightSize) * .5f,
                     closeRect.y + (closeRect.height - highlightSize) * .5f, highlightSize, highlightSize};
@@ -773,10 +775,21 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_size(ComponentSize{percent(1.f), pixels(80)}).with_font_size(pixels(14)));
                     return;
                 }
-                navigation::restore_draft(*repoPtr, *reviewPtr);
             }
         }
         if (reviewPtr && hasRepo) {
+            // Apply the async review-file load once it lands (and the
+            // scope it was loaded for is still current).
+            if (reviewPtr->reviewLoadFuture.valid() &&
+                reviewPtr->reviewLoadFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                auto loaded = reviewPtr->reviewLoadFuture.get();
+                reviewPtr->reviewLoadFuture = {};
+                if (reviewPtr->reviewLoadRepoPath == repoPtr->repoPath &&
+                    reviewPtr->reviewLoadScope == reviewPtr->storageScope) {
+                    review_store::apply_loaded_review(*reviewPtr, std::move(loaded));
+                    navigation::restore_draft(*repoPtr, *reviewPtr);
+                }
+            }
             poll_range_diff(*repoPtr);
             poll_review_queue(*repoPtr, *reviewPtr);
             poll_review_snapshot(*reviewPtr);
@@ -1113,6 +1126,46 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             } else {
                 repo.untrackedDiffKey.clear();
                 repo.untrackedDiff.reset();
+            }
+
+            // Stream the selected file's diff ahead of the whole-repo diff:
+            // on a large repo the whole `git diff` takes seconds, while one
+            // file answers in milliseconds. Once the whole-repo diff for the
+            // current generation lands, it takes over and this is dropped.
+            const bool wholeDiffReady = (repo.selectedFileStaged() ? repo.stagedDiffGeneration
+                                                                   : repo.currentDiffGeneration) == repo.dataGeneration;
+            if (!wholeDiffReady && selectedDiffs.empty() && !repo.selectedFilePath().empty()) {
+                const std::string key = repo.repoPath + "\n" + repo.selectedFilePath() +
+                    (repo.selectedFileStaged() ? "\nstaged\n" : "\nwt\n") + std::to_string(repo.dataGeneration) +
+                    "\n" + std::to_string(repo.diffContext) + (repo.ignoreWhitespace ? "w" : "");
+                if (repo.selectedDiffFuture.valid() &&
+                    repo.selectedDiffFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+                    auto result = repo.selectedDiffFuture.get();
+                    repo.selectedDiffFuture = {};
+                    if (result.success() && repo.selectedDiffKey == key) {
+                        auto parsed = git::parse_diff(result.stdout_str());
+                        for (auto& diff : parsed)
+                            if (diff.filePath == repo.selectedFilePath()) {
+                                repo.selectedDiff = std::move(diff);
+                                break;
+                            }
+                    }
+                }
+                if (repo.selectedDiffKey != key && !repo.selectedDiffFuture.valid()) {
+                    repo.selectedDiffKey = key;
+                    repo.selectedDiff.reset();
+                    std::vector<std::string> args{"diff", "--unified=" + std::to_string(repo.diffContext)};
+                    if (repo.ignoreWhitespace) args.push_back("--ignore-all-space");
+                    if (repo.selectedFileStaged()) args.push_back("--cached");
+                    args.insert(args.end(), {"--", repo.selectedFilePath()});
+                    repo.selectedDiffFuture = git::git_run_async(repo.repoPath, args, async_work::Priority::Foreground);
+                }
+                if (repo.selectedDiff && repo.selectedDiffKey == key)
+                    selectedDiffs.push_back(*repo.selectedDiff);
+            } else if (wholeDiffReady) {
+                repo.selectedDiffKey.clear();
+                repo.selectedDiff.reset();
+                repo.selectedDiffFuture = {};
             }
 
             if (!selectedDiffs.empty()) {
@@ -1538,7 +1591,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_roundness(0.0f)
                     .with_margin(Margin{.bottom = h720(16)})
                     .with_debug_name("welcome_controls"));
-            afterhours::text_input::text_input(ctx, mk(controls.ent(), 7), pickerLayout->repositoryPickerQuery,
+            auto filterInput = afterhours::text_input::text_input(ctx, mk(controls.ent(), 7), pickerLayout->repositoryPickerQuery,
                 ComponentConfig{}
                     .with_size(ComponentSize{expand(), pixels(36)})
                     .with_font_size(pixels(14))
@@ -1548,19 +1601,34 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_corner_radius(10.0f)
                     .with_placeholder("Filter repositories...")
                     .with_debug_name("repository_picker_query"));
+            if (pickerLayout->repositoryPickerFocusPending) {
+                ui::focus_control(ctx, filterInput.ent());
+                pickerLayout->repositoryPickerFocusPending = false;
+            }
             if (button(ctx, mk(controls.ent(), 8), preset::Button(pickerLayout->repositoryPickerAlphabetical ? "Sort: name" : "Sort: recent")
                 .with_size(ComponentSize{w1280(124), pixels(36)})
                 .with_corner_radius(10.0f)
                 .with_debug_name("repository_picker_sort")))
                 pickerLayout->repositoryPickerAlphabetical = !pickerLayout->repositoryPickerAlphabetical;
+            // A query ranks by match quality (folder-name matches first), the
+            // way Quick Open does; without one, pinned then recent/name order.
             if (!pickerLayout->repositoryPickerQuery.empty())
-                std::erase_if(recentRepos, [&](const auto& path) { return !fuzzy::score(pickerLayout->repositoryPickerQuery, path); });
-            std::stable_sort(recentRepos.begin(), recentRepos.end(), [&](const auto& a, const auto& b) {
+                recentRepos = fuzzy::rank(recentRepos, pickerLayout->repositoryPickerQuery);
+            else std::stable_sort(recentRepos.begin(), recentRepos.end(), [&](const auto& a, const auto& b) {
                 const bool ap = std::find(pinned.begin(), pinned.end(), a) != pinned.end();
                 const bool bp = std::find(pinned.begin(), pinned.end(), b) != pinned.end();
                 if (ap != bp) return ap;
                 return pickerLayout->repositoryPickerAlphabetical && ui::welcome::repo_display_name(a) < ui::welcome::repo_display_name(b);
             });
+            // Arrow/Enter navigation over the filtered list.
+            pickerLayout->repositoryPickerIndex = recentRepos.empty() ? 0 :
+                std::clamp(pickerLayout->repositoryPickerIndex, 0, static_cast<int>(recentRepos.size()) - 1);
+            if (!recentRepos.empty() && afterhours::input::is_key_pressed(afterhours::keys::DOWN))
+                pickerLayout->repositoryPickerIndex = std::min(pickerLayout->repositoryPickerIndex + 1, static_cast<int>(recentRepos.size()) - 1);
+            if (!recentRepos.empty() && afterhours::input::is_key_pressed(afterhours::keys::UP))
+                pickerLayout->repositoryPickerIndex = std::max(0, pickerLayout->repositoryPickerIndex - 1);
+            if (afterhours::input::is_key_pressed(afterhours::keys::ENTER) && !recentRepos.empty())
+                TabBarSystem::open_repository(recentRepos[static_cast<size_t>(pickerLayout->repositoryPickerIndex)], *pickerLayout);
         }
 
         if (!recentRepos.empty()) {
@@ -1609,13 +1677,13 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // from the card + 4px gaps), hover fills, 10px radius.
                 auto row = button(ctx, mk(rowHost, 100 + ri),
                     ComponentConfig{}
+                        .with_custom_background(pickerLayout && ri == pickerLayout->repositoryPickerIndex ? theme::SELECTED_BG : afterhours::Color{0, 0, 0, 0})
                         .with_size(ComponentSize{percent(1.0f), h720(44)})
                         .with_flex_direction(FlexDirection::Row)
                         .with_align_items(AlignItems::Center)
                         .with_padding(Padding{
                             .top = pixels(0), .right = w1280(10),
                             .bottom = pixels(0), .left = w1280(10)})
-                        .with_transparent_bg()
                         .with_custom_hover_bg(theme::HOVER_BG)
                         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                         .with_corner_radius(10.0f)

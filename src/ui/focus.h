@@ -26,6 +26,7 @@ struct FocusIdentity : afterhours::BaseComponent {
 inline void bind_focus(Entity& entity, const ecs::RepoComponent& repo, reading::focus::Region region,
                        std::string item = {}, std::optional<reading::DocumentId> document = {}) {
     const auto owner = document.value_or(region == reading::focus::Region::History || region == reading::focus::Region::Menu ||
+        region == reading::focus::Region::Picker ||
         region == reading::focus::Region::Search || region == reading::focus::Region::SearchPreview
         ? reading::DocumentId{} : repo.workspace().active_id());
     entity.addComponentIfMissing<FocusIdentity>().target = {repo.repoPath, owner, region, std::move(item), {}};

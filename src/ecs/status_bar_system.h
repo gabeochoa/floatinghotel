@@ -36,12 +36,10 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         else {
             branch = detached ? "HEAD " + repo->headCommitHash.substr(0, 7)
                 : repo->currentBranch.empty() ? "Unknown branch" : repo->currentBranch;
-            const auto staged = repo->stagedFiles.size();
-            const auto unstaged = repo->unstagedFiles.size() + repo->untrackedFiles.size();
-            if (staged > 0) counts = std::to_string(staged) + " staged";
-            if (staged > 0 && unstaged > 0) counts += ", ";
-            if (unstaged > 0) counts += std::to_string(unstaged) + " unstaged";
-            if (counts.empty()) counts = "Working tree clean";
+            // Staged/unstaged counts live in the Changes view; repeating
+            // them here added noise without new information.
+            if (repo->stagedFiles.empty() && repo->unstagedFiles.empty() && repo->untrackedFiles.empty())
+                counts = "Working tree clean";
             if (repo->reviewWorkspace && width >= 700.f) branch += "   Read-only review";
         }
 

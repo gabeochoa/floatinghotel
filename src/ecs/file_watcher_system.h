@@ -24,22 +24,28 @@ struct FileWatcherSystem : afterhours::System<RepoComponent> {
         if (!entity.has<ActiveTab>()) return;
         if (repo.repoPath.empty()) return;
 
+        // Apply a finished watcher swap (canonical reads + stop/join ran
+        // on a worker, not the switch path).
+        if (swapFuture_.valid() &&
+            swapFuture_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            auto applied = swapFuture_.get();
+            swapFuture_ = {};
+            resolved_root_ = applied.root;
+            common_git_dir_ = applied.commonGitDir;
+            if (!swapTarget_.empty() && swapTarget_ != watched_path_) {
+                watched_path_ = swapTarget_;
+                launch_watch_swap(swapTarget_);
+            }
+            swapTarget_.clear();
+        }
         if (repo.repoPath != watched_path_ || repo.repoVersion != watched_version_) {
-            std::error_code ec;
-            auto canon = std::filesystem::canonical(repo.repoPath, ec);
-            if (ec) return;
-            resolved_root_ = canon.string();
-            common_git_dir_ = lfs_pointer::common_git_directory(repo.repoPath);
-            std::vector<std::string> watchPaths{resolved_root_};
-            auto commonCanon = std::filesystem::weakly_canonical(common_git_dir_, ec);
-            if (!common_git_dir_.empty() && !ec && commonCanon != canon)
-                watchPaths.push_back(commonCanon.string());
-            watcher_.watch_many(watchPaths);
             watched_path_ = repo.repoPath;
             watched_version_ = repo.repoVersion;
             pending_ = false;
             pending_scope_ = refresh_scope::Scope::None;
             cooldown_until_ = clock::now() + COOLDOWN;
+            if (swapFuture_.valid()) swapTarget_ = repo.repoPath;  // coalesce rapid switches
+            else launch_watch_swap(repo.repoPath);
         }
 
         // Drain every frame, even while a refresh is running or cooling down.
@@ -68,7 +74,30 @@ private:
     using clock = std::chrono::steady_clock;
     static constexpr auto COOLDOWN = std::chrono::milliseconds(1000);
 
+    struct WatchPaths {
+        std::string root;
+        std::filesystem::path commonGitDir;
+    };
+    void launch_watch_swap(const std::string& repoPath) {
+        swapFuture_ = async_work::launch([this, repoPath](std::stop_token) {
+            WatchPaths out;
+            std::error_code ec;
+            auto canon = std::filesystem::canonical(repoPath, ec);
+            if (ec) return out;
+            out.root = canon.string();
+            out.commonGitDir = lfs_pointer::common_git_directory(repoPath);
+            std::vector<std::string> watchPaths{out.root};
+            auto commonCanon = std::filesystem::weakly_canonical(out.commonGitDir, ec);
+            if (!out.commonGitDir.empty() && !ec && commonCanon != canon)
+                watchPaths.push_back(commonCanon.string());
+            watcher_.watch_many(watchPaths);
+            return out;
+        }, async_work::Priority::Background, WatchPaths{});
+    }
+
     platform::FileWatcher watcher_;
+    async_work::Task<WatchPaths> swapFuture_;
+    std::string swapTarget_;
     std::string watched_path_;
     std::string resolved_root_;
     std::filesystem::path common_git_dir_;

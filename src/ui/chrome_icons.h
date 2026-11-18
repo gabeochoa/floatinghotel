@@ -4,7 +4,7 @@
 
 namespace ui {
 
-enum class ChromeIcon { Commit, Files, Message, Check, ChevronDown, ChevronRight };
+enum class ChromeIcon { Commit, Files, Message, Check, ChevronDown, ChevronRight, ArrowUp, ArrowDown };
 
 inline void chrome_icon(UIContext<InputAction>& ctx, afterhours::ui::imm::EntityParent parent,
                         ChromeIcon kind, afterhours::Color color, const std::string& name) {
@@ -40,6 +40,17 @@ inline void chrome_icon(UIContext<InputAction>& ctx, afterhours::ui::imm::Entity
                 .with_size(ComponentSize{pixels(5), pixels(9)}).with_absolute_position(5.f, 2.f)
                 .with_border_bottom(color, pixels(1.5f)).with_border_right(color, pixels(1.5f)).with_roundness(0.f));
             check.ent().addComponentIfMissing<afterhours::ui::HasUIModifiers>().rotation = 45.f;
+            break;
+        }
+        case ChromeIcon::ArrowUp:
+        case ChromeIcon::ArrowDown: {
+            const bool up = kind == ChromeIcon::ArrowUp;
+            box(0, 7.5f, up ? 5.f : 3.f, 1.f, 8.f);
+            auto head = div(ctx, mk(icon.ent(), 1), ComponentConfig{}
+                .with_size(ComponentSize{pixels(5), pixels(5)})
+                .with_absolute_position(5.f, up ? 1.f : 10.f)
+                .with_border_bottom(color, pixels(1)).with_border_right(color, pixels(1)).with_roundness(0.f));
+            head.ent().addComponentIfMissing<afterhours::ui::HasUIModifiers>().rotation = up ? 225.f : 45.f;
             break;
         }
         case ChromeIcon::ChevronDown:

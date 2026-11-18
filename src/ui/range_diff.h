@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <sstream>
 
 #include "diff_renderer.h"
@@ -22,7 +23,9 @@ inline void start_range_diff(RepoComponent& repo) {
     }
     state.requestStamp = navigation::stamp(repo, state.oldRange + "\n" + state.newRange);
     state.revisions = {oldRange->first, oldRange->second, newRange->first, newRange->second};
-    state.future = git::git_run_async(repo.repoPath, {"rev-parse", "--verify", "--end-of-options", state.revisions[0] + "^{commit}"});
+    std::vector<std::string> args{"rev-parse", "--end-of-options"};
+    for (const auto& revision : state.revisions) args.push_back(revision + "^{commit}");
+    state.future = git::git_run_async(repo.repoPath, std::move(args));
 }
 
 inline void poll_range_diff(RepoComponent& repo) {
@@ -40,12 +43,22 @@ inline void poll_range_diff(RepoComponent& repo) {
         return;
     }
     if (state.next < state.resolved.size()) {
-        auto hash = result.stdout_str();
-        while (!hash.empty() && (hash.back() == '\n' || hash.back() == '\r')) hash.pop_back();
-        state.resolved[state.next++] = std::move(hash);
-        if (state.next < state.resolved.size())
-            state.future = git::git_run_async(repo.repoPath, {"rev-parse", "--verify", "--end-of-options", state.revisions[state.next] + "^{commit}"});
-        else state.future = async_work::launch([path = repo.repoPath, resolved = state.resolved](std::stop_token stop) {
+        std::vector<std::string> hashes;
+        std::istringstream lines(result.stdout_str());
+        for (std::string hash; std::getline(lines, hash);) {
+            if (!hash.empty() && hash.back() == '\r') hash.pop_back();
+            const bool hex = hash.size() >= 40 && std::all_of(hash.begin(), hash.end(), [](char c) {
+                return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f');
+            });
+            if (hex) hashes.push_back(std::move(hash));
+        }
+        if (hashes.size() != state.resolved.size()) {
+            state.error = "Unable to compare commit series";
+            return;
+        }
+        for (size_t i = 0; i < hashes.size(); ++i) state.resolved[i] = std::move(hashes[i]);
+        state.next = state.resolved.size();
+        state.future = async_work::launch([path = repo.repoPath, resolved = state.resolved](std::stop_token stop) {
             std::string output;
             constexpr size_t limit = 256 * 1024;
             auto result = git::git_run(path, {"range-diff", "--no-color", "--no-ext-diff", "--no-textconv",

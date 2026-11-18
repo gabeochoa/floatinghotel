@@ -123,6 +123,11 @@ inline std::vector<Menu> createMenuBar() {
             auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
             if (layout && repo) ecs::open_symbol_picker(*repo, *layout);
         }),
+        MenuItem::item("Go to Symbol in Project...", "Cmd+Shift+R", [] {
+            auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
+            auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+            if (layout && repo) ecs::open_project_symbol_picker(*repo, *layout);
+        }),
         MenuItem::item("Search Repository...", "Cmd+Shift+F", [] {
             if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) {
                 ecs::open_repo_search(*repo);
@@ -251,6 +256,10 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::item("Show Whitespace (toggle)", "", [] {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
                 l->visibleWhitespace = !l->visibleWhitespace;
+        }),
+        MenuItem::item("Sticky Scopes (toggle)", "", [] {
+            if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())
+                l->stickyScopes = !l->stickyScopes;
         }),
         MenuItem::item("Line Numbers (toggle)", "", [] {
             if (auto* l = ecs::find_singleton<ecs::LayoutComponent>())

@@ -35,6 +35,7 @@
 #import <AppKit/AppKit.h>
 #include <optional>
 #include <utility>
+#include "platform/resize_draw_policy.h"
 
 static std::optional<std::pair<int, int>> pending_window_size;
 
@@ -106,14 +107,22 @@ static void resize_and_draw(id delegate, SEL selector, NSNotification* notificat
     MTKView* view = (MTKView*)window.contentView;
     window.backgroundColor = [NSColor colorWithSRGBRed:0.0824 green:0.0902 blue:0.1059 alpha:1.0];
     view.layer.backgroundColor = window.backgroundColor.CGColor;
-    if (!_sapp.valid || _sapp.first_frame || pending_window_size || drawing_for_resize) return;
-    drawing_for_resize = true;
+    if (!_sapp.valid || _sapp.first_frame || pending_window_size) return;
+    // Never let the resize path wait on a frame: at most one synchronous
+    // draw per 120 Hz frame, skipped (not queued) while one is in flight.
+    // The audit behind this: every frame-path future poll is wait_for(0)
+    // and every synchronous git call runs on a worker, so a skipped draw
+    // is the only back-pressure the resize loop needs.
+    static double last_resize_draw_end = 0;
     const double start = CACurrentMediaTime();
+    if (!resize_draw::should_draw(start, last_resize_draw_end, drawing_for_resize)) return;
+    drawing_for_resize = true;
     [view draw];
     drawing_for_resize = false;
+    last_resize_draw_end = CACurrentMediaTime();
     if (std::getenv("FH_RESIZE_TIMING"))
         fprintf(stdout, "[INFO] RESIZE frame=%dx%d elapsed_ms=%.3f\n", sapp_width(), sapp_height(),
-            (CACurrentMediaTime() - start) * 1000.0);
+            (last_resize_draw_end - start) * 1000.0);
 }
 
 static bool startup_presented = false;

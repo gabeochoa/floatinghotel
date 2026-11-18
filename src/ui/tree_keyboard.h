@@ -72,9 +72,13 @@ inline void replace_tree_rows(UIContext<InputAction>& ctx, afterhours::ui::imm::
     const float rowHeight = 28.f * zoom::get();
     if (scroll && !previous.empty() && (!state.viewport || !state.viewportOffset ||
         std::abs(scroll->scroll_offset.y - *state.viewportOffset) > .5f)) {
-        const auto index = std::min(static_cast<size_t>(std::max(0.f, scroll->scroll_offset.y) / rowHeight), previous.size() - 1);
-        state.viewport = file_tree::ViewportAnchor{previous[index].path,
-            std::clamp(scroll->scroll_offset.y / rowHeight - static_cast<float>(index), 0.f, 1.f)};
+        auto index = std::min(static_cast<size_t>(std::max(0.f, scroll->scroll_offset.y) / rowHeight), previous.size() - 1);
+        // Section headers share an empty path; anchor to a real row.
+        while (index + 1 < previous.size() && previous[index].section) ++index;
+        while (index > 0 && previous[index].section) --index;
+        if (!previous[index].section)
+            state.viewport = file_tree::ViewportAnchor{previous[index].path,
+                std::clamp(scroll->scroll_offset.y / rowHeight - static_cast<float>(index), 0.f, 1.f)};
     }
     state.path = file_tree::surviving_path(previous, current, state.path);
     const auto focused = shortcut_owner(ctx, repo);

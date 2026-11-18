@@ -9,7 +9,7 @@ inline RectangleType screen_rect(afterhours::Entity& entity) {
     using namespace afterhours::ui;
     auto rect = entity.get<UIComponent>().rect();
     if (entity.has<HasUIModifiers>()) rect = entity.get<HasUIModifiers>().apply_modifier(rect);
-    return detail::apply_scroll_offset(entity, rect);
+    return detail::apply_ancestor_transform(entity, rect);
 }
 
 inline RectangleType visible_rect(afterhours::Entity& entity) {

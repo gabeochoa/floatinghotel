@@ -1299,7 +1299,7 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
     if (sel && sel->enabled) {
         // Register this line (using the prior frame's resolved rect) so the next
         // frame can hit-test drags and the copy action can extract text.
-        Rectangle r = afterhours::ui::detail::apply_scroll_offset(
+        Rectangle r = afterhours::ui::detail::apply_ancestor_transform(
             lineDiv.ent(), lineDiv.ent().get<afterhours::ui::UIComponent>().rect());
         float prefixW = diff_sel::content_x_offset(*sel, gutter);
         float cx0 = r.x + prefixW;
@@ -1385,7 +1385,11 @@ inline void render_hunk_lines(UIContext<InputAction>& ctx, Entity& parent, const
     const float width = lineWidth > 0 ? lineWidth : contentWidth;
     MetricRows sourceRows;
     if (fileDiff.isFullContent && vp && vp->active) {
-        sourceRows = diff_metrics().source_rows_view(fileDiff.renderIdentity, width * zoom::get(), sel->fontSize, sel->visibleWhitespace, [&] {
+        // Blame text widens the gutter inside the builder; fold its width
+        // into the cache key so toggling blame never reuses plain wraps.
+        sourceRows = diff_metrics().source_rows_view(fileDiff.renderIdentity,
+            width * zoom::get() - (code_gutter::blameFor ? static_cast<float>(code_gutter::blameChars) : 0.f),
+            sel->fontSize, sel->visibleWhitespace, [&] {
             std::vector<size_t> rows{0};
             rows.reserve(hunk.lines.size() + 1);
             for (size_t i = 0; i < hunk.lines.size(); ++i) {
@@ -1945,7 +1949,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
     if (sel->visibleWhitespace && finalFragment) set_tooltip(cell.ent(), !hasNewline ? "No newline at end of file" :
         (original ? *original : content).ends_with('\r') ? "Line ending: CRLF" : "Line ending: LF");
     if (sel && sel->enabled && kind != SbsKind::Empty) {
-        auto rect = afterhours::ui::detail::apply_scroll_offset(
+        auto rect = afterhours::ui::detail::apply_ancestor_transform(
             cell.ent(), cell.ent().get<afterhours::ui::UIComponent>().rect());
         float prefix = diff_sel::content_x_offset(*sel, label.substr(0, label.size() - content.size()));
         diff_sel::render_changed_range(ctx, cell.ent(), *sel, content, prefix, changed, kind == SbsKind::Del);
@@ -3094,7 +3098,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             if (embedInParentScroll) {
                 auto origin = div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                     .with_size(ComponentSize{w, pixels(0)}).with_debug_name("embedded_diff_origin"));
-                auto rect = afterhours::ui::detail::apply_scroll_offset(
+                auto rect = afterhours::ui::detail::apply_ancestor_transform(
                     origin.ent(), origin.ent().get<afterhours::ui::UIComponent>().rect());
                 vp.curY = std::max(0.f, rect.y + scrollY - scrollEntity->get<afterhours::ui::UIComponent>().rect().y);
             }

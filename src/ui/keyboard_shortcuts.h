@@ -1,16 +1,15 @@
 #pragma once
 
 #include "../ecs/ui_imports.h"
+#include "bindings_dispatch.h"
 #include "zoom.h"
 #include <afterhours/src/plugins/modal.h>
 
 namespace ui {
 
 inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutComponent& layout) {
-    using afterhours::input;
-    bool command = input::is_key_down(afterhours::keys::LEFT_SUPER) || input::is_key_down(afterhours::keys::RIGHT_SUPER) || input::is_key_down(afterhours::keys::LEFT_CONTROL) || input::is_key_down(afterhours::keys::RIGHT_CONTROL);
-    bool shift = input::is_key_down(afterhours::keys::LEFT_SHIFT) || input::is_key_down(afterhours::keys::RIGHT_SHIFT);
-    if (command && shift && input::is_key_pressed(afterhours::keys::SLASH)) layout.shortcutsOpen = true;
+    if (const auto* binding = bindings::find("Cmd+Shift+/"); binding && bindings::chord_pressed(*binding))
+        layout.shortcutsOpen = true;
     bool active = layout.shortcutsOpen;
     auto& root = ui_imm::getUIRootEntity();
     const float screenWidth = ctx.screen_width / zoom::get();
@@ -32,34 +31,18 @@ inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutCo
         .with_size(ComponentSize{percent(1.f), pixels(height - 180.f)})
         .with_overflow(Overflow::Scroll, Axis::Y).with_flex_direction(FlexDirection::Column)
         .with_no_wrap().with_render_layer(1001).with_debug_name("shortcut_reference"));
-    const std::pair<std::string, std::string> bindings[] = {
-        {"Cmd+Shift+/", "Open this reference"},
-        {"Cmd+P", "Find a file"},
-        {"Cmd+F", "Find text in the current diff"},
-        {"Cmd+Shift+F", "Search repository contents"},
-        {"Enter / Shift+Enter", "Next / previous find match"},
-        {"Alt+Left / Alt+Right", "Back / Forward"},
-        {"j or n / k", "Next / previous review hunk"},
-        {"h / j / k / l", "Move the caret in a code file (Vim Mode)"},
-        {"a / c", "Approve / comment on the hunk"},
-        {"Cmd+C", "Copy selected code"},
-        {"Cmd+Enter", "Export from the feedback panel"},
-        {"Cmd+= / Cmd+-", "Increase / decrease code text size"},
-        {"Cmd+0", "Reset code text size"},
-        {"Tab / Shift+Tab", "Move keyboard focus"},
-        {"Cmd+W", "Close the current document"},
-        {"Escape", "Dismiss temporary panels or dialogs"},
-    };
-    for (size_t i = 0; i < std::size(bindings); ++i) {
+    // Generated from the one binding table (ui/bindings.h).
+    for (size_t i = 0; i < std::size(bindings::table); ++i) {
+        const auto& bindings = bindings::table;
         bool narrow = width < 480.f;
         auto row = div(ctx, mk(body.ent(), static_cast<int>(i)), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(narrow ? 48.f : 26.f)})
             .with_flex_direction(narrow ? FlexDirection::Column : FlexDirection::Row)
             .with_render_layer(1001));
-        div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(bindings[i].first)
+        div(ctx, mk(row.ent(), 0), ComponentConfig{}.with_label(bindings[i].chord)
             .with_size(ComponentSize{narrow ? percent(1.f) : pixels(185.f), pixels(24)})
             .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_PRIMARY).with_render_layer(1001));
-        div(ctx, mk(row.ent(), 1), ComponentConfig{}.with_label(bindings[i].second)
+        div(ctx, mk(row.ent(), 1), ComponentConfig{}.with_label(bindings[i].description)
             .with_size(ComponentSize{narrow ? percent(1.f) : expand(), pixels(24)})
             .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY).with_render_layer(1001));
     }

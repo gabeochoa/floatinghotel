@@ -9,6 +9,7 @@
 #include "../ecs/query_helpers.h"
 #include "../git/blob_page_cache.h"
 #include "../git/commit_patch_cache.h"
+#include "../git/git_runner.h"
 #include <chrono>
 
 extern "C" void metal_set_window_size(int, int);
@@ -36,6 +37,8 @@ struct Probe {
 };
 
 static Probe probe;
+static std::vector<std::pair<std::string, double>> perfMarks;
+static Clock::time_point perfStart = Clock::now();
 static bool checkpointPending = false;
 static std::optional<Clock::time_point> pathWaitStart;
 static std::optional<Clock::time_point> prefetchWaitStart;
@@ -347,6 +350,32 @@ struct Handle : afterhours::System<afterhours::testing::PendingE2ECommand> {
                 prefetchWaitStart.reset();
                 cmd.fail("Timed out waiting for commit prefetch completion");
             } else { cmd.frames_alive = 0; cmd.retry(); }
+        } else if (cmd.is("perf_mark")) {
+            if (cmd.args.size() != 1 || cmd.arg(0).empty()) { cmd.fail("perf_mark requires a name"); return; }
+            perfMarks.emplace_back(cmd.arg(0), std::chrono::duration<double, std::milli>(Clock::now() - perfStart).count());
+            cmd.consume();
+        } else if (cmd.is("perf_report")) {
+            if (cmd.args.size() != 1 || cmd.arg(0).empty()) { cmd.fail("perf_report requires a path"); return; }
+            const auto stats = git::git_stats();
+            static const std::string gitVersion = [] {
+                auto result = run_process("", {git::git_executable(), "--version"}, 10000, {});
+                std::string text = result.stdout_str;
+                while (!text.empty() && (text.back() == '\n' || text.back() == '\r')) text.pop_back();
+                return text;
+            }();
+            nlohmann::json marks = nlohmann::json::object();
+            for (const auto& [name, ms] : perfMarks) marks[name] = ms;
+            nlohmann::json report{{"schema_version", 1}, {"marks", std::move(marks)},
+                {"git", {{"path", git::git_executable()}, {"version", gitVersion}, {"runs", stats.runs},
+                         {"queue_ms", stats.queueMs}, {"lock_ms", stats.lockMs}, {"process_ms", stats.processMs}}}};
+            try {
+                const std::filesystem::path out(cmd.arg(0));
+                if (out.has_parent_path()) std::filesystem::create_directories(out.parent_path());
+                std::ofstream output(out);
+                output.exceptions(std::ios::failbit | std::ios::badbit);
+                output << report.dump(2) << '\n';
+                cmd.consume();
+            } catch (const std::exception& error) { cmd.fail(error.what()); }
         } else if (cmd.is("reading_probe")) {
             if ((cmd.args.size() != 4 && cmd.args.size() != 5) || cmd.arg(0).empty() ||
                 cmd.arg(0).find_first_not_of("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-") != std::string::npos ||

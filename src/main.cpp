@@ -213,6 +213,7 @@ std::chrono::high_resolution_clock::time_point startTime;
 
 // E2E test mode
 bool testModeEnabled = false;
+bool perfMode = false;
 bool e2eNoResize = false;
 bool headless = false;
 bool restoreWindowSize = false;
@@ -411,11 +412,20 @@ static void app_init() {
         // Enable UI validation checks (min font size, contrast, etc.)
         // Use Silent mode so per-frame log spam doesn't peg the CPU;
         // ValidationSummarySystem prints a deduplicated report instead.
-        styling.enable_development_validation();
-        styling.validation.mode = afterhours::ui::ValidationMode::Silent;
-        styling.validation.min_font_size = 11.0f;
-        if (app_state::testModeEnabled) {
-            styling.validation.highlight_violations = false;
+        // Skipped under --perf: it costs measurable per-frame time.
+        // Release builds (FH_RELEASE_BUILD) never enable it.
+#ifdef FH_RELEASE_BUILD
+        constexpr bool validationEnabled = false;
+#else
+        const bool validationEnabled = !app_state::perfMode;
+#endif
+        if (validationEnabled) {
+            styling.enable_development_validation();
+            styling.validation.mode = afterhours::ui::ValidationMode::Silent;
+            styling.validation.min_font_size = 11.0f;
+            if (app_state::testModeEnabled) {
+                styling.validation.highlight_violations = false;
+            }
         }
     }
 
@@ -532,6 +542,12 @@ static void app_init() {
     {
         afterhours::modal::enforce_singletons(sm);
 
+        // Keep ProvidesCurrentResolution on the live window size. It was only
+        // seeded from the saved window size at startup (280 by default), so
+        // ctx.screen_width went stale on resize and every modal, including
+        // the framework's own backdrop, was laid out for the startup size.
+        sm.register_update_system(std::make_unique<afterhours::window_manager::CollectCurrentResolution>());
+
         // Pre-layout (context begin, clear children)
         afterhours::input::register_update_systems(sm);
         ui_imm::registerUIPreLayoutSystems(sm);
@@ -556,6 +572,7 @@ static void app_init() {
         sm.register_update_system(std::make_unique<ecs::MainContentSystem>());
         sm.register_update_system(std::make_unique<ecs::StatusBarSystem>());
         sm.register_update_system(std::make_unique<ecs::FilePickerSystem>());
+        sm.register_update_system(std::make_unique<ecs::RepoPickerSystem>());
         sm.register_update_system(std::make_unique<ecs::RepositoryActionsSystem>());
         // MenuBarSystem runs last so dropdown elements draw on top of
         // toolbar/sidebar when a menu is open
@@ -620,11 +637,9 @@ static void app_init() {
                 p.get_p99_ms = []() { return e2e_bench::percentile_ms(0.99); };
                 p.top_entries = [](int count) {
                     std::vector<perf::PerfEntry> out;
-                    for (const auto& [name, acc] : perf::builtin_profile::totals())
+                    for (const auto& sample : afterhours::profiling::default_collector().snapshot().systems)
                         out.push_back(perf::PerfEntry{
-                            name,
-                            acc.calls ? static_cast<float>(acc.total_ms / acc.calls) : 0.f,
-                            std::nullopt});
+                            sample.name, static_cast<float>(sample.mean_ms()), std::nullopt, sample.calls});
                     std::sort(out.begin(), out.end(),
                               [](const auto& a, const auto& b) { return a.ms > b.ms; });
                     if (count > 0 && static_cast<int>(out.size()) > count)
@@ -764,6 +779,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                     repo->selectionCopy.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
                 refreshDone = refreshDone && (!repo->sourceFind.future.valid() ||
                     repo->sourceFind.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+                if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>())
+                    refreshDone = refreshDone && (editor->templateLoaded || !repo->hasLoadedOnce);
                 for (auto& [scope, syntax] : repo->diffSyntax)
                     refreshDone = refreshDone && (!syntax.future.valid() ||
                         syntax.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
@@ -894,8 +911,8 @@ static void run_bench_frames(float dt) {
              *e2e_bench::percentile_ms(0.99), *e2e_bench::percentile_ms(1.0));
 
     std::vector<std::pair<std::string, double>> top;
-    for (const auto& [name, acc] : perf::builtin_profile::totals())
-        top.emplace_back(name, acc.total_ms / static_cast<double>(n));
+    for (const auto& sample : afterhours::profiling::default_collector().snapshot().systems)
+        top.emplace_back(sample.name, sample.total_ms / static_cast<double>(n));
     std::sort(top.begin(), top.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
     if (top.size() > 8) top.resize(8);
@@ -962,7 +979,10 @@ static bool app_has_pending_work() {
                 frame_pacer::in_flight(repo.commitSearchFuture) || frame_pacer::in_flight(repo.comparisonFuture) ||
                 frame_pacer::in_flight(repo.reviewQueueFuture) || frame_pacer::in_flight(repo.rangeDiff.future) ||
                 frame_pacer::in_flight(repo.hunkScopes.future) || frame_pacer::in_flight(repo.markdownLink.future) ||
-                repo.commitLogPage.requested || frame_pacer::in_flight(repo.commitLogPage.future);
+                repo.commitLogPage.requested || frame_pacer::in_flight(repo.commitLogPage.future) ||
+                std::any_of(repo.diffSyntax.begin(), repo.diffSyntax.end(), [](const auto& entry) {
+                    return frame_pacer::in_flight(entry.second.future);
+                });
         });
     if (pending) return true;
     afterhours::EntityQuery({.force_merge = true})
@@ -981,6 +1001,8 @@ static bool app_has_pending_work() {
             pending = pending || frame_pacer::in_flight(detail.patchFuture);
         });
     if (pending) return true;
+    if (auto* editor = ecs::find_singleton<ecs::CommitEditorComponent, ecs::ActiveTab>())
+        if (frame_pacer::in_flight(editor->templateTask)) return true;
     if (auto* ops = ecs::find_singleton<ecs::NetworkOpsComponent>())
         pending = pending || !ops->pending.empty();
     return pending;
@@ -1169,6 +1191,9 @@ static void e2e_render_and_screenshot(float dt) {
 
 // Frame callback: runs every frame
 static void app_frame() {
+    // Close the previous frame's per-system samples (no-op unless the
+    // profiling build recorded them; without this dump_profile stays empty).
+    afterhours::profiling::default_collector().end_frame();
     drain_git_log();
 
     float dt = afterhours::graphics::get_frame_time();
@@ -1298,6 +1323,7 @@ int main(int argc, char* argv[]) {
 
     // Parse test mode flags
     app_state::testModeEnabled = cmdl["--test-mode"];
+    app_state::perfMode = cmdl["--perf"];
     app_state::e2eNoResize = cmdl["--e2e-no-resize"];
     app_state::headless = cmdl["--headless"];
     for (auto& [name, value] : cmdl.params()) {
@@ -1379,7 +1405,7 @@ int main(int argc, char* argv[]) {
                     const auto& cmp = entity.get<afterhours::ui::UIComponent>();
                     if (debug.name_value != name || !cmp.was_rendered_to_screen) return;
                     found = true;
-                    auto rect = afterhours::ui::detail::apply_scroll_offset(entity, cmp.rect());
+                    auto rect = afterhours::ui::detail::apply_ancestor_transform(entity, cmp.rect());
                     float width = afterhours::graphics::get_screen_width();
                     float height = afterhours::graphics::get_screen_height();
                     inside = inside && rect.x >= -2.f && rect.y >= -2.f &&
@@ -1562,8 +1588,14 @@ int main(int argc, char* argv[]) {
             // A full fontstash atlas drops new glyphs from measurement too, so
             // text at a never-used size comes back short. Odd glyphs and sizes
             // keep the probe off anything the UI already cached.
-            const float small = afterhours::measure_text_internal("QXJ#~", 47.3f);
-            const float big = afterhours::measure_text_internal("QXJ#~", 94.6f);
+            // Straight to the font (no TextMeasureCache), as the dropped
+            // measure_text_internal did, so the probe sees the atlas itself.
+            auto* fonts = afterhours::EntityHelper::get_singleton_cmp<afterhours::ui::FontManager>();
+            const auto measure = [&](float size) {
+                return fonts ? afterhours::measure_text(fonts->get_font(afterhours::ui::UIComponent::DEFAULT_FONT), "QXJ#~", size, 1.f).x : 0.f;
+            };
+            const float small = measure(47.3f);
+            const float big = measure(94.6f);
             return small > 0.f && std::abs(big - 2.f * small) < 0.05f * big ? "true" : "false";
         } else if (key == "theme") {
             return theme::current_theme_name == theme::ThemeName::Light ? "light" : "dark";
@@ -1671,6 +1703,7 @@ int main(int argc, char* argv[]) {
     // Tests start from defaults unless they point at their own settings dir;
     // the user's settings (vim mode, sidebar width, ...) would leak in.
     if (!app_state::testModeEnabled || app_state::restoreWindowSize) Settings::get().load_save_file();
+    git::set_git_executable_override(Settings::get().get_git_path());
 
     {
         auto preGfxMs = std::chrono::duration_cast<std::chrono::milliseconds>(

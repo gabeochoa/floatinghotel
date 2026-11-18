@@ -89,7 +89,7 @@ struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction>
             scroll.scroll_offset = scroll.scroll_target = {0, 0};
             return;
         }
-        const auto rect = afterhours::ui::detail::apply_scroll_offset(entity, cmp.rect());
+        const auto rect = afterhours::ui::detail::apply_ancestor_transform(entity, cmp.rect());
         const auto [clipped, clip] = afterhours::ui::detail::compute_intersected_clip_rect(entity);
         if (rect.width <= 0 || rect.height <= 0 || !is_mouse_inside(context->mouse.pos, rect) ||
             (clipped && !is_mouse_inside(context->mouse.pos, clip))) return;
@@ -178,22 +178,16 @@ struct RenderFloatingUI : afterhours::ui::RenderImm<InputAction> {
     }
 };
 
-struct RenderFloatingScrollbars : afterhours::ui::RenderScrollbars<InputAction> {
-    void for_each_with(afterhours::Entity& entity, afterhours::ui::UIComponent& component,
-            afterhours::ui::HasScrollView& scroll, float dt) override {
-        if (component.render_layer >= 100)
-            afterhours::ui::RenderScrollbars<InputAction>::for_each_with(entity, component, scroll, dt);
-    }
-};
-
 inline void registerUIRenderSystems(
     afterhours::SystemManager& manager) {
     auto bridge = std::make_unique<afterhours::ui::UIPluginRenderBridge<InputAction>>(InputAction::None, false);
     auto held = std::make_unique<HoldFloatingUIDraws>();
     auto floating = std::make_unique<RenderFloatingUI>(*held);
+    // Bridge order is [RenderImm, debug overlay]: the renderer draws each
+    // layer's scrollbars itself (afterhours 6931c61), so floating UI and its
+    // scrollbars render after the main pass and before the debug overlay.
     bridge->systems.insert(bridge->systems.begin(), std::move(held));
-    bridge->systems.insert(bridge->systems.begin() + 3, std::move(floating));
-    bridge->systems.insert(bridge->systems.begin() + 4, std::make_unique<RenderFloatingScrollbars>());
+    bridge->systems.insert(bridge->systems.begin() + 2, std::move(floating));
     manager.register_render_system(std::move(bridge));
     manager.register_render_system(std::make_unique<ui::RenderWrappedTooltip<InputAction>>());
 }

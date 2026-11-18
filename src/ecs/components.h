@@ -47,12 +47,14 @@
 #include "../util/async_task.h"
 #include "../util/refresh_scope.h"
 #include "../util/history_selection.h"
+#include "../util/repo_picker.h"
 
 namespace ecs {
 
 struct BlameLine {
     std::string hash;
     std::string author;
+    std::string date;  // YYYY-MM-DD (author date)
     std::string summary;
     std::string file;
     std::string content;
@@ -324,6 +326,16 @@ struct OutlineResult {
     std::string error;
 };
 
+struct ProjectSymbolEntry {
+    std::string name, kind, path;
+    int line = 1;
+};
+
+struct ProjectSymbolsResult {
+    std::vector<ProjectSymbolEntry> symbols;
+    std::string error;
+};
+
 struct SourceFindRuntime {
     std::string key;
     reading::RequestStamp request;
@@ -400,6 +412,9 @@ public:
     std::string repoPath;
     std::string currentBranch;
     bool isDirty = false;
+    // Merge conflicts from the last status read.
+    std::vector<std::string> conflictedFiles;
+    bool mergeInProgress = false;
     bool isDetachedHead = false;
     std::string headCommitHash;
     int aheadCount = 0;
@@ -428,6 +443,8 @@ public:
 
     // Branch data (T031)
     std::vector<BranchInfo> branches;
+    std::vector<std::string> tags;
+    std::vector<std::string> stashes;
 
     std::vector<FileDiff> currentDiff;
     std::vector<FileDiff> stagedDiff;
@@ -440,6 +457,14 @@ public:
     std::string cachedFilePath;
     std::string untrackedDiffKey;
     std::optional<FileDiff> untrackedDiff;
+    // Per-file diff streamed ahead of the whole-repo diff (large repos):
+    // keyed like untrackedDiff, filled by a single-file git diff.
+    std::string selectedDiffKey;
+    async_work::Task<git::GitResult> selectedDiffFuture;
+    std::optional<FileDiff> selectedDiff;
+    // dataGeneration at which each whole-repo diff was applied; a mismatch
+    // means the whole-repo diff is still in flight for the current state.
+    unsigned currentDiffGeneration = ~0u, stagedDiffGeneration = ~0u;
 
     bool refreshRequested = false;
     refresh_scope::Scope refreshScope = refresh_scope::Scope::Full;
@@ -489,6 +514,9 @@ public:
     std::string semanticSymbol;
     bool semanticEdited = false;
     std::optional<std::pair<std::filesystem::file_time_type, std::uintmax_t>> semanticStamp;
+    // Hover/type info shown anchored to its token (cleared on caret move).
+    std::string hoverInfo;
+    reading::CodePosition hoverAnchor;
     std::optional<reading::CodeMotion> pendingCaretMotion;
     std::string fullFileEncodingOverride = "auto";
     std::string fullFileEncodingLabel;
@@ -516,6 +544,7 @@ public:
     bool repoSearchTruncated = false;
     size_t repoSearchCapturedBytes = 0;
     async_work::Task<SearchResult> repoSearchFuture;
+    std::shared_ptr<SearchBatchQueue> repoSearchBatches;
     SearchQuery repoSearchScope;
     std::optional<reading::ReviewLocation> repoSearchOrigin;
     std::optional<reading::ReadingAnchor> repoSearchOriginAnchor;
@@ -526,6 +555,7 @@ public:
     std::array<std::string, 3> repoSearchObservedText;
     std::optional<std::chrono::steady_clock::time_point> repoSearchDue;
     std::optional<size_t> repoSearchSelected;
+    std::optional<size_t> repoSearchExpanded;
     float repoSearchScroll = 0.f;
     bool repoSearchRestoreScroll = true;
     std::string repoSearchSource;  // set when the list holds language-server results
@@ -541,6 +571,9 @@ public:
     bool repoSearchPreviewOpen = false;
     async_work::Task<SearchPreview> repoSearchPreviewFuture;
     SearchPreview repoSearchPreview;
+    // Excerpts already loaded, keyed by file/revision/line, so a re-search
+    // reuses them for unchanged files instead of reading again.
+    std::map<std::string, SearchPreview> repoSearchExcerptCache;
     int fullFileNavigateFrames = 0;
     bool fileHistoryOpen = false;
     std::string fileHistoryPath;
@@ -555,6 +588,13 @@ public:
     BlameLine blameLine;
     std::string blameError;
     bool blameOpen = false;
+    // Blame gutter (whole-file, per line): keyed by path+revision+generation
+    // so a file changed while unfocused re-blames on the next refresh.
+    async_work::Task<git::GitResult> blameGutterFuture;
+    reading::RequestStamp blameGutterStamp;
+    std::vector<BlameLine> blameGutterLines;
+    std::string blameGutterKey;
+    std::string blameGutterError;
     bool commitSearchOpen = false;
     git::HistoryQuery commitSearchQuery;
     int commitSearchLimit = 200;
@@ -722,6 +762,10 @@ struct ReviewComponent : public afterhours::BaseComponent {
     std::chrono::steady_clock::time_point nextSaveAttempt{};
     std::string storageScope;
     std::string storageRepoPath;
+    // Async review-file load (review_store::load_review_async).
+    async_work::Task<ReviewComponent> reviewLoadFuture;
+    std::string reviewLoadScope;
+    std::string reviewLoadRepoPath;
     // "New since you last looked": diff signature of each file when last viewed.
     std::map<std::string, std::string> seenSig;
     // Baseline snapshot for "new since you last looked" (Phase 6).
@@ -1110,6 +1154,9 @@ struct BranchDialogState : public afterhours::BaseComponent {
     bool showDeleteBranchDialog = false;
     std::string deleteBranchName;
     bool showForceDeleteDialog = false;
+    bool showStashDialog = false;
+    std::string stashMessage;
+    bool stashIncludeUntracked = false;
 };
 
 struct DiffMatch {
@@ -1166,6 +1213,16 @@ struct FilePickerScope {
     std::string statusPath;
     async_work::Task<std::string> statusFuture;
     std::map<std::string, std::string> worktreeStatus;
+    // Async picker matching: results are computed on a worker, previous
+    // results stay on screen until the new set lands.
+    async_work::Task<std::vector<git::catalog::Entry>> matchFuture;
+    std::string matchKey, matchPendingKey;
+    bool matchApplied = false;
+    std::optional<std::chrono::steady_clock::time_point> matchDue;
+    std::uint64_t searchId = 0, matchSearchId = 0;
+    bool confirmWhenReady = false;
+    bool confirmKeep = true;
+    bool sourcesCached = false;
 };
 
 struct FilePickerPosition {
@@ -1174,12 +1231,22 @@ struct FilePickerPosition {
     struct Command {
         std::string label, shortcut;
         std::function<void()> action;
+        int line = 0;  // symbol pickers: target line for live preview
+        std::string path;  // project symbols: target file
     };
     bool commandMode = false;
     std::vector<Command> commands;
+    std::vector<std::string> queryHistory;
+    int queryRecall = -1;
+    // Live-preview state for Go to Line / Go to Symbol.
+    int previewLine = 0, previewColumn = 0, previewIndex = -1;
     // Go to Symbol reuses the palette; its commands arrive with the scan.
     bool symbolMode = false;
     async_work::Task<OutlineResult> symbols;
+    bool projectSymbolMode = false;
+    async_work::Task<ProjectSymbolsResult> projectSymbols;
+    std::string projectQuery;
+    std::optional<std::chrono::steady_clock::time_point> projectDue;
     std::string input;
     std::optional<reading::ReadingAnchor> point;
     file_query::Query parsed;
@@ -1192,16 +1259,36 @@ struct FilePickerPosition {
 
 struct LayoutComponent : public afterhours::BaseComponent {
     reading::focus::State focus;
+    // Focus state stashed per repo tab so switching back restores it
+    // instead of resetting (keyed by tab entity id, capped).
+    std::map<int, reading::focus::State> focusByOwner;
     int focusRepositoryOwner = -1;
     FilePickerScope filePickerScope;
     FilePickerPosition filePickerPosition;
     std::string repositoryPickerQuery;
+    int repositoryPickerIndex = 0;
+    bool repositoryPickerFocusPending = true;
     bool repositoryPickerAlphabetical = false;
+    // Global repo picker (Cmd+Alt+O): opens instantly from settings, then
+    // the async resolution (existence + worktree grouping) fills in.
+    bool repoPickerOpen = false;
+    std::string repoPickerQuery;
+    int repoPickerIndex = 0;
+    bool repoPickerFocus = false;
+    async_work::Task<std::vector<repo_picker::Resolved>> repoPickerFuture;
+    std::vector<repo_picker::Resolved> repoPickerResolved;
+    std::string repoPickerResolveKey;
     bool relinkOpen = false;
     std::string relinkOld, relinkNew, relinkError, relinkRequest;
     async_work::Task<git::GitResult> relinkFuture;
     bool filePickerOpen = false;
     bool filePickerFocus = false;
+    // Live preview: document/anchor saved when the picker opens, restored
+    // verbatim when it closes without a confirmed open.
+    std::optional<reading::Location> filePickerRestoreLocation;
+    std::optional<reading::ReadingAnchor> filePickerRestoreAnchor;
+    bool filePickerPreviewing = false;
+    std::string filePickerPreviewKey;
     std::string filePickerQuery;
     std::string filePickerCacheKey;
     std::string filePickerSelectionKey;
@@ -1209,6 +1296,12 @@ struct LayoutComponent : public afterhours::BaseComponent {
     std::vector<std::string> filePickerResults;
     int filePickerIndex = 0;
     bool visibleWhitespace = false;
+    bool blameGutter = false;
+    bool minimap = false;
+    bool stickyScopes = true;
+    bool outlinePanelOpen = false;
+    int outlinePanelClickLine = 0;
+    std::chrono::steady_clock::time_point outlinePanelClickAt{};
     bool showLineNumbers = true;
     static constexpr float kDefaultSidebarWidth = 280.0f;
     static constexpr float kCommitSplitterHeight = 16.f;
@@ -1283,12 +1376,23 @@ struct CommitEditorComponent : public afterhours::BaseComponent {
     // box after each commit. Read once per tab.
     std::string templateText;
     bool templateLoaded = false;
+    // `git config commit.template` in flight; it used to run synchronously on
+    // the UI thread the first time the sidebar drew (hundreds of ms per spawn).
+    async_work::Task<git::GitResult> templateTask;
     // Where to put the caret after the box's text was replaced from outside
     // (template refill, prefix), which otherwise lands at the very end.
     std::optional<size_t> placeCaret;
 
     enum class UnstagedPolicy { Ask, StageAll, CommitStagedOnly };
     UnstagedPolicy unstagedPolicy = UnstagedPolicy::Ask;
+    // One-shot policy from the commit split button; consumed by the
+    // commit handler so the main button keeps its Ask behaviour.
+    std::optional<UnstagedPolicy> commitPolicyOverride;
+    // Async commit: staging (optional) then commit run in one worker
+    // future; commit_workflow::poll_commit applies the outcome.
+    struct CommitOutcome { bool stageFailed = false; git::GitResult result; };
+    async_work::Task<CommitOutcome> commitFuture;
+    std::string commitMessage;
 
     // Commit workflow state (T030)
     bool commitRequested = false;      // Set true to initiate commit flow
@@ -1333,10 +1437,20 @@ struct Tab : public afterhours::BaseComponent {
     LayoutComponent::FileViewMode fileViewMode = LayoutComponent::FileViewMode::Flat;
     LayoutComponent::DiffViewMode diffViewMode = LayoutComponent::DiffViewMode::Inline;
     bool sidebarVisible = true;
+
+    // Display name cache: resolving the folder name hits the filesystem, so
+    // TabSyncSystem recomputes it only when the repository path changes.
+    std::string labelPath;
+    std::string labelBase;
+    // When this tab last lost focus; switching back after a while requests a
+    // refresh because only the active tab is watched for file changes.
+    std::chrono::steady_clock::time_point deactivatedAt{};
 };
 
 struct TabStripComponent : public afterhours::BaseComponent {
     std::vector<afterhours::EntityID> tabOrder;
+    // Most-recently-used tab order (front = current), for the repo switcher.
+    std::vector<afterhours::EntityID> mruOrder;
 };
 
 // Tracks in-flight network git operations (push/pull/fetch) so the UI

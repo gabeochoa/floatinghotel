@@ -5,6 +5,9 @@
 #include "../util/shared_byte_cache.h"
 #include <bit>
 #include <array>
+#include <chrono>
+#include <cmath>
+#include <unordered_map>
 #include "../util/code_wrap.h"
 #include "../util/code_gutter.h"
 
@@ -27,6 +30,13 @@ class DiffMetricsCache {
     // LRU let that churn evict the sums that let off-screen lines skip.
     SharedByteCache<std::vector<size_t>> rows_{4 * 1024 * 1024};
     size_t signatureScans_ = 0, hunkScans_ = 0, wrapScans_ = 0, wrapHits_ = 0;
+    struct WidthTrack {
+        float width = 0;
+        int changes = 0;
+        std::chrono::steady_clock::time_point changedAt{};
+        std::vector<std::pair<float, MetricRows>> built;
+    };
+    std::unordered_map<std::string, WidthTrack> widthTracks_;
     static std::string metrics_key(float width, float fontSize, bool whitespace, char kind, std::string_view content) {
         const auto widthBytes = std::bit_cast<std::array<char, sizeof(float)>>(width);
         const auto fontBytes = std::bit_cast<std::array<char, sizeof(float)>>(fontSize);
@@ -67,6 +77,12 @@ public:
     size_t hunk_scans() const { return hunkScans_; }
     template<class Measure>
     MetricRows wraps_view(const std::string& text, float width, float fontSize, bool whitespace, Measure measure, std::string_view identity = {}) {
+        // Breaks are computed on an 8 px width grid: during a resize drag the
+        // available width changes every pixel and exact widths would miss
+        // this cache on every step. Flooring can only narrow the text column
+        // (callers already reserve padding), never overflow it, and the row
+        // builders use the same function so heights stay consistent.
+        width = std::floor(width / 8.f) * 8.f;
         auto key = metrics_key(width, fontSize, whitespace, identity.empty() ? 't' : 'i', identity.empty() ? std::string_view(text) : identity);
         if (auto value = wraps_.get(key)) { ++wrapHits_; return {std::move(value)}; }
         ++wrapScans_;
@@ -84,11 +100,35 @@ public:
     MetricRows rows_view(std::string_view identity, float width, float fontSize, bool whitespace, char kind, Build build) {
         auto key = metrics_key(width, fontSize, whitespace, kind, identity);
         if (auto value = rows_.get(key)) return {std::move(value)};
+        // Resize-friendly: while this row set's width keeps changing (a live
+        // drag), reuse the nearest already-built width instead of re-wrapping
+        // on every pixel; rebuild exactly once the width has been stable for
+        // ~100 ms. Heights are briefly approximate mid-drag, exact on settle,
+        // and the reading anchor is line-based so it survives the swap.
+        auto& track = widthTracks_[metrics_key(0.f, fontSize, whitespace, kind, identity)];
+        const auto now = std::chrono::steady_clock::now();
+        if (track.width != width) {
+            // A lone change (window snap, e2e resize) rebuilds exactly right
+            // away; only repeated changes inside the window count as a drag.
+            track.changes = now - track.changedAt < std::chrono::milliseconds(100) ? track.changes + 1 : 1;
+            track.width = width;
+            track.changedAt = now;
+        }
+        const bool resizing = track.changes >= 2 && now - track.changedAt < std::chrono::milliseconds(100);
+        if (resizing && !track.built.empty()) {
+            const auto best = std::min_element(track.built.begin(), track.built.end(),
+                [width](const auto& a, const auto& b) { return std::abs(a.first - width) < std::abs(b.first - width); });
+            return best->second;
+        }
         auto value = build();
         value.shrink_to_fit();
         const auto bytes = value.capacity() * sizeof(size_t);
-        if (auto owned = rows_.put(std::move(key), value, bytes)) return {std::move(owned)};
-        return {std::make_shared<const std::vector<size_t>>(std::move(value))};
+        auto owned = rows_.put(std::move(key), value, bytes);
+        MetricRows result{owned ? std::move(owned) : std::make_shared<const std::vector<size_t>>(std::move(value))};
+        track.built.emplace_back(width, result);
+        if (track.built.size() > 3) track.built.erase(track.built.begin());
+        if (widthTracks_.size() > 256) widthTracks_.clear();
+        return result;
     }
     template<class Build>
     MetricRows source_rows_view(std::uint64_t identity, float width, float fontSize, bool whitespace, Build build) {

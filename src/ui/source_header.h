@@ -3,6 +3,7 @@
 #include "../settings.h"
 #include "context_menu.h"
 #include "diff_renderer.h"
+#include "file_picker.h"
 #include "file_history.h"
 #include "source_edit.h"
 #include "../util/markdown_preview.h"
@@ -25,11 +26,75 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         navigation::return_to_review(repo);
         return true;
     }
-    auto path = div(ctx, mk(header.ent(), 1), ComponentConfig{}
-        .with_label(repo.fullFilePath()).with_size(ComponentSize{expand(), pixels(28)})
-        .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-        .with_debug_name("full_file_path"));
-    ui::set_truncated_tooltip(path.ent(), repo.fullFilePath(), path.ent());
+    // Clickable breadcrumbs: path segments open Quick Open filtered to
+    // that directory; the enclosing symbol opens the outline picker.
+    {
+        auto crumbs = div(ctx, mk(header.ent(), 1), ComponentConfig{}
+            .with_size(ComponentSize{expand(), pixels(28)}).with_flex_direction(FlexDirection::Row)
+            .with_no_wrap().with_align_items(AlignItems::Center).with_debug_name("full_file_path"));
+        const auto fullPath = repo.fullFilePath();
+        std::vector<std::string> segments;
+        for (size_t at = 0, next; at <= fullPath.size(); at = next + 1) {
+            next = fullPath.find('/', at);
+            if (next == std::string::npos) next = fullPath.size();
+            segments.push_back(fullPath.substr(at, next - at));
+            if (next == fullPath.size()) break;
+        }
+        std::string prefix;
+        for (size_t i = 0; i < segments.size(); ++i) {
+            prefix += (i ? "/" : "") + segments[i];
+            const bool last = i + 1 == segments.size();
+            auto segment = button(ctx, mk(crumbs.ent(), static_cast<int>(10 + i)), preset::Button(last ? segments[i] : segments[i] + " /")
+                .with_size(ComponentSize{children(), pixels(24)}).with_font_size(pixels(12))
+                .with_debug_name("breadcrumb_" + std::to_string(i)));
+            ui::set_tooltip(segment.ent(), last ? std::string("Open outline") : "Open Quick Open at " + prefix);
+            if (segment) {
+                if (auto* layout = find_singleton<LayoutComponent>()) {
+                    if (last) open_symbol_picker(repo, *layout);
+                    else {
+                        layout->filePickerPosition = {};
+                        layout->filePickerQuery = prefix + "/";
+                        layout->filePickerOpen = layout->filePickerFocus = true;
+                    }
+                }
+            }
+        }
+        const auto* document = repo.workspace().document(repo.workspace().active_id());
+        const int cursorLine = document && document->caret ? document->caret->line :
+            document && document->anchor ? document->anchor->line : 0;
+        // Symbol text comes from the full-file diff (decodedText is only
+        // kept for markdown); strip the leading diff marker per line.
+        static std::string symbolTextKey, symbolTextCache;
+        std::string symbolText;
+        if (document && cursorLine > 0 && !repo.fullFileDiff.empty()) {
+            size_t lines = 0;
+            for (const auto& file : repo.fullFileDiff) for (const auto& hunk : file.hunks) lines += hunk.lines.size();
+            if (lines <= 5000) {
+                const auto key = fullPath + "\n" + std::to_string(repo.dataGeneration) + ":" + std::to_string(lines);
+                if (key != symbolTextKey) {
+                    symbolTextCache.clear();
+                    for (const auto& file : repo.fullFileDiff)
+                        for (const auto& hunk : file.hunks)
+                            for (const auto& line : hunk.lines) { symbolTextCache += line.substr(1); symbolTextCache += '\n'; }
+                    symbolTextKey = key;
+                }
+                symbolText = symbolTextCache;
+            }
+        }
+        if (document && cursorLine > 0 && !symbolText.empty()) {
+            const auto& symbols = symbol_outline::cached_scan(fullPath, symbolText);
+            const symbol_outline::Symbol* enclosing = nullptr;
+            for (const auto& symbol : symbols) if (symbol.line <= cursorLine) enclosing = &symbol;
+            if (enclosing) {
+                auto symbol = button(ctx, mk(crumbs.ent(), 90), preset::Button("› " + enclosing->name)
+                    .with_size(ComponentSize{children(), pixels(24)}).with_font_size(pixels(12))
+                    .with_debug_name("breadcrumb_symbol"));
+                ui::set_tooltip(symbol.ent(), "Open outline");
+                if (symbol) if (auto* layout = find_singleton<LayoutComponent>()) open_symbol_picker(repo, *layout);
+            }
+        }
+        ui::set_truncated_tooltip(crumbs.ent(), fullPath, crumbs.ent());
+    }
     const auto& revision = repo.fullFileRevision();
     const auto badge = revision.empty() ? (compact ? "WT" : "Working tree") :
         revision == "INDEX" ? "Index" : revision.substr(0, 7);
@@ -58,6 +123,15 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
             .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
             .with_debug_name("source_readonly_pill"));
         ui::set_tooltip(pill.ent(), revision == "INDEX" ? "Index content is read-only" : "Committed content is read-only");
+    }
+    {
+        auto* mutableLayout = find_singleton<LayoutComponent>();
+        auto outline = button(ctx, mk(header.ent(), 5), preset::Button("Outline")
+            .with_size(ComponentSize{pixels(64), pixels(28)}).with_font_size(pixels(12))
+            .with_custom_background(mutableLayout && mutableLayout->outlinePanelOpen ? theme::SELECTED_BG : theme::PANEL_BG)
+            .with_debug_name("outline_toggle"));
+        ui::set_tooltip(outline.ent(), "Toggle the persistent outline panel");
+        if (outline && mutableLayout) mutableLayout->outlinePanelOpen = !mutableLayout->outlinePanelOpen;
     }
     auto options = button(ctx, mk(header.ent(), 3), preset::Button("...")
         .with_size(ComponentSize{pixels(28), pixels(28)}).with_font_size(pixels(12))
@@ -124,6 +198,14 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         if (entries.empty()) entries.push_back(ui::ContextMenuItem::item("No bookmarks", [] {}, false));
         ui::show_context_menu(x, y, std::move(entries));
     }, true, std::to_string(bookmarks.size())));
+    items.push_back(ui::ContextMenuItem::item("Minimap (toggle)", [current] {
+        if (auto* active = current())
+            if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) l->minimap = !l->minimap;
+    }));
+    items.push_back(ui::ContextMenuItem::item("Blame Gutter (toggle)", [current] {
+        if (auto* active = current())
+            if (auto* l = ecs::find_singleton<ecs::LayoutComponent>()) l->blameGutter = !l->blameGutter;
+    }));
     items.push_back(ui::ContextMenuItem::item(selectedLine > 0 ? "Blame line " + std::to_string(selectedLine) : "Blame selected line",
         [current, selectedLine] {
             if (auto* active = current()) {

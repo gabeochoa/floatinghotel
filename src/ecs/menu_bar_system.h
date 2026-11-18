@@ -5,6 +5,8 @@
 
 #include <afterhours/src/plugins/toast.h>
 #include "../ui/context_menu_render.h"
+#include "../ui/repo_picker.h"
+#include "../ui/bindings_dispatch.h"
 #include "../ui/menu_setup.h"
 #include "../ui/zoom.h"
 #include "ui_imports.h"
@@ -83,10 +85,44 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         layout.filePickerPosition = {};
         auto& position = layout.filePickerPosition;
         position.commandMode = true;
+        position.queryHistory = Settings::get().get_command_queries();
         for (auto& group : current_menus())
             for (auto& item : group.items)
                 if (!item.isSeparator && item.enabled && item.action && item.label != "Command Palette...")
                     position.commands.push_back({group.label + ": " + item.label, item.shortcut, std::move(item.action)});
+        // Repo, file, and navigation commands the menus don't carry.
+        if (auto* strip = find_singleton<TabStripComponent>())
+            for (const auto id : strip->tabOrder) {
+                auto tab = EntityHelper::getEntityForID(id);
+                if (!tab.valid() || tab->cleanup || !tab->has<RepoComponent>() || !tab->has<Tab>()) continue;
+                const auto label = tab->get<Tab>().label;
+                if (label.empty() || label == "Untitled") continue;
+                position.commands.push_back({"Repository: Go to " + label, "", [id] {
+                    auto target = EntityHelper::getEntityForID(id);
+                    auto* activeLayout = find_singleton<LayoutComponent>();
+                    if (target.valid() && activeLayout) TabBarSystem::switch_to_tab(target.asE(), *activeLayout);
+                }});
+            }
+        position.commands.push_back({"View: Minimap (toggle)", "", [] {
+            if (auto* activeLayout = find_singleton<LayoutComponent>()) activeLayout->minimap = !activeLayout->minimap;
+        }});
+        position.commands.push_back({"View: Blame Gutter (toggle)", "", [] {
+            if (auto* activeLayout = find_singleton<LayoutComponent>()) activeLayout->blameGutter = !activeLayout->blameGutter;
+        }});
+        position.commands.push_back({"Repository: Switch Repository...", "Cmd+Alt+O", [] {
+            if (auto* activeLayout = find_singleton<LayoutComponent>()) open_repo_picker(*activeLayout);
+        }});
+        for (const auto& path : Settings::get().get_recent_repos()) {
+            if (path.empty()) continue;
+            position.commands.push_back({"Repository: Open " + ui::welcome::repo_display_name(path), "", [path] {
+                if (auto* activeLayout = find_singleton<LayoutComponent>())
+                    TabBarSystem::open_repository(path, *activeLayout);
+            }});
+        }
+        position.commands.push_back({"File: Close Document", "", [] {
+            auto* repo = find_singleton<RepoComponent, ActiveTab>();
+            if (repo && repo->workspace().documents().size() > 1) navigation::close(*repo, repo->workspace().active_id());
+        }});
         layout.filePickerScope = {};
         layout.filePickerCacheKey.clear();
         layout.filePickerIndex = 0;
@@ -131,10 +167,8 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                 native_menu::install("floatinghotel", native_menu::CommandId{0}, native_menus(current_menus()));
         }
 
-        const bool cmdDown = afterhours::input::is_key_down(afterhours::keys::LEFT_SUPER) ||
-                             afterhours::input::is_key_down(afterhours::keys::RIGHT_SUPER) ||
-                             afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL);
-        if (cmdDown && !ui::shortcuts_blocked(layout) && afterhours::input::is_key_pressed(afterhours::keys::K))
+        if (const auto* binding = ui::bindings::find("Cmd+K");
+            binding && !ui::shortcuts_blocked(layout) && ui::bindings::chord_pressed(*binding))
             menu.paletteRequested = true;
         if (std::exchange(menu.paletteRequested, false)) open_palette(layout);
 

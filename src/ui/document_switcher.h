@@ -12,6 +12,9 @@ namespace ui {
 struct RecentTabSwitcher : afterhours::BaseComponent {
     int repository = -1;
     std::optional<reading::DocumentCycle> cycle;
+    // Live preview: the document active when the cycle started, and the
+    // one currently shown, so Escape can restore the original.
+    std::optional<reading::DocumentId> original, shown;
 };
 
 inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx, ecs::LayoutComponent& layout,
@@ -21,25 +24,38 @@ inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx
     auto& state = root.addComponentIfMissing<RecentTabSwitcher>();
     auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
     const bool ctrl = afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL);
-    const bool step = ctrl && afterhours::input::is_key_pressed(afterhours::keys::TAB);
+    const bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);
+    // Ctrl+Alt+Tab belongs to the repo-tab switcher, not documents.
+    const bool step = ctrl && !alt && afterhours::input::is_key_pressed(afterhours::keys::TAB);
     const bool wasOpen = state.cycle.has_value();
     ctx.remove_input_gate("document-switcher");
     if (wasOpen) ctx.add_input_gate("document-switcher", [](int) { return false; });
     if (!repo || !owner || (wasOpen && state.repository != owner->id)) {
         state.cycle.reset();
+        state.original.reset();
+        state.shown.reset();
         return wasOpen;
     }
     if (wasOpen) state.cycle->retain(reading::recent_documents(repo->workspace()));
     if (wasOpen && (blocked || afterhours::input::is_key_pressed(afterhours::keys::ESCAPE) ||
                     ctx.mouse.just_pressed || !state.cycle->selected())) {
+        // Cancel: restore the document that was active when cycling began.
+        if (repo && state.original && state.shown && *state.original != repo->workspace().active_id())
+            navigation::activate(*repo, *state.original);
         state.cycle.reset();
+        state.original.reset();
+        state.shown.reset();
         return true;
     }
     if (step && !blocked && !layout.filePickerOpen && !is_context_menu_open()) {
         static_cast<void>(ctx.pressed(InputAction::WidgetNext));
-        if (!state.cycle) state.cycle = reading::DocumentCycle{reading::recent_documents(repo->workspace())};
+        if (!state.cycle) {
+            state.cycle = reading::DocumentCycle{reading::recent_documents(repo->workspace())};
+            state.original = repo->workspace().active_id();
+            state.shown.reset();
+        }
         state.repository = owner->id;
-        if (state.cycle->order.size() < 2) { state.cycle.reset(); return true; }
+        if (state.cycle->order.size() < 2) { state.cycle.reset(); state.original.reset(); return true; }
         const bool shift = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
         state.cycle->advance(shift ? -1 : 1);
     }
@@ -47,7 +63,14 @@ inline bool render_document_switcher(afterhours::ui::UIContext<InputAction>& ctx
     if (!ctrl) {
         if (const auto selected = state.cycle->selected()) navigation::activate(*repo, *selected);
         state.cycle.reset();
+        state.original.reset();
+        state.shown.reset();
         return true;
+    }
+    // Live preview: show the highlighted document while Ctrl is held.
+    if (const auto selected = state.cycle->selected(); selected && state.shown != selected) {
+        state.shown = selected;
+        navigation::activate(*repo, *selected);
     }
     ctx.add_input_gate("document-switcher", [](int) { return false; });
     const auto& cycle = *state.cycle;
