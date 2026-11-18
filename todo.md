@@ -258,12 +258,20 @@ empty tab. The gaps are around cold, stale, and keyboard-less switching.
       the swap lands.
 - [x] Stop calling `weakly_canonical` every frame in `TabSyncSystem`; the
       display name is cached on `Tab` and recomputed when the path changes.
-- [~] Parse git output (`parse_status`, `parse_log`, `parse_diff`, branches,
+- [x] Parse git output (`parse_status`, `parse_log`, `parse_diff`, branches,
       paths) on the worker, not when results arrive on the main thread.
       Refresh futures now return parsed structures (`parsed_async` wraps
       each read and parses in the worker, prefetch included). Commit-log
       *paging* futures still parse in their poll.
-      (`async_git_refresh_system.h:158-260`).
+      (`async_git_refresh_system.h:158-260`). Paging and history-scope
+      futures now also return `ParsedCommitLog` (parsed on the worker;
+      polls only move the result). Along the way `parsed_async` moved its
+      wait off the executor pool (it starved small pools) onto a detached
+      promise thread — promise-based so dropping a task never blocks the
+      destroying thread on a lock-held git read. That also fixed the
+      long-standing `test_refresh_lifetime` failure
+      (`closing_a_tab_cancels…`), which now passes 3/3; flow suite 107/107
+      and `FH_EXECUTOR_THREADS=2` cold start still completes (~1.7 s).
 - [x] Load the review file async on first activation
       (`main_content_system.h:767-777`, `review_store.cpp:302-314`).
       `switch_review_scope` now launches `load_review_async` (parse on a

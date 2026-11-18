@@ -36,20 +36,30 @@ async_work::Task<Out> parsed_async(async_work::Task<git::GitResult> task, Parse 
     // starved the Background git jobs they were waiting on and the app
     // deadlocked at startup. Wait + parse on a dedicated transient thread.
     auto shared = std::make_shared<async_work::Task<git::GitResult>>(std::move(task));
+    // Promise-based on purpose: a std::async future blocks in its
+    // destructor until the job finishes, so dropping a parsed task whose
+    // git read waits on the repository lock (tab closed mid-commit) would
+    // deadlock the destroying thread. A detached thread feeding a promise
+    // keeps destruction non-blocking, like launch_on's futures.
+    auto promise = std::make_shared<std::promise<Out>>();
+    auto future = promise->get_future();
     try {
-        auto future = std::async(std::launch::async,
-            [shared, parse]() mutable {
+        std::thread([shared, parse, promise]() mutable {
+            try {
                 auto raw = shared->get();
                 Out out;
                 out.raw = raw;
                 if (raw.success()) out.parsed = parse(raw.stdout_str());
-                return out;
-            });
-        return async_work::Task<Out>(std::move(future), std::stop_source{std::nostopstate});
+                promise->set_value(std::move(out));
+            } catch (...) {
+                promise->set_exception(std::current_exception());
+            }
+        }).detach();
     } catch (...) {
         return async_work::completed(
             Out{git::GitResult{{"", "Background queue is full; retry the action", -1}}, {}});
     }
+    return async_work::Task<Out>(std::move(future), std::stop_source{std::nostopstate});
 }
 
 struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
@@ -414,18 +424,20 @@ private:
         if (repo.historyScopeRequested) {
             repo.historyScopeRequested = false;
             repo.historyScopeRequestKey = key;
-            repo.historyScopeFuture = git::git_run_async(repo.repoPath, git::history_scope_args(repo.historyScope));
+            repo.historyScopeFuture = parsed_async<ParsedCommitLog>(
+                git::git_run_async(repo.repoPath, git::history_scope_args(repo.historyScope)),
+                [](const std::string& out) { return git::parse_log(out); });
             repo.commitLogPage = {};
             repo.commitLog.clear();
             repo.commitLogLoading = true;
             repo.historyError.clear();
         }
         if (repo.historyScopeFuture.valid() && repo.historyScopeFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            auto result = repo.historyScopeFuture.get();
+            auto outcome = repo.historyScopeFuture.get();
             if (key != repo.historyScopeRequestKey) return;
             repo.commitLogLoading = false;
-            if (!result.success()) { repo.historyError = result.stderr_str(); return; }
-            repo.commitLog = git::parse_log(result.stdout_str());
+            if (!outcome.raw.success()) { repo.historyError = outcome.raw.stderr_str(); return; }
+            repo.commitLog = std::move(outcome.parsed);
             repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
             repo.commitLogHasMore = repo.commitLog.size() == 100;
             repo.historyRestorePosition = true;
@@ -437,14 +449,14 @@ private:
         if (page.future.valid() && (page.repository != repo.repoPath || page.head != repo.headCommitHash ||
                 page.offset != repo.commitLog.size())) page = {};
         if (page.future.valid() && page.future.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            auto result = page.future.get();
-            if (result.success()) {
-                auto commits = git::parse_log(result.stdout_str());
+            auto outcome = page.future.get();
+            if (outcome.raw.success()) {
+                auto commits = std::move(outcome.parsed);
                 repo.commitLogHasMore = commits.size() == 100;
                 repo.commitLog.insert(repo.commitLog.end(), std::make_move_iterator(commits.begin()), std::make_move_iterator(commits.end()));
                 repo.commitLogLoaded = static_cast<int>(repo.commitLog.size());
                 page.error.clear();
-            } else page.error = result.stderr_str().empty() ? "Unable to load older commits" : result.stderr_str();
+            } else page.error = outcome.raw.stderr_str().empty() ? "Unable to load older commits" : outcome.raw.stderr_str();
         }
         if (!page.requested || page.future.valid() || repo.isRefreshing || repo.refreshRequested) return;
         page.requested = false;
@@ -456,7 +468,9 @@ private:
         auto args = git::history_scope_args(repo.historyScope, page.offset);
         if (repo.historyScope.mode == git::HistoryScope::Mode::Current && !repo.historyScope.remotes)
             for (auto& arg : args) if (arg == "HEAD" && !page.head.empty()) arg = page.head;
-        page.future = git::git_run_async(page.repository, args, async_work::Priority::Background);
+        page.future = parsed_async<ParsedCommitLog>(
+            git::git_run_async(page.repository, args, async_work::Priority::Background),
+            [](const std::string& out) { return git::parse_log(out); });
     }
 
     // Wall time since the process was exec'd, so the number lines up with what

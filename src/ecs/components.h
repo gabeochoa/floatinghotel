@@ -283,13 +283,20 @@ struct RangeDiffState {
     std::string error;
 };
 
+// A git log read plus its parsed commits, produced on a worker so the
+// main thread never parses paging/scope results when they arrive.
+struct ParsedCommitLog {
+    git::GitResult raw;
+    std::vector<CommitEntry> parsed;
+};
+
 struct CommitLogPage {
     bool requested = false;
     std::string error;
     std::string repository;
     std::string head;
     size_t offset = 0;
-    async_work::Task<git::GitResult> future;
+    async_work::Task<ParsedCommitLog> future;
 };
 
 struct SourceFindMatch {
@@ -433,7 +440,7 @@ public:
     std::map<std::string, HistoryPosition> historyPositions;
     bool historyScopeRequested = false;
     bool historyRestorePosition = false;
-    async_work::Task<git::GitResult> historyScopeFuture;
+    async_work::Task<ParsedCommitLog> historyScopeFuture;
     std::string historyScopeRequestKey;
     std::string historyError;
     CommitLogPage commitLogPage;
