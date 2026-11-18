@@ -833,5 +833,7 @@ Details in [docs/afterhours-gaps.md](docs/afterhours-gaps.md) "Bump b385dc9 → 
       worktree grouping, Quick Open Repositories category and palette repo
       commands — the keyboard-first project switching the thread was
       building toward. Anything beyond that was in the cut-off text.
-- [ ] Commit the work in logical pieces (afterhours bump + ports, tab
-      switching, syntax seeding, test hygiene, docs) when asked.
+- [x] Commit the work in logical pieces (afterhours bump + ports, tab
+      switching, syntax seeding, test hygiene, docs) when asked. Done
+      2026-11-17: vendor bump, build options, engine, app, tests, docs
+      commits pushed to origin/main (`7151d5c..76734b9`).
