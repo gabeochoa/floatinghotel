@@ -43,12 +43,14 @@ namespace tab_colors {
 
 struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
     // How long a tab must have been in the background before returning to it
-    // revalidates its git state. FH_TAB_REFRESH_AFTER_MS overrides it for E2E
-    // runs, whose `wait` advances simulated time rather than the wall clock.
+    // revalidates its git state (fsm_todo.md M30: the named threshold).
+    // FH_TAB_REFRESH_AFTER_MS overrides it for E2E runs, whose `wait`
+    // advances simulated time rather than the wall clock.
+    static constexpr std::chrono::milliseconds kRefreshAfterAway{1000};
     static std::chrono::milliseconds refresh_after_away() {
         static const auto value = [] {
             if (const char* text = std::getenv("FH_TAB_REFRESH_AFTER_MS")) return std::chrono::milliseconds(std::atoi(text));
-            return std::chrono::milliseconds(1000);
+            return kRefreshAfterAway;
         }();
         return value;
     }

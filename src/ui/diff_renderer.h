@@ -2503,19 +2503,18 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 ownerRepo->codeownersDocument = cached->second;
             } else {
                 ownerRepo->codeownersDocument = {};
-                if (!ownerRepo->codeownersFuture.valid()) {
-                    ownerRepo->codeownersFuture = codeowners::load_async(repoPath, revision);
-                    ownerRepo->codeownersFutureKey = key;
-                }
+                // One load in flight, never cancelled by a key change: a
+                // landed load caches under its own key even when the
+                // current key has already moved on.
+                if (!ownerRepo->codeowners.busy())
+                    ownerRepo->codeowners.request(key, codeowners::load_async(repoPath, revision));
             }
         }
-        if (ownerRepo->codeownersFuture.valid() && ownerRepo->codeownersFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            auto loaded = ownerRepo->codeownersFuture.get();
-            ownerRepo->codeownersFuture = {};
+        if (auto loaded = ownerRepo->codeowners.poll_unstamped()) {
             if (ownerRepo->codeownersCache.size() >= 8) ownerRepo->codeownersCache.clear();
-            ownerRepo->codeownersCache[ownerRepo->codeownersFutureKey] = loaded;
-            if (ownerRepo->codeownersKey == ownerRepo->codeownersFutureKey) {
-                ownerRepo->codeownersDocument = std::move(loaded);
+            ownerRepo->codeownersCache[ownerRepo->codeowners.key] = *loaded;
+            if (ownerRepo->codeownersKey == ownerRepo->codeowners.key) {
+                ownerRepo->codeownersDocument = std::move(*loaded);
                 ownerRepo->codeownersByPath.clear();
             }
         }

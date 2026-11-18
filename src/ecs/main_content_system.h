@@ -474,7 +474,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 repoPtr->navigationEffect.reset();
                 bool dismissPicker = layout.picker.is_open();
                 if (effect.changed) {
-                    layout.shelfCollapsed = false;
+                    layout.shelf = LayoutComponent::ShelfState::Expanded;
                     if (const auto* working = std::get_if<reading::WorkingChanges>(&repoPtr->workspace().review().destination);
                         working && repoPtr->workspace().active() == reading::Slot::Review) {
                         const bool untracked = std::find(repoPtr->untrackedFiles.begin(), repoPtr->untrackedFiles.end(),
@@ -902,7 +902,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         // anyway made a 0x0 panel whose every child overflowed it -- a few
         // hundred layout warnings a run for a panel nobody could see. It comes
         // back with the shelf, when there is somewhere to put it.
-        if (layout.shelfCollapsed) return;
+        if (layout.shelf_collapsed()) return;
 
         if (!hasRepo) {
             render_welcome_screen(ctx, mainBg.ent(), layout);

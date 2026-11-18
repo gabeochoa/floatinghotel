@@ -3,6 +3,21 @@
 
 using namespace reading::focus;
 
+TEST(focus_phase_names_follow_the_sync_lifecycle) {
+    State state;
+    ASSERT_EQ(state.phase(), State::Phase::Idle);
+    ASSERT_STREQ(std::string(phase_name(state.phase())), "Idle");
+    state.origin = Target{"repo", {1}, Region::Code, "a.cpp", "options"};
+    state.sync("repo", 5, {Popup::ContextMenu});
+    ASSERT_EQ(state.phase(), State::Phase::PopupOpen);
+    ASSERT_STREQ(std::string(phase_name(state.phase())), "PopupOpen");
+    state.sync("repo", 5, {});
+    ASSERT_EQ(state.phase(), State::Phase::ReturnPending);
+    ASSERT_STREQ(std::string(phase_name(state.phase())), "ReturnPending");
+    state.pending.reset();
+    ASSERT_EQ(state.phase(), State::Phase::Idle);
+}
+
 TEST(focus_returns_to_semantic_caller_after_popup_closes) {
     State state;
     Target caller{"repo", {1}, Region::Code, "a.cpp", "options"};

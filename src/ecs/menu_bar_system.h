@@ -46,7 +46,7 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         if (auto* layout = find_singleton<LayoutComponent>())
             for (auto& menu : menus)
                 for (auto& item : menu.items)
-                    if (item.label == "Collapse reading panel" && layout->shelfCollapsed) item.label = "Expand reading panel";
+                    if (item.label == "Collapse reading panel" && layout->shelf_collapsed()) item.label = "Expand reading panel";
         const auto* review = find_singleton<ReviewComponent, ActiveTab>();
         for (auto& menu : menus)
             for (auto& item : menu.items)

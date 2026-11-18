@@ -1155,10 +1155,12 @@ public:
     unsigned allFilePathsGeneration = 0;
     std::string filesError;
     std::string codeownersKey;
-    async_work::Task<codeowners::Document> codeownersFuture;
+    // In-flight CODEOWNERS load; its slot key is the load's key (the
+    // current lookup key above may already have moved on — a landed load
+    // caches under its own key either way).
+    async_slot::Slot<codeowners::Document> codeowners;
     codeowners::Document codeownersDocument;
     std::unordered_map<std::string, codeowners::Document> codeownersCache;
-    std::string codeownersFutureKey;
     std::unordered_map<std::string, std::string> codeownersByPath;
     Search repoSearchPhase = Search::Closed;
     bool repoSearchFocus = false;
@@ -1431,8 +1433,11 @@ public:
              [](const RepoComponent& r) { return task_phase(r.repoSearchPreviewFuture); },
              true},
             {"codeowners",
-             [](const RepoComponent& r) { return task_in_flight(r.codeownersFuture); },
-             [](const RepoComponent& r) { return task_phase(r.codeownersFuture); },
+             // Render-polled slot: a landed-but-unconsumed load is Ready,
+             // not busy — otherwise wait_for_refresh spins when the diff
+             // view closes before the load is consumed.
+             [](const RepoComponent& r) { return r.codeowners.busy() && !r.codeowners.ready(); },
+             [](const RepoComponent& r) { return r.codeowners.ready() ? std::string_view("Ready") : async_slot::name(r.codeowners.phase); },
              true},
             {"file_history",
              [](const RepoComponent& r) { return r.fileHistory.busy(); },
@@ -2386,15 +2391,14 @@ struct FilePickerPosition {
     // Live-preview state for Go to Line / Go to Symbol.
     int previewLine = 0, previewColumn = 0, previewIndex = -1;
     // Go to Symbol reuses the palette; its commands arrive with the scan.
-    async_work::Task<OutlineResult> symbols;
-    async_work::Task<ProjectSymbolsResult> projectSymbols;
+    async_slot::Slot<OutlineResult> symbols;
+    async_slot::Slot<ProjectSymbolsResult> projectSymbols;
     std::string projectQuery;
     std::optional<std::chrono::steady_clock::time_point> projectDue;
     std::string input;
     std::optional<reading::ReadingAnchor> point;
     file_query::Query parsed;
-    reading::RequestStamp request;
-    async_work::Task<git::SourcePosition> future;
+    async_slot::Slot<git::SourcePosition> positionRequest;
     std::string key;
     std::string error;
     reading::OpenMode mode = reading::OpenMode::Keep;
@@ -2515,15 +2519,26 @@ struct LayoutComponent : public afterhours::BaseComponent {
 
     bool sidebarVisible = true;
     bool commandLogVisible = false;
-    // Shelf: when collapsed, the diff pane is hidden and the sidebar fills the
-    // window (Bear-like). Derived each frame from whether anything is selected;
-    // set by LayoutUpdateSystem and read by the sidebar/main-content renderers.
-    bool shelfCollapsed = false;
+    // Shelf (fsm_todo.md M31): when Collapsed, the diff pane is hidden and
+    // the sidebar fills the window (Bear-like). Two states only — the
+    // native resize on transition is instantaneous, so there is no
+    // Animating state to name. LayoutUpdateSystem derives the state each
+    // frame via derive_shelf(); readers use shelf_collapsed().
+    enum class ShelfState { Expanded, Collapsed };
+    ShelfState shelf = ShelfState::Expanded;
     std::optional<bool> readingPanelCollapsed;
-    // Starts true because the window itself opens at the shelf width. If the
-    // first frame finds something selected (a restored review, say), the
-    // true->false transition expands it, same as any later selection.
-    bool lastShelfCollapsed = true;   // for detecting collapse/expand transitions
+    // Starts Collapsed because the window itself opens at the shelf width.
+    // If the first frame finds something selected (a restored review, say),
+    // the Collapsed->Expanded transition expands it, same as any later one.
+    ShelfState lastShelf = ShelfState::Collapsed;  // transition latch
+    bool shelf_collapsed() const { return shelf == ShelfState::Collapsed; }
+    // The single derivation transition; true when the state changed (the
+    // caller then issues the native resize and calls note_shelf_resized).
+    bool derive_shelf(bool collapsed) {
+        shelf = collapsed ? ShelfState::Collapsed : ShelfState::Expanded;
+        return shelf != lastShelf;
+    }
+    void note_shelf_resized() { lastShelf = shelf; }
     // The window opens at the default sidebar width, but the saved one is only
     // known after settings load, so the first frame corrects the difference.
     bool didInitialWidthSync = false;
@@ -2544,6 +2559,14 @@ struct LayoutComponent : public afterhours::BaseComponent {
     Rect commandLog{};
     Rect statusBar{};
 };
+
+inline std::string_view shelf_state_name(LayoutComponent::ShelfState state) {
+    switch (state) {
+        case LayoutComponent::ShelfState::Expanded: return "Expanded";
+        case LayoutComponent::ShelfState::Collapsed: return "Collapsed";
+    }
+    return "Expanded";
+}
 
 // Commit-editor lifecycle (fsm_todo.md M16): Editing (composing) ->
 // Committing on request_commit() (the request is pending until the

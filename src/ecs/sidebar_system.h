@@ -936,7 +936,7 @@ private:
             const auto* origin = repo && source_tab_active(*repo) ? repo->workspace().retained_review() : nullptr;
             const auto progress = origin && origin->files ? ui::cached_review_progress(*review, scope, *origin->files) :
                 ui::cached_review_progress(*review, scope, *files);
-            if (layout && layout->shelfCollapsed && progress.reviewed < progress.total) {
+            if (layout && layout->shelf_collapsed() && progress.reviewed < progress.total) {
                 const auto remaining = progress.total - progress.reviewed;
                 if (button(ctx, mk(heading.ent(), 1), preset::Button(std::to_string(remaining) + " left")
                         .with_size(ComponentSize{pixels(72), pixels(28)}).with_font_size(pixels(12))
@@ -964,7 +964,7 @@ private:
                     .with_debug_name("tree_review_progress"));
             }
         }
-        if (sectionCollapsed || height <= 32.f || (layout && layout->shelfCollapsed && files && files->empty())) return;
+        if (sectionCollapsed || height <= 32.f || (layout && layout->shelf_collapsed() && files && files->empty())) return;
         auto search = div(ctx, mk(section.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(38)})
             .with_padding(Padding{.left = pixels(16), .right = pixels(16), .bottom = pixels(8)})

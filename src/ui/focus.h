@@ -90,7 +90,7 @@ inline bool shortcuts_blocked(const ecs::LayoutComponent& layout) {
 }
 
 inline bool reader_visible(const ecs::RepoComponent& repo, const ecs::LayoutComponent& layout) {
-    return !layout.shelfCollapsed && !layout.picker.is_open() &&
+    return !layout.shelf_collapsed() && !layout.picker.is_open() &&
         !repo.commitSearchOpen && !repo.fileHistoryOpen;
 }
 

@@ -1514,4 +1514,63 @@ TEST(watch_name_covers_all_phases) {
     ASSERT_FALSE(pending.has_value());
 }
 
+TEST(shelf_state_derivation_and_transition_latch) {
+    using Shelf = ecs::LayoutComponent::ShelfState;
+    ASSERT_STREQ(std::string(ecs::shelf_state_name(Shelf::Expanded)), "Expanded");
+    ASSERT_STREQ(std::string(ecs::shelf_state_name(Shelf::Collapsed)), "Collapsed");
+    ecs::LayoutComponent layout;
+    ASSERT_FALSE(layout.shelf_collapsed());
+    // Starts Expanded with the latch at Collapsed (window opens at shelf
+    // width), so the first derivation reports a transition either way.
+    ASSERT_TRUE(layout.derive_shelf(false));
+    ASSERT_FALSE(layout.shelf_collapsed());
+    layout.note_shelf_resized();
+    ASSERT_FALSE(layout.derive_shelf(false));
+    ASSERT_TRUE(layout.derive_shelf(true));
+    ASSERT_TRUE(layout.shelf_collapsed());
+    layout.note_shelf_resized();
+    ASSERT_FALSE(layout.derive_shelf(true));
+}
+
+TEST(picker_position_slots_poll_and_drop_stale) {
+    ecs::RepoComponent repo;
+    ecs::FilePickerPosition position;
+    git::SourcePosition landed;
+    landed.location = reading::source("src/app.cpp", {}, 12);
+    landed.location.column = 3;
+    position.positionRequest.request("go:12", repo_stamp(repo, "go:12"),
+        async_work::completed(landed));
+    ASSERT_TRUE(position.positionRequest.busy());
+    auto polled = position.positionRequest.poll(repo);
+    ASSERT_TRUE(polled.has_value());
+    ASSERT_EQ(polled->location.line, 12);
+    ASSERT_FALSE(position.positionRequest.busy());
+    ecs::OutlineResult outline;
+    outline.symbols = {{"main", "function", 1}};
+    position.symbols.request("src/app.cpp@", repo_stamp(repo, "src/app.cpp@"),
+        async_work::completed(outline));
+    auto symbols = position.symbols.poll(repo);
+    ASSERT_TRUE(symbols.has_value());
+    ASSERT_EQ(symbols->symbols.size(), size_t{1});
+}
+
+TEST(codeowners_slot_lands_under_its_own_key_unstamped) {
+    ecs::RepoComponent repo;
+    codeowners::Document doc;
+    doc.rules = {{"*.cpp", "@cpp-team"}};
+    repo.codeowners.request("repo\nrev", async_work::completed(doc));
+    ASSERT_TRUE(repo.codeowners.busy());
+    // A completed-but-unconsumed load reads Ready and does not gate idle:
+    // the render path is the only poller, and it may never run again.
+    ASSERT_STREQ(std::string(*repo.async_slot_phase("codeowners")), "Ready");
+    ASSERT_FALSE(repo.find_async_slot("codeowners")->busy(repo));
+    auto landed = repo.codeowners.poll_unstamped();
+    ASSERT_TRUE(landed.has_value());
+    // The landed load keeps its own key even after the lookup key moved on,
+    // so the driver can cache it under the right entry.
+    ASSERT_EQ(repo.codeowners.key, std::string("repo\nrev"));
+    ASSERT_STREQ(std::string(*repo.async_slot_phase("codeowners")), "Ready");
+    ASSERT_FALSE(repo.codeowners.busy());
+}
+
 int main() { RUN_ALL_TESTS(); }

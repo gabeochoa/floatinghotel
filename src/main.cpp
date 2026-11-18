@@ -441,7 +441,8 @@ static void app_init() {
         restoredLayout.commandLogHeight = Settings::get().get_command_log_height();
         restoredLayout.reviewPanelWidth = std::max(368.f,
             static_cast<float>(Settings::get().get_expanded_window_width()) - restoredLayout.sidebarWidth);
-        restoredLayout.lastShelfCollapsed = Settings::get().get_window_collapsed();
+        restoredLayout.lastShelf = Settings::get().get_window_collapsed()
+            ? ecs::LayoutComponent::ShelfState::Collapsed : ecs::LayoutComponent::ShelfState::Expanded;
         restoredLayout.didInitialWidthSync = true;
     }
     entity.addComponent<ecs::MenuComponent>();
@@ -755,8 +756,8 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
             bool refreshDone = !ui::image_diff::pending() && !ui::submodule_view::pending();
             if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
                 const auto& scope = layout->filePickerScope;
-                refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.future.valid() &&
-                    !layout->filePickerPosition.symbols.valid();
+                refreshDone = refreshDone && !scope.future.valid() && !layout->filePickerPosition.positionRequest.busy() &&
+                    !layout->filePickerPosition.symbols.busy();
                 if (layout->picker.is_open() && layout->picker.mode == ecs::PickerMode::Files)
                     refreshDone = refreshDone && scope.catalogStarted && !scope.catalogDue &&
                         !scope.localFuture.valid() && !scope.remoteFuture.valid() && !scope.commitsFuture.valid() &&
@@ -927,7 +928,7 @@ static UiActivitySnapshot capture_ui_activity_snapshot() {
 }
 
 static bool app_has_pending_work() {
-    if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>(); layout && (layout->filePickerScope.future.valid() || layout->filePickerPosition.future.valid())) return true;
+    if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>(); layout && (layout->filePickerScope.future.valid() || layout->filePickerPosition.positionRequest.busy())) return true;
     if (ui::image_diff::pending() || ui::submodule_view::pending()) return true;
     {
         std::lock_guard<std::mutex> lock(g_gitLogMutex);
@@ -942,7 +943,7 @@ static bool app_has_pending_work() {
             pending = pending || repo.refresh_busy() ||
                 frame_pacer::in_flight(repo.untrackedReview.task) ||
                 frame_pacer::in_flight(repo.fullFileLoad.task) || repo.selectionCopy.slot.task.valid() || frame_pacer::in_flight(repo.repoSearchFuture) ||
-                frame_pacer::in_flight(repo.repoSearchPreviewFuture) || frame_pacer::in_flight(repo.codeownersFuture) ||
+                frame_pacer::in_flight(repo.repoSearchPreviewFuture) || frame_pacer::in_flight(repo.codeowners.task) ||
                 frame_pacer::in_flight(repo.fileHistory.task) || frame_pacer::in_flight(repo.blame.task) ||
                 frame_pacer::in_flight(repo.commitSearch.task) || frame_pacer::in_flight(repo.comparisonFuture) ||
                 frame_pacer::in_flight(repo.reviewQueue.task) || frame_pacer::in_flight(repo.rangeDiff.future) ||

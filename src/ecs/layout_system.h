@@ -19,12 +19,12 @@ namespace ecs {
 
 inline void remember_window_size(const LayoutComponent& layout, int width, int height) {
     if (metal_window_resize_pending()) width = static_cast<int>(std::round(review_layout::window_width(
-        layout.sidebarWidth, layout.reviewPanelWidth, layout.shelfCollapsed) * ui::zoom::get()));
+        layout.sidebarWidth, layout.reviewPanelWidth, layout.shelf_collapsed()) * ui::zoom::get()));
     Settings::get().set_commit_log_ratio(layout.commitLogRatio);
     Settings::get().set_command_log_height(layout.commandLogHeight);
-    const int expanded = layout.shelfCollapsed ? static_cast<int>(std::round(
+    const int expanded = layout.shelf_collapsed() ? static_cast<int>(std::round(
         (layout.sidebarWidth + layout.reviewPanelWidth) * ui::zoom::get())) : width;
-    Settings::get().remember_window_size(width, height, layout.shelfCollapsed, expanded, layout.sidebarWidth);
+    Settings::get().remember_window_size(width, height, layout.shelf_collapsed(), expanded, layout.sidebarWidth);
 }
 
 
@@ -57,8 +57,8 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             // working-tree file, so keep the shelf open even with no selection.
             auto* shelfReview = find_singleton<ReviewComponent, ActiveTab>();
             bool reviewingShelf = shelfReview && shelfReview->reviewing;
-            layout.shelfCollapsed =
-                layout.sidebarVisible && hasRepoForShelf && layout.readingPanelCollapsed.value_or(nothingSelected && !reviewingShelf);
+            const bool shelfChanged = layout.derive_shelf(
+                layout.sidebarVisible && hasRepoForShelf && layout.readingPanelCollapsed.value_or(nothingSelected && !reviewingShelf));
 
             if (!app_state::testModeEnabled || (std::getenv("FH_TEST_NATIVE_DOCK") &&
                 std::getenv("FH_TEST_NATIVE_HIDDEN") && std::getenv("FH_TEST_SETTINGS_DIR"))) {
@@ -68,20 +68,20 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
                 // rather than animating a correction the user never asked for.
                 if (!layout.didInitialWidthSync) {
                     layout.didInitialWidthSync = true;
-                    if (layout.shelfCollapsed && std::fabs(sw - collapsedW) > 1.0f) {
+                    if (layout.shelf_collapsed() && std::fabs(sw - collapsedW) > 1.0f) {
                         metal_set_window_size(static_cast<int>(collapsedW),
                                               static_cast<int>(sh));
                     }
                 }
-                if (layout.shelfCollapsed != layout.lastShelfCollapsed) {
-                    if (layout.shelfCollapsed && !metal_window_resize_pending())
+                if (shelfChanged) {
+                    if (layout.shelf_collapsed() && !metal_window_resize_pending())
                         layout.reviewPanelWidth = std::max(368.f, sw / ui::zoom::get() - layout.sidebarWidth);
                     const float target = review_layout::window_width(
-                        layout.sidebarWidth, layout.reviewPanelWidth, layout.shelfCollapsed) * ui::zoom::get();
+                        layout.sidebarWidth, layout.reviewPanelWidth, layout.shelf_collapsed()) * ui::zoom::get();
                     metal_set_window_size(static_cast<int>(std::round(target)), screenH);
-                    layout.lastShelfCollapsed = layout.shelfCollapsed;
+                    layout.note_shelf_resized();
                 }
-                if (layout.shelfCollapsed && !metal_window_resize_pending()) {
+                if (layout.shelf_collapsed() && !metal_window_resize_pending()) {
                     layout.sidebarWidth = sw / ui::zoom::get();
                 }
             }
@@ -101,7 +101,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             ? std::min(42.f, availableH - tabStripH - menuH) : 0.f;
         const float topY = tabStripH + menuH + toolbarH;
         const float bodyH = availableH - topY;
-        const bool sidebarOnly = sidebarShown && layout.shelfCollapsed && !(repo && repo->repo_search_open());
+        const bool sidebarOnly = sidebarShown && layout.shelf_collapsed() && !(repo && repo->repo_search_open());
         const auto sidebarState = !sidebarShown ? review_layout::Sidebar::Hidden
             : sidebarOnly ? review_layout::Sidebar::Collapsed
             : review_layout::Sidebar::Expanded;

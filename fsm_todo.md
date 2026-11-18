@@ -1061,7 +1061,7 @@ flag combinations, and the idle gate stops being a hand-maintained list.
       `rejected_flag_marks_queue_full_and_shutdown_only`: background +
       foreground queue-full rejected, accepted/completed/empty not,
       move preserves, post-shutdown rejected).
-- [ ] **Minor machines, opportunistic (S/low each):** M27 focus
+- [x] **Minor machines, opportunistic (S/low each):** M27 focus
       pending/reveal (name phases in tests only); M29 selected-diff /
       codeowners / selection-copy / markdown-link / outline-panel
       `future + key` pairs → slot instantiations, no bespoke work;
@@ -1087,7 +1087,10 @@ flag combinations, and the idle gate stops being a hand-maintained list.
       M31 shelf (derived `shelfCollapsed` + transition latch +
       `optional` user override driving native window resize; no
       Animating state exists to name), M27 (tests-only naming, no
-      production change to preserve). M23/M30/M32 untouched per above.
+      production change to preserve). All four addressed in the
+      "Minors follow-up" section at the end of this file. M23/M30/M32
+      untouched per above (M30's named threshold landed in the follow-up;
+      M23/M32 reviewed, left as decided).
 
 ## Explicitly not changing
 
@@ -1104,6 +1107,52 @@ flag combinations, and the idle gate stops being a hand-maintained list.
   `frame_pacer::decide` (pure function); already-named enums
   (`ReviewVerdict`, `image_view_state::Mode`, `HistoryScope::Mode`,
   `DiffTarget::Kind`).
+
+## Minors follow-up (the four skipped machines, addressed)
+
+- [x] **M29 codeowners** → `async_slot::Slot<codeowners::Document>`
+      (`components.h`, driver in `diff_renderer.h`). The two live keys
+      stay, now named: `codeownersKey` is the lookup key, `slot.key` is
+      the in-flight load's key. One load in flight, never cancelled by a
+      key change; `poll_unstamped` lands it and the driver caches under
+      the load's own key (8-entry cache and per-path memo unchanged), so
+      a scope switch mid-load no longer loses the result. `codeownersFuture`/
+      `codeownersFutureKey` deleted. Unit: `codeowners_slot_lands_under_its_own_key_unstamped`.
+      Registry note (found by the flow gate): this slot is render-polled,
+      so its registry entry reports a landed-but-unconsumed load as
+      Ready/not-busy — `phase == Pending` alone would spin
+      `wait_for_refresh` forever when the diff view closes first. Any
+      future render-polled slot needs the same adapter treatment.
+- [x] **M29 outline/picker async** → `FilePickerPosition::{symbols,
+      projectSymbols, positionRequest}` are slots (`components.h`);
+      `future`/`request` deleted. Go to Symbol and project symbols launch
+      with named keys + `RequestStamp`; polls go through the slot (stale
+      dropped inside), project-symbol debounce relaunches only when not
+      busy; idle gate + frame pacer read `busy()`. Unit:
+      `picker_position_slots_poll_and_drop_stale`; flows: symbol picker,
+      quick-open preview, outline, sticky scopes, palette, registry (6/6).
+- [x] **M31 shelf** → `LayoutComponent::ShelfState {Expanded, Collapsed}`
+      + `shelf_state_name`, `derive_shelf()` as the single derivation
+      transition and `note_shelf_resized()` as the latch; all readers use
+      `shelf_collapsed()`. `shelfCollapsed`/`lastShelfCollapsed` deleted.
+      Two states only, deliberately: the native resize on transition is
+      instantaneous, so the sketched `Animating` state would name
+      something that never occurs. Unit:
+      `shelf_state_derivation_and_transition_latch`.
+- [x] **M27 focus naming** → `State::Phase {Idle, PopupOpen,
+      ReturnPending}` as a computed view in `focus_target.h` +
+      `phase_name()`; no production behaviour change (the fields remain
+      the state; the phase cannot disagree with them). Unit:
+      `focus_phase_names_follow_the_sync_lifecycle`.
+- [x] **M30 tab strip (reviewed)** → the away rule is now the named
+      `TabBarSystem::kRefreshAfterAway` (1000 ms), still overridable via
+      `FH_TAB_REFRESH_AFTER_MS`. No behaviour change; verified by
+      `tests/check_repo_tab_switching.sh` (threshold-0 path) and the tab
+      flows.
+- [x] **M23 reading workspace (reviewed, left alone)** → no bug demands
+      splitting `generation_`; the core stays as is per the plan.
+- [x] **M32 commit prefetch (reviewed, left alone)** → still the
+      exemplar `async_slot` was modelled on; no change.
 
 ## Per-item definition of done
 

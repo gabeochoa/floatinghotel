@@ -66,6 +66,17 @@ struct State {
     std::uint64_t pendingGeneration = 0;
     std::vector<ReturnPoint> returns;
 
+    // Named view of the lifecycle (fsm_todo.md M27): Idle while reading,
+    // PopupOpen while any popup holds a return point, ReturnPending while
+    // a closed popup's focus return waits to be consumed. Computed, so it
+    // cannot disagree with the fields it names.
+    enum class Phase { Idle, PopupOpen, ReturnPending };
+    Phase phase() const {
+        if (pending) return Phase::ReturnPending;
+        if (!returns.empty()) return Phase::PopupOpen;
+        return Phase::Idle;
+    }
+
     void sync(const std::string& repo, std::uint64_t generation, const std::vector<Popup>& visible) {
         if (repository != repo) {
             repository = repo;
@@ -105,5 +116,14 @@ struct State {
         return target.region == Region::DocumentTabs || target.document == workspace.active_id();
     }
 };
+
+inline std::string_view phase_name(State::Phase phase) {
+    switch (phase) {
+        case State::Phase::Idle: return "Idle";
+        case State::Phase::PopupOpen: return "PopupOpen";
+        case State::Phase::ReturnPending: return "ReturnPending";
+    }
+    return "Idle";
+}
 
 }

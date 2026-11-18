@@ -165,8 +165,13 @@ inline void open_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
     if (!position.point) position.error = "Open a file to list its symbols";
     else if (position.point->side == reading::DiffSide::Before) position.error = "Deleted files have no symbols";
     else if (!symbol_outline::supported(position.point->path)) position.error = "No outline for this file type";
-    else position.symbols = git::outline_source_async({repo.repoPath, position.point->path,
-        reading::revision_text(reading::source_revision_for(repo.workspace().location())), {}, repo.fullFileEncodingOverride});
+    else {
+        const std::string key = position.point->path + "@" +
+            reading::revision_text(reading::source_revision_for(repo.workspace().location()));
+        position.symbols.request(key, navigation::stamp(repo, key),
+            git::outline_source_async({repo.repoPath, position.point->path,
+                reading::revision_text(reading::source_revision_for(repo.workspace().location())), {}, repo.fullFileEncodingOverride}));
+    }
     layout.filePickerScope = {};
     layout.filePickerCacheKey.clear();
     layout.filePickerIndex = 0;
@@ -176,7 +181,8 @@ inline void open_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
 inline void open_project_symbol_picker(RepoComponent& repo, LayoutComponent& layout) {
     layout.filePickerPosition = {};
     auto& position = layout.filePickerPosition;
-    position.projectSymbols = git::project_symbols_async(repo.repoPath, repo.allFilePaths, "");
+    position.projectSymbols.request("project:" + repo.repoPath, navigation::stamp(repo, "project:" + repo.repoPath),
+        git::project_symbols_async(repo.repoPath, repo.allFilePaths, ""));
     layout.filePickerScope = {};
     layout.filePickerCacheKey.clear();
     layout.filePickerIndex = 0;
@@ -203,13 +209,13 @@ inline void go_to_symbol(RepoComponent& repo, reading::ReadingAnchor point, int 
 inline bool poll_file_picker_position(RepoComponent& repo, LayoutComponent& layout, const std::string& key) {
     auto& position = layout.filePickerPosition;
     if (position.key != key) {
-        position.future = {};
+        position.positionRequest.cancel();
         position.error.clear();
         position.key = key;
     }
-    if (!position.future.valid() || position.future.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return false;
-    auto result = position.future.get();
-    if (!navigation::accepts(repo, position.request, position.request.key)) return false;
+    auto landed = position.positionRequest.poll(repo);
+    if (!landed) return false;
+    auto& result = *landed;
     position.error = std::move(result.error);
     if (!position.error.empty()) return false;
     const auto anchor = reading::ReadingAnchor{result.location.destination.path, reading::anchor_revision(result.location),
@@ -223,9 +229,10 @@ inline void request_file_picker_position(RepoComponent& repo, LayoutComponent& l
     auto& position = layout.filePickerPosition;
     position.error.clear();
     position.mode = mode;
-    position.request = navigation::stamp(repo, position.key + "\n" + target.destination.path + ":" +
-        std::to_string(target.line) + ":" + std::to_string(target.column));
-    position.future = git::locate_source_position_async(repo.repoPath, std::move(target), repo.fullFileEncodingOverride);
+    const std::string key = position.key + "\n" + target.destination.path + ":" +
+        std::to_string(target.line) + ":" + std::to_string(target.column);
+    position.positionRequest.request(key, navigation::stamp(repo, key),
+        git::locate_source_position_async(repo.repoPath, std::move(target), repo.fullFileEncodingOverride));
 }
 
 inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo, LayoutComponent& layout) {
@@ -281,15 +288,15 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
             }
         }
     }
-    const auto status = position.future.valid() ? "Checking line..." : !position.error.empty() ? position.error : position.parsed.error;
+    const auto status = position.positionRequest.busy() ? "Checking line..." : !position.error.empty() ? position.error : position.parsed.error;
     div(ctx, mk(parent, 587003), ComponentConfig{}.with_label(status.empty() ? "Line[:column] or +N/-N · Enter to go · Esc to return" : status)
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
         .with_custom_text_color(theme::TEXT_PRIMARY)
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("line_picker_status"));
-    const bool pressed = button(ctx, mk(parent, 587004), preset::Button("Go", valid && !position.future.valid())
+    const bool pressed = button(ctx, mk(parent, 587004), preset::Button("Go", valid && !position.positionRequest.busy())
         .with_size(ComponentSize{pixels(64), pixels(28)}).with_debug_name("line_picker_go"));
     const bool enter = ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && afterhours::input::is_key_pressed(afterhours::keys::ENTER);
-    if (!valid || position.future.valid() || (!pressed && !enter)) return;
+    if (!valid || position.positionRequest.busy() || (!pressed && !enter)) return;
     layout.picker.clear_preview();
     auto point = *position.point;
     point.revision = reading::anchor_revision(repo.workspace().location());
@@ -317,8 +324,8 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
 inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo, LayoutComponent& layout, float height) {
     auto& position = layout.filePickerPosition;
     ui::bind_focus(parent, repo, reading::focus::Region::Picker);
-    if (position.symbols.valid() && position.symbols.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-        auto result = position.symbols.get();
+    if (auto landed = position.symbols.poll(repo)) {
+        auto& result = *landed;
         position.error = std::move(result.error);
         const bool firstArrival = position.commands.empty();
         for (const auto& symbol : result.symbols)
@@ -336,8 +343,8 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
         }
     }
     if (layout.picker.mode == PickerMode::ProjectSymbol) {
-        if (position.projectSymbols.valid() && position.projectSymbols.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
-            auto result = position.projectSymbols.get();
+        if (auto landed = position.projectSymbols.poll(repo)) {
+            auto& result = *landed;
             position.error = std::move(result.error);
             position.commands.clear();
             for (const auto& symbol : result.symbols)
@@ -358,8 +365,10 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
             position.projectDue.reset();
             if (position.projectQuery != position.input) {
                 position.projectQuery = position.input;
-                if (!position.projectSymbols.valid())
-                    position.projectSymbols = git::project_symbols_async(repo.repoPath, repo.allFilePaths, position.input);
+                if (!position.projectSymbols.busy())
+                    position.projectSymbols.request("project:" + repo.repoPath + "\n" + position.input,
+                        navigation::stamp(repo, "project:" + repo.repoPath + "\n" + position.input),
+                        git::project_symbols_async(repo.repoPath, repo.allFilePaths, position.input));
             }
         }
     }
@@ -422,11 +431,11 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
         if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) return run(results[layout.filePickerIndex]);
     }
     div(ctx, mk(parent, 588002), ComponentConfig{}
-        .with_label(layout.picker.mode == PickerMode::ProjectSymbol ? (position.projectSymbols.valid() ? std::string("Scanning project symbols...")
+        .with_label(layout.picker.mode == PickerMode::ProjectSymbol ? (position.projectSymbols.busy() ? std::string("Scanning project symbols...")
                 : !position.error.empty() ? position.error
                 : std::to_string(results.size()) + " project symbols · Enter go · Esc close")
             : layout.picker.mode == PickerMode::Commands ? std::to_string(results.size()) + " commands · arrows to choose · Enter run · Esc close"
-            : position.symbols.valid() ? std::string("Scanning symbols...")
+            : position.symbols.busy() ? std::string("Scanning symbols...")
             : !position.error.empty() ? position.error
             : std::to_string(results.size()) + " symbols · approximate, text-based · Enter go · Esc close")
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12)).with_debug_name("command_palette_status"));
@@ -863,7 +872,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     if (includesRefs && !scope.remoteRefs.error.empty() && scope.category != git::catalog::Kind::Tag) error = scope.remoteRefs.error;
     const bool searching = scope.matchFuture.valid() || (includesCommits && (scope.commitsFuture.valid() || scope.catalogDue)) ||
         (includesRefs && (scope.localFuture.valid() || (scope.category != git::catalog::Kind::Tag && scope.remoteFuture.valid())));
-    const std::string status = position.future.valid() ? "Checking line..." : !position.error.empty() ? position.error :
+    const std::string status = position.positionRequest.busy() ? "Checking line..." : !position.error.empty() ? position.error :
         !position.parsed.error.empty() && includesFiles ? position.parsed.error : !error.empty() ? error :
         includesFiles && scope.future.valid() ? "Loading files..." : searching ? std::to_string(results.size()) + " results · searching..." :
         std::to_string(results.size()) + (includesFiles && scope.listing.truncated ? " matches · file list limit reached" :

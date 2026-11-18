@@ -212,7 +212,7 @@ inline std::vector<Menu> createMenuBar() {
         MenuItem::separator(),
         MenuItem::item("Collapse reading panel", "", [] {
             if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
-                layout->readingPanelCollapsed = !layout->shelfCollapsed;
+                layout->readingPanelCollapsed = !layout->shelf_collapsed();
                 if (!*layout->readingPanelCollapsed)
                     if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>()) navigation::restore_anchor(*repo);
             }
