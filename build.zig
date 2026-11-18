@@ -83,6 +83,18 @@ pub fn build(b: *std.Build) void {
                  "-fblocks",          "-DAFTER_HOURS_ENABLE_MACOS_GESTURES", "-DAFTERHOURS_ENFORCE_MIN_FONT_SIZE", "-DAFTER_HOURS_UI_SINGLE_COLLECTION", "-DAFTER_HOURS_USE_METAL",
         "-DAFTER_HOURS_ENABLE_E2E_TESTING", "-DFMT_HEADER_ONLY",
     }) catch @panic("oom");
+    // Optimised builds are releases: development UI validation is off there
+    // (it costs per-frame time); debug builds and --perf control it at runtime.
+    if (!std.mem.eql(u8, opt, "0") and !std.mem.eql(u8, opt, "g"))
+        flags.append(b.allocator, "-DFH_RELEASE_BUILD") catch @panic("oom");
+    // Per-system profiling (dump_profile / bench_frames top systems) in
+    // non-release builds, or any build with -Dprofile=true (the perf probe
+    // build: `zig build -Dprofile=true` keeps -O2 and adds the hooks). The
+    // collector records only when test mode starts it, so a plain release
+    // binary carries neither the hooks nor the cost.
+    const profile = b.option(bool, "profile", "Enable per-system profiling hooks") orelse false;
+    if (profile or std.mem.eql(u8, opt, "0") or std.mem.eql(u8, opt, "g"))
+        flags.append(b.allocator, "-DAFTERHOURS_ENABLE_PROFILING=1") catch @panic("oom");
     var link_extra: []const []const u8 = &.{};
     if (macos_min) |min| {
         // zig needs the SDK paths spelled out once it is given an explicit target.
