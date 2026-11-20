@@ -656,6 +656,13 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     update_file_picker_paths(repo, layout);
     update_picker_catalog(repo, layout);
     const bool working = std::holds_alternative<reading::WorkingTree>(scope.listing.revision);
+    // ls-files is lazy now (full refreshes skip it): Quick Open is one of
+    // its two readers, so ask once per generation when the list is empty.
+    if (working && repo.allFilePaths.empty() && !repo.refresh_busy() &&
+        repo.allFilePathsRequestedGeneration != repo.dataGeneration) {
+        repo.allFilePathsRequestedGeneration = repo.dataGeneration;
+        repo.request_refresh(refresh_scope::Scope::Worktree);
+    }
     const auto& paths = working ? repo.allFilePaths : scope.listing.paths;
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 586001), layout.filePickerQuery,
         ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)}).with_debug_name("file_picker_input"));

@@ -40,7 +40,9 @@ TEST(refresh_scope_dropped_events_are_full) {
     ASSERT_TRUE(plan.diff);
     ASSERT_TRUE(plan.stagedDiff);
     ASSERT_TRUE(plan.branches);
-    ASSERT_TRUE(plan.files);
+    // ls-files is lazy: Quick Open and the All-files tree request a scoped
+    // refresh when they need the list, so a full refresh must not spawn it.
+    ASSERT_FALSE(plan.files);
 }
 
 TEST(refresh_scope_merges_without_losing_full) {

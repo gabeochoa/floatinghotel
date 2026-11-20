@@ -1171,7 +1171,16 @@ static void app_frame() {
         app_update_and_maybe_draw(dt, true);
         if (metal_window_resize_pending()) return;
         auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
-        if ((!repo || repo->repoPath.empty() ||
+        // Present on first useful data, not the whole refresh: status (file
+        // lists), the commit log, and the working-tree diff are what the
+        // restored document shows. Branches/stash/ls-files/staged diff land
+        // behind the presented frame instead of holding the window hidden
+        // for their git spawns; the full-refresh condition stays as the
+        // fallback for reads that fail (a failed diff never stamps its
+        // generation, so core alone would never present).
+        const bool coreReady = repo && !repo->repoPath.empty() && repo->has_loaded_once() &&
+            !repo->commitLogPage.busy() && repo->currentDiffGeneration.has_value();
+        if ((!repo || repo->repoPath.empty() || coreReady ||
              (repo->has_loaded_once() && !repo->refresh_busy())) &&
             !ui::image_diff::pending() && !ui::submodule_view::pending()) {
             static bool logged = false;
@@ -1744,6 +1753,19 @@ int main(int argc, char* argv[]) {
     // settings are readable.
     if ((!app_state::testModeEnabled || std::getenv("FH_NAVIGATION_PREFETCH")) && !app_state::repoPath.empty()) {
         git::prefetch_repo(app_state::repoPath);
+    }
+
+    // Restored session: start the active tab's reads here too, not in
+    // app_init. Window+GPU init takes hundreds of ms before app_init runs,
+    // and the reads above already proved they can run through it on their
+    // own threads; waiting left that whole window idle. app_init's later
+    // prefetch call is a no-op for a repo already in flight.
+    if ((!app_state::testModeEnabled || std::getenv("FH_NAVIGATION_PREFETCH")) && app_state::repoPath.empty()) {
+        const auto& repos = Settings::get().get_open_repos();
+        auto active = Settings::get().get_last_active_repo();
+        if (!repos.empty() && std::find(repos.begin(), repos.end(), active) == repos.end())
+            active = repos.front();
+        if (!active.empty()) git::prefetch_repo(active);
     }
 
     app_state::startTime = std::chrono::high_resolution_clock::now();

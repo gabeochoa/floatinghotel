@@ -1111,7 +1111,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ui::render_diff(ctx, sectionBody.ent(), files,
                                        diffW, diffH, true, false,
                                        layout.diffViewMode == LayoutComponent::DiffViewMode::SideBySide,
-                                       repo.repoPath, nullptr, working->staged ? "index" : "wt");
+                                       repo.repoPath, reviewPtr, working->staged ? "index" : "wt");
             }
         } else if (hasSelectedFile) {
             bool fileJustChanged = (repo.cachedFilePath != repo.selectedFilePath());

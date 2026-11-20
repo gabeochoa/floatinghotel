@@ -2817,3 +2817,60 @@ registered, so `ProvidesCurrentResolution` kept the startup window size (280 by
 default) and every modal, including the framework backdrop, was sized for it.
 Now registered in `main.cpp`. The "`children()` height ignores wrapped rows"
 entry above was observed on b385dc9 and has not been re-checked on e9d5f67.
+
+## Unstaged mock comparison (November 19, 2026)
+
+Built `docs/mocks/unstaged_mock.html` as the target for the aggregate
+Unstaged changes document, captured the same scene from the app
+(`/tmp/mock_compare/aggregate.png`, `aggregate.json`), and compared them
+(an independent review pass concurred on all three entries below).
+
+### Label text origin cannot be derived from the component config
+
+Extends "Text inset is hardcoded…" and "Immediate plain labels ignore the
+configured text inset" above with fresh measurements on e9d5f67. A label's
+`Padding{.left}` never offsets its own text in either draw path. The styled
+(span) path draws at the configured `text_inset` (default 0); the plain
+path draws at a fixed ~5px. Nothing exposes the resolved text origin, so
+an app that overlays its own geometry on label text (caret, selection,
+find match, intraline-change tint in `diff_renderer.h`) must guess per
+label style. Measured on a 6px-advance mono row: glyphs at x=396, the
+intraline overlay drawn at x=401 — a 5px shift that put the changed-file
+highlight on `]` instead of the changed character — while the app-side
+constant assumed the plain path's 5px. The hunk header's `@@` also sat on
+the card border (padding-left 12 ignored, drawn at inset 0 inside an
+`Overflow::Hidden` clip) and lost its first glyph. Workarounds now in the
+app: explicit `.with_text_inset(5.f)` on diff lines and
+`.with_text_inset(12.f, 0.f)` on hunk headers, keeping the 5px assumption
+in `diff_sel::content_x_offset`. Drawing every label path at its
+configured inset and exposing the resolved origin (or a text-rect in the
+layout snapshot) would remove the per-style guessing.
+
+### No bordered, clipped container for a range of virtualized rows
+
+A diff file card is dozens of sibling rows (header, hunk headers, lines,
+footer), individually culled, so there is no container entity that can
+carry the card's border or clip the rows to its rounded corners (the
+earlier "Absolute children of a scroll view count as content" entry covers
+the workaround's cost side). The app paints the border as an absolute
+overlay (`file_card_border`, render layer 49) on top of the rows: any
+glyph that reaches the card edge — see the entry above — is overdrawn by
+the border stroke, and row backgrounds are not clipped to the corner
+radius. A first-class "bordered region over a row range" (or a container
+whose border does not participate in content size/anchoring) would let
+virtualized lists have real cards instead of overlay strokes.
+
+### Layout overflow warnings report zero-size parents
+
+During normal first frames, autolayout logs warnings such as
+`Layout overflow: 'fold_file:a.cpp' extends outside parent '' bounds
+(child_size=[28.0,28.0], parent_size=[0.0,32.0])` and several
+`file_header_btns` children overflowing a `[0.0,64.0]` parent. The parents
+are `children()`-sized containers whose measured size is still 0 on the
+measuring pass, so the warning fires on geometry that settles correctly a
+pass later. It is logged once per (child, parent) pair, but on a fresh
+scene that is still dozens of false positives, and it sent a visual
+investigation (the mock comparison above) looking for a real overflow
+that did not exist. Suppressing (or downgrading) overflow warnings while
+either axis of the parent is still unresolved/zero would keep the signal
+for genuine overflows only.

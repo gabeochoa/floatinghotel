@@ -1,6 +1,7 @@
 #include "commit_patch.h"
 #include "git_parser.h"
 #include "commit_patch_cache.h"
+#include "../util/lfs_pointer.h"
 #include "../util/shared_read.h"
 #include <afterhours/src/logging.h>
 #include <filesystem>
@@ -41,10 +42,95 @@ std::optional<ecs::CommitPatch> peek_commit_patch(const CommitPatchRequest& requ
 }
 
 
+// One-spawn load for the common case (first-parent patch of a full commit
+// id in a non-shallow repo): a single `git show` whose format carries the
+// resolved id, parents and metadata ahead of the diff, split at a NUL
+// sentinel. This used to take three sequential spawns (rev-parse, show,
+// show --no-patch), and on machines where a spawn costs hundreds of ms a
+// tiny commit took seconds to open. Explicit-parent and shallow requests
+// keep the rev-parse path below: a shallow boundary's first parent is a
+// hash whose object may not exist, and only rev-parse reports that.
+static std::optional<ecs::CommitPatch> read_commit_patch_fast(
+        const CommitPatchRequest& request, std::stop_token stop, reading_load::Trace& trace,
+        const std::string& repository, const std::filesystem::path& commonDirectory) {
+    CommitPatchKey sharedKey{repository, commonDirectory.string(), request.commit, {},
+        request.context, request.ignoreWhitespace, true};
+    auto& reads = pending_patch_reads();
+    auto load = [&](std::stop_token sharedStop) {
+        ecs::CommitPatch out;
+        std::vector<std::string> args{"show", "--first-parent",
+            "--format=%H%x00%s%x00%b%x00%an%x00%ae%x00%aI%x00%P%x00FH_PATCH_END", request.commit};
+        args.push_back("--unified=" + std::to_string(request.context));
+        if (request.ignoreWhitespace) args.push_back("--ignore-all-space");
+        args.push_back("--");
+        auto result = reading_load::measure(trace.readMs, [&] { return git_run(request.repoPath, args, sharedStop); });
+        trace.gitCommands = 1;
+        trace.gitLockMs = result.lockMs;
+        trace.gitProcessMs = result.processMs;
+        if (sharedStop.stop_requested()) { out.error = "Commit patch request cancelled"; return out; }
+        if (!result.success()) { out.error = "Unable to resolve commit"; return out; }
+        const std::string sentinel("\0FH_PATCH_END", 13);
+        const auto& output = result.stdout_str();
+        const auto boundary = output.find(sentinel);
+        if (boundary == std::string::npos) { out.error = "Unable to resolve commit"; return out; }
+        const std::string head = output.substr(0, boundary);
+        std::vector<std::string> fields;
+        for (size_t start = 0;;) {
+            const auto nul = head.find('\0', start);
+            if (nul == std::string::npos) { fields.push_back(head.substr(start)); break; }
+            fields.push_back(head.substr(start, nul - start));
+            start = nul + 1;
+        }
+        if (fields.size() < 7 || !reading::is_object_id(fields[0])) { out.error = "Unable to resolve commit"; return out; }
+        out.resolvedCommit = fields[0];
+        const auto& parents = fields[6];
+        out.resolvedParent = parents.substr(0, parents.find(' '));
+        if (out.resolvedParent.size() == parents.size() && parents.empty()) out.resolvedParent.clear();
+        out.metadata = head.substr(fields[0].size() + 1);
+        CommitPatchKey key{repository, commonDirectory.string(), out.resolvedCommit,
+            out.resolvedParent, request.context, request.ignoreWhitespace, true};
+        {
+            std::lock_guard lock(resolutionMutex);
+            resolutions[resolution_key(request)] = {key.repository, key.commonDirectory, key.parent};
+        }
+        auto& cache = commit_patch_cache();
+        if (auto cached = reading_load::measure(trace.cacheMs, [&] { return cache.get(key); })) {
+            trace.cacheHit = true;
+            return std::move(*cached);
+        }
+        std::string diffText = output.substr(boundary + sentinel.size());
+        const auto first = diffText.find_first_not_of("\r\n");
+        diffText = first == std::string::npos ? std::string{} : diffText.substr(first);
+        out.files = reading_load::measure(trace.decodeMs, [&] { return parse_diff(diffText); });
+        if (sharedStop.stop_requested()) { out.files.clear(); out.error = "Commit patch request cancelled"; return out; }
+        cache.put(key, out);
+        return out;
+    };
+    const auto started = reading_load::Clock::now();
+    auto result = reads.run(sharedKey, stop, ecs::CommitPatch{.error = "Commit patch request cancelled"}, load);
+    trace.sharedWaitMs = std::max(0., reading_load::milliseconds(reading_load::Clock::now() - started) - trace.readMs - trace.decodeMs);
+    return result;
+}
+
 static ecs::CommitPatch read_commit_patch_impl(const CommitPatchRequest& request, std::stop_token stop, reading_load::Trace& trace) {
     const auto validationStart = reading_load::Clock::now();
     ecs::CommitPatch out;
     if (stop.stop_requested()) { out.error = "Commit patch request cancelled"; return out; }
+    if (request.parent.empty() && reading::is_object_id(request.commit)) {
+        std::error_code identityError;
+        const auto repository = std::filesystem::canonical(request.repoPath, identityError);
+        auto commonDirectory = identityError ? std::filesystem::path{} : lfs_pointer::common_git_directory(repository);
+        if (!commonDirectory.empty()) {
+            std::error_code canonError;
+            commonDirectory = std::filesystem::weakly_canonical(commonDirectory, canonError);
+            if (canonError) commonDirectory.clear();
+        }
+        std::error_code shallowError;
+        const bool shallow = !commonDirectory.empty() && std::filesystem::exists(commonDirectory / "shallow", shallowError);
+        if (!commonDirectory.empty() && !shallow)
+            if (auto fast = read_commit_patch_fast(request, stop, trace, repository.string(), commonDirectory))
+                return std::move(*fast);
+    }
     auto resolved = git_run(request.repoPath, {"rev-parse", "--path-format=absolute", "--git-common-dir",
         "--revs-only", "--end-of-options", request.commit + "^{commit}",
         (request.parent.empty() ? request.commit + "^1" : request.parent) + "^{commit}"}, stop);

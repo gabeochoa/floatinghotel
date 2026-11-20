@@ -118,6 +118,11 @@ struct Settings {
     fold_defaults::Rules get_fold_rules(const std::string& repoPath) const;
     void set_fold_rules(const std::string& repoPath, fold_defaults::Rules rules);
 
+    // Generated, binary and test files start folded in every diff view.
+    // Default on; manual fold/unfold of a file always wins afterwards.
+    bool get_fold_noise_files() const;
+    void set_fold_noise_files(bool enabled);
+
     std::string get_settings_path() const;
 
     // Auto-save support

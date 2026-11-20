@@ -363,13 +363,13 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             if (repoPtr && !repoPtr->repoPath.empty() && !reviewingDoc &&
                 layout.fileViewMode != LayoutComponent::FileViewMode::All) {
                 render_sync_row(ctx, controlsBody.ent(), repoPtr);
-                syncRowH = 34.f;
+                syncRowH = 38.f;
             }
 
             // === Commit area: rendered at the BOTTOM of the Changes pane
             // (below the file list), only in Changes mode. Height is still
             // reserved here so the file list math is unchanged. ===
-            const float COMMIT_AREA_H = 54.0f + COMMIT_INPUT_H;
+            const float COMMIT_AREA_H = 58.0f + COMMIT_INPUT_H;
             float commitAreaH = 0.0f;
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
                 !treeClean && !reviewingDoc &&
@@ -401,14 +401,14 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             float viewsH = 0.f;
             if (showViewsTrack) {
                 auto views = div(ctx, mk(controlsBody.ent(), 2081), ComponentConfig{}
-                    .with_size(ComponentSize{percent(1.f), pixels(36)})
+                    .with_size(ComponentSize{percent(1.f), pixels(38)})
                     .with_padding(Padding{.left = pixels(12), .right = pixels(12), .bottom = pixels(6)})
                     .with_flex_direction(FlexDirection::Row).with_no_wrap()
                     .with_debug_name("working_review_views"));
                 auto viewsTrack = div(ctx, mk(views.ent(), 5), ComponentConfig{}
-                    .with_size(ComponentSize{expand(), pixels(30)})
+                    .with_size(ComponentSize{expand(), pixels(32)})
                     .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(2))
-                    .with_padding(Padding{.top = pixels(3), .right = pixels(3), .bottom = pixels(3), .left = pixels(3)})
+                    .with_padding(Padding{.top = pixels(1), .right = pixels(3), .bottom = pixels(1), .left = pixels(3)})
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_border(theme::BORDER, pixels(1))
                     .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(8.f)
@@ -419,7 +419,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                     const bool active = std::holds_alternative<reading::WorkingChanges>(repoPtr->workspace().review().destination) &&
                         repoPtr->selectedFileStaged() == staged;
                     auto segment = preset::Button(label)
-                        .with_size(ComponentSize{expand(), pixels(24)}).with_font_size(pixels(14))
+                        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
                         .with_corner_radius(5.f)
                         .with_debug_name(staged ? "review_staged_changes" : "review_unstaged_changes");
                     if (active) segment = segment.with_custom_background(ui::segment_selected_color());
@@ -427,7 +427,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                     if (button(ctx, mk(viewsTrack.ent(), staged ? 1 : 0), segment))
                         navigation::open(*repoPtr, reading::review(staged ? "index" : "wt"), true);
                 }
-                viewsH = 36.f;
+                viewsH = 38.f;
             }
 
             float conflictH = 0.f;
@@ -1120,8 +1120,7 @@ private:
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(8),
-                    .bottom = pixels(2), .left = pixels(8)})
+                    .right = pixels(8), .left = pixels(8)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_mode_tabs"));
@@ -1144,7 +1143,7 @@ private:
             // enough for each to render its label in full anyway.
             auto config = preset::Button(label)
                 .with_size(ComponentSize{afterhours::ui::expand(),
-                                         pixels(TAB_HEIGHT - 4)})
+                                         pixels(TAB_HEIGHT)})
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 // Tight padding: four tabs share a sidebar that starts at
                 // 200px, so every pixel here is one the labels do not get.
@@ -1197,13 +1196,13 @@ private:
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto row = div(ctx, mk(parent, 2079),
             ComponentConfig{}
-                .with_size(ComponentSize{w, pixels(62)})
+                .with_size(ComponentSize{w, pixels(66)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_gap(pixels(8))
                 .with_padding(Padding{
-                    .top = pixels(12), .right = pixels(14),
-                    .bottom = pixels(8), .left = pixels(14)})
+                    .top = pixels(10), .right = pixels(14),
+                    .bottom = pixels(10), .left = pixels(14)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("repo_header"));
@@ -1224,12 +1223,12 @@ private:
             .with_border_left(theme::TEXT_ACCENT, pixels(1.5f))
             .with_border_right(theme::TEXT_ACCENT, pixels(1.5f)));
         auto text = div(ctx, mk(row.ent(), 2), ComponentConfig{}
-            .with_size(ComponentSize{expand(), pixels(42)})
+            .with_size(ComponentSize{expand(), pixels(46)})
             .with_flex_direction(FlexDirection::Column));
         div(ctx, mk(text.ent(), 0),
             ComponentConfig{}
                 .with_label(name)
-                .with_size(ComponentSize{percent(1.f), pixels(23)})
+                .with_size(ComponentSize{percent(1.f), pixels(22)})
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font("ui-bold", pixels(16))
                 .with_alignment(TextAlignment::Left)
@@ -1239,7 +1238,7 @@ private:
                 .with_debug_name("repo_header_label"));
         // Branch switcher: click lists local branches for checkout.
         auto branchBtn = button(ctx, mk(text.ent(), 1), preset::Button(branch.empty() ? (repo && !repo->repoPath.empty() ? "Reading branch..." : "Open a repository") : branch + (dirty ? " *" : ""))
-            .with_size(ComponentSize{percent(1.f), pixels(19)})
+            .with_size(ComponentSize{percent(1.f), pixels(24)})
             .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("branch_switcher"));
@@ -1386,7 +1385,7 @@ private:
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto row = div(ctx, mk(parent, 2085),
             ComponentConfig{}
-                .with_size(ComponentSize{w, pixels(34)})
+                .with_size(ComponentSize{w, pixels(38)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
                 .with_gap(pixels(6))
@@ -1403,10 +1402,9 @@ private:
             // mock's look. Tighter side padding is what makes all three fit a
             // 200px sidebar, which is the minimum the divider can be dragged to.
             auto config = preset::Button(label, enabled)
-                .with_size(ComponentSize{children(), children()})
+                .with_size(ComponentSize{children(), pixels(28)})
                 .with_padding(Padding{
-                    .top = pixels(3), .right = pixels(6),
-                    .bottom = pixels(3), .left = pixels(6)})
+                    .right = pixels(6), .left = pixels(6)})
                 .with_font_size(pixels(14))
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name(debugName);
@@ -1685,17 +1683,17 @@ private:
         // by default); the chevron commits with a one-shot policy.
         bool hasStaged = !repo.stagedFiles.empty();
         auto commitRow = div(ctx, mk(commitArea.ent(), 2), ComponentConfig{}
-            .with_size(ComponentSize{childW, pixels(24)}).with_flex_direction(FlexDirection::Row)
+            .with_size(ComponentSize{childW, pixels(28)}).with_flex_direction(FlexDirection::Row)
             .with_no_wrap().with_gap(pixels(3)).with_debug_name("commit_split_row"));
         auto commitBtn = button(ctx, mk(commitRow.ent(), 0),
             preset::Button("Commit", hasStaged)
-                .with_size(ComponentSize{expand(), pixels(24)})
+                .with_size(ComponentSize{expand(), pixels(28)})
                 .with_font_size(pixels(14))
                 .with_debug_name("commit_btn_inline"));
         if (commitBtn && hasStaged) editor.request_commit();
         auto splitBtn = button(ctx, mk(commitRow.ent(), 1),
             preset::Button("v", hasStaged)
-                .with_size(ComponentSize{pixels(28), pixels(24)})
+                .with_size(ComponentSize{pixels(28), pixels(28)})
                 .with_font_size(pixels(12))
                 .with_debug_name("commit_split_btn"));
         ui::set_tooltip(splitBtn.ent(), "Commit with a specific unstaged policy");
@@ -1769,6 +1767,12 @@ private:
         // a container nested inside filesBg fails to render its children after
         // the UI has been exercised (framework nested-container bug).
         (void)layout;
+        // The stash list is no longer spawned by every refresh (only this
+        // pane reads it); ask for a Refs refresh once per generation.
+        if (!repo.refresh_busy() && !repo.stashesRequested && repo.stashesGeneration != repo.dataGeneration) {
+            repo.stashesRequested = true;
+            repo.request_refresh(refresh_scope::Scope::Refs);
+        }
         if (repo.branches.empty() && repo.tags.empty() && repo.stashes.empty()) {
             div(ctx, mk(parent, 2170),
                 ComponentConfig{}
@@ -2370,6 +2374,13 @@ private:
         };
         allFilesMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::All;
         treeMode_ = layout.fileViewMode == LayoutComponent::FileViewMode::Tree;
+        // ls-files is lazy now (full refreshes skip it): the All-files
+        // tree is one of its two readers, so ask once per generation.
+        if (allFilesMode_ && repo.allFilePaths.empty() && !repo.refresh_busy() &&
+            repo.allFilePathsRequestedGeneration != repo.dataGeneration) {
+            repo.allFilePathsRequestedGeneration = repo.dataGeneration;
+            repo.request_refresh(refresh_scope::Scope::Worktree);
+        }
         auto tab = active_review_tab();
         FileRowsKey key{repo.repoPath, repo.dataGeneration, repo.patchGeneration, repo.repoVersion, repo.allFilePathsGeneration, tab, layout.fileViewMode};
         if (allFilesMode_) {

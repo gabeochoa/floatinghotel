@@ -39,7 +39,12 @@ async_work::Task<Document> load_async(const std::string& repo, const std::string
             return parse(contents, path);
         }
         return Document{};
-    }, async_work::Priority::Background, Document{{}, "CODEOWNERS", "Background queue is full; refresh to retry CODEOWNERS"});
+    }, async_work::Priority::Background, Document{});
+    // The rejected fallback above is an empty Document on purpose: a queue
+    // rejection is not a CODEOWNERS file, and a Document carrying a path
+    // made render_diff show "Background queue is full..." as an owners
+    // label on every file. No document renders no label; the load simply
+    // stays absent until the next key change.
 }
 
 }

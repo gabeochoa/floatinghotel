@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>floatinghotel — Unstaged changes (target design)</title>
+<style>
+  /* TARGET design for the aggregate "Unstaged changes" document.
+     Palette maps to src/ui/theme.h (dark). Rules:
+       * Every file is one bordered card; the fold chevron sits at the LEFT
+         of the file header in every scope (wt/index/commit), reviewing or not.
+       * Diff code text is one color; add/del is background + left edge only.
+       * Hunk-header and footer text start a full padding step inside the
+         card — no glyph touches the card border. */
+  :root{
+    --window:#15171B; --sidebar:#1B1D22; --panel:#15171B; --border:#2C2F36;
+    --text:#E4E6EB; --text2:#9CA2AF; --text3:#7E8592;
+    --btn2:#202329; --hunk-bg:#1D252E; --hunk-fg:#9CAFC6;
+    --add-bg:#1B2B25; --del-bg:#302225; --add-edge:#2EA043; --del-edge:#C74848;
+    --accent:#3B82C4; --ok:#3FB950;
+    --mono:"SF Mono","JetBrains Mono",Menlo,Consolas,monospace;
+    --ui:-apple-system,"Segoe UI","Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--window);color:var(--text);font-family:var(--ui);font-size:13px;height:100vh;display:flex;overflow:hidden}
+  /* sidebar */
+  .sidebar{width:250px;flex:none;background:var(--sidebar);border-right:1px solid var(--border);display:flex;flex-direction:column}
+  .repo{padding:12px;border-bottom:1px solid var(--border);font-weight:600}
+  .seg{display:flex;gap:2px;margin:10px 12px;padding:3px;background:var(--btn2);border:1px solid var(--border);border-radius:8px}
+  .seg span{flex:1;text-align:center;padding:4px 0;border-radius:5px;color:var(--text2)}
+  .seg span.on{background:#353A44;color:var(--text)}
+  .tree{padding:4px 8px;color:var(--text2);font-size:12.5px;line-height:26px}
+  .tree .sect{color:var(--text3);font-weight:600;margin-top:8px}
+  .tree .f{display:flex;justify-content:space-between;padding:0 6px;border-radius:5px}
+  .tree .f.on{background:#2A3040;color:var(--text)}
+  .tree .add{color:var(--ok)} .tree .del{color:#F0716F}
+  .spacer{flex:1}
+  .review-toggle{margin:12px;padding:8px;border:1px solid var(--border);border-radius:7px;background:var(--btn2);text-align:center;cursor:pointer}
+  /* main */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .tabs{height:38px;display:flex;background:#101216;border-bottom:1px solid var(--border)}
+  .tab{display:flex;align-items:center;gap:8px;padding:0 14px;border-right:1px solid var(--border);color:var(--text2)}
+  .tab.on{background:var(--window);color:var(--text);box-shadow:inset 0 2px 0 var(--text2)}
+  .page{padding:14px 24px;overflow-y:auto}
+  h1{font-size:16px;margin-bottom:6px}
+  .sub{color:var(--text2);margin-bottom:14px}
+  .sub .a{color:var(--ok)} .sub .d{color:#F0716F}
+  .toolbar{display:flex;align-items:center;gap:8px;margin-bottom:12px;color:var(--text2)}
+  .toolbar .modes{margin-left:auto;display:flex;padding:3px;background:var(--btn2);border:1px solid var(--border);border-radius:8px}
+  .toolbar .modes span{padding:4px 10px;border-radius:5px}
+  .toolbar .modes span.on{background:#353A44;color:var(--text)}
+  .toolbar button{background:var(--btn2);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 12px;cursor:pointer}
+  /* file card */
+  .card{border:1px solid var(--border);border-radius:6px;margin-bottom:14px;overflow:hidden}
+  .fhead{display:flex;align-items:center;background:var(--btn2);min-height:44px;padding-right:12px}
+  .fold{width:28px;height:28px;margin:0 2px 0 6px;flex:none;display:flex;align-items:center;justify-content:center;
+        background:none;border:0;color:var(--text2);cursor:pointer;border-radius:5px;font-size:13px}
+  .fold:hover{background:#353A44;color:var(--text)}
+  .icon{width:16px;height:16px;flex:none;display:block}
+  .icon path,.icon circle{vector-effect:non-scaling-stroke}
+  .fold .icon{transition:transform .12s ease}
+  .card.folded .fold .icon{transform:rotate(-90deg)}
+  .tab .icon{color:var(--text3)}
+  .tab.on .icon{color:var(--text2)}
+  .tab .close-icon{display:flex;padding:3px;margin:-3px;border-radius:4px}
+  .tab .close-icon:hover{background:#353A44;color:var(--text)}
+  .fname{font-family:var(--mono);font-size:14px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fname .dir{color:var(--text3)}
+  .counts{font-family:var(--mono);font-size:12px;margin-right:10px}
+  .viewed{display:flex;gap:5px;align-items:center;font-size:12px;color:var(--text2);cursor:pointer}
+  .box{width:15px;height:15px;border:1px solid var(--text3);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;color:var(--ok)}
+  .hunk{background:var(--hunk-bg);color:var(--hunk-fg);font-family:var(--mono);font-size:12.5px;padding:5px 12px}
+  .line{font-family:var(--mono);font-size:12.5px;line-height:20px;padding:0 12px 0 0;white-space:pre;display:flex}
+  .line .gut{color:var(--text3);width:96px;flex:none;text-align:right;padding-right:16px;user-select:none}
+  .line.add{background:var(--add-bg);box-shadow:inset 2px 0 0 var(--add-edge)}
+  .line.del{background:var(--del-bg);box-shadow:inset 2px 0 0 var(--del-edge)}
+  .line .chg{background:rgba(255,255,255,.13);border-radius:2px}
+  .foot{color:var(--text3);font-size:12px;padding:6px 12px;border-top:1px solid var(--border)}
+  .folded .body{display:none}
+  .imgbar{display:flex;gap:6px;padding:10px 12px;align-items:center}
+  .imgbar button{background:var(--btn2);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 16px;cursor:pointer}
+  .imgbar .note{color:var(--text2)}
+  .imgs{display:flex;gap:12px;padding:0 12px 12px}
+  .imgs figure{flex:1;border:1px solid var(--border);border-radius:6px;padding:8px;color:var(--text2);font-size:12px}
+  .swatch{height:90px;border-radius:4px;margin-top:6px;background:linear-gradient(135deg,#3B82C4,#2EA043)}
+  .empty{height:90px;border-radius:4px;margin-top:6px;border:1px dashed var(--border);display:flex;align-items:center;justify-content:center}
+  .keyhint{color:var(--text2);font-family:var(--mono);font-size:11px;padding:6px 0}
+</style>
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="repo">floatinghotel</div>
+    <div class="seg"><span class="on">Unstaged (7)</span><span>Staged (0)</span></div>
+    <div class="tree">
+      <div class="sect">Changes</div>
+      <div class="f on"><span>fsm_todo.md</span><span><span class="add">+1 </span><span class="del">−1</span></span></div>
+      <div class="f"><span>.tbh-generated-images.lock</span><span><span class="add">+1</span></span></div>
+      <div class="f"><span>call_01a1f….png</span><span><span class="add">+1</span></span></div>
+      <div class="sect">Untracked</div>
+      <div class="f"><span>notes.md</span><span></span></div>
+    </div>
+    <div class="spacer"></div>
+    <div class="review-toggle">Review working changes</div>
+  </aside>
+
+  <div class="main">
+    <div class="tabs">
+      <div class="tab on"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v4M8 11v4M1 8h4M11 8h4"/></svg> Unstaged changes <span class="close-icon"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4l8 8M12 4l-8 8"/></svg></span></div>
+      <div class="tab"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="3"/><path d="M8 1v4M8 11v4M1 8h4M11 8h4"/></svg> docs - add e2e coverage expansion</div>
+    </div>
+    <div class="page">
+      <h1>Unstaged changes · 7 files</h1>
+      <div class="toolbar">
+        <span>7 files changed</span><span style="color:var(--ok)">+39</span><span style="color:#F0716F)">−1</span>
+        <div class="modes"><span class="on">Unified</span><span>Split</span></div>
+        <button>Feedback 0</button><button>Finish review</button><button>Options</button>
+      </div>
+      <div class="toolbar" style="font-size:12px">
+        <span>Fold patterns: tests/**</span><button>Long files: Off</button>
+        <button title="Setting, default on: generated, binary and test files start folded; a manual unfold always wins">Noise files: folded</button>
+      </div>
+
+      <section class="card" id="c1">
+        <div class="fhead">
+          <button class="fold" title="Collapse file" aria-label="Collapse file" onclick="fold('c1',this)"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+          <div class="fname">fsm_todo.md</div>
+          <div class="counts"><span style="color:var(--ok)">+1</span> <span style="color:#F0716F)">−1</span></div>
+          <label class="viewed"><span class="box"></span>Viewed</label>
+        </div>
+        <div class="body">
+          <div class="hunk">@@ -389,7 +389,7 @@ ≈ ### Phase 4 — Trivial / dev-only (P3, anytime)</div>
+          <div class="line"><span class="gut">389&nbsp;&nbsp;&nbsp;389</span> </div>
+          <div class="line"><span class="gut">390&nbsp;&nbsp;&nbsp;390</span> ### Phase 4 — Trivial / dev-only (P3, anytime)</div>
+          <div class="line"><span class="gut">391&nbsp;&nbsp;&nbsp;391</span> </div>
+          <div class="line del"><span class="gut">392&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</span>− − [ ] M17: `IsSpawner::state()` accessor</div>
+          <div class="line add"><span class="gut">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;392</span>+ − [<span class="chg">x</span>] M17: `IsSpawner::state()` accessor</div>
+          <div class="line"><span class="gut">393&nbsp;&nbsp;&nbsp;393</span> − [ ] M22: `BypassPhase` + `advance()` (dev-only)</div>
+          <div class="line"><span class="gut">394&nbsp;&nbsp;&nbsp;394</span> − [ ] M23: optional `IntroPhase` log names</div>
+          <div class="foot">Initial context: 3 lines · Markdown</div>
+        </div>
+      </section>
+
+      <section class="card" id="c2">
+        <div class="fhead">
+          <button class="fold" title="Collapse file" aria-label="Collapse file" onclick="fold('c2',this)"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+          <div class="fname"><span class="dir">generated_images/</span>.tbh-generated-images.lock</div>
+          <div class="counts"><span style="color:var(--ok)">+1</span></div>
+          <label class="viewed"><span class="box"></span>Viewed</label>
+        </div>
+        <div class="body">
+          <div class="hunk">@@ -0,0 +1,0 @@ (new file)</div>
+          <div class="foot">Initial context: 3 lines · Text · New file</div>
+        </div>
+      </section>
+
+      <section class="card" id="c3">
+        <div class="fhead">
+          <button class="fold" title="Collapse file" aria-label="Collapse file" onclick="fold('c3',this)"><svg class="icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6l4 4 4-4"/></svg></button>
+          <div class="fname"><span class="dir">generated_images/</span>call_01a1f6115ca0707abd48ac0a4007.png</div>
+          <div class="counts"><span style="color:var(--ok)">+1</span></div>
+          <label class="viewed"><span class="box"></span>Viewed</label>
+        </div>
+        <div class="body">
+          <div class="imgbar"><button>Side</button><button>Overlay</button><button>Wipe</button><span class="note">Side by side · 100%</span></div>
+          <div class="imgs">
+            <figure>Before: Not present<div class="empty">—</div></figure>
+            <figure>After: 926 × 1800 · PNG<div class="swatch"></div></figure>
+          </div>
+        </div>
+      </section>
+
+      <div class="keyhint">j/k move&nbsp;&nbsp;&nbsp;a approve&nbsp;&nbsp;&nbsp;c comment&nbsp;&nbsp;&nbsp;Cmd+Enter copy feedback</div>
+    </div>
+  </div>
+<script>
+  function fold(id, btn){
+    const card = document.getElementById(id);
+    card.classList.toggle('folded');
+    const folded = card.classList.contains('folded');
+    btn.title = folded ? 'Expand file' : 'Collapse file';
+    btn.setAttribute('aria-label', btn.title);
+  }
+</script>
+</body>
+</html>

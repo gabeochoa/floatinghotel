@@ -151,10 +151,13 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.mainContent.y += tabsH;
             layout.mainContent.height -= tabsH;
         }
-        if (hasContent && !sidebarOnly) {
+        if (!sidebarOnly) {
             const float inset = std::min(24.f, layout.mainContent.width * 0.04f);
             layout.mainContent.x += inset;
-            layout.mainContent.width = std::max(0.f, layout.mainContent.width - inset);
+            // Same inset on the right: subtracting it only once used to
+            // leave cards flush with the window edge (and under the
+            // scrollbar) while the left side had a 24px gutter.
+            layout.mainContent.width = std::max(0.f, layout.mainContent.width - inset * 2.f);
             const float topInset = std::min(8.f, layout.mainContent.height);
             layout.mainContent.y += topInset;
             layout.mainContent.height -= topInset;

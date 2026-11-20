@@ -126,12 +126,12 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_render_layer(6)
                 .with_debug_name("tab_strip"));
 
-        // Tabs are inset chips, not full-height slabs: 4px in from the strip
+        // Tabs are inset chips, not full-height slabs: 2px in from the strip
         // top/bottom, 6px gaps, 6px radius — the browser/Slack treatment in
         // the reference screenshots, scaled to this 28px strip. Grouping is
         // carried by each chip's own fill + hairline border, so the old
         // between-tab divider divs are gone.
-        const float chipInset = 4.f;
+        const float chipInset = 2.f;
         const float chipGap = 6.f;
         float tabX = chipGap;
         float tabH = stripH - chipInset * 2.f;
@@ -233,9 +233,12 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
                 float closeX = tabX + tabW - closeW - 4.f;
                 float closeY = chipY + (tabH - closeW) * 0.5f;
 
+                // The visual pill stays 16px, but its hover/click target
+                // spans the full chip height and 24px across, matching the
+                // other tab-strip targets instead of the glyph box.
                 bool closeHovered = afterhours::ui::is_mouse_inside(
                     mouse,
-                    RectangleType{closeX, closeY, closeW, closeW});
+                    RectangleType{closeX - 4.f, chipY, closeW + 8.f, tabH});
 
                 // Quiet close: no filled square at rest (the old version
                 // painted the tab bg as a mismatched box on the active chip);

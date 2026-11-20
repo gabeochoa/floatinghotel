@@ -31,6 +31,26 @@ TEST(threshold_folds_long_files_regardless_of_path) {
     ASSERT_FALSE(matches(rules, "src/main.cpp", 499));
 }
 
+TEST(noise_files_cover_generated_binary_and_tests) {
+    ASSERT_TRUE(is_noise_file("src/api.generated.ts", false));
+    ASSERT_TRUE(is_noise_file("generated/client.cpp", false));
+    ASSERT_TRUE(is_noise_file("web/dist/bundle.js", false));
+    ASSERT_TRUE(is_noise_file("app.min.js", false));
+    ASSERT_TRUE(is_noise_file("proto.pb.h", false));
+    ASSERT_TRUE(is_noise_file("generated_images/.tbh-generated-images.lock", false));
+    ASSERT_TRUE(is_noise_file("deps/package.lock", false));
+    ASSERT_TRUE(is_noise_file("icon.png", true));
+    ASSERT_TRUE(is_noise_file("tests/unit/test_x.cpp", false));
+    ASSERT_TRUE(is_noise_file("src/tests/helper.cpp", false));
+    ASSERT_TRUE(is_noise_file("src/foo_test.go", false));
+    ASSERT_TRUE(is_noise_file("src/foo.test.ts", false));
+    ASSERT_TRUE(is_noise_file("test_widget.cpp", false));
+    ASSERT_FALSE(is_noise_file("src/main.cpp", false));
+    ASSERT_FALSE(is_noise_file("src/testing.cpp", false));
+    ASSERT_FALSE(is_noise_file("latest/results.txt", false));
+    ASSERT_FALSE(is_noise_file("docs/manual.md", false));
+}
+
 TEST(parse_and_format_patterns_round_trip) {
     const auto parsed = parse_patterns(" tests/** ,*.generated.* ,, src/*.lock ");
     ASSERT_EQ(parsed.size(), size_t{3});

@@ -383,6 +383,7 @@ struct navigation {
         location.file = file.filePath;
         const auto scope = reading::scope(location);
         review.foldedFiles.erase(scope + "\n" + file.filePath);
+        review.defaultFoldedFiles.erase(scope + "\n" + file.filePath);
         for (const auto& hunk : file.hunks) {
             const int start = anchor.side == reading::DiffSide::Before ? hunk.oldStart : hunk.newStart;
             const int count = anchor.side == reading::DiffSide::Before ? hunk.oldCount : hunk.newCount;

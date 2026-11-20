@@ -864,6 +864,7 @@ inline void handle_keyboard(UIContext<InputAction>& ctx, Session& session, const
     }
     if (session.review) {
         session.review->foldedFiles.erase(session.reviewScope + "\n" + file->filePath);
+        session.review->defaultFoldedFiles.erase(session.reviewScope + "\n" + file->filePath);
         for (const auto& hunk : file->hunks) {
             const int start = point.side == reading::DiffSide::Before ? hunk.oldStart : hunk.newStart;
             const int count = point.side == reading::DiffSide::Before ? hunk.oldCount : hunk.newCount;
@@ -1016,7 +1017,7 @@ inline const auto& HUNK_HEADER_BG = theme::DIFF_HUNK_BG;
 inline float code_line_height() {
     return Settings::get().get_code_font_size() + 8.f;
 }
-inline float hunk_header_height() { return std::max(24.f, Settings::get().get_code_font_size() + 8.f); }
+inline float hunk_header_height() { return std::max(28.f, Settings::get().get_code_font_size() + 8.f); }
 constexpr float COMMENT_COMPOSE_H = 104.0f;
 
 // A human-visible reason for a failed git op. Some failures (e.g. a lost
@@ -1287,6 +1288,12 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
                                                 sel && sel->visibleWhitespace, hasNewline, original, sourceOffset, finalFragment, ending, prepared, activeLine))
             .with_font("mono", pixels(Settings::get().get_code_font_size()))
             .with_alignment(TextAlignment::Left)
+            // Every overlay (caret, selection, intraline change) is placed
+            // from content_x_offset, which assumes text starts 5px into
+            // the row. The styled-label draw uses the configured inset, so
+            // say 5px here too — at the default 0 the glyphs sat 5px left
+            // of every overlay.
+            .with_text_inset(5.f)
             .with_padding(Padding{
                 .top = pixels(0), .right = pixels(0),
                 .bottom = pixels(0), .left = pixels(0)})
@@ -1345,11 +1352,13 @@ inline void render_diff_line(UIContext<InputAction>& ctx,
         const float foldWidth = diff_sel::code_mw(*sel, "  ") / zoom::get();
         auto* foldRepo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
         const bool enabled = foldRepo && foldRepo->workspace().document(foldRepo->workspace().active_id())->sourceFolds.can_toggle(*fold);
-        auto toggle = button(ctx, mk(lineDiv.ent(), 90003), preset::Button(folded ? ">" : "v")
-            .with_skip_grid_snap().with_size(ComponentSize{pixels(foldWidth), pixels(16)})
-            .with_absolute_position(0.f, std::max(0.f, (diff_detail::code_line_height() - 16.f) * .5f))
+        auto toggle = button(ctx, mk(lineDiv.ent(), 90003), preset::Button("")
+            .with_skip_grid_snap().with_size(ComponentSize{pixels(foldWidth), pixels(diff_detail::code_line_height())})
+            .with_absolute_position(0.f, 0.f)
             .with_transparent_bg().with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
             .with_padding(Padding{}).with_disabled(!enabled).with_debug_name("source_fold_" + std::to_string(fold->first)));
+        chrome_icon(ctx, mk(toggle.ent(), 0), folded ? ChromeIcon::ChevronRight : ChromeIcon::ChevronDown,
+            theme::TEXT_SECONDARY, "source_fold_icon");
         set_tooltip(toggle.ent(), enabled ? std::string(folded ? "Expand " : "Collapse ") + std::to_string(fold->end - fold->first - 1) + " lines" :
             "Unfold a block before folding another");
         if (toggle && foldRepo) navigation::toggle_source_fold(*foldRepo, *fold);
@@ -1679,6 +1688,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_font("mono", pixels(14))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_alignment(TextAlignment::Left)
+            // Padding does not move a styled label's text (it draws at its
+            // configured text inset, default 0), so the 12px card inset
+            // must be the text inset; with padding alone @@ sat on the
+            // card border and lost its first glyph to the caption clip.
+            .with_text_inset(12.f, 0.f)
             .with_padding(Padding{
                 .top = pixels(4), .right = pixels(0),
                 .bottom = pixels(4), .left = pixels(12)})
@@ -1716,11 +1730,13 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             auto key = hunk_context::key(fileDiff, hunk, above);
             auto stamp = navigation::stamp(*contextRepoPtr, key);
             auto contextBtn = button(ctx, mk(hunkBtns.ent(), above ? 4 : 5),
-                preset::Button(compactActions ? (above ? "↑" : "↓") : (above ? "Expand all above" : "Expand all below"))
-                    .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
+                preset::Button(compactActions ? "" : (above ? "Expand all above" : "Expand all below"))
+                    .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(24)})
                     .with_padding(Padding{}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_debug_name(above ? "expand_context_above" : "expand_context_below"));
+            if (compactActions) chrome_icon(ctx, mk(contextBtn.ent(), 0), above ? ChromeIcon::ArrowUp : ChromeIcon::ArrowDown,
+                theme::TEXT_PRIMARY, above ? "expand_above_icon" : "expand_below_icon");
             if (contextBtn) {
                 remember_focus_origin(ctx, contextBtn.ent());
                 auto* active = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
@@ -1738,7 +1754,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 const bool stagedScope = sel->reviewScope == "index";
                 auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
                     preset::Button(compactActions ? "" : stagedScope ? "Unstage" : "Approve")
-                        .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
+                        .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(24)})
                         .with_padding(Padding{
                             .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
                             .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
@@ -1755,7 +1771,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
         auto commentBtn = button(ctx, mk(hunkBtns.ent(), 3),
             preset::Button(compactActions ? "" : "Comment")
-                .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(compactActions ? 22 : 18)})
+                .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(24)})
                 .with_padding(Padding{
                     .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
                     .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
@@ -1825,7 +1841,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         render_comment_kind(ctx, composeRow.ent(), 2, *sel->review, false);
         auto addBtn = button(ctx, mk(composeRow.ent(), 1),
             preset::Button(addLabel).with_tooltip(rangeLabel)
-                .with_size(ComponentSize{pixels(addWidth), pixels(18)})
+                .with_size(ComponentSize{pixels(addWidth), pixels(28)})
                 .with_font_size(pixels(12))
                 .with_debug_name("comment_add_btn"));
         if (addBtn) {
@@ -1836,11 +1852,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     }
 
     if (reviewOn && sel->review->foldedHunks.count(hkey)) {
-        if (vp) { vp->flush(ctx, parent, nextId); vp->built(20.0f); }
+        if (vp) { vp->flush(ctx, parent, nextId); vp->built(28.0f); }
         auto expand = button(ctx, mk(parent, nextId++),
             ComponentConfig{}.with_skip_grid_snap()
                 .with_label("Folded hunk · click to expand")
-                .with_size(ComponentSize{w, pixels(20)})
+                .with_size(ComponentSize{w, pixels(28)})
                 .with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_font_size(pixels(12))
                 .with_padding(Padding{
@@ -1878,6 +1894,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             if (vp) { vp->flush(ctx, parent, nextId); vp->built(24.f); }
             div(ctx, mk(parent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(context->error).with_size(ComponentSize{w, pixels(24)})
+                .with_text_inset(12.f, 0.f).with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                 .with_font_size(pixels(12)).with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("hunk_context_notice"));
             return;
@@ -2030,6 +2047,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
             .with_font("mono", pixels(14))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_alignment(TextAlignment::Left)
+            .with_text_inset(12.f, 0.f)
             .with_padding(Padding{
                 .top = pixels(4), .right = pixels(0),
                 .bottom = pixels(4), .left = pixels(12)})
@@ -2246,6 +2264,10 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
         if (fold) {
             if (fileFolded) review->foldedFiles.erase(fileFoldKey);
             else review->foldedFiles.insert(fileFoldKey);
+            // A manual toggle takes the file out of default-fold control:
+            // turning the fold-noise setting off later must not unfold a
+            // file the user folded, nor re-fold one they expanded.
+            review->defaultFoldedFiles.erase(fileFoldKey);
             fileFolded = !fileFolded;
             if (header.has<StickyFileHeader>() && header.get<StickyFileHeader>().offset > 0.f &&
                 contentParent->has<afterhours::ui::HasScrollView>()) {
@@ -2270,6 +2292,7 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
             .with_font("mono", pixels(16))
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_text_inset(8.f, 0.f)
             .with_padding(Padding{
                 .right = pixels(4), .left = pixels(8)})
             .with_debug_name("file_header_label"));
@@ -2418,6 +2441,7 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
         auto checkbox = div(ctx, mk(approveFileBtn.ent(), 0), ComponentConfig{}
             .with_size(ComponentSize{pixels(16), pixels(16)})
             .with_border(viewed ? theme::DIFF_ADD_TEXT : theme::TEXT_TERTIARY, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(4.f)
             .with_debug_name("viewed_checkbox"));
         if (viewed) chrome_icon(ctx, mk(checkbox.ent(), 0), ChromeIcon::Check, theme::DIFF_ADD_TEXT, "viewed_check");
         div(ctx, mk(approveFileBtn.ent(), 1), ComponentConfig{}.with_label("Viewed")
@@ -2528,6 +2552,29 @@ inline void render_diff(UIContext<InputAction>& ctx,
     sess.repoPath = repoPath;
     sess.review = review;
     sess.reviewScope = reviewScope;
+    // Default folds for the fold-noise setting: generated, binary and test
+    // files start folded in every diff that carries fold state. Seeded
+    // once per scope+path; a manual unfold removes the file from
+    // defaultFoldedFiles at the toggle, so it is never re-seeded, and
+    // turning the setting off unfolds only files still folded by default.
+    if (review && !diffs.empty() && !diffs.front().isFullContent) {
+        if (Settings::get().get_fold_noise_files()) {
+            for (const auto& file : diffs) {
+                if (!fold_defaults::is_noise_file(file.filePath, file.isBinary)) continue;
+                const std::string key = reviewScope + "\n" + file.filePath;
+                if (review->foldDefaultsSeen.insert(key).second) {
+                    review->foldedFiles.insert(key);
+                    review->defaultFoldedFiles.insert(key);
+                }
+            }
+        } else if (!review->defaultFoldedFiles.empty()) {
+            for (const auto& key : review->defaultFoldedFiles) {
+                review->foldedFiles.erase(key);
+                review->foldDefaultsSeen.erase(key);
+            }
+            review->defaultFoldedFiles.clear();
+        }
+    }
     auto* layout = ecs::find_singleton<ecs::LayoutComponent>();
     sess.visibleWhitespace = layout && layout->visibleWhitespace;
     code_gutter::showNumbers = !layout || layout->showLineNumbers;
@@ -2576,7 +2623,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         auto modes = div(ctx, mk(actions.ent(), 10), ComponentConfig{}
             .with_size(ComponentSize{pixels(compact ? 108 : 124), pixels(32)})
             .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(2))
-            .with_padding(Padding{.top = pixels(3), .right = pixels(3), .bottom = pixels(3), .left = pixels(3)})
+            .with_padding(Padding{.top = pixels(1), .right = pixels(3), .bottom = pixels(1), .left = pixels(3)})
             .with_custom_background(theme::BUTTON_SECONDARY).with_border(theme::BORDER, pixels(1))
             .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(8.f)
             .with_debug_name("review_segments"));
@@ -2586,7 +2633,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             // corners where the two segments met. Inactive = transparent,
             // only the active segment is filled, radius inside the track's.
             auto config = preset::Button(label)
-                .with_size(ComponentSize{expand(), pixels(26)})
+                .with_size(ComponentSize{expand(), pixels(28)})
                 .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
                 .with_font_size(pixels(14))
                 .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
@@ -2660,7 +2707,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_debug_name("review_file_filters"));
         auto toggle = [&](int id, const std::string& label, const std::string& debugName, bool& hidden) {
             if (button(ctx, mk(filters.ent(), id), preset::Button(label + (hidden ? ": hidden" : ": shown"))
-                    .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(pixels(12))
+                    .with_size(ComponentSize{percent(0.2f), pixels(28)}).with_font_size(pixels(12))
                     .with_custom_background(hidden ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
                     .with_debug_name(debugName))) hidden = !hidden;
         };
@@ -2668,7 +2715,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         toggle(1, "Vendor", "filter_Vendor", filterRepo->fileFilter.hideVendor);
         toggle(2, "Lockfiles", "filter_Lockfiles", filterRepo->fileFilter.hideLockfiles);
         if (button(ctx, mk(filters.ent(), 4), preset::Button(filterRepo->fileFilter.onlyUnresolved ? "Unresolved: only" : "Unresolved: all")
-                .with_size(ComponentSize{percent(0.2f), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{percent(0.2f), pixels(28)}).with_font_size(pixels(12))
                 .with_custom_background(filterRepo->fileFilter.onlyUnresolved ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
                 .with_debug_name("filter_unresolved"))) filterRepo->fileFilter.onlyUnresolved = !filterRepo->fileFilter.onlyUnresolved;
         auto hidden = std::count_if(diffs.begin(), diffs.end(), [&](const auto& file) {
@@ -2679,7 +2726,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         auto facets = div(ctx, mk(findParent ? *findParent : parent, 597001), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
         if (button(ctx, mk(facets.ent(), 0), preset::Button("Language: " + (filterRepo->fileFilter.language.empty() ? "All" : filterRepo->fileFilter.language))
-                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{percent(0.333f), pixels(28)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_language"))) {
             std::set<std::string> languages;
             for (const auto& file : diffs) languages.insert(review_files::language(file.filePath));
@@ -2695,7 +2742,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
         if (button(ctx, mk(facets.ent(), 1), preset::Button("Change: " + review_files::change_label(filterRepo->fileFilter.change))
-                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{percent(0.333f), pixels(28)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("filter_change"))) {
             std::vector<ContextMenuItem> choices;
             for (char value : {' ', 'A', 'M', 'D', 'R'})
@@ -2706,7 +2753,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
         if (button(ctx, mk(facets.ent(), 2), preset::Button("Sort: " + review_files::sort_label(filterRepo->fileFilter.sort))
-                .with_size(ComponentSize{percent(0.333f), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{percent(0.333f), pixels(28)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("review_file_sort"))) {
             std::vector<ContextMenuItem> choices;
             for (auto value : {review_files::Sort::Path, review_files::Sort::MostChanges, review_files::Sort::FewestChanges})
@@ -2730,7 +2777,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         }
         auto foldField = afterhours::text_input::text_input(ctx, mk(foldRow.ent(), 0), layout->foldPatternsText,
             ComponentConfig{}.with_skip_grid_snap()
-                .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
                 .with_custom_background(theme::INPUT_BG)
                 .with_placeholder("tests/**, *.generated.*")
                 .with_debug_name("fold_patterns"));
@@ -2744,7 +2791,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
         const auto foldRules = Settings::get().get_fold_rules(filterRepo->repoPath);
         if (button(ctx, mk(foldRow.ent(), 1), preset::Button("Long files: " +
                 (foldRules.minChangedLines > 0 ? std::to_string(foldRules.minChangedLines) + "+" : std::string("Off")))
-                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("fold_threshold"))) {
             std::vector<ContextMenuItem> choices;
             for (int value : {0, 200, 500, 1000}) {
@@ -2760,12 +2807,18 @@ inline void render_diff(UIContext<InputAction>& ctx,
             }
             show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(choices));
         }
+        if (button(ctx, mk(foldRow.ent(), 2), preset::Button(Settings::get().get_fold_noise_files()
+                ? "Noise files: folded" : "Noise files: shown")
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+                .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("fold_noise_toggle"))) {
+            Settings::get().set_fold_noise_files(!Settings::get().get_fold_noise_files());
+        }
         auto progress = div(ctx, mk(findParent ? *findParent : parent, 597002), ComponentConfig{}.with_skip_grid_snap()
             .with_size(ComponentSize{pixels(contentWidth), pixels(30)}).with_flex_direction(FlexDirection::Row));
         const auto& candidates = reviewScope == "wt" ? filterRepo->currentDiff :
             reviewScope == "index" ? filterRepo->stagedDiff : diffs;
         if (review && button(ctx, mk(progress.ent(), 0), preset::Button("Next unreviewed file")
-                .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
                 .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("next_unreviewed_file"))) {
             auto current = filterRepo->diffTargetFile().empty() ? filterRepo->selectedFilePath() : filterRepo->diffTargetFile();
             auto next = ecs::next_unreviewed_file(*review, reviewScope, candidates, filterRepo->fileFilter, current);
@@ -2781,7 +2834,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{expand(), pixels(26)}).with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("review_completion"));
             if (!review->approvedHunks.empty() && button(ctx, mk(progress.ent(), 2), preset::Button(review->showApproved ? "Hide approved" : "Show approved")
-                    .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
+                    .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
                     .with_debug_name("toggle_approved"))) review->showApproved = !review->showApproved;
         }
         findHeight += 90.f;
@@ -2905,6 +2958,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             if (find.navigate || find.pendingStep != 0) {
                 if (review) {
                     review->foldedFiles.erase(reviewScope + "\n" + match.file);
+                    review->defaultFoldedFiles.erase(reviewScope + "\n" + match.file);
                     for (const auto& file : diffs) {
                         if (file.filePath != match.file) continue;
                         for (const auto& hunk : file.hunks) {
@@ -3051,7 +3105,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     // When embedded, attach directly to parent; otherwise create our own scroll wrapper.
     // We always resolve contentParent to the entity that will own the diff rows.
     Entity* contentParent = &parent;
-    float stickyHeight = diffs.empty() || diffs.front().isFullContent ? 0.f : 24.f;
+    float stickyHeight = diffs.empty() || diffs.front().isFullContent ? 0.f : 28.f;
     auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::WINDOW_BG)
         .with_flex_direction(FlexDirection::Row).with_no_wrap().with_align_items(AlignItems::Center)
@@ -3216,8 +3270,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
             vp.built(14.f);
         }
         std::string fileFoldKey = reviewScope + "\n" + fileDiff.filePath;
-        if (review && sess.findNavigate && sess.findMatch && sess.findMatch->file == fileDiff.filePath)
+        if (review && sess.findNavigate && sess.findMatch && sess.findMatch->file == fileDiff.filePath) {
             review->foldedFiles.erase(fileFoldKey);
+            review->defaultFoldedFiles.erase(fileFoldKey);
+        }
         bool fileFolded = review && review->foldedFiles.contains(fileFoldKey);
         const bool narrowFile = contentWidth < 600.f;
         const float actionsHeight = !fileDiff.isFullContent && narrowFile ? 64.f : 32.f;
@@ -3271,6 +3327,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label("Exact moved blocks are blue · addition and deletion signs are preserved")
                 .with_size(ComponentSize{w, pixels(28)}).with_font_size(pixels(12))
+                .with_text_inset(12.f, 0.f).with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                 .with_custom_text_color(theme::DIFF_MOVED_TEXT).with_debug_name("moved_code_legend"));
             vp.built(28.f);
         }
@@ -3288,6 +3345,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
             vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(label).with_size(ComponentSize{w, pixels(28)})
+                .with_text_inset(12.f, 0.f)
+                .with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                 .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_debug_name("codeowners_label"));
             vp.built(28.f);
@@ -3312,6 +3371,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                     vp.flush(ctx, *contentParent, nextId);
                     div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                         .with_label(label).with_size(ComponentSize{w, pixels(48)})
+                        .with_text_inset(12.f, 0.f).with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                         .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                         .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("lfs_asset_metadata"));
                     vp.built(48.f);
@@ -3323,6 +3383,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label("Symbolic link target · target text only, link not followed")
                 .with_size(ComponentSize{w, pixels(28)}).with_font_size(pixels(12))
+                .with_text_inset(12.f, 0.f).with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                 .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("symlink_target_notice"));
             vp.built(28.f);
         }
@@ -3334,6 +3395,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(modeLabel).with_size(ComponentSize{w, pixels(28)})
+                .with_text_inset(12.f, 0.f).with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                 .with_font_size(pixels(12)).with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_debug_name("file_mode_change"));
             vp.built(28.f);
@@ -3393,6 +3455,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             vp.flush(ctx, *contentParent, nextId);
             div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(footer).with_size(ComponentSize{w, pixels(28)})
+                .with_text_inset(12.f, 0.f)
                 .with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                 .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_TERTIARY)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -3458,7 +3521,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     }
     if (stickyHeight > 0.f && filterRepo) {
         auto display = button(ctx, mk(stickyHost.ent(), 1), preset::Button(selectedFileOnly ? "Selected file" : "All files")
-            .with_size(ComponentSize{pixels(96), pixels(24)}).with_font_size(pixels(12))
+            .with_size(ComponentSize{pixels(96), pixels(28)}).with_font_size(pixels(12))
             .with_transparent_bg().with_debug_name("review_display_mode"));
         set_tooltip(display.ent(), "Choose selected file or all files");
         if (display) {

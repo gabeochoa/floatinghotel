@@ -44,3 +44,28 @@ wait_frames 10
 expect_no_text "Select a file or commit"
 expect_text "modified by test setup"
 screenshot unstaged_all_files_not_reviewing
+
+# Binary files start folded under the (default-on) noise setting:
+# icon.png's image card is hidden until its chevron is clicked, and
+# folds again on the next click.
+wait_for_refresh
+wait_frames 10
+expect_no_text "Not present"
+click_ui fold_file:icon.png
+wait_frames 10
+expect_text "Not present"
+click_ui fold_file:icon.png
+wait_frames 10
+expect_no_text "Not present"
+
+# Files fold from this page too: the chevron at the left of the file
+# header collapses that file's hunks and restores them, without
+# touching the other files on the page.
+click_ui fold_file:main.cpp
+wait_frames 10
+expect_no_text "Hello, floatinghotel!"
+expect_text "Development"
+screenshot unstaged_all_files_folded
+click_ui fold_file:main.cpp
+wait_frames 10
+expect_text "Hello, floatinghotel!"

@@ -1028,6 +1028,10 @@ public:
     std::vector<BranchInfo> branches;
     std::vector<std::string> tags;
     std::vector<std::string> stashes;
+    // Generation the stash list was loaded (or requested) for; the list is
+    // only read by the Refs pane, so refreshes no longer spawn for it.
+    unsigned stashesGeneration = 0;
+    bool stashesRequested = false;
 
     std::vector<FileDiff> currentDiff;
     std::vector<FileDiff> stagedDiff;
@@ -1153,6 +1157,9 @@ public:
     unsigned patchGeneration = 0;
     std::vector<std::string> allFilePaths;
     unsigned allFilePathsGeneration = 0;
+    // Generation a lazy ls-files load was last requested for (Quick Open /
+    // All-files tree ask for it; full refreshes no longer spawn it).
+    std::optional<unsigned> allFilePathsRequestedGeneration;
     std::string filesError;
     std::string codeownersKey;
     // In-flight CODEOWNERS load; its slot key is the load's key (the
@@ -1708,6 +1715,12 @@ struct ReviewComponent : public afterhours::BaseComponent {
     CommitReviewQueue queue;
     std::set<std::string> foldedHunks;
     std::set<std::string> foldedFiles;
+    // Default-fold bookkeeping for the fold-noise setting: keys already
+    // seeded (so a manual unfold is never re-seeded) and keys currently
+    // folded by the default (so turning the setting off unfolds exactly
+    // those, never a manual fold).
+    std::set<std::string> foldDefaultsSeen;
+    std::set<std::string> defaultFoldedFiles;
     // Keyboard chunk cursor (vim-style j/k/n nav; a approve, c comment).
     int cursor = 0;              // index of the highlighted visible hunk
     bool cursorMoved = false;
@@ -1807,6 +1820,8 @@ inline void reset_review(ReviewComponent& review) {
     review.queue = {};
     review.foldedHunks.clear();
     review.foldedFiles.clear();
+    review.foldDefaultsSeen.clear();
+    review.defaultFoldedFiles.clear();
     review.cursor = 0;
     review.cursorMoved = false;
     review.hunkCount = 0;

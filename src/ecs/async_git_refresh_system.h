@@ -12,6 +12,7 @@
 #include <afterhours/src/logging.h>
 #include "../util/signpost.h"
 #include "../git/git_parser.h"
+#include "../git/commit_patch.h"
 #include "../git/content_reader.h"
 #include "../git/git_runner.h"
 #include "../util/diff_reconcile.h"
@@ -93,6 +94,10 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
 
 
     void once(float) override {
+        if (headPrefetch_.valid() && headPrefetch_.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+            try { (void)headPrefetch_.get(); } catch (...) {}
+            headPrefetch_ = {};
+        }
         if (warming_) {
             auto tab = afterhours::EntityHelper::getEntityForID(warmingId_);
             if (!tab.valid() || tab->cleanup || !tab->has<RepoComponent>()) warming_ = false;
@@ -175,9 +180,11 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 if (plan.diff) pf.diff = parsed_async<ParsedDiff>(git::git_run_async(path, diffArgs, async_work::Priority::Background), [](const std::string& out) { return git::parse_diff(out); });
                 if (plan.branches) pf.branches = parsed_async<ParsedBranches>(git::git_branch_list_async(path), [](const std::string& out) { return git::parse_branch_list(out); });
             }
-            if (plan.branches) {
+            if (plan.branches && scope == refresh_scope::Scope::Refs) {
                 // Tags ride the branches for-each-ref spawn (parse_tag_list
                 // splits them out of the same output in the poll below).
+                // The stash list only feeds the Refs pane, so only a Refs
+                // refresh spawns for it; the pane requests one when stale.
                 pf.stashes = git::git_run_async(path, {"stash", "list"}, async_work::Priority::Background);
             }
             if (plan.stagedDiff) pf.stagedDiff = parsed_async<ParsedDiff>(git::git_run_async(path, stagedArgs, async_work::Priority::Background), [](const std::string& out) { return git::parse_diff(out); });
@@ -318,6 +325,18 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 repo.commitLogPage.finish(returned);
                 if (repo.historyScope.mode == git::HistoryScope::Mode::Current && !repo.historyScope.remotes)
                     repo.headCommitHash = repo.commitLog.empty() ? std::string() : repo.commitLog.front().hash;
+                // A commit that just landed on HEAD (an agent committing
+                // while the app is open) is the one the user clicks next;
+                // warm its patch now so the click is a cache hit instead
+                // of a cold multi-spawn load racing the refresh tail.
+                if (result.success() && repo.historyScope.mode == git::HistoryScope::Mode::Current &&
+                    !pf.headBefore.empty() && !repo.commitLog.empty() && repo.commitLog.front().hash != pf.headBefore &&
+                    !headPrefetch_.valid() &&
+                    !git::peek_commit_patch({repo.repoPath, repo.commitLog.front().hash, {}, repo.diffContext, repo.ignoreWhitespace})) {
+                    if (auto task = git::prefetch_commit_patch_async(
+                            {repo.repoPath, repo.commitLog.front().hash, {}, repo.diffContext, repo.ignoreWhitespace}))
+                        headPrefetch_ = std::move(*task);
+                }
             }
             if (!result.success() && pf.historyKey == repo.historyScope.key()) {
                 repo.historyError = result.stderr_str();
@@ -386,7 +405,13 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 if (!line.empty()) lines.push_back(std::move(line));
             if (target != lines) target = std::move(lines);
         };
-        pollLines(pf.stashes, repo.stashes);
+        if (pf.stashes) {
+            pollLines(pf.stashes, repo.stashes);
+            if (!pf.stashes) {
+                repo.stashesGeneration = repo.dataGeneration;
+                repo.stashesRequested = false;
+            }
+        }
 
         if (pf.files && pf.files->wait_for(0s) == std::future_status::ready) {
             auto result = pf.files->get();
@@ -514,6 +539,7 @@ private:
     };
 
     std::unordered_map<afterhours::EntityID, PendingFutures> pending_;
+    async_work::Task<bool> headPrefetch_;
     bool sawActiveLoaded_ = false;
     bool warming_ = false;
     afterhours::EntityID warmingId_ = 0;

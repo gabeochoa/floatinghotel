@@ -18,6 +18,7 @@ struct Settings::Data {
     int expandedWindowWidth = 1200;
     bool windowCollapsed = true;
     bool vimMode = false;
+    bool foldNoiseFiles = true;
     std::string theme = "dark";
     int windowHeight = 800;
     int windowX = 100;
@@ -102,6 +103,7 @@ bool Settings::load_save_file() {
         data_->sidebarWidth = std::clamp(data_->sidebarWidth, 200.f, 16384.f);
         data_->windowCollapsed = j.value("window_shelf_collapsed", true);
         data_->vimMode = j.value("vim_mode", false);
+        data_->foldNoiseFiles = j.value("fold_noise_files", true);
         data_->theme = j.value("theme", std::string("dark"));
         data_->windowWidth = std::clamp(j.contains("window_shelf_collapsed") ? j.value("window_width", 280) :
             static_cast<int>(data_->sidebarWidth), 200, 16384);
@@ -183,6 +185,7 @@ std::string Settings::build_settings_json() const {
     j["window_height"] = data_->windowHeight;
     j["window_shelf_collapsed"] = data_->windowCollapsed;
     j["vim_mode"] = data_->vimMode;
+    j["fold_noise_files"] = data_->foldNoiseFiles;
     j["theme"] = data_->theme;
     j["expanded_window_width"] = data_->expandedWindowWidth;
     j["window_x"] = data_->windowX;
@@ -512,6 +515,14 @@ void Settings::set_review_display_mode(const std::string& repoPath, review_files
 fold_defaults::Rules Settings::get_fold_rules(const std::string& repoPath) const {
     auto found = data_->foldRules.find(repoPath);
     return found == data_->foldRules.end() ? fold_defaults::default_rules() : found->second;
+}
+
+bool Settings::get_fold_noise_files() const { return data_->foldNoiseFiles; }
+
+void Settings::set_fold_noise_files(bool enabled) {
+    if (data_->foldNoiseFiles == enabled) return;
+    data_->foldNoiseFiles = enabled;
+    save_if_auto();
 }
 
 void Settings::set_fold_rules(const std::string& repoPath, fold_defaults::Rules rules) {

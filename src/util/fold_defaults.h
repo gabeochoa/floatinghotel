@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cctype>
 #include <string>
 #include <vector>
 
@@ -21,6 +22,39 @@ struct Rules {
 // everything else opens. A stored rule (even an empty pattern list)
 // replaces this entirely.
 inline Rules default_rules() { return {{"tests/**", "**/tests/**"}, 0}; }
+
+// Noise classification for the global "fold generated / binary / test
+// files" setting. Generated reuses the generated-file heuristics the file
+// filter hides by; test paths cover test directories and the common
+// test-file naming conventions.
+inline bool is_generated_path(const std::string& rawPath) {
+    std::string path = rawPath;
+    for (auto& c : path) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    const auto name = path.substr(path.find_last_of('/') == std::string::npos ? 0 : path.find_last_of('/') + 1);
+    auto segment = [&](const std::string& part) {
+        return path.starts_with(part + "/") || path.find("/" + part + "/") != std::string::npos;
+    };
+    return segment("generated") || segment("generated_images") || segment("dist") ||
+        name.find(".generated.") != std::string::npos || name.ends_with(".lock") ||
+        name.ends_with(".min.js") || name.ends_with(".min.css") || name.ends_with(".pb.cc") || name.ends_with(".pb.h");
+}
+
+inline bool is_test_path(const std::string& rawPath) {
+    std::string path = rawPath;
+    for (auto& c : path) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+    const auto name = path.substr(path.find_last_of('/') == std::string::npos ? 0 : path.find_last_of('/') + 1);
+    auto segment = [&](const std::string& part) {
+        return path.starts_with(part + "/") || path.find("/" + part + "/") != std::string::npos;
+    };
+    if (segment("tests") || segment("test") || segment("__tests__")) return true;
+    return name.starts_with("test_") || name.starts_with("test-") ||
+        name.find("_test.") != std::string::npos || name.find("_tests.") != std::string::npos ||
+        name.find(".test.") != std::string::npos || name.find(".spec.") != std::string::npos;
+}
+
+inline bool is_noise_file(const std::string& path, bool binary) {
+    return binary || is_generated_path(path) || is_test_path(path);
+}
 
 inline bool matches(const Rules& rules, const std::string& path,
                     int changedLines) {

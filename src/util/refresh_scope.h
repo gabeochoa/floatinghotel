@@ -34,8 +34,12 @@ inline bool has(Scope value, Scope flag) {
 }
 
 inline Plan plan(Scope scope) {
+    // A full refresh deliberately skips ls-files: the file list is only
+    // read by Quick Open and the All-files tree, which request a scoped
+    // refresh on demand. Spawning it on every startup/tab load cost a
+    // whole executor wave slot for data most sessions never open.
     if (scope == Scope::None || scope == Scope::Full)
-        return {true, true, true, true, true, true};
+        return {true, true, true, true, true, false};
     return {
         has(scope, Scope::Worktree) || has(scope, Scope::Index) || has(scope, Scope::Refs),
         has(scope, Scope::Refs),
