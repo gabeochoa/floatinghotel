@@ -1398,6 +1398,8 @@ int main(int argc, char* argv[]) {
             if (auto* r = repo()) return r->fullFileRevision();
         } else if (key == "sidebar_visible") {
             if (auto* l = layout()) return l->sidebarVisible ? "true" : "false";
+        } else if (key == "focus_mode") {
+            if (auto* l = layout()) return l->focusMode ? "true" : "false";
         } else if (key == "command_log_visible") {
             if (auto* l = layout()) return l->commandLogVisible ? "true" : "false";
         } else if (key == "diff_view_mode") {

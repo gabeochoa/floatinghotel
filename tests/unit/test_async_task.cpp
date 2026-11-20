@@ -97,4 +97,24 @@ TEST(shutdown_cancels_reads_and_drains_accepted_writes) {
     ASSERT_EQ(rejected.get(), -1);
 }
 
+TEST(cancelled_while_queued_never_invokes_the_work) {
+    async_work::Executor pool(1, 4);
+    std::promise<void> entered, release;
+    auto gate = release.get_future().share();
+    auto running = async_work::launch_on(pool, [&entered, gate](std::stop_token) {
+        entered.set_value(); gate.wait(); return 1;
+    });
+    ASSERT_EQ(entered.get_future().wait_for(2s), std::future_status::ready);
+    std::atomic<bool> invoked{false};
+    auto queued = async_work::launch_on(pool, [&invoked](std::stop_token) {
+        invoked.store(true); return 7;
+    }, async_work::Priority::Background);
+    queued.cancel();
+    release.set_value();
+    ASSERT_EQ(queued.get(), 0);
+    ASSERT_FALSE(invoked.load());
+    ASSERT_EQ(running.get(), 1);
+    pool.shutdown();
+}
+
 int main() { RUN_ALL_TESTS(); }

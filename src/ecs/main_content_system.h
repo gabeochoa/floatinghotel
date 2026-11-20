@@ -855,8 +855,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         const bool readingKeys = repoPtr && !shortcutsActive && ui::reader_shortcuts(ctx, *repoPtr, layout);
         if (readingKeys && (afterhours::input::is_key_down(afterhours::keys::LEFT_CONTROL) || afterhours::input::is_key_down(afterhours::keys::RIGHT_CONTROL)) && afterhours::input::is_key_pressed(afterhours::keys::G))
             open_line_picker(*repoPtr, layout);
-        if (readingKeys && superDown && afterhours::input::is_key_pressed(afterhours::keys::R))
-            open_symbol_picker(*repoPtr, layout);
+        if (readingKeys && superDown && afterhours::input::is_key_pressed(afterhours::keys::R)) {
+            // Cmd+Shift+R was advertised in the Edit menu but never
+            // dispatched; Shift now selects the project-wide picker.
+            const bool shift = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) ||
+                               afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
+            if (shift) open_project_symbol_picker(*repoPtr, layout);
+            else open_symbol_picker(*repoPtr, layout);
+        }
         if (readingKeys && !superDown) {
             const bool shift = afterhours::input::is_key_down(afterhours::keys::LEFT_SHIFT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_SHIFT);
             const bool alt = afterhours::input::is_key_down(afterhours::keys::LEFT_ALT) || afterhours::input::is_key_down(afterhours::keys::RIGHT_ALT);

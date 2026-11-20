@@ -93,11 +93,11 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const float height = viewport.logical_h;
         const float statusH = std::min(26.f, height);
         const float availableH = height - statusH;
-        const float tabStripH = std::min(28.f, availableH);
-        const float menuH = native_menu::is_installed() ? 0.f : std::min(26.f, availableH - tabStripH);
+        const float tabStripH = layout.focusMode ? 0.f : std::min(28.f, availableH);
+        const float menuH = layout.focusMode || native_menu::is_installed() ? 0.f : std::min(26.f, availableH - tabStripH);
         auto* repo = find_singleton<RepoComponent, ActiveTab>();
-        const bool sidebarShown = layout.sidebarVisible || (repo && repo->repo_search_open());
-        const float toolbarH = !sidebarShown && repo && !repo->reviewWorkspace
+        const bool sidebarShown = !layout.focusMode && (layout.sidebarVisible || (repo && repo->repo_search_open()));
+        const float toolbarH = !layout.focusMode && !sidebarShown && repo && !repo->reviewWorkspace
             ? std::min(42.f, availableH - tabStripH - menuH) : 0.f;
         const float topY = tabStripH + menuH + toolbarH;
         const float bodyH = availableH - topY;
@@ -133,7 +133,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         layout.mainContent = sidebarOnly ? LayoutComponent::Rect{}
             : LayoutComponent::Rect{mainX, topY, width - mainX, bodyH};
         layout.commandLog = {};
-        if (layout.commandLogVisible && !sidebarOnly) {
+        if (layout.commandLogVisible && !sidebarOnly && !layout.focusMode) {
             const float logH = std::min(std::max(80.f, layout.commandLogHeight), bodyH * 0.6f);
             layout.mainContent.height -= logH;
             layout.commandLog = {mainX, topY + layout.mainContent.height, width - mainX, logH};
@@ -144,7 +144,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
         const bool hasContent = repo && (repo->workspace().documents().size() > 1 || !repo->selectedCommitHash().empty() ||
             !repo->selectedFilePath().empty() || !repo->fullFilePath().empty() ||
             repo->comparisonOpen() || (review && review->reviewing));
-        if (hasContent && !sidebarOnly) {
+        if (hasContent && !sidebarOnly && !layout.focusMode) {
             const float tabsH = std::min(40.f, layout.mainContent.height);
             layout.contentTabs = {layout.mainContent.x, layout.mainContent.y,
                                   layout.mainContent.width, tabsH};
@@ -163,7 +163,7 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.mainContent.height -= topInset;
         }
         layout.feedback = {};
-        if (review && review->basketOpen && !review->comments.empty() &&
+        if (!layout.focusMode && review && review->basketOpen && !review->comments.empty() &&
             layout.mainContent.width > 0) {
             const bool overlay = layout.mainContent.width < 720.f;
             const float feedbackW = std::min(320.f, layout.mainContent.width);

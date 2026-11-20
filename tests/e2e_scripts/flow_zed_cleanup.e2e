@@ -1,0 +1,40 @@
+# Flow: simplified chrome + focus mode. The Sync pill is gone (the sync
+# row is the one sync surface), view toggles live in the palette, and
+# Cmd+Shift+Z collapses to one quiet reading pane and back.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+wait_frames 10
+
+# One sync surface: no pill in the repo header.
+validate ui_present:sync_pill=false
+
+# Focus Mode via the command palette (async match must land first).
+key CMD+K
+wait_frames 5
+assert_ui command_palette_input hidden=false
+click_ui command_palette_input
+type "Focus Mode"
+wait_until 30 expect_text "View: Focus Mode (toggle)"
+key ENTER
+wait_until 30 validate focus_mode=true
+validate ui_present:commit_msg_input=false
+screenshot focus_mode_on
+
+# Same chord leaves focus mode; the sidebar returns.
+key CMD+SHIFT+Z
+wait_until 30 validate focus_mode=false
+validate ui_present:commit_msg_input=true
+screenshot focus_mode_off
+
+# Cmd+Shift+R opens the project symbol picker (was advertised, dead).
+click_text main.cpp
+wait_for_refresh
+wait_frames 10
+click 700 400
+wait_frames 3
+key CMD+SHIFT+R
+wait_until 30 expect_text "Go to symbol in project"
+key ESCAPE
+wait_frames 5
+validate async:picker=Closed

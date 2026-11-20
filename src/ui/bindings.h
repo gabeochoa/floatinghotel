@@ -29,6 +29,8 @@ inline constexpr Binding table[] = {
     {"Cmd+K", "Command palette", afterhours::keys::K, true},
     {"Cmd+P", "Find a file (paste a/ or b/ diff paths, path:line)", afterhours::keys::P, true},
     {"Cmd+R", "Go to symbol in the file", afterhours::keys::R, true},
+    {"Cmd+Shift+R", "Go to symbol in the project", afterhours::keys::R, true, false, false, true},
+    {"Cmd+Shift+Z", "Toggle focus mode", afterhours::keys::Z, true, false, false, true},
     {"Ctrl+G", "Go to line", afterhours::keys::G, false, true},
     {"F12 / Shift+F12", "Go to definition / find references", afterhours::keys::F12},
     {"Alt+F12", "Show type information", afterhours::keys::F12, false, false, true},

@@ -17,7 +17,7 @@ wait_frames 5
 assert_ui command_palette_input hidden=false
 expect_text "Edit: Copy as snippet"
 type "keyboard sho"
-wait_frames 5
+wait_until 30 expect_text "Help: Keyboard Shortcuts"
 screenshot command_palette_filtered
 expect_text "Help: Keyboard Shortcuts"
 expect_no_text "Edit: Copy as snippet"

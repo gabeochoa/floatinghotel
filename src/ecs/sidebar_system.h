@@ -315,9 +315,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
                 layout.fileViewMode != LayoutComponent::FileViewMode::All &&
                 (!repoPtr->selectedCommitHash().empty() || !repoPtr->comparisonScope().empty());
-            // Grouped file sections replaced the Unstaged/Staged segment:
-            // the list below always shows Staged / Changes / Untracked.
-            const bool showViewsTrack = false;
             const bool showGit = repoPtr && !repoPtr->repoPath.empty();
             const bool showCommit = showGit && !treeClean && editor && !reviewingDoc &&
                 layout.sidebarMode == LayoutComponent::SidebarMode::Changes;
@@ -334,10 +331,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 layout.fileViewMode != LayoutComponent::FileViewMode::All;
             const float fixedControlsH =
                 (showGit && !reviewingDoc && layout.fileViewMode != LayoutComponent::FileViewMode::All
-                     ? 34.f : 0.f) +
-                (renderCommitArea ? (54.0f + COMMIT_INPUT_H) : 0.f) +
+                     ? 38.f : 0.f) +
+                (renderCommitArea ? (58.0f + COMMIT_INPUT_H) : 0.f) +
                 28.f +
-                (showProgress ? 60.f : 0.f) + (showViewsTrack ? 36.f : 0.f);
+                (showProgress ? 60.f : 0.f);
             const float bodyH = std::max(viewportH, fixedControlsH + 20.f);
             // Ask layout to keep this pane tall enough for the header,
             // the fixed chrome, and a five-row file list; the history
@@ -398,37 +395,10 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             // Files tree — its sections and staging menus are the primary
             // working surface.
             const bool useReviewTree = reviewingDoc;
+            // The Staged/Unstaged segment track that used to live here was
+            // permanently disabled when grouped file sections replaced
+            // it; the section headers carry its debug names and action.
             float viewsH = 0.f;
-            if (showViewsTrack) {
-                auto views = div(ctx, mk(controlsBody.ent(), 2081), ComponentConfig{}
-                    .with_size(ComponentSize{percent(1.f), pixels(38)})
-                    .with_padding(Padding{.left = pixels(12), .right = pixels(12), .bottom = pixels(6)})
-                    .with_flex_direction(FlexDirection::Row).with_no_wrap()
-                    .with_debug_name("working_review_views"));
-                auto viewsTrack = div(ctx, mk(views.ent(), 5), ComponentConfig{}
-                    .with_size(ComponentSize{expand(), pixels(32)})
-                    .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(2))
-                    .with_padding(Padding{.top = pixels(1), .right = pixels(3), .bottom = pixels(1), .left = pixels(3)})
-                    .with_custom_background(theme::BUTTON_SECONDARY)
-                    .with_border(theme::BORDER, pixels(1))
-                    .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(8.f)
-                    .with_debug_name("working_review_views_track"));
-                for (bool staged : {false, true}) {
-                    const auto count = staged ? repoPtr->stagedFiles.size() : repoPtr->unstagedFiles.size() + repoPtr->untrackedFiles.size();
-                    const auto label = std::string(staged ? "Staged" : "Unstaged") + " (" + (repoPtr->statusKnown ? std::to_string(count) : "?") + ")";
-                    const bool active = std::holds_alternative<reading::WorkingChanges>(repoPtr->workspace().review().destination) &&
-                        repoPtr->selectedFileStaged() == staged;
-                    auto segment = preset::Button(label)
-                        .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
-                        .with_corner_radius(5.f)
-                        .with_debug_name(staged ? "review_staged_changes" : "review_unstaged_changes");
-                    if (active) segment = segment.with_custom_background(ui::segment_selected_color());
-                    else segment = segment.with_transparent_bg();
-                    if (button(ctx, mk(viewsTrack.ent(), staged ? 1 : 0), segment))
-                        navigation::open(*repoPtr, reading::review(staged ? "index" : "wt"), true);
-                }
-                viewsH = 38.f;
-            }
 
             float conflictH = 0.f;
             if (repoPtr && !reviewingDoc && layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
@@ -1260,51 +1230,10 @@ private:
             }
             if (!items.empty()) ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
         }
-        // Sync pill: ↓behind ↑ahead Sync ▾ with a menu whose items
-        // explain why they are disabled.
-        if (repo && !repo->repoPath.empty()) {
-            auto pill = div(ctx, mk(row.ent(), 4), ComponentConfig{}
-                .with_size(ComponentSize{children(), pixels(26)}).with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center).with_gap(pixels(3))
-                .with_custom_background(theme::BUTTON_SECONDARY)
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
-                .with_padding(Padding{.left = pixels(6), .right = pixels(6)})
-                .with_debug_name("sync_pill"));
-            pill.ent().addComponentIfMissing<HasClickListener>([](Entity&) {});
-            if (repo->behindCount > 0) {
-                ui::chrome_icon(ctx, mk(pill.ent(), 0), ui::ChromeIcon::ArrowDown, theme::TEXT_SECONDARY, "sync_pill_behind_icon");
-                div(ctx, mk(pill.ent(), 1), ComponentConfig{}.with_label(std::to_string(repo->behindCount))
-                    .with_size(ComponentSize{children(), pixels(20)}).with_font_size(pixels(12))
-                    .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("sync_pill_behind"));
-            }
-            if (repo->aheadCount > 0) {
-                ui::chrome_icon(ctx, mk(pill.ent(), 2), ui::ChromeIcon::ArrowUp, theme::TEXT_SECONDARY, "sync_pill_ahead_icon");
-                div(ctx, mk(pill.ent(), 3), ComponentConfig{}.with_label(std::to_string(repo->aheadCount))
-                    .with_size(ComponentSize{children(), pixels(20)}).with_font_size(pixels(12))
-                    .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("sync_pill_ahead"));
-            }
-            div(ctx, mk(pill.ent(), 4), ComponentConfig{}.with_label("Sync")
-                .with_size(ComponentSize{children(), pixels(20)}).with_font_size(pixels(12))
-                .with_custom_text_color(theme::TEXT_PRIMARY).with_debug_name("sync_pill_label"));
-            ui::chrome_icon(ctx, mk(pill.ent(), 5), ui::ChromeIcon::ChevronDown, theme::TEXT_SECONDARY, "sync_pill_chevron");
-            ui::set_tooltip(pill.ent(), "Push, pull, or fetch");
-            if (pill.ent().get<HasClickListener>().down) {
-                const auto path = repo->repoPath;
-                const int ahead = repo->aheadCount, behind = repo->behindCount;
-                std::vector<ui::ContextMenuItem> items;
-                items.push_back(ui::ContextMenuItem::item(
-                    behind > 0 ? "Push - pull first (" + std::to_string(behind) + " behind)" : ahead == 0 ? "Push - nothing to push" : "Push (" + std::to_string(ahead) + " ahead)",
-                    [path] { enqueue_network_op("Push", git::git_run_async(path, {"push"})); },
-                    behind == 0 && ahead > 0));
-                items.push_back(ui::ContextMenuItem::item(
-                    behind == 0 ? "Pull - up to date" : "Pull (" + std::to_string(behind) + " behind)",
-                    [path] { enqueue_network_op("Pull", git::git_run_async(path, {"pull"})); }, behind > 0));
-                items.push_back(ui::ContextMenuItem::item("Fetch", [path] {
-                    enqueue_network_op("Fetch", git::git_run_async(path, {"fetch", "--all"}));
-                }));
-                ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
-            }
-        }
+        // No Sync pill here: the sync row under this header (Push / Pull /
+        // Fetch / Stash with ahead/behind counts) is the one sync surface.
+        // The pill duplicated it, with a subtly different Push (direct,
+        // bypassing the push dialog) — one surface, one semantics.
         if (repo && !repo->repoPath.empty() && button(ctx, mk(row.ent(), 3), preset::Button("…")
             .with_size(ComponentSize{pixels(28), pixels(28)}).with_tooltip("Repository navigation")
             .with_debug_name("repository_navigation"))) {
@@ -2259,56 +2188,6 @@ private:
         }
     }
 
-    // Render the view mode tabs: [Changed] [Tree] [All]
-    void render_view_mode_tabs(UIContext<InputAction>& ctx,
-                                Entity& parent,
-                                LayoutComponent& layout) {
-        constexpr float TAB_HEIGHT = 26.0f;
-        constexpr float TAB_HPAD = 10.0f;
-
-        auto vmTabW = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
-        auto tabRow = div(ctx, mk(parent, 2120),
-            ComponentConfig{}
-                .with_size(ComponentSize{vmTabW, pixels(TAB_HEIGHT)})
-                .with_flex_direction(FlexDirection::Row)
-                .with_align_items(AlignItems::Center)
-                .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(10),
-                    .bottom = pixels(2), .left = pixels(10)})
-                .with_custom_background(theme::SIDEBAR_BG)
-                .with_roundness(0.0f)
-                .with_debug_name("view_mode_tabs"));
-
-        auto makeTab = [&](int id, const std::string& label,
-                           LayoutComponent::FileViewMode mode) {
-            bool active = (layout.fileViewMode == mode);
-
-            auto config = preset::Button(label)
-                .with_size(ComponentSize{children(), pixels(TAB_HEIGHT - 6)})
-                .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(TAB_HPAD),
-                    .bottom = pixels(2), .left = pixels(TAB_HPAD)})
-                .with_margin(Margin{
-                    .top = {}, .bottom = {},
-                    .left = {}, .right = pixels(4)})
-                .with_debug_name("tab_" + label);
-            if (!active) {
-                config = config.with_custom_background(theme::BUTTON_SECONDARY)
-                               .with_custom_text_color(theme::TEXT_PRIMARY);
-            }
-
-            auto result = button(ctx, mk(tabRow.ent(), id), config);
-
-            if (result) {
-                auto* lc = find_singleton<LayoutComponent>();
-                if (lc) lc->fileViewMode = mode;
-            }
-        };
-
-        makeTab(2121, "Changed", LayoutComponent::FileViewMode::Flat);
-        makeTab(2122, "Tree", LayoutComponent::FileViewMode::Tree);
-        makeTab(2123, "Explorer", LayoutComponent::FileViewMode::All);
-    }
 
     // Render the file list with Staged, Changes, and Untracked sections
     // parentWidth: explicit pixel width to avoid percent resolution bug

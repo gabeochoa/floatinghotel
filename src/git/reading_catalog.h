@@ -116,10 +116,12 @@ inline Page commits(const std::string& repository, const std::string& query, std
     return page;
 }
 
-inline std::vector<Entry> filter(const std::vector<Entry>& entries, Kind kind, const std::string& query) {
+inline std::vector<Entry> filter(const std::vector<Entry>& entries, Kind kind, const std::string& query,
+                                 std::stop_token stop = {}) {
     struct Scored { Entry entry; int score; size_t order; };
     std::vector<Scored> candidates;
     for (size_t i = 0; i < entries.size(); ++i) {
+        if ((i & 1023) == 0 && stop.stop_requested()) return {};
         const auto& entry = entries[i];
         if (kind != Kind::All && kind != entry.kind) continue;
         auto score = query.empty() ? std::optional<int>{0} : fuzzy::score(query, entry.title);

@@ -40,4 +40,5 @@ for filename in sys.argv[1:]:
     if subject and metadata:
         assert abs(subject[0]["rect"]["x"] - metadata[0]["rect"]["x"]) < 0.1, filename
 assert checked, "No controls checked"
+assert targets, "No hover targets rendered in any capture (a moved control would pass silently)"
 print(f"PASS {checked} control boxes have usable content space; {targets} hover targets meet their minimum height; commit headings align")

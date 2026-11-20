@@ -80,9 +80,11 @@ public:
         {
             std::lock_guard lock(mutex_);
             stopping_ = true;
+            // Only active work is stopped. Queued accepted work drains
+            // (callers may be waiting on its result during teardown);
+            // work its owner cancelled is rejected by launch_on's
+            // pre-run gate instead of being invoked here.
             for (auto& source : active_) if (source) source->request_stop();
-            for (auto* queue : {&foreground_, &background_})
-                for (auto& job : *queue) if (job.cancellable) job.stop.request_stop();
         }
         ready_.notify_all();
         for (auto& worker : workers_) if (worker.joinable()) worker.join();
@@ -157,6 +159,14 @@ auto launch_on(Executor& pool, Fn fn, Priority priority = Priority::Foreground,
     auto promise = std::make_shared<std::promise<Result>>();
     auto future = promise->get_future();
     auto run = [fn = std::move(fn), token = stop.get_token(), promise]() mutable {
+        // Cancelled while queued: never invoke the work. Returning the
+        // default result keeps the future readable for owners that poll
+        // it; stamp gates drop it as stale.
+        if (token.stop_requested()) {
+            try { promise->set_value(Result{}); }
+            catch (...) { promise->set_exception(std::current_exception()); }
+            return;
+        }
         try { promise->set_value(fn(token)); }
         catch (...) { promise->set_exception(std::current_exception()); }
     };

@@ -2460,14 +2460,9 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
             review->mark_dirty();
         }
     }
-    if ((reviewScope == "wt" || reviewScope == "index") && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace)) {
-        if (button(ctx, mk(fileBtns.ent(), 4), preset::Button(reviewScope == "index" ? "Unstage file" : "Stage file")
-                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
-                .with_transparent_bg().with_debug_name("stage_file_btn")))
-            approve_file(repoPath, fileDiff.filePath, reviewScope);
-    }
-
-    // Copy lives on the header's context menu and Edit › Copy Diff / Copy Path.
+    // Stage/Unstage and Open live on the header's context menu (below),
+    // not as a permanent button on every file header; the sidebar row's
+    // context menu and the Repository menu keep their own entries.
     header.addComponentIfMissing<HasClickListener>([](Entity&){});
     if (ctx.is_right_click(header.id)) {
         remember_focus_origin(ctx, header);
@@ -2480,11 +2475,20 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
                     if (!hunk.noNewline.contains(i)) text += '\n';
                 }
         }
-        show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, {
-            ContextMenuItem::item(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy diff",
-                [text] { afterhours::clipboard::set_text(text); }),
-            ContextMenuItem::item("Copy path", [path = fileDiff.filePath] { afterhours::clipboard::set_text(path); }),
-        });
+        std::vector<ContextMenuItem> items;
+        items.push_back(ContextMenuItem::item(fileDiff.isPartialContent ? "Copy loaded page" : fileDiff.isFullContent ? "Copy file" : "Copy diff",
+            [text] { afterhours::clipboard::set_text(text); }));
+        items.push_back(ContextMenuItem::item("Copy path", [path = fileDiff.filePath] { afterhours::clipboard::set_text(path); }));
+        if ((reviewScope == "wt" || reviewScope == "index") && !fileDiff.isFullContent && (!activeRepo || !activeRepo->reviewWorkspace))
+            items.push_back(ContextMenuItem::item(reviewScope == "index" ? "Unstage file" : "Stage file",
+                [repoPath, path = fileDiff.filePath, reviewScope] { approve_file(repoPath, path, reviewScope); }));
+        if (!fileDiff.isFullContent && !repoPath.empty() && reviewScope != "snapshot")
+            items.push_back(ContextMenuItem::item(fileDiff.isDeleted ? "Open previous file" : "Open file",
+                [file = fileDiff] {
+                    if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
+                        navigation::open_source(*repo, file);
+                }));
+        show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
     }
     return false;
 }

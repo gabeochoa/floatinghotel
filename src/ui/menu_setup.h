@@ -304,6 +304,26 @@ inline std::vector<Menu> createMenuBar() {
             Settings::get().set_code_font_size(Settings::get().get_code_font_size() - 2.f);
         }),
         MenuItem::item("Reset Code Text", "Cmd+0", [] { Settings::get().set_code_font_size(Settings::kDefaultCodeFontSize); }),
+        MenuItem::separator(),
+        // At the end on purpose: the View dropdown is already a full
+        // window tall, and inserting above would push the zoom items
+        // off the bottom. The palette (Cmd+K) is their primary home.
+        MenuItem::item("Focus Mode (toggle)", "Cmd+Shift+Z", [] {
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->focusMode = !l->focusMode;
+        }),
+        MenuItem::item("Outline Panel (toggle)", "", [] {
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->outlinePanelOpen = !l->outlinePanelOpen;
+        }),
+        MenuItem::item("Blame Gutter (toggle)", "", [] {
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->blameGutter = !l->blameGutter;
+        }),
+        MenuItem::item("Minimap (toggle)", "", [] {
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) l->minimap = !l->minimap;
+        }),
     }});
 
     // Git menu

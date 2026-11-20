@@ -30,8 +30,8 @@ with TemporaryDirectory(prefix='fh-approve-stage-') as temp:
         'click_ui review_unstaged_changes', 'wait_for_refresh',
         'screenshot before',
         'click_ui approve_hunk_btn', settle, 'screenshot after_hunk',
-        'click_ui jump_to_diff:b.cpp', 'wait_frames 10',
-        'click_ui stage_file_btn', settle, 'screenshot after_file',
+        'click_text "b.cpp"', 'wait_frames 10',
+        'right_click_ui file_header_row', 'wait_frames 3', 'click_ui "context_menu_item_Stage file"', settle, 'screenshot after_file',
         'expect_text "Staged"', 'expect_text "Unstaged"'])
     script_path = out / 'journey.e2e'
     script_path.write_text(script + '\n')

@@ -5,6 +5,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <stop_token>
 #include <string_view>
 #include <unordered_map>
 #include <vector>
@@ -120,12 +121,15 @@ inline size_t common_dir_prefix(std::string_view a, std::string_view b) {
 
 inline std::vector<std::string> rank(const std::vector<std::string>& paths, const std::string& query,
                                      const std::vector<std::string>& recent = {},
-                                     const std::string& activeDir = {}) {
+                                     const std::string& activeDir = {},
+                                     std::stop_token stop = {}) {
     struct Candidate { bool exact; int recentRank; bool filename; int value; size_t proximity; std::string path; };
     std::vector<Candidate> scored;
     std::unordered_map<std::string, int> recency;
     for (size_t i = 0; i < recent.size(); ++i) recency.try_emplace(recent[i], static_cast<int>(recent.size() - i));
+    size_t checked = 0;
     for (const auto& path : paths) {
+        if ((++checked & 1023) == 0 && stop.stop_requested()) return {};
         const auto found = recency.find(path);
         int recentRank = found == recency.end() ? -1 : found->second;
         // Non-empty queries only blend the last 20 opened files.

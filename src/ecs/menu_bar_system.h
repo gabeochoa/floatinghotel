@@ -102,12 +102,9 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
                     if (target.valid() && activeLayout) TabBarSystem::switch_to_tab(target.asE(), *activeLayout);
                 }});
             }
-        position.commands.push_back({"View: Minimap (toggle)", "", [] {
-            if (auto* activeLayout = find_singleton<LayoutComponent>()) activeLayout->minimap = !activeLayout->minimap;
-        }});
-        position.commands.push_back({"View: Blame Gutter (toggle)", "", [] {
-            if (auto* activeLayout = find_singleton<LayoutComponent>()) activeLayout->blameGutter = !activeLayout->blameGutter;
-        }});
+        // View toggles (Minimap, Blame Gutter, Outline, Focus Mode) arrive
+        // via the copied View menu above; no separate extras, or the
+        // palette would list each of them twice.
         position.commands.push_back({"Repository: Switch Repository...", "Cmd+Alt+O", [] {
             if (auto* activeLayout = find_singleton<LayoutComponent>()) open_repo_picker(*activeLayout);
         }});
@@ -170,6 +167,9 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         if (const auto* binding = ui::bindings::find("Cmd+K");
             binding && !ui::shortcuts_blocked(layout) && ui::bindings::chord_pressed(*binding))
             menu.paletteRequested = true;
+        if (const auto* binding = ui::bindings::find("Cmd+Shift+Z");
+            binding && !ui::shortcuts_blocked(layout) && ui::bindings::chord_pressed(*binding))
+            layout.focusMode = !layout.focusMode;
         if (std::exchange(menu.paletteRequested, false)) open_palette(layout);
 
         Entity& uiRoot = ui_imm::getUIRootEntity();

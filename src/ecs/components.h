@@ -2416,6 +2416,16 @@ struct FilePickerPosition {
     async_slot::Slot<git::SourcePosition> positionRequest;
     std::string key;
     std::string error;
+    // Latest-wins palette matching, mirroring FilePickerScope: matching
+    // runs on a worker, previous results stay until the new set lands,
+    // and a landed match applies only while its stamp still accepts.
+    async_work::Task<std::vector<size_t>> paletteMatchFuture;
+    reading::RequestStamp paletteMatchStamp{};
+    std::string paletteMatchPendingKey;
+    bool paletteMatchApplied = false;
+    std::optional<std::chrono::steady_clock::time_point> paletteMatchDue;
+    std::vector<size_t> paletteResults;
+    unsigned paletteCommandsVersion = 0;
     reading::OpenMode mode = reading::OpenMode::Keep;
 };
 
@@ -2495,6 +2505,9 @@ struct LayoutComponent : public afterhours::BaseComponent {
     std::string filePickerSelectedPath;
     int filePickerIndex = 0;
     bool visibleWhitespace = false;
+    // Focus mode: one quiet reading pane — sidebar, repo tabs and
+    // document tabs hidden, panels return via their normal toggles.
+    bool focusMode = false;
     bool blameGutter = false;
     bool minimap = false;
     bool stickyScopes = true;

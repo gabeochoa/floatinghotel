@@ -11,8 +11,8 @@ resize 1280 720
 wait_frames 5
 wait_for_refresh
 wait_frames 15
-validate ui_height:files_controls_scroll=360.0
-validate ui_height:files_controls_body=360.0
+validate ui_height:files_controls_scroll=368.0
+validate ui_height:files_controls_body=368.0
 expect_no_text "icon.png"
 mouse_move 140 300
 scroll_wheel 0 -1000

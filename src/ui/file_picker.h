@@ -321,6 +321,39 @@ inline void render_line_picker(UIContext<InputAction>& ctx, Entity& parent, Repo
     }
 }
 
+// Pure palette ranking (worker-safe: labels and recency by value, no
+// actions): duplicate labels hand out each label's indices in order;
+// Commands mode floats previously used commands first.
+inline std::vector<size_t> rank_palette_labels(const std::vector<std::string>& labels, const std::string& input,
+                                               const std::vector<std::string>& recent, bool commandsMode,
+                                               std::stop_token stop = {}) {
+    std::vector<size_t> results;
+    if (input.empty()) {
+        for (size_t i = 0; i < labels.size(); ++i) results.push_back(i);
+    } else {
+        std::unordered_map<std::string, std::vector<size_t>> indices;
+        for (size_t i = labels.size(); i-- > 0;) indices[labels[i]].push_back(i);
+        for (const auto& label : fuzzy::rank(labels, input, {}, {}, stop)) {
+            auto& left = indices[label];
+            if (left.empty()) continue;
+            results.push_back(left.back());
+            left.pop_back();
+        }
+    }
+    if (commandsMode) {
+        std::unordered_map<std::string, size_t> usedRank;
+        for (size_t i = 0; i < recent.size(); ++i) usedRank.try_emplace(recent[i], i);
+        std::stable_sort(results.begin(), results.end(), [&](size_t a, size_t b) {
+            const auto rankA = usedRank.find(labels[a]);
+            const auto rankB = usedRank.find(labels[b]);
+            if ((rankA == usedRank.end()) != (rankB == usedRank.end())) return rankB == usedRank.end();
+            if (rankA != usedRank.end() && rankB != usedRank.end()) return rankA->second < rankB->second;
+            return false;
+        });
+    }
+    return results;
+}
+
 inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& repo, LayoutComponent& layout, float height) {
     auto& position = layout.filePickerPosition;
     ui::bind_focus(parent, repo, reading::focus::Region::Picker);
@@ -333,6 +366,7 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
                 [point = *position.point, line = symbol.line] {
                     if (auto* active = find_singleton<RepoComponent, ActiveTab>()) go_to_symbol(*active, point, line);
                 }, symbol.line});
+        ++position.paletteCommandsVersion;
         // Empty query lists symbols in document order; preselect the deepest
         // symbol at or before the cursor.
         if (firstArrival && position.input.empty() && position.point) {
@@ -356,6 +390,7 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
                         }
                     }, symbol.line, symbol.path});
             layout.filePickerIndex = 0;
+            ++position.paletteCommandsVersion;
         }
         // Re-scan for the typed query after a short debounce; the previous
         // list stays on screen (and re-filters locally) meanwhile.
@@ -365,10 +400,11 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
             position.projectDue.reset();
             if (position.projectQuery != position.input) {
                 position.projectQuery = position.input;
-                if (!position.projectSymbols.busy())
-                    position.projectSymbols.request("project:" + repo.repoPath + "\n" + position.input,
-                        navigation::stamp(repo, "project:" + repo.repoPath + "\n" + position.input),
-                        git::project_symbols_async(repo.repoPath, repo.allFilePaths, position.input));
+                // No busy guard: Slot::request cancels and restamps, so a
+                // query typed mid-scan is re-requested instead of dropped.
+                position.projectSymbols.request("project:" + repo.repoPath + "\n" + position.input,
+                    navigation::stamp(repo, "project:" + repo.repoPath + "\n" + position.input),
+                    git::project_symbols_async(repo.repoPath, repo.allFilePaths, position.input));
             }
         }
     }
@@ -386,32 +422,6 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
     }
     std::vector<std::string> labels;
     for (const auto& command : position.commands) labels.push_back(command.label);
-    std::vector<size_t> results;
-    if (position.input.empty()) for (size_t i = 0; i < labels.size(); ++i) results.push_back(i);  // menu order
-    else {
-        // Overloads share a label; hand out each label's indices in order.
-        std::unordered_map<std::string, std::vector<size_t>> indices;
-        for (size_t i = labels.size(); i-- > 0;) indices[labels[i]].push_back(i);
-        for (const auto& label : fuzzy::rank(labels, position.input)) {
-            auto& left = indices[label];
-            results.push_back(left.back());
-            left.pop_back();
-        }
-    }
-    if (layout.picker.mode == PickerMode::Commands) {
-        // Previously used commands first, most recently used ahead.
-        const auto& recent = Settings::get().get_command_recent();
-        std::unordered_map<std::string, size_t> usedRank;
-        for (size_t i = 0; i < recent.size(); ++i) usedRank.try_emplace(recent[i], i);
-        std::stable_sort(results.begin(), results.end(), [&](size_t a, size_t b) {
-            const auto rankA = usedRank.find(position.commands[a].label);
-            const auto rankB = usedRank.find(position.commands[b].label);
-            if ((rankA == usedRank.end()) != (rankB == usedRank.end())) return rankB == usedRank.end();
-            if (rankA != usedRank.end() && rankB != usedRank.end()) return rankA->second < rankB->second;
-            return false;
-        });
-    }
-    layout.filePickerIndex = std::clamp(layout.filePickerIndex, 0, std::max(0, static_cast<int>(results.size()) - 1));
     // Close first: the command may open a picker of its own.
     auto run = [&](size_t index) {
         auto action = position.commands[index].action;
@@ -419,6 +429,58 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
         layout.confirm_picker();
         action();
     };
+    // Latest-wins matching on a worker, mirroring Quick Open: previous
+    // results stay on screen, a landed match applies only while its
+    // stamp accepts, and Enter queues behind an in-flight match.
+    const std::string paletteKey = std::to_string(static_cast<int>(layout.picker.mode)) + "\n" + position.input +
+        "\n" + std::to_string(position.paletteCommandsVersion) + ":" + std::to_string(position.commands.size());
+    auto launchPaletteMatch = [&] {
+        position.paletteMatchStamp = navigation::stamp(repo, paletteKey);
+        position.paletteMatchApplied = false;
+        layout.picker.begin_matching();
+        position.paletteMatchPendingKey.clear();
+        position.paletteMatchDue.reset();
+        position.paletteMatchFuture = async_work::launch(
+            [labels, input = position.input, recent = Settings::get().get_command_recent(),
+             commandsMode = layout.picker.mode == PickerMode::Commands](std::stop_token stop) {
+                return rank_palette_labels(labels, input, recent, commandsMode, stop);
+            },
+            async_work::Priority::Foreground, std::vector<size_t>{});
+    };
+    if (paletteKey != position.paletteMatchStamp.key && paletteKey != position.paletteMatchPendingKey) {
+        if (position.paletteMatchFuture.valid()) {
+            position.paletteMatchPendingKey = paletteKey;
+            position.paletteMatchDue = std::chrono::steady_clock::now() + std::chrono::milliseconds(100);
+        } else launchPaletteMatch();
+    }
+    if (!position.paletteMatchFuture.valid() && !position.paletteMatchPendingKey.empty()) {
+        if (position.paletteMatchPendingKey == paletteKey && position.paletteMatchDue &&
+            std::chrono::steady_clock::now() >= *position.paletteMatchDue) launchPaletteMatch();
+        else if (position.paletteMatchPendingKey != paletteKey) {
+            position.paletteMatchPendingKey.clear();
+            position.paletteMatchDue.reset();
+            if (paletteKey != position.paletteMatchStamp.key) launchPaletteMatch();
+        }
+    }
+    auto applyPaletteMatch = [&] {
+        if (!position.paletteMatchFuture.valid() ||
+            position.paletteMatchFuture.wait_for(std::chrono::seconds(0)) != std::future_status::ready) return;
+        auto matched = position.paletteMatchFuture.get();
+        position.paletteMatchFuture = {};
+        if (!navigation::accepts(repo, position.paletteMatchStamp, paletteKey)) { layout.picker.finish_matching(); return; }
+        position.paletteResults = std::move(matched);
+        position.paletteMatchApplied = true;
+        layout.filePickerIndex = std::clamp(layout.filePickerIndex, 0,
+            std::max(0, static_cast<int>(position.paletteResults.size()) - 1));
+        layout.picker.finish_matching();
+        if (layout.picker.phase == PickerPhase::Confirming) {
+            layout.picker.consume_confirm();
+            if (!position.paletteResults.empty()) run(position.paletteResults[static_cast<size_t>(layout.filePickerIndex)]);
+        }
+    };
+    applyPaletteMatch();
+    auto& results = position.paletteResults;
+    layout.filePickerIndex = std::clamp(layout.filePickerIndex, 0, std::max(0, static_cast<int>(results.size()) - 1));
     if (!ui::shortcuts_blocked(layout) && ui::shortcut_owner(ctx, repo).input(reading::focus::Region::Picker) && !results.empty()) {
         if (afterhours::input::is_key_pressed(afterhours::keys::DOWN)) layout.filePickerIndex = std::min(layout.filePickerIndex + 1, static_cast<int>(results.size()) - 1);
         if (afterhours::input::is_key_pressed(afterhours::keys::UP)) {
@@ -428,7 +490,18 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
                 position.input = position.queryHistory[static_cast<size_t>(position.queryRecall)];
             } else layout.filePickerIndex = std::max(0, layout.filePickerIndex - 1);
         }
-        if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) return run(results[layout.filePickerIndex]);
+        if (afterhours::input::is_key_pressed(afterhours::keys::ENTER)) {
+            // Queue Enter behind an in-flight match instead of running a
+            // stale selection; applyPaletteMatch runs it on land.
+            if (position.paletteMatchFuture.valid()) position.paletteMatchFuture.wait_for(std::chrono::milliseconds(16));
+            applyPaletteMatch();
+            const bool current = position.paletteMatchApplied && !position.paletteMatchFuture.valid() &&
+                position.paletteMatchPendingKey.empty() && position.paletteMatchStamp.key == paletteKey;
+            if (!results.empty() && current) return run(results[static_cast<size_t>(layout.filePickerIndex)]);
+            if (!results.empty() || position.paletteMatchFuture.valid() || !position.paletteMatchPendingKey.empty())
+                layout.picker.request_confirm(true);
+            return;
+        }
     }
     div(ctx, mk(parent, 588002), ComponentConfig{}
         .with_label(layout.picker.mode == PickerMode::ProjectSymbol ? (position.projectSymbols.busy() ? std::string("Scanning project symbols...")
@@ -590,12 +663,13 @@ inline std::vector<git::catalog::Entry> compute_picker_results(
     const std::string& changesBefore, const std::vector<std::string>& recent,
     const std::string& activeDir, const std::vector<git::catalog::Entry>& localRefs,
     const std::vector<git::catalog::Entry>& remoteRefs, const std::vector<git::catalog::Entry>& commits,
-    const std::vector<git::catalog::Entry>& extra, const std::map<std::string, std::string>& worktreeStatus) {
+    const std::vector<git::catalog::Entry>& extra, const std::map<std::string, std::string>& worktreeStatus,
+    std::stop_token stop = {}) {
     std::vector<git::catalog::Entry> results;
     if ((category == git::catalog::Kind::All || category == git::catalog::Kind::File) && parsed.error.empty()) {
         for (const auto& [path, status] : changePaths)
             if (status == "Deleted" && std::find(searchable.begin(), searchable.end(), path) == searchable.end()) searchable.push_back(path);
-        const auto ranked = fuzzy::rank(searchable, parsed.path, recent, activeDir);
+        const auto ranked = fuzzy::rank(searchable, parsed.path, recent, activeDir, stop);
         for (const auto& path : ranked) {
             const auto found = changePaths.find(path);
             const auto status = found == changePaths.end() ? "" : found->second;
@@ -607,13 +681,13 @@ inline std::vector<git::catalog::Entry> compute_picker_results(
         entries.insert(entries.end(), localRefs.begin(), localRefs.end());
         entries.insert(entries.end(), remoteRefs.begin(), remoteRefs.end());
         entries.insert(entries.end(), commits.begin(), commits.end());
-        auto matches = git::catalog::filter(entries, category, query);
+        auto matches = git::catalog::filter(entries, category, query, stop);
         if (git::catalog::hash_query(query)) results.insert(results.begin(), matches.begin(), matches.end());
         else results.insert(results.end(), matches.begin(), matches.end());
     }
     if (category == git::catalog::Kind::Reflog || category == git::catalog::Kind::Stash ||
         category == git::catalog::Kind::Worktree || category == git::catalog::Kind::Submodule || category == git::catalog::Kind::Diagnostic) {
-        results = git::catalog::filter(extra, category, category == git::catalog::Kind::Reflog ? "" : query);
+        results = git::catalog::filter(extra, category, category == git::catalog::Kind::Reflog ? "" : query, stop);
         if (category == git::catalog::Kind::Worktree || category == git::catalog::Kind::Submodule)
             for (auto& entry : results) {
                 const auto found = worktreeStatus.find(entry.identity);
@@ -751,9 +825,9 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
              recent = repo.workspace().recent_source_paths(scope.listing.revision), activeDir,
              localRefs = scope.localRefs.entries, remoteRefs = scope.remoteRefs.entries,
              commits = scope.commits.entries, extra = scope.extra.entries,
-             worktreeStatus = scope.worktreeStatus](std::stop_token) {
+             worktreeStatus = scope.worktreeStatus](std::stop_token stop) {
                 return compute_picker_results(category, parsed, query, searchable, changePaths, before,
-                                              recent, activeDir, localRefs, remoteRefs, commits, extra, worktreeStatus);
+                                              recent, activeDir, localRefs, remoteRefs, commits, extra, worktreeStatus, stop);
             },
             async_work::Priority::Foreground, std::vector<git::catalog::Entry>{});
     };
