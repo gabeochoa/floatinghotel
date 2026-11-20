@@ -1,0 +1,31 @@
+# Flow: a single-file diff gets the source view's chrome: a breadcrumb
+# header (segments open Quick Open, file/Outline open the symbol
+# picker), a persistent outline panel whose clicks jump within the
+# diff, and a blame gutter fed by git blame at the diff's revision.
+make_test_repo
+resize 1600 1000
+wait_for_refresh
+
+# Drill into one working-tree file.
+click_text "README.md"
+wait_for_refresh
+wait_frames 15
+assert_ui diff_breadcrumb_header hidden=false
+screenshot diff_breadcrumb
+
+# Outline panel opens beside the diff; symbols come from the same
+# outline scan the hunk captions use.
+click_ui outline_toggle
+wait_until 30 expect_text "Outline"
+wait_frames 20
+assert_ui outline_panel hidden=false
+screenshot diff_outline_open
+click_ui outline_symbol_1
+wait_frames 15
+screenshot diff_outline_jump
+
+# Blame gutter: uncommitted lines read "Not committed" in the gutter
+# once the blame load lands (that text exists nowhere in the content).
+click_ui blame_toggle
+wait_until 60 expect_text "Not committed"
+screenshot diff_blame_on

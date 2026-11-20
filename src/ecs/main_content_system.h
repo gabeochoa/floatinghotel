@@ -414,6 +414,75 @@ inline void close_top_popup(UIContext<InputAction>& ctx, RepoComponent& repo, La
     }
 }
 
+// Breadcrumb header for a single-file diff: path segments open Quick
+// Open filtered to that directory, the file segment and Outline open the
+// symbol picker, and the Blame chip toggles the diff blame gutter. The
+// same features used to exist only in the full-file source view.
+inline void render_diff_breadcrumb_header(UIContext<InputAction>& ctx, Entity& parent,
+                                          RepoComponent& repo, LayoutComponent& layout,
+                                          const FileDiff& file, const std::string& scope) {
+    auto header = div(ctx, mk(parent, 3071), ComponentConfig{}
+        .with_size(ComponentSize{percent(1.f), pixels(32)}).with_skip_grid_snap()
+        .with_flex_direction(FlexDirection::Row).with_no_wrap()
+        .with_align_items(AlignItems::Center).with_gap(pixels(4))
+        .with_custom_background(theme::PANEL_BG)
+        .with_debug_name("diff_breadcrumb_header"));
+    const auto fullPath = file.filePath;
+    std::vector<std::string> segments;
+    for (size_t at = 0, next; at <= fullPath.size(); at = next + 1) {
+        next = fullPath.find('/', at);
+        if (next == std::string::npos) next = fullPath.size();
+        segments.push_back(fullPath.substr(at, next - at));
+        if (next == fullPath.size()) break;
+    }
+    std::string prefix;
+    for (size_t i = 0; i < segments.size(); ++i) {
+        prefix += (i ? "/" : "") + segments[i];
+        const bool last = i + 1 == segments.size();
+        auto segment = button(ctx, mk(header.ent(), static_cast<int>(10 + i)), preset::Button(last ? segments[i] : segments[i] + " /")
+            .with_size(ComponentSize{children(), pixels(24)}).with_font_size(pixels(12))
+            .with_debug_name("breadcrumb_" + std::to_string(i)));
+        ui::set_tooltip(segment.ent(), last ? std::string("Open outline") : "Open Quick Open at " + prefix);
+        if (segment) {
+            if (last) open_symbol_picker(repo, layout);
+            else {
+                layout.filePickerPosition = {};
+                layout.filePickerQuery = prefix + "/";
+                layout.open_picker(PickerMode::Files, repo);
+            }
+        }
+    }
+    // Enclosing symbol at the caret, once the outline scan lands.
+    if (const auto* symbols = ui::hunk_scope::symbols(repo, file, scope)) {
+        const auto* document = repo.workspace().document(repo.workspace().active_id());
+        const int cursorLine = document && document->caret ? document->caret->line : 0;
+        const symbol_outline::Symbol* enclosing = nullptr;
+        for (const auto& symbol : *symbols) if (symbol.line <= cursorLine) enclosing = &symbol;
+        if (enclosing) {
+            auto symbol = button(ctx, mk(header.ent(), 90), preset::Button("› " + enclosing->name)
+                .with_size(ComponentSize{children(), pixels(24)}).with_font_size(pixels(12))
+                .with_debug_name("breadcrumb_symbol"));
+            ui::set_tooltip(symbol.ent(), "Open outline");
+            if (symbol) open_symbol_picker(repo, layout);
+        }
+    }
+    auto spacer = div(ctx, mk(header.ent(), 95), ComponentConfig{}
+        .with_size(ComponentSize{expand(), pixels(1)}).with_transparent_bg());
+    (void)spacer;
+    auto outline = button(ctx, mk(header.ent(), 96), preset::Button("Outline")
+        .with_size(ComponentSize{pixels(64), pixels(28)}).with_font_size(pixels(12))
+        .with_custom_background(layout.outlinePanelOpen ? theme::SELECTED_BG : theme::PANEL_BG)
+        .with_debug_name("outline_toggle"));
+    ui::set_tooltip(outline.ent(), "Toggle the persistent outline panel");
+    if (outline) layout.outlinePanelOpen = !layout.outlinePanelOpen;
+    auto blame = button(ctx, mk(header.ent(), 97), preset::Button("Blame")
+        .with_size(ComponentSize{pixels(56), pixels(28)}).with_font_size(pixels(12))
+        .with_custom_background(layout.blameGutter ? theme::SELECTED_BG : theme::PANEL_BG)
+        .with_debug_name("blame_toggle"));
+    ui::set_tooltip(blame.ent(), "Toggle blame in the gutter");
+    if (blame) layout.blameGutter = !layout.blameGutter;
+}
+
 struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
     struct TabDrag {
         int repository;
@@ -1223,10 +1292,68 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 // (Approve/Comment) reserve room instead of overflowing off-screen.
                 float diffW = layout.mainContent.width;
                 auto* review = find_singleton<ReviewComponent, ActiveTab>();
-                ui::render_diff(ctx, mainBg.ent(), selectedInFileDiffs ? fileDiffs : selectedDiffs,
-                               diffW, layout.mainContent.height, false, fileJustChanged, sideBySide,
-                               repo.repoPath, repo.selectedFileStaged() ? nullptr : review,
-                               repo.selectedFileStaged() ? "index" : "wt");
+                const auto& diffs = selectedInFileDiffs ? fileDiffs : selectedDiffs;
+                const std::string diffScope = repo.selectedFileStaged() ? "index" : "wt";
+                // The header and outline describe the selected file, not
+                // whichever file happens to sort first in the whole diff.
+                const FileDiff* selectedFile = nullptr;
+                for (const auto& candidate : diffs)
+                    if (candidate.filePath == repo.selectedFilePath()) { selectedFile = &candidate; break; }
+                if (!selectedFile && !diffs.empty()) selectedFile = &diffs.front();
+                // Breadcrumbs + outline panel, as in the source view: a
+                // header row over the diff, and the persistent outline
+                // beside it when open. Symbol clicks jump within the diff.
+                auto singleCol = div(ctx, mk(mainBg.ent(), 3070), ComponentConfig{}
+                    .with_size(ComponentSize{percent(1.f), percent(1.f)})
+                    .with_flex_direction(FlexDirection::Column).with_no_wrap()
+                    .with_debug_name("diff_single_column"));
+                render_diff_breadcrumb_header(ctx, singleCol.ent(), repo, layout, *selectedFile, diffScope);
+                // Blame for the selected file when only it is on screen
+                // (the whole diff is passed for display-mode filtering).
+                const bool blameHere = layout.blameGutter && selectedFile &&
+                    Settings::get().get_review_display_mode(repo.repoPath) == review_files::DisplayMode::SelectedFile &&
+                    !selectedFile->isFullContent && !selectedFile->isBinary && !selectedFile->isDeleted;
+                if (blameHere) ui::lend_diff_blame(repo, *selectedFile, diffScope);
+                const float bodyH = std::max(1.f, layout.mainContent.height - 32.f);
+                if (layout.outlinePanelOpen) {
+                    auto bodyRow = div(ctx, mk(singleCol.ent(), 3072), ComponentConfig{}
+                        .with_size(ComponentSize{percent(1.f), pixels(bodyH)}).with_flex_direction(FlexDirection::Row)
+                        .with_no_wrap().with_debug_name("diff_outline_body"));
+                    auto panel = div(ctx, mk(bodyRow.ent(), 0), ComponentConfig{}
+                        .with_size(ComponentSize{pixels(220), pixels(bodyH)}).with_flex_direction(FlexDirection::Column)
+                        .with_custom_background(theme::PANEL_BG).with_debug_name("outline_panel"));
+                    div(ctx, mk(panel.ent(), 0), ComponentConfig{}.with_label("Outline")
+                        .with_size(ComponentSize{percent(1.f), pixels(26)}).with_font_size(pixels(12))
+                        .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("outline_title"));
+                    const auto* symbols = ui::hunk_scope::symbols(repo, *selectedFile, diffScope);
+                    if (symbols) {
+                        const auto file = *selectedFile;
+                        ui::virtual_list(ctx, mk(panel.ent(), 1), symbols->size(), 24.f, [&, file](size_t i, Entity& row) {
+                            const auto& symbol = (*symbols)[i];
+                            auto label = button(ctx, mk(row, 0), preset::Button(symbol.name)
+                                .with_size(ComponentSize{percent(1.f), pixels(24)}).with_alignment(TextAlignment::Left)
+                                .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                                .with_debug_name("outline_symbol_" + std::to_string(i)));
+                            ui::set_tooltip(label.ent(), symbol.kind + " · line " + std::to_string(symbol.line));
+                            if (label) {
+                                if (auto* active = find_singleton<ReviewComponent, ActiveTab>())
+                                    navigation::go_to_review_line(repo, *active, file,
+                                        reading::ReadingAnchor{file.filePath, "", reading::DiffSide::After, symbol.line, 1, .15f, ' '});
+                            }
+                        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(24.f, bodyH - 26.f))})
+                            .with_debug_name("outline_list"));
+                    }
+                    auto diffHost = div(ctx, mk(bodyRow.ent(), 1), ComponentConfig{}
+                        .with_size(ComponentSize{expand(), pixels(bodyH)}).with_debug_name("diff_outline_content"));
+                    ui::render_diff(ctx, diffHost.ent(), diffs,
+                                   std::max(1.f, diffW - 224.f), bodyH, false, fileJustChanged, sideBySide,
+                                   repo.repoPath, repo.selectedFileStaged() ? nullptr : review, diffScope);
+                } else {
+                    ui::render_diff(ctx, singleCol.ent(), diffs,
+                                   diffW, bodyH, false, fileJustChanged, sideBySide,
+                                   repo.repoPath, repo.selectedFileStaged() ? nullptr : review, diffScope);
+                }
+                if (blameHere) code_gutter::clear_blame();
             } else if (repo.selectedDiff.failed()) {
                 // The single-file read failed: say so instead of silently
                 // keeping the previous file's diff or claiming no diff.

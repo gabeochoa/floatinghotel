@@ -479,7 +479,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
         // revision and data generation, so an external edit re-blames) and
         // lend it to the gutter for this render only.
         struct BlameGutterGuard {
-            ~BlameGutterGuard() { code_gutter::blameFor = nullptr; code_gutter::blameChars = 0; }
+            ~BlameGutterGuard() { code_gutter::clear_blame(); }
         } blameGutterGuard;
         if (layout.blameGutter && !repo.fullFileDiff.empty() && repo.fullFileDiff.front().isFullContent &&
             !repo.fullFilePath().empty()) {
@@ -520,26 +520,8 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                     return out;
                 };
             }
-            if (repo.blameGutter.key == blameKey && !repo.blameGutterLines.empty()) {
-                const auto& lines = repo.blameGutterLines;
-                size_t authorWidth = 0;
-                for (const auto& line : lines) authorWidth = std::max(authorWidth, std::min(line.author.size(), size_t{14}));
-                code_gutter::blameChars = static_cast<int>(authorWidth) + 11;
-                code_gutter::blameFor = [&lines, authorWidth](int number) {
-                    std::string out;
-                    if (number >= 1 && static_cast<size_t>(number) <= lines.size() &&
-                        lines[static_cast<size_t>(number) - 1].finalLine == number) {
-                        const auto& line = lines[static_cast<size_t>(number) - 1];
-                        out = line.hash == std::string(40, '0') ? std::string("Not committed").substr(0, authorWidth)
-                                                                : line.author.substr(0, authorWidth);
-                        if (out.size() < authorWidth) out += std::string(authorWidth - out.size(), ' ');
-                        if (!line.date.empty()) out += " " + line.date;
-                    }
-                    if (static_cast<int>(out.size()) < code_gutter::blameChars)
-                        out += std::string(static_cast<size_t>(code_gutter::blameChars) - out.size(), ' ');
-                    return out.substr(0, static_cast<size_t>(code_gutter::blameChars));
-                };
-            }
+            if (repo.blameGutter.key == blameKey && !repo.blameGutterLines.empty())
+                code_gutter::lend_blame(repo.blameGutterLines);
         }
         if (layout.outlinePanelOpen && !repo.fullFileDiff.empty()) {
             // Persistent outline: symbols of the current file, following

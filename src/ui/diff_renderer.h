@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../git/source_find.h"
+#include "../git/git_parser.h"
 #include "../git/selection_copy.h"
 
 #include "../util/reading_anchor.h"
@@ -2493,6 +2494,53 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
     return false;
 }
 
+// Blame one file at a diff's new-side revision and lend it to the
+// gutter. The caller clears it after the render (code_gutter::clear_blame).
+// Only WorkingTree and Commit scopes blame: the index has no blameable
+// revision of its own. Aggregate renders must not call this for more
+// than the one file on screen — the lender is keyed by line number.
+inline void lend_diff_blame(ecs::RepoComponent& repo, const ecs::FileDiff& file, const std::string& scope) {
+    const auto target = diff_target(scope);
+    if (target.kind != DiffTarget::Kind::WorkingTree && target.kind != DiffTarget::Kind::Commit) return;
+    const std::string revision = target.kind == DiffTarget::Kind::Commit ? target.after : std::string{};
+    const std::string blameKey = repo.repoPath + "\n" + file.filePath + "\n" + revision +
+        (target.kind == DiffTarget::Kind::WorkingTree ? "\n" + std::to_string(repo.dataGeneration) : "");
+    if (auto result = repo.blameGutter.poll(repo)) {
+        if (repo.blameGutter.key == blameKey) {
+            if (result->success()) repo.blameGutterLines = git::parse_blame_porcelain(result->stdout_str());
+            else {
+                repo.blameGutterLines.clear();
+                repo.blameGutter.fail(result->stderr_str());
+            }
+        }
+    }
+    if (repo.blameGutter.key != blameKey && !repo.blameGutter.busy()) {
+        repo.blameGutterLines.clear();
+        std::vector<std::string> args{"blame", "--porcelain"};
+        if (!revision.empty()) args.push_back(revision);
+        args.insert(args.end(), {"--", file.filePath});
+        repo.blameGutter.request(blameKey, navigation::stamp(repo, blameKey),
+            git::git_run_async(repo.repoPath, args));
+    }
+    if (repo.blameGutter.key == blameKey && !repo.blameGutterLines.empty()) {
+        code_gutter::lend_blame(repo.blameGutterLines);
+    } else if (repo.blameGutter.busy() && repo.blameGutter.key == blameKey) {
+        code_gutter::blameChars = 14;
+        code_gutter::blameFor = [](int) {
+            std::string out = "Loading blame";
+            out += std::string(static_cast<size_t>(code_gutter::blameChars) - out.size(), ' ');
+            return out;
+        };
+    } else if (repo.blameGutter.phase == async_slot::Phase::Failed && repo.blameGutter.key == blameKey) {
+        code_gutter::blameChars = 14;
+        code_gutter::blameFor = [](int) {
+            std::string out = "Blame failed";
+            out += std::string(static_cast<size_t>(code_gutter::blameChars) - out.size(), ' ');
+            return out;
+        };
+    }
+}
+
 inline void render_diff(UIContext<InputAction>& ctx,
                         Entity& parent,
                         const std::vector<ecs::FileDiff>& diffs,
@@ -3248,6 +3296,12 @@ inline void render_diff(UIContext<InputAction>& ctx,
             nextId - measuring->id, sess.hunkOrdinal - measuring->ordinal};
         measuring.reset();
     };
+    // Blame gutter in a single-file diff (see lend_diff_blame below):
+    // lent for this render only, cleared by the guard on return.
+    struct DiffBlameGuard { ~DiffBlameGuard() { code_gutter::clear_blame(); } } diffBlameGuard;
+    if (layout && layout->blameGutter && ownerRepo && diffs.size() == 1 && !diffs.front().isFullContent &&
+        !diffs.front().isBinary && !diffs.front().isDeleted)
+        lend_diff_blame(*ownerRepo, diffs.front(), reviewScope);
     if (fileOrder.empty() && !diffs.empty())
         div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap().with_label("No files match these filters")
             .with_size(ComponentSize{pixels(contentWidth), pixels(32)}).with_font_size(pixels(12)));
@@ -3590,3 +3644,27 @@ inline void render_side_by_side_diff(UIContext<InputAction>& ctx,
 }
 
 } // namespace ui
+
+// Defined here, where ecs::BlameLine is complete (declared in
+// code_gutter.h, which must stay component-free for its unit test TU).
+namespace code_gutter {
+inline void lend_blame(const std::vector<ecs::BlameLine>& lines) {
+    size_t authorWidth = 0;
+    for (const auto& line : lines) authorWidth = std::max(authorWidth, std::min(line.author.size(), size_t{14}));
+    blameChars = static_cast<int>(authorWidth) + 11;
+    blameFor = [&lines, authorWidth](int number) {
+        std::string out;
+        if (number >= 1 && static_cast<size_t>(number) <= lines.size() &&
+            lines[static_cast<size_t>(number) - 1].finalLine == number) {
+            const auto& line = lines[static_cast<size_t>(number) - 1];
+            out = line.hash == std::string(40, '0') ? std::string("Not committed").substr(0, authorWidth)
+                                                    : line.author.substr(0, authorWidth);
+            if (out.size() < authorWidth) out += std::string(authorWidth - out.size(), ' ');
+            if (!line.date.empty()) out += " " + line.date;
+        }
+        if (static_cast<int>(out.size()) < blameChars)
+            out += std::string(static_cast<size_t>(blameChars) - out.size(), ' ');
+        return out.substr(0, static_cast<size_t>(blameChars));
+    };
+}
+}
