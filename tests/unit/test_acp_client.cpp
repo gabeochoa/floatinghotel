@@ -2,6 +2,7 @@
 #include "../../src/acp/acp_client.h"
 
 #include <chrono>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <thread>
@@ -71,9 +72,16 @@ TEST(transcript_merges_chunks_and_describes_tool_diffs) {
     transcript.apply_update({{"sessionUpdate", "agent_message_chunk"},
                              {"content", {{"type", "text"}, {"text", "done"}}}});
     ASSERT_EQ(transcript.entries.size(), 3u);
+    // The same update resent whole must replace, not duplicate.
+    transcript.apply_update({{"sessionUpdate", "tool_call_update"},
+                             {"toolCallId", "t1"}, {"status", "completed"},
+                             {"content", {{{"type", "diff"}, {"path", "/r/a.cpp"},
+                                           {"oldText", "a\n"}, {"newText", "b\nc\n"}}}}});
     ASSERT_EQ(transcript.entries[0].text, std::string("Hello world"));
     ASSERT_EQ(transcript.entries[1].status, std::string("completed"));
-    ASSERT_TRUE(transcript.entries[1].text.find("/r/a.cpp") != std::string::npos);
+    const std::string& toolText = transcript.entries[1].text;
+    ASSERT_TRUE(toolText.find("/r/a.cpp") != std::string::npos);
+    ASSERT_TRUE(toolText.find("/r/a.cpp", toolText.find("/r/a.cpp") + 1) == std::string::npos);
     ASSERT_EQ(transcript.entries[2].text, std::string("done"));
     ASSERT_TRUE(transcript.plain().find("Hello world") != std::string::npos);
 }
@@ -85,6 +93,25 @@ TEST(phase_name_covers_all_phases) {
     ASSERT_EQ(std::string(acp::phase_name(acp::Phase::Prompting)), std::string("Prompting"));
     ASSERT_EQ(std::string(acp::phase_name(acp::Phase::Dead)), std::string("Dead"));
     ASSERT_EQ(std::string(acp::phase_name(acp::Phase::Failed)), std::string("Failed"));
+}
+
+TEST(default_registry_lists_muse_claude_codex_with_cli_env) {
+    const auto agents = acp::default_agents();
+    ASSERT_EQ(agents.size(), 3u);
+    ASSERT_EQ(agents[0].id, std::string("muse"));
+    ASSERT_EQ(agents[1].id, std::string("claude"));
+    ASSERT_EQ(agents[2].id, std::string("codex"));
+    ASSERT_TRUE(acp::find_agent(agents, "codex") != nullptr);
+    ASSERT_TRUE(acp::find_agent(agents, "nope") == nullptr);
+    ASSERT_FALSE(acp::find_on_path("ls").empty());
+    // With a `claude` CLI installed (and no user-set override), the
+    // adapter is pointed at it so it inherits that binary's auth setup.
+    if (!acp::find_on_path("claude").empty() && !std::getenv("CLAUDE_CODE_EXECUTABLE")) {
+        bool pointed = false;
+        for (const auto& [key, value] : agents[1].env)
+            pointed |= key == "CLAUDE_CODE_EXECUTABLE" && value == acp::find_on_path("claude");
+        ASSERT_TRUE(pointed);
+    }
 }
 
 TEST(fake_agent_end_to_end_fs_and_permission) {

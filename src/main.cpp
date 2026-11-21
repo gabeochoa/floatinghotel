@@ -472,6 +472,7 @@ static void app_init() {
         tab.addComponent<ecs::CommitDetailCache>();
         tab.addComponent<ecs::BranchDialogState>();
         tab.addComponent<ecs::ReviewComponent>();
+        tab.addComponent<ecs::AgentComponent>();
 
         auto& editor = tab.addComponent<ecs::CommitEditorComponent>();
         if (savedPolicy == "stage_all") {
@@ -595,6 +596,7 @@ static void app_init() {
         sm.register_update_system(std::move(fileWatcherPtr));
         sm.register_update_system(std::make_unique<ecs::AsyncGitDataRefreshSystem>());
         sm.register_update_system(std::make_unique<ecs::NetworkOpsPollingSystem>());
+        sm.register_update_system(std::make_unique<ecs::AgentPollSystem>());
 
         // Modal dialog systems
         ui_imm::registerModalSystems(sm);
@@ -619,6 +621,7 @@ static void app_init() {
             sm.register_update_system(std::make_unique<HandleResetUI>());
             sm.register_update_system(std::make_unique<HandleTabCommands>());
             sm.register_update_system(std::make_unique<HandleTouchFile>());
+            sm.register_update_system(std::make_unique<HandleAcpCommands>());
             sm.register_update_system(std::make_unique<HandleWaitForRefresh>());
             sm.register_update_system(std::make_unique<HandleWaitForFileChange>());
             sm.register_update_system(std::make_unique<HandleFileWatcherToggle>());
@@ -1421,7 +1424,20 @@ int main(int argc, char* argv[]) {
         } else if (key == "sidebar_mode") {
             if (auto* l = layout())
                 return l->sidebarMode == ecs::LayoutComponent::SidebarMode::Changes
-                           ? "Changes" : "Refs";
+                           ? "Changes"
+                       : l->sidebarMode == ecs::LayoutComponent::SidebarMode::Agent
+                           ? "Agent" : "Refs";
+        } else if (key == "acp_agent") {
+            if (auto* a = ecs::find_singleton<ecs::AgentComponent, ecs::ActiveTab>()) return a->agentId;
+        } else if (key == "acp_state") {
+            if (auto* a = ecs::find_singleton<ecs::AgentComponent, ecs::ActiveTab>())
+                return std::string(acp::phase_name(a->phase()));
+        } else if (key == "acp_permission") {
+            if (auto* a = ecs::find_singleton<ecs::AgentComponent, ecs::ActiveTab>())
+                return a->permission ? a->permission->title : "";
+        } else if (key == "acp_transcript") {
+            if (auto* a = ecs::find_singleton<ecs::AgentComponent, ecs::ActiveTab>())
+                return a->transcript.plain();
         } else if (key == "selected_commit_count") {
             if (auto* r = repo()) {
                 if (r->historySelection.hashes.empty())

@@ -27,15 +27,21 @@ std::string first_nonempty(const nlohmann::json& value, const char* key) {
 
 }  // namespace
 
-bool on_path(const std::string& program) {
-    if (program.empty()) return false;
-    if (program.find('/') != std::string::npos) return access(program.c_str(), X_OK) == 0;
+std::string find_on_path(const std::string& program) {
+    if (program.empty()) return "";
+    if (program.find('/') != std::string::npos)
+        return access(program.c_str(), X_OK) == 0 ? program : "";
     std::stringstream paths(env("PATH"));
     std::string dir;
-    while (std::getline(paths, dir, ':'))
-        if (!dir.empty() && access((dir + "/" + program).c_str(), X_OK) == 0) return true;
-    return false;
+    while (std::getline(paths, dir, ':')) {
+        if (dir.empty()) continue;
+        const std::string candidate = dir + "/" + program;
+        if (access(candidate.c_str(), X_OK) == 0) return candidate;
+    }
+    return "";
 }
+
+bool on_path(const std::string& program) { return !find_on_path(program).empty(); }
 
 std::vector<std::string> split_command(const std::string& text) {
     std::vector<std::string> parts;
@@ -67,30 +73,43 @@ std::vector<std::string> split_command(const std::string& text) {
 std::vector<AgentDef> default_agents() {
     std::vector<AgentDef> agents;
     auto add = [&](std::string id, std::string name, std::string description,
-                   std::vector<std::string> command, const char* envName) {
+                   std::vector<std::string> command, const char* envName,
+                   std::vector<std::pair<std::string, std::string>> extraEnv = {}) {
         if (const std::string override_ = env(envName); !override_.empty())
             command = split_command(override_);
         const bool available = !command.empty() && on_path(command.front());
-        agents.push_back({std::move(id), std::move(name), std::move(description), std::move(command), available});
+        agents.push_back({std::move(id), std::move(name), std::move(description),
+                          std::move(command), available, std::move(extraEnv)});
     };
 
     add("muse", "Muse", "Runs `muse acp` (native ACP).",
         {"muse", "acp"}, "FH_ACP_MUSE_CMD");
 
+    // The adapters bundle their own agent binaries, which miss the auth /
+    // proxy setup of the installed CLIs (at Meta their API calls hang);
+    // point them at the installed binary unless the user already did.
+    std::vector<std::pair<std::string, std::string>> claudeEnv;
+    if (env("CLAUDE_CODE_EXECUTABLE").empty())
+        if (const std::string exe = find_on_path("claude"); !exe.empty())
+            claudeEnv.push_back({"CLAUDE_CODE_EXECUTABLE", exe});
     std::vector<std::string> claude;
     if (on_path("claude-agent-acp")) claude = {"claude-agent-acp"};
     else if (on_path("claude-code-acp")) claude = {"claude-code-acp"};
     else if (on_path("npx")) claude = {"npx", "-y", "@agentclientprotocol/claude-agent-acp"};
     else claude = {"claude-agent-acp"};
-    add("claude", "Claude", "Runs the Claude ACP adapter (claude-agent-acp, or via npx).",
-        claude, "FH_ACP_CLAUDE_CMD");
+    add("claude", "Claude", "Runs the Claude ACP adapter (claude-agent-acp, or via npx), on the installed `claude` binary.",
+        claude, "FH_ACP_CLAUDE_CMD", std::move(claudeEnv));
 
+    std::vector<std::pair<std::string, std::string>> codexEnv;
+    if (env("CODEX_PATH").empty())
+        if (const std::string exe = find_on_path("codex"); !exe.empty())
+            codexEnv.push_back({"CODEX_PATH", exe});
     std::vector<std::string> codex;
     if (on_path("codex-acp")) codex = {"codex-acp"};
     else if (on_path("npx")) codex = {"npx", "-y", "@agentclientprotocol/codex-acp"};
     else codex = {"codex-acp"};
-    add("codex", "Codex", "Runs the Codex ACP adapter (codex-acp, or via npx).",
-        codex, "FH_ACP_CODEX_CMD");
+    add("codex", "Codex", "Runs the Codex ACP adapter (codex-acp, or via npx), on the installed `codex` binary.",
+        codex, "FH_ACP_CODEX_CMD", std::move(codexEnv));
 
     return agents;
 }
@@ -104,8 +123,11 @@ const AgentDef* find_agent(const std::vector<AgentDef>& agents, const std::strin
 // ---------------------------------------------------------------- transcript
 
 void Transcript::chunk(EntryKind kind, const std::string& text) {
-    if (entries.empty() || entries.back().kind != kind || !entries.back().toolCallId.empty())
+    if (entries.empty() || entries.back().kind != kind || !entries.back().toolCallId.empty()) {
         entries.push_back({kind, "", "", "", ""});
+        // Long sessions stay bounded: the oldest turns scroll away.
+        if (entries.size() > 800) entries.erase(entries.begin(), entries.begin() + 100);
+    }
     entries.back().text += text;
 }
 
@@ -129,28 +151,33 @@ Entry* Transcript::tool_call(const std::string& id) {
 }
 
 void Transcript::describe_tool_content(Entry& entry, const nlohmann::json& update) {
+    // A tool_call_update's content is the tool call's *current* content,
+    // not a delta (agents resend it whole), so an update that carries
+    // content or locations replaces the description instead of appending.
+    if (!update.contains("content") && !update.contains("locations")) return;
     // Diffs and locations are the "agent is editing my code" evidence; the
     // full before/after text stays out of the transcript (the editor and
     // diff view show it, and whole files would flood the sidebar).
+    std::string text;
     const auto content = update.value("content", nlohmann::json::array());
     if (content.is_array())
         for (const auto& item : content) {
             const std::string type = item.value("type", "");
             if (type == "diff") {
                 const std::string path = item.value("path", "");
-                if (!entry.text.empty()) entry.text += "\n";
-                entry.text += "± " + path;
+                if (!text.empty()) text += "\n";
+                text += "± " + path;
                 const std::string fresh = item.value("newText", "");
                 if (!fresh.empty()) {
                     size_t lines = 1;
                     for (char c : fresh) lines += c == '\n' ? 1 : 0;
-                    entry.text += " (" + std::to_string(lines) + " lines)";
+                    text += " (" + std::to_string(lines) + (lines == 1 ? " line)" : " lines)");
                 }
             } else if (type == "content") {
-                const std::string text = first_nonempty(item.value("content", nlohmann::json::object()), "text");
-                if (!text.empty()) {
-                    if (!entry.text.empty()) entry.text += "\n";
-                    entry.text += text.substr(0, 2000);
+                const std::string body = first_nonempty(item.value("content", nlohmann::json::object()), "text");
+                if (!body.empty()) {
+                    if (!text.empty()) text += "\n";
+                    text += body.substr(0, 2000);
                 }
             }
         }
@@ -158,11 +185,12 @@ void Transcript::describe_tool_content(Entry& entry, const nlohmann::json& updat
     if (locations.is_array())
         for (const auto& location : locations) {
             const std::string path = location.value("path", "");
-            if (path.empty() || entry.text.find(path) != std::string::npos) continue;
-            if (!entry.text.empty()) entry.text += "\n";
-            entry.text += path;
-            if (const int line = location.value("line", 0); line > 0) entry.text += ":" + std::to_string(line);
+            if (path.empty() || text.find(path) != std::string::npos) continue;
+            if (!text.empty()) text += "\n";
+            text += path;
+            if (const int line = location.value("line", 0); line > 0) text += ":" + std::to_string(line);
         }
+    if (!text.empty() || update.contains("content")) entry.text = std::move(text);
 }
 
 void Transcript::apply_update(const nlohmann::json& update) {
@@ -312,8 +340,23 @@ std::unique_ptr<Client> Client::spawn(const AgentDef& agent, const std::string& 
     std::vector<char*> argv;
     for (const auto& part : agent.command) argv.push_back(const_cast<char*>(part.c_str()));
     argv.push_back(nullptr);
+    // environ overlaid with the agent's entries (same key replaced).
+    std::vector<std::string> envStrings;
+    for (char** entry = environ; *entry; ++entry) {
+        std::string_view text(*entry);
+        bool replaced = false;
+        for (const auto& pair : agent.env)
+            if (text.size() > pair.first.size() && text.substr(0, pair.first.size()) == pair.first &&
+                text[pair.first.size()] == '=')
+                replaced = true;
+        if (!replaced) envStrings.emplace_back(*entry);
+    }
+    for (const auto& [key, value] : agent.env) envStrings.push_back(key + "=" + value);
+    std::vector<char*> envp;
+    for (auto& entry : envStrings) envp.push_back(entry.data());
+    envp.push_back(nullptr);
     pid_t pid = -1;
-    const int spawned = posix_spawnp(&pid, argv[0], &actions, &attributes, argv.data(), environ);
+    const int spawned = posix_spawnp(&pid, argv[0], &actions, &attributes, argv.data(), envp.data());
     posix_spawn_file_actions_destroy(&actions);
     posix_spawnattr_destroy(&attributes);
     close(toAgent[0]);

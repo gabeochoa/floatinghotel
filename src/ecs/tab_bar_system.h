@@ -428,6 +428,7 @@ struct TabBarSystem : afterhours::System<UIContext<InputAction>> {
         newEntity.addComponent<BranchDialogState>();
         newEntity.addComponent<CommitEditorComponent>();
         newEntity.addComponent<ReviewComponent>();
+        newEntity.addComponent<AgentComponent>();
 
         tabStrip.tabOrder.push_back(newEntity.id);
         note_tab_used(tabStrip, newEntity.id);

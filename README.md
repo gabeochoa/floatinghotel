@@ -9,6 +9,10 @@ A review-first Git client for reading, reviewing, and sending feedback on agent-
 - Review unstaged changes like a commit, with staged changes in a separate view.
 - Collect comments in a feedback basket and export a Markdown review for your agent.
   Marking reviewed and saving feedback do not implicitly stage files.
+- Run an agent in the sidebar over ACP (Muse, Claude, Codex): it streams its
+  work, asks before running tools, and edits through the editor and working
+  tree for review. The feedback basket can be sent to it in one click.
+  See [docs/acp-agents.md](docs/acp-agents.md).
 - Browse commits, historical files, and comparisons in independent preview or kept
   tabs, with close/reopen, Back/Forward, and saved reading positions.
 - Read unified or split diffs with wrapping, selection, folding, Find, and source
@@ -60,6 +64,7 @@ Needs zig 0.16. `zig build -l` lists the other steps (run, test, bundle, validat
 | `a` | Mark the current hunk reviewed |
 | `c` | Comment on the current hunk |
 | `⌘⏎` | Send all feedback |
+| `⌘⇧A` | Open the agent panel |
 | `Esc` | Dismiss the topmost temporary UI |
 | `⌘1` … `⌘9` | Switch to repository tab (`⌘9` is the last) |
 | `⌘⇧[` / `⌘⇧]` | Previous / next repository tab |

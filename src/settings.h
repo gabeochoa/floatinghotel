@@ -92,6 +92,10 @@ struct Settings {
     const std::string& get_git_path() const;
     void set_git_path(const std::string& path);
 
+    // ACP sidebar agent ("acp_agent": "muse" | "claude" | "codex").
+    const std::string& get_acp_agent() const;
+    void set_acp_agent(const std::string& id);
+
     // Command-palette usage: counts per label, most-recent-first labels,
     // and recent palette queries (for Up recall).
     const std::map<std::string, int>& get_command_usage() const;

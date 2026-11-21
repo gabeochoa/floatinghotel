@@ -26,6 +26,7 @@
 #include "../git/reading_catalog.h"
 #include "../git/push_destination.h"
 #include "../git/path_list.h"
+#include "../acp/acp_client.h"
 #include "../lsp/semantic.h"
 #include "../git/source_position.h"
 #include "../util/file_query.h"
@@ -2526,7 +2527,7 @@ struct LayoutComponent : public afterhours::BaseComponent {
     // squeezing the file list to a row or two. 0 = no floor requested.
     float sidebarFilesFloor = 0.0f;
 
-    enum class SidebarMode { Changes, Refs };
+    enum class SidebarMode { Changes, Refs, Agent };
     SidebarMode sidebarMode = SidebarMode::Changes;
     enum class SidebarNavigation { Review, Files };
     // Legacy state: the Review/Files toggle is gone (one unified sidebar),
@@ -2683,6 +2684,34 @@ struct CommitEditorComponent : public afterhours::BaseComponent {
     void begin_committing() { flow = CommitFlow::Committing; }
     void abort_commit() { flow = CommitFlow::Editing; }
     void finish_commit() { flow = CommitFlow::Done; }
+};
+
+// ACP sidebar agent state, per repository tab like CommitEditorComponent:
+// one agent process per tab, spawned with cwd = the tab's repository. The
+// client is pumped every frame by ecs::AgentPollSystem (agent_panel.h), so
+// an agent keeps working — and editing — while another sidebar mode shows.
+struct AgentComponent : public afterhours::BaseComponent {
+    std::vector<acp::AgentDef> agents;  // acp::default_agents(), filled lazily
+    std::string agentId;                // selected agent (Settings "acp_agent")
+    std::unique_ptr<acp::Client> client;
+    std::string clientAgentId;          // the def the live client was spawned from
+    std::string clientRepo;             // ...and the repository it serves
+    acp::Transcript transcript;
+    std::string promptText;
+    std::string pendingPrompt;          // sent when a starting client reaches Ready
+    size_t seenTranscriptChars = 0;     // transcript growth -> scroll to bottom
+    bool includeContext = true;         // attach the open file to each prompt
+    bool contextSeeded = false;         // agentId taken from Settings once
+    std::string lastError;
+
+    struct Permission {
+        nlohmann::json id;
+        std::string title;
+        std::vector<acp::PermissionOption> options;
+    };
+    std::optional<Permission> permission;  // awaiting the user's button press
+
+    acp::Phase phase() const { return client ? client->phase() : acp::Phase::Unstarted; }
 };
 
 struct MenuComponent : public afterhours::BaseComponent {

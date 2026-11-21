@@ -15,6 +15,7 @@
 #include <afterhours/src/plugins/e2e_testing/e2e_testing.h>
 
 #include "app_reset.h"
+#include "agent_panel.h"
 #include "../preload.h"
 #include "layout_system.h"
 #include "components.h"
@@ -485,6 +486,53 @@ struct HandleTouchFile : afterhours::System<afterhours::testing::PendingE2EComma
         ofs.close();
 
         log_info("touch_file: wrote to {}", filePath.string());
+        cmd.consume();
+    }
+};
+
+// ACP sidebar agent drivers: acp_start [agent-id], acp_prompt <text>,
+// acp_answer <option-id>, acp_stop. State is asserted through the
+// acp_state / acp_permission / acp_transcript properties (validate).
+struct HandleAcpCommands : afterhours::System<afterhours::testing::PendingE2ECommand> {
+    void for_each_with(afterhours::Entity&, afterhours::testing::PendingE2ECommand& cmd, float) override {
+        if (cmd.is_consumed() || (!cmd.is("acp_start") && !cmd.is("acp_prompt") &&
+                                  !cmd.is("acp_answer") && !cmd.is("acp_stop"))) return;
+        auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>();
+        auto* agent = ecs::find_singleton<ecs::AgentComponent, ecs::ActiveTab>();
+        if (!repo || !agent) { cmd.fail("acp: no active repo/agent"); return; }
+        if (auto* layout = ecs::find_singleton<ecs::LayoutComponent>()) {
+            layout->sidebarMode = ecs::LayoutComponent::SidebarMode::Agent;
+            layout->sidebarVisible = true;
+        }
+        if (cmd.is("acp_start")) {
+            const std::string id = cmd.has_args(1) ? cmd.args[0] : agent->agentId;
+            if (!ecs::agent_panel::start(*repo, *agent, id)) {
+                cmd.fail("acp_start failed: " + agent->lastError);
+                return;
+            }
+        } else if (cmd.is("acp_prompt")) {
+            if (!cmd.has_args(1)) { cmd.fail("acp_prompt requires text"); return; }
+            if (!ecs::agent_panel::send_prompt(*repo, *agent, e2e_joined_arg(cmd.args, 0))) {
+                cmd.fail("acp_prompt rejected (state " + std::string(acp::phase_name(agent->phase())) + ")");
+                return;
+            }
+        } else if (cmd.is("acp_answer")) {
+            if (!agent->permission || !agent->client) { cmd.fail("acp_answer: no permission pending"); return; }
+            // Arg is an optionId, or an option kind (allow_once, ...) —
+            // kinds are stable across agents, ids are not.
+            std::string choice = cmd.has_args(1) ? cmd.args[0] : "";
+            if (!choice.empty()) {
+                bool isId = false;
+                for (const auto& option : agent->permission->options) isId |= option.id == choice;
+                if (!isId)
+                    for (const auto& option : agent->permission->options)
+                        if (option.kind == choice) { choice = option.id; break; }
+            }
+            agent->client->answer_permission(agent->permission->id, choice);
+            agent->permission.reset();
+        } else if (cmd.is("acp_stop")) {
+            ecs::agent_panel::stop(*agent);
+        }
         cmd.consume();
     }
 };

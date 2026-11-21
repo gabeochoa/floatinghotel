@@ -21,6 +21,7 @@
 #include "../util/commit_message.h"
 #include "../util/review_anchor.h"
 #include "network_ops_system.h"
+#include "agent_panel.h"
 #include "ui_imports.h"
 #include "../ui/context_menu.h"
 #include "../ui/focus.h"
@@ -291,6 +292,16 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
 
         render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
+        if (repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Agent) {
+            // The ACP agent panel takes the whole sidebar under the header
+            // (same early-return shape as repo search): files, commit log
+            // and the commit box all belong to the other modes.
+            render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
+            if (auto* agent = find_singleton<AgentComponent, ActiveTab>())
+                agent_panel::render(ctx, sidebarRoot.ent(), *repoPtr, layout, *agent,
+                                    sidebarW, std::max(0.f, layout.sidebar.height - 94.f));
+            return;
+        }
         if (repoPtr && repoPtr->repo_search_open()) {
             auto pane = div(ctx, mk(sidebarRoot.ent(), 2090), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), expand()})
@@ -1147,6 +1158,8 @@ private:
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::ToReview; });
         makeTab(2094, "Refs " + std::to_string(nRefs), layout.sidebarMode == SM::Refs,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
+        makeTab(2095, "Agent", layout.sidebarMode == SM::Agent,
+                [](LayoutComponent& l) { l.sidebarMode = SM::Agent; });
     }
 
     // Repo-panel header (mock): "<repo name> · <branch>[*]". A single panel for

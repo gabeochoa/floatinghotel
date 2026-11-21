@@ -39,6 +39,54 @@ struct navigation {
         return std::get_if<reading::SourceLocation>(&document.location) ? &document : nullptr;
     }
 
+    // The open source document for a working-tree path that carries a
+    // seeded edit buffer, if any. ACP agents read and write through this
+    // so their edits land in the live editor buffer (marked dirty for
+    // Cmd+S like typed edits) instead of racing disk state.
+    static reading::Document* edit_document_for_path(ecs::RepoComponent& repo, const std::string& path) {
+        for (auto& document : repo.workspace_.documents_) {
+            const auto* source = std::get_if<reading::SourceLocation>(&document.location);
+            if (source && source->destination.path == path && document.edit_seeded())
+                return &document;
+        }
+        return nullptr;
+    }
+
+    static std::optional<std::string> edit_buffer_text_for(ecs::RepoComponent& repo, const std::string& path) {
+        auto* document = edit_document_for_path(repo, path);
+        if (!document) return std::nullopt;
+        std::string text;
+        const char* eol = document->editCrlf ? "\r\n" : "\n";
+        for (size_t i = 0; i < document->editLines.size(); ++i) {
+            if (i) text += eol;
+            text += document->editLines[i];
+        }
+        if (document->editTrailingNewline && !document->editLines.empty()) text += eol;
+        return text;
+    }
+
+    // Replace an open buffer's text from outside (an ACP fs/write_text_file).
+    // False when no seeded buffer shows the file; the caller writes disk.
+    static bool apply_external_edit(ecs::RepoComponent& repo, const std::string& path, const std::string& text) {
+        auto* document = edit_document_for_path(repo, path);
+        if (!document) return false;
+        document->editCrlf = text.find("\r\n") != std::string::npos;
+        document->editTrailingNewline = text.empty() || text.back() == '\n';
+        document->editLines.clear();
+        std::string line;
+        for (char c : text) {
+            if (c == '\n') {
+                if (!line.empty() && line.back() == '\r') line.pop_back();
+                document->editLines.push_back(std::move(line));
+                line.clear();
+            } else line += c;
+        }
+        if (!line.empty() || document->editLines.empty()) document->editLines.push_back(std::move(line));
+        document->mark_edit_dirty();
+        ++document->editGeneration;
+        return true;
+    }
+
     static void set_caret(ecs::RepoComponent& repo, reading::CodePosition position, bool focus = false) {
         if (repo.workspace_.active_source()) repo.workspace_.current().sourceFolds.reveal(position.line);
         repo.workspace_.current().caret = std::move(position);

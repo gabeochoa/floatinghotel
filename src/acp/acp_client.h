@@ -34,12 +34,16 @@ namespace acp {
 
 // One launchable agent. `command` is the resolved argv; `available` is a
 // PATH probe only (spawn can still fail), used to disable picker rows.
+// `env` overlays the inherited environment at spawn (the ACP adapters for
+// Claude/Codex are pointed at the installed `claude`/`codex` binaries this
+// way, so they inherit that binary's auth and network setup).
 struct AgentDef {
     std::string id;           // "muse" | "claude" | "codex"
     std::string name;         // "Muse", "Claude", "Codex"
     std::string description;  // how it is launched, for the empty state
     std::vector<std::string> command;
     bool available = false;
+    std::vector<std::pair<std::string, std::string>> env;
 };
 
 // The built-in registry: Muse serves ACP natively (`muse acp`); Claude and
@@ -50,6 +54,8 @@ std::vector<AgentDef> default_agents();
 const AgentDef* find_agent(const std::vector<AgentDef>& agents, const std::string& id);
 std::vector<std::string> split_command(const std::string& text);
 bool on_path(const std::string& program);
+// Absolute path of `program` as PATH resolution finds it ("" when absent).
+std::string find_on_path(const std::string& program);
 
 // Newline-delimited JSON framing. Blank lines are yielded too (callers skip
 // them); a line past kMaxLine without a newline is an error, not a hang.

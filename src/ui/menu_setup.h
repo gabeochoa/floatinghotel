@@ -221,6 +221,13 @@ inline std::vector<Menu> createMenuBar() {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->sidebarVisible = !l->sidebarVisible;
         }),
+        MenuItem::item("Agent Panel", "Cmd+Shift+A", [] {
+            auto* l = ecs::find_singleton<ecs::LayoutComponent>();
+            if (l) {
+                l->sidebarMode = ecs::LayoutComponent::SidebarMode::Agent;
+                l->sidebarVisible = true;
+            }
+        }),
         MenuItem::item("Toggle Command Log", "Cmd+Shift+L", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->commandLogVisible = !l->commandLogVisible;

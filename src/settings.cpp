@@ -31,6 +31,7 @@ struct Settings::Data {
     std::string lastActiveRepo;
     std::string unstagedPolicy = "ask";
     std::string gitPath;
+    std::string acpAgent = "muse";
     std::vector<std::string> recentRepos;
     std::vector<std::string> pinnedRepos;
     std::map<std::string, std::string> repositoryHeads;
@@ -117,6 +118,7 @@ bool Settings::load_save_file() {
         data_->lastActiveRepo = j.value("last_active_repo", std::string{});
         data_->unstagedPolicy = j.value("commit_unstaged_policy", std::string{"ask"});
         data_->gitPath = j.value("git_path", std::string{});
+        data_->acpAgent = j.value("acp_agent", std::string{"muse"});
         data_->recentRepos =
             j.value("recent_repos", std::vector<std::string>{});
         data_->reviewDisplayModes.clear();
@@ -198,6 +200,7 @@ std::string Settings::build_settings_json() const {
     j["last_active_repo"] = data_->lastActiveRepo;
     j["commit_unstaged_policy"] = data_->unstagedPolicy;
     j["git_path"] = data_->gitPath;
+    j["acp_agent"] = data_->acpAgent;
     j["recent_repos"] = data_->recentRepos;
     nlohmann::json bookmarks = nlohmann::json::object();
     for (const auto& [repo, values] : data_->codeBookmarks) {
@@ -454,6 +457,14 @@ const std::string& Settings::get_git_path() const { return data_->gitPath; }
 void Settings::set_git_path(const std::string& path) {
     if (data_->gitPath == path) return;
     data_->gitPath = path;
+    save_if_auto();
+}
+
+const std::string& Settings::get_acp_agent() const { return data_->acpAgent; }
+
+void Settings::set_acp_agent(const std::string& id) {
+    if (data_->acpAgent == id) return;
+    data_->acpAgent = id;
     save_if_auto();
 }
 
