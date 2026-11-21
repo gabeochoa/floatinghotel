@@ -101,6 +101,7 @@ struct Settings {
     // settings.json as "acp_mcp_servers": [ {name, command, args, env} … ]
     // (ACP McpServer objects). Invalid JSON reads as an empty list.
     nlohmann::json get_acp_mcp_servers() const;
+    void set_acp_mcp_servers(const nlohmann::json& servers);
 
     // Command-palette usage: counts per label, most-recent-first labels,
     // and recent palette queries (for Up recall).

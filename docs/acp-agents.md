@@ -38,6 +38,11 @@ cwd = that repository; changing a tab's repository stops its agent.
   no agent running starts the selected one and queues the prompt.
 - **File ✓** attaches the open source file to each prompt (an ACP embedded
   resource when the agent supports it), so "fix this" needs no path.
+- **Image** (agents that accept image prompts) attaches a png/jpg/gif/webp
+  (≤5 MB) to the next prompt as an inline image block.
+- **Model / mode cycles**: the panel cycles every select the session
+  offers — stable config options (mode, model) and the legacy
+  `session/set_mode` / `session/set_model` lists.
 - **Send review feedback (N)** appears when the feedback basket has
   unresolved comments: it sends the same Markdown the basket exports as a
   prompt — review, click, watch the agent apply it, review the result.
@@ -55,8 +60,9 @@ cwd = that repository; changing a tab's repository stops its agent.
 - Agents may run commands through client terminals (`terminal/*`): output
   is captured in the tool-call rows, cwd is confined to the repository,
   and long output keeps its tail.
-- MCP servers for new/loaded sessions can be hand-edited in settings.json
-  as `"acp_mcp_servers": [{"name": …, "command": …, "args": […], "env": []}]`
+- MCP servers for new/loaded sessions are edited in the panel (**MCP
+  servers (N)** → JSON → Save) and persisted in settings.json as
+  `"acp_mcp_servers": [{"name": …, "command": …, "args": […], "env": []}]`
   (ACP `McpServer` objects, stdio or http shapes pass through verbatim).
 
 ## Safety properties
@@ -89,7 +95,6 @@ cwd = that repository; changing a tab's repository stops its agent.
 
 ## Not yet
 
-- Model pickers and non-select config options, image/audio prompt blocks,
-  and a settings UI for MCP servers (hand-edited JSON for now). The
-  capability fields are parsed so these can slot in without protocol
-  rework.
+- Non-select config options (booleans), audio prompt blocks, and rich
+  MCP-server editing (today: validated raw JSON). The capability fields
+  are parsed so these can slot in without protocol rework.

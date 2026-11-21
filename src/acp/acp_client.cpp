@@ -1,5 +1,6 @@
 #include "acp_client.h"
 
+#include <cctype>
 #include <cerrno>
 #include <csignal>
 #include <cstdlib>
@@ -351,6 +352,44 @@ bool write_text_file(const FsRoot& root, const std::string& path, const std::str
     return true;
 }
 
+std::string base64_encode(std::string_view bytes) {
+    static constexpr char kAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    out.reserve((bytes.size() + 2) / 3 * 4);
+    for (size_t i = 0; i < bytes.size(); i += 3) {
+        const auto byte = [&](size_t at) {
+            return at < bytes.size() ? static_cast<unsigned char>(bytes[at]) : 0;
+        };
+        const unsigned triple = (byte(i) << 16) | (byte(i + 1) << 8) | byte(i + 2);
+        out += kAlphabet[(triple >> 18) & 63];
+        out += kAlphabet[(triple >> 12) & 63];
+        out += i + 1 < bytes.size() ? kAlphabet[(triple >> 6) & 63] : '=';
+        out += i + 2 < bytes.size() ? kAlphabet[triple & 63] : '=';
+    }
+    return out;
+}
+
+std::optional<nlohmann::json> image_block(const std::string& path, std::string& error) {
+    std::string ext;
+    if (const size_t dot = path.find_last_of('.'); dot != std::string::npos)
+        for (size_t i = dot + 1; i < path.size(); ++i)
+            ext += static_cast<char>(std::tolower(static_cast<unsigned char>(path[i])));
+    std::string mime;
+    if (ext == "png") mime = "image/png";
+    else if (ext == "jpg" || ext == "jpeg") mime = "image/jpeg";
+    else if (ext == "gif") mime = "image/gif";
+    else if (ext == "webp") mime = "image/webp";
+    else { error = "not an image (png/jpg/gif/webp): " + path; return std::nullopt; }
+    std::ifstream in(path, std::ios::binary | std::ios::ate);
+    if (!in) { error = "cannot read " + path; return std::nullopt; }
+    const auto size = in.tellg();
+    if (size < 0 || size > 5 * 1024 * 1024) { error = "image too large (5 MB max): " + path; return std::nullopt; }
+    in.seekg(0);
+    std::string bytes(static_cast<size_t>(size), '\0');
+    if (size > 0 && !in.read(bytes.data(), size)) { error = "cannot read " + path; return std::nullopt; }
+    return nlohmann::json{{"type", "image"}, {"data", base64_encode(bytes)}, {"mimeType", mime}};
+}
+
 // -------------------------------------------------------------------- client
 
 std::unique_ptr<Client> Client::spawn(const AgentDef& agent, const std::string& cwd, std::string& error,
@@ -513,6 +552,12 @@ void Client::set_config_option(const std::string& configId, const std::string& v
         Purpose::SetConfig;
 }
 
+void Client::set_model(const std::string& modelId) {
+    if (sessionId_.empty() || modelId.empty()) return;
+    pendingModel_ = modelId;  // applied when the agent confirms
+    pending_[request("session/set_model", {{"sessionId", sessionId_}, {"modelId", modelId}})] = Purpose::SetModel;
+}
+
 void Client::authenticate(const std::string& methodId) {
     pending_[request("authenticate", {{"methodId", methodId}})] = Purpose::Authenticate;
 }
@@ -652,6 +697,9 @@ void Client::handle_response(const nlohmann::json& message) {
             embeddedContext_ = result.value("agentCapabilities", nlohmann::json::object())
                                    .value("promptCapabilities", nlohmann::json::object())
                                    .value("embeddedContext", false);
+            imagePrompts_ = result.value("agentCapabilities", nlohmann::json::object())
+                                .value("promptCapabilities", nlohmann::json::object())
+                                .value("image", false);
             {
                 const auto capabilities = result.value("agentCapabilities", nlohmann::json::object());
                 canLoad_ = capabilities.value("loadSession", false);
@@ -697,6 +745,12 @@ void Client::handle_response(const nlohmann::json& message) {
             if (!failed && result.contains("configOptions")) apply_config_options(result["configOptions"]);
             if (failed && on_event) on_event({Event::Kind::Log, {}, {}, {}, errorText, false});
             break;
+        case Purpose::SetModel:
+            if (!failed && !pendingModel_.empty()) currentModel_ = pendingModel_;
+            if (!failed && result.contains("configOptions")) apply_config_options(result["configOptions"]);
+            if (failed && on_event) on_event({Event::Kind::Log, {}, {}, {}, errorText, false});
+            pendingModel_.clear();
+            break;
         case Purpose::ListSessions:
             sessions_.clear();
             if (!failed) {
@@ -726,6 +780,12 @@ void Client::apply_session_result(const nlohmann::json& result) {
     if (const auto available = modes.value("availableModes", nlohmann::json::array()); available.is_array())
         for (const auto& mode : available)
             modes_.push_back({mode.value("id", ""), mode.value("name", ""), mode.value("description", "")});
+    models_.clear();
+    const auto models = result.value("models", nlohmann::json::object());
+    currentModel_ = models.value("currentModelId", "");
+    if (const auto available = models.value("availableModels", nlohmann::json::array()); available.is_array())
+        for (const auto& model : available)
+            models_.push_back({model.value("modelId", ""), model.value("name", "")});
     apply_config_options(result.value("configOptions", nlohmann::json::array()));
 }
 
@@ -734,7 +794,8 @@ void Client::apply_config_options(const nlohmann::json& list) {
     configOptions_.clear();
     for (const auto& option : list) {
         if (option.value("type", "") != "select") continue;
-        ConfigOption parsed{option.value("id", ""), option.value("name", ""), option.value("currentValue", ""), {}};
+        ConfigOption parsed{option.value("id", ""), option.value("name", ""), option.value("currentValue", ""),
+                            option.value("category", ""), {}};
         const auto options = option.value("options", nlohmann::json::array());
         if (options.is_array())
             for (const auto& choice : options) {

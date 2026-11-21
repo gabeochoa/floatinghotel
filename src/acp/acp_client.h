@@ -138,9 +138,18 @@ struct SessionInfo {
     std::string id, cwd, title, updatedAt;
 };
 struct ConfigOption {
-    std::string id, name, current;
+    std::string id, name, current, category;  // category e.g. "mode" | "model"
     std::vector<std::pair<std::string, std::string>> options;  // (value, name), select only
 };
+// Legacy unstable models list (session/new `models`, session/set_model);
+// agents on the stable API expose the model as a config option instead.
+struct ModelInfo {
+    std::string id, name;
+};
+// A {type:"image", data, mimeType} prompt block read from disk.
+// nullopt (with `error`) for a missing, oversized, or non-image file.
+std::optional<nlohmann::json> image_block(const std::string& path, std::string& error);
+std::string base64_encode(std::string_view bytes);
 struct AuthMethod {
     std::string id, name, description;
 };
@@ -199,6 +208,7 @@ public:
     bool load_session(const std::string& sessionId);
     void set_mode(const std::string& modeId);
     void set_config_option(const std::string& configId, const std::string& value);
+    void set_model(const std::string& modelId);
     void authenticate(const std::string& methodId);
 
     void answer_permission(const nlohmann::json& id, const std::string& optionId);  // "" = cancelled
@@ -215,9 +225,17 @@ public:
     const std::vector<Mode>& modes() const { return modes_; }
     const std::string& current_mode() const { return currentMode_; }
     const std::vector<ConfigOption>& config_options() const { return configOptions_; }
+    const std::vector<ModelInfo>& models() const { return models_; }
+    const std::string& current_model() const { return currentModel_; }
+    bool has_model_config_option() const {
+        for (const auto& option : configOptions_)
+            if (option.category == "model") return true;
+        return false;
+    }
     const std::vector<AuthMethod>& auth_methods() const { return authMethods_; }
     const std::vector<std::string>& available_commands() const { return availableCommands_; }
     bool embedded_context() const { return embeddedContext_; }
+    bool image_prompts() const { return imagePrompts_; }
     bool auth_required() const { return authRequired_; }
     bool can_list_sessions() const { return canList_; }
     bool can_load_sessions() const { return canLoad_ || canResume_; }
@@ -277,20 +295,22 @@ private:
     int nextTerminal_ = 1;
 
     Phase phase_ = Phase::Unstarted;
-    enum class Purpose { Initialize, NewSession, Prompt, Authenticate, SetMode, SetConfig, ListSessions, LoadSession };
+    enum class Purpose { Initialize, NewSession, Prompt, Authenticate, SetMode, SetConfig, SetModel, ListSessions, LoadSession };
     std::map<int, Purpose> pending_;
     int nextId_ = 1;
     std::chrono::steady_clock::time_point deadline_{};
     std::chrono::milliseconds initializeTimeout_ = std::chrono::seconds(120);
 
-    std::string sessionId_, agentName_, sessionTitle_, error_, currentMode_;
+    std::string sessionId_, agentName_, sessionTitle_, error_, currentMode_, currentModel_, pendingModel_;
     std::vector<Mode> modes_;
+    std::vector<ModelInfo> models_;
     std::vector<ConfigOption> configOptions_;
     std::vector<AuthMethod> authMethods_;
     std::vector<std::string> availableCommands_;
     std::vector<SessionInfo> sessions_;
     nlohmann::json mcpServers_ = nlohmann::json::array();
     bool embeddedContext_ = false;
+    bool imagePrompts_ = false;
     bool authRequired_ = false;
     bool canLoad_ = false, canList_ = false, canResume_ = false;
 };

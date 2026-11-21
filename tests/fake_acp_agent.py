@@ -36,15 +36,20 @@ for line in sys.stdin:
             "protocolVersion": 1,
             "agentCapabilities": {"loadSession": True,
                                   "sessionCapabilities": {"list": {}, "resume": {}},
-                                  "promptCapabilities": {"embeddedContext": True}},
+                                  "promptCapabilities": {"embeddedContext": True, "image": True}},
             "agentInfo": {"name": "fake", "version": "0"},
             "authMethods": []}})
     elif method == "session/new":
         send({"jsonrpc": "2.0", "id": mid, "result": {
             "sessionId": "fake-1",
+            "models": {"currentModelId": "fake-mini", "availableModels": [
+                {"modelId": "fake-mini", "name": "Fake Mini"},
+                {"modelId": "fake-max", "name": "Fake Max"}]},
             "modes": {"currentModeId": "ask", "availableModes": [
                 {"id": "ask", "name": "Ask", "description": "ask first"},
                 {"id": "yolo", "name": "Yolo", "description": "no asking"}]}}})
+    elif method == "session/set_model":
+        send({"jsonrpc": "2.0", "id": mid, "result": {}})
     elif method == "session/list":
         import os
         send({"jsonrpc": "2.0", "id": mid, "result": {"sessions": [
@@ -65,7 +70,11 @@ for line in sys.stdin:
                 {"id": "yolo", "name": "Yolo", "description": "no asking"}]}}})
     elif method == "session/prompt":
         state["prompt_id"] = mid
-        cwd = msg["params"].get("_cwd", "")
+        for block in msg["params"].get("prompt", []):
+            if block.get("type") == "image":
+                update("agent_message_chunk", content={
+                    "type": "text",
+                    "text": f"IMGOK {block.get('mimeType')} {len(block.get('data', ''))}"})
         update("agent_thought_chunk", content={"type": "text", "text": "thinking"})
         update("agent_message_chunk", content={"type": "text", "text": "Hello "})
         update("agent_message_chunk", content={"type": "text", "text": "world"})

@@ -2698,6 +2698,9 @@ struct AgentComponent : public afterhours::BaseComponent {
     std::string clientRepo;             // ...and the repository it serves
     acp::Transcript transcript;
     std::string promptText;
+    std::vector<std::string> pendingImages;  // attached to the next prompt that is sent
+    bool showMcpEditor = false;
+    std::string mcpDraft;               // MCP JSON being edited (Settings when clean)
     std::string pendingPrompt;          // sent when a starting client reaches Ready
     size_t seenTranscriptChars = 0;     // transcript growth -> scroll to bottom
     bool includeContext = true;         // attach the open file to each prompt
@@ -2718,7 +2721,7 @@ struct AgentComponent : public afterhours::BaseComponent {
 struct MenuComponent : public afterhours::BaseComponent {
     int activeMenuIndex = -1;
 
-    enum class PendingDialog { None, OpenRepo };
+    enum class PendingDialog { None, OpenRepo, AttachImage };
     PendingDialog pendingDialog = PendingDialog::None;
     bool paletteRequested = false;
 

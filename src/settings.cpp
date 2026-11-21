@@ -479,6 +479,13 @@ nlohmann::json Settings::get_acp_mcp_servers() const {
     return servers.is_array() ? servers : nlohmann::json::array();
 }
 
+void Settings::set_acp_mcp_servers(const nlohmann::json& servers) {
+    const std::string text = servers.is_array() ? servers.dump() : "[]";
+    if (data_->acpMcpServers == text) return;
+    data_->acpMcpServers = text;
+    save_if_auto();
+}
+
 // Recent repos
 std::vector<std::string> Settings::get_recent_repos() const {
     return data_->recentRepos;

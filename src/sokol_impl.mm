@@ -270,6 +270,25 @@ extern "C" bool metal_choose_folder(char* out, int out_size) {
     }
 }
 
+// Native image picker for ACP prompt attachments. Same shape as the
+// folder picker; the caller validates the extension.
+extern "C" bool metal_choose_image(char* out, int out_size) {
+    @autoreleasepool {
+        NSOpenPanel* panel = [NSOpenPanel openPanel];
+        panel.canChooseFiles = YES;
+        panel.canChooseDirectories = NO;
+        panel.allowsMultipleSelection = NO;
+        panel.prompt = @"Attach";
+        panel.message = @"Choose an image to attach to the prompt";
+        if ([panel runModal] != NSModalResponseOK || !panel.URL) return false;
+        const char* path = panel.URL.path.UTF8String;
+        if (!path) return false;
+        std::strncpy(out, path, static_cast<size_t>(out_size) - 1);
+        out[out_size - 1] = '\0';
+        return true;
+    }
+}
+
 // Live modifier state straight from the OS (bitmask: 1 shift, 2 control,
 // 4 option, 8 command). The sokol key_down latch is only cleared by a KEY_UP
 // delivered to this app; a modifier released while another app is frontmost

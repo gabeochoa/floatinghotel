@@ -19,6 +19,10 @@
 #include <afterhours/src/plugins/ui/text_input/text_input.h>
 #include <afterhours/src/plugins/ui/text_measure.h>
 
+#ifdef __APPLE__
+extern "C" bool metal_choose_image(char* out, int out_size);
+#endif
+
 namespace ecs {
 namespace agent_panel {
 
@@ -197,6 +201,18 @@ inline std::vector<nlohmann::json> prompt_blocks(RepoComponent& repo, AgentCompo
                 else body += "\n\nCurrent file `" + path + "`:\n```\n" + *fileText + "\n```\n";
             }
         }
+    }
+    // Attached images ride this one prompt (consumed even when one file
+    // fails, so a bad path is reported once, not on every send).
+    if (!agent.pendingImages.empty()) {
+        if (agent.client && agent.client->image_prompts()) {
+            for (const auto& path : agent.pendingImages) {
+                std::string error;
+                if (auto block = acp::image_block(path, error)) blocks.push_back(std::move(*block));
+                else agent.transcript.error(error);
+            }
+        } else agent.transcript.error("This agent does not accept image prompts; attachments dropped.");
+        agent.pendingImages.clear();
     }
     // Named value, not a braced list: vector::insert would pick its
     // initializer_list overload and splat the object's pairs as elements.
@@ -442,6 +458,23 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
             ++optionId;
             usedH += 30.f;
         }
+        // Legacy models list (the stable API puts model in config options,
+        // which the generic cycle above already renders).
+        if (!agent.client->models().empty() && !agent.client->has_model_config_option()) {
+            std::string current = agent.client->current_model();
+            for (const auto& model : agent.client->models()) if (model.id == current) current = model.name;
+            if (button(ctx, mk(panel.ent(), 19), preset::Button("Model: " + current, agent.client->models().size() > 1)
+                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
+                    .with_alignment(TextAlignment::Left)
+                    .with_debug_name("agent_model"))) {
+                const auto& models = agent.client->models();
+                size_t at = 0;
+                for (size_t i = 0; i < models.size(); ++i)
+                    if (models[i].id == agent.client->current_model()) at = i;
+                agent.client->set_model(models[(at + 1) % models.size()].id);
+            }
+            usedH += 30.f;
+        }
         if (agent.client->config_options().empty() && !agent.client->modes().empty()) {
             std::string current = agent.client->current_mode();
             for (const auto& mode : agent.client->modes()) if (mode.id == current) current = mode.name;
@@ -465,6 +498,46 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                     .with_debug_name("agent_sign_in")))
                 agent.client->authenticate(method.id);
             usedH += 32.f;
+        }
+    }
+
+    // MCP servers: the configured list rides session/new+load; edited as
+    // raw JSON (the ACP McpServer shapes), validated as an array on save.
+    {
+        const auto servers = Settings::get().get_acp_mcp_servers();
+        if (button(ctx, mk(panel.ent(), 23),
+                   preset::Button("MCP servers (" + std::to_string(servers.size()) + ")")
+                       .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
+                       .with_alignment(TextAlignment::Left)
+                       .with_tooltip("MCP servers handed to new/loaded sessions")
+                       .with_debug_name("agent_mcp_toggle"))) {
+            agent.showMcpEditor = !agent.showMcpEditor;
+            if (agent.showMcpEditor) agent.mcpDraft = servers.dump(2);
+        }
+        usedH += 30.f;
+        if (agent.showMcpEditor) {
+            ui::text_area(ctx, mk(panel.ent(), 24), agent.mcpDraft,
+                ComponentConfig{}
+                    .with_size(ComponentSize{pixels(innerW), pixels(84)})
+                    .with_custom_background(theme::INPUT_BG)
+                    .with_border(theme::BORDER, pixels(1.f))
+                    .with_corner_radius(4.f)
+                    .with_font("mono", pixels(11))
+                    .with_line_height(pixels(15.f))
+                    .with_debug_name("agent_mcp_input"));
+            if (button(ctx, mk(panel.ent(), 25), preset::Button("Save MCP servers")
+                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
+                    .with_debug_name("agent_mcp_save"))) {
+                const auto parsed = nlohmann::json::parse(agent.mcpDraft, nullptr, false);
+                if (parsed.is_array()) {
+                    Settings::get().set_acp_mcp_servers(parsed);
+                    if (agent.client) agent.client->set_mcp_servers(parsed);
+                    agent.transcript.system("MCP servers saved (" + std::to_string(parsed.size()) +
+                                            "); they apply to the next new or resumed session.");
+                    agent.showMcpEditor = false;
+                } else agent.transcript.error("MCP servers must be a JSON array.");
+            }
+            usedH += 114.f;
         }
     }
 
@@ -519,6 +592,28 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         usedH += 36.f + 30.f * static_cast<float>(std::max<size_t>(1, agent.permission ? agent.permission->options.size() : 0));
     }
 
+    // Pending image attachments (ride the next prompt).
+    for (size_t i = 0; i < agent.pendingImages.size() && i < 4; ++i) {
+        auto chip = div(ctx, mk(panel.ent(), 60 + static_cast<int>(i)), ComponentConfig{}
+            .with_size(ComponentSize{pixels(innerW), pixels(22)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
+            .with_align_items(AlignItems::Center)
+            .with_debug_name("agent_image_chip"));
+        const std::string name = std::filesystem::path(agent.pendingImages[i]).filename().string();
+        div(ctx, mk(chip.ent(), 0), ComponentConfig{}
+            .with_label("🖼 " + name).with_size(ComponentSize{expand(), pixels(22)})
+            .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(11))
+            .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_debug_name("agent_image_name"));
+        if (button(ctx, mk(chip.ent(), 1), preset::Button("×")
+                .with_size(ComponentSize{pixels(24), pixels(22)}).with_font_size(pixels(12))
+                .with_debug_name("agent_image_remove"))) {
+            agent.pendingImages.erase(agent.pendingImages.begin() + static_cast<long>(i));
+            break;  // indices shifted; next frame redraws
+        }
+        usedH += 28.f;
+    }
+
     // Prompt box.
     constexpr float kPromptH = 56.f;
     const bool prompting = agent.phase() == acp::Phase::Prompting;
@@ -558,6 +653,16 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                    .with_tooltip("Attach the open file to each prompt")
                    .with_debug_name("agent_include_file")))
         agent.includeContext = !agent.includeContext;
+    const bool canImages = agent.client && agent.client->image_prompts();
+    if (button(ctx, mk(sendRow.ent(), 2),
+               preset::Button("Image", canImages)
+                   .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+                   .with_tooltip(canImages ? "Attach an image to the next prompt"
+                                           : "This agent does not accept image prompts")
+                   .with_debug_name("agent_attach_image"))) {
+        if (auto* menu = find_singleton<MenuComponent>())
+            menu->pendingDialog = MenuComponent::PendingDialog::AttachImage;
+    }
     usedH += 34.f;
 
     // Transcript fills what is left; entries are measured like the
@@ -624,6 +729,28 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
 struct AgentPollSystem : afterhours::System<AgentComponent> {
     void for_each_with(afterhours::Entity& entity, AgentComponent& agent, float) override {
         if (!entity.has<RepoComponent>()) return;
+        // The image picker is a modal native panel; run it outside the
+        // render pass, for the active tab, like Open Repository. Test
+        // runs point FH_TEST_ATTACH_IMAGE at a file instead.
+        if (entity.has<ActiveTab>()) {
+            if (auto* menu = find_singleton<MenuComponent>();
+                menu && menu->pendingDialog == MenuComponent::PendingDialog::AttachImage) {
+                menu->pendingDialog = MenuComponent::PendingDialog::None;
+                std::string chosen;
+                if (const char* path = std::getenv("FH_TEST_ATTACH_IMAGE")) chosen = path;
+                else {
+#ifdef __APPLE__
+                    char buffer[4096] = {};
+                    if (metal_choose_image(buffer, static_cast<int>(sizeof(buffer)))) chosen = buffer;
+#endif
+                }
+                if (!chosen.empty()) {
+                    std::string error;
+                    if (acp::image_block(chosen, error)) agent.pendingImages.push_back(chosen);
+                    else agent.transcript.error(error);
+                }
+            }
+        }
         agent_panel::poll(entity.get<RepoComponent>(), agent);
     }
 };

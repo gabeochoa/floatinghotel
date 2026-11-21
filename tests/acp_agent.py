@@ -26,6 +26,7 @@ for command in [('init', '-q', '-b', 'main'), ('config', 'user.name', 'ACP fixtu
                 ('config', 'user.email', 'acp@example.invalid'), ('config', 'commit.gpgsign', 'false')]:
     git(*command)
 (repo / 'input.txt').write_text('hello sidebar agent\n')
+(repo / 'shot.png').write_bytes(b'\x89PNG\r\n\x1a\nfake-image-bytes')
 git('add', '.')
 git('commit', '-qm', 'base')
 
@@ -56,13 +57,23 @@ run('fake_agent', SETUP +
     'wait_until 30 expect_text "Ready"\n'
     'validate acp_state=Ready\n'
     'screenshot acp_fake_done\n'
+    'wait_until 30 expect_text "Model: Fake Mini"\n'
+    'click_ui agent_model\n'
+    'wait_until 30 expect_text "Model: Fake Max"\n'
+    'click_ui agent_attach_image\n'
+    'wait_until 30 expect_text "shot.png"\n'
+    'acp_prompt look at this\n'
+    'wait_until 30 expect_text "IMGOK image/png"\n'
+    'wait_until 30 expect_text "Allow: Uppercase the file"\n'
+    'acp_answer allow_once\n'
+    'wait_frames 30\n'
     'click_ui agent_resume\n'
     'wait_until 30 expect_text "Old chat"\n'
     'click_ui agent_session_0\n'
     'wait_until 30 expect_text "earlier answer"\n'
     'screenshot acp_fake_resumed\n'
     'acp_stop\n',
-    {'FH_ACP_MUSE_CMD': fake})
+    {'FH_ACP_MUSE_CMD': fake, 'FH_TEST_ATTACH_IMAGE': str(repo / 'shot.png')})
 assert (repo / 'written.txt').read_text() == 'HELLO SIDEBAR AGENT\n', \
     "agent's fs/write_text_file did not land in the repo"
 print('PASS fake agent: fs read/write + permission through the sidebar', flush=True)

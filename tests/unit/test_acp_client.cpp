@@ -115,6 +115,29 @@ TEST(default_registry_lists_muse_claude_codex_with_cli_env) {
     }
 }
 
+TEST(base64_and_image_blocks) {
+    ASSERT_EQ(acp::base64_encode(""), std::string(""));
+    ASSERT_EQ(acp::base64_encode("f"), std::string("Zg=="));
+    ASSERT_EQ(acp::base64_encode("fo"), std::string("Zm8="));
+    ASSERT_EQ(acp::base64_encode("foo"), std::string("Zm9v"));
+    ASSERT_EQ(acp::base64_encode("hello acp"), std::string("aGVsbG8gYWNw"));
+    char pattern[] = "/tmp/fh-acp-img.XXXXXX";
+    const std::filesystem::path root = mkdtemp(pattern);
+    const auto png = root / "shot.PNG";
+    { std::ofstream(png, std::ios::binary) << std::string("\x89PNG\r\n", 6); }
+    std::string error;
+    auto block = acp::image_block(png.string(), error);
+    ASSERT_TRUE(block.has_value());
+    ASSERT_EQ((*block)["type"], std::string("image"));
+    ASSERT_EQ((*block)["mimeType"], std::string("image/png"));
+    ASSERT_EQ((*block)["data"], acp::base64_encode(std::string("\x89PNG\r\n", 6)));
+    const auto txt = root / "note.txt";
+    { std::ofstream(txt) << "x"; }
+    ASSERT_FALSE(acp::image_block(txt.string(), error).has_value());
+    ASSERT_FALSE(acp::image_block((root / "missing.png").string(), error).has_value());
+    std::filesystem::remove_all(root);
+}
+
 TEST(fake_agent_end_to_end_fs_and_permission) {
     if (access("/usr/bin/python3", X_OK) != 0 && !acp::on_path("python3")) {
         printf("  (python3 not installed; skipped)\n");
@@ -180,6 +203,10 @@ TEST(fake_agent_end_to_end_fs_and_permission) {
             ASSERT_EQ(client->modes().size(), 2u);
             ASSERT_EQ(client->current_mode(), std::string("ask"));
             ASSERT_TRUE(client->embedded_context());
+            ASSERT_TRUE(client->image_prompts());
+            ASSERT_EQ(client->models().size(), 2u);
+            ASSERT_EQ(client->current_model(), std::string("fake-mini"));
+            client->set_model("fake-max");
             prompted = client->prompt({{{"type", "text"}, {"text", "uppercase it"}}});
             ASSERT_TRUE(prompted);
         }
@@ -192,6 +219,7 @@ TEST(fake_agent_end_to_end_fs_and_permission) {
     ASSERT_TRUE(sawPermission);
     ASSERT_TRUE(transcript.plain().find("Hello world") != std::string::npos);
     ASSERT_TRUE(transcript.plain().find("TERMOK") != std::string::npos);
+    ASSERT_EQ(client->current_model(), std::string("fake-max"));
     std::ifstream written(root / "written.txt");
     ASSERT_TRUE(written.good());
     const std::string text((std::istreambuf_iterator<char>(written)), {});
