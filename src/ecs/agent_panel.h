@@ -158,6 +158,8 @@ inline bool start(RepoComponent& repo, AgentComponent& agent, const std::string&
         return false;
     }
     agent.client = std::move(client);
+    // Before the first pump turns initialize into session/new.
+    agent.client->set_mcp_servers(Settings::get().get_acp_mcp_servers());
     agent.clientAgentId = def->id;
     agent.clientRepo = repo.repoPath;
     agent.lastError.clear();
@@ -375,9 +377,50 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
             .with_debug_name("agent_new"))) {
         agent.transcript.clear();
         agent.permission.reset();
+        agent.showSessions = false;
         agent.client->new_session();
     }
+    const bool canResume = agent.client && agent.client->can_list_sessions() &&
+                           agent.client->can_load_sessions();
+    if (canResume && button(ctx, mk(controlsRow.ent(), 2), preset::Button("Resume")
+            .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_tooltip("Continue a previous conversation with this agent")
+            .with_debug_name("agent_resume"))) {
+        agent.showSessions = !agent.showSessions;
+        if (agent.showSessions) agent.client->list_sessions();
+    }
     usedH += 34.f;
+
+    if (agent.showSessions && agent.client) {
+        const auto& sessions = agent.client->sessions();
+        if (sessions.empty()) {
+            div(ctx, mk(panel.ent(), 25), ComponentConfig{}
+                .with_label("No saved sessions for this repository.")
+                .with_size(ComponentSize{pixels(innerW), pixels(20)})
+                .with_custom_text_color(theme::TEXT_TERTIARY).with_font_size(pixels(11))
+                .with_alignment(TextAlignment::Left)
+                .with_debug_name("agent_sessions_empty"));
+            usedH += 26.f;
+        }
+        int row = 0;
+        for (const auto& session : sessions) {
+            if (row >= 6) break;
+            const std::string label = session.title.empty() ? session.id : session.title;
+            if (button(ctx, mk(panel.ent(), 26 + row), preset::Button(label)
+                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
+                    .with_alignment(TextAlignment::Left)
+                    .with_tooltip(session.id + (session.updatedAt.empty() ? "" : "\n" + session.updatedAt))
+                    .with_debug_name("agent_session_" + std::to_string(row)))) {
+                agent.transcript.clear();
+                agent.permission.reset();
+                agent.showSessions = false;
+                if (!agent.client->load_session(session.id))
+                    agent.transcript.system("That session could not be resumed.");
+            }
+            ++row;
+            usedH += 30.f;
+        }
+    }
 
     if (agent.client) {
         // Config-option cycles (Muse's mode selector arrives this way);
@@ -547,13 +590,26 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                                  : afterhours::ui::UIComponent::DEFAULT_FONT;
         const float textH = afterhours::ui::measure_text_wrapped(
             measure, text, font, kFont * zoom, std::max(40.f, innerW - 12.f) * zoom).height / zoom + 4.f;
-        div(ctx, mk(scroll.ent(), 100 + entryId++), ComponentConfig{}
+        auto config = ComponentConfig{}
             .with_label(text)
             .with_size(ComponentSize{pixels(innerW - 8.f), pixels(std::max(16.f, textH))})
             .with_custom_text_color(entry_color(entry))
             .with_font(font, pixels(kFont))
             .with_alignment(TextAlignment::Left)
-            .with_debug_name("agent_entry"));
+            .with_debug_name("agent_entry");
+        // A tool call with a file location opens it (preview), like the
+        // feedback basket's location links.
+        if (entry.kind == acp::EntryKind::ToolCall && !entry.locationPath.empty()) {
+            auto openBtn = button(ctx, mk(scroll.ent(), 100 + entryId++),
+                config.with_transparent_bg().with_debug_name("agent_entry_open"));
+            if (openBtn) {
+                const std::string rel = relative_to(repo, entry.locationPath);
+                navigation::preview(repo, reading::Location{
+                    reading::source(rel, "", entry.locationLine)});
+            }
+        } else {
+            div(ctx, mk(scroll.ent(), 100 + entryId++), config);
+        }
     }
     if (totalChars != agent.seenTranscriptChars) {
         agent.seenTranscriptChars = totalChars;

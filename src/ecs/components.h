@@ -2701,6 +2701,7 @@ struct AgentComponent : public afterhours::BaseComponent {
     std::string pendingPrompt;          // sent when a starting client reaches Ready
     size_t seenTranscriptChars = 0;     // transcript growth -> scroll to bottom
     bool includeContext = true;         // attach the open file to each prompt
+    bool showSessions = false;          // resume list expanded in the panel
     bool contextSeeded = false;         // agentId taken from Settings once
     std::string lastError;
 

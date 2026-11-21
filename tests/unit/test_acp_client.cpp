@@ -82,6 +82,7 @@ TEST(transcript_merges_chunks_and_describes_tool_diffs) {
     const std::string& toolText = transcript.entries[1].text;
     ASSERT_TRUE(toolText.find("/r/a.cpp") != std::string::npos);
     ASSERT_TRUE(toolText.find("/r/a.cpp", toolText.find("/r/a.cpp") + 1) == std::string::npos);
+    ASSERT_EQ(transcript.entries[1].locationPath, std::string("/r/a.cpp"));
     ASSERT_EQ(transcript.entries[2].text, std::string("done"));
     ASSERT_TRUE(transcript.plain().find("Hello world") != std::string::npos);
 }
@@ -190,10 +191,52 @@ TEST(fake_agent_end_to_end_fs_and_permission) {
     ASSERT_EQ(stop, std::string("end_turn"));
     ASSERT_TRUE(sawPermission);
     ASSERT_TRUE(transcript.plain().find("Hello world") != std::string::npos);
+    ASSERT_TRUE(transcript.plain().find("TERMOK") != std::string::npos);
     std::ifstream written(root / "written.txt");
     ASSERT_TRUE(written.good());
     const std::string text((std::istreambuf_iterator<char>(written)), {});
     ASSERT_EQ(text, std::string("HELLO ACP\n"));
+    client.reset();
+    std::filesystem::remove_all(root);
+}
+
+TEST(fake_agent_session_list_and_load_replays) {
+    if (!acp::on_path("python3")) { printf("  (python3 not installed; skipped)\n"); return; }
+    char pattern[] = "/tmp/fh-acp-load.XXXXXX";
+    const std::filesystem::path root = std::filesystem::canonical(mkdtemp(pattern));
+    const std::string script = (std::filesystem::current_path() / "tests/fake_acp_agent.py").string();
+    acp::AgentDef fake{"fake", "Fake", "", {"python3", script}, true};
+    std::string error;
+    auto client = acp::Client::spawn(fake, root.string(), error, std::chrono::seconds(30));
+    ASSERT_TRUE(client != nullptr);
+    acp::Transcript transcript;
+    client->on_event = [&](const acp::Event& event) {
+        if (event.kind == acp::Event::Kind::Update) transcript.apply_update(event.update);
+        if (event.kind == acp::Event::Kind::Log)
+            fprintf(stderr, "  [agent stderr] %s\n", event.text.c_str());
+    };
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(30);
+    auto pump_until = [&](auto predicate) {
+        while (std::chrono::steady_clock::now() < deadline && !predicate()) {
+            client->pump();
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        return predicate();
+    };
+    ASSERT_TRUE(pump_until([&] { return client->phase() == acp::Phase::Ready; }));
+    ASSERT_TRUE(client->can_list_sessions());
+    ASSERT_TRUE(client->can_load_sessions());
+    ASSERT_TRUE(client->list_sessions());
+    ASSERT_TRUE(pump_until([&] { return client->sessions().size() == 1u; }));
+    ASSERT_EQ(client->sessions()[0].id, std::string("fake-old"));
+    ASSERT_EQ(client->sessions()[0].title, std::string("Old chat"));
+    transcript.clear();
+    ASSERT_TRUE(client->load_session("fake-old"));
+    ASSERT_TRUE(pump_until([&] { return client->phase() == acp::Phase::Ready; }));
+    // The load result carries no sessionId; the client keeps the loaded one.
+    ASSERT_EQ(client->session_id(), std::string("fake-old"));
+    ASSERT_TRUE(transcript.plain().find("earlier question") != std::string::npos);
+    ASSERT_TRUE(transcript.plain().find("earlier answer") != std::string::npos);
     client.reset();
     std::filesystem::remove_all(root);
 }

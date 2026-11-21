@@ -52,9 +52,15 @@ run('fake_agent', SETUP +
     'screenshot acp_permission\n'
     'acp_answer allow\n'
     'wait_until 30 expect_text "Uppercase the file · completed"\n'
-    'wait_frames 10\n'
+    'wait_until 30 expect_text "TERMOK"\n'
+    'wait_until 30 expect_text "Ready"\n'
     'validate acp_state=Ready\n'
     'screenshot acp_fake_done\n'
+    'click_ui agent_resume\n'
+    'wait_until 30 expect_text "Old chat"\n'
+    'click_ui agent_session_0\n'
+    'wait_until 30 expect_text "earlier answer"\n'
+    'screenshot acp_fake_resumed\n'
     'acp_stop\n',
     {'FH_ACP_MUSE_CMD': fake})
 assert (repo / 'written.txt').read_text() == 'HELLO SIDEBAR AGENT\n', \

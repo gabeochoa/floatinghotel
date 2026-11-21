@@ -92,6 +92,8 @@ struct Entry {
     std::string title;       // tool calls: human title
     std::string status;      // tool calls: pending|in_progress|completed|failed
     std::string toolCallId;
+    std::string locationPath;  // tool calls: first diff/location path (click opens it)
+    int locationLine = 0;
 };
 
 struct Transcript {
@@ -130,6 +132,10 @@ bool write_text_file(const FsRoot& root, const std::string& path, const std::str
 
 struct Mode {
     std::string id, name, description;
+};
+// One row of session/list (agents that persist sessions).
+struct SessionInfo {
+    std::string id, cwd, title, updatedAt;
 };
 struct ConfigOption {
     std::string id, name, current;
@@ -186,6 +192,11 @@ public:
     bool prompt(std::vector<nlohmann::json> blocks);  // Ready only
     void cancel();
     bool new_session();  // fresh session/new on the same process (Ready/Prompting)
+    // Session persistence (capability-gated; false when unsupported).
+    // list_sessions fills sessions() asynchronously; load_session replays
+    // the conversation as session/update notifications, then is Ready.
+    bool list_sessions();
+    bool load_session(const std::string& sessionId);
     void set_mode(const std::string& modeId);
     void set_config_option(const std::string& configId, const std::string& value);
     void authenticate(const std::string& methodId);
@@ -208,6 +219,11 @@ public:
     const std::vector<std::string>& available_commands() const { return availableCommands_; }
     bool embedded_context() const { return embeddedContext_; }
     bool auth_required() const { return authRequired_; }
+    bool can_list_sessions() const { return canList_; }
+    bool can_load_sessions() const { return canLoad_ || canResume_; }
+    const std::vector<SessionInfo>& sessions() const { return sessions_; }
+    // MCP servers handed to session/new and session/load (Settings).
+    void set_mcp_servers(nlohmann::json servers) { mcpServers_ = std::move(servers); }
     pid_t pid() const { return pid_; }
 
 private:
@@ -235,8 +251,33 @@ private:
     bool exited_ = false;
     std::string lastStderr_;
 
+    // Client terminals (terminal/*): processes the agent asks the editor
+    // to run. Output accumulates on a reader thread (tail kept past the
+    // byte limit); exit is reaped in pump(), which also answers deferred
+    // terminal/wait_for_exit requests. cwd is confined to the repo like fs.
+    struct Terminal {
+        std::string id;
+        pid_t pid = -1;
+        int out = -1;
+        std::thread reader;
+        std::mutex mutex;
+        std::string buffer;
+        bool truncated = false;
+        size_t byteLimit = 1024 * 1024;
+        bool exited = false;
+        std::optional<int> exitCode;
+        std::string signalName;
+    };
+    void handle_terminal(const std::string& method, const nlohmann::json& id, const nlohmann::json& params);
+    void reap_terminals();
+    void release_terminal(Terminal& terminal, bool killRunning);
+    void terminal_output_result(const nlohmann::json& id, Terminal& terminal);
+    std::map<std::string, std::unique_ptr<Terminal>> terminals_;
+    std::vector<std::pair<nlohmann::json, std::string>> terminalWaiters_;  // (request id, terminal id)
+    int nextTerminal_ = 1;
+
     Phase phase_ = Phase::Unstarted;
-    enum class Purpose { Initialize, NewSession, Prompt, Authenticate, SetMode, SetConfig };
+    enum class Purpose { Initialize, NewSession, Prompt, Authenticate, SetMode, SetConfig, ListSessions, LoadSession };
     std::map<int, Purpose> pending_;
     int nextId_ = 1;
     std::chrono::steady_clock::time_point deadline_{};
@@ -247,8 +288,11 @@ private:
     std::vector<ConfigOption> configOptions_;
     std::vector<AuthMethod> authMethods_;
     std::vector<std::string> availableCommands_;
+    std::vector<SessionInfo> sessions_;
+    nlohmann::json mcpServers_ = nlohmann::json::array();
     bool embeddedContext_ = false;
     bool authRequired_ = false;
+    bool canLoad_ = false, canList_ = false, canResume_ = false;
 };
 
 }  // namespace acp

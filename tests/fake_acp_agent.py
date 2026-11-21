@@ -34,13 +34,32 @@ for line in sys.stdin:
     if method == "initialize":
         send({"jsonrpc": "2.0", "id": mid, "result": {
             "protocolVersion": 1,
-            "agentCapabilities": {"loadSession": False,
+            "agentCapabilities": {"loadSession": True,
+                                  "sessionCapabilities": {"list": {}, "resume": {}},
                                   "promptCapabilities": {"embeddedContext": True}},
             "agentInfo": {"name": "fake", "version": "0"},
             "authMethods": []}})
     elif method == "session/new":
         send({"jsonrpc": "2.0", "id": mid, "result": {
             "sessionId": "fake-1",
+            "modes": {"currentModeId": "ask", "availableModes": [
+                {"id": "ask", "name": "Ask", "description": "ask first"},
+                {"id": "yolo", "name": "Yolo", "description": "no asking"}]}}})
+    elif method == "session/list":
+        import os
+        send({"jsonrpc": "2.0", "id": mid, "result": {"sessions": [
+            {"sessionId": "fake-old", "cwd": os.getcwd(), "title": "Old chat",
+             "updatedAt": "2026-01-01T00:00:00Z"}]}})
+    elif method in ("session/load", "session/resume"):
+        sid = msg["params"].get("sessionId", "fake-old")
+        for kind, text in (("user_message_chunk", "earlier question"),
+                           ("agent_message_chunk", "earlier answer")):
+            send({"jsonrpc": "2.0", "method": "session/update",
+                  "params": {"sessionId": sid, "update": {
+                      "sessionUpdate": kind,
+                      "content": {"type": "text", "text": text}}}})
+        # Load results carry modes/config but NOT the session id.
+        send({"jsonrpc": "2.0", "id": mid, "result": {
             "modes": {"currentModeId": "ask", "availableModes": [
                 {"id": "ask", "name": "Ask", "description": "ask first"},
                 {"id": "yolo", "name": "Yolo", "description": "no asking"}]}}})
@@ -88,6 +107,27 @@ for line in sys.stdin:
                          "path": os.path.join(os.getcwd(), "written.txt"),
                          "oldText": state["read_content"] or "",
                          "newText": (state["read_content"] or "").upper()}])
+        # Then prove the client terminal works: run echo through the editor.
+        send({"jsonrpc": "2.0", "id": "term-create", "method": "terminal/create",
+              "params": {"sessionId": "fake-1", "command": "echo",
+                         "args": ["termhi"], "cwd": os.getcwd(),
+                         "outputByteLimit": 4096}})
+    elif mid == "term-create" and "result" in msg:
+        state["terminal_id"] = msg["result"].get("terminalId", "")
+        send({"jsonrpc": "2.0", "id": "term-wait", "method": "terminal/wait_for_exit",
+              "params": {"sessionId": "fake-1", "terminalId": state["terminal_id"]}})
+    elif mid == "term-wait" and "result" in msg:
+        state["terminal_exit"] = msg["result"].get("exitCode")
+        send({"jsonrpc": "2.0", "id": "term-out", "method": "terminal/output",
+              "params": {"sessionId": "fake-1", "terminalId": state["terminal_id"]}})
+    elif mid == "term-out" and "result" in msg:
+        output = msg["result"].get("output", "")
+        ok = output.strip() == "termhi" and state.get("terminal_exit") == 0
+        update("agent_message_chunk",
+               content={"type": "text", "text": "TERMOK" if ok else f"TERMFAIL:{output!r}"})
+        send({"jsonrpc": "2.0", "id": "term-rel", "method": "terminal/release",
+              "params": {"sessionId": "fake-1", "terminalId": state["terminal_id"]}})
+    elif mid == "term-rel":
         send({"jsonrpc": "2.0", "id": state["prompt_id"],
               "result": {"stopReason": "end_turn"}})
         state["prompt_id"] = None

@@ -32,6 +32,7 @@ struct Settings::Data {
     std::string unstagedPolicy = "ask";
     std::string gitPath;
     std::string acpAgent = "muse";
+    std::string acpMcpServers = "[]";  // raw JSON text, round-tripped verbatim
     std::vector<std::string> recentRepos;
     std::vector<std::string> pinnedRepos;
     std::map<std::string, std::string> repositoryHeads;
@@ -119,6 +120,7 @@ bool Settings::load_save_file() {
         data_->unstagedPolicy = j.value("commit_unstaged_policy", std::string{"ask"});
         data_->gitPath = j.value("git_path", std::string{});
         data_->acpAgent = j.value("acp_agent", std::string{"muse"});
+        if (j.contains("acp_mcp_servers")) data_->acpMcpServers = j["acp_mcp_servers"].dump();
         data_->recentRepos =
             j.value("recent_repos", std::vector<std::string>{});
         data_->reviewDisplayModes.clear();
@@ -201,6 +203,10 @@ std::string Settings::build_settings_json() const {
     j["commit_unstaged_policy"] = data_->unstagedPolicy;
     j["git_path"] = data_->gitPath;
     j["acp_agent"] = data_->acpAgent;
+    {
+        auto servers = nlohmann::json::parse(data_->acpMcpServers, nullptr, false);
+        j["acp_mcp_servers"] = servers.is_array() ? servers : nlohmann::json::array();
+    }
     j["recent_repos"] = data_->recentRepos;
     nlohmann::json bookmarks = nlohmann::json::object();
     for (const auto& [repo, values] : data_->codeBookmarks) {
@@ -466,6 +472,11 @@ void Settings::set_acp_agent(const std::string& id) {
     if (data_->acpAgent == id) return;
     data_->acpAgent = id;
     save_if_auto();
+}
+
+nlohmann::json Settings::get_acp_mcp_servers() const {
+    auto servers = nlohmann::json::parse(data_->acpMcpServers, nullptr, false);
+    return servers.is_array() ? servers : nlohmann::json::array();
 }
 
 // Recent repos

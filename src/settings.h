@@ -1,6 +1,7 @@
 #pragma once
 
 #include <afterhours/src/singleton.h>
+#include <nlohmann/json.hpp>
 
 #include <chrono>
 #include <map>
@@ -95,6 +96,11 @@ struct Settings {
     // ACP sidebar agent ("acp_agent": "muse" | "claude" | "codex").
     const std::string& get_acp_agent() const;
     void set_acp_agent(const std::string& id);
+
+    // MCP servers passed to ACP session/new+load, hand-edited in
+    // settings.json as "acp_mcp_servers": [ {name, command, args, env} … ]
+    // (ACP McpServer objects). Invalid JSON reads as an empty list.
+    nlohmann::json get_acp_mcp_servers() const;
 
     // Command-palette usage: counts per label, most-recent-first labels,
     // and recent palette queries (for Up recall).

@@ -45,17 +45,27 @@ cwd = that repository; changing a tab's repository stops its agent.
   session offers (`session/set_config_option` selects like Muse's mode
   picker, or legacy `session/set_mode`). Tool-call permission requests
   block on the banner's buttons; unanswered replacements are declined.
+- Clicking a tool-call row opens the file (and line) it touched.
 - **New** starts a fresh conversation on the same process; **Stop** (Send
   becomes Stop while prompting) sends `session/cancel` for the turn, the
   controls-row **Stop** kills the process.
+- **Resume** (agents with session persistence) lists saved sessions for
+  the repository (`session/list`) and continues one (`session/load`,
+  replaying its history into the transcript, or `session/resume`).
+- Agents may run commands through client terminals (`terminal/*`): output
+  is captured in the tool-call rows, cwd is confined to the repository,
+  and long output keeps its tail.
+- MCP servers for new/loaded sessions can be hand-edited in settings.json
+  as `"acp_mcp_servers": [{"name": …, "command": …, "args": […], "env": []}]`
+  (ACP `McpServer` objects, stdio or http shapes pass through verbatim).
 
 ## Safety properties
 
 - Filesystem access is confined to the tab's repository root: absolute or
   relative paths that escape it (including through a symlink that points
-  out) are refused with an ACP error.
-- `terminal: false` is advertised; agents use their own shell tools under
-  their own permission model, gated by the permission banner.
+  out) are refused with an ACP error. Terminal cwd is confined the same
+  way; the commands themselves run under the agent's permission model,
+  gated by the permission banner where the agent asks.
 - Nothing is staged or committed by the panel. Agent edits are ordinary
   working-tree (or unsaved-buffer) changes in the review flow.
 
@@ -79,7 +89,7 @@ cwd = that repository; changing a tab's repository stops its agent.
 
 ## Not yet
 
-- Client-side terminals (`terminal/*`), MCP server passthrough
-  (`session/new` sends no servers), session load/resume lists, model and
-  non-select config options, image prompt blocks. The capability fields
-  are parsed so these can slot in without protocol rework.
+- Model pickers and non-select config options, image/audio prompt blocks,
+  and a settings UI for MCP servers (hand-edited JSON for now). The
+  capability fields are parsed so these can slot in without protocol
+  rework.

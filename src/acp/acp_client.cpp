@@ -25,6 +25,35 @@ std::string first_nonempty(const nlohmann::json& value, const char* key) {
     return value.is_object() ? value.value(key, std::string{}) : std::string{};
 }
 
+// environ with `overlay` applied (same keys replaced, new keys appended).
+std::vector<std::string> overlaid_env(const std::vector<std::pair<std::string, std::string>>& overlay) {
+    std::vector<std::string> strings;
+    for (char** entry = environ; *entry; ++entry) {
+        std::string_view text(*entry);
+        bool replaced = false;
+        for (const auto& pair : overlay)
+            if (text.size() > pair.first.size() && text.substr(0, pair.first.size()) == pair.first &&
+                text[pair.first.size()] == '=')
+                replaced = true;
+        if (!replaced) strings.emplace_back(*entry);
+    }
+    for (const auto& [key, value] : overlay) strings.push_back(key + "=" + value);
+    return strings;
+}
+
+std::string signal_name(int sig) {
+    switch (sig) {
+        case SIGTERM: return "SIGTERM";
+        case SIGKILL: return "SIGKILL";
+        case SIGINT: return "SIGINT";
+        case SIGHUP: return "SIGHUP";
+        case SIGPIPE: return "SIGPIPE";
+        case SIGSEGV: return "SIGSEGV";
+        case SIGABRT: return "SIGABRT";
+        default: return "signal " + std::to_string(sig);
+    }
+}
+
 }  // namespace
 
 std::string find_on_path(const std::string& program) {
@@ -155,6 +184,8 @@ void Transcript::describe_tool_content(Entry& entry, const nlohmann::json& updat
     // not a delta (agents resend it whole), so an update that carries
     // content or locations replaces the description instead of appending.
     if (!update.contains("content") && !update.contains("locations")) return;
+    entry.locationPath.clear();
+    entry.locationLine = 0;
     // Diffs and locations are the "agent is editing my code" evidence; the
     // full before/after text stays out of the transcript (the editor and
     // diff view show it, and whole files would flood the sidebar).
@@ -165,6 +196,7 @@ void Transcript::describe_tool_content(Entry& entry, const nlohmann::json& updat
             const std::string type = item.value("type", "");
             if (type == "diff") {
                 const std::string path = item.value("path", "");
+                if (entry.locationPath.empty()) entry.locationPath = path;
                 if (!text.empty()) text += "\n";
                 text += "± " + path;
                 const std::string fresh = item.value("newText", "");
@@ -185,6 +217,10 @@ void Transcript::describe_tool_content(Entry& entry, const nlohmann::json& updat
     if (locations.is_array())
         for (const auto& location : locations) {
             const std::string path = location.value("path", "");
+            if (entry.locationPath.empty() && !path.empty()) {
+                entry.locationPath = path;
+                entry.locationLine = location.value("line", 0);
+            }
             if (path.empty() || text.find(path) != std::string::npos) continue;
             if (!text.empty()) text += "\n";
             text += path;
@@ -340,18 +376,7 @@ std::unique_ptr<Client> Client::spawn(const AgentDef& agent, const std::string& 
     std::vector<char*> argv;
     for (const auto& part : agent.command) argv.push_back(const_cast<char*>(part.c_str()));
     argv.push_back(nullptr);
-    // environ overlaid with the agent's entries (same key replaced).
-    std::vector<std::string> envStrings;
-    for (char** entry = environ; *entry; ++entry) {
-        std::string_view text(*entry);
-        bool replaced = false;
-        for (const auto& pair : agent.env)
-            if (text.size() > pair.first.size() && text.substr(0, pair.first.size()) == pair.first &&
-                text[pair.first.size()] == '=')
-                replaced = true;
-        if (!replaced) envStrings.emplace_back(*entry);
-    }
-    for (const auto& [key, value] : agent.env) envStrings.push_back(key + "=" + value);
+    std::vector<std::string> envStrings = overlaid_env(agent.env);
     std::vector<char*> envp;
     for (auto& entry : envStrings) envp.push_back(entry.data());
     envp.push_back(nullptr);
@@ -388,7 +413,7 @@ std::unique_ptr<Client> Client::spawn(const AgentDef& agent, const std::string& 
         {"clientInfo", {{"name", "floatinghotel"}, {"title", "Floating Hotel"}, {"version", "0.1"}}},
         {"clientCapabilities", {
             {"fs", {{"readTextFile", true}, {"writeTextFile", true}}},
-            {"terminal", false},
+            {"terminal", true},
         }},
     });
     client->pending_[id] = Purpose::Initialize;
@@ -396,6 +421,8 @@ std::unique_ptr<Client> Client::spawn(const AgentDef& agent, const std::string& 
 }
 
 Client::~Client() {
+    for (auto& [id, terminal] : terminals_) release_terminal(*terminal, true);
+    terminals_.clear();
     if (in_ >= 0) close(in_);  // EOF: well-behaved agents exit on stdin close
     in_ = -1;
     int status = 0;
@@ -451,7 +478,27 @@ bool Client::new_session() {
     phase_ = Phase::Starting;
     deadline_ = std::chrono::steady_clock::now() + std::chrono::seconds(60);
     sessionId_.clear();
-    pending_[request("session/new", {{"cwd", cwd_}, {"mcpServers", nlohmann::json::array()}})] = Purpose::NewSession;
+    pending_[request("session/new", {{"cwd", cwd_}, {"mcpServers", mcpServers_}})] = Purpose::NewSession;
+    return true;
+}
+
+bool Client::list_sessions() {
+    if (!canList_ || (phase_ != Phase::Ready && phase_ != Phase::Prompting)) return false;
+    pending_[request("session/list", {{"cwd", cwd_}})] = Purpose::ListSessions;
+    return true;
+}
+
+bool Client::load_session(const std::string& session) {
+    if (session.empty() || (phase_ != Phase::Ready && phase_ != Phase::Prompting)) return false;
+    // Prefer load (replays the conversation into the transcript); resume
+    // is the same shape without the replay.
+    const char* method = canLoad_ ? "session/load" : canResume_ ? "session/resume" : nullptr;
+    if (!method) return false;
+    phase_ = Phase::Starting;
+    deadline_ = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+    sessionId_ = session;  // load/resume results do not echo it back
+    pending_[request(method, {{"sessionId", session}, {"cwd", cwd_}, {"mcpServers", mcpServers_}})] =
+        Purpose::LoadSession;
     return true;
 }
 
@@ -510,6 +557,7 @@ void Client::read_loop(int fd, bool is_stdout) {
 }
 
 void Client::pump() {
+    reap_terminals();
     std::vector<std::string> lines, errLines;
     {
         std::lock_guard lock(queue_mutex_);
@@ -555,6 +603,10 @@ void Client::handle(const nlohmann::json& message) {
         if (method == "session/request_permission") event.kind = Event::Kind::Permission;
         else if (method == "fs/read_text_file") event.kind = Event::Kind::FsRead;
         else if (method == "fs/write_text_file") event.kind = Event::Kind::FsWrite;
+        else if (method.rfind("terminal/", 0) == 0) {
+            handle_terminal(method, event.id, event.params);
+            return;
+        }
         else {
             send({{"jsonrpc", "2.0"}, {"id", message["id"]},
                   {"error", {{"code", -32601}, {"message", "not supported: " + method}}}});
@@ -600,6 +652,13 @@ void Client::handle_response(const nlohmann::json& message) {
             embeddedContext_ = result.value("agentCapabilities", nlohmann::json::object())
                                    .value("promptCapabilities", nlohmann::json::object())
                                    .value("embeddedContext", false);
+            {
+                const auto capabilities = result.value("agentCapabilities", nlohmann::json::object());
+                canLoad_ = capabilities.value("loadSession", false);
+                const auto session = capabilities.value("sessionCapabilities", nlohmann::json::object());
+                canList_ = session.contains("list");
+                canResume_ = session.contains("resume");
+            }
             agentName_ = result.value("agentInfo", nlohmann::json::object()).value("title",
                         result.value("agentInfo", nlohmann::json::object()).value("name", agent_.name));
             authMethods_.clear();
@@ -607,7 +666,7 @@ void Client::handle_response(const nlohmann::json& message) {
                 for (const auto& method : methods)
                     authMethods_.push_back({method.value("id", ""), method.value("name", ""), method.value("description", "")});
             deadline_ = std::chrono::steady_clock::now() + std::chrono::seconds(60);
-            pending_[request("session/new", {{"cwd", cwd_}, {"mcpServers", nlohmann::json::array()}})] = Purpose::NewSession;
+            pending_[request("session/new", {{"cwd", cwd_}, {"mcpServers", mcpServers_}})] = Purpose::NewSession;
             break;
         case Purpose::NewSession:
             if (failed) {
@@ -638,11 +697,28 @@ void Client::handle_response(const nlohmann::json& message) {
             if (!failed && result.contains("configOptions")) apply_config_options(result["configOptions"]);
             if (failed && on_event) on_event({Event::Kind::Log, {}, {}, {}, errorText, false});
             break;
+        case Purpose::ListSessions:
+            sessions_.clear();
+            if (!failed) {
+                const auto list = result.value("sessions", nlohmann::json::array());
+                if (list.is_array())
+                    for (const auto& item : list)
+                        sessions_.push_back({item.value("sessionId", ""), item.value("cwd", ""),
+                                              item.value("title", ""), item.value("updatedAt", "")});
+            } else if (on_event) on_event({Event::Kind::Log, {}, {}, {}, errorText, false});
+            break;
+        case Purpose::LoadSession:
+            if (failed) { fail(agent_.name + ": " + errorText); return; }
+            apply_session_result(result);
+            phase_ = Phase::Ready;
+            break;
     }
 }
 
 void Client::apply_session_result(const nlohmann::json& result) {
-    sessionId_ = result.value("sessionId", "");
+    // session/load answers carry modes/config but not the id (it is the
+    // one being loaded); only overwrite when the result names one.
+    if (const std::string id = result.value("sessionId", ""); !id.empty()) sessionId_ = id;
     sessionTitle_.clear();
     modes_.clear();
     const auto modes = result.value("modes", nlohmann::json::object());
@@ -675,6 +751,154 @@ void Client::apply_config_options(const nlohmann::json& list) {
 void Client::finish_prompt(std::string stopReason, bool failed) {
     if (phase_ == Phase::Prompting) phase_ = Phase::Ready;
     if (on_event) on_event({Event::Kind::PromptDone, {}, {}, {}, std::move(stopReason), failed});
+}
+
+// ------------------------------------------------------------ terminals
+
+void Client::terminal_output_result(const nlohmann::json& id, Terminal& terminal) {
+    nlohmann::json result;
+    {
+        std::lock_guard lock(terminal.mutex);
+        result = {{"output", terminal.buffer}, {"truncated", terminal.truncated}};
+    }
+    if (terminal.exited) {
+        nlohmann::json status{{"exitCode", terminal.exitCode ? nlohmann::json(*terminal.exitCode) : nullptr},
+                              {"signal", terminal.signalName.empty() ? nullptr : nlohmann::json(terminal.signalName)}};
+        result["exitStatus"] = std::move(status);
+    }
+    send({{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(result)}});
+}
+
+void Client::handle_terminal(const std::string& method, const nlohmann::json& id, const nlohmann::json& params) {
+    if (method == "terminal/create") {
+        const std::string command = params.value("command", "");
+        if (command.empty()) { answer_error(id, "terminal/create needs a command"); return; }
+        std::vector<std::string> commandLine{command};
+        if (const auto args = params.value("args", nlohmann::json::array()); args.is_array())
+            for (const auto& arg : args) commandLine.push_back(arg.get<std::string>());
+        std::vector<std::pair<std::string, std::string>> envOverlay = agent_.env;
+        if (const auto envVars = params.value("env", nlohmann::json::array()); envVars.is_array())
+            for (const auto& var : envVars)
+                envOverlay.push_back({var.value("name", ""), var.value("value", "")});
+        // cwd stays inside the repository, like fs access.
+        const auto root = FsRoot::make(cwd_);
+        const auto workdir = root.resolve(params.value("cwd", cwd_));
+        if (!workdir || !std::filesystem::is_directory(*workdir)) {
+            answer_error(id, "terminal cwd is outside the repository");
+            return;
+        }
+        auto terminal = std::make_unique<Terminal>();
+        terminal->id = "term-" + std::to_string(nextTerminal_++);
+        const auto limit = params.value("outputByteLimit", static_cast<size_t>(0));
+        if (limit > 0) terminal->byteLimit = std::clamp(limit, size_t{1024}, size_t{16 * 1024 * 1024});
+
+        int pipeFds[2];
+        if (pipe(pipeFds) != 0) { answer_error(id, std::strerror(errno)); return; }
+        posix_spawn_file_actions_t actions;
+        posix_spawn_file_actions_init(&actions);
+        posix_spawn_file_actions_addchdir_np(&actions, workdir->string().c_str());
+        posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+        posix_spawn_file_actions_adddup2(&actions, pipeFds[1], STDOUT_FILENO);
+        posix_spawn_file_actions_adddup2(&actions, pipeFds[1], STDERR_FILENO);
+        posix_spawn_file_actions_addclose(&actions, pipeFds[0]);
+        posix_spawn_file_actions_addclose(&actions, pipeFds[1]);
+        posix_spawnattr_t attributes;
+        posix_spawnattr_init(&attributes);
+        posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP);
+        posix_spawnattr_setpgroup(&attributes, 0);
+        std::vector<char*> argv;
+        for (const auto& part : commandLine) argv.push_back(const_cast<char*>(part.c_str()));
+        argv.push_back(nullptr);
+        std::vector<std::string> envStrings = overlaid_env(envOverlay);
+        std::vector<char*> envp;
+        for (auto& entry : envStrings) envp.push_back(entry.data());
+        envp.push_back(nullptr);
+        pid_t pid = -1;
+        const int spawned = posix_spawnp(&pid, argv[0], &actions, &attributes, argv.data(), envp.data());
+        posix_spawn_file_actions_destroy(&actions);
+        posix_spawnattr_destroy(&attributes);
+        close(pipeFds[1]);
+        if (spawned != 0) {
+            close(pipeFds[0]);
+            answer_error(id, command + ": " + std::strerror(spawned));
+            return;
+        }
+        terminal->pid = pid;
+        terminal->out = pipeFds[0];
+        Terminal* raw = terminal.get();
+        terminal->reader = std::thread([raw] {
+            char buffer[65536];
+            for (;;) {
+                const ssize_t n = read(raw->out, buffer, sizeof buffer);
+                if (n < 0 && errno == EINTR) continue;
+                if (n <= 0) break;
+                std::lock_guard lock(raw->mutex);
+                raw->buffer.append(buffer, static_cast<size_t>(n));
+                if (raw->buffer.size() > raw->byteLimit) {
+                    raw->buffer.erase(0, raw->buffer.size() - raw->byteLimit);
+                    raw->truncated = true;
+                }
+            }
+        });
+        const std::string terminalId = terminal->id;
+        terminals_.emplace(terminalId, std::move(terminal));
+        send({{"jsonrpc", "2.0"}, {"id", id}, {"result", {{"terminalId", terminalId}}}});
+        return;
+    }
+
+    const std::string terminalId = params.value("terminalId", "");
+    auto found = terminals_.find(terminalId);
+    if (found == terminals_.end()) { answer_error(id, "unknown terminal: " + terminalId); return; }
+    Terminal& terminal = *found->second;
+    if (method == "terminal/output") {
+        terminal_output_result(id, terminal);
+    } else if (method == "terminal/wait_for_exit") {
+        if (terminal.exited) {
+            nlohmann::json result{{"exitCode", terminal.exitCode ? nlohmann::json(*terminal.exitCode) : nullptr},
+                                  {"signal", terminal.signalName.empty() ? nullptr : nlohmann::json(terminal.signalName)}};
+            send({{"jsonrpc", "2.0"}, {"id", id}, {"result", std::move(result)}});
+        } else terminalWaiters_.push_back({id, terminalId});  // answered by reap_terminals()
+    } else if (method == "terminal/kill") {
+        if (!terminal.exited && terminal.pid > 0) kill(-terminal.pid, SIGTERM);
+        send({{"jsonrpc", "2.0"}, {"id", id}, {"result", nlohmann::json::object()}});
+    } else if (method == "terminal/release") {
+        send({{"jsonrpc", "2.0"}, {"id", id}, {"result", nlohmann::json::object()}});
+        release_terminal(terminal, true);
+        terminals_.erase(found);
+    } else {
+        send({{"jsonrpc", "2.0"}, {"id", id},
+              {"error", {{"code", -32601}, {"message", "not supported: " + method}}}});
+    }
+}
+
+void Client::reap_terminals() {
+    for (auto& [id, terminal] : terminals_) {
+        if (terminal->exited || terminal->pid <= 0) continue;
+        int status = 0;
+        if (waitpid(terminal->pid, &status, WNOHANG) != terminal->pid) continue;
+        terminal->exited = true;
+        if (WIFEXITED(status)) terminal->exitCode = WEXITSTATUS(status);
+        else if (WIFSIGNALED(status)) terminal->signalName = signal_name(WTERMSIG(status));
+        for (size_t i = 0; i < terminalWaiters_.size();) {
+            if (terminalWaiters_[i].second != id) { ++i; continue; }
+            nlohmann::json result{{"exitCode", terminal->exitCode ? nlohmann::json(*terminal->exitCode) : nullptr},
+                                  {"signal", terminal->signalName.empty() ? nullptr : nlohmann::json(terminal->signalName)}};
+            send({{"jsonrpc", "2.0"}, {"id", terminalWaiters_[i].first}, {"result", std::move(result)}});
+            terminalWaiters_.erase(terminalWaiters_.begin() + static_cast<long>(i));
+        }
+    }
+}
+
+void Client::release_terminal(Terminal& terminal, bool killRunning) {
+    if (killRunning && !terminal.exited && terminal.pid > 0) {
+        kill(-terminal.pid, SIGKILL);
+        int status = 0;
+        waitpid(terminal.pid, &status, 0);
+        terminal.exited = true;
+    }
+    if (terminal.out >= 0) close(terminal.out);
+    terminal.out = -1;
+    if (terminal.reader.joinable()) terminal.reader.join();
 }
 
 void Client::fail(std::string why) {
