@@ -133,6 +133,10 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_lsp_client" ]; then
     run_test "test_lsp_client" "tests/unit/test_lsp_client.cpp" "src/lsp/lsp_client.cpp" "src/lsp/semantic.cpp"
 fi
 
+if [ -z "$FILTER" ] || [ "$FILTER" = "test_acp_client" ]; then
+    run_test "test_acp_client" "tests/unit/test_acp_client.cpp" "src/acp/acp_client.cpp"
+fi
+
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_commit_message" ]; then
     run_test "test_commit_message" "tests/unit/test_commit_message.cpp"
 fi
