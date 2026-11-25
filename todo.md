@@ -861,3 +861,187 @@ started work.
       MCP editor, image chips, permission / tool-call rows, and transcript
       scrolling. Current automated UI evidence is mostly hidden-window layout
       JSON.
+
+## Paseo feature review (filed 2026-11-25)
+
+Research: [docs/research/paseo-feature-review.md](docs/research/paseo-feature-review.md)
+(Paseo v0.17.4, repo HEAD `e114e13`, 63 features inventoried: 15 have/tracked,
+16 partial, 11 missing-fit, 17 low-fit/platform, 4 unknown). Every missing or
+partial distinct feature below is a checkbox; low-fit items are captured, not
+built. Do not treat these as started work.
+
+### P0: companion-loop agent UX (builds on the ACP sidebar)
+
+- [ ] T2 @-mention file picker + slash-command menu in the Agent composer.
+      Job: "fix this" with a picked file, invoke repeatable prompts. Slice: @
+      picker over repo files + `/` menu of user commands feeding prompt text.
+      Gap: only File ✓ (open file) exists (`src/ecs/agent_panel.h`). Deps: Quick
+      Open ranker. Risk: scope creep into full command system; keep text-only.
+      Signal: attach-by-mention e2e. Tag: P1-fit. ACP: pure sidebar win.
+- [ ] T10 Send-queue + long-transcript scale. Job: follow up mid-turn without
+      losing it; long sessions stay fast. Slice: queue Send behind a running
+      turn (Paseo: human default interrupt, agent default queue); collapse old
+      turns, cap/paginate rendered history. Gap: Send/Stop only, full transcript
+      render (`src/ecs/agent_panel.h`). Deps: none. Risk: low. Signal: queue +
+      perf e2e. Tag: P1-fit. ACP: pure sidebar win.
+- [ ] T15 Desktop finish notification. Job: know the agent finished while
+      reading diffs. Slice: macOS Notification Center post on turn finish
+      (opt-out toggle); no dock-badge spam. Gap: in-app toasts only
+      (`src/ui/toast_system.h`). Deps: none. Risk: notification fatigue; default
+      to turn-finish only. Signal: manual verify. Tag: P1-fit. ACP: sidebar win.
+
+### P1: review-flow extensions
+
+- [ ] T18 Metadata auto-generation. Job: one-click workspace titles, branch
+      slugs, commit messages, PR titles/bodies from the diff. Slice: shell out
+      to the configured agent CLI for one-shot generations (Paseo Automatic
+      cheap-model cascade vs Manual list); per-repo wording overrides. Gap:
+      manual commit box only. Deps: T17 for per-repo wording. Risk: prompt/diff
+      egress to provider — same trust as agent use; document it. Signal: e2e on
+      generation + fallback text. Tag: P0-fit (creator money: faster ship).
+      ACP: uses sidebar agents, not the panel UI.
+- [ ] T19 Open-PR flow. Job: from a reviewed branch, open a PR with generated
+      title/body. Slice: `gh`-based draft-PR command from the branch row; body
+      from T18. Gap: no PR flow at all (verified: no PR refs in `src/`).
+      Deps: T18. Risk: `gh` availability; gate the UI on it. Signal: dry-run
+      e2e. Tag: P1-fit (review-first → hand back). ACP: adjacent.
+- [ ] T21 MCP server exposing review state. Job: let the user's own external
+      agent read the basket, diffs, review state. Slice: stdio MCP server with
+      read-only review/basket/diff tools (mirror Paseo's tool-off-by-default
+      posture: local-only, explicit enable). Gap: MCP client-only
+      (`src/acp/acp_client.*`). Deps: none. Risk: new attack surface; read-only
+      + localhost + opt-in. Signal: external-client probe. Tag: P1-fit.
+      ACP: extends the companion loop outward.
+- [ ] T20 Delegation prompt patterns. Job: implement→independent-review with a
+      second provider; handoff briefings between sessions. Slice: basket export
+      templates (implement-brief, review-brief) + docs; no new runtime. Gap:
+      basket→agent send is one manual shot (`docs/acp-agents.md`). Deps: none.
+      Risk: docs-only; keep tiny. Signal: doc + template files. Tag: P2-fit.
+      ACP: sidebar workflow win.
+
+### P1: workspaces & isolation
+
+- [ ] T14 Parallel agent sessions + agent-spawns-agent orchestration. Job: run
+      two agents in one repo (implement + independent review), or let the
+      sidebar agent delegate a worker. Slice: multi-session per repo tab
+      (session tabs in the Agent panel) + worker spawn through the ACP client
+      with queue/steer/interrupt follow-ups + background flag (hidden, finish
+      notifies via T15). Gap: one agent process per repo tab
+      (`ecs::AgentComponent` per-tab state, `docs/acp-agents.md`:31). Deps:
+      ACP transport exists; permission banner per session. Risk: session-UX
+      complexity + process sprawl; cap concurrent sessions. Signal: two-session
+      + delegate e2e. Tag: P0-fit (core companion loop). ACP: the sidebar win.
+- [ ] T16 Worktree-backed agent workspaces. Job: run the agent on an isolated
+      branch without touching the main checkout; adopt existing worktrees.
+      Slice: create (branch-off/checkout-branch/checkout-PR + slug) from the
+      repo picker; setup/teardown hooks + `.worktreeinclude`-style ignored-file
+      copy; open resulting worktree as a repo tab for review. Gap: worktrees
+      browsable read-only only (`…` menu). Deps: async git ops exist. Risk:
+      worktree lifecycle bugs (stale branches); archive semantics explicit.
+      Signal: create/review/archive e2e. Tag: P0-fit (parallel agent review).
+      ACP: agent runs in the worktree, reviewed in the tab.
+- [ ] T17 Repo-local agent config file. Job: per-repo agent setup/scripts/
+      metadata wording that travels with the repo. Slice: e.g. `.floatinghotel`
+      JSON (setup cmds, named scripts, metadata wording for T18) read from the
+      repo root. Gap: settings.json is global only. Deps: none. Risk: schema
+      sprawl; keep 3 keys. Signal: unit + e2e. Tag: P2-fit. ACP: feeds sidebar.
+- [ ] T7 Workspace labels/pins/archive. Job: organise parallel review streams.
+      Slice: per-tab labels + pin + archive/undo for repo tabs (beyond global
+      pinned repos). Gap: `TabStripComponent` has no labels/archive. Deps:
+      session persist. Risk: low. Signal: e2e. Tag: P2-fit. ACP: adjacent.
+- [ ] T8 Project registry + clone-from-remote. Job: register named projects,
+      clone a repo straight into a tab. Slice: named registry over recent/pinned
+      + `git clone <url>` into a new tab. Gap: tabs+recent only, no clone.
+      Deps: async ops exist. Risk: auth UX; defer to `gh`/SSH as-is. Signal:
+      e2e. Tag: P2-fit. ACP: adjacent.
+
+### P2: provider breadth & diagnostics
+
+- [ ] T1 Provider catalog + custom providers. Job: run more than Muse/Claude/
+      Codex; point at alternate endpoints/binaries; disable unused. Slice:
+      launcher registry (more ACP launchers, e.g. Gemini/Qwen-style ACP CLIs),
+      custom entries (command/env/models), per-provider enable/disable, keep
+      installed-CLI auth passthrough. Gap: 3 hardcoded launchers
+      (`docs/acp-agents.md`:17-32). Deps: ACP transport exists. Risk: support
+      matrix growth; catalog is data, not forks. Signal: fake-launcher e2e per
+      entry shape. Tag: P1-fit. ACP: core sidebar win.
+- [ ] T3 Named permission modes + provider options. Job: Ask/Strict/Full-access
+      style modes and provider sandbox/approval knobs per agent. Slice: surface
+      provider-native mode/options (where ACP offers them) as named picker +
+      persisted per-agent options. Gap: generic `set_config_option` cycling.
+      Deps: capability parsing exists. Risk: provider divergence; fall back to
+      generic cycle. Signal: fake-agent e2e. Tag: P1-fit. ACP: sidebar win.
+- [ ] T4 Provider diagnostics + launcher troubleshooting. Job: answer "why
+      can't the agent start" in-app. Slice: per-provider diagnostic (resolved
+      binary, daemon PATH, version) + log tail; login-shell PATH guidance
+      (same failure class as Paseo's). Gap: hover text only. Deps: command log
+      exists. Risk: low. Signal: broken-PATH probe. Tag: P2-fit. ACP: sidebar.
+- [ ] T13 Agent profiles. Job: one-click UI-work/Planning/Review presets incl.
+      model+mode, with delegation notes. Slice: named presets in the agent
+      picker (provider/model/mode), notes field surfaced to follow-up prompts.
+      Gap: per-tab `acp_agent` string only. Deps: T1/T3 for options to save.
+      Risk: low. Signal: e2e preset apply. Tag: P2-fit. ACP: sidebar win.
+- [ ] T5 Session history search (+ native import if cheap). Job: find an old
+      agent conversation. Slice: search across persisted ACP transcripts for the
+      repo; import only if the adapter exposes it. Gap: `session/list+load`
+      list only. Deps: transcript persistence (check what exists first).
+      Risk: storage growth; bound it. Signal: e2e. Tag: P2-fit. ACP: sidebar.
+- [ ] T9 First-run agent setup wizard. Job: new user goes setup → working
+      agent, not empty home → dead Start. Slice: welcome-picker addition:
+      detect installed CLIs, link install docs, test-launch. Gap: picker opens
+      repos only. Deps: launcher detection (shares T4). Risk: low. Signal:
+      manual. Tag: P2-fit. ACP: sidebar onboarding.
+
+### P2: layout & display
+
+- [ ] T6 Interactive terminal panel. Job: watch/run commands beside the review
+      without leaving the app. Slice: read-write terminal view reusing the
+      agent client-terminal plumbing; agent output stays in tool-call rows.
+      Gap: agent-only terminals, no UI (`docs/acp-agents.md`:60-62). Deps:
+      pty plumbingReuse. Risk: input focus/key handling; moderate. Signal: e2e
+      type/echo. Tag: P2-fit. ACP: adjacent (shares plumbing).
+- [ ] T11 Split panes + width presets. Job: agent transcript beside the diff.
+      Slice: two-up main pane (review + agent) + Default/Wide/Full widths.
+      Gap: fixed sidebar+main. Deps: layout system. Risk: layout churn;
+      moderate. Signal: screenshot e2e. Tag: P3-fit. ACP: adjacent.
+- [ ] T12 Theme presets beyond dark/light. Job: user-selectable themes.
+      Slice: 2–3 extra presets through `theme::pick()` (no gallery/registry).
+      Gap: `src/ui/theme.h` dark/light only. Deps: none. Risk: contrast
+      validation per theme. Signal: lint + screenshots. Tag: P3-fit. ACP: none.
+
+### Capture list: low-fit / platform (not built; reasons)
+
+- L1 Usage/quota panel + forecasts + OpenRouter balances — no accounts/quotas
+  concept in FH. [low-fit]
+- L2 Structured JSON output schema for agent answers — no consumer in FH. [low-fit]
+- L3 Voice dictation + voice mode (local ONNX STT/TTS) — desktop review client,
+  niche. [low-fit]
+- L4 Supervised dev-server services + per-worktree reverse proxy — beyond review
+  scope. [low-fit]
+- L5 In-app browser + agent browser automation — heavy; review evidence comes
+  from diffs/tests. [low-fit]
+- L6 Cron schedules (new agent per run) — no daemon/background runtime. [low-fit]
+- L7 Heartbeats (recurring same-agent prompts) — same as L6. [low-fit]
+- L8 Hub (chat/GitHub/Linear/Slack/Discord/webhook triggers, team sharing,
+  activity, allowlists) — team SaaS, not product code. [platform]
+- L9 Native mobile apps with full parity — macOS-only app. [platform]
+- L10 Self-hosted/hosted web UI — no daemon to serve it. [platform]
+- L11 Multi-host/SSH/relay-E2EE/Tailscale/Docker/socket-isolation/host-allowlist/
+  password-auth — single-machine app; posture notes only. [platform]
+- L12 Staged auto-update + beta channel + TestFlight — source-built. [platform]
+- L13 Plugin system + custom sidebar views + gallery — huge surface; revisit if
+  sidebar-view extensibility ever pays. [low-fit]
+- L14 User CLI (run/send/wait/schedule/permit) — e2e drivers cover automation;
+  GUI client. [low-fit]
+- L15 TS SDK + event streaming + Hub public API — no API surface. [platform]
+- L16 i18n locale packs — no demand signal. [low-fit]
+- L17 Forge integrations (GitHub/GitLab/Gitea/Forgejo/Codeberg) + PR/MR watches
+  + issue links — no network forge layer; revisit with T19 if PR flow grows. [low-fit]
+
+### Unknowns needing a decision (U1–U4, no todos yet)
+
+- U1 Preview-less file Download button — audit preview coverage first.
+- U2 Structured question-card prompts — is the permission banner enough?
+- U3 Syntax grammar gaps (shell/Dockerfile/Terraform/HCL) — audit
+  `src/ui/code_highlight.h`.
+- U4 Transcript markdown extras (Mermaid, copy-as-plaintext) — audit renderer.
