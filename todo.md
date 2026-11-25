@@ -861,3 +861,33 @@ started work.
       MCP editor, image chips, permission / tool-call rows, and transcript
       scrolling. Current automated UI evidence is mostly hidden-window layout
       JSON.
+
+## Capy/companion-mode follow-ups (filed 2026-11-25, research-only)
+
+From `docs/research/capy-companion-mode.md` (Capy docs + Autumn redesign
+loop, 2026-11-25). Net-new vs the ACP follow-ups above, triage.md, and
+current panel behaviour (`docs/acp-agents.md`); not started work. Items
+marked (spec) rest on Autumn's write-up or single-source claims, not Capy
+docs.
+
+- [ ] Steer / interrupt / queue send modes in the Agent panel: Steer sends
+      the prompt without stopping a running turn, Interrupt cancels the turn
+      (`session/cancel`, already wired) then sends, Queue holds the prompt
+      above the composer (editable/discardable) until the turn ends. Fall
+      back to queue for agents without mid-turn prompts.
+- [ ] Per-tab agent status + needs-you marker: derive working /
+      waiting-on-permission / idle plus a needs-you flag while a permission
+      banner is unanswered; show a dot + marker on the repo tab and Agent
+      tab icon. Read-only derivation, no digest prose.
+- [ ] Agent brief on first prompt: prepend repo root `AGENTS.md` /
+      `CLAUDE.md` / `CORRECT.md` (whichever exist, line-capped with visible
+      truncation) ahead of the File ✓ attachment, first prompt of a session
+      only.
+- [ ] Review-to-basket + fuzz-QA prompt templates: one button asking the
+      agent for findings as basket-shaped Markdown (file:line + severity +
+      one-line why) ready for triage + Send; a second template for a QA pass
+      (build via client terminal, click through, report dead links).
+- [ ] Agent-per-worktree start option (proposal; build parked on triage
+      CP-041/042/044): offer "start agent in a new worktree of this branch"
+      at agent Start, label the tab with the worktree. (spec: assumes
+      worktree browsing/creation lands first.)
