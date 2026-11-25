@@ -845,3 +845,19 @@ Details in [docs/afterhours-gaps.md](docs/afterhours-gaps.md) "Bump b385dc9 → 
       switching, syntax seeding, test hygiene, docs) when asked. Done
       2026-11-17: vendor bump, build options, engine, app, tests, docs
       commits pushed to origin/main (`7151d5c..76734b9`).
+
+## ACP follow-ups (filed 2026-11-25)
+
+Captured after the ACP sidebar work on `acp-agents`; do not treat these as
+started work.
+
+- [ ] Render and toggle non-select ACP config options (boolean options at
+      minimum; only `select` options are currently parsed/rendered).
+- [ ] Audio prompt attachments: parse `promptCapabilities.audio`, add the
+      attachment picker/chips, encode the selected audio as ACP content, and
+      cover unsupported-agent behaviour.
+- [ ] Visible screenshot pass for the Agent panel: check the real rendered
+      panel at normal/narrow sidebar widths, permission banner, sessions list,
+      MCP editor, image chips, permission / tool-call rows, and transcript
+      scrolling. Current automated UI evidence is mostly hidden-window layout
+      JSON.
