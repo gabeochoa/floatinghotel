@@ -861,3 +861,104 @@ started work.
       MCP editor, image chips, permission / tool-call rows, and transcript
       scrolling. Current automated UI evidence is mostly hidden-window layout
       JSON.
+
+## Zed/Delta follow-up (filed 2026-11-25)
+
+Net-new fitting gaps from the Zed 1.30.2 + dandavison/delta review in
+[docs/research/zed-delta-feature-review.md](docs/research/zed-delta-feature-review.md).
+Zed items are `Z1…`, Delta items `D1…`. Rejects, dupes of the Nov-15 Zed
+section, and needs-decision items (D-A…D-D) live in the research doc only.
+All items are additive to shipped surfaces; none copy Zed/Delta code or assets.
+
+### Agent-review loop (compounds with the ACP sidebar)
+
+- [ ] `Z1` Per-turn agent change summary + per-hunk disposition: after a prompt
+      lands working-tree edits, show "N files · +A −D" in the Agent panel with
+      per-hunk keep/needs-work marks that feed the existing feedback basket
+      ("Send review feedback (N)") back as the next prompt. Pointers:
+      `src/ecs/agent_panel.h` transcript/tool-call rows, `src/ui/review_queue.h`
+      basket export, `src/ui/change_navigation.h` hunk walk.
+- [ ] `Z2` In-panel conversation switcher + usage readout: list current/recent
+      conversations per repo tab with switch/archive, and show the session's
+      token usage when the agent reports it. Extends the existing Resume list
+      (`src/ecs/agent_panel.h:399-434`); per Zed's threads sidebar, minus
+      cross-project scope (one agent process per tab stays).
+- [ ] `Z11` `@`-mention prompt context: files/symbols/diagnostics/branch-diff
+      mentions completing from repo state, alongside today's File✓ + image
+      chips. Pointers: `src/ecs/agent_panel.h` prompt building,
+      `git::project_symbols_async` (todo §1) for symbols,
+      `src/ui/semantic_navigation.h` for diagnostics.
+- [ ] `Z12` Persisted tool-permission rules: allow/confirm/deny defaults plus
+      per-tool regexes (e.g. always-allow `cargo build`-class reads, always-confirm
+      writes outside the repo) layered over the banner's per-call buttons.
+      Pointers: `src/ecs/agent_panel.h` permission flow, `Settings` persistence
+      (`src/settings.h`), Zed `agent.tool_permissions` as the shape precedent.
+- [ ] `Z10` Draft-commit-message action via the running agent: a panel button that
+      asks the current agent to propose a message for the staged diff (repo
+      instructions included), inserted into the commit box, never committed
+      automatically. Pointers: `src/ecs/agent_panel.h` prompt path, sidebar
+      commit box (`sidebar_system.h` commit state machine, todo §3).
+
+### Diff legibility (renderer-local, for large agent rewrites)
+
+- [ ] `D5` Multi-edit within-line emphasis: extend `code_highlight::changed_ranges`
+      (`src/ui/code_highlight.h:36-66`, single prefix/suffix span, positional
+      pairing) with Levenshtein-style multi-edit spans per line plus faint
+      styling for the non-emphasised parts, so unequal added/removed pairings
+      stay scannable. Keep the `changed_ranges` deferral/until-visible
+      behaviour from triage.md.
+- [ ] `D6` Distinct moved-code styling: render the existing `hunk.movedLines`
+      (`src/util/moved_code.h`) with a faint zebra background that keeps syntax
+      colours, instead of whatever marker it carries today (Delta `map-styles`
+      / `zebra-dark` feel, own engine).
+- [ ] `D3` Whitespace-error style + always-visible no-newline chip: trailing
+      whitespace on added lines gets a distinct error style (separate from the
+      `visibleWhitespace` toggle, `diff_renderer.h:72-94`), and the
+      `[no newline]` ending marker is always shown, not only with the toggle on.
+- [ ] `D4` Copy-as-patch toggle: alongside the code-bytes clipboard (triage P0),
+      offer copying the selection with `+`/`-`/space markers preserved for
+      pasting into prompts and patches. Pointers: clipboard path used by the
+      review export in `src/ui/diff_renderer.h`.
+
+### Review navigation (additive keys/views)
+
+- [ ] `D1` File-stop + same-level jumps + fold-all keys: alongside `j/n/k` hunk
+      nav (`src/ui/bindings.h`, `src/ui/change_navigation.h`), add jump to
+      next/prev file (and commit-stop in log scope), same-level section jumps,
+      and fold/unfold-all. Delta `n/N`, `alt+j/k`, `tab` feel; extend the one
+      `ui::bindings` table so the shortcut sheet picks them up (todo §1).
+- [ ] `Z4` Searchable bookmarks picker: expose the existing `CodeBookmark` model
+      (`src/util/code_bookmark.h`, currently struct-only) as a labeled,
+      searchable, previewable jump list for review positions (Zed project
+      bookmarks feel, repo-scoped).
+- [ ] `Z5` File history opens filtered to the file: `ui/file_history.h` rows
+      currently open the whole commit review; add an open-filtered mode showing
+      that commit's diff for the file only (Zed file-history feel).
+- [ ] `Z8` Forkable repo search: `Cmd+Enter` forks the current repository-search
+      results into a second results view so two searches can be compared
+      side by side (Zed `cmd-enter` search-tab feel). Pointers:
+      `src/ui/repo_search.h`, `src/git/repository_search.h`.
+
+### Sharing, isolation, completions
+
+- [ ] `Z7` Copy review position: copy `path:line@rev` plus a hosting URL
+      (GitHub/GitLab shape from the repo remote) for the current selection or
+      file, for pasting into review threads (Zed permalink feel, in-app
+      navigation stays as is).
+- [ ] `Z9` Worktree isolation for agents: create/switch lightweight worktrees
+      per agent run from the repo picker grouping (`src/ui/repo_picker.h:190`,
+      `src/util/repo_picker.h`), so parallel agent turns do not collide in one
+      working tree (Zed per-thread worktree feel; creation only, no new repo
+      model).
+- [ ] `Z6` Conflict ours/theirs/both: extend the shipped conflict banner
+      (todo §3: banner + "Mark resolved" + "Complete merge") with per-file
+      Use-ours / Use-theirs / Use-both actions (Zed conflict-block feel),
+      still explicit-staging, still reviewed as a diff afterwards.
+- [ ] `Z3` Inline current-line blame + clickable commits: extend the blame
+      gutter (todo §1) with a toggleable current-line annotation and make
+      commit identities open the commit detail (`src/ui/commit_detail.h`),
+      with age-shaded text (Delta blame-palette feel, own theme).
+- [ ] `D2` Richer search-result rows: match-count header per file plus
+      function-context lines and go-to-line on the row number, reusing the
+      excerpt cache and token highlight in `src/ui/repo_search.h:119-142`
+      (Delta grep-view feel).
