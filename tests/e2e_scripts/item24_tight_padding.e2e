@@ -2,7 +2,7 @@
 # Reduced left padding (10->8), gaps (4->3) for denser layout
 # TODO(dump_ui): validate padding values in XML attributes
 make_test_repo
-resize 1280 720
+resize 1280 1000
 wait_for_refresh
 wait_frames 30
 
@@ -10,7 +10,7 @@ wait_frames 30
 expect_text "Changes"
 expect_text "README.md"
 expect_text "main.cpp"
-expect_text "STACK"
+expect_text "COMMIT HISTORY"
 
 click_text "Staged"
 wait_frames 5

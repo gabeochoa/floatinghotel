@@ -2,7 +2,7 @@
 # No distinct background, subtler text, tighter padding
 # TODO(dump_ui): validate header bg color and font size in XML
 make_test_repo
-resize 1280 720
+resize 1280 1000
 wait_for_refresh
 wait_frames 30
 

@@ -26,8 +26,13 @@ screenshot scroll_click_02_small_window
 # With the small window, TODO.md or icon.png may be below the fold.
 # Even if still visible, the scroll panel is active and the offset
 # math must be correct for the click to register.
-# Untracked files live under the "Untracked" review tab.
-click_text "Untracked"
+# Untracked files live under the "Untracked" section header. Keyboard
+# navigation reveals TODO.md in the tiny list viewport.
+key DOWN
+wait_frames 2
+key DOWN
+wait_frames 2
+key DOWN
 wait_frames 5
 click_text TODO.md
 wait_frames 5
@@ -43,6 +48,12 @@ screenshot scroll_click_04_after_scroll
 
 # Click a file that has shifted due to scrolling
 click_text "Changes"
+wait_frames 5
+click_text TODO.md
+wait_frames 5
+key UP
+wait_frames 2
+key UP
 wait_frames 5
 click_text main.cpp
 wait_frames 5
@@ -77,8 +88,17 @@ screenshot scroll_click_08_changes_tab
 # ── Restore and verify normal operation ──────────────────────
 resize 1280 720
 wait_frames 5
-# Re-select Changes tab (resize can reset sidebar mode)
-click_text "Changes"
+# Re-select the working document (resize can reset sidebar mode), then
+# keyboard-reveal README.md from the scrolled file list.
+click_text "Unstaged changes"
+wait_frames 5
+click_text TODO.md
+wait_frames 5
+key UP
+wait_frames 2
+key UP
+wait_frames 2
+key UP
 wait_frames 5
 click_text README.md
 wait_frames 5

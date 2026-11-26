@@ -41,7 +41,10 @@ click_text .gitignore
 wait_frames 5
 screenshot baseline_05_sidebar_file_staged_selected
 
-# Select an untracked file (TODO.md) - untracked files under "Untracked" tab
+# Select an untracked file (TODO.md) under the Untracked section
+hover_ui sidebar_files
+scroll_wheel 0 -100
+wait_frames 5
 click_text "Untracked"
 wait_frames 5
 click_text TODO.md
@@ -53,6 +56,12 @@ screenshot baseline_06_sidebar_file_untracked_selected
 # =============================================================================
 
 click_text "Changes"
+wait_frames 5
+key UP
+wait_frames 2
+key UP
+wait_frames 2
+key UP
 wait_frames 5
 click_text README.md
 wait_frames 5
@@ -69,7 +78,10 @@ click_text .gitignore
 wait_frames 5
 screenshot baseline_09_diff_staged_new_file
 
-# Untracked file (TODO.md) - untracked files under "Untracked"
+# Untracked file (TODO.md) under the Untracked section
+hover_ui sidebar_files
+scroll_wheel 0 -100
+wait_frames 5
 click_text "Untracked"
 wait_frames 5
 click_text TODO.md
@@ -103,7 +115,15 @@ screenshot baseline_13_commit_detail_initial
 # 6. SIDEBAR TOOLBAR (Commit, Push, Pull, Stash buttons in sidebar mode)
 # =============================================================================
 
-click_text "Changes"
+click_text "Unstaged changes"
+wait_frames 5
+click_text TODO.md
+wait_frames 5
+key UP
+wait_frames 2
+key UP
+wait_frames 2
+key UP
 wait_frames 5
 click_text README.md
 wait_frames 5

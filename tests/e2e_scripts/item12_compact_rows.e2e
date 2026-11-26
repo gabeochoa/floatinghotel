@@ -2,7 +2,7 @@
 # Verify file list renders correctly at compact height
 # TODO(dump_ui): validate row height in XML attributes
 make_test_repo
-resize 1280 720
+resize 1280 1000
 wait_for_refresh
 wait_frames 30
 

@@ -1,6 +1,6 @@
 # Item 11: Section headers use title case without triangle character
 make_test_repo
-resize 1280 720
+resize 1280 1000
 wait_for_refresh
 wait_frames 10
 
@@ -12,6 +12,6 @@ expect_no_text "▾"
 expect_text "Changes"
 expect_text "Staged"
 expect_text "Untracked"
-expect_text "STACK"
+expect_text "COMMIT HISTORY"
 
 screenshot item11_section_headers
