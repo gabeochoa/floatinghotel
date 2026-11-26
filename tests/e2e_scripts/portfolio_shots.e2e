@@ -7,7 +7,7 @@ wait_for_refresh
 wait_frames 15
 
 # --- Commit browser ---
-click_ui sidebar_working_files
+click_ui sidebar_files
 wait_frames 5
 screenshot portfolio_01_working_files
 
@@ -16,7 +16,7 @@ wait_frames 10
 screenshot portfolio_02_commit_detail
 
 # --- Diff review with side-by-side view ---
-click_text "Changes"
+click_text "Unstaged changes"
 wait_frames 5
 click_text "main.cpp"
 wait_frames 10
@@ -29,6 +29,12 @@ screenshot portfolio_03_side_by_side_diff
 # --- Feedback / review comments ---
 click_ui working_review_toggle
 wait_frames 10
+click_text "README.md"
+wait_frames 5
+key DOWN
+wait_frames 2
+key DOWN
+wait_frames 5
 click_text "app.cpp"
 wait_frames 15
 click_ui comment_hunk_btn
@@ -43,12 +49,14 @@ screenshot portfolio_04_review_feedback
 # --- Tabs open ---
 new_tab
 wait_frames 5
+click_text "floatinghotel_test_repo (main)"
+wait_frames 5
 click_text "README.md"
 wait_frames 10
 screenshot portfolio_05_tabs_open
 
 # --- Commit flow ---
-click_ui sidebar_working_files
+click_ui sidebar_files
 wait_frames 5
 click_button "Commit"
 wait_frames 5

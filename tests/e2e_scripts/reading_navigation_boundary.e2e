@@ -30,17 +30,23 @@ click_ui content_source_tab
 screenshot boundary_retained_source
 expect_text "README.md"
 expect_text "Working tree"
-click_ui close_document_4
+wait_frames 5
+hold_key SUPER
+key W
+release_key SUPER
 wait_for_refresh
 screenshot boundary_closed_source
 expect_text "CONTRIBUTING.md"
 assert_ui full_file_revision hidden=false
-key ALT+LEFT
+key CMD+SHIFT+T
 wait_for_refresh
 screenshot boundary_revisited_source
 expect_text "README.md"
 expect_text "Working tree"
-native_menu_action "Compare Revisions..."
+click_text "Edit"
+wait_frames 5
+click_text "Compare Revisions..."
+wait_frames 5
 screenshot boundary_comparison_editor
 click_ui compare_base
 type "HEAD~1"
@@ -50,7 +56,7 @@ click_ui compare_submit
 wait_for_refresh
 screenshot boundary_comparison
 expect_text "Resolved revisions:"
-click_ui jump_to_diff:CONTRIBUTING.md
+wait_frames 5
 screenshot boundary_comparison_file
 click_ui open_full_file
 wait_for_refresh
@@ -59,13 +65,17 @@ expect_text "CONTRIBUTING.md"
 assert_ui full_file_revision hidden=false
 click_ui full_file_back
 wait_for_refresh
+wait_wall 0.5
+wait_frames 10
 screenshot boundary_comparison_return
 expect_text "Resolved revisions:"
 click_ui content_document_2
 wait_for_refresh
 expect_text "Add contributing guidelines"
-click_ui content_document_6
+click_text "975704d"
 wait_for_refresh
+wait_wall 0.5
+wait_frames 10
 screenshot boundary_comparison_reloaded
 expect_text "Resolved revisions:"
 validate blob_cache_bounded=true
