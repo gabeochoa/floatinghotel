@@ -39,14 +39,19 @@ inline std::string label(std::string value, bool malformed) {
 
 inline std::pair<std::string, bool> utf8_clean(std::string_view bytes, size_t offset) {
     std::string out;
+    if (offset >= bytes.size()) return {out, false};
+    out.reserve(bytes.size() - offset);
     bool malformed = false;
-    for (size_t i = offset; i < bytes.size();) {
-        unsigned char c = static_cast<unsigned char>(bytes[i]);
-        if (c <= 0x7f) {
-            out.push_back(static_cast<char>(c));
-            ++i;
-            continue;
+    const char* data = bytes.data();
+    const size_t n = bytes.size();
+    for (size_t i = offset; i < n;) {
+        size_t asciiStart = i;
+        while (i < n && static_cast<unsigned char>(data[i]) <= 0x7f) ++i;
+        if (i > asciiStart) {
+            out.append(data + asciiStart, i - asciiStart);
+            if (i >= n) break;
         }
+        unsigned char c = static_cast<unsigned char>(data[i]);
         size_t count = 0;
         std::uint32_t cp = 0;
         if (c >= 0xc2 && c <= 0xdf) { count = 2; cp = c & 0x1f; }
@@ -58,7 +63,7 @@ inline std::pair<std::string, bool> utf8_clean(std::string_view bytes, size_t of
             ++i;
             continue;
         }
-        if (i + count > bytes.size()) {
+        if (i + count > n) {
             append_utf8(out, 0xfffd);
             malformed = true;
             ++i;
@@ -66,14 +71,14 @@ inline std::pair<std::string, bool> utf8_clean(std::string_view bytes, size_t of
         }
         bool ok = true;
         for (size_t j = 1; j < count; ++j) {
-            unsigned char next = static_cast<unsigned char>(bytes[i + j]);
+            unsigned char next = static_cast<unsigned char>(data[i + j]);
             if ((next & 0xc0) != 0x80) ok = false;
             cp = (cp << 6) | (next & 0x3f);
         }
-        if ((count == 3 && ((c == 0xe0 && static_cast<unsigned char>(bytes[i + 1]) < 0xa0) ||
-                            (c == 0xed && static_cast<unsigned char>(bytes[i + 1]) >= 0xa0))) ||
-            (count == 4 && ((c == 0xf0 && static_cast<unsigned char>(bytes[i + 1]) < 0x90) ||
-                            (c == 0xf4 && static_cast<unsigned char>(bytes[i + 1]) >= 0x90))))
+        if ((count == 3 && ((c == 0xe0 && static_cast<unsigned char>(data[i + 1]) < 0xa0) ||
+                            (c == 0xed && static_cast<unsigned char>(data[i + 1]) >= 0xa0))) ||
+            (count == 4 && ((c == 0xf0 && static_cast<unsigned char>(data[i + 1]) < 0x90) ||
+                            (c == 0xf4 && static_cast<unsigned char>(data[i + 1]) >= 0x90))))
             ok = false;
         if (!ok) {
             append_utf8(out, 0xfffd);
@@ -81,7 +86,7 @@ inline std::pair<std::string, bool> utf8_clean(std::string_view bytes, size_t of
             ++i;
             continue;
         }
-        append_utf8(out, cp);
+        out.append(data + i, count);
         i += count;
     }
     return {out, malformed};

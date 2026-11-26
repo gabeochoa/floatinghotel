@@ -70,6 +70,36 @@ inline bool hash_query(std::string_view query) {
     return query.size() >= 4 && query.size() <= 64 && std::all_of(query.begin(), query.end(), [](unsigned char c) { return std::isxdigit(c); });
 }
 
+struct AllRefs {
+    Page local;
+    Page remote;
+};
+
+inline AllRefs all_refs(const std::string& repository, std::stop_token stop) {
+    auto result = git_run(repository, {"for-each-ref", "--sort=refname", "--count=20000",
+        "--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(*objecttype)%00%(subject)",
+        "refs/heads", "refs/tags", "refs/remotes"}, stop);
+    AllRefs out;
+    if (!result.success()) {
+        out.local.error = out.remote.error = result.stderr_str();
+        return out;
+    }
+    for (const auto& line : fields(result.stdout_str(), '\n')) {
+        auto f = fields(line, '\0');
+        if (f.size() < 5) continue;
+        const auto object = f[2] == "commit" ? f[1] : f[4] == "commit" ? f[3] : "";
+        if (object.empty()) continue;
+        const bool isRemote = f[0].starts_with("refs/remotes/");
+        const bool tag = f[0].starts_with("refs/tags/");
+        const size_t prefix = tag ? 10 : isRemote ? 13 : 11;
+        auto& target = isRemote ? out.remote : out.local;
+        if (target.entries.size() >= 10000) { target.more = true; continue; }
+        target.entries.push_back({tag ? Kind::Tag : Kind::Branch, f[0], f[0].substr(prefix),
+            f.size() > 5 ? f[5] : "", object, isRemote});
+    }
+    return out;
+}
+
 inline Page refs(const std::string& repository, bool remote, std::stop_token stop) {
     auto result = git_run(repository, {"for-each-ref", "--sort=refname", "--count=10000",
         "--format=%(refname)%00%(objectname)%00%(objecttype)%00%(*objectname)%00%(*objecttype)%00%(subject)",

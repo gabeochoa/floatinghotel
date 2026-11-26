@@ -201,12 +201,20 @@ struct AsyncGitDataRefreshSystem : afterhours::System<RepoComponent> {
                 repo.untrackedReview.invalidate();
             if (auto result = repo.untrackedReview.poll()) {
                 bool appended = false;
+                std::unordered_map<std::string_view, size_t> existingIndex;
+                existingIndex.reserve(repo.currentDiff.size() + result->files.size());
+                for (size_t idx = 0; idx < repo.currentDiff.size(); ++idx)
+                    existingIndex.emplace(repo.currentDiff[idx].filePath, idx);
                 for (auto& file : result->files) {
-                    auto existing = std::find_if(repo.currentDiff.begin(), repo.currentDiff.end(), [&](const auto& value) {
-                        return value.filePath == file.filePath;
-                    });
-                    if (existing == repo.currentDiff.end()) { repo.currentDiff.push_back(std::move(file)); appended = true; }
-                    else if (!diff_reconcile::file_equal(*existing, file)) { *existing = std::move(file); appended = true; }
+                    auto found = existingIndex.find(file.filePath);
+                    if (found == existingIndex.end()) {
+                        existingIndex.emplace(file.filePath, repo.currentDiff.size());
+                        repo.currentDiff.push_back(std::move(file));
+                        appended = true;
+                    } else if (!diff_reconcile::file_equal(repo.currentDiff[found->second], file)) {
+                        repo.currentDiff[found->second] = std::move(file);
+                        appended = true;
+                    }
                 }
                 if (appended) ++repo.patchGeneration;
             }

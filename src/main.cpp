@@ -762,7 +762,7 @@ static void e2e_tick_loop([[maybe_unused]] float real_dt) {
                     !layout->filePickerPosition.symbols.busy();
                 if (layout->picker.is_open() && layout->picker.mode == ecs::PickerMode::Files)
                     refreshDone = refreshDone && scope.catalogStarted && !scope.catalogDue &&
-                        !scope.localFuture.valid() && !scope.remoteFuture.valid() && !scope.commitsFuture.valid() &&
+                        !scope.refsFuture.valid() && !scope.commitsFuture.valid() &&
                         !scope.extraFuture.valid() && !scope.statusFuture.valid() && !scope.changesFuture.valid();
                 refreshDone = refreshDone && !layout->relinkDialog.future.valid();
             }
@@ -871,6 +871,7 @@ static void run_bench_frames(float dt) {
         afterhours::graphics::clear_background(theme::WINDOW_BG);
         app_state::systemManager->run(dt);
         afterhours::graphics::end_drawing();
+        afterhours::profiling::default_collector().end_frame();
         e2e_bench::samples_ms.push_back(
             std::chrono::duration<float, std::milli>(
                 std::chrono::steady_clock::now() - t0).count());

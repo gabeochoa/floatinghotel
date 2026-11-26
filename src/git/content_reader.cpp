@@ -26,10 +26,21 @@ ecs::FileDiff parse_complete_file(const std::string& path, const std::string& co
     if (file.isBinary) return file;
     ecs::DiffHunk hunk;
     hunk.oldStart = hunk.newStart = 1;
-    hunk.header = "Complete file";
-    std::istringstream stream(content);
-    std::string line;
-    while (std::getline(stream, line)) hunk.lines.push_back(" " + line);
+    hunk.header = "";  // full-file source: the file header carries the name; no banner row
+    const char* data = content.data();
+    const size_t n = content.size();
+    hunk.lines.reserve(n / 40 + 16);
+    size_t pos = 0;
+    while (pos < n) {
+        const void* found = std::memchr(data + pos, '\n', n - pos);
+        const size_t end = found ? static_cast<size_t>(static_cast<const char*>(found) - data) : n;
+        std::string line;
+        line.reserve(1 + (end - pos));
+        line.push_back(' ');
+        line.append(data + pos, end - pos);
+        hunk.lines.push_back(std::move(line));
+        pos = found ? end + 1 : n;
+    }
     hunk.oldCount = hunk.newCount = static_cast<int>(hunk.lines.size());
     if (!content.empty() && !content.ends_with('\n')) hunk.noNewline.insert(hunk.lines.size() - 1);
     hunk_syntax::annotate(hunk, path, true, incoming, incoming);
@@ -225,12 +236,23 @@ ecs::UntrackedReviewFiles read_untracked_review_files(const std::string& repo, c
     ecs::UntrackedReviewFiles result;
     size_t remaining = 8 * 1024 * 1024;
     constexpr size_t perFileLimit = 4 * 1024 * 1024;
+    constexpr size_t maxEagerFiles = 256;
+    size_t readCount = 0;
+    result.files.reserve(paths.size());
     for (const auto& path : paths) {
         if (stop.stop_requested()) return {};
         ecs::FileDiff file;
         file.filePath = path;
         file.isNew = true;
         bool haveContent = false;
+        if (readCount >= maxEagerFiles) {
+            file.isPartialContent = true;
+            if (result.notice.empty())
+                result.notice = "Large new files show a bounded preview. Open source to read more.";
+            result.files.push_back(std::move(file));
+            continue;
+        }
+        ++readCount;
         // Review needs the whole file: the paged source reader stops at
         // file_page::byteLimit/lineLimit, which made long new files look
         // complete at the first page boundary. Read the file directly up

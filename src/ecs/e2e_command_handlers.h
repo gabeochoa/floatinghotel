@@ -339,6 +339,8 @@ struct HandleMakeTestRepo : afterhours::System<afterhours::testing::PendingE2ECo
                 }
             }
 
+            repo.statusKnown = true;
+            repo.branchKnown = true;
             repo.settle_refresh();
             repo.repoVersion++;
         } else {

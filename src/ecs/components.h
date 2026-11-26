@@ -2219,7 +2219,8 @@ struct FilePickerScope {
     git::catalog::Page localRefs, remoteRefs, commits;
     git::catalog::Changes changes;
     async_work::Task<git::catalog::Changes> changesFuture;
-    async_work::Task<git::catalog::Page> localFuture, remoteFuture, commitsFuture;
+    async_work::Task<git::catalog::AllRefs> refsFuture;
+    async_work::Task<git::catalog::Page> commitsFuture;
     std::string catalogQuery;
     std::optional<std::chrono::steady_clock::time_point> catalogDue;
     std::uint64_t catalogVersion = 0;
