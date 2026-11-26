@@ -4,8 +4,8 @@ wait_for_refresh
 click_text main.cpp
 wait_frames 10
 screenshot improvement_14_inline
-assert_ui intraline_change hidden=false
-click_text Side-by-Side
+validate ui_count:intraline_change=2
+click_text Split
 wait_frames 10
 screenshot improvement_14_split
-assert_ui intraline_change hidden=false
+validate ui_count:intraline_change=2

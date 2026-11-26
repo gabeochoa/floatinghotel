@@ -30,14 +30,14 @@ validate selected_file=README.md
 click_text "Add contributing guidelines"
 wait_for_refresh
 screenshot improvement_44_commit
-assert_ui commit_subject hidden=false
+assert_ui_text "Add contributing guidelines" hidden=false under=sidebar_log
 key ALT+LEFT
 screenshot improvement_44_from_commit
 validate selected_file=README.md
 key ALT+RIGHT
 wait_for_refresh
 screenshot improvement_44_to_commit
-assert_ui commit_subject hidden=false
+assert_ui_text "Add contributing guidelines" hidden=false under=sidebar_log
 key ALT+LEFT
 screenshot improvement_44_working_controls
 click_ui working_review_toggle

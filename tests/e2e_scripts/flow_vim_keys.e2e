@@ -22,7 +22,7 @@ validate vim_mode=false
 click_text "#include"
 wait_frames 3
 validate caret_line=1
-key j
+expect_unread_key J
 wait_frames 3
 validate caret_line=1
 

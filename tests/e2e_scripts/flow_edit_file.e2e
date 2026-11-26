@@ -40,8 +40,11 @@ expect_text "QXZ#include"
 screenshot edit_dirty
 
 # Save is Cmd+S only: Ctrl+S must not save (Control belongs to vim
-# motions, Command to app controls).
-key CTRL+S
+# motions, Command to app controls). The S press is intentionally unread
+# while Control is held, so declare that to the E2E input audit.
+hold_key LEFT_CONTROL
+expect_unread_key S
+release_key LEFT_CONTROL
 wait_frames 5
 validate edit_dirty=true
 

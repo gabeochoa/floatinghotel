@@ -16,8 +16,10 @@ upstream scroll-input/scrollbar gating, direct `text_area` (including its
 placeholder and Adaptive row sizing), direct `virtual_list`, pending-render
 clearing in `BeginUIContextManager`, absent-texture clearing, `FocusProxy`,
 widget-owned directional input, `shrink_font_atlas`, polyline chevrons,
-`scroll_to_entity`, public RGBA texture upload, and the built-in E2E
-`hold_key`/`release_key` commands (all scripts now use key names).
+`scroll_to_entity`, public RGBA texture upload, the built-in E2E
+`hold_key`/`release_key` commands (all scripts now use key names), the E2E
+render checkpoint in the app's first-match click handler, scoped
+`assert_ui_text`, and `expect_unread_key` for intentionally ignored presses.
 
 Still deliberately app-owned below because the upstream shape does not yet
 match FloatingHotel's semantics: the future-based executor, FSEvents watcher,
@@ -565,15 +567,20 @@ machine's daemons, not the app.
 - Maintainer request: expose deferred initial presentation and activation, keep hidden-frame callbacks available, and provide a ready-frame presentation operation after GPU submission. The app should not need the private Sokol window class for this lifecycle.
 - Windowed E2E teardown constraint: direct `std::exit` after a frame can destroy Sokol's in-flight semaphore before GPU completion. The reproduced crash is `floatinghotel.exe-2026-09-11-224841.ips`. The app now stops workers, detaches the Git callback, retires image handles, and drains the public Metal queue before E2E teardown. This is an explicit-exit host integration requirement, not an ordinary window-close failure.
 
-### E2E target lookup needs a render checkpoint after cached view transitions
+### E2E render checkpoint — RESOLVED upstream, adopted in the app click handler
 
-- Status: host integration constraint, reproduced during review item 01 on b385dc9. Not a claim that ordinary pointer input is broken.
-- Reproduction: open a commit file, return to the diff, open working-tree content, return to the same cached commit, then use `click_ui open_full_file`. In floatinghotel's batched headless loop, the final click can leave the commit diff open. Five logic-only frames do not fix it. Capturing a screenshot before that click does.
-- Boundary: `src/plugins/e2e_testing/ui_commands.h` filters target lookup with `UIComponent::was_rendered_to_screen`. The host's `e2e_tick_loop` runs multiple `tick_all` calls before a render. A completed model refresh therefore does not establish that the target view has been drawn.
-- App workaround: `tests/review_50/item_01.e2e` takes `item_01_commit_again` before the repeated open, then asserts `full_file_header`. Text assertions alone can match code in the wrong view.
-- Maintainer request: expose a render-generation checkpoint for UI commands, or document the required render boundary when a host batches logic ticks. A target command should wait for the current view generation rather than use an earlier drawn view.
-- Additional reproduction in item 41: resizing from 1280 to 960 before `assert_no_overflow` reports an obsolete `full_file_loading` rectangle at x352 with width928, even though loading has finished. `output/review-50/item-41.log` fails; adding a screenshot checkpoint before the assertion passes in `item-41-drawn.log`. The inspected screenshot shows no loading row or overflow. Validation also needs a current render generation.
-- Startup reproduction: `expect_text "Timed commit"` followed by `click_text "Timed commit"` dispatches the click before the text assertion settles. `runner.h` retries pending assertions without blocking subsequent commands, while `click_text` fails immediately if its target is absent. No blocking text-or-UI wait command was found in the pinned E2E plugin. Use the host's `wait_for_refresh` and a render checkpoint for ordinary async navigation. The windowed startup regression instead clicks immediately after the host presentation gate has drawn the ready UI. This is test sequencing, not an ordinary input defect.
+Upstream UI commands now carry the render generation they were dispatched
+against (`PendingE2ECommand::seen_render`) and wait through
+`render_checkpoint_pending` until a newer frame has rendered. FloatingHotel's
+`HandleLayoutClick` calls the same checkpoint before resolving a target.
+
+That app handler still exists for a narrower reason: upstream click lookup is
+single-match and fails on ambiguity, while FloatingHotel scripts deliberately
+click the first visible match for repeated labels such as file names that also
+appear in breadcrumbs and headers. It also provides `hover_ui`. A first-match
+or nth-match upstream click mode would let the app handler be deleted; the
+render-generation request itself is resolved. The item 01/item 41 screenshot
+reproductions in the evidence log predate the checkpoint.
 
 ### E2E property assertions do not parse quoted values
 
@@ -2776,6 +2783,14 @@ this bump were intentionally deletions first:
 - Three existing `with_padding(Padding{})` calls were audited against the new
   explicit-padding semantics and left as explicit zero padding where that was
   their intent.
+- E2E scripts adopt the new upstream contracts where they changed: scoped
+  `assert_ui_text` instead of ambiguous repeated debug names, and
+  `expect_unread_key` for presses a flow intentionally proves are ignored.
+  The app's first-match click handler now waits on upstream's render
+  checkpoint. The full-suite comparison also exposed an app bug in the file
+  tree viewport anchor: a section header at the top produced a clamped
+  fraction that scrolled the header itself away; the fraction is now allowed
+  to be negative relative to the first real row.
 
 Behavior to keep watching after this bump: Tab now follows UI-tree order,
 Escape has one framework owner, E2E dispatch is serial and ambiguous lookups

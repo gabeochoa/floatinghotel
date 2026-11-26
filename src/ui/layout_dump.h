@@ -147,6 +147,10 @@ struct HandleLayoutClick : afterhours::System<afterhours::testing::PendingE2ECom
         const bool text = cmd.is("click_text") || cmd.is("right_click_text") || cmd.is("click_button");
         if (!named && !text) return;
         if (!cmd.has_args(1)) { cmd.fail("Click requires a UI name or label"); return; }
+        // Use the engine's render-generation checkpoint so a click issued
+        // immediately after an async view transition waits for that view to
+        // be drawn instead of resolving against the previous frame.
+        if (testing::render_checkpoint_pending(cmd)) return;
         for (Entity& entity : EntityQuery<>(UICollectionHolder::get().collection,
                 {.force_merge = true, .ignore_temp_warning = true}).whereHasComponent<UIComponent>().gen()) {
             if (!entity.get<UIComponent>().was_rendered_to_screen) continue;

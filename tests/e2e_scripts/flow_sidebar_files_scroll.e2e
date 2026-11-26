@@ -3,16 +3,17 @@
 # height — any extra height gives the outer panel a scroll range, which
 # clips the bottom of the file list and makes wheel/scrollbar input land
 # on the chrome instead of the files. At 720 the pane itself is floored
-# at header + chrome + five list rows (viewport 396), taken from the
-# history pane's ratio share. Scrolling over the list must then reach
+# at header + chrome + five list rows (viewport 349 after the commit
+# hint became the text area's placeholder), taken from the history
+# pane's ratio share. Scrolling over the list must then reach
 # the last file.
 make_test_repo
 resize 1280 720
 wait_frames 5
 wait_for_refresh
 wait_frames 15
-validate ui_height:files_controls_scroll=368.0
-validate ui_height:files_controls_body=368.0
+validate ui_height:files_controls_scroll=349.0
+validate ui_height:files_controls_body=349.0
 expect_no_text "icon.png"
 mouse_move 140 300
 scroll_wheel 0 -1000
