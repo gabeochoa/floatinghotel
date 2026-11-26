@@ -2,9 +2,9 @@ make_test_repo
 resize 1280 800
 wait_for_refresh
 click_text main.cpp
-hold_key 343
+hold_key SUPER
 key F
-release_key 343
+release_key SUPER
 wait_frames 5
 click_ui diff_find_input
 type "std::cout"

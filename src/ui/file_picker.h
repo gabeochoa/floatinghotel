@@ -4,7 +4,7 @@
 #include "../util/fuzzy_match.h"
 #include "focus.h"
 #include "diff_renderer.h"
-#include "virtual_list.h"
+#include <afterhours/src/plugins/ui/imm_virtual_list.h>
 #include "../ecs/tab_bar_system.h"
 #include <afterhours/src/plugins/modal.h>
 
@@ -549,7 +549,7 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
         }
     }
     std::optional<size_t> clicked;
-    ui::virtual_list(ctx, mk(parent, 588003), results.size(), 28.f, [&](size_t i, Entity& row) {
+    afterhours::ui::imm::virtual_list(ctx, mk(parent, 588003), results.size(), 28.f, [&](size_t i, Entity& row) {
         const auto& command = position.commands[results[i]];
         std::vector<afterhours::ui::TextSpan> spans{{command.label, theme::TEXT_PRIMARY}};
         if (!command.shortcut.empty()) spans.push_back({"   " + command.shortcut, theme::TEXT_SECONDARY});
@@ -990,7 +990,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
         }
         if (moving) ui::focus_control(ctx, input.ent());
     }
-    ui::virtual_list(ctx, listParent, results.size(), 28.f,
+    afterhours::ui::imm::virtual_list(ctx, listParent, results.size(), 28.f,
         [&](size_t i, Entity& row) {
             auto spans = results[i].kind == git::catalog::Kind::File
                 ? file_picker_label(results[i].title, position.parsed.path, static_cast<int>(i) == layout.filePickerIndex)
@@ -1074,7 +1074,8 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
             afterhours::ModalConfig{}.with_size(pixels(width), pixels(height))
                 .with_show_close_button(false).with_closed_by(afterhours::ClosedBy::Any)
                 .with_backdrop_color({0, 0, 0, 0}));
-        modal.ent().get<afterhours::modal::Modal>().previously_focused_element = -1;
+        modal.ent().get<afterhours::modal::Modal>().previously_focused_element =
+            afterhours::EntityHandle::invalid();
         // The modal itself closed it (Esc/backdrop): a cancel, so the
         // restore point below still applies.
         if (!pickerOpen && layout->picker.is_open()) layout->cancel_picker();

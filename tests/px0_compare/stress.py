@@ -28,11 +28,11 @@ ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 import fixture  # noqa: E402
 
-LEFT_SUPER = 343
+LEFT_SUPER = "SUPER"
 
 
 def quick_open(path, keep=True):
-    return ('hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\n'
+    return ('hold_key SUPER\nkey P\nrelease_key SUPER\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\n'
             f'type "{path}"\nwait_frames 3\nwait_for_refresh\n' + ('key ENTER\n' if keep else ''))
 
 
@@ -90,7 +90,7 @@ def main():
     # Copied bytes: there is no whole-file select-all in a code view, so select
     # three lines from the keyboard and compare the selection byte for byte.
     script += [quick_open('gamma.cpp'), 'wait_for_refresh', 'wait_frames 5', 'click_text "int gamma_1 = 1;"', 'key HOME',
-               'hold_key 340', 'key DOWN', 'key DOWN', 'key DOWN', 'release_key 340', 'wait_frames 5', 'screenshot select_all']
+               'hold_key LEFT_SHIFT', 'key DOWN', 'key DOWN', 'key DOWN', 'release_key LEFT_SHIFT', 'wait_frames 5', 'screenshot select_all']
     # Eviction: churn the caches with distant pages of two large files, then reopen.
     for target in (20000, 60000, 100000, 140000):
         script += [quick_open('find.txt'), 'wait_for_refresh', 'key CTRL+G', 'wait_frames 4', 'click_ui line_picker_input', 'key CMD+A',

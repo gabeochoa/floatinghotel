@@ -542,7 +542,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_size(ComponentSize{percent(1.f), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("outline_title"));
             auto& mutableLayout = const_cast<LayoutComponent&>(layout);
-            ui::virtual_list(ctx, mk(panel.ent(), 1), symbols.size(), 24.f, [&](size_t i, Entity& row) {
+            afterhours::ui::imm::virtual_list(ctx, mk(panel.ent(), 1), symbols.size(), 24.f, [&](size_t i, Entity& row) {
                 const auto& symbol = symbols[i];
                 auto label = button(ctx, mk(row, 0), preset::Button(symbol.name)
                     .with_size(ComponentSize{percent(1.f), pixels(24)}).with_alignment(TextAlignment::Left)

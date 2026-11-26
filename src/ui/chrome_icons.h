@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ecs/ui_imports.h"
+#include <afterhours/src/polyline.h>
 
 namespace ui {
 
@@ -55,11 +56,16 @@ inline void chrome_icon(UIContext<InputAction>& ctx, afterhours::ui::imm::Entity
         }
         case ChromeIcon::ChevronDown:
         case ChromeIcon::ChevronRight: {
-            auto chevron = div(ctx, mk(icon.ent(), 0), ComponentConfig{}
-                .with_size(ComponentSize{pixels(5), pixels(5)}).with_absolute_position(5.f, 4.f)
-                .with_border_bottom(color, pixels(1)).with_border_right(color, pixels(1)).with_roundness(0.f));
-            chevron.ent().addComponentIfMissing<afterhours::ui::HasUIModifiers>().rotation =
-                kind == ChromeIcon::ChevronDown ? 45.f : -45.f;
+            div(ctx, mk(icon.ent(), 0), ComponentConfig{}
+                .with_size(ComponentSize{pixels(8), pixels(8)}).with_absolute_position(4.f, 4.f)
+                .with_transparent_bg().with_roundness(0.f)
+                .with_on_draw_fg([kind, color](RectangleType rect) {
+                    afterhours::polyline::draw_chevron_in_rect(
+                        {rect.x + 1.f, rect.y + 1.f, rect.width - 2.f, rect.height - 2.f},
+                        kind == ChromeIcon::ChevronDown ? afterhours::polyline::ChevronDirection::Down
+                                                         : afterhours::polyline::ChevronDirection::Right,
+                        1.f, color);
+                }));
             break;
         }
     }

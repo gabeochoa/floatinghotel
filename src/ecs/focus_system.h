@@ -30,9 +30,6 @@ struct BeginFocusFrame : afterhours::System<UIContext<InputAction>> {
             }
             auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id);
             layout->focus.origin = focused.valid() ? ui::focus_target(**focused) : std::nullopt;
-            const auto* repo = find_singleton<RepoComponent, ActiveTab>();
-            if (focused.valid() && repo && ui::shortcut_owner(ctx, *repo).text)
-                focused->addComponentIfMissing<afterhours::ui::ConsumesDirectionalInput>();
         }
     }
 };
@@ -111,25 +108,7 @@ struct RevealTreeRowSystem : afterhours::System<UIContext<InputAction>> {
         if (!focused->get<afterhours::ui::UIComponent>().was_rendered_to_screen) return;
         const auto wheel = afterhours::input::get_mouse_wheel_move_v();
         if (wheel.x != 0.f || wheel.y != 0.f) { state.pendingReveal = false; return; }
-        Entity* current = *focused;
-        while (current->has<afterhours::ui::UIComponent>()) {
-            const int id = current->get<afterhours::ui::UIComponent>().parent;
-            if (id == current->id) break;
-            auto parent = afterhours::ui::UICollectionHolder::getEntityForID(id);
-            if (!parent.valid()) break;
-            current = *parent;
-            if (!current->has<afterhours::ui::HasScrollView>()) continue;
-            auto& scroll = current->get<afterhours::ui::HasScrollView>();
-            const auto rect = ui::screen_rect(**focused), viewport = ui::visible_rect(*current);
-            if (viewport.height <= 0.f) continue;
-            float delta = rect.y < viewport.y ? rect.y - viewport.y :
-                rect.y + rect.height > viewport.y + viewport.height ? rect.y + rect.height - viewport.y - viewport.height : 0.f;
-            if (delta == 0.f) continue;
-            const float offset = std::clamp(scroll.scroll_offset.y + delta, 0.f,
-                std::max(0.f, scroll.content_size.y - scroll.viewport_or_zero().y));
-            scroll.scroll_offset.y = scroll.scroll_target.y = scroll.last_eased_offset.y = offset;
-            scroll.anchor_child = -1;
-        }
+        afterhours::ui::scroll_to_entity(**focused);
         const auto rect = ui::screen_rect(**focused), visible = ui::visible_rect(**focused);
         if (visible.height >= rect.height - 1.f) state.pendingReveal = false;
     }

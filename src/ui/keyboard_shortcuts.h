@@ -23,8 +23,6 @@ inline bool render_keyboard_shortcuts(UIContext<InputAction>& ctx, ecs::LayoutCo
             .with_backdrop_color({0, 0, 0, 0}));
     if (!shortcutsOpen) layout.close_modal(reading::focus::Popup::Shortcuts);
     if (!modal) return active;
-    modal.cmp().absolute_pos_x = (ctx.screen_width - width * zoom::get()) * 0.5f;
-    modal.cmp().absolute_pos_y = (ctx.screen_height - height * zoom::get()) * 0.5f;
     div(ctx, mk(root, 595001), ComponentConfig{}
         .with_size(ComponentSize{pixels(screenWidth), pixels(screenHeight)})
         .with_absolute_position().with_custom_background(afterhours::Color{0, 0, 0, 120})

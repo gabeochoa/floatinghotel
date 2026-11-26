@@ -29,9 +29,9 @@ hover_ui commit_detail_scroll
 scroll_wheel 0 -5
 wait_frames 10
 screenshot compact_commit_scrolled
-hold_key 343
+hold_key SUPER
 key P
-release_key 343
+release_key SUPER
 click_ui file_picker_input
 key CMD+A
 type "README.md"

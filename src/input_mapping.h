@@ -30,6 +30,8 @@ enum class InputAction {
     TextWordRight,
     TextDeleteWordBack,
     TextDeleteWordForward,
+    TextDeleteLineBack,
+    TextDeleteLineForward,
     MenuBack,
     // Will be extended by T040 (keyboard navigation)
 };

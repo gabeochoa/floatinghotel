@@ -62,9 +62,8 @@ struct RepositoryActionsSystem : afterhours::System<UIContext<InputAction>> {
         if (!relinkOpen) layout->close_modal(reading::focus::Popup::RelinkDialog);
         if (!modal) { layout->relinkDialog.future = {}; ctx.remove_input_gate("relink_dialog"); return true; }
         ui::dialog_backdrop(ctx, 586300);
-        modal.ent().get<afterhours::modal::Modal>().previously_focused_element = -1;
-        modal.cmp().absolute_pos_x = (ctx.screen_width - std::min(560.f, ctx.screen_width / ui::zoom::get() - 32.f) * ui::zoom::get()) * .5f;
-        modal.cmp().absolute_pos_y = std::max(8.f, (ctx.screen_height - 380.f * ui::zoom::get()) * .5f);
+        modal.ent().get<afterhours::modal::Modal>().previously_focused_element =
+            afterhours::EntityHandle::invalid();
         const auto id = modal.ent().id;
         ctx.add_input_gate("relink_dialog", [id](afterhours::EntityID target) { return afterhours::modal::detail::is_entity_in_tree(id, target); });
         auto body = div(ctx, mk(modal.ent(), 20), ComponentConfig{}.with_size(ComponentSize{percent(1.f), expand()})
@@ -128,9 +127,8 @@ struct RepositoryActionsSystem : afterhours::System<UIContext<InputAction>> {
         if (!pushOpen) layout->close_modal(reading::focus::Popup::PushDialog);
         if (!modal) { repo->pushDialog.future = {}; ctx.remove_input_gate("push_dialog"); return; }
         ui::dialog_backdrop(ctx, 586300);
-        modal.ent().get<afterhours::modal::Modal>().previously_focused_element = -1;
-        modal.cmp().absolute_pos_x = (ctx.screen_width - std::min(560.f, ctx.screen_width / ui::zoom::get() - 32.f) * ui::zoom::get()) * .5f;
-        modal.cmp().absolute_pos_y = std::max(8.f, (ctx.screen_height - 380.f * ui::zoom::get()) * .5f);
+        modal.ent().get<afterhours::modal::Modal>().previously_focused_element =
+            afterhours::EntityHandle::invalid();
         const auto id = modal.ent().id;
         ctx.add_input_gate("push_dialog", [id](afterhours::EntityID target) { return afterhours::modal::detail::is_entity_in_tree(id, target); });
         auto& destination = repo->pushDialog.destination;

@@ -68,7 +68,7 @@ for zoom in args.zooms:
     assert metadata['baseline_head'] == head and metadata['baseline_captured_at'] > 0
     assert head[:8] in nodes(saved, 'saved')['review_baseline_identity']['text']
     source.write_text(original.replace('value_017 = 17', 'value_017 = 171'))
-    script = 'click_text "Baseline fixture"\nwait_for_refresh\nkey ENTER\nhold_key 343\nkey P\nrelease_key 343\nwait_frames 3\ntype "code.cpp"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n'
+    script = 'click_text "Baseline fixture"\nwait_for_refresh\nkey ENTER\nhold_key SUPER\nkey P\nrelease_key SUPER\nwait_frames 3\ntype "code.cpp"\nwait_for_refresh\nkey ENTER\nwait_for_refresh\n'
     script += 'key CTRL+G\nwait_frames 3\ntype "40:5"\nkey ENTER\nwait_for_refresh\nfocus_ui diff_scroll\nkey SHIFT+RIGHT\n' + capture('before', 3)
     script += 'native_menu_action "Since last review"\n' + capture('delta', 3)
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -15\nwait_frames 8\nkey ESCAPE\n' + capture('returned', 3)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../ecs/ui_imports.h"
+#include <afterhours/src/polyline.h>
 #include "../util/file_tree.h"
 #include "chrome_icons.h"
 #include "tooltip.h"
@@ -68,14 +69,16 @@ inline bool directory(afterhours::ui::UIContext<InputAction>& ctx, afterhours::E
     auto row = button(ctx, mk(parent, 0), row_config(width, node.depth, false)
         .with_label("").with_debug_name(name));
     bind_tree_row(ctx, row.ent(), repo, state, node.path);
-    auto disclosure = div(ctx, mk(row.ent(), 0), ComponentConfig{}
+    div(ctx, mk(row.ent(), 0), ComponentConfig{}
         .with_size(ComponentSize{pixels(16), pixels(28)})
+        .with_on_draw_fg([collapsed](RectangleType rect) {
+            afterhours::polyline::draw_chevron_in_rect(
+                {rect.x + 5.f, rect.y + 11.f, 6.f, 6.f},
+                collapsed ? afterhours::polyline::ChevronDirection::Right
+                          : afterhours::polyline::ChevronDirection::Down,
+                1.f, theme::TEXT_SECONDARY);
+        })
         .with_debug_name("tree_disclosure"));
-    auto arrow = div(ctx, mk(disclosure.ent(), 0), ComponentConfig{}
-        .with_size(ComponentSize{pixels(5), pixels(5)}).with_absolute_position(5.f, 10.f)
-        .with_border_bottom(theme::TEXT_SECONDARY, pixels(1))
-        .with_border_right(theme::TEXT_SECONDARY, pixels(1)).with_roundness(0.f));
-    arrow.ent().addComponentIfMissing<HasUIModifiers>().rotation = collapsed ? -45.f : 45.f;
     auto icon = div(ctx, mk(row.ent(), 1), ComponentConfig{}
         .with_size(ComponentSize{pixels(16), pixels(16)}).with_debug_name("tree_folder_icon"));
     div(ctx, mk(icon.ent(), 0), ComponentConfig{}

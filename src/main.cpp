@@ -20,7 +20,7 @@
 #ifdef __APPLE__
 #include <mach/mach.h>
 extern "C" void metal_activate_app(void);
-extern "C" void metal_draw_first_frame_early(void);
+extern "C" void fh_install_startup_draw_timer(void);
 extern "C" void metal_defer_window_presentation(void);
 extern "C" void metal_enable_hidden_test(void);
 extern "C" void metal_present_ready_frame(void);
@@ -613,7 +613,6 @@ static void app_init() {
             }
             sm.register_update_system(std::make_unique<HandleMakeTestRepo>());
             sm.register_update_system(std::make_unique<HandleSaveWindowState>());
-            sm.register_update_system(std::make_unique<HandleHeldKey>());
             sm.register_update_system(std::make_unique<HandleShowToast>());
             sm.register_update_system(std::make_unique<HandleNativeMenuAction>());
             sm.register_update_system(std::make_unique<HandleReviewRoundtrip>());
@@ -1837,7 +1836,7 @@ int main(int argc, char* argv[]) {
 
     if (app_state::testModeEnabled && std::getenv("FH_TEST_NATIVE_HIDDEN")) metal_enable_hidden_test();
     metal_defer_window_presentation();
-    metal_draw_first_frame_early();
+    fh_install_startup_draw_timer();
     afterhours::graphics::run(cfg);
 
     return 0;

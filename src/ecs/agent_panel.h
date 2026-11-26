@@ -12,7 +12,7 @@
 #include <sstream>
 
 #include "../settings.h"
-#include "../ui/text_area.h"
+#include <afterhours/src/plugins/ui/text_input/text_area.h>
 #include "../ui/zoom.h"
 #include "ui_imports.h"
 
@@ -516,7 +516,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         }
         usedH += 30.f;
         if (agent.showMcpEditor) {
-            ui::text_area(ctx, mk(panel.ent(), 24), agent.mcpDraft,
+            afterhours::text_input::text_area(ctx, mk(panel.ent(), 24), agent.mcpDraft,
                 ComponentConfig{}
                     .with_size(ComponentSize{pixels(innerW), pixels(84)})
                     .with_custom_background(theme::INPUT_BG)
@@ -524,6 +524,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                     .with_corner_radius(4.f)
                     .with_font("mono", pixels(11))
                     .with_line_height(pixels(15.f))
+                    .with_placeholder("[{\"name\": \"server\", \"command\": \"...\"}]")
                     .with_debug_name("agent_mcp_input"));
             if (button(ctx, mk(panel.ent(), 25), preset::Button("Save MCP servers")
                     .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
@@ -617,13 +618,14 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
     // Prompt box.
     constexpr float kPromptH = 56.f;
     const bool prompting = agent.phase() == acp::Phase::Prompting;
-    auto promptArea = ui::text_area(ctx, mk(panel.ent(), 40), agent.promptText,
+    auto promptArea = afterhours::text_input::text_area(ctx, mk(panel.ent(), 40), agent.promptText,
         ComponentConfig{}
             .with_size(ComponentSize{pixels(innerW), pixels(kPromptH)})
             .with_custom_background(theme::INPUT_BG)
             .with_border(theme::BORDER, pixels(1.f))
             .with_corner_radius(4.f)
             .with_line_height(pixels(17.f))
+            .with_placeholder("Ask the agent to change, explain, or review code…")
             .with_font_size(pixels(13))
             .with_submit_on_enter()
             .with_debug_name("agent_prompt_input"));

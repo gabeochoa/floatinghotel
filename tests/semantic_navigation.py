@@ -42,18 +42,18 @@ for command in [('init', '-q', '-b', 'main'), ('config', 'user.name', 'Semantic 
 commit = git('rev-parse', 'HEAD')
 
 def caret_on_add():
-    return ('hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "a.cpp"\n'
+    return ('hold_key SUPER\nkey P\nrelease_key SUPER\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "a.cpp"\n'
             'wait_frames 3\nwait_for_refresh\nkey ENTER\nwait_for_refresh\nwait_frames 10\n'
             'key CTRL+G\nwait_frames 4\nclick_ui line_picker_input\nkey CMD+A\ntype "4"\nkey ENTER\nwait_frames 10\n')
 
 script = 'resize 1400 900\nwait_for_refresh\nwait_frames 10\n' + caret_on_add()
 script += 'reading_probe definition source math.h - 120\nkey F12\nreading_checkpoint\nscreenshot definition\n'
 script += 'key ALT+LEFT\nwait_for_refresh\nwait_frames 10\n'
-script += caret_on_add() + 'hold_key 340\nkey F12\nrelease_key 340\nwait_frames 200\nexpect_text "3 references of add"\nscreenshot references\n'
+script += caret_on_add() + 'hold_key LEFT_SHIFT\nkey F12\nrelease_key LEFT_SHIFT\nwait_frames 200\nexpect_text "3 references of add"\nscreenshot references\n'
 script += 'click_ui repo_search_close\nwait_frames 3\n' + caret_on_add()
-script += 'hold_key 342\nhold_key 340\nkey H\nrelease_key 340\nrelease_key 342\nwait_frames 200\nexpect_text "2 callers of add"\nscreenshot callers\n'
+script += 'hold_key LEFT_ALT\nhold_key LEFT_SHIFT\nkey H\nrelease_key LEFT_SHIFT\nrelease_key LEFT_ALT\nwait_frames 200\nexpect_text "2 callers of add"\nscreenshot callers\n'
 script += 'click_ui repo_search_close\nwait_frames 3\n' + caret_on_add()
-script += 'hold_key 342\nkey F12\nrelease_key 342\nwait_frames 200\nexpect_text "inline int add(int a, int b)"\nscreenshot hover\n'
+script += 'hold_key LEFT_ALT\nkey F12\nrelease_key LEFT_ALT\nwait_frames 200\nexpect_text "inline int add(int a, int b)"\nscreenshot hover\n'
 (out / 'journey.e2e').write_text(script)
 with (out / 'run.log').open('w') as log:
     result = subprocess.run([str(args.binary), str(repo), '--test-mode', '--headless', f'--test-script={out / "journey.e2e"}',
@@ -68,7 +68,7 @@ print(f'PASS F12 opened math.h:120 in {probe["ready_ms"]:.0f} ms; references, ca
 # installed says which server it needs.
 (repo / 'lib.rs').write_text('fn main() {}\n')
 script = ('resize 1400 900\nwait_for_refresh\nwait_frames 10\n'
-          'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "lib.rs"\n'
+          'hold_key SUPER\nkey P\nrelease_key SUPER\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\ntype "lib.rs"\n'
           'wait_frames 3\nwait_for_refresh\nkey ENTER\nwait_for_refresh\nwait_frames 10\nkey CTRL+G\nwait_frames 4\n'
           'click_ui line_picker_input\nkey CMD+A\ntype "1"\nkey ENTER\nwait_frames 10\nkey F12\nwait_frames 10\n')
 script += ('expect_text "Rust navigation needs rust-analyzer"\nscreenshot missing_server\n' if not shutil.which('rust-analyzer') else '')

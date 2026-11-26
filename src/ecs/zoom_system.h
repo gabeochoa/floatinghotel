@@ -20,15 +20,12 @@ struct ZoomSystem : afterhours::System<> {
         const float pinch = afterhours::input::get_pinch_delta();
         if (pinch != 0.0f) ui::zoom::scale_by(1.0f + pinch);
 
-        // fontstash caches glyphs per 0.1 px of size in one fixed atlas that
-        // afterhours never empties, so a pinch (a new size every frame) filled
-        // it and every glyph after that was dropped for good. Old-zoom glyphs
-        // are dead weight once the zoom moves; drop them here, before this
-        // frame measures or draws, since the reset recreates the atlas image.
+        // The engine now expands the font atlas when new glyph sizes fill it.
+        // Once it has grown for a pinch through many transient sizes, shrink
+        // it at this frame boundary, before anything measures or draws.
         const float zoom = ui::zoom::get();
         if (lastZoom != 0.0f && zoom != lastZoom)
-            fonsResetAtlas(afterhours::graphics::metal_detail::g_fons_ctx,
-                           AFTERHOURS_FONT_ATLAS_SIZE, AFTERHOURS_FONT_ATLAS_SIZE);
+            afterhours::shrink_font_atlas();
         lastZoom = zoom;
 
         // afterhours::input, not graphics: only the former consults the e2e

@@ -29,8 +29,8 @@
 #include "../ui/file_history.h"
 #include "../ui/review_snapshot.h"
 #include "../ui/diff_metrics.h"
-#include "../ui/virtual_list.h"
-#include "../ui/text_area.h"
+#include <afterhours/src/plugins/ui/imm_virtual_list.h>
+#include <afterhours/src/plugins/ui/text_input/text_area.h>
 #include "../ui/zoom.h"
 #include "../ui/file_tree_style.h"
 #include "../ui/chrome_icons.h"
@@ -343,7 +343,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             const float fixedControlsH =
                 (showGit && !reviewingDoc && layout.fileViewMode != LayoutComponent::FileViewMode::All
                      ? 38.f : 0.f) +
-                (renderCommitArea ? (58.0f + COMMIT_INPUT_H) : 0.f) +
+                (renderCommitArea ? (39.0f + COMMIT_INPUT_H) : 0.f) +
                 28.f +
                 (showProgress ? 60.f : 0.f);
             const float bodyH = std::max(viewportH, fixedControlsH + 20.f);
@@ -377,7 +377,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             // === Commit area: rendered at the BOTTOM of the Changes pane
             // (below the file list), only in Changes mode. Height is still
             // reserved here so the file list math is unchanged. ===
-            const float COMMIT_AREA_H = 58.0f + COMMIT_INPUT_H;
+            const float COMMIT_AREA_H = 39.0f + COMMIT_INPUT_H;
             float commitAreaH = 0.0f;
             if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes && repoPtr &&
                 !treeClean && !reviewingDoc &&
@@ -475,7 +475,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 repoPtr && active_file_count(*repoPtr) > 0;
             const float fileRowPx = 28.f;
             auto filesBg = windowedFiles
-                ? ui::virtual_list(
+                ? afterhours::ui::imm::virtual_list(
                       ctx, fileList, active_file_count(*repoPtr),
                       fileRowPx,
                       [&](size_t i, Entity& row) {
@@ -634,7 +634,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         }
         const auto historyMove = repoPtr && !historyCollapsed ? history_keys(ctx, *repoPtr, layout, logList) : std::nullopt;
         auto logScroll = windowedLog
-            ? ui::virtual_list(
+            ? afterhours::ui::imm::virtual_list(
                   ctx, logList, logRows + (logHasMore ? 1 : 0),
                   [&](size_t i) { return i < logRows ? commitRowPx : lazyRowPx; },
                   [&](size_t i, Entity& row) {
@@ -1020,7 +1020,7 @@ private:
         }
         std::optional<std::string> selectedPath;
         ui::reveal_tree_row(ctx, fileList, treeState, commitTreeRows_);
-        ui::virtual_list(ctx, fileList, commitTreeRows_.size(), 28.f,
+        afterhours::ui::imm::virtual_list(ctx, fileList, commitTreeRows_.size(), 28.f,
             [&](size_t index, Entity& wrapper) {
                 const auto& node = commitTreeRows_[index];
                 if (node.directory) {
@@ -1560,27 +1560,12 @@ private:
                 .with_roundness(0.0f)
                 .with_debug_name("commit_area"));
 
-        // Commit message hint (shows branch name). Stays a label above the
-        // field rather than the field's own placeholder: with_placeholder is
-        // read by text_field only, and text_area ignores it without a word.
-        {
-            std::string branch = repo.currentBranch.empty() ? "main" : repo.currentBranch;
-            std::string hint = "Message (on \"" + branch + "\")";
-            div(ctx, mk(commitArea.ent(), 0),
-                ComponentConfig{}
-                    .with_label(hint)
-                    .with_size(ComponentSize{childW, pixels(16)})
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
-                    .with_font_size(pixels(12))
-                    .with_alignment(TextAlignment::Left)
-                    .with_roundness(0.0f)
-                    .with_debug_name("commit_hint"));
-        }
+        const std::string branch = repo.currentBranch.empty() ? "main" : repo.currentBranch;
 
         // Multi-line message: Enter commits (submit_on_enter), Shift+Enter adds
         // a body line. The whole string is the commit message — build_message
         // passes a multi-line subject through as subject + body.
-        auto inputResult = ui::text_area(
+        auto inputResult = afterhours::text_input::text_area(
             ctx, mk(commitArea.ent(), 1),
             editor.subject,
             ComponentConfig{}
@@ -1589,6 +1574,7 @@ private:
                 .with_border(theme::BORDER, pixels(1.0f))
                 .with_corner_radius(4.0f)
                 .with_line_height(pixels(18.0f))
+                .with_placeholder("Message (on \"" + branch + "\")")
                 .with_submit_on_enter()
                 .with_debug_name("commit_msg_input"));
 
@@ -3117,8 +3103,6 @@ private:
         if (!dialogOpen) editor.dismiss_policy();
 
         if (!modalResult) return;
-        modalResult.cmp().absolute_pos_x = (ctx.screen_width - width * zoom) * 0.5f;
-        modalResult.cmp().absolute_pos_y = (ctx.screen_height - height * zoom) * 0.5f;
 
         auto& modalEnt = modalResult.ent();
 

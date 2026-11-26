@@ -341,11 +341,10 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     bool popupOpen = detailsExpanded;
     auto popup = afterhours::modal::detail::modal_impl(ctx, ui::dialog_parent(593021), popupOpen,
         afterhours::ModalConfig{}.with_size(pixels(popupWidth), pixels(popupHeight)).with_title("Commit details").with_backdrop_color({0, 0, 0, 0}));
-    popup.ent().get<afterhours::modal::Modal>().previously_focused_element = -1;
+    popup.ent().get<afterhours::modal::Modal>().previously_focused_element =
+        afterhours::EntityHandle::invalid();
     if (popup) {
         ui::dialog_backdrop(ctx, 593021);
-        popup.cmp().absolute_pos_x = (ctx.screen_width - popupWidth * ui::zoom::get()) * .5f;
-        popup.cmp().absolute_pos_y = (ctx.screen_height - popupHeight * ui::zoom::get()) * .5f;
     }
     if (popupOpen != detailsExpanded) { navigation::toggle_commit_details(repo); detailsExpanded = popupOpen; }
     detailCache.messageVisibleRows = 0;

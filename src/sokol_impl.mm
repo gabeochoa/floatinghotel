@@ -35,95 +35,8 @@
 #import <AppKit/AppKit.h>
 #include <optional>
 #include <utility>
-#include "platform/resize_draw_policy.h"
-
-static std::optional<std::pair<int, int>> pending_window_size;
-
-extern "C" bool metal_window_resize_pending(void) {
-    return pending_window_size.has_value();
-}
-
-extern "C" void metal_set_window_size(int width, int height) {
-    if (width <= 0 || height <= 0) return;
-    const bool scheduled = pending_window_size.has_value();
-    pending_window_size = {width, height};
-    if (scheduled) return;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        const auto [targetWidth, targetHeight] = *pending_window_size;
-        NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
-        if (!window) {
-            pending_window_size.reset();
-            NSLog(@"metal_set_window_size: no window available");
-            return;
-        }
-
-        // Get the current frame and compute the new one.
-        // Keep the top-left corner anchored (macOS uses bottom-left origin).
-        NSRect frame = [window frame];
-        CGFloat titleBarHeight = frame.size.height - [[window contentView] frame].size.height;
-        CGFloat newHeight = (CGFloat)targetHeight + titleBarHeight;
-        CGFloat newWidth = (CGFloat)targetWidth;
-
-        // Dark window background so any area exposed during a resize doesn't
-        // flash white before the app redraws it.
-        window.backgroundColor = [NSColor colorWithSRGBRed:0.1176
-                                                     green:0.1176
-                                                      blue:0.1176
-                                                     alpha:1.0];
-
-        // CRITICAL: pin the Metal view's layer to the top-left corner (no scale)
-        // for this resize. Sokol renders into an MTKView whose layerContentsPlacement
-        // defaults to a *scaling* value, so on a programmatic setFrame AppKit
-        // stretches the last-drawn frame (sidebar included) to fill the new bounds
-        // until the next frame is drawn — that's the sidebar "moving/resizing".
-        // Anchoring top-left keeps the old frame 1:1 where the sidebar lives; the
-        // newly exposed strip just shows the dark bg until the next redraw.
-        // (Same workaround sokol applies for user drags; see sokol #700/#727.)
-        NSView* contentView = [window contentView];
-        if (contentView.layer) {
-            contentView.layerContentsPlacement = NSViewLayerContentsPlacementTopLeft;
-        }
-
-        // Anchor top-left: adjust origin.y so the top edge stays put.
-        // Instant (animate:NO): the animated variant desyncs from the Metal
-        // drawable, causing a white flash on grow and content-snap on shrink.
-        CGFloat deltaH = newHeight - frame.size.height;
-        NSRect newFrame = NSMakeRect(frame.origin.x, frame.origin.y - deltaH,
-                                     newWidth, newHeight);
-        [window setFrame:newFrame display:NO animate:NO];
-        pending_window_size.reset();
-        [contentView setNeedsDisplay:YES];
-    });
-}
 
 #import <objc/runtime.h>
-
-static void (*window_did_resize)(id, SEL, NSNotification*);
-static bool drawing_for_resize = false;
-
-static void resize_and_draw(id delegate, SEL selector, NSNotification* notification) {
-    window_did_resize(delegate, selector, notification);
-    NSWindow* window = (__bridge NSWindow*)sapp_macos_get_window();
-    MTKView* view = (MTKView*)window.contentView;
-    window.backgroundColor = [NSColor colorWithSRGBRed:0.0824 green:0.0902 blue:0.1059 alpha:1.0];
-    view.layer.backgroundColor = window.backgroundColor.CGColor;
-    if (!_sapp.valid || _sapp.first_frame || pending_window_size) return;
-    // Never let the resize path wait on a frame: at most one synchronous
-    // draw per 120 Hz frame, skipped (not queued) while one is in flight.
-    // The audit behind this: every frame-path future poll is wait_for(0)
-    // and every synchronous git call runs on a worker, so a skipped draw
-    // is the only back-pressure the resize loop needs.
-    static double last_resize_draw_end = 0;
-    const double start = CACurrentMediaTime();
-    if (!resize_draw::should_draw(start, last_resize_draw_end, drawing_for_resize)) return;
-    drawing_for_resize = true;
-    [view draw];
-    drawing_for_resize = false;
-    last_resize_draw_end = CACurrentMediaTime();
-    if (std::getenv("FH_RESIZE_TIMING"))
-        fprintf(stdout, "[INFO] RESIZE frame=%dx%d elapsed_ms=%.3f\n", sapp_width(), sapp_height(),
-            (last_resize_draw_end - start) * 1000.0);
-}
 
 static bool startup_presented = false;
 static bool hidden_native_test = false;
@@ -181,9 +94,6 @@ extern "C" void metal_defer_window_presentation(void) {
     [NSApp setActivationPolicy:NSApplicationActivationPolicyProhibited];
     if (std::getenv("FH_NAVIGATION_TIMING"))
         fprintf(stdout, "[INFO] NAV application_class=%s\n", class_getName([NSApp class]));
-    Method resize = class_getInstanceMethod([_sapp_macos_window_delegate class], @selector(windowDidResize:));
-    window_did_resize = reinterpret_cast<decltype(window_did_resize)>(method_getImplementation(resize));
-    method_setImplementation(resize, reinterpret_cast<IMP>(resize_and_draw));
     Class windowClass = [_sapp_macos_window class];
     Method order = class_getInstanceMethod(windowClass, @selector(orderWindow:relativeTo:));
     startup_order_window = reinterpret_cast<decltype(startup_order_window)>(method_getImplementation(order));
@@ -428,12 +338,13 @@ extern "C" void metal_headless_frame(void (*fn)(void)) {
     }
 }
 
-// sokol_app only runs init_cb (and so the first frame) when MTKView's display
-// link delivers its first drawRect, 65-160ms after the window is up on a loaded
-// machine. Draw once ourselves as soon as sokol's applicationDidFinishLaunching
-// has built the window. Registering the DidFinishLaunching observer from inside
+// Afterhours now draws the first frame itself from
+// applicationDidFinishLaunching. FloatingHotel still needs this timer because
+// its startup gate keeps the window unordered until the initial repository
+// refresh settles; without repeated hidden draws, those startup frames do not
+// run. Registering the DidFinishLaunching observer from inside
 // WillFinishLaunching puts it after sokol's delegate in the notification order.
-extern "C" void metal_draw_first_frame_early(void) {
+extern "C" void fh_install_startup_draw_timer(void) {
     NSNotificationCenter* nc = [NSNotificationCenter defaultCenter];
     __block id will = nil;
     will = [nc addObserverForName:NSApplicationWillFinishLaunchingNotification

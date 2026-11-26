@@ -81,7 +81,7 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     shutil.copy(settings / 'settings.json', directory / 'saved-settings.json')
     (repo / 'a.cpp').write_text(''.join(f'int working_a_{i} = {i};\n' for i in range(1200)))
     script = 'reading_probe cold source b.cpp -\nkey F12\nwait_for_refresh\nwait_frames 12\nreading_checkpoint\nworkspace_checkpoint 5 cold\nscreenshot cold\n'
-    script += 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\nkey BACKSPACE\nwait_frames 8\nscreenshot restored_recent\nkey ESCAPE\n'
+    script += 'hold_key SUPER\nkey P\nrelease_key SUPER\nwait_for_refresh\nclick_ui file_picker_input\nkey CMD+A\nkey BACKSPACE\nwait_frames 8\nscreenshot restored_recent\nkey ESCAPE\n'
     script += 'native_menu_action "Reset Zoom"\n' + 'native_menu_action "Zoom In"\n' * steps
     script += f'click_ui open_tabs_menu\nwait_frames 3\nclick_ui "context_menu_item_a.cpp · {original[:7]}"\nwait_for_refresh\nwait_frames 12\nscreenshot restored_a\nworkspace_checkpoint 5 restored_a\n'
     script += 'click_ui open_tabs_menu\nwait_frames 3\nclick_ui "context_menu_item_Original sources"\nwait_for_refresh\nwait_frames 12\nscreenshot restored_review\nworkspace_checkpoint 5 restored_review\nbench_frames 120\nexpect_p99_below 20\n'

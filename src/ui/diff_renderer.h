@@ -29,7 +29,7 @@
 #include "hunk_scope.h"
 #include "reading_position.h"
 #include "zoom.h"
-#include "text_area.h"
+#include <afterhours/src/plugins/ui/text_input/text_area.h>
 #include "chrome_icons.h"
 #include "file_tree_style.h"
 #include "../util/review_selection.h"
@@ -1819,7 +1819,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         float addWidth = static_cast<float>(afterhours::graphics::measure_text(addLabel.c_str(),
             static_cast<int>(12.f * zoom::get()))) / zoom::get() + 24.f;
         auto previousDraft = sel->review->composerDraft.text;
-        auto input = ui::text_area(
+        auto input = afterhours::text_input::text_area(
             ctx, mk(composeRow.ent(), 0), sel->review->composerDraft.text,
             ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 134.f)), pixels(editorH)})

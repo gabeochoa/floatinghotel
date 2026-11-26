@@ -19,9 +19,9 @@ click_text "Iteration 51: update app logic"
 wait_frames 8
 validate selected_commit_count=1
 
-hold_key 340
+hold_key LEFT_SHIFT
 click_text "Iteration 53: update app logic"
-release_key 340
+release_key LEFT_SHIFT
 wait_frames 8
 validate selected_commit_count=3
 screenshot history_range_selected

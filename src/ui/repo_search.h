@@ -7,7 +7,7 @@
 #include "tooltip.h"
 #include "token_cache.h"
 #include "focus.h"
-#include "virtual_list.h"
+#include <afterhours/src/plugins/ui/imm_virtual_list.h>
 #include "chrome_icons.h"
 #include "../util/code_wrap.h"
 
@@ -398,7 +398,7 @@ inline void render_repo_search(UIContext<InputAction>& ctx, Entity& parent,
         scroll.anchor_child = -1;
         repo.repoSearchScroll = scroll.scroll_offset.y / ui::zoom::get();
     }
-    ui::virtual_list(ctx, listParent, repo.repoSearchRows.size(),
+    afterhours::ui::imm::virtual_list(ctx, listParent, repo.repoSearchRows.size(),
         [&](size_t rowIndex) {
             const auto& row = repo.repoSearchRows[rowIndex];
             if (!row.match || repo.repoSearchExpanded != row.match) return 32.f;

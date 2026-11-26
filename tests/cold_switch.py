@@ -33,7 +33,7 @@ script.write_text(
     "wait_for_refresh\n"
     "wait 3\n"  # let the restored-tab warmer finish loading alpha
     "perf_mark before_switch\n"
-    "hold_key 343\nkey 1\nrelease_key 343\n"
+    "hold_key SUPER\nkey 1\nrelease_key SUPER\n"
     "wait_frames 3\n"
     "perf_mark after_switch\n"
     "screenshot switched\n"

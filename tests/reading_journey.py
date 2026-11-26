@@ -50,7 +50,7 @@ def quick_open(path, *, working=False, keep=True, settle=0):
     scope = 'click_ui file_picker_working_scope\nwait_for_refresh\n' if working else ''
     action = 'key ENTER' if keep else 'click_ui file_picker_result'
     tail = f'wait_frames {settle}\n' if settle else ''
-    return (f'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\n'
+    return (f'hold_key SUPER\nkey P\nrelease_key SUPER\nwait_for_refresh\n{scope}click_ui file_picker_input\nkey CMD+A\n'
             f'type "{path}"\nwait_frames 3\nwait_for_refresh\n{action}\nwait_for_refresh\n{tail}')
 
 
@@ -78,7 +78,7 @@ def script(head, zoom):
                   "key CMD+A", 'type "12"', "key ENTER", "wait_frames 8", "hover_ui commit_detail_scroll",
                   "scroll_wheel 0 20000", "wait_frames 8"]
         step("source", "source", "alpha.cpp", head, "click_ui open_full_file")
-        setup += ["hold_key 343", "key P", "release_key 343", f"screenshot {temperature}_picker", "click_ui file_picker_working_scope", "wait_for_refresh", "click_ui file_picker_input",
+        setup += ["hold_key SUPER", "key P", "release_key SUPER", f"screenshot {temperature}_picker", "click_ui file_picker_working_scope", "wait_for_refresh", "click_ui file_picker_input",
                   "key CMD+A", "type beta.cpp", f"screenshot {temperature}_query"]
         step("second", "source", "beta.cpp", "-", "key ENTER")
         step("back", "source", "alpha.cpp", head, "key ALT+LEFT")

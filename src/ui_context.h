@@ -39,9 +39,8 @@ inline afterhours::Entity& getUIRootEntity() {
     return root.asE();
 }
 
-struct ClearPendingUIDraws : afterhours::System<UIContextType> {
-    void for_each_with(afterhours::Entity&, UIContextType& context, float) override {
-        context.render_cmds.clear();
+struct ResetReadingLoadFrame : afterhours::System<UIContextType> {
+    void for_each_with(afterhours::Entity&, UIContextType&, float) override {
         reading_load::frame = {};
     }
 };
@@ -67,51 +66,10 @@ struct ReserveContextMenuInput : afterhours::System<UIContextType> {
 
 inline void registerUIPreLayoutSystems(
     afterhours::SystemManager& manager) {
-    manager.register_update_system(std::make_unique<ClearPendingUIDraws>());
+    manager.register_update_system(std::make_unique<ResetReadingLoadFrame>());
     afterhours::ui::register_before_ui_updates<InputAction>(manager);
     manager.register_update_system(std::make_unique<ReserveContextMenuInput>());
 }
-
-struct HandleVisibleScrollInput : afterhours::ui::HandleScrollInput<InputAction> {
-    void for_each_with(afterhours::Entity& entity, afterhours::ui::UIComponent& cmp,
-                       afterhours::ui::HasScrollView& scroll, float dt) override {
-        using namespace afterhours;
-        using namespace afterhours::ui;
-        if (!cmp.was_rendered_to_screen || cmp.should_hide || entity.has<ShouldHide>()) return;
-        scroll.viewport_size = {cmp.computed[Axis::X], cmp.computed[Axis::Y]};
-        if (!context->is_input_allowed(entity.id)) {
-            scroll.scroll_target = scroll.last_eased_offset = scroll.scroll_offset;
-            return;
-        }
-        scroll.ease_scroll(dt);
-        if (scroll.auto_overflow && !(scroll.vertical_enabled && scroll.needs_scroll_y()) &&
-            !(scroll.horizontal_enabled && scroll.needs_scroll_x())) {
-            scroll.scroll_offset = scroll.scroll_target = {0, 0};
-            return;
-        }
-        const auto rect = afterhours::ui::detail::apply_ancestor_transform(entity, cmp.rect());
-        const auto [clipped, clip] = afterhours::ui::detail::compute_intersected_clip_rect(entity);
-        if (rect.width <= 0 || rect.height <= 0 || !is_mouse_inside(context->mouse.pos, rect) ||
-            (clipped && !is_mouse_inside(context->mouse.pos, clip))) return;
-        if (::ui::is_context_menu_open()) return;
-        const auto wheel = input::get_mouse_wheel_move_v();
-        const float direction = scroll.invert_scroll ? 1.f : -1.f;
-        if (scroll.vertical_enabled) scroll.scroll_target.y += direction * wheel.y * scroll.scroll_speed;
-        if (scroll.horizontal_enabled) scroll.scroll_target.x += direction * wheel.x * scroll.scroll_speed;
-        scroll.clamp_scroll();
-    }
-};
-
-struct HandleAllowedScrollbarDrag : afterhours::ui::HandleScrollbarDrag<InputAction> {
-    void for_each_with(afterhours::Entity& entity, afterhours::ui::UIComponent& component,
-            afterhours::ui::HasScrollView& scroll, float dt) override {
-        if (context && !context->is_input_allowed(entity.id)) {
-            scroll.dragging_scrollbar = false;
-            return;
-        }
-        afterhours::ui::HandleScrollbarDrag<InputAction>::for_each_with(entity, component, scroll, dt);
-    }
-};
 
 struct TimedAutoLayout : afterhours::ui::RunAutoLayout {
     void for_each_with(afterhours::Entity& entity, afterhours::ui::AutoLayoutRoot& root,
@@ -145,10 +103,6 @@ inline void registerUIPostLayoutSystems(
         for (auto& child : bridge->systems)
             if (dynamic_cast<afterhours::ui::RunAutoLayout*>(child.get()))
                 child = std::make_unique<TimedAutoLayout>();
-            else if (dynamic_cast<afterhours::ui::HandleScrollInput<InputAction>*>(child.get()))
-                child = std::make_unique<HandleVisibleScrollInput>();
-            else if (dynamic_cast<afterhours::ui::HandleScrollbarDrag<InputAction>*>(child.get()))
-                child = std::make_unique<HandleAllowedScrollbarDrag>();
     }
 }
 

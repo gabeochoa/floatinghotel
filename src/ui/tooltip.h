@@ -20,31 +20,6 @@ inline void set_truncated_tooltip(afterhours::Entity& entity, const std::string&
     entity.addComponentIfMissing<TruncatedTooltip>().labels = {label.id};
 }
 
-inline bool tooltip_label_truncated(afterhours::Entity& entity,
-                                    afterhours::ui::FontManager& fonts,
-                                    const afterhours::ui::Theme& theme, float screenHeight) {
-    using namespace afterhours;
-    using namespace afterhours::ui;
-    if (!entity.has<UIComponent>() || !entity.has<HasLabel>()) return false;
-    const auto& component = entity.get<UIComponent>();
-    const auto& label = entity.get<HasLabel>();
-    if (component.should_hide || entity.has<ShouldHide>() || label.label.empty()) return false;
-    const auto rect = component.rect();
-    if (rect.width <= 0.f || rect.height <= 0.f) return false;
-    const auto previousFont = fonts.active_font;
-    if (component.font_name != UIComponent::UNSET_FONT)
-        fonts.set_active(fonts.resolve_weighted(component.font_name, component.font_weight));
-    const auto inset = resolve_text_inset(theme, label.text_inset);
-    const float size = component.font_size_explicitly_set
-        ? resolve_to_pixels(component.font_size, screenHeight, component.resolved_scaling_mode, theme.ui_scale) : 0.f;
-    const auto position = position_text_ex(fonts, label.label.c_str(), rect, label.alignment,
-        inset, size, label.letter_spacing, label.text_overflow, false);
-    const float width = measure_text(fonts.get_active_font(), label.label.c_str(),
-        position.rect.height, 1.f + label.letter_spacing).x;
-    fonts.set_active(previousFont);
-    return position.rect.height >= 1.f && width > std::max(0.f, rect.width - 2.f * inset.x);
-}
-
 template <class InputAction>
 struct FilterTruncatedTooltips : afterhours::System<afterhours::ui::UIContext<InputAction>> {
     void for_each_with(afterhours::Entity&, afterhours::ui::UIContext<InputAction>& context, float) override {
@@ -53,10 +28,10 @@ struct FilterTruncatedTooltips : afterhours::System<afterhours::ui::UIContext<In
         if (!state || !state->is_showing()) return;
         auto owner = afterhours::ui::UICollectionHolder::getEntityForID(state->showing);
         if (!owner.valid() || !owner->has<TruncatedTooltip>()) return;
-        auto* fonts = EntityHelper::get_singleton_cmp<afterhours::ui::FontManager>();
-        if (fonts) for (auto id : owner->get<TruncatedTooltip>().labels) {
+        for (auto id : owner->get<TruncatedTooltip>().labels) {
             auto label = afterhours::ui::UICollectionHolder::getEntityForID(id);
-            if (label.valid() && tooltip_label_truncated(label.asE(), *fonts, context.theme, context.screen_height)) return;
+            if (label.valid() && label->has<afterhours::ui::HasLabel>() &&
+                label->get<afterhours::ui::HasLabel>().truncated) return;
         }
         state->showing = -1;
         state->text.clear();

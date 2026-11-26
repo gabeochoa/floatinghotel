@@ -132,12 +132,8 @@ inline std::vector<reading::focus::Popup> stored_popups(const ecs::RepoComponent
 }
 
 inline void focus_control(UIContext<InputAction>& ctx, Entity& entity) {
-    if (text_control(entity) && entity.has<afterhours::ui::UIComponent>()) {
-        for (const auto id : entity.get<afterhours::ui::UIComponent>().children) {
-            auto child = afterhours::ui::UICollectionHolder::getEntityForID(id);
-            if (child.valid() && child->has<HasClickListener>()) { ctx.set_focus(id); return; }
-        }
-    }
+    // Text controls expose a FocusProxy, and set_focus resolves it to the
+    // concrete field in the same frame the wrapper is built.
     ctx.set_focus(entity.id);
 }
 

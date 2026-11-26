@@ -50,7 +50,7 @@ for zoom in args.zooms:
         setup += 'native_menu_action "Zoom In"\n' * ((zoom - 100) // 10)
         setup += 'click_ui review_unstaged_changes\nwait_for_refresh\nclick_ui jump_to_diff:a.cpp\n'
         if mode == 'source':
-            setup += 'hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\nclick_ui file_picker_input\ntype "a.cpp:3:1"\nkey ENTER\n'
+            setup += 'hold_key SUPER\nkey P\nrelease_key SUPER\nwait_for_refresh\nclick_ui file_picker_input\ntype "a.cpp:3:1"\nkey ENTER\n'
         else:
             if mode == 'split':
                 setup += 'click_text "Split"\n'
@@ -106,7 +106,7 @@ for zoom in args.zooms:
                 assert highlight['rect']['x'] >= parent['rect']['x']
                 assert highlight['rect']['x'] + highlight['rect']['width'] <= parent['rect']['x'] + parent['rect']['width'] + 1
             label = f'shift_{side}'
-            replay(label, setup + f'drag_to {x1} {y1} {x1} {y1}\nhold_key 340\ndrag_to {x2} {y2} {x2} {y2}\nrelease_key 340\n'
+            replay(label, setup + f'drag_to {x1} {y1} {x1} {y1}\nhold_key LEFT_SHIFT\ndrag_to {x2} {y2} {x2} {y2}\nrelease_key LEFT_SHIFT\n'
                 + capture(label, count) + 'hover_ui diff_scroll\nscroll_wheel -10 0\n' + capture(f'horizontal_{side}', count) + 'bench_frames 120\nexpect_p99_below 20\n')
             assert layout(label)['selection_text'] == expected_line.encode()[:second['offset']].decode(), (zoom, mode, side)
             assert layout(f'horizontal_{side}')['selection_text'] == layout(label)['selection_text']

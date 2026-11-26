@@ -26,7 +26,7 @@
 #include "../ui/zoom.h"
 #include "../ui/file_tree_style.h"
 #include "../ui/chrome_icons.h"
-#include "../ui/text_area.h"
+#include <afterhours/src/plugins/ui/text_input/text_area.h>
 #include "../ui/welcome.h"
 #include "../util/navigation.h"
 #include "../util/document_titles.h"
@@ -250,7 +250,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             }
             if (editing) {
                 auto previousEdit = review.composerDraft.text;
-                ui::text_area(ctx, mk(itemRow.ent(), 5), review.composerDraft.text,
+                afterhours::text_input::text_area(ctx, mk(itemRow.ent(), 5), review.composerDraft.text,
                     ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})
                         .with_font("mono", pixels(fontSize)).with_line_height(pixels(22.f))
                         .with_corner_radius(6.f).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
@@ -1328,7 +1328,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     const auto* symbols = ui::hunk_scope::symbols(repo, *selectedFile, diffScope);
                     if (symbols) {
                         const auto file = *selectedFile;
-                        ui::virtual_list(ctx, mk(panel.ent(), 1), symbols->size(), 24.f, [&, file](size_t i, Entity& row) {
+                        afterhours::ui::imm::virtual_list(ctx, mk(panel.ent(), 1), symbols->size(), 24.f, [&, file](size_t i, Entity& row) {
                             const auto& symbol = (*symbols)[i];
                             auto label = button(ctx, mk(row, 0), preset::Button(symbol.name)
                                 .with_size(ComponentSize{percent(1.f), pixels(24)}).with_alignment(TextAlignment::Left)
@@ -1861,7 +1861,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             const char* homeEnv = std::getenv("HOME");
             const std::string home = homeEnv ? homeEnv : "";
 
-            ui::virtual_list(ctx, mk(cardEnt, 11), recentRepos.size(), 48.f, [&](size_t index, Entity& rowHost) {
+            afterhours::ui::imm::virtual_list(ctx, mk(cardEnt, 11), recentRepos.size(), 48.f, [&](size_t index, Entity& rowHost) {
                 const int ri = static_cast<int>(index);
                 const std::string basename = ui::welcome::repo_display_name(recentRepos[ri]);
                 const bool isPinned = std::find(pinned.begin(), pinned.end(), recentRepos[ri]) != pinned.end();

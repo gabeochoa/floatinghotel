@@ -55,7 +55,7 @@ for zoom in args.zooms:
         rect = nodes[row['id']]['visible_rect']
         assert rect['height'] > 0, (zoom, line, rect)
         x, y = rect['x'] + rect['width'] * .6, rect['y'] + rect['height'] * .5
-        clicks += f'hold_key 343\ndrag_to {x} {y} {x} {y}\nrelease_key 343\nwait_frames 5\n'
+        clicks += f'hold_key SUPER\ndrag_to {x} {y} {x} {y}\nrelease_key SUPER\nwait_frames 5\n'
     script = setup + clicks + capture('disjoint')
     script += 'click_ui comment_disjoint_lines\nwait_frames 8\ntype "Review both separate changes"\n' + capture('composing')
     script += 'key ESCAPE\nwait_frames 5\nclick_ui comment_hunk_btn\n' + capture('draft_restored')

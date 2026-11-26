@@ -1,8 +1,8 @@
 resize 1280 800
 perf_mark start
-hold_key 343
+hold_key SUPER
 key P
-release_key 343
+release_key SUPER
 click_ui file_picker_input
 type "file00"
 wait_until 30 expect_text "matches"

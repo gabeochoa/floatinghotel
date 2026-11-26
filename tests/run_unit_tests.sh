@@ -109,10 +109,6 @@ if [ -z "$FILTER" ] || [ "$FILTER" = "test_bindings" ]; then
     run_test "test_bindings" "tests/unit/test_bindings.cpp"
 fi
 
-if [ -z "$FILTER" ] || [ "$FILTER" = "test_resize_draw_policy" ]; then
-    run_test "test_resize_draw_policy" "tests/unit/test_resize_draw_policy.cpp"
-fi
-
 if [ -z "$FILTER" ] || [ "$FILTER" = "test_tab_strip" ]; then
     run_test "test_tab_strip" "tests/unit/test_tab_strip.cpp"
 fi

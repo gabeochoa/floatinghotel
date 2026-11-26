@@ -14,11 +14,11 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import fixture  # noqa: E402
 
-LEFT_SUPER, LEFT_CONTROL = 343, 341
+LEFT_SUPER, LEFT_CONTROL = "SUPER", "LEFT_CONTROL"
 
 
 def quick_open(path):
-    return ('hold_key 343\nkey P\nrelease_key 343\nwait_for_refresh\n'
+    return ('hold_key SUPER\nkey P\nrelease_key SUPER\nwait_for_refresh\n'
             f'click_ui file_picker_input\nkey CMD+A\ntype "{path}"\nwait_frames 3\nwait_for_refresh\n')
 
 

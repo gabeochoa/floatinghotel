@@ -41,27 +41,27 @@ for zoom, steps in [(100, 0), (140, 4), (200, 10)]:
     directory.mkdir()
     script = 'resize 1600 1000\nwait_for_refresh\nnative_menu_action "Reset Zoom"\n'
     script += 'native_menu_action "Zoom In"\n' * steps
-    script += 'hold_key 345\nkey TAB\nrelease_key 345\nwait_frames 3\n' + capture('single')
+    script += 'hold_key RIGHT_CONTROL\nkey TAB\nrelease_key RIGHT_CONTROL\nwait_frames 3\n' + capture('single')
     for name in 'abcdefgh':
-        script += f'hold_key 343\nkey P\nrelease_key 343\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
+        script += f'hold_key SUPER\nkey P\nrelease_key SUPER\nclick_ui file_picker_input\nkey CMD+A\ntype "{name}.cpp"\nwait_frames 2\nkey ENTER\nwait_for_refresh\n'
     script += 'hover_ui diff_scroll\nscroll_wheel 0 -20\nwait_frames 20\n' + capture('before')
     script += 'key TAB\nwait_frames 3\n' + capture('plain_tab')
-    script += 'hold_key 341\nkey TAB\nwait_frames 3\n' + capture('first')
+    script += 'hold_key LEFT_CONTROL\nkey TAB\nwait_frames 3\n' + capture('first')
     script += 'key TAB\nwait_frames 3\n' + capture('second')
-    script += 'hold_key 340\nkey TAB\nrelease_key 340\nwait_frames 3\n' + capture('reverse')
-    script += 'release_key 341\nwait_for_refresh\n' + capture('committed')
-    script += 'hold_key 345\nkey TAB\nwait_frames 3\n' + capture('returning')
-    script += 'release_key 345\nwait_for_refresh\n' + capture('returned')
-    script += 'hold_key 341\nhold_key 340\nkey TAB\nwait_frames 3\n' + capture('backward')
+    script += 'hold_key LEFT_SHIFT\nkey TAB\nrelease_key LEFT_SHIFT\nwait_frames 3\n' + capture('reverse')
+    script += 'release_key LEFT_CONTROL\nwait_for_refresh\n' + capture('committed')
+    script += 'hold_key RIGHT_CONTROL\nkey TAB\nwait_frames 3\n' + capture('returning')
+    script += 'release_key RIGHT_CONTROL\nwait_for_refresh\n' + capture('returned')
+    script += 'hold_key LEFT_CONTROL\nhold_key LEFT_SHIFT\nkey TAB\nwait_frames 3\n' + capture('backward')
     script += 'key ESCAPE\nwait_frames 3\n' + capture('escaped')
-    script += 'release_key 340\nrelease_key 341\nclick_ui close_document_8\nwait_frames 3\n' + capture('closed')
-    script += 'hold_key 341\nkey TAB\nwait_frames 3\n' + capture('without_closed')
+    script += 'release_key LEFT_SHIFT\nrelease_key LEFT_CONTROL\nclick_ui close_document_8\nwait_frames 3\n' + capture('closed')
+    script += 'hold_key LEFT_CONTROL\nkey TAB\nwait_frames 3\n' + capture('without_closed')
     script += 'key W\nwait_for_refresh\n' + capture('close_while_held')
-    script += 'release_key 341\nwait_for_refresh\n' + capture('released_after_close')
-    script += 'hold_key 341\nkey TAB\nwait_frames 3\nnew_tab\nwait_frames 3\n' + capture('switch_repo')
-    script += 'release_key 341\nclose_tab\nwait_for_refresh\n' + capture('return_repo')
-    script += 'resize 950 700\nwait_frames 5\nhold_key 341\nhold_key 340\nkey TAB\nwait_frames 3\n' + capture('narrow')
-    script += 'key ESCAPE\nrelease_key 340\nrelease_key 341\nwait_frames 3\n' + capture('narrow_dismissed')
+    script += 'release_key LEFT_CONTROL\nwait_for_refresh\n' + capture('released_after_close')
+    script += 'hold_key LEFT_CONTROL\nkey TAB\nwait_frames 3\nnew_tab\nwait_frames 3\n' + capture('switch_repo')
+    script += 'release_key LEFT_CONTROL\nclose_tab\nwait_for_refresh\n' + capture('return_repo')
+    script += 'resize 950 700\nwait_frames 5\nhold_key LEFT_CONTROL\nhold_key LEFT_SHIFT\nkey TAB\nwait_frames 3\n' + capture('narrow')
+    script += 'key ESCAPE\nrelease_key LEFT_SHIFT\nrelease_key LEFT_CONTROL\nwait_frames 3\n' + capture('narrow_dismissed')
     script += 'bench_frames 120\nexpect_p99_below 20\n'
     path = directory / 'journey.e2e'
     path.write_text(script)
