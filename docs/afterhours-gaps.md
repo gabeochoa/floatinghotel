@@ -4,19 +4,81 @@ Tracking afterhours features/bugs that floatinghotel needs but are not yet imple
 
 **Policy:** Never edit `vendor/afterhours/` directly. Build workarounds in `src/ui/` and document gaps here so the afterhours maintainer can address them upstream.
 
-**Reviewed against the cf3e0f1 bump.** Several entries here were stale — the
-API had shipped and nobody came back to the doc. Anything below still marked
-OPEN was checked against that revision.
+**Reviewed against Afterhours `5383fc6c1d1710722f8d3bdc727c0e6491815765`**
+(upstream `main`, 2026-11-25), bumped from `e9d5f67` on 2026-11-26. The
+detailed sections below are the evidence log that produced many of the
+upstream fixes; this summary is the current, authoritative status.
 
-Adopted in that pass: `with_corner_radius`, `imm::divider`,
-`ctx.is_right_click` + a real context menu, `afterhours::shutdown()`,
-`ui::measure_text_line`, trackpad pinch and `Theme::ui_scale` zoom.
+Adopted with this bump, deleting the app workaround rather than keeping a
+parallel implementation: upstream macOS window sizing and live-resize drawing,
+first-frame early draw, modal centering, `EntityHandle` focus restore,
+upstream scroll-input/scrollbar gating, direct `text_area` (including its
+placeholder and Adaptive row sizing), direct `virtual_list`, pending-render
+clearing in `BeginUIContextManager`, absent-texture clearing, `FocusProxy`,
+widget-owned directional input, `shrink_font_atlas`, polyline chevrons,
+`scroll_to_entity`, public RGBA texture upload, and the built-in E2E
+`hold_key`/`release_key` commands (all scripts now use key names).
+
+Still deliberately app-owned below because the upstream shape does not yet
+match FloatingHotel's semantics: the future-based executor, FSEvents watcher,
+exact byte-accounted caches, semantic focus/tree navigation, cross-row diff
+selection, native menus, toast presentation, and the JSON layout dump. The
+specific missing flexibility is listed in **Remaining gaps after the
+`5383fc6` bump** immediately below; older “OPEN” wording later in this file is
+historical unless that summary carries it forward.
 
 Deliberately not adopted, with reasons in the entries below:
 `with_styled_label` (child divs already do it better here),
 `hsplit_pane`/`vsplit_pane` (panels are absolutely positioned, no container to
 wrap), `animation::set_instant` (the animation plugin is not registered — the
 toast plugin does not use it), `with_font_weight` (needs bold font files).
+
+## Remaining gaps after the `5383fc6` bump
+
+- **Deferred native presentation.** Upstream draws the first frame early, but
+  has no start-hidden/present-when-ready lifecycle, hidden-frame driver, or
+  activation-policy handoff. FloatingHotel still owns the AppKit swizzles and
+  a 60 Hz startup draw timer in `src/sokol_impl.mm`.
+- **Future-shaped jobs.** `jobs::Pool` delivers results only through an
+  owner-thread `drain()` callback. It has no pollable future, exception
+  channel, caller-supplied rejected value, non-cancellable jobs, or
+  shutdown-drains-accepted-work semantics. Those are load-bearing in
+  `src/util/async_task.h`, so the app executor stays.
+- **Scalable recursive file watching.** Upstream `file_watcher::Watcher` is
+  kqueue-backed and opens an FD for every directory and regular file. That is
+  not a safe replacement for one FSEvents stream over a large repository plus
+  its Git common dir. An FSEvents (or equivalent coalesced recursive) backend
+  behind the same API would let `src/platform/file_watcher.h` go.
+- **Cache accounting.** Upstream `ByteCache` costs only the value. FloatingHotel
+  also charges key capacity, index/list overhead, and evicted-but-still-referenced
+  shared rows. A cost callback receiving key+value (and an accounted-bytes hook
+  for externally retained entries) is needed before `src/util/byte_cache.h` and
+  `src/util/shared_byte_cache.h` can be deleted without weakening budgets.
+- **Virtualized tree widget.** `TreeViewConfig::render_row` landed, but
+  `tree_view` still recursively builds every expanded row and owns selection /
+  expansion internally. It has no virtual row window, external semantic focus
+  identity, keyboard/type-to-select controller, or reveal contract compatible
+  with FloatingHotel's flattened, virtualized file trees.
+- **Menu flexibility.** Framework menus now handle placement, scrolling, marks,
+  dismissal and focus return, but items have no destructive styling, per-item
+  debug names, custom row renderer, or integration with FloatingHotel's shared
+  dismissal stack. The app menu bar and context-menu renderer therefore stay.
+- **Thin-divider drag capture.** `divider()` now expands a sub-12px hit rect,
+  but replacing the commit splitter's 16px band with a true 1px divider failed
+  `tests/sidebar_splitter.py` at the top clamp: after moving the held pointer to
+  y=0, moving back to y=20 no longer moved it. Pointer capture for an active
+  divider drag needs to survive leaving the expanded hit rect (and crossing the
+  menu bar) before the app composition can be deleted.
+- **Storage-codec legacy input.** `storage::Codec` only decodes its own
+  envelope. FloatingHotel's review/settings files are versioned JSON documents
+  with identity fields and copy/relink validation; a legacy-unversioned decode
+  hook would be needed for a no-flag-day migration.
+- **Still unverified or missing upstream:** a visibility predicate distinct
+  from text existence, joined styled-span text assertions, consistent
+  `skip_grid_snap` flow extents, a safe texture-retirement policy distinct from
+  component clearing, Sokol honoring `target_fps`, color emoji, and a shared
+  dismissal stack across menus/popovers/modals. The detailed entries below keep
+  the reproductions for these.
 
 ---
 
@@ -48,19 +110,15 @@ stale, and `src/ui/tree_view.h` is not an app file.
 
 The app builds its trees in `src/ecs/sidebar_system.h`, with flattening helpers
 in `src/util/file_tree.h`. Rows contain status, path, counts, and review state.
-The framework's row renderer owns one label and recursively builds every
-expanded node. `TreeViewConfig` has no custom row callback or virtual row model.
+At `5383fc6`, `TreeViewConfig::render_row` supplies the custom row callback this
+entry originally asked for. The widget still recursively builds every expanded
+node and owns selection/expansion internally; it has no virtual row model,
+external semantic focus identity, keyboard/type-to-select controller, or reveal
+contract. Those are the remaining blockers, not row rendering.
 
-A useful extension for file browsers, scene hierarchies, and game inventories
-would accept a row callback plus stable node keys, expose the flattened visible
-rows, and reuse `virtual_list`. Selection, keyboard focus, and expansion need
-separate state. Left/Right tree traversal and type-to-select belong in that
-shared controller. App-specific review indicators stay in the row callback.
-
-Status on 2026-09-12: API availability and the missing extension points were
-verified from source. This audit did not render the upstream widget or prove
-keyboard or performance behavior. Existing app tree captures are described in
-`A hover-styled row needs to own its click target` below.
+Status on 2026-11-26: custom rows are resolved upstream. Virtualization and
+the controller/focus contract remain open, so FloatingHotel keeps its flattened
+rows over `virtual_list`.
 
 ### 4. Dropdown menu exists; app adoption remains
 
@@ -152,23 +210,8 @@ Styled labels are now used for diff paths and hunk captions. That adoption
 exposed the styled-ellipsis bug linked above. Availability of both APIs does
 not mean their combination works.
 
-<details><summary>original entry</summary>
-
-### No Rich Text / Multi-Color Text in a Single Label — OPEN
-
-**Problem:** Each `div` or `button` can only have one text color. To show a filename in white and its directory path in gray on the same row, you need two separate child `div` elements.
-
-**Workaround:** Bake status letter and filename into a single label string (e.g. `"M  README.md"`). Colored status letters are sacrificed.
-
-**Suggested fix:** Support a `StyledText` API:
-```cpp
-.with_styled_label({
-  {"M ",        theme::STATUS_MODIFIED},
-  {"theme.h ",  theme::TEXT_PRIMARY},
-  {"src/ui",    theme::TEXT_SECONDARY}
-})
-```
-</details>
+The original “no rich text” request is resolved by `with_styled_label`; only
+the per-column layout choice above remains app-side.
 
 ---
 
@@ -269,10 +312,12 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
 - **Impact:** Toggle switches misalign adjacent elements.
 - **Workaround:** Use `with_no_wrap()` on parent, increase container height.
 
-### text_input() requires InputAction enum values
-- **Issue:** `text_input::text_input()` template expects `InputAction::TextBackspace`, `TextDelete`, `TextHome`, `TextEnd` enum values, which are not part of afterhours and must be defined by the host app.
-- **Impact:** Cannot use `text_input()` without adding these to the app's `InputAction` enum and registering key mappings.
-- **Workaround:** Added the required enum values to `src/input_mapping.h` and registered key mappings in `src/preload.cpp`.
+### text_input() InputAction enum values — RESOLVED upstream
+Text editing now resolves host action names when present and falls back to the
+library's own chords when they are absent. FloatingHotel keeps its named
+actions (including the new `TextDeleteLineBack`/`TextDeleteLineForward`) so
+the full default keymap binds, but a missing host enum no longer makes the
+widget unusable.
 
 ### Clipboard shortcuts not wired in text_input — RESOLVED, adopted
 - afterhours implements copy/cut/paste/undo/redo/word-motion/shift-selection and
@@ -285,80 +330,46 @@ same shape on `Find...`, which is the last Edit item -- suspect that one too.
 
 ---
 
-### Draw capture is not implemented on the sokol/Metal backend — OPEN
-- **Issue:** `capture::record()` is called from `backends/raylib` and
-  `backends/none` only. `backends/sokol` never records, even though the UI
-  renderer sets up `capture::Scope` attribution around every draw.
-- **Impact:** `expect_drawn`, `expect_not_drawn`, `expect_drawn_at` and
-  `dump_draws` are no-ops here — `dump_draws` reports `0 draws this frame`.
-  `tests/e2e_scripts/flow_commit_graph_lines.e2e` is named for asserting that
-  graph lines are drawn and can only take screenshots.
-- **Suggested fix:** call `capture::record` from
-  `backends/sokol/drawing_helpers.h` the way the other two backends do.
+### Draw capture on the sokol/Metal backend — RESOLVED upstream
+`backends/sokol/drawing_helpers.h` now records text, rectangles, lines,
+circles, quads and textures through `capture::record`, so the draw assertions
+have the same backend coverage as raylib/none. No app workaround remains.
 
-### `with_placeholder` is a text_field feature; text_area ignores it — OPEN
-- **Issue:** `text_area()` never reads `config.placeholder`. Setting it
-  compiles, runs, and shows nothing.
-- **Impact:** A multi-line field cannot have a hint inside it. The commit box
-  keeps its hint as a label stacked above the input, costing 16px of sidebar.
-- **Suggested fix:** either honour `placeholder` in `text_area`, or reject it
-  at the call so it fails loudly instead of silently.
+### `with_placeholder` in `text_area` — RESOLVED upstream, adopted
+`text_area` now renders its placeholder in the empty first row. The commit
+box uses it for its branch hint (deleting the label stacked above the field),
+and the ACP prompt/MCP editors use it too.
 
-### text_area lines overflow their own field — OPEN
-- **Issue:** `text_area_line` is laid out wider than the `text_area_field` that
-  owns it, e.g. `child_size=[344.4,0.0]` inside `parent_size=[312.0,52.0]`. The
-  line is also reported with height 0.
-- **Impact:** The only layout warning floatinghotel still emits comes from
-  inside the library's own widget, so the containment check is noisy for every
-  consumer with a text area. Nothing visibly wrong on screen — the field clips
-  — but it makes `assert_within_parents` harder to trust.
-- **Repro:** the commit message box and the review comment box, any run of the
-  e2e suite.
+### text_area lines overflow their own field — RESOLVED upstream, adopted
+Generated `text_area_line` rows now use `percent(1.f)` width and resolve their
+height in the field's scaling mode. FloatingHotel deleted `src/ui/text_area.h`
+(the adapter that rewrote those widths after construction); the commit,
+comment, basket-edit, ACP prompt and MCP fields call
+`afterhours::text_input::text_area` directly. `tests/check_text_area_layout.sh`
+passes at 100% and 140%.
 
-### sokol font atlas fills and is never emptied — OPEN, worked around
-- **Issue:** `backends/sokol/backend.h` makes one fixed 2048² fontstash atlas
-  and its `FONS_ATLAS_FULL` callback only warns. fontstash caches glyphs per
-  0.1 px of size, so every distinct `ui_scale` adds a full set. Once full, new
-  glyphs are dropped from drawing *and* `measure_text`, until restart.
-- **Impact:** A trackpad pinch changes `ui_scale` every frame; one 1.0→3.0→1.0
-  pinch with a diff open filled the atlas and the whole UI lost letters.
-- **Workaround:** `ecs::ZoomSystem` calls `fonsResetAtlas` at the start of any
-  frame whose zoom changed, before anything measures or draws (the reset
-  recreates the sokol image, so it must not happen mid-frame). Regression:
-  `tests/e2e_scripts/flow_pinch_sweep.e2e` (`validate font_atlas_ok=true`).
-- **Suggested fix:** on `FONS_ATLAS_FULL`, set a flag and `fonsResetAtlas` at
-  the next frame boundary (also clearing `measure_memo`, which has cached the
-  short widths), or expose a reset hook for size changes.
+### Sokol font atlas growth — upstream tools adopted; shrink policy stays app-owned
+The atlas now expands when full instead of dropping glyphs, reports packing
+failures, and exposes `afterhours::shrink_font_atlas()` /
+`font_atlas_bytes()`. `ecs::ZoomSystem` calls the supported shrink hook on a
+zoom change instead of reaching into `metal_detail::g_fons_ctx` with
+`fonsResetAtlas`. Upstream still does not choose when to shrink; that frame
+boundary policy remains FloatingHotel's one-line zoom hook. Regression:
+`tests/e2e_scripts/flow_pinch_sweep.e2e`.
 
-### Prepared upstream branches: what a bump changes — notes (October 6, 2026)
+### Prepared upstream branches — superseded by the `5383fc6` bump
+The October prepared-branch work has landed in the revision above: E2E test
+support, text fallback, public `load_texture_from_rgba`, native window sizing,
+and atlas expansion/shrink hooks are all upstream and adopted where noted.
+Colour emoji and a full migration of FloatingHotel's semantic focus restoration
+to framework tokens remain open. The old branch-specific build warnings no
+longer describe `main`; the app builds on `5383fc6`.
 
-Four afterhours branches were prepared off `main` `da70096` (patches in `triage-evidence/`):
-`upstream-background-work`, `upstream-focus-scroll-selection`, `upstream-test-support`,
-`upstream-text-fallback`. Adopting them changes floatinghotel behaviour in these places:
-
-- Test support makes E2E coordinates logical pixels in Adaptive mode: scripts that hard-code
-  screen pixels at a zoom other than 100% must divide by the zoom.
-- Registering the built-in E2E handlers switches to an in-memory clipboard; the named-pasteboard
-  replays (steps 47/48) need `use_system_clipboard()` to keep testing the real pasteboard.
-- Text fallback draws one replacement glyph for codepoints no chained face covers (before: sokol
-  drew `.notdef`); styled runs after a colour change move by one inter-glyph join.
-- `image_diff.h` can move from `metal_texture_detail::load_texture_from_pixels` to the public
-  `load_texture_from_rgba`.
-- Atlas exhaustion is still not handled upstream; keep the zoom-change atlas reset.
-
-Not done in those branches: `native_resize` on a sokol/Metal window (needs the app's
-`metal_set_window_size` upstream), colour emoji, migrating `Modal`/menu focus restore to the new
-tokens. Every branch reports `sokol_blend_test` failing to compile on `main` itself
-("`begin_shader_mode` is ambiguous" in `render_primitives.h` and `rendering.h`), so no sokol build
-that includes the UI test harness compiles at `main`.
-
-### Font codepoint coverage helpers are raylib-only — OPEN
-- **Issue:** `default_codepoints()` and `font_has_glyph()` live in
-  `backends/raylib/font_helper.h`. The sokol backend rasterises on demand
-  through fontstash and has neither.
-- **Impact:** No way to ask whether a face covers a codepoint before using it,
-  so the ASCII fallbacks in `sidebar_system.h` (`"> "` for ▶ at the review
-  strip, no arrows on Push/Pull) stay guesswork.
+### Font codepoint coverage on Sokol — RESOLVED upstream
+The Sokol font helper now parses each loaded face's cmap into
+`font_coverage::Ranges`, exposes `font_has_glyph`, and routes drawing through
+`drawable_text`. FloatingHotel no longer needs to guess coverage before using a
+glyph; any remaining ASCII marks are product choices, not a backend limit.
 
 ---
 
@@ -489,32 +500,13 @@ memo, measure-by-advance, containment tolerance, bitset) or not used here
 
 ---
 
-### capture_impl.h leaks a staging texture per screenshot unless built with ARC — OPEN, worked around
-`metal_resolve_msaa` and `metal_copy_to_shared` create their readback texture
-with `newTextureWithDescriptor:` (+1) and return it; `metal_read_image_pixels`
-never releases `staged`. Under ARC that is fine; in a plain `-ObjC++` build it
-leaks one 1280x720 RGBA texture (3.7 MB) per `capture_frame`. Measured
-2026-09-10 with `footprint -p`: the E2E batch's IOAccelerator memory grew in
-step with the PNG count (465 MB after 124 screenshots, still one script in)
-and the suite passed 1 GB. wm is raylib, so upstream never runs this path.
-- **Suggested fix:** either state the ARC requirement next to the
-  `SOKOL_IMPL` instructions, or make it build-mode independent:
-  ```objc
-  #if !__has_feature(objc_arc)
-    [staged release];
-  #endif
-  ```
-  after `getBytes:` in `metal_read_image_pixels`.
-- **Related:** headless mode has no sokol_app, so nothing wraps a frame in an
-  autorelease pool; the command buffers and encoders sokol_gfx autoreleases
-  each frame accumulate until exit. Worth a note in the headless docs, or a
-  `graphics::headless_frame(fn)` that provides the pool.
-- **Worked around app-side:** `src/sokol_impl.mm` now builds with
-  `-fobjc-arc`, and the headless loop runs each `app_frame` inside
-  `metal_headless_frame()`, an `@autoreleasepool` wrapper. Full suite after:
-  IOAccelerator flat at 21-30 MB, peak footprint 167 MB, 98/98 in 3.5 min.
+### capture_impl.h staging-texture leak — RESOLVED upstream
+Both staging paths now release their readback texture, so screenshots no longer
+leak one GPU texture per capture in a non-ARC build. FloatingHotel still builds
+`src/sokol_impl.mm` with ARC and wraps headless frames in an autorelease pool;
+both are harmless, and neither is compensating for this leak anymore.
 
-### Windowed startup is spent waiting on sokol_app, not in app code — OPEN
+### Windowed startup waits — first-frame and font-memory parts resolved; AppKit/Metal floor remains
 Measured 2026-09-10 on macOS 26.6.2 with temporary probes in
 `vendor/sokol/sokol_app.h` (reverted). `Startup time` (graphics::run to
 app_init done) is 510-740 ms warm; app_init itself is 10-60 ms. Where the rest
@@ -546,22 +538,14 @@ warm while the control Cocoa app spends 1.2-1.6 s in
 machine's daemons, not the app.
 `sapp_set_icon` with the default icon is 0.1 ms; not worth a RunConfig knob.
 
-- **Suggested fix (sokol_app, macOS):** at the end of
-  `applicationDidFinishLaunching`, after `makeKeyAndOrderFront`, call
-  `_sapp_macos_frame()` (or `[_sapp.macos.view draw]`) once so init and the
-  first frame run synchronously instead of waiting for the display link.
-  Saves 65-160 ms per launch. **Worked around app-side:**
-  `metal_draw_first_frame_early()` in `src/sokol_impl.mm` registers a
-  DidFinishLaunching observer (from inside WillFinishLaunching, so it lands
-  after sokol's delegate) and calls `[view draw]`; the log line
-  `First frame drawn from applicationDidFinishLaunching` confirms it fired.
-- **Font loading reads the file per call:** `load_font_from_file` is
-  `fonsAddFont(ctx, file, file)` with no dedupe, and there is no
-  `fonsAddFontMem` path, so a font cannot be embedded in the binary. The app
-  now aliases `SYMBOL_FONT` to the already-loaded `DEFAULT_FONT` instead of
-  reading Roboto twice. A `load_font_from_memory` would let the three TTFs
-  ship inside the executable and skip three scanned file opens at startup
-  (86-184 ms cold on this machine).
+- **First frame:** resolved upstream. The backend installs an early-draw
+  observer before `sapp_run`, so FloatingHotel deleted its duplicate
+  `metal_draw_first_frame_early` implementation. Its remaining
+  `fh_install_startup_draw_timer` only drives repeated draws while the startup
+  gate deliberately keeps the window unordered.
+- **Font loading:** `load_font_from_memory` now exists on the Sokol backend.
+  FloatingHotel has not switched its three TTFs to embedded bytes; doing so is
+  an optional startup/packaging change, not a missing engine capability.
 - **Suggested fix (backend.h):** ship the sokol_gl shader as precompiled
   metallib via sokol-shdc, or defer `sfons_create` until the first text draw.
   Worth measuring with probes in `setup_sokol_gl_and_fonts` first; the
@@ -641,23 +625,13 @@ the list. The sidebar file list and commit log use it as of 2026-09-10.
 Measured with `bench_frames` (tests/run_stress.sh): 1000 files went from
 2654 entities / 19.6 ms per frame to a flat ~5 ms at 100, 1000 and 5000 files.
 
-### Retained texture components survive a texture-free immediate widget — OPEN
-
-`ui/component_init.h::apply_texture` returns when a new `ComponentConfig` has
-no texture, leaving an earlier `HasTexture` on the reused UI entity.
-The renderer still submits that handle after its owner calls `unload_texture`.
-On Metal this aborts with `VALIDATE_ABND_VIEW_ALIVE` and
-`VALIDATE_ABND_SAMPLER_ALIVE` rather than completing an image-to-text transition.
-
-Reproduction: `bash tests/review_50/item_12.sh` opens the changed BMP, waits for
-both previews, switches to `source.txt`, then reopens the BMP. Before the app
-workaround, the first switch aborted after `item_12_async_images.png`.
-
-The app now removes `HasTexture` components referencing its exact retiring
-image handles before unloading those textures. No unrelated texture is removed.
-Upstream should clear absent texture configuration as it already clears absent
-shadow configuration, and provide a safe way to retire textures referenced by
-retained immediate UI entities.
+### Retained texture components survive a texture-free immediate widget — RESOLVED upstream, adopted
+`apply_texture` now tracks configured textures and clears `HasTexture` when a
+later config omits one. FloatingHotel deleted its entity scan that stripped
+retiring handles before `unload_texture`; image preview uploads also moved to
+the public `load_texture_from_rgba`. A general safe-retirement policy for
+textures still referenced by retained entities would be useful, but it is no
+longer needed for this transition.
 
 ### Sokol frame pacing does not honor the requested frame rate
 
@@ -674,54 +648,26 @@ The verified run is `/tmp/fh-runtime13-followup-native.log`.
 The backend should honor the requested frame rate or expose an event-aware
 wait that preserves edge input. The app workaround does not change the vendor.
 
-### Virtual-list metrics mix physical and logical pixels in Adaptive mode
+### Virtual-list metrics in Adaptive mode — RESOLVED upstream, adopted
+`virtual_list` now documents row heights in `pixels()` units including Adaptive
+zoom, carries the scale in its retained row metrics, divides generated row and
+spacer heights back to logical size, and sets `skip_grid_snap` internally.
+FloatingHotel deleted `src/ui/virtual_list.h`; all callers use
+`afterhours::ui::imm::virtual_list` directly. The separate question of whether
+flow placement fully honors `skip_grid_snap` remains under the grid-snapping
+entry below; it is no longer a virtual-list unit mismatch.
 
-`ui/imm_components.h::virtual_list_impl` uses physical scroll offsets and viewport
-height to index supplied row metrics. It then places the same row and leading
-spacer metrics inside `pixels()`, which applies `ui_scale` again in Adaptive mode.
-The trailing `unbuilt_content_size` remains physical. At non-default zoom, callers
-cannot satisfy both contracts by changing the supplied row height alone.
+### Font-size tiers and Adaptive zoom — RESOLVED upstream
+Semantic font sizes now resolve through Adaptive scaling, and `Theme::text_scale`
+provides the global text multiplier. FloatingHotel still mostly uses explicit
+logical pixel sizes because code fonts, row heights and measurements share its
+zoom factor; reverting those call sites to tiers is optional cleanup, not an
+engine blocker.
 
-`src/ui/virtual_list.h` accepts logical row heights and passes physical metrics to
-the existing list implementation. It normalizes only the generated wrapper and
-leading-spacer desired heights before layout. The list's window selection,
-recycling, and physical trailing extent remain upstream-owned. The adapter uses
-`UICollectionHolder` to resolve generated UI children and does not change global
-zoom or vendor files. Step 31 moves repository search onto this same adapter;
-its retained sidebar pane must preserve row position at 100%, 140%, and 200%.
-
-The app also sets `skip_grid_snap` on the list and generated children. This flag
-does not fully disable flow-position snapping: `autolayout.h` still snaps each
-child's position and the running row offset. A 42-physical-pixel row can therefore
-have a 44-pixel pitch on a four-pixel grid. Upstream needs consistent units for
-virtual-list metrics and a flow-position policy that honors `skip_grid_snap`.
-
-The native review-focus zoom test exercises 100%, 140%, and 160%, including list
-scrolling and footer geometry. The first adapter revision used `EntityHelper`
-instead of `UICollectionHolder`; that lookup choice is an app issue, not an
-additional upstream gap. This app currently enables the single-collection mode.
-
-### Font-size tiers do not follow Adaptive zoom
-
-`ComponentConfig::with_font_size(FontSize)` converts each tier through `h720`,
-which is screen-relative and does not apply `ui_scale`. In the first native
-review-focus capture at 140%, the sidebar's tier-sized text stays small while
-pixel-sized controls grow. See `output/review-focus/first-integration/zoomed_bottom.png` from
-the first integration run.
-
-The review UI now uses explicit logical pixel font sizes. Code fonts, row
-heights, selection measurements, and virtualization use the same zoom factor.
-Upstream could resolve semantic font tiers through the selected scaling mode.
-
-### Keyboard-only focus rings are not exposed
-
-The current `HighlightMode` options are `Split` and `FollowsMostRecentInput`.
-`ComputeVisualFocusId` retains a visible focused widget after mouse selection,
-so clicking a commit leaves a heavy outline unlike the approved mock.
-
-The app keeps keyboard focus accessible and uses a thinner accent-colored ring.
-It does not suppress focus rendering. A keyboard-only focus-visible policy
-would let pointer selection keep its normal selected-row styling.
+### Keyboard-only focus rings — RESOLVED upstream
+Focus modality is retained separately from grabs, `UIContext::focus_visible()`
+is false for pointer-driven focus, and visual-focus computation uses it. The
+app's thinner accent ring remains a theme choice, not a workaround.
 
 ### Per-component grid opt-out does not preserve exact flow spacing
 
@@ -730,61 +676,22 @@ styling setting. This keeps logical row heights and flow offsets consistent
 through zoom. The `skip_grid_snap` limitation described above remains upstream;
 no copied layout engine or vendor patch is needed for this workaround.
 
-### E2E hidden assertions cannot check a removed widget
+### E2E hidden assertions — RESOLVED upstream
+`expect_no_ui <debug_name>` now asserts absence directly. FloatingHotel's
+`ui_present:` property remains only because existing scripts use it; new
+absence checks should use the upstream command.
 
-Closing the source tab removes its immediate-mode widget. The test command
-`assert_ui content_source_tab hidden=true` then times out looking for that widget
-rather than succeeding on its absence. The failed run is preserved in
-`output/review-focus/first-integration/tabs.log`.
+### Text-area line widths at increased zoom — RESOLVED upstream, adopted
+See “text_area lines overflow their own field” above. The app adapter described
+in the original regression entry has been deleted.
 
-The app test property `ui_present:<debug name>` checks whether an actual widget
-was rendered, so the close-tab regression can assert `false`. An upstream
-absence assertion would avoid each app adding this check.
-
-### Text-area line widths are scaled twice at increased zoom
-
-The 140% hex-view regression also exposes an independent text-area warning in
-the Files sidebar. `output/review-focus/regressions/item-43.log` records a
-`text_area_line` width of 500.6 inside a 357.6-wide field, a ratio of 1.4.
-In `src/plugins/ui/text_input/text_area.h`, `viewport_width` comes from the
-field's computed physical width, then becomes `pixels(viewport_width)` for
-each generated line. Adaptive layout applies zoom to that value again.
-
-The field clips overflow, but line sizing and wrapping should share one unit
-system. The app now routes all three text-area callers through
-`src/ui/text_area.h`. After creating the framework field, this adapter gives
-its generated `text_area_line` children a width of `percent(1.f)`.
-The rows follow the available content width without converting a computed
-physical width back into logical pixels. Cursor and selection children are
-not changed. No framework implementation is copied or edited.
-
-`tests/check_text_area_layout.sh` fails before this adapter and passes after it
-at 100% and 140%, including zoom reset and preserved draft text. The basket
-compose/edit flow and code-highlight tests also pass without text-row width
-warnings. This workaround does not claim to fix other text-editor geometry.
-
-### Text inset is hardcoded and separate from component padding
-
-`draw_text_in_rect` in `src/plugins/ui/rendering.h` accepts `text_inset`,
-but positions single-line text with a hardcoded five-physical-pixel margin.
-`draw_runs_in_rect` duplicates that margin to align styled labels.
-Component padding affects absolute child positions, not the label's origin.
-
-Our selection code added eight pixels for label padding, then the layout engine
-added that padding again to the highlight child. A native source-view test
-placed the highlight at x=370 while the first character's advance starts at
-x=359. The same drag copied nine characters instead of ten. This padding
-assumption was an app bug.
-
-The app now gives code rows zero padding and shares a single content-origin
-calculation across hit-testing, selection, search, and intraline highlights.
-`diff_sel::content_x_offset` accounts for the renderer's fixed five-pixel inset
-without scaling it again. No vendor files are changed. Upstream should use the
-configured inset consistently and expose the resolved text origin for overlays
-and hit-testing, including both immediate and batched rendering paths.
-
-Reproduce with `nice -n 10 bash tests/check_text_highlight.sh`.
-The failing baseline is in `output/text-highlight/before-exact/native.log`.
+### Text inset and resolved origin — RESOLVED upstream
+Plain and styled label paths now share the resolved inset, the theme default is
+zero unless an app chooses otherwise, and `resolved_text_origin` exposes the
+origin/inset/font size used by the renderer. FloatingHotel's code rows set an
+explicit 5px inset, so `diff_sel::content_x_offset` remains an app geometry
+helper rather than a renderer workaround. Keep
+`tests/check_text_highlight.sh` as the alignment regression.
 
 ### Temporary-entity query diagnostics during tab and zoom checks
 
@@ -803,36 +710,19 @@ instead of silently excluding those entities. The diagnostic is not suppressed.
 Including the query origin or filters upstream would still make this warning
 easier to trace without a debugger.
 
-### Text-area line height reads the raw Size value
+### Text-area line height — RESOLVED upstream
+`text_area` resolves `text_area_line_height` through the active scaling mode
+instead of reading the raw `Size` value. The app's `pixels(...)` call sites are
+now ordinary configuration, not a workaround.
 
-`text_area` reads `config.text_area_line_height.value` without resolving its
-unit. Passing `h720(18)` supplies `18 / 720`, so the generated rows measure
-0.025 logical pixels instead of 18. The native inspector rounds that to zero.
-The commit-message text consequently sat against the field's top edge.
-
-The app now passes `pixels(18)` for this setting. The framework API accepts a
-`Size`, so it should either resolve that size or accept an explicitly named
-pixel value. This caller workaround does not change the framework.
-The failing native checks are in
-`output/layout-followup/line-height-before/native.log`.
-The passing check in `output/layout-followup/line-height-after/native.log`
-measures 18 pixels at 100% zoom and 25.2 pixels at 140%.
-
-### Divider hit area and visible thickness share one rectangle
-
-`imm::divider` uses its component rectangle for both drawing and hit-testing.
-It has no separate hit-area inset. The app's one-pixel separator above commit
-history therefore had a one-pixel drag target. This was an app sizing mistake,
-not a failure of framework pointer capture.
-
-The app now composes a 16-logical-pixel divider with a centered one-pixel child
-line. This keeps the line thin without taking clicks from adjacent rows.
-Both sidebar modes use the framework's movement delta, divided by UI zoom,
-instead of snapping the split to the pointer's absolute position. The absolute
-position calculation was also an app bug. No vendor files are changed.
-
-An independent hit-area inset would make thin splitters easier to implement.
-The native regression script is `tests/review_focus/commit_splitter.e2e`.
+### Divider hit area — expansion landed; active-drag capture still needs work
+`imm::divider` now pads a sub-12px divider's hit rect through `HasHitExpand`.
+FloatingHotel tried replacing its 16px commit-splitter band with a true 1px
+divider on `5383fc6`; `tests/sidebar_splitter.py` then failed the top-clamp
+reversal (drag to y=0, back to y=20: the divider stayed at its minimum). The
+app therefore keeps the 16px band with a centered 1px child for now. Upstream
+still needs active divider drags to retain pointer capture after the pointer
+leaves the expanded hit rect and crosses other hit targets.
 
 ### Small-window sidebar rows shrink below their labels
 
@@ -857,41 +747,12 @@ with the old 14-pixel code font before any font changes. See
 change the sidebar's font or row budget. No workaround is included in the
 default-font change.
 
-### Skipped redraws retain earlier UI draw commands
-
-At Afterhours revision `b385dc9`, `BeginUIContextManager` does not clear
-`UIContext::render_cmds`. The immediate and batched renderers clear it only
-after drawing. Updating the UI without rendering therefore retains commands
-from every skipped frame.
-
-The app's idle frame pacing exposed this assumption. A native capture recorded
-252 UI commands on an ordinary redraw and 3,276 after 12 skipped redraws.
-The overloaded frames lost menu text and much of the sidebar. Captures are in
-`output/text-flicker/before/idle_001.png` and `idle_003.png`.
-The renderer emitted no overflow warning during this reproduction.
-
-The app now registers `ClearPendingUIDraws` before the framework's UI update
-systems. It clears the prior frame's queue before any widgets are rebuilt,
-including normal updates, test ticks, and benchmark frames. Idle redraw skipping
-remains enabled. No vendor files are changed. Upstream should scope the draw
-queue to a UI update, not require a render after every update.
-
-The previous screenshot tests forced extra redraws before capture and missed
-the bad frames. `capture_idle_frames` now captures each redraw inside the idle
-benchmark without forcing additional draws. Run
-`nice -n 10 bash tests/check_text_flicker.sh` to compare text pixels and command
-counts across those frames. The checker requires Python with Pillow.
-Each run keeps its captures in a separate directory.
-
-The fixed run in `output/text-flicker/after/run.ENEZrH` captured 15 redraws
-across 120 updates, with 105 redraws skipped. Every captured frame has 252 UI
-commands and identical menu, sidebar-header, and code pixels. The failing
-pixel check is reproducible against `output/text-flicker/before`.
-
-Related verification passed: 74 UI flows in `output/text-flicker/flows.log`,
-idle input and file-watcher checks in `output/text-flicker/idle-inputs.log`,
-six frame-pacing unit tests in `output/text-flicker/frame-pacer-unit.log`, and
-27 splitter assertions in `output/text-flicker/splitter.log`.
+### Skipped redraws retain earlier UI draw commands — RESOLVED upstream, adopted
+`BeginUIContextManager` now clears `render_cmds` and the stale last action at
+the start of each UI update. FloatingHotel's `ClearPendingUIDraws` system has
+been reduced to resetting its own reading-performance counters; it no longer
+touches the framework draw queue. Keep `tests/check_text_flicker.sh` as the
+idle-redraw regression.
 
 ### Startup reports a missing toast singleton
 
@@ -902,27 +763,16 @@ UI systems, so identifying the earlier lookup needs a separate trace. This
 warning remains unresolved and is not evidence of the flicker cause. See
 `output/text-flicker/after/run.ENEZrH/native.log`.
 
-### UI dumps omit computed spacing
+### UI dumps and computed spacing — upstream part resolved
+Framework `dump_ui` now writes subpixel geometry plus resolved padding, margin
+and gap. FloatingHotel's JSON sidecar remains authoritative for its tests
+because it also records parent links, full text and reading-performance fields;
+that is an app schema choice now, not a missing spacing dump.
 
-The framework's `dump_ui` writes an XML tree with rounded rectangles and
-truncated labels. It does not expose computed padding, margins, or gaps, so a
-spacing audit cannot distinguish nested insets from layout errors. The app adds
-`dump_ui_json` and a JSON sidecar for each test screenshot. Both use the
-framework's screen-rectangle calculation, including scroll offsets. The app
-records unrounded geometry, spacing, parent links, and full text without vendor
-changes. See `docs/ui-layout-dumps.md` for the schema and capture command.
-
-### Immediate plain labels ignore the configured text inset
-
-`draw_text_in_rect` receives the resolved `HasLabel::text_inset`, but its
-single-line path constructs a new `{5, 5}` margin instead. At revision
-`b385dc9`, `.with_text_inset(12, 0)` still draws five pixels from the left,
-and `.with_text_inset(0)` does not remove that margin. The styled and batched
-paths use the supplied inset. Layout padding also affects children, not the
-component's own label. The spacing audit reproduced this in sidebar headers
-and `commit_files_empty`; compare `output/spacing-audit/graph/graph_empty_commit.png`
-with its JSON sidecar. The sidebar geometry fix does not change this renderer
-behavior. A further workaround must preserve code-selection glyph alignment.
+### Immediate plain labels and text inset — RESOLVED upstream
+The plain, styled and batched paths now position through the same resolved
+inset. Sidebar/code callers that need a margin set it explicitly; no renderer
+workaround remains.
 
 ### Toast sizing and scrollbar layering
 
@@ -1345,6 +1195,12 @@ The entries below cover additional reusable code rather than reopen those bugs.
 
 ### U1. Bounded background jobs with cancellation and foreground capacity
 
+**2026-11-26 status:** `afterhours::jobs::Pool` now exists, but its
+owner-thread callback/drain model lacks pollable futures, exceptions,
+caller-supplied rejected values, non-cancellable jobs and this app's
+shutdown-drains-accepted-work contract. `src/util/async_task.h` therefore
+stays; the remaining request is those semantics, not a thread pool.
+
 `src/util/async_task.h` implements `Executor` and `Task<T>` because content reads,
 search, image decoding, and refresh work must leave the UI thread. The executor
 has separate foreground and background queues, bounded admission, cooperative
@@ -1372,6 +1228,11 @@ The proposed owner-token adapter does not exist and has not been tested.
 
 ### U2. File-change subscriptions for asset and document reload
 
+**2026-11-26 status:** `afterhours::file_watcher::Watcher` now provides the
+subscription/result/drain shape, but its macOS kqueue backend recursively
+opens an FD per directory and regular file. FloatingHotel keeps FSEvents until
+that API gains a coalesced recursive backend suitable for large repositories.
+
 `src/platform/file_watcher.h::FSEventsWatcher` owns a macOS run-loop thread,
 retains the loop through shutdown, watches multiple roots, and returns paths
 with `mustRescan` after dropped events. `src/ecs/file_watcher_system.h` drains
@@ -1397,6 +1258,11 @@ can verify app delivery; this audit did not run native watcher lifecycle tests
 or tests on Linux or Windows.
 
 ### U3. A reusable cache with a byte budget and observable ownership
+
+**2026-11-26 status:** `afterhours::ByteCache` landed with LRU eviction and
+stats. Its cost function sees only the value, so it cannot charge key/index
+overhead or keep accounting for shared values retained after eviction. The app
+caches stay until that accounting contract exists.
 
 `src/util/byte_cache.h` provides an LRU cache used by
 `src/ui/token_cache.h` and `src/git/blob_page_cache.h`. The patch cache in
@@ -1426,6 +1292,11 @@ establish a need to increase any existing budget.
 
 ### U4. Public CPU image decoding and render-thread texture upload
 
+**2026-11-26 status:** public CPU `decode_image`/`image_size` and
+`load_texture_from_rgba` landed; FloatingHotel adopted the upload half. Its
+decoder stays because it also handles WebP/AVIF/ICO through ImageIO,
+cancellation, and a shared decoded-byte reservation across concurrent workers.
+
 `src/git/image_content.cpp::decode` checks encoded size and image dimensions,
 reserves a shared decoded-byte budget, and returns owned RGBA pixels from a
 worker. `src/ui/image_diff.h::poll` uploads those pixels on the UI thread through
@@ -1454,6 +1325,12 @@ Safe retirement of an already-rendered texture remains the earlier reproduced
 `Retained texture components survive a texture-free immediate widget` entry.
 
 ### U5. Focus-scoped shortcut routing over the existing input actions
+
+**2026-11-26 status:** `with_shortcut` / `HasShortcuts` and focused dispatch
+landed, which covers widget-local bindings. FloatingHotel still routes most
+commands through its semantic focus owner because reader/tree/history scopes
+and native-menu commands need one ordered host dispatcher; that is now phased
+app adoption rather than a missing primitive.
 
 `src/ecs/main_content_system.h` polls raw key codes for Find, Quick Open, and
 review commands, then checks text-input focus, menu state, source-tab state,
@@ -1505,6 +1382,11 @@ widgets should have one navigation owner; this is another adoption fix.
 
 ### U6. Focus return that survives rebuilt controls and closed scopes
 
+**2026-11-26 status:** generation-checked `capture_focus()` /
+`restore_focus(EntityHandle)` and `FocusProxy` landed. FloatingHotel uses the
+proxy path through ordinary `set_focus`; its semantic repository/document/
+region resolver remains necessary for rebuilt controls and closed scopes.
+
 The original app focused picker inputs by entity ID and used root focus or
 separate flags when a view closed. Menus and feedback panels had separate
 open-state handling. Returning to the correct invoking control would also help
@@ -1532,6 +1414,11 @@ modal token remains a raw entity ID and still needs the reusable API described
 above.
 
 ### U7. Logical scroll anchors resolved after matching layout readiness
+
+**2026-11-26 status:** keyed scroll anchoring, `virtual_list_keyed`,
+`scroll_to_item`, `virtual_list_range` and `scroll_to_entity` landed.
+FloatingHotel adopted `scroll_to_entity` for rendered tree rows. Cross-document
+logical anchors with explicit layout-generation readiness remain app-owned.
 
 `src/ui/reading_position.h::remember_reading_position` stores pixel offsets by
 view key, writes `scroll_offset`, `scroll_target`, and `last_eased_offset`, clears
@@ -1566,6 +1453,10 @@ not proof of a framework defect. A reusable post-layout anchor contract should
 make the distinction between requested position and sampled position explicit.
 
 ### U8. Read-only selection over a virtualized text source
+
+**2026-11-26 status:** `with_selectable_text` landed for ordinary labels, but
+it deliberately does not cover selection across virtualized rows or a
+source-backed diff. FloatingHotel's document-position selection stays.
 
 At the audit baseline, `src/ui/diff_renderer.h::diff_sel` stored endpoints as
 entity IDs and byte columns, rebuilt line records each frame, measured prefixes
@@ -1602,6 +1493,10 @@ has no source-backed selection controller. See `docs/reading-navigation-step48.m
 and the packaged step-48 evidence for the reproduced failure and final checks.
 
 ### U9. Optional text normalization at file and clipboard boundaries
+
+**2026-11-26 status:** `sanitize_utf8` landed for ingest. It does not replace
+FloatingHotel's decoder, which also detects/converts UTF-16, reports malformed
+status and encoding, and identifies NUL/binary content.
 
 `src/util/text_decode.h` converts UTF-16 to UTF-8, handles BOMs, replaces malformed
 sequences, and reports encoding and NUL content. The source reader and
@@ -2569,30 +2464,13 @@ reconciled against the current checkout on September 13, 2026. Open implementati
 work is tracked in [triage.md](../triage.md#afterhours-work). This section preserves
 the remaining contracts and the limits of that source inspection.
 
-### Atomic writes are adopted; durability remains
-
-`afterhours::files::write_string_atomic` and `read_string` are implemented in
-`vendor/afterhours/src/plugins/files.h`. Review JSON and snapshots already use
-the writer. Settings also use it in `src/settings.cpp`; that adoption is complete.
-Settings now coalesce changed values for 250 ms and flush on shutdown. This is
-app-owned scheduling around the existing helper, not a missing filesystem API.
-
-The pinned helper writes a fixed sibling temporary path and renames it, with no
-fsync, so concurrent writers to one path can share the temporary name.
-
-Prepared upstream, not adopted (October 6, 2026): branch `atomic-save-durability`
-(commit `026dd2e`) in the worktree `~/p/afterhours-atomic-save`, based on afterhours
-`main`; [patch](triage-evidence/afterhours-atomic-save.patch). Each write creates its
-own `<target>.afh-tmp.<pid>.<n>` with `O_EXCL`, loops over partial writes and
-`EINTR`, flushes with `F_FULLFSYNC` on macOS (`fsync` elsewhere), renames, then
-fsyncs the directory, and keeps the target's permissions. The last completed rename
-wins; a reader sees old or whole new contents. `sweep_temp_files` removes the legacy
-fixed-name temp and temps of exited writers only. `files_atomic_write_test` covers
-competing writers, a preserved 0600 mode, disk full (`RLIMIT_FSIZE`), a writer
-killed mid-write, and live versus dead temps; 44/44 pass. It also fixes the old
-`has_temp_siblings`, which matched a `.tmp` extension and never saw these temps.
-The submodule pin is unchanged; adopting needs a bump. Windows keeps the previous
-unsynced path.
+### Atomic writes and durability — RESOLVED upstream, adopted by the bump
+`afterhours::files::write_string_atomic` now creates a unique temp per write,
+handles partial writes/`EINTR`, preserves target permissions, fsyncs the file
+(`F_FULLFSYNC` on macOS), renames, and fsyncs the directory. Review JSON,
+snapshots and Settings already call it, so the `5383fc6` bump adopted the
+durable implementation without app changes. Settings' 250 ms coalescing and
+shutdown flush remain app scheduling around that helper.
 
 ### Historical UI reports — retired against the pinned revision (October 6, 2026)
 
@@ -2621,24 +2499,14 @@ rendering works. They are not new TODOs. Current font-fallback, styled-text, scr
 input, and headless limitations remain in their detailed entries above.
 
 
-## CP-006: Configurable overscan and reusable row metrics — prepared upstream, not adopted
-
-The implementation is in `/Users/gabeochoa/p/afterhours-reading-overscan`, a separate
-worktree at the application's `b385dc9` dependency revision. `vendor/afterhours` is
-unchanged. The [reviewable patch](triage-evidence/afterhours-overscan.patch) exposes
-`VirtualListMetrics`, `VirtualListOptions`, and `virtual_list_window`, accepts
-precomputed row metrics, and caches the minimum row height. Callers can choose row
-or pixel overscan without implementing their own scroll arithmetic.
-
-The existing range calculation favors a distant easing target and can omit rows
-at the actual viewport. The replacement bounds lookahead around the actual
-viewport, preserving every currently visible row. The optimized deterministic
-[geometry benchmark](triage-evidence/afterhours-overscan.log) exercises 90,000
-large jumps with 100,000 variable-height rows at 100%, 140%, and 200% scaling,
-comparing zero, 24, and 96 pixels of extra overscan. This measures range coverage
-and computation, not native presentation or GPU blank frames. The default remains
-four overscan rows: these measurements do not justify increasing every app's
-entity count. Native adoption and end-to-end frame measurements remain separate.
+## CP-006: Configurable overscan and reusable row metrics — landed upstream
+The retained measured-row index, reusable row metrics and configurable
+overscan described by the prepared patch are in `5383fc6` in evolved form
+(`HasVirtualListIndex`, measured `virtual_list`, and
+`with_virtual_list_overscan`). FloatingHotel uses the upstream uniform and
+measured lists directly; it has not needed a non-default overscan value. The
+historical benchmark in `triage-evidence/afterhours-overscan.log` remains the
+geometry evidence for why viewport coverage matters.
 
 ### Persistence composition encountered during triage
 
@@ -2668,12 +2536,11 @@ logical dimensions. The native renderer should own one correctly ordered backdro
 
 ### Tooltips for truncated labels
 
-`HasTooltip` has no condition tied to the label's resolved overflow. The app filters
-file tooltips after layout using the displayed label's font, inset, and scaled
-width. It measures only the hovered tooltip's labels, including filename and
-directory columns, so resizing or zooming can dismiss a tooltip immediately.
-A renderer-owned truncation result or conditional-tooltip policy would avoid
-consumer apps repeating text measurement rules.
+Renderer-owned truncation now exists as `HasLabel::truncated`, and the app's
+filter reads it instead of re-measuring the label. The remaining app piece is
+the owner-to-label association: several rows put the tooltip on the row while a
+child label is the thing that ellipsizes, whereas upstream suppression only
+compares tooltip and label on the same entity.
 Tooltip anchors also need lookup through `UICollectionHolder`: looking up a UI
 entity ID in the default ECS collection can leave valid tooltip state without a
 visible tooltip. The app's wrapped-tooltip renderer now uses the UI collection.
@@ -2708,23 +2575,15 @@ preview therefore strips `**bold**` markers but draws the text at regular
 weight; switching its span to `FontWeight::Bold` is a one-line change once
 weighted runs match their neighbours.
 
-### Text areas ignore a custom background
+### Text areas and custom backgrounds — RESOLVED upstream
+`text_area` now honors a caller's custom/transparent background before falling
+back to `Theme::Usage::Secondary`, matching `text_input`.
 
-`text_input` uses a caller's `with_custom_background` for its field, but
-`text_area` always fills with `Theme::Usage::Secondary`. The commit message
-asks for `theme::INPUT_BG` and gets the Secondary colour instead, so the light
-theme maps Secondary to a pale field grey rather than the border colour it uses
-in the dark theme. Honouring the caller's background in `text_area` the way
-`text_input` does would let Secondary go back to meaning borders.
-
-### E2E `CMD+` means Control
-
-The E2E key parser treats `CMD+` as Control (`key_codes.h`: "Mac convention:
-Cmd = Ctrl for shortcuts"). floatinghotel keeps the two apart: Find, Go to File
-and ⌘⏎ need real Command, because Control drives vim paging (Ctrl+F/B/D/U). So
-`key CMD+P` sends Ctrl+P and opens nothing. Scripts hold Super instead
-(`hold_key 343` / `key P` / `release_key 343`). A distinct `SUPER+` or `META+`
-modifier in `KeyCombo` would let scripts say what they mean.
+### E2E `CMD+` — RESOLVED upstream
+`parse_key_combo` now maps `CMD+`, `SUPER+`, `WIN+` and `META+` to the distinct
+Super modifier instead of Control. FloatingHotel also migrated its held-key
+scripts from numeric codes to upstream key names and deleted its duplicate
+`hold_key` handler.
 
 ### Absolute children of a scroll view count as content
 
@@ -2760,6 +2619,13 @@ two actions bound to the same chord. Workaround: strings kept by hand.
 
 ### Double-click on a clickable div
 
+**2026-11-26 status:** `UIContext::is_double_click` /
+`is_triple_click` and `mouse.click_count` landed. FloatingHotel keeps its two
+semantic sequences for now: navigation must treat the same document/location
+as repeated across rebuilt entities, and diff selection acts on press rather
+than upstream's release-time count. A press-time, target-independent click
+streak would be needed to delete both.
+
 `HasClickListener` reports `down` but not a click count, so each double-click
 site keeps its own last-target + timestamp (500 ms): document tabs in
 `navigation.h` and now branch rows in `sidebar_system.h`. `text_area` already
@@ -2768,6 +2634,10 @@ on `HasClickListener`, using the platform double-click interval, would replace
 both and match the OS setting.
 
 ### Background work handoff for immediate-mode pickers
+
+**2026-11-26 status:** FloatingHotel's picker already moved matching to a
+worker with generation checks and confirm-when-ready. Upstream `jobs::Pool`
+does not yet provide the latest-wins pollable slot described here.
 
 Zed's pickers match off the UI thread, keep the previous results on screen until
 the new set lands, cancel stale searches with a flag + generation id, and queue
@@ -2827,6 +2697,12 @@ Unstaged changes document, captured the same scene from the app
 
 ### Label text origin cannot be derived from the component config
 
+**2026-11-26 status:** upstream now exposes `resolved_text_origin`, including
+the resolved inset and laid-out rect. FloatingHotel's diff rows explicitly set
+the same 5px inset that `diff_sel::content_x_offset` names, so no app change was
+required for correctness; adopting the query at overlay sites is optional
+cleanup if those rows ever stop sharing one inset.
+
 Extends "Text inset is hardcoded…" and "Immediate plain labels ignore the
 configured text inset" above with fresh measurements on e9d5f67. A label's
 `Padding{.left}` never offsets its own text in either draw path. The styled
@@ -2874,3 +2750,35 @@ investigation (the mock comparison above) looking for a real overflow
 that did not exist. Suppressing (or downgrading) overflow warnings while
 either axis of the parent is still unresolved/zero would keep the signal
 for genuine overflows only.
+
+## Bump e9d5f67 → 5383fc6 (November 26, 2026)
+
+1,616 upstream commits, direct fast-forward. The application adaptations in
+this bump were intentionally deletions first:
+
+- `Modal::previously_focused_element` is an `EntityHandle`; use
+  `EntityHandle::invalid()` instead of `-1`.
+- Deleted FloatingHotel's `metal_set_window_size`,
+  `metal_window_resize_pending`, live-resize draw swizzle and resize-draw
+  policy. The Sokol backend now owns all three. The only remaining startup
+  timer is app-owned because FloatingHotel deliberately keeps its window
+  unordered until the first repository refresh is ready.
+- Deleted `src/ui/text_area.h`, `src/ui/virtual_list.h`, the pending-draw
+  clear, scroll-input/scrollbar-drag subclasses, texture-handle stripping,
+  text-field focus child walk, directional-input marking, and the numeric
+  E2E held-key handler. Their upstream replacements are named in the summary
+  at the top of this file.
+- Centered dialogs no longer assign `absolute_pos_x/y` after `modal_impl`;
+  the framework centers in screen space at any `ui_scale`. Picker dialogs that
+  intentionally sit at 30% height keep their explicit placement.
+- The commit box uses the now-working `text_area` placeholder instead of a
+  separate hint label.
+- Three existing `with_padding(Padding{})` calls were audited against the new
+  explicit-padding semantics and left as explicit zero padding where that was
+  their intent.
+
+Behavior to keep watching after this bump: Tab now follows UI-tree order,
+Escape has one framework owner, E2E dispatch is serial and ambiguous lookups
+fail loudly, and `Dim::Text` measures the drawn face/spacing. Those are
+upstream behavior changes, not app workarounds to reintroduce without a failing
+replay.
