@@ -163,13 +163,27 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             layout.mainContent.height -= topInset;
         }
         layout.feedback = {};
+        // The basket is a review surface: while reading source it undocks
+        // (state stays open; it returns with the review document).
+        const bool inSourceView = repo && source_tab_active(*repo);
         if (!layout.focusMode && review && review->basketOpen && !review->comments.empty() &&
-            layout.mainContent.width > 0) {
-            const bool overlay = layout.mainContent.width < 720.f;
-            const float feedbackW = std::min(320.f, layout.mainContent.width);
-            if (!overlay) layout.mainContent.width -= feedbackW + 12.f;
-            layout.feedback = {layout.mainContent.x + layout.mainContent.width + (overlay ? -feedbackW : 12.f),
-                               layout.mainContent.y, feedbackW, layout.mainContent.height};
+            !inSourceView && layout.mainContent.width > 0) {
+            // Compact cutover: never crush the code reading column below a
+            // usable 480px. Guard on the remaining content width (after
+            // sidebar + insets), not the raw window width.
+            constexpr float kMinCodeW = 480.f;
+            constexpr float kFeedbackW = 320.f;
+            if (layout.mainContent.width < kMinCodeW + kFeedbackW + 12.f) {
+                // Collapse the dock at narrow widths instead of overlaying the
+                // file header / truncating code. Toggle via Feedback button.
+                review->basketOpen = false;
+            } else {
+                const bool overlay = layout.mainContent.width < 720.f;
+                const float feedbackW = std::min(kFeedbackW, layout.mainContent.width);
+                if (!overlay) layout.mainContent.width -= feedbackW + 12.f;
+                layout.feedback = {layout.mainContent.x + layout.mainContent.width + (overlay ? -feedbackW : 12.f),
+                                   layout.mainContent.y, feedbackW, layout.mainContent.height};
+            }
         }
         layout.statusBar = {0, height - statusH, width, statusH};
     }

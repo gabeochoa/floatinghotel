@@ -275,15 +275,15 @@ inline void poll(RepoComponent& repo, AgentComponent& agent) {
 
 inline std::string entry_body(const acp::Entry& entry, std::string& prefix) {
     switch (entry.kind) {
-        case acp::EntryKind::User: prefix = "› "; break;
+        case acp::EntryKind::User: prefix = ""; break;
         case acp::EntryKind::Thought: prefix = "… "; break;
         case acp::EntryKind::ToolCall:
             prefix = "";
             return (entry.title.empty() ? "tool" : entry.title) +
                    (entry.status.empty() ? "" : " · " + entry.status) +
                    (entry.text.empty() ? "" : "\n" + entry.text);
-        case acp::EntryKind::System: prefix = "— "; break;
-        case acp::EntryKind::Error: prefix = "! "; break;
+        case acp::EntryKind::System: prefix = ""; break;
+        case acp::EntryKind::Error: prefix = "Error · "; break;
         case acp::EntryKind::Agent:
         case acp::EntryKind::Plan: prefix = ""; break;
     }
@@ -306,6 +306,19 @@ inline afterhours::Color entry_color(const acp::Entry& entry) {
     return theme::TEXT_PRIMARY;
 }
 
+inline afterhours::Color status_dot_color(const AgentComponent& agent) {
+    if (!agent.client) return theme::TEXT_TERTIARY;
+    switch (agent.client->phase()) {
+        case acp::Phase::Ready: return theme::STATUS_ADDED;
+        case acp::Phase::Starting:
+        case acp::Phase::Prompting: return theme::STATUS_MODIFIED;
+        case acp::Phase::Dead:
+        case acp::Phase::Failed: return theme::STATUS_DELETED;
+        case acp::Phase::Unstarted: return theme::TEXT_TERTIARY;
+    }
+    return theme::TEXT_TERTIARY;
+}
+
 inline std::string status_label(const AgentComponent& agent) {
     if (!agent.client) return "Not started";
     switch (agent.client->phase()) {
@@ -326,11 +339,16 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                    LayoutComponent& layout, AgentComponent& agent, float width, float height) {
     (void)layout;
     ensure_registry(agent);
-    const float innerW = std::max(40.f, width - 16.f);
+    // Wide/full-window guard: the companion column never stretches past
+    // 760px (shelf-collapsed sidebar = whole window); it centres instead.
+    const float panelW = std::min(width, 760.f);
+    const float panelOffsetX = std::max(0.f, (width - panelW) * 0.5f);
+    const float innerW = std::max(40.f, panelW - 16.f);
     const float zoom = ::ui::zoom::get();
 
     auto panel = div(ctx, mk(parent, 790000), ComponentConfig{}
-        .with_size(ComponentSize{pixels(width), pixels(height)})
+        .with_size(ComponentSize{pixels(panelW), pixels(height)})
+        .with_margin(Margin{.left = pixels(panelOffsetX)})
         .with_flex_direction(FlexDirection::Column).with_no_wrap()
         .with_padding(Padding{.top = pixels(6), .right = pixels(8), .bottom = pixels(8), .left = pixels(8)})
         .with_gap(pixels(6))
@@ -343,6 +361,13 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         .with_debug_name("agent_status_row"));
     const std::string status = status_label(agent) +
         (agent.client && !agent.client->agent_title().empty() ? " · " + agent.client->agent_title() : "");
+    div(ctx, mk(statusRow.ent(), 9), ComponentConfig{}
+        .with_size(ComponentSize{pixels(8), pixels(8)})
+        .with_custom_background(status_dot_color(agent))
+        .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+        .with_roundness(1.f)
+        .with_margin(Margin{.right = pixels(2)})
+        .with_debug_name("agent_status_dot"));
     div(ctx, mk(statusRow.ent(), 0), ComponentConfig{}
         .with_label(status).with_size(ComponentSize{expand(), pixels(22)})
         .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
@@ -359,11 +384,13 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
     for (const auto& def : agent.agents) {
         const bool selected = def.id == agent.agentId;
         auto config = preset::Button(def.name, def.available)
-            .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
             .with_tooltip(def.description + (def.available ? "" : " (not found on PATH)"))
             .with_debug_name("agent_pick_" + def.id);
         if (selected) config = config.with_custom_background(theme::BUTTON_PRIMARY)
-                                  .with_custom_text_color(theme::TEXT_PRIMARY);
+                                  .with_custom_text_color(theme::BUTTON_PRIMARY_TEXT)
+                                  .with_font("ui-bold", pixels(12));
         if (button(ctx, mk(pickerRow.ent(), pickerId++), config) && !selected) {
             agent.agentId = def.id;
             Settings::get().set_acp_agent(def.id);
@@ -382,13 +409,15 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         .with_debug_name("agent_controls"));
     const bool running = agent.client && agent.client->alive();
     if (button(ctx, mk(controlsRow.ent(), 0), preset::Button(running ? "Stop" : "Start")
-            .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
             .with_debug_name("agent_start_stop"))) {
         if (running) { stop(agent); agent.transcript.system("Stopped."); }
         else start(repo, agent, agent.agentId);
     }
     if (button(ctx, mk(controlsRow.ent(), 1), preset::Button("New", running)
-            .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
             .with_tooltip("Fresh conversation on the same agent process")
             .with_debug_name("agent_new"))) {
         agent.transcript.clear();
@@ -399,7 +428,8 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
     const bool canResume = agent.client && agent.client->can_list_sessions() &&
                            agent.client->can_load_sessions();
     if (canResume && button(ctx, mk(controlsRow.ent(), 2), preset::Button("Resume")
-            .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
             .with_tooltip("Continue a previous conversation with this agent")
             .with_debug_name("agent_resume"))) {
         agent.showSessions = !agent.showSessions;
@@ -413,7 +443,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
             div(ctx, mk(panel.ent(), 25), ComponentConfig{}
                 .with_label("No saved sessions for this repository.")
                 .with_size(ComponentSize{pixels(innerW), pixels(20)})
-                .with_custom_text_color(theme::TEXT_TERTIARY).with_font_size(pixels(11))
+                .with_custom_text_color(theme::TEXT_TERTIARY).with_font_size(pixels(12))
                 .with_alignment(TextAlignment::Left)
                 .with_debug_name("agent_sessions_empty"));
             usedH += 26.f;
@@ -423,7 +453,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
             if (row >= 6) break;
             const std::string label = session.title.empty() ? session.id : session.title;
             if (button(ctx, mk(panel.ent(), 26 + row), preset::Button(label)
-                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
+                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(12))
                     .with_alignment(TextAlignment::Left)
                     .with_tooltip(session.id + (session.updatedAt.empty() ? "" : "\n" + session.updatedAt))
                     .with_debug_name("agent_session_" + std::to_string(row)))) {
@@ -438,6 +468,24 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         }
     }
 
+    // Compact settings chips: one header row, not stacked full-width bars.
+    auto chipsRow = div(ctx, mk(panel.ent(), 8), ComponentConfig{}
+        .with_size(ComponentSize{pixels(innerW), pixels(24)})
+        .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
+        .with_align_items(AlignItems::Center)
+        .with_debug_name("agent_chips"));
+    int chipId = 0;
+    auto chip_config = [](const std::string& label, bool enabled) {
+        return preset::Button(label, enabled)
+            .with_size(ComponentSize{children(), pixels(24)})
+            .with_padding(Padding{.top = pixels(4), .right = pixels(8), .bottom = pixels(4), .left = pixels(8)})
+            .with_font_size(pixels(12))
+            .with_transparent_bg()
+            .with_border(theme::BORDER, pixels(1))
+            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_alignment(TextAlignment::Center);
+    };
+
     if (agent.client) {
         // Config-option cycles (Muse's mode selector arrives this way);
         // the legacy modes list (Claude/Codex adapters) cycles instead.
@@ -445,10 +493,8 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         for (const auto& option : agent.client->config_options()) {
             std::string current = option.current;
             for (const auto& [value, name] : option.options) if (value == option.current) current = name;
-            if (button(ctx, mk(panel.ent(), 10 + optionId),
-                       preset::Button(option.name + ": " + current, option.options.size() > 1)
-                           .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
-                           .with_alignment(TextAlignment::Left)
+            if (button(ctx, mk(chipsRow.ent(), chipId++),
+                       chip_config(option.name + ": " + current, option.options.size() > 1)
                            .with_debug_name("agent_config_" + option.id))) {
                 size_t at = 0;
                 for (size_t i = 0; i < option.options.size(); ++i)
@@ -456,16 +502,13 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                 agent.client->set_config_option(option.id, option.options[(at + 1) % option.options.size()].first);
             }
             ++optionId;
-            usedH += 30.f;
         }
         // Legacy models list (the stable API puts model in config options,
         // which the generic cycle above already renders).
         if (!agent.client->models().empty() && !agent.client->has_model_config_option()) {
             std::string current = agent.client->current_model();
             for (const auto& model : agent.client->models()) if (model.id == current) current = model.name;
-            if (button(ctx, mk(panel.ent(), 19), preset::Button("Model: " + current, agent.client->models().size() > 1)
-                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
-                    .with_alignment(TextAlignment::Left)
+            if (button(ctx, mk(chipsRow.ent(), chipId++), chip_config("Model: " + current, agent.client->models().size() > 1)
                     .with_debug_name("agent_model"))) {
                 const auto& models = agent.client->models();
                 size_t at = 0;
@@ -473,14 +516,11 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                     if (models[i].id == agent.client->current_model()) at = i;
                 agent.client->set_model(models[(at + 1) % models.size()].id);
             }
-            usedH += 30.f;
         }
         if (agent.client->config_options().empty() && !agent.client->modes().empty()) {
             std::string current = agent.client->current_mode();
             for (const auto& mode : agent.client->modes()) if (mode.id == current) current = mode.name;
-            if (button(ctx, mk(panel.ent(), 20), preset::Button("Mode: " + current, agent.client->modes().size() > 1)
-                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
-                    .with_alignment(TextAlignment::Left)
+            if (button(ctx, mk(chipsRow.ent(), chipId++), chip_config("Mode: " + current, agent.client->modes().size() > 1)
                     .with_debug_name("agent_mode"))) {
                 const auto& modes = agent.client->modes();
                 size_t at = 0;
@@ -488,7 +528,6 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                     if (modes[i].id == agent.client->current_mode()) at = i;
                 agent.client->set_mode(modes[(at + 1) % modes.size()].id);
             }
-            usedH += 30.f;
         }
         if (agent.client->auth_required() && !agent.client->auth_methods().empty()) {
             const auto& method = agent.client->auth_methods().front();
@@ -505,10 +544,8 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
     // raw JSON (the ACP McpServer shapes), validated as an array on save.
     {
         const auto servers = Settings::get().get_acp_mcp_servers();
-        if (button(ctx, mk(panel.ent(), 23),
-                   preset::Button("MCP servers (" + std::to_string(servers.size()) + ")")
-                       .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
-                       .with_alignment(TextAlignment::Left)
+        if (button(ctx, mk(chipsRow.ent(), chipId++),
+                   chip_config("MCP (" + std::to_string(servers.size()) + ")", true)
                        .with_tooltip("MCP servers handed to new/loaded sessions")
                        .with_debug_name("agent_mcp_toggle"))) {
             agent.showMcpEditor = !agent.showMcpEditor;
@@ -521,13 +558,13 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
                     .with_size(ComponentSize{pixels(innerW), pixels(84)})
                     .with_custom_background(theme::INPUT_BG)
                     .with_border(theme::BORDER, pixels(1.f))
-                    .with_corner_radius(4.f)
-                    .with_font("mono", pixels(11))
+                    .with_corner_radius(theme::layout::RADIUS_CONTROL)
+                    .with_font("mono", pixels(12))
                     .with_line_height(pixels(15.f))
                     .with_placeholder("[{\"name\": \"server\", \"command\": \"...\"}]")
                     .with_debug_name("agent_mcp_input"));
             if (button(ctx, mk(panel.ent(), 25), preset::Button("Save MCP servers")
-                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(11))
+                    .with_size(ComponentSize{pixels(innerW), pixels(24)}).with_font_size(pixels(12))
                     .with_debug_name("agent_mcp_save"))) {
                 const auto parsed = nlohmann::json::parse(agent.mcpDraft, nullptr, false);
                 if (parsed.is_array()) {
@@ -555,126 +592,18 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         }
     }
 
-    // Permission banner.
-    if (agent.permission) {
-        auto banner = div(ctx, mk(panel.ent(), 30), ComponentConfig{}
-            .with_size(ComponentSize{pixels(innerW), pixels(30.f + 30.f * static_cast<float>(agent.permission->options.size()))})
-            .with_flex_direction(FlexDirection::Column).with_no_wrap().with_gap(pixels(4))
-            .with_padding(Padding{.top = pixels(6), .right = pixels(6), .bottom = pixels(6), .left = pixels(6)})
-            .with_custom_background(theme::INPUT_BG).with_border(theme::STATUS_MODIFIED, pixels(1))
-            .with_corner_radius(4.f)
-            .with_debug_name("agent_permission"));
-        div(ctx, mk(banner.ent(), 0), ComponentConfig{}
-            .with_label("Allow: " + agent.permission->title)
-            .with_size(ComponentSize{pixels(innerW - 12.f), pixels(18)})
-            .with_custom_text_color(theme::TEXT_PRIMARY).with_font_size(pixels(12))
-            .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-            .with_debug_name("agent_permission_title"));
-        int optionIdx = 0;
-        std::string chosen;
-        bool answered = false, cancelled = false;
-        for (const auto& option : agent.permission->options) {
-            const bool reject = option.kind.rfind("reject", 0) == 0;
-            auto config = preset::Button(option.name)
-                .with_size(ComponentSize{pixels(innerW - 12.f), pixels(24)}).with_font_size(pixels(12))
-                .with_debug_name("agent_permission_" + option.id);
-            if (!reject) config = config.with_custom_background(theme::BUTTON_PRIMARY);
-            if (button(ctx, mk(banner.ent(), 1 + optionIdx), config)) { chosen = option.id; answered = true; }
-            ++optionIdx;
-        }
-        if (agent.permission->options.empty())
-            cancelled = button(ctx, mk(banner.ent(), 9), preset::Button("Dismiss")
-                .with_size(ComponentSize{pixels(innerW - 12.f), pixels(24)}).with_font_size(pixels(12))
-                .with_debug_name("agent_permission_dismiss"));
-        if ((answered || cancelled) && agent.client) {
-            agent.client->answer_permission(agent.permission->id, answered ? chosen : "");
-            agent.permission.reset();
-        }
-        usedH += 36.f + 30.f * static_cast<float>(std::max<size_t>(1, agent.permission ? agent.permission->options.size() : 0));
-    }
-
-    // Pending image attachments (ride the next prompt).
-    for (size_t i = 0; i < agent.pendingImages.size() && i < 4; ++i) {
-        auto chip = div(ctx, mk(panel.ent(), 60 + static_cast<int>(i)), ComponentConfig{}
-            .with_size(ComponentSize{pixels(innerW), pixels(22)})
-            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
-            .with_align_items(AlignItems::Center)
-            .with_debug_name("agent_image_chip"));
-        const std::string name = std::filesystem::path(agent.pendingImages[i]).filename().string();
-        div(ctx, mk(chip.ent(), 0), ComponentConfig{}
-            .with_label("🖼 " + name).with_size(ComponentSize{expand(), pixels(22)})
-            .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(11))
-            .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-            .with_debug_name("agent_image_name"));
-        if (button(ctx, mk(chip.ent(), 1), preset::Button("×")
-                .with_size(ComponentSize{pixels(24), pixels(22)}).with_font_size(pixels(12))
-                .with_debug_name("agent_image_remove"))) {
-            agent.pendingImages.erase(agent.pendingImages.begin() + static_cast<long>(i));
-            break;  // indices shifted; next frame redraws
-        }
-        usedH += 28.f;
-    }
-
-    // Prompt box.
-    constexpr float kPromptH = 56.f;
-    const bool prompting = agent.phase() == acp::Phase::Prompting;
-    auto promptArea = afterhours::text_input::text_area(ctx, mk(panel.ent(), 40), agent.promptText,
-        ComponentConfig{}
-            .with_size(ComponentSize{pixels(innerW), pixels(kPromptH)})
-            .with_custom_background(theme::INPUT_BG)
-            .with_border(theme::BORDER, pixels(1.f))
-            .with_corner_radius(4.f)
-            .with_line_height(pixels(17.f))
-            .with_placeholder("Ask the agent to change, explain, or review code…")
-            .with_font_size(pixels(13))
-            .with_submit_on_enter()
-            .with_debug_name("agent_prompt_input"));
-    promptArea.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>();
-    promptArea.ent().get<afterhours::text_input::HasTextInputListener>().on_submit = [](Entity&) {
-        auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
-        auto* agentPtr = find_singleton<AgentComponent, ActiveTab>();
-        if (repoPtr && agentPtr && send_prompt(*repoPtr, *agentPtr, agentPtr->promptText))
-            agentPtr->promptText.clear();
-    };
-    usedH += kPromptH + 6.f;
-
-    auto sendRow = div(ctx, mk(panel.ent(), 41), ComponentConfig{}
-        .with_size(ComponentSize{pixels(innerW), pixels(28)})
-        .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
-        .with_debug_name("agent_send_row"));
-    if (button(ctx, mk(sendRow.ent(), 0),
-               preset::Button(prompting ? "Stop" : "Send", prompting || !agent.promptText.empty())
-                   .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
-                   .with_debug_name("agent_send"))) {
-        if (prompting) { if (agent.client) agent.client->cancel(); }
-        else if (send_prompt(repo, agent, agent.promptText)) agent.promptText.clear();
-    }
-    if (button(ctx, mk(sendRow.ent(), 1),
-               preset::Button(agent.includeContext ? "File ✓" : "File", true)
-                   .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
-                   .with_tooltip("Attach the open file to each prompt")
-                   .with_debug_name("agent_include_file")))
-        agent.includeContext = !agent.includeContext;
-    const bool canImages = agent.client && agent.client->image_prompts();
-    if (button(ctx, mk(sendRow.ent(), 2),
-               preset::Button("Image", canImages)
-                   .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
-                   .with_tooltip(canImages ? "Attach an image to the next prompt"
-                                           : "This agent does not accept image prompts")
-                   .with_debug_name("agent_attach_image"))) {
-        if (auto* menu = find_singleton<MenuComponent>())
-            menu->pendingDialog = MenuComponent::PendingDialog::AttachImage;
-    }
-    usedH += 34.f;
-
     // Transcript fills what is left; entries are measured like the
     // feedback basket's comment bodies so rows size to wrapped text.
-    const float transcriptH = std::max(40.f, height - usedH - 14.f);
+    const float permReserve = agent.permission ? 68.f : 0.f;
+    const float imageReserve = static_cast<float>(std::min<size_t>(agent.pendingImages.size(), 4)) * 28.f;
+    constexpr float kComposerReserve = 56.f + 6.f + 34.f;
+    const float transcriptH = std::max(40.f, height - usedH - permReserve - imageReserve - kComposerReserve - 14.f);
     auto scroll = div(ctx, mk(panel.ent(), 50), preset::ScrollPanel()
         .with_size(ComponentSize{pixels(innerW), pixels(transcriptH)})
         .with_debug_name("agent_transcript"));
     auto& measure = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
-    constexpr float kFont = 12.5f;
+    constexpr float kFont = 14.f;
+    constexpr float kSmallFont = 12.f;
     size_t totalChars = 0;
     if (agent.transcript.entries.empty()) {
         const auto* def = acp::find_agent(agent.agents, agent.agentId);
@@ -695,20 +624,37 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         totalChars += text.size();
         const std::string font = entry.kind == acp::EntryKind::ToolCall ? "mono"
                                  : afterhours::ui::UIComponent::DEFAULT_FONT;
+        const float entryFont = (entry.kind == acp::EntryKind::User || entry.kind == acp::EntryKind::Agent)
+            ? kFont : kSmallFont;
+        const bool carded = entry.kind == acp::EntryKind::User || entry.kind == acp::EntryKind::ToolCall;
+        const float entryPadX = carded ? 16.f : 4.f;
         const float textH = afterhours::ui::measure_text_wrapped(
-            measure, text, font, kFont * zoom, std::max(40.f, innerW - 12.f) * zoom).height / zoom + 4.f;
+            measure, text, font, entryFont * zoom, std::max(40.f, innerW - 8.f - entryPadX) * zoom).height / zoom + (carded ? 16.f : 6.f);
         auto config = ComponentConfig{}
             .with_label(text)
-            .with_size(ComponentSize{pixels(innerW - 8.f), pixels(std::max(16.f, textH))})
-            .with_custom_text_color(entry_color(entry))
-            .with_font(font, pixels(kFont))
+            .with_size(ComponentSize{pixels(innerW - 8.f), pixels(std::max(20.f, textH))})
+            .with_custom_text_color(entry.kind == acp::EntryKind::User ? theme::TEXT_PRIMARY : entry_color(entry))
+            .with_font(font, pixels(entryFont))
             .with_alignment(TextAlignment::Left)
+            .with_padding(Padding{.top = pixels(carded ? 8 : 2), .right = pixels(8), .bottom = pixels(carded ? 8 : 2), .left = pixels(8)})
+            .with_margin(Margin{.bottom = pixels(6)})
             .with_debug_name("agent_entry");
+        if (entry.kind == acp::EntryKind::User)
+            config = config.with_custom_background(theme::SELECTED_BG)
+                           .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                           .with_corner_radius(theme::layout::RADIUS_CONTROL);
+        else if (entry.kind == acp::EntryKind::ToolCall)
+            config = config.with_custom_background(theme::INPUT_BG)
+                           .with_border(theme::BORDER, pixels(1))
+                           .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                           .with_corner_radius(theme::layout::RADIUS_CONTROL);
+        else
+            config = config.with_transparent_bg();
         // A tool call with a file location opens it (preview), like the
         // feedback basket's location links.
         if (entry.kind == acp::EntryKind::ToolCall && !entry.locationPath.empty()) {
             auto openBtn = button(ctx, mk(scroll.ent(), 100 + entryId++),
-                config.with_transparent_bg().with_debug_name("agent_entry_open"));
+                config.with_debug_name("agent_entry_open"));
             if (openBtn) {
                 const std::string rel = relative_to(repo, entry.locationPath);
                 navigation::preview(repo, reading::Location{
@@ -723,6 +669,154 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         if (scroll.ent().has<afterhours::ui::HasScrollView>())
             scroll.ent().get<afterhours::ui::HasScrollView>().scroll_to_bottom();
     }
+    // Permission card: amber left accent, side-by-side compact actions.
+    if (agent.permission) {
+        auto banner = div(ctx, mk(panel.ent(), 30), ComponentConfig{}
+            .with_size(ComponentSize{pixels(innerW), pixels(62)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap()
+            .with_custom_background(theme::INPUT_BG).with_border(theme::BORDER, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+            .with_corner_radius(theme::layout::RADIUS_CARD)
+            .with_overflow(Overflow::Hidden)
+            .with_debug_name("agent_permission"));
+        div(ctx, mk(banner.ent(), 90), ComponentConfig{}
+            .with_size(ComponentSize{pixels(3), percent(1.f)})
+            .with_custom_background(theme::STATUS_MODIFIED)
+            .with_roundness(0.f)
+            .with_debug_name("agent_permission_accent"));
+        auto permBody = div(ctx, mk(banner.ent(), 91), ComponentConfig{}
+            .with_size(ComponentSize{expand(), percent(1.f)})
+            .with_flex_direction(FlexDirection::Column).with_no_wrap().with_gap(pixels(6))
+            .with_padding(Padding{.top = pixels(8), .right = pixels(8), .bottom = pixels(8), .left = pixels(8)})
+            .with_transparent_bg()
+            .with_debug_name("agent_permission_body"));
+        div(ctx, mk(permBody.ent(), 0), ComponentConfig{}
+            .with_label("Allow: " + agent.permission->title)
+            .with_size(ComponentSize{percent(1.f), pixels(18)})
+            .with_custom_text_color(theme::TEXT_PRIMARY).with_font_size(pixels(12))
+            .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_debug_name("agent_permission_title"));
+        auto permActions = div(ctx, mk(permBody.ent(), 1), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(28)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(8))
+            .with_debug_name("agent_permission_actions"));
+        int optionIdx = 0;
+        std::string chosen;
+        bool answered = false, cancelled = false;
+        for (const auto& option : agent.permission->options) {
+            const bool reject = option.kind.rfind("reject", 0) == 0;
+            auto config = preset::Button(option.name)
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
+                .with_debug_name("agent_permission_" + option.id);
+            if (!reject) config = config.with_custom_background(theme::BUTTON_PRIMARY)
+                .with_custom_text_color(theme::BUTTON_PRIMARY_TEXT)
+                .with_font("ui-bold", pixels(12));
+            else config = config.with_transparent_bg().with_border(theme::BORDER, pixels(1))
+                .with_custom_text_color(theme::TEXT_SECONDARY);
+            if (button(ctx, mk(permActions.ent(), optionIdx), config)) { chosen = option.id; answered = true; }
+            ++optionIdx;
+        }
+        if (agent.permission->options.empty())
+            cancelled = button(ctx, mk(permActions.ent(), 9), preset::Button("Dismiss")
+                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
+                .with_debug_name("agent_permission_dismiss"));
+        if ((answered || cancelled) && agent.client) {
+            agent.client->answer_permission(agent.permission->id, answered ? chosen : "");
+            agent.permission.reset();
+        }
+        usedH += 68.f;
+    }
+
+    // Pending image attachments (ride the next prompt).
+    for (size_t i = 0; i < agent.pendingImages.size() && i < 4; ++i) {
+        auto chip = div(ctx, mk(panel.ent(), 60 + static_cast<int>(i)), ComponentConfig{}
+            .with_size(ComponentSize{pixels(innerW), pixels(22)})
+            .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
+            .with_align_items(AlignItems::Center)
+            .with_debug_name("agent_image_chip"));
+        const std::string name = std::filesystem::path(agent.pendingImages[i]).filename().string();
+        div(ctx, mk(chip.ent(), 0), ComponentConfig{}
+            .with_label("🖼 " + name).with_size(ComponentSize{expand(), pixels(22)})
+            .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
+            .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+            .with_debug_name("agent_image_name"));
+        if (button(ctx, mk(chip.ent(), 1), preset::Button("×")
+                .with_size(ComponentSize{pixels(24), pixels(22)}).with_font_size(pixels(12))
+                .with_debug_name("agent_image_remove"))) {
+            agent.pendingImages.erase(agent.pendingImages.begin() + static_cast<long>(i));
+            break;  // indices shifted; next frame redraws
+        }
+        usedH += 28.f;
+    }
+
+    // Prompt box.
+    constexpr float kPromptH = 56.f;
+    const bool prompting = agent.phase() == acp::Phase::Prompting;
+    auto promptArea = afterhours::text_input::text_area(ctx, mk(panel.ent(), 40), agent.promptText,
+        ComponentConfig{}
+            .with_size(ComponentSize{pixels(innerW), pixels(kPromptH)})
+            .with_custom_background(theme::INPUT_BG)
+            .with_border(theme::BORDER, pixels(1.f))
+            .with_corner_radius(theme::layout::RADIUS_CONTROL)
+            .with_padding(Padding{.top = pixels(6), .right = pixels(8), .bottom = pixels(6), .left = pixels(8)})
+            .with_line_height(pixels(20.f))
+            .with_placeholder("Ask the agent to change, explain, or review code…")
+            .with_font_size(pixels(14))
+            .with_submit_on_enter()
+            .with_debug_name("agent_prompt_input"));
+    promptArea.ent().addComponentIfMissing<afterhours::text_input::HasTextInputListener>();
+    promptArea.ent().get<afterhours::text_input::HasTextInputListener>().on_submit = [](Entity&) {
+        auto* repoPtr = find_singleton<RepoComponent, ActiveTab>();
+        auto* agentPtr = find_singleton<AgentComponent, ActiveTab>();
+        if (repoPtr && agentPtr && send_prompt(*repoPtr, *agentPtr, agentPtr->promptText))
+            agentPtr->promptText.clear();
+    };
+    usedH += kPromptH + 6.f;
+
+    auto sendRow = div(ctx, mk(panel.ent(), 41), ComponentConfig{}
+        .with_size(ComponentSize{pixels(innerW), pixels(28)})
+        .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(4))
+        .with_debug_name("agent_send_row"));
+    {
+        auto sendConfig = preset::Button(prompting ? "Cancel" : "Send", prompting || !agent.promptText.empty())
+            .with_size(ComponentSize{prompting ? children() : expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
+            .with_debug_name("agent_send");
+        if (!prompting && !agent.promptText.empty())
+            sendConfig = sendConfig.with_custom_background(theme::BUTTON_PRIMARY)
+                .with_custom_text_color(theme::BUTTON_PRIMARY_TEXT)
+                .with_font("ui-bold", pixels(12));
+        if (prompting)
+            sendConfig = sendConfig.with_transparent_bg().with_border(theme::BORDER, pixels(1))
+                .with_custom_text_color(theme::DESTRUCTIVE_TEXT);
+        if (button(ctx, mk(sendRow.ent(), 0), sendConfig)) {
+        if (prompting) { if (agent.client) agent.client->cancel(); }
+        else if (send_prompt(repo, agent, agent.promptText)) agent.promptText.clear();
+    }
+    }
+    if (button(ctx, mk(sendRow.ent(), 1),
+               preset::Button(agent.includeContext ? "Include file ✓" : "Include file", true)
+                   .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+                   .with_custom_background(agent.includeContext ? theme::SELECTED_BG : theme::BUTTON_SECONDARY)
+                   .with_custom_text_color(agent.includeContext ? theme::TEXT_ACCENT : theme::TEXT_SECONDARY)
+                   .with_tooltip("Attach the open file to each prompt")
+                   .with_debug_name("agent_include_file")))
+        agent.includeContext = !agent.includeContext;
+    const bool canImages = agent.client && agent.client->image_prompts();
+    if (button(ctx, mk(sendRow.ent(), 2),
+               preset::Button("Image", canImages)
+                   .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
+                   .with_tooltip(canImages ? "Attach an image to the next prompt"
+                                           : "This agent does not accept image prompts")
+                   .with_debug_name("agent_attach_image"))) {
+        if (auto* menu = find_singleton<MenuComponent>())
+            menu->pendingDialog = MenuComponent::PendingDialog::AttachImage;
+    }
+    usedH += 34.f;
+
+
 }
 
 }  // namespace agent_panel

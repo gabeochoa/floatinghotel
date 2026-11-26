@@ -129,22 +129,32 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
 
     auto title = div(ctx, mk(panel.ent(), 0), ComponentConfig{}
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_flex_direction(FlexDirection::Row)
+        .with_align_items(AlignItems::Center)
         .with_gap(pixels(8)));
     div(ctx, mk(title.ent(), 0),
         ComponentConfig{}
-            .with_label("Feedback  " + std::to_string(unresolved_comment_count(review)))
-            .with_size(ComponentSize{expand(), pixels(28)})
+            .with_label("Feedback (" + std::to_string(unresolved_comment_count(review)) + ")")
+            .with_size(ComponentSize{children(), pixels(28)})
+            .with_font("ui-bold", pixels(16))
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font_size(pixels(14))
+            .with_font_size(pixels(16))
             .with_debug_name("basket_title"));
+    const bool hasResolved = unresolved_comment_count(review) < review.comments.size();
+    if (button(ctx, mk(title.ent(), 1), preset::Button(review.showResolved ? "Hide resolved" : "Show resolved", hasResolved)
+            .with_size(ComponentSize{children(), pixels(28)})
+            .with_transparent_bg()
+            .with_custom_text_color(review.showResolved ? theme::TEXT_ACCENT : theme::TEXT_SECONDARY)
+            .with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(8), .bottom = pixels(4), .left = pixels(8)})
+            .with_debug_name("basket_toggle_resolved"))) review.showResolved = !review.showResolved;
+    div(ctx, mk(title.ent(), 3), ComponentConfig{}.with_size(ComponentSize{expand(), pixels(28)}));
     if (button(ctx, mk(title.ent(), 2), preset::Button("x")
             .with_size(ComponentSize{pixels(28), pixels(28)})
-            .with_padding(Padding{.left = pixels(0)})
+            .with_transparent_bg()
+            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_font_size(pixels(12))
+            .with_padding(Padding{.top = pixels(4), .right = pixels(8), .bottom = pixels(4), .left = pixels(8)})
             .with_debug_name("basket_close"))) review.basketOpen = false;
-    const bool hasResolved = unresolved_comment_count(review) < review.comments.size();
-    if (button(ctx, mk(panel.ent(), 904), preset::Button(review.showResolved ? "Hide resolved" : "Show resolved", hasResolved)
-            .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
-            .with_debug_name("basket_toggle_resolved"))) review.showResolved = !review.showResolved;
 
     float itemW = panelW - 24.f;
     float txtW = std::max(20.f, itemW - 16.f);
@@ -152,11 +162,12 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     auto& measure = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
     auto list = div(ctx, mk(panel.ent(), 903),
         ComponentConfig{}
-            .with_size(ComponentSize{pixels(itemW), pixels(std::max(0.f, hgt - 164.f))})
+            .with_size(ComponentSize{pixels(itemW), pixels(std::max(0.f, hgt - 136.f))})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()
             .with_gap(pixels(8))
+            .with_padding(Padding{.right = pixels(14)})
             .with_debug_name("basket_scroll"));
     std::vector<std::string> scopes;
     for (const auto& c : review.comments)
@@ -185,8 +196,9 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             ComponentConfig{}
                 .with_label(gh)
                 .with_size(ComponentSize{percent(1.0f), pixels(24)})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(12))
+                .with_font("ui-bold", pixels(14))
+                .with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_font_size(pixels(14))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_debug_name("basket_group"));
 
@@ -208,11 +220,10 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             }
             auto anchor = review_anchor::locate(c, anchorFiles);
             auto commentText = c.kind == ReviewCommentKind::Comment ? c.text : review_comment_kind_label(c.kind) + ": " + c.text;
-            commentText += "\nLocation: " + review_anchor::label(anchor);
             if (anchor.status == review_anchor::Status::Outdated || anchor.status == review_anchor::Status::Relocated)
                 commentText += "\nSaved: " + review_anchor::preview(anchor.saved) + "\nNow: " + review_anchor::preview(anchor.current);
             float textH = afterhours::ui::measure_text_wrapped(
-                measure, commentText, "mono", fontSize * zoom, (txtW - 10.f) * zoom).height / zoom + 10.f;
+                measure, commentText, afterhours::ui::UIComponent::DEFAULT_FONT, fontSize * zoom, (txtW - 10.f) * zoom).height / zoom + 10.f;
             bool editing = review.composer == Composer::EditingExisting && review.editing_index() == i;
             if (editing) textH = 104.f;
             auto itemRow = div(ctx, mk(list.ent(), id++),
@@ -224,7 +235,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_padding(Padding{.top = pixels(8), .right = pixels(8), .bottom = pixels(8), .left = pixels(8)})
                     .with_custom_background(theme::WINDOW_BG)
                     .with_border(theme::BORDER, pixels(1))
-                    .with_corner_radius(6.f).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                    .with_corner_radius(theme::layout::RADIUS_CARD).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                     .with_debug_name("basket_item"));
             auto heading = div(ctx, mk(itemRow.ent(), 4),
                 ComponentConfig{}
@@ -235,10 +246,10 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 ComponentConfig{}
                     .with_label((c.resolved ? "Resolved · " : "") + comment_location(c))
                     .with_size(ComponentSize{expand(), pixels(28)})
-                    .with_padding(Padding{.left = pixels(0)})
+                    .with_padding(Padding{.top = pixels(2), .right = pixels(8), .bottom = pixels(2), .left = pixels(0)})
                     .with_alignment(TextAlignment::Left)
                     .with_custom_background(theme::WINDOW_BG)
-                    .with_custom_text_color(theme::pick({100, 180, 255, 255}, {0, 95, 184, 255}))
+                    .with_custom_text_color(theme::TEXT_ACCENT)
                     .with_font("mono", pixels(12.0f))
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("basket_item_loc"));
@@ -252,8 +263,10 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 auto previousEdit = review.composerDraft.text;
                 afterhours::text_input::text_area(ctx, mk(itemRow.ent(), 5), review.composerDraft.text,
                     ComponentConfig{}.with_size(ComponentSize{pixels(txtW), pixels(104)})
-                        .with_font("mono", pixels(fontSize)).with_line_height(pixels(22.f))
-                        .with_corner_radius(6.f).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                        .with_font_size(pixels(fontSize)).with_line_height(pixels(22.f))
+                        .with_custom_background(theme::INPUT_BG)
+                        .with_border(theme::FOCUS_RING, pixels(1))
+                        .with_corner_radius(theme::layout::RADIUS_CONTROL).with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                         .with_word_wrap(true).with_overflow(Overflow::Hidden)
                         .with_debug_name("basket_edit_input"));
                 if (previousEdit != review.composerDraft.text) review.mark_dirty();
@@ -282,9 +295,10 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     .with_label(commentText)
                     .with_size(ComponentSize{pixels(txtW), pixels(textH)})
                     .with_custom_text_color(theme::TEXT_PRIMARY)
-                    .with_font("mono", pixels(fontSize))
+                    .with_font_size(pixels(fontSize))
                     .with_alignment(TextAlignment::Left)
-                    .with_text_inset(5.f)
+                    .with_text_inset(2.f)
+                    .with_padding(Padding{.top = pixels(2), .right = pixels(8), .bottom = pixels(2), .left = pixels(2)})
                     .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                     .with_debug_name("basket_item_text"));
             if (editing) continue;
@@ -294,12 +308,17 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                 .with_debug_name("basket_item_actions"));
             if (button(ctx, mk(actions.ent(), 2), preset::Button("Edit")
                     .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
-                    .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_edit"))) {
+                    .with_transparent_bg().with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_border(theme::BORDER, pixels(1))
+                    .with_debug_name("basket_item_edit"))) {
                 begin_comment(review, static_cast<ReviewComponent::CommentIndex>(i));
             }
             if (button(ctx, mk(actions.ent(), 7), preset::Button(c.resolved ? "Reopen" : "Resolve")
                     .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
-                    .with_custom_background(theme::BUTTON_SECONDARY).with_debug_name("basket_item_resolve"))) {
+                    .with_font("ui-bold", pixels(12))
+                    .with_custom_background(c.resolved ? theme::BUTTON_SECONDARY : theme::BUTTON_PRIMARY)
+                    .with_custom_text_color(c.resolved ? theme::TEXT_SECONDARY : theme::BUTTON_PRIMARY_TEXT)
+                    .with_debug_name("basket_item_resolve"))) {
                 review.comments[i].resolved = !c.resolved;
                 review.mark_dirty();
                 if (repo && (anchor.status == review_anchor::Status::Current || anchor.status == review_anchor::Status::Relocated)) {
@@ -312,8 +331,9 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             auto rmBtn = button(ctx, mk(actions.ent(), 1),
                 preset::Button("Delete")
                     .with_size(ComponentSize{expand(), pixels(28)})
-                    .with_custom_background(theme::pick({60, 60, 65, 255}, {226, 226, 230, 255}))
-                    .with_custom_text_color(theme::STATUS_DELETED)
+                    .with_transparent_bg()
+                    .with_border(theme::BORDER, pixels(1))
+                    .with_custom_text_color(theme::DESTRUCTIVE_TEXT)
                     .with_font_size(pixels(12))
                     .with_debug_name("basket_item_remove"));
             if (rmBtn) removeIdx = i;
@@ -327,7 +347,8 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     auto sendBtn = button(ctx, mk(panel.ent(), 900),
         preset::Button("Copy feedback", unresolved_comment_count(review) > 0)
             .with_size(ComponentSize{percent(1.0f), pixels(32)})
-            .with_custom_background(theme::TEXT_ACCENT).with_custom_text_color(theme::WINDOW_BG)
+            .with_font("ui-bold", pixels(14))
+            .with_custom_background(theme::BUTTON_PRIMARY).with_custom_text_color(theme::BUTTON_PRIMARY_TEXT)
             .with_debug_name("basket_send_btn"));
     if (sendBtn) send_review(ctx, review, repo);
 
@@ -343,7 +364,7 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
                     ? "Review could not be loaded — saves are paused until retry succeeds."
                 : review.storePhase == ReviewStorePhase::Saving
                     ? "Saving review..."
-                : review.dirty() ? "Local draft pending save" : "Local draft · Cmd+Enter to copy")
+                : review.dirty() ? "Unsaved draft" : "Local draft · Cmd+Enter to copy")
             .with_size(ComponentSize{percent(1.0f), pixels(20)})
             .with_custom_text_color(storeFailed ? theme::STATUS_DELETED : theme::TEXT_SECONDARY)
             .with_font_size(pixels(12))
@@ -1443,22 +1464,28 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     }
                 };
 
-                std::error_code ec;
-                std::filesystem::path full =
-                    std::filesystem::path(repo.repoPath) / rel;
-                uintmax_t bytes = std::filesystem::file_size(full, ec);
-                std::string sizeStr = ec ? "size unavailable" : human_size(bytes);
+                static std::string cachedSizeKey;
+                static std::string cachedSizeStr;
+                const std::string sizeKey = repo.repoPath + "\n" + rel + "\n" + std::to_string(repo.repoVersion);
+                if (sizeKey != cachedSizeKey) {
+                    std::error_code ec;
+                    std::filesystem::path full = std::filesystem::path(repo.repoPath) / rel;
+                    uintmax_t bytes = std::filesystem::file_size(full, ec);
+                    cachedSizeStr = ec ? "size unavailable" : human_size(bytes);
+                    cachedSizeKey = sizeKey;
+                }
+                const std::string& sizeStr = cachedSizeStr;
 
                 std::string changeStatus;
                 for (auto& f : repo.unstagedFiles)
                     if (same_file(f.path, rel)) {
-                        changeStatus = status_name(f.workTreeStatus) + " (unstaged)";
+                        changeStatus = status_name(f.workTreeStatus) + " · Unstaged";
                         break;
                     }
                 if (changeStatus.empty())
                     for (auto& f : repo.stagedFiles)
                         if (same_file(f.path, rel)) {
-                            changeStatus = status_name(f.indexStatus) + " (staged)";
+                            changeStatus = status_name(f.indexStatus) + " · Staged";
                             break;
                         }
                 if (changeStatus.empty())
@@ -1481,7 +1508,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_label(rel)
                         .with_size(ComponentSize{percent(1.0f), percent(1.0f)})
                         .with_custom_text_color(theme::TEXT_PRIMARY)
-                        .with_font_size(pixels(16))
+                        .with_font("ui-bold", pixels(14))
                         .with_alignment(TextAlignment::Left)
                         .with_padding(Padding{
                             .top = h720(8), .right = w1280(0),
@@ -1490,7 +1517,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
                 div(ctx, mk(mainBg.ent(), 3042),
                     ComponentConfig{}
-                        .with_label(sizeStr + "   ·   " + changeStatus)
+                        .with_label(sizeStr + " · " + changeStatus)
                         .with_size(ComponentSize{percent(1.0f), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_font_size(pixels(12))
@@ -1503,7 +1530,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
                 div(ctx, mk(mainBg.ent(), 3043),
                     ComponentConfig{}
-                        .with_label("No diff available for this file")
+                        .with_label("This file has no textual changes to show. Open it to read the full file.")
                         .with_size(ComponentSize{percent(1.0f), children()})
                         .with_custom_text_color(theme::TEXT_SECONDARY)
                         .with_font_size(pixels(14))
@@ -1513,6 +1540,22 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .bottom = h720(6), .left = w1280(16)})
                         .with_roundness(0.0f)
                         .with_debug_name("no_diff_msg"));
+                auto noDiffActions = div(ctx, mk(mainBg.ent(), 3044), ComponentConfig{}
+                    .with_size(ComponentSize{percent(1.0f), pixels(36)})
+                    .with_flex_direction(FlexDirection::Row)
+                    .with_align_items(AlignItems::Center)
+                    .with_gap(pixels(8))
+                    .with_padding(Padding{.left = w1280(16)})
+                    .with_debug_name("no_diff_actions"));
+                if (button(ctx, mk(noDiffActions.ent(), 0), preset::Button("Open file")
+                        .with_size(ComponentSize{children(), pixels(28)})
+                        .with_font("ui-bold", pixels(12))
+                        .with_custom_background(theme::BUTTON_PRIMARY)
+                        .with_custom_text_color(theme::BUTTON_PRIMARY_TEXT)
+                        .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
+                        .with_debug_name("no_diff_open_file"))) {
+                    navigation::open(repo, reading::source(rel));
+                }
             }
         } else if (hasSelectedCommit) {
             auto* detailCache = find_singleton<CommitDetailCache, ActiveTab>();
@@ -1691,11 +1734,11 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_corner_radius(14.0f)
+                .with_corner_radius(theme::layout::RADIUS_CARD)
                 .with_soft_shadow(0.0f, 8.0f, 24.0f, afterhours::Color{0, 0, 0, 90})
                 .with_padding(Padding{
-                    .top = h720(20), .right = w1280(24),
-                    .bottom = h720(16), .left = w1280(24)})
+                    .top = pixels(20), .right = pixels(24),
+                    .bottom = pixels(16), .left = pixels(24)})
                 .with_debug_name("welcome_card"));
         auto& cardEnt = card.ent();
 
@@ -1714,17 +1757,17 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
         div(ctx, mk(header.ent(), 1),
             ComponentConfig{}
                 .with_label("fh")
-                .with_size(ComponentSize{pixels(40), pixels(40)})
+                .with_size(ComponentSize{pixels(28), pixels(28)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_justify_content(JustifyContent::Center)
                 .with_align_items(AlignItems::Center)
-                .with_font_size(pixels(14))
+                .with_font_size(pixels(12))
                 .with_font_weight(afterhours::colors::FontWeight::Bold)
                 .with_custom_background(theme::BUTTON_PRIMARY)
-                .with_custom_text_color(afterhours::Color{255, 255, 255, 255})
+                .with_custom_text_color(theme::BUTTON_PRIMARY_TEXT)
                 .with_alignment(TextAlignment::Center)
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_corner_radius(10.0f)
+                .with_corner_radius(theme::layout::RADIUS_CONTROL)
                 .with_debug_name("welcome_icon"));
 
         auto headerText = div(ctx, mk(header.ent(), 2),
@@ -1750,7 +1793,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
 
         div(ctx, mk(headerText.ent(), 2),
             ComponentConfig{}
-                .with_label("Open a repository to get started")
+                .with_label("Open a repository to review changes")
                 .with_size(ComponentSize{children(), children()})
                 .with_font_size(pixels(12))
                 .with_transparent_bg()
@@ -1791,19 +1834,24 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_size(ComponentSize{expand(), pixels(36)})
                     .with_font_size(pixels(14))
+                    .with_padding(Padding{.top = pixels(6), .right = pixels(8), .bottom = pixels(6), .left = pixels(8)})
                     .with_custom_background(theme::INPUT_BG)
                     .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
                     .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                    .with_corner_radius(10.0f)
+                    .with_corner_radius(theme::layout::RADIUS_CONTROL)
                     .with_placeholder("Filter repositories...")
                     .with_debug_name("repository_picker_query"));
             if (pickerLayout->repoPicker.focusPending) {
                 ui::focus_control(ctx, filterInput.ent());
                 pickerLayout->repoPicker.focusPending = false;
             }
-            if (button(ctx, mk(controls.ent(), 8), preset::Button(pickerLayout->repoPicker.alphabetical ? "Sort: name" : "Sort: recent")
-                .with_size(ComponentSize{w1280(124), pixels(36)})
-                .with_corner_radius(10.0f)
+            if (button(ctx, mk(controls.ent(), 8), preset::Button(pickerLayout->repoPicker.alphabetical ? "Name" : "Recent")
+                .with_size(ComponentSize{pixels(96), pixels(28)})
+                .with_font_size(pixels(12))
+                .with_transparent_bg()
+                .with_border(theme::BORDER, pixels(1))
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_corner_radius(theme::layout::RADIUS_CONTROL)
                 .with_debug_name("repository_picker_sort")))
                 pickerLayout->repoPicker.alphabetical = !pickerLayout->repoPicker.alphabetical;
             // A query ranks by match quality (folder-name matches first), the
@@ -1831,18 +1879,19 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     .with_size(ComponentSize{percent(1.0f), children()})
                     .with_flex_direction(FlexDirection::Row)
                     .with_align_items(AlignItems::Center)
+                    .with_gap(pixels(8))
                     .with_transparent_bg()
                     .with_roundness(0.0f)
                     .with_margin(Margin{.bottom = h720(8)})
                     .with_debug_name("recent_header_row"));
             div(ctx, mk(listHeader.ent(), 1),
                 ComponentConfig{}
-                    .with_label("Pinned and recent")
+                    .with_label(pinned.empty() ? "Recent" : "Pinned and recent")
                     .with_size(ComponentSize{children(), children()})
                     .with_font_size(pixels(12))
                     .with_font_weight(afterhours::colors::FontWeight::SemiBold)
                     .with_transparent_bg()
-                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_custom_text_color(theme::SECTION_HEADER_TEXT)
                     .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("recent_header"));
@@ -1850,13 +1899,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_label(std::to_string(totalRepos) +
                                 (totalRepos == 1 ? " repository" : " repositories"))
-                    .with_size(ComponentSize{expand(), children()})
+                    .with_size(ComponentSize{children(), children()})
                     .with_font_size(pixels(12))
                     .with_transparent_bg()
                     .with_custom_text_color(theme::TEXT_TERTIARY)
-                    .with_alignment(TextAlignment::Right)
+                    .with_alignment(TextAlignment::Left)
                     .with_roundness(0.0f)
                     .with_debug_name("recent_count"));
+            div(ctx, mk(listHeader.ent(), 3), ComponentConfig{}.with_size(ComponentSize{expand(), children()}));
 
             const char* homeEnv = std::getenv("HOME");
             const std::string home = homeEnv ? homeEnv : "";
@@ -1880,7 +1930,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .bottom = pixels(0), .left = w1280(10)})
                         .with_custom_hover_bg(theme::HOVER_BG)
                         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                        .with_corner_radius(10.0f)
+                        .with_corner_radius(theme::layout::RADIUS_CONTROL)
                         .with_margin(Margin{.bottom = h720(4)})
                         .with_cursor(afterhours::ui::CursorType::Pointer)
                         .with_debug_name("recent_repo_" + basename));
@@ -1898,7 +1948,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_custom_text_color(theme::TEXT_ACCENT)
                         .with_alignment(TextAlignment::Center)
                         .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                        .with_corner_radius(8.0f)
+                        .with_corner_radius(theme::layout::RADIUS_MODAL)
                         .with_debug_name("recent_initial"));
 
                 auto rowText = div(ctx, mk(row.ent(), 2),
@@ -1923,7 +1973,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_roundness(0.0f)
                         .with_debug_name("recent_name"));
 
-                div(ctx, mk(rowText.ent(), 2),
+                auto pathLabel = div(ctx, mk(rowText.ent(), 2),
                     ComponentConfig{}
                         .with_label(dirPath)
                         .with_size(ComponentSize{percent(1.0f), children()})
@@ -1934,6 +1984,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                         .with_roundness(0.0f)
                         .with_debug_name("recent_path"));
+                ui::set_truncated_tooltip(row.ent(), recentRepos[ri], pathLabel.ent());
 
                 if (isPinned) {
                     // Text pill, not a star glyph: the UI font has no ★
@@ -1950,7 +2001,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             .with_custom_text_color(theme::TEXT_ACCENT)
                             .with_alignment(TextAlignment::Center)
                             .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                            .with_corner_radius(6.0f)
+                            .with_roundness(theme::layout::ROUNDNESS_BADGE)
                             .with_margin(Margin{.left = w1280(8)})
                             .with_debug_name("recent_pinned"));
                 }
@@ -1974,7 +2025,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                             }
                         })});
                 }
-            }, ComponentConfig{}.with_size(ComponentSize{percent(1.0f), pixels(std::floor(std::min(384.f, std::max(96.f, ctx.screen_height / ui::zoom::get() - 360.f)) / 48.f) * 48.f)})
+            }, ComponentConfig{}.with_size(ComponentSize{percent(1.0f), pixels(std::min(std::floor(std::min(384.f, std::max(96.f, ctx.screen_height / ui::zoom::get() - 360.f)) / 48.f) * 48.f, static_cast<float>(recentRepos.size()) * 48.f))})
                 .with_transparent_bg()
                 .with_roundness(0.0f)
                 .with_debug_name("repository_picker_list"));
@@ -2005,11 +2056,14 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 .with_gap(pixels(8))
                 .with_transparent_bg()
                 .with_roundness(0.0f)
-                .with_margin(Margin{.top = h720(16)})
+                .with_margin(Margin{.top = pixels(16)})
                 .with_debug_name("welcome_footer"));
         if (button(ctx, mk(footer.ent(), 1), preset::Button("Open repository...")
-                .with_size(ComponentSize{children(), pixels(26)})
-                .with_font_size(pixels(12))
+                .with_size(ComponentSize{children(), pixels(36)})
+                .with_font("ui-bold", pixels(14))
+                .with_custom_background(theme::BUTTON_PRIMARY)
+                .with_custom_text_color(theme::BUTTON_PRIMARY_TEXT)
+                .with_padding(Padding{.top = pixels(6), .right = pixels(12), .bottom = pixels(6), .left = pixels(12)})
                 .with_debug_name("welcome_open_repository"))) {
             if (auto* menu = find_singleton<MenuComponent>())
                 menu->pendingDialog = MenuComponent::PendingDialog::OpenRepo;
@@ -2018,16 +2072,16 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             ComponentConfig{}
                 .with_label("Cmd+O")
                 .with_size(ComponentSize{children(), children()})
-                .with_font_size(pixels(12))
+                .with_font("mono", pixels(12))
                 .with_padding(Padding{
                     .top = pixels(2), .right = pixels(6),
                     .bottom = pixels(2), .left = pixels(6)})
-                .with_custom_background(theme::BUTTON_SECONDARY)
+                .with_custom_background(theme::INPUT_BG)
                 .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_alignment(TextAlignment::Center)
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
-                .with_corner_radius(6.0f)
+                .with_corner_radius(theme::layout::RADIUS_CONTROL)
                 .with_debug_name("welcome_hint_key"));
     }
 };

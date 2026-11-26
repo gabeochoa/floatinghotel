@@ -23,13 +23,13 @@ inline Color TEXT_SECONDARY = {156, 162, 175, 255};
 inline Color TEXT_ACCENT = {185, 207, 239, 255};
 inline Color SECTION_HEADER_TEXT = {156, 162, 175, 255};
 
-// Status badges
-inline Color STATUS_MODIFIED = {227, 179, 65, 255};    // Yellow
-inline Color STATUS_ADDED = {87, 166, 74, 255};        // Green
-inline Color STATUS_DELETED = {220, 76, 71, 255};      // Red
-inline Color STATUS_RENAMED = {78, 154, 220, 255};     // Blue
-inline Color STATUS_UNTRACKED = {128, 128, 128, 255};  // Gray
-inline Color STATUS_CONFLICT = {220, 140, 50, 255};    // Orange
+// Status badges (WCAG AA >= 4.5:1 on dark & light surfaces)
+inline Color STATUS_MODIFIED = {227, 179, 65, 255};    // Soft amber
+inline Color STATUS_ADDED = {140, 209, 164, 255};      // Soft sage green (#8CD1A4)
+inline Color STATUS_DELETED = {240, 138, 138, 255};    // AA coral (#F08A8A)
+inline Color STATUS_RENAMED = {138, 180, 232, 255};    // Calm slate blue
+inline Color STATUS_UNTRACKED = {148, 154, 166, 255};  // AA neutral gray
+inline Color STATUS_CONFLICT = {227, 158, 72, 255};    // Warm amber
 
 // Diff colors
 inline Color DIFF_ADD_BG = {27, 43, 37, 255};
@@ -43,109 +43,106 @@ inline Color GUTTER_BORDER = {44, 47, 54, 255};
 inline Color GUTTER_ADD_BG = {27, 43, 37, 255};
 inline Color GUTTER_DEL_BG = {48, 34, 37, 255};
 
-// Disabled state (unified across all interactive elements)
-inline Color DISABLED_BG = {48, 48, 52, 255};        // #303034 (reads as inactive vs dark UI)
-inline Color DISABLED_TEXT = {140, 140, 146, 255};   // #8C8C92 (legible label on the darker bg)
+// Disabled state (unified across all interactive elements; AA legible)
+inline Color DISABLED_BG = {34, 37, 43, 255};
+inline Color DISABLED_TEXT = {150, 155, 166, 255};
 
 // Input fields
 inline Color INPUT_BG = {32, 35, 41, 255};
 
-// Interactive
-inline Color BUTTON_PRIMARY = {62, 82, 111, 255};
+// Interactive — one calm accent family across dark and light themes
+inline Color BUTTON_PRIMARY = {193, 214, 239, 255};      // #C1D6EF (dark primary CTA)
+inline Color BUTTON_PRIMARY_TEXT = {24, 34, 49, 255};    // #182231 (deep ink on dark CTA)
 inline Color BUTTON_SECONDARY = {32, 35, 41, 255};
 inline Color HOVER_BG = {39, 43, 51, 255};
-inline Color SELECTED_BG = {40, 48, 61, 255};
-inline Color SELECTED_ACCENT = {185, 207, 239, 255};
-inline Color FOCUS_RING = {185, 207, 239, 255};
+inline Color SELECTED_BG = {43, 52, 65, 255};            // #2B3441 (calm slate selection)
+inline Color SELECTED_ACCENT = {185, 207, 239, 255};     // #B9CFEF
+inline Color FOCUS_RING = {130, 165, 212, 210};          // Calm slate-ice focus (never stark white)
 
 // Toolbar
 inline Color TOOLBAR_BG = {27, 29, 34, 255};
-inline Color TOOLBAR_BTN_HOVER = {55, 55, 55, 255};  // #373737
-inline Color TOOLBAR_BTN_ACTIVE = {0, 122, 204,
-                                   255};  // #007ACC (blue flash on press)
-inline Color TOOLBAR_BTN_DISABLED = {90, 90, 90, 255};  // #5A5A5A
+inline Color TOOLBAR_BTN_HOVER = {39, 43, 51, 255};
+inline Color TOOLBAR_BTN_ACTIVE = {51, 66, 86, 255};     // Calm slate press (no electric cyan)
+inline Color TOOLBAR_BTN_DISABLED = {120, 126, 136, 255};
 
 // Decoration badges (commit log branch/tag labels)
-inline Color BADGE_BRANCH_BG = {0, 122, 204, 255};   // #007ACC (local branch)
-inline Color BADGE_HEAD_BG = {87, 166, 74, 255};     // #57A64A (HEAD)
-inline Color BADGE_REMOTE_BG = {78, 154, 220, 255};  // #4E9ADC (remote branch)
-inline Color BADGE_TAG_BG = {85, 85, 85, 255};       // #555555 (tag)
-inline Color BADGE_TAG_TEXT = {204, 204, 204, 255};  // #CCCCCC (tag text)
+inline Color BADGE_BRANCH_BG = {43, 58, 78, 255};        // Muted slate-blue pill
+inline Color BADGE_HEAD_BG = {36, 62, 49, 255};          // Soft sage pill (AA with DIFF_ADD_TEXT)
+inline Color BADGE_REMOTE_BG = {43, 52, 65, 255};
+inline Color BADGE_TAG_BG = {48, 52, 60, 255};
+inline Color BADGE_TAG_TEXT = {210, 214, 222, 255};
 
-// Commit graph
-inline Color GRAPH_DOT = {150, 110, 220, 255};  // Purple/violet for graph dots
-inline Color GRAPH_LINE = {100, 80, 150, 255}; // Connecting lines between commits
+// Commit graph (calm slate, no off-system purple)
+inline Color GRAPH_DOT = {156, 175, 198, 255};
+inline Color GRAPH_LINE = {74, 82, 96, 255};
 
-// Row separator
-inline Color ROW_SEPARATOR = {48, 48, 48, 255};  // #303030 (more visible)
+// Row separator & sidebar divider (single hairline token matching BORDER)
+inline Color ROW_SEPARATOR = {44, 47, 54, 255};
+inline Color SIDEBAR_DIVIDER = {44, 47, 54, 255};
 
-// Sidebar divider (between files and commit log sections)
-inline Color SIDEBAR_DIVIDER = {70, 70, 70, 255};  // #464646 (clearly visible)
-
-// Empty state text (brighter than TEXT_SECONDARY for better readability)
-inline Color EMPTY_STATE_TEXT = {120, 120, 120, 255};  // #787878
+// Empty state text (AA >= 4.5:1 on WINDOW_BG / SIDEBAR_BG)
+inline Color EMPTY_STATE_TEXT = {148, 154, 166, 255};
 
 // Status bar
 inline Color STATUS_BAR_BG = {27, 29, 34, 255};
 inline Color STATUS_BAR_TEXT = {156, 162, 175, 255};
-inline Color STATUS_BAR_CLEAN = {115, 201, 145, 255};  // Green dot (#73C991)
-inline Color STATUS_BAR_DIRTY = {227, 179, 65, 255};   // Yellow dot (#E3B341)
-inline Color STATUS_BAR_DETACHED_BG = {204, 102, 51,
-                                       255};  // Warning orange (#CC6633)
-inline Color STATUS_BAR_BTN_HOVER = {255, 255, 255, 25};  // Subtle white hover
+inline Color STATUS_BAR_CLEAN = {140, 209, 164, 255};
+inline Color STATUS_BAR_DIRTY = {227, 179, 65, 255};
+inline Color STATUS_BAR_DETACHED_BG = {166, 94, 46, 255};
+inline Color STATUS_BAR_BTN_HOVER = {255, 255, 255, 22};
 
 // Section header background (used for sidebar section headers)
 inline Color SECTION_HEADER_BG = {27, 29, 34, 255};
 
 // Selected row (solid, for file/commit rows)
-inline Color SELECTED_BG_SOLID = {40, 48, 61, 255};
+inline Color SELECTED_BG_SOLID = {43, 52, 65, 255};
 
-// Tertiary text
-inline Color TEXT_TERTIARY = {126, 133, 146, 255};
+// Tertiary text (AA >= 4.5:1 on WINDOW_BG / SIDEBAR_BG)
+inline Color TEXT_TERTIARY = {146, 153, 166, 255};
 
 // Syntax
 inline Color SYNTAX_KEYWORD = {194, 168, 217, 255};
 inline Color SYNTAX_STRING = {183, 205, 159, 255};
 inline Color SYNTAX_NUMBER = {215, 185, 145, 255};
-inline Color SYNTAX_COMMENT = {117, 129, 142, 255};
+inline Color SYNTAX_COMMENT = {134, 145, 158, 255};
 
 // Diff lines beyond add/delete
 inline Color DIFF_MOVED_BG = {35, 55, 85, 255};
-inline Color DIFF_MOVED_TEXT = {125, 180, 255, 255};
-inline Color DIFF_EMPTY_BG = {26, 26, 26, 255};  // side-by-side "no line here"
-inline Color FEEDBACK_LINE_BG = {58, 68, 94, 255};
-inline Color HUNK_CURSOR_BG = {38, 79, 140, 255};
-// Translucent reader highlights (routed here 2026-10-04; were raw literals in diff_renderer/sidebar, invisible to the light theme)
-inline Color INTRALINE_ADD_BG = {90, 230, 140, 80};
-inline Color INTRALINE_DEL_BG = {240, 100, 100, 90};
-inline Color FIND_MATCH_BG = {230, 180, 30, 100};
-inline Color OCCURRENCE_BG = {120, 160, 230, 60};
-inline Color SELECTION_BG = {58, 130, 210, 90};
-inline Color CARET_GUTTER_BG = {110, 156, 220, 24};
-inline Color STATUS_SUBMODULE = {170, 140, 230, 255};
+inline Color DIFF_MOVED_TEXT = {156, 195, 240, 255};
+inline Color DIFF_EMPTY_BG = {24, 26, 31, 255};          // side-by-side "no line here"
+inline Color FEEDBACK_LINE_BG = {45, 53, 72, 255};
+inline Color HUNK_CURSOR_BG = {37, 50, 67, 255};         // #253243 calm focused hunk lift (no cobalt banner)
+// Translucent reader highlights
+inline Color INTRALINE_ADD_BG = {90, 210, 140, 64};
+inline Color INTRALINE_DEL_BG = {235, 110, 110, 72};
+inline Color FIND_MATCH_BG = {230, 180, 30, 90};
+inline Color OCCURRENCE_BG = {120, 160, 230, 56};
+inline Color SELECTION_BG = {90, 145, 215, 76};
+inline Color CARET_GUTTER_BG = {130, 165, 212, 26};
+inline Color STATUS_SUBMODULE = {174, 152, 224, 255};
 inline Color SEGMENT_SELECTED_BG = {51, 55, 64, 255};
 
 // Menu bar dropdowns and context menus
-inline Color MENU_BAR_BG = {30, 30, 30, 255};
-inline Color MENU_HEADER_TEXT = {170, 170, 170, 255};  // brighter than secondary so menus don't read disabled
-inline Color MENU_ACTIVE_BG = {45, 45, 45, 255};
-inline Color MENU_ACTIVE_TEXT = {255, 255, 255, 255};
-inline Color MENU_PANEL_BG = {45, 45, 45, 255};
-inline Color MENU_BORDER = {58, 58, 58, 255};
-inline Color MENU_HOVER_BG = {4, 57, 94, 255};
-inline Color MENU_TEXT = {204, 204, 204, 255};
-inline Color MENU_HOVER_TEXT = {255, 255, 255, 255};
-inline Color MENU_SHORTCUT_TEXT = {128, 128, 128, 255};
-inline Color MENU_DISABLED_TEXT = {90, 90, 90, 255};
-inline Color DESTRUCTIVE_TEXT = {235, 94, 94, 255};
+inline Color MENU_BAR_BG = {27, 29, 34, 255};
+inline Color MENU_HEADER_TEXT = {176, 182, 194, 255};
+inline Color MENU_ACTIVE_BG = {43, 47, 56, 255};
+inline Color MENU_ACTIVE_TEXT = {236, 239, 244, 255};
+inline Color MENU_PANEL_BG = {32, 35, 41, 255};
+inline Color MENU_BORDER = {52, 56, 65, 255};
+inline Color MENU_HOVER_BG = {43, 52, 65, 255};
+inline Color MENU_TEXT = {220, 224, 232, 255};
+inline Color MENU_HOVER_TEXT = {242, 245, 250, 255};
+inline Color MENU_SHORTCUT_TEXT = {146, 153, 166, 255};
+inline Color MENU_DISABLED_TEXT = {112, 118, 128, 255};
+inline Color DESTRUCTIVE_TEXT = {240, 138, 138, 255};    // #F08A8A AA coral on dark buttons
 
 // Repository tab strip
-inline Color TAB_STRIP_BG = {27, 29, 33, 255};
+inline Color TAB_STRIP_BG = {27, 29, 34, 255};
 inline Color TAB_ACTIVE_BG = {43, 52, 65, 255};
-inline Color TAB_INACTIVE_BG = {33, 36, 42, 255};
-inline Color TAB_CLOSE_HOVER = {80, 86, 98, 255};
+inline Color TAB_INACTIVE_BG = {32, 35, 41, 255};
+inline Color TAB_CLOSE_HOVER = {70, 76, 88, 255};
 inline Color TAB_BORDER_ACTIVE = {70, 82, 100, 255};
-inline Color TAB_DOT = {110, 118, 130, 255};
+inline Color TAB_DOT = {130, 140, 156, 255};
 
 // ---- Swappable themes ----
 // The inline Color globals above are the LIVE palette the immediate-mode UI
@@ -158,54 +155,55 @@ struct Swatch {
 };
 
 inline const Swatch LIGHT[] = {
-    {&WINDOW_BG, {246, 246, 246, 255}}, {&SIDEBAR_BG, {236, 236, 236, 255}},
-    {&PANEL_BG, {255, 255, 255, 255}}, {&BORDER, {208, 208, 212, 255}},
-    {&TEXT_PRIMARY, {30, 30, 30, 255}}, {&TEXT_SECONDARY, {96, 100, 108, 255}},
-    {&TEXT_ACCENT, {0, 95, 184, 255}}, {&SECTION_HEADER_TEXT, {96, 100, 108, 255}},
-    {&TEXT_TERTIARY, {130, 134, 142, 255}},
-    {&STATUS_MODIFIED, {166, 110, 0, 255}}, {&STATUS_ADDED, {36, 128, 50, 255}},
-    {&STATUS_DELETED, {200, 50, 45, 255}}, {&STATUS_RENAMED, {30, 105, 190, 255}},
-    {&STATUS_UNTRACKED, {120, 120, 120, 255}}, {&STATUS_CONFLICT, {196, 100, 20, 255}},
-    {&DIFF_ADD_BG, {226, 245, 230, 255}}, {&DIFF_ADD_TEXT, {20, 110, 40, 255}},
-    {&DIFF_DEL_BG, {252, 228, 230, 255}}, {&DIFF_DEL_TEXT, {176, 36, 36, 255}},
-    {&DIFF_HUNK_HEADER, {50, 90, 140, 255}}, {&DIFF_HUNK_BG, {230, 238, 250, 255}},
-    {&GUTTER_BG, {250, 250, 250, 255}}, {&GUTTER_BORDER, {222, 222, 226, 255}},
-    {&GUTTER_ADD_BG, {208, 238, 214, 255}}, {&GUTTER_DEL_BG, {248, 212, 216, 255}},
-    {&DISABLED_BG, {228, 228, 231, 255}}, {&DISABLED_TEXT, {150, 150, 156, 255}},
+    {&WINDOW_BG, {248, 249, 251, 255}}, {&SIDEBAR_BG, {241, 243, 246, 255}},
+    {&PANEL_BG, {248, 249, 251, 255}}, {&BORDER, {220, 223, 230, 255}},
+    {&TEXT_PRIMARY, {26, 30, 38, 255}}, {&TEXT_SECONDARY, {88, 95, 107, 255}},
+    {&TEXT_ACCENT, {30, 78, 140, 255}}, {&SECTION_HEADER_TEXT, {94, 101, 114, 255}},
+    {&TEXT_TERTIARY, {104, 109, 118, 255}},
+    {&STATUS_MODIFIED, {154, 103, 0, 255}}, {&STATUS_ADDED, {31, 122, 67, 255}},
+    {&STATUS_DELETED, {192, 50, 46, 255}}, {&STATUS_RENAMED, {30, 78, 140, 255}},
+    {&STATUS_UNTRACKED, {104, 109, 118, 255}}, {&STATUS_CONFLICT, {180, 92, 20, 255}},
+    {&DIFF_ADD_BG, {234, 246, 237, 255}}, {&DIFF_ADD_TEXT, {25, 106, 54, 255}},
+    {&DIFF_DEL_BG, {252, 236, 237, 255}}, {&DIFF_DEL_TEXT, {172, 42, 40, 255}},
+    {&DIFF_HUNK_HEADER, {61, 91, 128, 255}}, {&DIFF_HUNK_BG, {235, 241, 248, 255}},
+    {&GUTTER_BG, {248, 249, 251, 255}}, {&GUTTER_BORDER, {226, 229, 235, 255}},
+    {&GUTTER_ADD_BG, {222, 241, 227, 255}}, {&GUTTER_DEL_BG, {249, 224, 226, 255}},
+    {&DISABLED_BG, {232, 234, 239, 255}}, {&DISABLED_TEXT, {107, 111, 118, 255}},
     {&INPUT_BG, {255, 255, 255, 255}},
-    {&BUTTON_PRIMARY, {0, 110, 200, 255}}, {&BUTTON_SECONDARY, {228, 228, 231, 255}},
-    {&HOVER_BG, {228, 230, 234, 255}}, {&SELECTED_BG, {205, 222, 244, 255}},
-    {&SELECTED_ACCENT, {0, 95, 184, 255}}, {&FOCUS_RING, {0, 110, 200, 255}},
-    {&TOOLBAR_BG, {236, 236, 236, 255}}, {&TOOLBAR_BTN_HOVER, {220, 220, 224, 255}},
-    {&TOOLBAR_BTN_ACTIVE, {0, 122, 204, 255}}, {&TOOLBAR_BTN_DISABLED, {200, 200, 200, 255}},
-    {&BADGE_BRANCH_BG, {0, 122, 204, 255}}, {&BADGE_HEAD_BG, {57, 150, 70, 255}},
-    {&BADGE_REMOTE_BG, {60, 140, 210, 255}}, {&BADGE_TAG_BG, {210, 210, 214, 255}},
-    {&BADGE_TAG_TEXT, {40, 40, 40, 255}},
-    {&GRAPH_DOT, {130, 90, 200, 255}}, {&GRAPH_LINE, {170, 150, 210, 255}},
-    {&ROW_SEPARATOR, {226, 226, 228, 255}}, {&SIDEBAR_DIVIDER, {205, 205, 208, 255}},
-    {&EMPTY_STATE_TEXT, {130, 130, 134, 255}},
-    {&STATUS_BAR_BG, {236, 236, 236, 255}}, {&STATUS_BAR_TEXT, {96, 100, 108, 255}},
-    {&STATUS_BAR_CLEAN, {30, 140, 70, 255}}, {&STATUS_BAR_DIRTY, {166, 110, 0, 255}},
-    {&STATUS_BAR_DETACHED_BG, {204, 102, 51, 255}}, {&STATUS_BAR_BTN_HOVER, {0, 0, 0, 20}},
-    {&SECTION_HEADER_BG, {236, 236, 236, 255}}, {&SELECTED_BG_SOLID, {205, 222, 244, 255}},
-    {&SYNTAX_KEYWORD, {135, 45, 165, 255}}, {&SYNTAX_STRING, {40, 115, 30, 255}},
-    {&SYNTAX_NUMBER, {165, 85, 10, 255}}, {&SYNTAX_COMMENT, {112, 120, 128, 255}},
-    {&DIFF_MOVED_BG, {216, 230, 250, 255}}, {&DIFF_MOVED_TEXT, {25, 95, 190, 255}},
-    {&DIFF_EMPTY_BG, {240, 240, 240, 255}}, {&FEEDBACK_LINE_BG, {226, 228, 246, 255}},
-    {&HUNK_CURSOR_BG, {190, 214, 244, 255}},
-    {&INTRALINE_ADD_BG, {30, 140, 60, 90}}, {&INTRALINE_DEL_BG, {200, 50, 45, 90}},
-    {&FIND_MATCH_BG, {180, 130, 0, 110}}, {&OCCURRENCE_BG, {0, 95, 184, 70}},
-    {&SELECTION_BG, {0, 110, 200, 100}}, {&CARET_GUTTER_BG, {0, 110, 200, 36}},
-    {&STATUS_SUBMODULE, {120, 70, 180, 255}}, {&SEGMENT_SELECTED_BG, {205, 222, 244, 255}},
-    {&MENU_BAR_BG, {236, 236, 236, 255}}, {&MENU_HEADER_TEXT, {50, 50, 54, 255}},
-    {&MENU_ACTIVE_BG, {218, 218, 222, 255}}, {&MENU_ACTIVE_TEXT, {20, 20, 20, 255}},
-    {&MENU_PANEL_BG, {250, 250, 250, 255}}, {&MENU_BORDER, {205, 205, 208, 255}},
-    {&MENU_HOVER_BG, {0, 110, 200, 255}}, {&MENU_TEXT, {30, 30, 30, 255}},
-    {&MENU_HOVER_TEXT, {255, 255, 255, 255}}, {&MENU_SHORTCUT_TEXT, {120, 120, 124, 255}},
-    {&MENU_DISABLED_TEXT, {170, 170, 174, 255}}, {&DESTRUCTIVE_TEXT, {196, 36, 36, 255}},
-    {&TAB_STRIP_BG, {228, 228, 231, 255}}, {&TAB_ACTIVE_BG, {255, 255, 255, 255}},
-    {&TAB_INACTIVE_BG, {236, 236, 238, 255}}, {&TAB_CLOSE_HOVER, {205, 205, 210, 255}},
-    {&TAB_BORDER_ACTIVE, {0, 110, 200, 255}}, {&TAB_DOT, {150, 150, 156, 255}},
+    {&BUTTON_PRIMARY, {30, 78, 140, 255}}, {&BUTTON_PRIMARY_TEXT, {255, 255, 255, 255}},
+    {&BUTTON_SECONDARY, {255, 255, 255, 255}},
+    {&HOVER_BG, {232, 235, 241, 255}}, {&SELECTED_BG, {227, 236, 248, 255}},
+    {&SELECTED_ACCENT, {30, 78, 140, 255}}, {&FOCUS_RING, {30, 78, 140, 195}},
+    {&TOOLBAR_BG, {241, 243, 246, 255}}, {&TOOLBAR_BTN_HOVER, {228, 231, 237, 255}},
+    {&TOOLBAR_BTN_ACTIVE, {212, 225, 243, 255}}, {&TOOLBAR_BTN_DISABLED, {158, 163, 172, 255}},
+    {&BADGE_BRANCH_BG, {227, 236, 248, 255}}, {&BADGE_HEAD_BG, {224, 242, 230, 255}},
+    {&BADGE_REMOTE_BG, {227, 236, 248, 255}}, {&BADGE_TAG_BG, {228, 231, 237, 255}},
+    {&BADGE_TAG_TEXT, {58, 64, 74, 255}},
+    {&GRAPH_DOT, {94, 112, 138, 255}}, {&GRAPH_LINE, {186, 194, 206, 255}},
+    {&ROW_SEPARATOR, {220, 223, 230, 255}}, {&SIDEBAR_DIVIDER, {220, 223, 230, 255}},
+    {&EMPTY_STATE_TEXT, {104, 109, 118, 255}},
+    {&STATUS_BAR_BG, {241, 243, 246, 255}}, {&STATUS_BAR_TEXT, {88, 95, 107, 255}},
+    {&STATUS_BAR_CLEAN, {31, 122, 67, 255}}, {&STATUS_BAR_DIRTY, {154, 103, 0, 255}},
+    {&STATUS_BAR_DETACHED_BG, {188, 102, 44, 255}}, {&STATUS_BAR_BTN_HOVER, {0, 0, 0, 18}},
+    {&SECTION_HEADER_BG, {241, 243, 246, 255}}, {&SELECTED_BG_SOLID, {227, 236, 248, 255}},
+    {&SYNTAX_KEYWORD, {126, 48, 152, 255}}, {&SYNTAX_STRING, {38, 110, 48, 255}},
+    {&SYNTAX_NUMBER, {158, 84, 18, 255}}, {&SYNTAX_COMMENT, {104, 112, 122, 255}},
+    {&DIFF_MOVED_BG, {226, 236, 249, 255}}, {&DIFF_MOVED_TEXT, {30, 78, 140, 255}},
+    {&DIFF_EMPTY_BG, {241, 243, 246, 255}}, {&FEEDBACK_LINE_BG, {232, 236, 248, 255}},
+    {&HUNK_CURSOR_BG, {220, 232, 246, 255}},
+    {&INTRALINE_ADD_BG, {46, 160, 67, 52}}, {&INTRALINE_DEL_BG, {207, 56, 56, 52}},
+    {&FIND_MATCH_BG, {188, 140, 12, 84}}, {&OCCURRENCE_BG, {30, 78, 140, 48}},
+    {&SELECTION_BG, {30, 78, 140, 68}}, {&CARET_GUTTER_BG, {30, 78, 140, 28}},
+    {&STATUS_SUBMODULE, {116, 72, 168, 255}}, {&SEGMENT_SELECTED_BG, {255, 255, 255, 255}},
+    {&MENU_BAR_BG, {241, 243, 246, 255}}, {&MENU_HEADER_TEXT, {52, 58, 68, 255}},
+    {&MENU_ACTIVE_BG, {226, 230, 236, 255}}, {&MENU_ACTIVE_TEXT, {20, 24, 30, 255}},
+    {&MENU_PANEL_BG, {255, 255, 255, 255}}, {&MENU_BORDER, {214, 218, 226, 255}},
+    {&MENU_HOVER_BG, {227, 236, 248, 255}}, {&MENU_TEXT, {26, 30, 38, 255}},
+    {&MENU_HOVER_TEXT, {20, 38, 66, 255}}, {&MENU_SHORTCUT_TEXT, {104, 109, 118, 255}},
+    {&MENU_DISABLED_TEXT, {158, 163, 172, 255}}, {&DESTRUCTIVE_TEXT, {192, 50, 46, 255}},
+    {&TAB_STRIP_BG, {241, 243, 246, 255}}, {&TAB_ACTIVE_BG, {255, 255, 255, 255}},
+    {&TAB_INACTIVE_BG, {234, 237, 241, 255}}, {&TAB_CLOSE_HOVER, {214, 218, 226, 255}},
+    {&TAB_BORDER_ACTIVE, {196, 206, 220, 255}}, {&TAB_DOT, {110, 118, 130, 255}},
 };
 
 enum class ThemeName { Dark, Light };
@@ -271,8 +269,11 @@ const std::bitset<4> ROUNDED_CORNERS = std::bitset<4>(0b1111);
 // SHORT SIDE, so one constant gave a 24px-tall banner 3.6px corners and a
 // 150px-tall metadata box 22.5px from the same preset. A fixed radius is what
 // these actually want.
-constexpr float RADIUS_BUTTON = 5.0f;  // Toolbar & dialog buttons
-constexpr float RADIUS_BOX = 6.0f;     // Metadata boxes, containers, cards
+constexpr float RADIUS_CONTROL = 5.0f; // Buttons, inputs, segmented pills, selected rows, keycaps
+constexpr float RADIUS_BUTTON = RADIUS_CONTROL;
+constexpr float RADIUS_CARD = 7.0f;    // Diff file cards, feedback cards, permission & welcome cards
+constexpr float RADIUS_BOX = RADIUS_CARD;
+constexpr float RADIUS_MODAL = 8.0f;   // Modals, command palette, toasts
 
 // Still a fraction, and correctly so: a badge is a pill, and "half the short
 // side" is the definition of one. Badges are all one text line tall, so this
@@ -313,19 +314,19 @@ inline Color fileTypeColor(const std::string& path) {
 
     if (ext == "cpp" || ext == "cc" || ext == "cxx" || ext == "h" ||
         ext == "hpp" || ext == "c")
-        return Color{81, 154, 186, 255};    // blue — C/C++
+        return pick({132, 178, 212, 255}, {36, 92, 148, 255});    // slate blue — C/C++
     if (ext == "md" || ext == "markdown" || ext == "txt" || ext == "rst")
-        return Color{120, 170, 200, 255};   // light blue — docs
+        return pick({148, 184, 212, 255}, {52, 102, 148, 255});   // soft blue — docs
     if (ext == "json" || ext == "yaml" || ext == "yml" || ext == "toml" ||
         ext == "ini" || ext == "cfg" || ext == "conf" || ext == "gitignore")
-        return Color{203, 203, 65, 255};    // yellow — config
+        return pick({216, 188, 108, 255}, {148, 104, 16, 255});   // warm amber — config
     if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "gif" ||
         ext == "ico" || ext == "svg" || ext == "webp")
-        return Color{160, 116, 196, 255};   // purple — images
+        return pick({176, 152, 216, 255}, {116, 72, 168, 255});   // muted lavender — images
     if (ext == "sh" || ext == "bash" || ext == "py" || ext == "rb" ||
         ext == "js" || ext == "ts")
-        return Color{115, 201, 145, 255};   // green — scripts
-    return Color{109, 128, 134, 255};       // neutral gray
+        return pick({140, 209, 164, 255}, {31, 122, 67, 255});    // sage green — scripts
+    return TEXT_SECONDARY;
 }
 
 }  // namespace theme

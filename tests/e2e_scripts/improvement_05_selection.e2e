@@ -6,9 +6,9 @@ wait_frames 10
 click_text Split
 wait_frames 10
 screenshot improvement_05_split_before
-mouse_down 430 280
+mouse_down 430 302
 wait_frames 3
-mouse_move 600 280
+mouse_move 600 302
 wait_frames 3
 mouse_up
 wait_frames 5

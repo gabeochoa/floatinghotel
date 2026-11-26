@@ -10,7 +10,7 @@ wait_frames 5
 click_text "Light Theme"
 wait_frames 5
 validate theme=light
-validate panel_bg=255,255,255
+validate panel_bg=248,249,251
 click_text main.cpp
 wait_for_refresh
 wait_frames 10

@@ -574,7 +574,10 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
         if (!command.shortcut.empty()) spans.push_back({"   " + command.shortcut, theme::TEXT_SECONDARY});
         if (button(ctx, mk(row, 0), preset::Button(command.label).with_styled_label(spans)
                 .with_size(ComponentSize{percent(1.f), pixels(28)}).with_alignment(TextAlignment::Left)
-                .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
+                .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::SELECTED_BG : theme::PANEL_BG)
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
+                    .with_padding(Padding{.top = pixels(4), .right = pixels(10), .bottom = pixels(4), .left = pixels(10)})
+                    .with_text_inset(10.f)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_font_size(pixels(14)).with_debug_name("command_palette_result"))) clicked = results[i];
     }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(28.f, height - 90.f))})
@@ -594,10 +597,10 @@ inline void update_picker_catalog(RepoComponent& repo, LayoutComponent& layout) 
             scope.sourcesCached = true;
             ++scope.catalogVersion;
         } else {
-            scope.localFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, false, stop); },
-                async_work::Priority::Foreground, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
-            scope.remoteFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::refs(path, true, stop); },
-                async_work::Priority::Background, git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"});
+            scope.refsFuture = async_work::launch([path](std::stop_token stop) { return git::catalog::all_refs(path, stop); },
+                async_work::Priority::Foreground, git::catalog::AllRefs{
+                    git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"},
+                    git::catalog::Page{{}, "Reader queue is full; reopen Quick Open"}});
         }
         scope.catalogQuery = layout.filePickerQuery;
         scope.catalogDue = std::chrono::steady_clock::now();
@@ -671,8 +674,20 @@ inline void update_picker_catalog(RepoComponent& repo, LayoutComponent& layout) 
             cached.remoteRefs = scope.remoteRefs;
         }
     };
-    poll(scope.localFuture, scope.localRefs);
-    poll(scope.remoteFuture, scope.remoteRefs);
+    if (scope.refsFuture.valid() && scope.refsFuture.wait_for(std::chrono::seconds(0)) == std::future_status::ready) {
+        auto result = scope.refsFuture.get();
+        if (scope.owner && navigation::accepts(repo, *scope.owner, scope.owner->key)) {
+            scope.localRefs = std::move(result.local);
+            scope.remoteRefs = std::move(result.remote);
+            ++scope.catalogVersion;
+            if (!repo.headCommitHash.empty()) {
+                auto& cached = picker_source_cache()[repo.repoPath];
+                cached.head = repo.headCommitHash;
+                cached.localRefs = scope.localRefs;
+                cached.remoteRefs = scope.remoteRefs;
+            }
+        }
+    }
     poll(scope.commitsFuture, scope.commits);
 }
 
@@ -723,20 +738,29 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     auto& scope = layout.filePickerScope;
     auto& position = layout.filePickerPosition;
     auto heading = div(ctx, mk(parent, 586000), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row).with_gap(pixels(6)));
+        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row)
+        .with_align_items(AlignItems::Center).with_gap(pixels(12)));
     div(ctx, mk(heading.ent(), 0), ComponentConfig{}.with_label("Quick Open")
-        .with_size(ComponentSize{children(), pixels(30)}).with_font_size(pixels(14)));
+        .with_size(ComponentSize{children(), pixels(30)}).with_font("ui-bold", pixels(16))
+        .with_custom_text_color(theme::TEXT_PRIMARY)
+        .with_debug_name("quick_open_title"));
     if (button(ctx, mk(heading.ent(), 1), preset::Button(file_picker_revision_label(scope.documentRevision))
-            .with_size(ComponentSize{children(), pixels(28)})
-            .with_custom_background(!scope.workingTree ? theme::SELECTED_BG : theme::PANEL_BG)
+            .with_size(ComponentSize{children(), pixels(24)})
+            .with_font_size(pixels(12))
+            .with_custom_background(!scope.workingTree ? theme::SEGMENT_SELECTED_BG : theme::BUTTON_SECONDARY)
+            .with_border(theme::BORDER, pixels(1))
+            .with_custom_text_color(!scope.workingTree ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
             .with_debug_name("file_picker_document_scope"))) {
         scope.workingTree = false;
         layout.filePickerFocus = true;
     }
     if (!std::holds_alternative<reading::WorkingTree>(scope.documentRevision) &&
         button(ctx, mk(heading.ent(), 2), preset::Button("Working tree")
-            .with_size(ComponentSize{children(), pixels(28)})
-            .with_custom_background(scope.workingTree ? theme::SELECTED_BG : theme::PANEL_BG)
+            .with_size(ComponentSize{children(), pixels(24)})
+            .with_font_size(pixels(12))
+            .with_custom_background(scope.workingTree ? theme::SEGMENT_SELECTED_BG : theme::BUTTON_SECONDARY)
+            .with_border(theme::BORDER, pixels(1))
+            .with_custom_text_color(scope.workingTree ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
             .with_debug_name("file_picker_working_scope"))) {
         scope.workingTree = true;
         layout.filePickerFocus = true;
@@ -758,19 +782,32 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     }
     const auto& paths = working ? repo.allFilePaths : scope.listing.paths;
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 586001), layout.filePickerQuery,
-        ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)}).with_debug_name("file_picker_input"));
+        ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)})
+            .with_padding(Padding{.top = pixels(6), .right = pixels(10), .bottom = pixels(6), .left = pixels(10)})
+            .with_custom_background(theme::INPUT_BG)
+            .with_border(theme::BORDER, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+            .with_corner_radius(theme::layout::RADIUS_CONTROL)
+            .with_debug_name("file_picker_input"));
     if (layout.filePickerFocus || ui::shortcut_owner(ctx, repo).region != reading::focus::Region::Picker) {
         ui::focus_control(ctx, input.ent());
         layout.filePickerFocus = false;
     }
     auto categories = div(ctx, mk(parent, 586004), ComponentConfig{}
-        .with_size(ComponentSize{percent(1.f), pixels(28)}).with_flex_direction(FlexDirection::Row).with_gap(pixels(4)));
+        .with_size(ComponentSize{percent(1.f), pixels(30)}).with_flex_direction(FlexDirection::Row).with_gap(pixels(2))
+        .with_padding(Padding{.top = pixels(2), .right = pixels(2), .bottom = pixels(2), .left = pixels(2)})
+        .with_custom_background(theme::BUTTON_SECONDARY).with_border(theme::BORDER, pixels(1))
+        .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(theme::layout::RADIUS_MODAL)
+        .with_debug_name("quick_open_categories"));
     const std::array kinds{git::catalog::Kind::All, git::catalog::Kind::File, git::catalog::Kind::Commit,
         git::catalog::Kind::Branch, git::catalog::Kind::Tag};
     for (size_t i = 0; i < kinds.size(); ++i) {
         if (button(ctx, mk(categories.ent(), static_cast<int>(i)), preset::Button(git::catalog::label(kinds[i]))
-            .with_size(ComponentSize{children(), pixels(26)}).with_font_size(pixels(12))
-            .with_custom_background(scope.category == kinds[i] ? theme::SELECTED_BG : theme::PANEL_BG)
+            .with_size(ComponentSize{children(), pixels(24)}).with_font_size(pixels(12))
+            .with_custom_background(scope.category == kinds[i] ? theme::SEGMENT_SELECTED_BG : theme::BUTTON_SECONDARY)
+            .with_custom_text_color(scope.category == kinds[i] ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
+            .with_border(scope.category == kinds[i] ? theme::BORDER : afterhours::Color{0, 0, 0, 0}, pixels(1))
+            .with_corner_radius(theme::layout::RADIUS_CONTROL)
             .with_debug_name("quick_open_category_" + git::catalog::label(kinds[i])))) {
             scope.category = kinds[i];
             layout.filePickerCacheKey.clear();
@@ -971,7 +1008,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     if (includesRefs && !scope.localRefs.error.empty()) error = scope.localRefs.error;
     if (includesRefs && !scope.remoteRefs.error.empty() && scope.category != git::catalog::Kind::Tag) error = scope.remoteRefs.error;
     const bool searching = scope.matchFuture.valid() || (includesCommits && (scope.commitsFuture.valid() || scope.catalogDue)) ||
-        (includesRefs && (scope.localFuture.valid() || (scope.category != git::catalog::Kind::Tag && scope.remoteFuture.valid())));
+        (includesRefs && scope.refsFuture.valid());
     const std::string status = position.positionRequest.busy() ? "Checking line..." : !position.error.empty() ? position.error :
         !position.parsed.error.empty() && includesFiles ? position.parsed.error : !error.empty() ? error :
         includesFiles && scope.future.valid() ? "Loading files..." : searching ? std::to_string(results.size()) + " results · searching..." :
@@ -979,7 +1016,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
             includesRefs && (scope.localRefs.more || scope.remoteRefs.more) ? " matches · ref list limit reached" :
             includesCommits && scope.commits.more ? " matches · commit result limit reached" :
             layout.filePickerQuery.empty() && includesFiles ? " results · recent files first · Enter open · Esc close" :
-            " matches · arrows to choose · Enter open · Esc close");
+            " matches · ↑↓ choose · Enter open · Esc close");
     div(ctx, mk(parent, 586002), ComponentConfig{}
         .with_label(status).with_debug_name("file_picker_status")
         .with_size(ComponentSize{percent(1.f), pixels(28)}).with_font_size(pixels(12))
@@ -1020,7 +1057,10 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                     .with_styled_label(spans)
                     .with_size(ComponentSize{percent(1.f), pixels(28)})
                     .with_alignment(TextAlignment::Left)
-                    .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
+                    .with_custom_background(static_cast<int>(i) == layout.filePickerIndex ? theme::SELECTED_BG : theme::PANEL_BG)
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
+                    .with_padding(Padding{.top = pixels(4), .right = pixels(10), .bottom = pixels(4), .left = pixels(10)})
+                    .with_text_inset(10.f)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_font_size(pixels(14)).with_debug_name("file_picker_result"));
             if (results[i].kind == git::catalog::Kind::File)
@@ -1037,7 +1077,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
                         navigation::open(*active, reading::review("compare:" + base + ":" + targetRevision), true, reading::OpenMode::Keep);
                 }, historical)});
             }
-        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::max(28.f, height - 118.f))})
+        }, ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(std::min(std::max(28.f, height - 118.f), std::max(28.f, static_cast<float>(results.size()) * 28.f)))})
             .with_debug_name("file_picker_list"));
 }
 
@@ -1087,7 +1127,14 @@ struct FilePickerSystem : afterhours::System<UIContext<InputAction>> {
         const float screenWidth = ctx.screen_width / zoom;
         const float screenHeight = ctx.screen_height / zoom;
         const float width = std::max(100.f, std::min(620.f, screenWidth - 32.f));
-        const float height = layout->picker.mode == PickerMode::Line ? 204.f : std::max(160.f, std::min(440.f, screenHeight - 80.f));
+        float height = layout->picker.mode == PickerMode::Line ? 204.f : std::max(160.f, std::min(440.f, screenHeight - 80.f));
+        if (layout->picker.mode == PickerMode::Files) {
+            // Content-bounded: chrome (~166px) + up to ten 28px rows, from
+            // the previous frame's results (they stay on screen while a new
+            // match runs), so a 3-result query no longer leaves a 190px void.
+            const size_t rows = std::max<size_t>(1, std::min<size_t>(layout->filePickerScope.results.size(), 10));
+            height = std::max(204.f, std::min(166.f + static_cast<float>(rows) * 28.f, std::max(160.f, std::min(440.f, screenHeight - 80.f))));
+        }
         bool pickerOpen = layout->picker.is_open();
         auto modal = afterhours::modal::detail::modal_impl(ctx, mk(root, 586100), pickerOpen,
             afterhours::ModalConfig{}.with_size(pixels(width), pixels(height))

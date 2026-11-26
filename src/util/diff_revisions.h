@@ -35,8 +35,8 @@ inline std::pair<std::string, std::string> diff_revisions(const std::string& sco
 inline std::string diff_target_label(const std::string& scope) {
     const auto target = diff_target(scope);
     switch (target.kind) {
-        case DiffTarget::Kind::WorkingTree: return "working tree (uncommitted)";
-        case DiffTarget::Kind::Index: return "staged changes";
+        case DiffTarget::Kind::WorkingTree: return "Working tree";
+        case DiffTarget::Kind::Index: return "Staged changes";
         case DiffTarget::Kind::File: return "file at " + target.after;
         case DiffTarget::Kind::Comparison: return "comparison " + target.before.substr(0, 12) + " → " + target.after.substr(0, 12);
         case DiffTarget::Kind::ParentComparison: return "merge " + target.after.substr(0, 12) + " against parent " + target.before.substr(0, 12);

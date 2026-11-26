@@ -18,8 +18,8 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         .with_flex_direction(FlexDirection::Row).with_no_wrap()
         .with_align_items(AlignItems::Center).with_gap(pixels(4))
         .with_debug_name("full_file_header"));
-    auto back = button(ctx, mk(header.ent(), 0), preset::Button(compact ? "<" : "< Review")
-        .with_size(ComponentSize{pixels(compact ? 28 : 84), pixels(28)})
+    auto back = button(ctx, mk(header.ent(), 0), preset::Button("< Review")
+        .with_size(ComponentSize{pixels(84), pixels(28)})
         .with_font_size(pixels(12)).with_debug_name("full_file_back"));
     ui::set_tooltip(back.ent(), "Return to review");
     if (back) {
@@ -44,10 +44,14 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         for (size_t i = 0; i < segments.size(); ++i) {
             prefix += (i ? "/" : "") + segments[i];
             const bool last = i + 1 == segments.size();
-            auto segment = button(ctx, mk(crumbs.ent(), static_cast<int>(10 + i)), preset::Button(last ? segments[i] : segments[i] + " /")
+            auto segment = button(ctx, mk(crumbs.ent(), static_cast<int>(10 + i)), preset::Button(segments[i])
                 .with_size(ComponentSize{children(), pixels(24)}).with_font_size(pixels(12))
                 .with_debug_name("breadcrumb_" + std::to_string(i)));
             ui::set_tooltip(segment.ent(), last ? std::string("Open outline") : "Open Quick Open at " + prefix);
+            if (!last) div(ctx, mk(crumbs.ent(), static_cast<int>(50 + i)), ComponentConfig{}
+                .with_label("/").with_size(ComponentSize{children(), pixels(24)})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_TERTIARY)
+                .with_debug_name("breadcrumb_sep_" + std::to_string(i)));
             if (segment) {
                 if (auto* layout = find_singleton<LayoutComponent>()) {
                     if (last) open_symbol_picker(repo, *layout);
@@ -99,8 +103,10 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
     const auto badge = revision.empty() ? (compact ? "WT" : "Working tree") :
         revision == "INDEX" ? "Index" : revision.substr(0, 7);
     auto revisionLabel = div(ctx, mk(header.ent(), 2), ComponentConfig{}
-        .with_label(badge).with_size(ComponentSize{pixels(compact ? 58 : 94), pixels(28)})
+        .with_label(badge).with_size(ComponentSize{children(), pixels(28)})
         .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+        .with_transparent_bg()
+        .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
         .with_debug_name("full_file_revision"));
     ui::set_tooltip(revisionLabel.ent(), revision.empty() ? "Working tree" : revision);
@@ -113,6 +119,9 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         const bool saveFailed = doc && doc->edit == reading::Edit::SaveFailed;
         auto pill = button(ctx, mk(header.ent(), 4), preset::Button(saveFailed ? "Save failed" : editing ? (dirty ? "Editing •" : "Editing") : "Read-only")
             .with_size(ComponentSize{pixels(compact ? 62 : 84), pixels(28)})
+            .with_custom_background(editing ? theme::SEGMENT_SELECTED_BG : theme::BUTTON_SECONDARY)
+            .with_custom_text_color(saveFailed ? theme::DESTRUCTIVE_TEXT : editing ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
+            .with_border(editing ? theme::SELECTED_ACCENT : theme::BORDER, pixels(1))
             .with_font_size(pixels(12)).with_debug_name("source_edit_toggle"));
         ui::set_tooltip(pill.ent(), saveFailed && doc ? doc->editError : editing ? "Switch back to read-only (unsaved changes are kept in the buffer)" : "Edit this file");
         if (pill) {
@@ -138,7 +147,7 @@ inline bool render_source_header(UIContext<InputAction>& ctx, Entity& parent,
         if (outline && mutableLayout) mutableLayout->outlinePanelOpen = !mutableLayout->outlinePanelOpen;
     }
     auto options = button(ctx, mk(header.ent(), 3), preset::Button("...")
-        .with_size(ComponentSize{pixels(28), pixels(28)}).with_font_size(pixels(12))
+        .with_size(ComponentSize{pixels(36), pixels(28)}).with_font_size(pixels(12))
         .with_debug_name("full_file_options"));
     ui::set_tooltip(options.ent(), "File actions");
     if (!options) return false;

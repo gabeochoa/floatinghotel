@@ -192,7 +192,9 @@ struct RepoPickerSystem : afterhours::System<UIContext<InputAction>> {
             const bool selected = static_cast<int>(r) == layout->repoPicker.index;
             auto row = button(ctx, mk(list.ent(), rowId++), preset::Button(ui::welcome::repo_display_name(entry.path))
                 .with_size(ComponentSize{percent(1.f), pixels(30)}).with_alignment(TextAlignment::Left)
-                .with_custom_background(selected ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
+                .with_custom_background(selected ? theme::SELECTED_BG : theme::PANEL_BG)
+                .with_custom_text_color(theme::TEXT_PRIMARY)
+                .with_padding(Padding{.top = pixels(4), .right = pixels(10), .bottom = pixels(4), .left = pixels(10)})
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_font_size(pixels(14))
                 .with_debug_name(entry.exists ? "repo_picker_result_" + ui::welcome::repo_display_name(entry.path)

@@ -27,12 +27,16 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
             .with_roundness(0.f).with_render_layer(5)
             .with_debug_name("status_bar_bg"));
 
+        const bool hasRepo = repo && !repo->repoPath.empty();
         std::string branch;
         std::string counts;
-        if (!repo || repo->repoPath.empty()) branch = "No repository";
+        if (!hasRepo) branch = "Welcome · Cmd+O to open a repository";
         else if (!repo->filesError.empty()) branch = "Repository unavailable";
         else if (!repo->statusError.empty()) branch = "Working changes unavailable";
-        else if (!repo->statusKnown) branch = repo->branchKnown ? repo->currentBranch + " · checking changes" : "Loading repository";
+        else if (!repo->statusKnown && !repo->has_loaded_once() && repo->currentBranch.empty())
+            branch = "Loading repository";
+        else if (!repo->statusKnown && !repo->has_loaded_once())
+            branch = repo->currentBranch + " · checking changes";
         else {
             branch = detached ? "HEAD " + repo->headCommitHash.substr(0, 7)
                 : repo->currentBranch.empty() ? "Unknown branch" : repo->currentBranch;
@@ -40,7 +44,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
             // them here added noise without new information.
             if (repo->stagedFiles.empty() && repo->unstagedFiles.empty() && repo->untrackedFiles.empty())
                 counts = "Working tree clean";
-            if (repo->reviewWorkspace && width >= 700.f) branch += "   Read-only review";
+            if (repo->reviewWorkspace && width >= 700.f) branch += " · Read-only review";
         }
 
         const auto& settings = Settings::get();
@@ -82,14 +86,14 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
         if (!activity.empty() && !storageError) { if (width < 620.f) branch = activity; else counts = activity; }
         if (storageError && width < 620.f) branch = counts;
 
-        const float zoomWidth = std::min(120.f, width);
+        const float zoomWidth = hasRepo ? std::min(124.f, width) : 0.f;
         const float infoWidth = std::max(0.f, width - zoomWidth - (cancelRead ? 65.f : 0.f));
         auto label = [&](int id, const std::string& text, float x, float labelWidth,
                          TextAlignment alignment, const std::string& debugName) {
             div(ctx, mk(root, id), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(text).with_tooltip(text).with_size(ComponentSize{pixels(labelWidth), pixels(height)})
                 .with_absolute_position().with_translate(x, rect.y)
-                .with_padding(Padding{.left = pixels(10), .right = pixels(10)})
+                .with_padding(Padding{.left = pixels(12), .right = pixels(12)})
                 .with_transparent_bg().with_custom_text_color(theme::STATUS_BAR_TEXT)
                 .with_font_size(pixels(12)).with_alignment(alignment)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -101,8 +105,10 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
             label(4020, counts, width * 0.45f, infoWidth - width * 0.45f,
                   TextAlignment::Right, "status_counts");
         const float zoomX = width - zoomWidth;
-        label(4030, std::to_string(static_cast<int>(std::lround(ui::zoom::get() * 100.f))) + "%",
-              zoomX + 26.f, std::max(0.f, zoomWidth - 52.f), TextAlignment::Center, "status_zoom");
+        if (hasRepo && zoomWidth > 0.f) {
+            label(4030, std::to_string(static_cast<int>(std::lround(ui::zoom::get() * 100.f))) + "%",
+                  zoomX + 26.f, std::max(0.f, zoomWidth - 56.f), TextAlignment::Center, "status_zoom");
+        }
         auto zoomButton = [&](int id, const std::string& text, float x, const std::string& debugName) {
             return button(ctx, mk(root, id), ComponentConfig{}.with_skip_grid_snap()
                 .with_label(text).with_size(ComponentSize{pixels(26), pixels(height)})
@@ -119,9 +125,9 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_translate(zoomX - 65.f, rect.y).with_font_size(pixels(12))
                 .with_render_layer(6).with_debug_name("cancel_active_read"))) cancelRead();
         }
-        if (width >= 120.f) {
+        if (hasRepo && width >= 120.f) {
             if (zoomButton(4031, "-", zoomX, "zoom_out")) ui::zoom::step(-ui::zoom::kStep);
-            if (zoomButton(4032, "+", width - 26.f, "zoom_in")) ui::zoom::step(ui::zoom::kStep);
+            if (zoomButton(4032, "+", width - 30.f, "zoom_in")) ui::zoom::step(ui::zoom::kStep);
         }
     }
 };

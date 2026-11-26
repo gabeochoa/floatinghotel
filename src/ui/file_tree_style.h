@@ -27,12 +27,12 @@ inline auto row_config(float width, size_t depth, bool selected) {
     using namespace afterhours::ui;
     return preset::SelectableRow(selected)
         .with_consumes_directional_input()
-        .with_size(ComponentSize{pixels(std::max(0.f, width - 16.f)), pixels(28)})
-        .with_margin(Margin{.left = pixels(8), .right = pixels(8)})
+        .with_size(ComponentSize{pixels(std::max(0.f, width - 22.f)), pixels(28)})
+        .with_margin(Margin{.left = pixels(8), .right = pixels(14)})
         .with_padding(Padding{.top = pixels(0), .right = pixels(8), .bottom = pixels(0),
             .left = pixels(8.f + static_cast<float>(depth) * 12.f)})
         .with_gap(pixels(4)).with_overflow(Overflow::Hidden)
-        .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(5.f);
+        .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(theme::layout::RADIUS_CONTROL);
 }
 
 inline void review_indicator(UIContext<InputAction>& ctx, Entity& row, bool reviewed, size_t unresolved, bool changed) {

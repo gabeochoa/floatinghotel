@@ -226,7 +226,7 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     ui::set_tooltip(subjectLabel.ent(), selectedCommit->subject);
     auto revision = div(ctx, mk(heading.ent(), 593014), ComponentConfig{}
         .with_label(selectedCommit->shortHash).with_size(ComponentSize{pixels(88), pixels(titleHeight)})
-        .with_font("mono", pixels(14)).with_custom_text_color(theme::TEXT_SECONDARY)
+        .with_font("mono", pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
         .with_debug_name("commit_sticky_revision"));
     ui::set_tooltip(revision.ent(), selectedCommit->hash);
 
@@ -242,13 +242,13 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
     };
     div(ctx, mk(metadataHeader.ent(), 0), ComponentConfig{}
         .with_label(selectedCommit->author).with_size(ComponentSize{contentW < 680.f ? expand() :
-            pixels(std::min(160.f, metadataWidth(selectedCommit->author, 14.f))), pixels(28)})
-        .with_font_size(pixels(14)).with_custom_text_color(theme::TEXT_SECONDARY)
+            pixels(std::min(160.f, metadataWidth(selectedCommit->author, 12.f))), pixels(28)})
+        .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_author"));
     const auto relativeDate = "· " + git_helpers::relative_time(selectedCommit->authorDate, true);
     auto date = div(ctx, mk(metadataHeader.ent(), 2), ComponentConfig{}
         .with_label(relativeDate)
-        .with_size(ComponentSize{pixels(metadataWidth(relativeDate, 14.f)), pixels(28)}).with_font_size(pixels(14))
+        .with_size(ComponentSize{pixels(metadataWidth(relativeDate, 12.f)), pixels(28)}).with_font("mono", pixels(12))
         .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("commit_relative_date"));
     ui::set_tooltip(date.ent(), selectedCommit->authorDate);
     const auto decorations = cdv::parse_decorations(selectedCommit->decorations);
@@ -307,8 +307,9 @@ inline void render_commit_detail(afterhours::ui::UIContext<InputAction>& ctx,
                 .with_margin(Margin{
                     .top = pixels(2), .bottom = pixels(6),
                     .left = pixels(PAD), .right = {}})
-                .with_custom_background(theme::pick({51, 42, 24, 255}, {253, 243, 220, 255}))
-                .with_custom_text_color(theme::pick({226, 192, 141, 255}, {120, 80, 10, 255}))
+                .with_custom_background(theme::INPUT_BG)
+                .with_border(theme::BORDER, pixels(1))
+                .with_custom_text_color(theme::STATUS_MODIFIED)
                 .with_font_size(pixels(12))
                 .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
                 .with_corner_radius(theme::layout::RADIUS_BOX)

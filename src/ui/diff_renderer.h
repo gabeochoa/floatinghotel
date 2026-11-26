@@ -1573,7 +1573,9 @@ inline void render_hunk(UIContext<InputAction>& ctx,
     int hunkHeaderId = nextId++;
     const bool headerVisible =
         !vp || !vp->active || vp->visible(diff_detail::hunk_header_height());
-    if (!headerVisible) {
+    if (hunk.header.empty()) {
+        // Full-file source: no banner row and no reserved header height.
+    } else if (!headerVisible) {
         vp->skipped(diff_detail::hunk_header_height());
     } else {
     if (vp) vp->flush(ctx, parent, nextId);
@@ -1585,6 +1587,8 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_align_items(AlignItems::Center)
             .with_custom_background(isCursor ? theme::HUNK_CURSOR_BG
                                              : diff_detail::HUNK_HEADER_BG)
+            .with_border_left(isCursor ? theme::SELECTED_ACCENT : diff_detail::HUNK_HEADER_BG, pixels(2))
+            .with_border_bottom(theme::BORDER, pixels(1))
             .with_roundness(0.0f)
             .with_debug_name("hunk_header_row"));
     if (auto* repo = ecs::find_singleton<ecs::RepoComponent, ecs::ActiveTab>())
@@ -1716,11 +1720,12 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_size(ComponentSize{children(), percent(1.0f)})
             .with_flex_direction(FlexDirection::Row)
             .with_align_items(AlignItems::Center)
-            .with_gap(pixels(compactActions ? 4 : 6))
+            .with_gap(pixels(8))
             .with_margin(Margin{.right = pixels(8)})
             .with_transparent_bg()
             .with_roundness(0.0f)
-            .with_opacity(revealActions ? 1.f : 0.f)
+            // Always discoverable; full strength on hover / keyboard focus.
+            .with_opacity(revealActions ? 1.f : 0.55f)
             .with_debug_name("hunk_header_btns"));
 
     if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent && !fileDiff.isNew && !fileDiff.isDeleted && sel->reviewScope != "snapshot") {
@@ -1732,10 +1737,11 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             auto stamp = navigation::stamp(*contextRepoPtr, key);
             auto contextBtn = button(ctx, mk(hunkBtns.ent(), above ? 4 : 5),
                 preset::Button(compactActions ? "" : (above ? "Expand all above" : "Expand all below"))
-                    .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(24)})
-                    .with_padding(Padding{}).with_font_size(pixels(12))
+                    .with_size(ComponentSize{compactActions ? pixels(28) : children(), pixels(28)})
+                    .with_padding(Padding{.top = pixels(6), .right = pixels(compactActions ? 0 : 8), .bottom = pixels(6), .left = pixels(compactActions ? 0 : 8)}).with_font_size(pixels(12))
                     .with_custom_background(theme::BUTTON_SECONDARY)
                     .with_debug_name(above ? "expand_context_above" : "expand_context_below"));
+            set_tooltip(contextBtn.ent(), above ? "Expand all above" : "Expand all below");
             if (compactActions) chrome_icon(ctx, mk(contextBtn.ent(), 0), above ? ChromeIcon::ArrowUp : ChromeIcon::ArrowDown,
                 theme::TEXT_PRIMARY, above ? "expand_above_icon" : "expand_below_icon");
             if (contextBtn) {
@@ -1755,10 +1761,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
                 const bool stagedScope = sel->reviewScope == "index";
                 auto approveBtn = button(ctx, mk(hunkBtns.ent(), 2),
                     preset::Button(compactActions ? "" : stagedScope ? "Unstage" : "Approve")
-                        .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(24)})
+                        .with_size(ComponentSize{compactActions ? pixels(28) : children(), pixels(28)})
                         .with_padding(Padding{
-                            .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
-                            .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
+                            .top = pixels(6), .right = pixels(compactActions ? 0 : 8),
+                            .bottom = pixels(6), .left = pixels(compactActions ? 0 : 8)})
                         .with_custom_background(theme::BUTTON_SECONDARY)
                         .with_custom_text_color(theme::TEXT_PRIMARY)
                         .with_font_size(pixels(12))
@@ -1962,6 +1968,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             .bottom = pixels(0), .left = pixels(0)})
         .with_roundness(0.0f)
         .with_debug_name("sbs_cell");
+    cfg = cfg.with_border_left(kind == SbsKind::Add ? theme::DIFF_ADD_TEXT : kind == SbsKind::Del ? theme::DIFF_DEL_TEXT : bg, pixels(2));
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
     auto cell = div(ctx, mk(row, id), cfg);
     if (moved) set_tooltip(cell.ent(), "Moved unchanged code");
@@ -2054,6 +2061,36 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                 .bottom = pixels(4), .left = pixels(12)})
             .with_debug_name("sbs_hunk_header_label"));
     }
+    }
+
+    // Pane captions: split panes otherwise differ only by wash colour; the
+    // centre divider comes from the left cell's right border. Rendered even
+    // when showHeader is false (the unified header row already drew above).
+    {
+        constexpr float kCaptionH = 20.f;
+        if (culling && !vp->visible(kCaptionH)) {
+            vp->skipped(kCaptionH);
+        } else {
+            if (culling) vp->flush(ctx, parent, nextId);
+            auto captions = div(ctx, mk(parent, nextId++), ComponentConfig{}.with_skip_grid_snap()
+                .with_size(ComponentSize{w, pixels(kCaptionH)})
+                .with_flex_direction(FlexDirection::Row).with_no_wrap()
+                .with_custom_background(theme::PANEL_BG)
+                .with_roundness(0.f)
+                .with_debug_name("sbs_pane_captions"));
+            div(ctx, mk(captions.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
+                .with_label("Before").with_size(ComponentSize{percent(0.5f), pixels(kCaptionH)})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_text_inset(12.f, 0.f)
+                .with_debug_name("sbs_before_label"));
+            div(ctx, mk(captions.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
+                .with_label("After").with_size(ComponentSize{percent(0.5f), pixels(kCaptionH)})
+                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_text_inset(12.f, 0.f)
+                .with_border_left(theme::BORDER, pixels(1))
+                .with_debug_name("sbs_after_label"));
+            if (culling) vp->built(kCaptionH);
+        }
     }
 
     const auto preparedKey = std::to_string(fileDiff.renderIdentity) + ":" + std::to_string(hunk.renderIdentity);
@@ -2290,12 +2327,12 @@ inline bool render_file_header(UIContext<InputAction>& ctx, Entity& header, Enti
             .with_styled_label(std::move(pathSpans))
             .with_size(ComponentSize{afterhours::ui::expand(), percent(1.0f)})
             .with_custom_text_color(theme::TEXT_PRIMARY)
-            .with_font("mono", pixels(16))
+            .with_font("mono", pixels(14))
             .with_alignment(TextAlignment::Left)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_text_inset(8.f, 0.f)
             .with_padding(Padding{
-                .right = pixels(4), .left = pixels(8)})
+                .right = pixels(8), .left = pixels(8)})
             .with_debug_name("file_header_label"));
     set_truncated_tooltip(header, fileLabel, pathLabel.ent());
 
@@ -2662,10 +2699,10 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(14))
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("diff_stats_label"));
         div(ctx, mk(stats.ent(), 1), ComponentConfig{}.with_label("+" + std::to_string(additions))
-            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(14))
+            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(12))
             .with_custom_text_color(theme::DIFF_ADD_TEXT).with_debug_name("diff_additions"));
         div(ctx, mk(stats.ent(), 2), ComponentConfig{}.with_label("-" + std::to_string(deletions))
-            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(14))
+            .with_size(ComponentSize{children(), pixels(30)}).with_font("mono", pixels(12))
             .with_custom_text_color(theme::DIFF_DEL_TEXT).with_debug_name("diff_deletions"));
         const bool compact = contentWidth < 480.f;
         auto actions = div(ctx, mk(toolbar.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
@@ -2677,7 +2714,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_flex_direction(FlexDirection::Row).with_no_wrap().with_gap(pixels(2))
             .with_padding(Padding{.top = pixels(1), .right = pixels(3), .bottom = pixels(1), .left = pixels(3)})
             .with_custom_background(theme::BUTTON_SECONDARY).with_border(theme::BORDER, pixels(1))
-            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(8.f)
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(theme::layout::RADIUS_MODAL)
             .with_debug_name("review_segments"));
         auto modeButton = [&](int id, const char* label, bool active) {
             // One pill, not two blocks: the inactive segment used to paint
@@ -2689,9 +2726,9 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_custom_text_color(active ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
                 .with_font_size(pixels(14))
                 .with_padding(Padding{.left = pixels(4), .right = pixels(4)})
-                .with_corner_radius(5.f)
+                .with_corner_radius(theme::layout::RADIUS_CONTROL)
                 .with_debug_name(active ? "diff_mode_active" : "diff_mode_inactive");
-            if (active) config = config.with_custom_background(segment_selected_color());
+            if (active) config = config.with_custom_background(segment_selected_color()).with_border(theme::BORDER, pixels(1));
             else config = config.with_transparent_bg();
             return button(ctx, mk(modes.ent(), id), config);
         };
@@ -2708,24 +2745,27 @@ inline void render_diff(UIContext<InputAction>& ctx,
             chrome_icon(ctx, mk(feedback.ent(), 0), ChromeIcon::Message, theme::TEXT_SECONDARY, "feedback_icon");
             div(ctx, mk(feedback.ent(), 1), ComponentConfig{}.with_label("Feedback " + std::to_string(comments))
                 .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
-                .with_custom_text_color(theme::TEXT_PRIMARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
+                .with_custom_text_color(comments > 0 ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
             if (feedback) review->basketOpen = !review->basketOpen;
         }
         if (review) {
             auto counts = cached_review_progress(*review, reviewScope, candidates);
             auto verdict = ecs::current_review_verdict(*review, reviewScope, candidates);
+            const bool reviewComplete = counts.total > 0 && counts.reviewed >= counts.total;
             auto finish = button(ctx, mk(actions.ent(), 3), preset::Button("")
                     .with_size(ComponentSize{pixels(compact ? 104 : 124), pixels(30)})
                     .with_padding(Padding{.left = pixels(6), .right = pixels(6)})
                     .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
                     .with_gap(pixels(4)).with_no_wrap()
-                    .with_custom_background(theme::TEXT_ACCENT).with_custom_text_color(theme::WINDOW_BG)
+                    .with_custom_background(reviewComplete ? theme::BUTTON_PRIMARY : theme::BUTTON_SECONDARY)
+                    .with_custom_text_color(reviewComplete ? theme::BUTTON_PRIMARY_TEXT : theme::TEXT_SECONDARY)
+                    .with_border(theme::BORDER, pixels(1))
                     .with_debug_name("finish_review"));
-            chrome_icon(ctx, mk(finish.ent(), 0), ChromeIcon::Check, theme::WINDOW_BG, "finish_review_icon");
+            chrome_icon(ctx, mk(finish.ent(), 0), ChromeIcon::Check, reviewComplete ? theme::BUTTON_PRIMARY_TEXT : theme::TEXT_SECONDARY, "finish_review_icon");
             div(ctx, mk(finish.ent(), 1), ComponentConfig{}
                 .with_label(verdict == ReviewVerdict::InProgress ? "Finish review" : review_verdict_label(verdict))
                 .with_size(ComponentSize{expand(), pixels(28)}).with_font("ui-bold", pixels(14))
-                .with_custom_text_color(theme::WINDOW_BG).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
+                .with_custom_text_color(reviewComplete ? theme::BUTTON_PRIMARY_TEXT : theme::TEXT_SECONDARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
             if (finish) {
                 std::vector<ContextMenuItem> choices;
                 for (auto value : {ReviewVerdict::Approved, ReviewVerdict::ChangesRequested, ReviewVerdict::Commented, ReviewVerdict::InProgress})
@@ -3445,7 +3485,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
                 .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("symlink_target_notice"));
             vp.built(28.f);
         }
-        if (fileDiff.oldMode != fileDiff.newMode) {
+        if (fileDiff.oldMode != fileDiff.newMode && !fileDiff.isNew && !fileDiff.isDeleted) {
             std::string modeLabel = "File mode: " + (fileDiff.oldMode.empty() ? "absent" : fileDiff.oldMode) +
                 " -> " + (fileDiff.newMode.empty() ? "absent" : fileDiff.newMode);
             if (fileDiff.oldMode == "100644" && fileDiff.newMode == "100755") modeLabel += " · executable enabled";
@@ -3505,8 +3545,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             const std::string language = type == "H" ? "C++" : type == "PY" ? "Python" :
                 type == "TS" ? "TypeScript" : type == "JS" ? "JavaScript" : type == "MD" ? "Markdown" :
                 type == "{}" ? "JSON" : type == "<>" ? "Markup" : type == "·" ? "Text" : type;
-            std::string footer = "Initial context: " + std::to_string(filterRepo ? filterRepo->diffContext : 3) +
-                " lines · " + language;
+            std::string footer = std::to_string(filterRepo ? filterRepo->diffContext : 3) + " lines of context · " + language;
             if (fileDiff.isRenamed) footer += " · Renamed from " + fileDiff.oldPath;
             else if (fileDiff.isNew) footer += " · New file";
             else if (fileDiff.isDeleted) footer += " · Deleted file";
@@ -3527,7 +3566,8 @@ inline void render_diff(UIContext<InputAction>& ctx,
             filterRepo && reviewScope == "index" ? filterRepo->stagedDiff : diffs;
         auto progress = review ? cached_review_progress(*review, reviewScope, candidates) : ecs::ReviewProgress{};
         std::string end = reviewScope == "wt" || reviewScope == "index" || reviewScope == "snapshot" ? "End of changes" : "End of commit";
-        if (review) end += " · " + std::to_string(progress.reviewed) + " of " + std::to_string(progress.total) + " files viewed";
+        if (review) { end += " · " + std::to_string(progress.reviewed) + " of " + std::to_string(progress.total) + " files viewed";
+            if (progress.total > progress.reviewed) end += " · " + std::to_string(progress.total - progress.reviewed) + " to go"; }
         vp.flush(ctx, *contentParent, nextId);
         div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()
             .with_label(end).with_size(ComponentSize{w, pixels(40)})
@@ -3574,13 +3614,15 @@ inline void render_diff(UIContext<InputAction>& ctx,
             .with_absolute_position(1.f, (top - endY) / zoom::get())
             .with_size(ComponentSize{pixels(contentWidth - 1.f - gutter), pixels((end - top) / zoom::get())})
             .with_transparent_bg().with_border(theme::BORDER, pixels(1))
-            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(theme::layout::RADIUS_CARD)
             .with_render_layer(49).with_debug_name("file_card_border"));
     }
     if (stickyHeight > 0.f && filterRepo) {
         auto display = button(ctx, mk(stickyHost.ent(), 1), preset::Button(selectedFileOnly ? "Selected file" : "All files")
             .with_size(ComponentSize{pixels(96), pixels(28)}).with_font_size(pixels(12))
-            .with_transparent_bg().with_debug_name("review_display_mode"));
+            .with_custom_background(theme::BUTTON_SECONDARY).with_border(theme::BORDER, pixels(1))
+            .with_custom_text_color(theme::TEXT_SECONDARY)
+            .with_debug_name("review_display_mode"));
         set_tooltip(display.ent(), "Choose selected file or all files");
         if (display) {
             remember_focus_origin(ctx, display.ent());

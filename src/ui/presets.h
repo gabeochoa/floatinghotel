@@ -43,8 +43,8 @@ inline ComponentConfig Button(const std::string& label, bool enabled = true) {
         .with_label(label)
         .with_size(ComponentSize{children(), h720(32)})
         .with_padding(Padding{
-            .top = pixels(0), .right = pixels(8),
-            .bottom = pixels(0), .left = pixels(8)})
+            .top = pixels(6), .right = pixels(8),
+            .bottom = pixels(6), .left = pixels(8)})
         .with_custom_background(bg)
         .with_custom_text_color(text)
         .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)

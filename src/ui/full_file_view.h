@@ -523,7 +523,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
             if (repo.blameGutter.key == blameKey && !repo.blameGutterLines.empty())
                 code_gutter::lend_blame(repo.blameGutterLines);
         }
-        if (layout.outlinePanelOpen && !repo.fullFileDiff.empty()) {
+        if (layout.outlinePanelOpen && !repo.fullFileDiff.empty() && layout.mainContent.width >= 560.f) {
             // Persistent outline: symbols of the current file, following
             // the caret; single click scrolls (preview), double click jumps.
             const auto& symbols = full_file_symbols(repo);
@@ -537,16 +537,23 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_no_wrap().with_debug_name("outline_body"));
             auto panel = div(ctx, mk(bodyRow.ent(), 0), ComponentConfig{}
                 .with_size(ComponentSize{pixels(220), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Column)
-                .with_custom_background(theme::PANEL_BG).with_debug_name("outline_panel"));
+                .with_custom_background(theme::SIDEBAR_BG).with_border_right(theme::BORDER)
+                .with_padding(Padding{.top = pixels(4), .right = pixels(8), .bottom = pixels(4), .left = pixels(8)})
+                .with_debug_name("outline_panel"));
             div(ctx, mk(panel.ent(), 0), ComponentConfig{}.with_label("Outline")
                 .with_size(ComponentSize{percent(1.f), pixels(26)}).with_font_size(pixels(12))
                 .with_custom_text_color(theme::TEXT_SECONDARY).with_debug_name("outline_title"));
+            if (symbols.empty()) div(ctx, mk(panel.ent(), 9), ComponentConfig{}.with_label("No symbols in this file")
+                .with_size(ComponentSize{percent(1.f), pixels(24)}).with_font_size(pixels(12))
+                .with_custom_text_color(theme::TEXT_TERTIARY).with_debug_name("outline_empty"));
             auto& mutableLayout = const_cast<LayoutComponent&>(layout);
             afterhours::ui::imm::virtual_list(ctx, mk(panel.ent(), 1), symbols.size(), 24.f, [&](size_t i, Entity& row) {
                 const auto& symbol = symbols[i];
                 auto label = button(ctx, mk(row, 0), preset::Button(symbol.name)
                     .with_size(ComponentSize{percent(1.f), pixels(24)}).with_alignment(TextAlignment::Left)
-                    .with_custom_background(static_cast<int>(i) == enclosing ? theme::BUTTON_PRIMARY : theme::PANEL_BG)
+                    .with_custom_background(static_cast<int>(i) == enclosing ? theme::SELECTED_BG : theme::SIDEBAR_BG)
+                    .with_custom_text_color(theme::TEXT_PRIMARY)
+                    .with_padding(Padding{.top = pixels(4), .right = pixels(10), .bottom = pixels(4), .left = pixels(10)})
                     .with_font_size(pixels(12)).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("outline_symbol_" + std::to_string(i)));
                 ui::set_tooltip(label.ent(), symbol.kind + " · line " + std::to_string(symbol.line));

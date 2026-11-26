@@ -68,18 +68,18 @@ void apply_ui_theme(bool light) {
         .set_theme_color(ui::Theme::Usage::Primary,
                          ::theme::BUTTON_PRIMARY)
         .set_theme_color(ui::Theme::Usage::Error,
-                         afterhours::Color{220, 76, 71, 255})
+                         ::theme::STATUS_DELETED)
         .set_theme_color(ui::Theme::Usage::Font,
                          ::theme::TEXT_PRIMARY)
         .set_theme_color(ui::Theme::Usage::DarkFont,
-                         ::theme::WINDOW_BG)
+                         ::theme::BUTTON_PRIMARY_TEXT)
         .set_theme_color(ui::Theme::Usage::Background,
                          ::theme::WINDOW_BG)
         .set_theme_color(ui::Theme::Usage::Surface,
                          ::theme::SIDEBAR_BG)
         // Also every text field's fill (text_area ignores custom backgrounds).
         .set_theme_color(ui::Theme::Usage::Secondary,
-                         ::theme::pick(::theme::BORDER, {244, 244, 246, 255}))
+                         ::theme::INPUT_BG)
         .set_theme_color(ui::Theme::Usage::Accent,
                          ::theme::TEXT_ACCENT)
         .set_theme_color(ui::Theme::Usage::Focus, ::theme::FOCUS_RING);

@@ -275,7 +275,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_absolute_position()
                 .with_translate(layout.sidebar.x, layout.sidebar.y)
                 .with_custom_background(theme::SIDEBAR_BG)
-                .with_border_right(theme::pick({58, 58, 58, 80}, {0, 0, 0, 30}))
+                .with_border_right(theme::BORDER)
                 .with_flex_direction(FlexDirection::Column)
                 .with_overflow(Overflow::Hidden, Axis::Y)
                 .with_roundness(0.0f)
@@ -292,7 +292,30 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
         float splitAvailable = std::max(0.f, layout.sidebar.height - LayoutComponent::kCommitSplitterHeight);
 
         render_repo_header(ctx, sidebarRoot.ent(), repoPtr);
-        if (repoPtr && layout.sidebarMode == LayoutComponent::SidebarMode::Agent) {
+        // No repository open: hide dead repo chrome (sync row, mode tabs,
+        // progress, commit box, history) and let the Welcome picker own the
+        // main canvas. A single neutral sidebar note replaces the repeated
+        // "No repository open" placeholders.
+        if (!repoPtr || repoPtr->repoPath.empty()) {
+            div(ctx, mk(sidebarRoot.ent(), 2199), ComponentConfig{}
+                .with_label("Repositories")
+                .with_size(ComponentSize{percent(1.f), pixels(24)})
+                .with_margin(Margin{.top = pixels(12), .left = pixels(16)})
+                .with_font("ui-bold", pixels(12))
+                .with_custom_text_color(theme::SECTION_HEADER_TEXT)
+                .with_debug_name("sidebar_no_repo_title"));
+            div(ctx, mk(sidebarRoot.ent(), 2201), ComponentConfig{}
+                .with_label("Choose a recent repository, or press Cmd+O to open another folder.")
+                .with_size(ComponentSize{pixels(std::max(0.f, sidebarW - 32.f)), pixels(48)})
+                .with_margin(Margin{.left = pixels(16), .bottom = pixels(8)})
+                .with_font_size(pixels(12))
+                .with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
+                .with_debug_name("sidebar_no_repo_hint"));
+            render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
+            return;
+        }
+        if (layout.sidebarMode == LayoutComponent::SidebarMode::Agent) {
             // The ACP agent panel takes the whole sidebar under the header
             // (same early-return shape as repo search): files, commit log
             // and the commit box all belong to the other modes.
@@ -302,7 +325,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                                     sidebarW, std::max(0.f, layout.sidebar.height - 94.f));
             return;
         }
-        if (repoPtr && repoPtr->repo_search_open()) {
+        if (repoPtr->repo_search_open()) {
             auto pane = div(ctx, mk(sidebarRoot.ent(), 2090), ComponentConfig{}
                 .with_size(ComponentSize{percent(1.f), expand()})
                 .with_padding(Padding{.top = pixels(8), .right = pixels(8), .bottom = pixels(8), .left = pixels(8)})
@@ -564,18 +587,20 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 Settings::get().set_section_collapsed(repoPtr->repoPath, "history", !historyCollapsed);
             if (repoPtr && repoPtr->historyScope.mode == git::HistoryScope::Mode::All) branch = "All refs";
             else if (repoPtr && repoPtr->historyScope.mode == git::HistoryScope::Mode::Branch) branch = repoPtr->historyScope.branch;
+            const bool hasScope = repoPtr && !branch.empty();
             // Fit-to-content pill with a drawn chevron: the old version was
             // a fixed 92px right-aligned box, so "main" sat alone at the
             // right edge of an empty rectangle and nothing said it opens a
             // menu. (A "▾" suffix would be invisible — the UI font has no
             // such glyph; it renders as a tofu box, cf. the section toggle.)
+            if (hasScope) {
             auto branchBtn = button(ctx, mk(heading.ent(), 1), preset::Button("")
                 .with_size(ComponentSize{children(), pixels(24)})
                 .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
                 .with_gap(pixels(4)).with_no_wrap()
                 .with_debug_name("history_branch"));
             div(ctx, mk(branchBtn.ent(), 0), ComponentConfig{}
-                .with_label(branch.empty() ? "Scope" : branch)
+                .with_label(branch)
                 .with_size(ComponentSize{children(), children()}).with_font_size(pixels(12))
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
@@ -598,6 +623,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 for (const auto& branchInfo : repoPtr->branches) if (branchInfo.isLocal)
                     add(branchInfo.name, {git::HistoryScope::Mode::Branch, "refs/heads/" + branchInfo.name, repoPtr->historyScope.remotes});
                 ui::show_context_menu(ctx.mouse.pos.x, ctx.mouse.pos.y, std::move(items));
+            }
             }
         }
 
@@ -1100,51 +1126,57 @@ private:
                 .with_size(ComponentSize{tabRowW, pixels(TAB_HEIGHT)})
                 .with_flex_direction(FlexDirection::Row)
                 .with_align_items(AlignItems::Center)
+                .with_gap(pixels(2))
                 .with_padding(Padding{
-                    .right = pixels(8), .left = pixels(8)})
+                    .top = pixels(2), .right = pixels(10),
+                    .bottom = pixels(2), .left = pixels(10)})
                 .with_custom_background(theme::SIDEBAR_BG)
                 .with_roundness(0.0f)
                 .with_debug_name("sidebar_mode_tabs"));
+        auto track = div(ctx, mk(tabRow.ent(), 0), ComponentConfig{}
+            .with_size(ComponentSize{percent(1.f), pixels(28)})
+            .with_flex_direction(FlexDirection::Row)
+            .with_align_items(AlignItems::Center)
+            .with_gap(pixels(2))
+            .with_padding(Padding{.top = pixels(2), .right = pixels(2), .bottom = pixels(2), .left = pixels(2)})
+            .with_custom_background(theme::BUTTON_SECONDARY)
+            .with_border(theme::BORDER, pixels(1))
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+            .with_corner_radius(theme::layout::RADIUS_MODAL)
+            .with_debug_name("sidebar_mode_track"));
 
         auto* countRepo = find_singleton<RepoComponent, ActiveTab>();
         int nReview = countRepo ? static_cast<int>(countRepo->unstagedFiles.size()) : 0;
         int nStaged = countRepo ? static_cast<int>(countRepo->stagedFiles.size()) : 0;
         int nUntracked = countRepo ? static_cast<int>(countRepo->untrackedFiles.size()) : 0;
-        int nRefs = countRepo ? static_cast<int>(countRepo->branches.size()) : 0;
+        int nRefs = countRepo ? static_cast<int>(countRepo->branches.size() + countRepo->tags.size() + countRepo->stashes.size()) : 0;
+        const int nChanges = nReview + nStaged + nUntracked;
 
         // Emit one tab. `active` highlights it; on click, `apply` mutates layout.
         auto makeTab = [&](int id, const std::string& label, bool active,
                            void (*apply)(LayoutComponent&)) {
-            // Mock: tabs are transparent text with an accent underline on the
-            // active one (not filled pills).
-            // expand(), not children(): four natural-width tabs do not fit a
-            // 200px sidebar (the minimum) and NoWrap put Refs outside the strip
-            // where it could not be clicked at all. Sharing the row keeps all
-            // four reachable at every width, and at the default width there is
-            // enough for each to render its label in full anyway.
+            // Recessed segmented control matching Unified/Split: transparent
+            // inactive segments inside a bordered track, filled active pill.
             auto config = preset::Button(label)
                 .with_size(ComponentSize{afterhours::ui::expand(),
-                                         pixels(TAB_HEIGHT)})
+                                         pixels(24)})
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                // Tight padding: four tabs share a sidebar that starts at
-                // 200px, so every pixel here is one the labels do not get.
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(5),
-                    .bottom = pixels(2), .left = pixels(5)})
-                .with_margin(Margin{
-                    .top = {}, .bottom = {},
-                    .left = {}, .right = pixels(3)})
-                .with_font_size(pixels(14))
+                    .top = pixels(4), .right = pixels(6),
+                    .bottom = pixels(4), .left = pixels(6)})
+                .with_font_size(pixels(12))
                 .with_transparent_bg()
-                .with_roundness(0.0f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_corner_radius(theme::layout::RADIUS_CONTROL)
                 .with_debug_name("tab_" + label);
             if (active) {
-                config = config.with_custom_text_color(theme::TEXT_PRIMARY)
-                               .with_border_bottom(theme::BUTTON_PRIMARY, pixels(2.0f));
+                config = config.with_custom_background(theme::SEGMENT_SELECTED_BG)
+                               .with_custom_text_color(theme::TEXT_PRIMARY)
+                               .with_border(theme::BORDER, pixels(1));
             } else {
                 config = config.with_custom_text_color(theme::TEXT_SECONDARY);
             }
-            if (button(ctx, mk(tabRow.ent(), id), config)) {
+            if (button(ctx, mk(track.ent(), id), config)) {
                 auto* lc = find_singleton<LayoutComponent>();
                 if (lc) apply(*lc);
             }
@@ -1153,10 +1185,10 @@ private:
         using SM = LayoutComponent::SidebarMode;
         using RT = LayoutComponent::ReviewTab;
         bool inChanges = (layout.sidebarMode == SM::Changes);
-        makeTab(2091, "Changes " + std::to_string(nReview + nStaged + nUntracked),
+        makeTab(2091, nChanges > 0 ? "Changes " + std::to_string(nChanges) : "Changes",
                 inChanges,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::ToReview; });
-        makeTab(2094, "Refs " + std::to_string(nRefs), layout.sidebarMode == SM::Refs,
+        makeTab(2094, nRefs > 0 ? "Refs " + std::to_string(nRefs) : "Refs", layout.sidebarMode == SM::Refs,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
         makeTab(2095, "Agent", layout.sidebarMode == SM::Agent,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Agent; });
@@ -1193,18 +1225,18 @@ private:
             .with_size(ComponentSize{pixels(32), pixels(32)})
             .with_custom_background(theme::BUTTON_SECONDARY)
             .with_border(theme::BORDER, pixels(1))
-            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(7.f)
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(theme::layout::RADIUS_CARD)
             .with_debug_name("repo_folder_icon"));
         div(ctx, mk(icon.ent(), 0), ComponentConfig{}
             .with_size(ComponentSize{pixels(17), pixels(12)})
             .with_absolute_position(7.f, 11.f).with_transparent_bg()
-            .with_border(theme::TEXT_ACCENT, pixels(1.5f)));
+            .with_border(theme::TEXT_SECONDARY, pixels(1.f)));
         div(ctx, mk(icon.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{pixels(7), pixels(4)})
             .with_absolute_position(7.f, 8.f).with_custom_background(theme::BUTTON_SECONDARY)
-            .with_border_top(theme::TEXT_ACCENT, pixels(1.5f))
-            .with_border_left(theme::TEXT_ACCENT, pixels(1.5f))
-            .with_border_right(theme::TEXT_ACCENT, pixels(1.5f)));
+            .with_border_top(theme::TEXT_SECONDARY, pixels(1.f))
+            .with_border_left(theme::TEXT_SECONDARY, pixels(1.f))
+            .with_border_right(theme::TEXT_SECONDARY, pixels(1.f)));
         auto text = div(ctx, mk(row.ent(), 2), ComponentConfig{}
             .with_size(ComponentSize{expand(), pixels(46)})
             .with_flex_direction(FlexDirection::Column));
@@ -1219,11 +1251,21 @@ private:
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
                 .with_debug_name("repo_header_label"));
-        // Branch switcher: click lists local branches for checkout.
-        auto branchBtn = button(ctx, mk(text.ent(), 1), preset::Button(branch.empty() ? (repo && !repo->repoPath.empty() ? "Reading branch..." : "Open a repository") : branch + (dirty ? " *" : ""))
+        // Branch badge: a compact inline pill (not a full-width empty input
+        // box). Click lists local branches for checkout.
+        auto branchBadge = div(ctx, mk(text.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{percent(1.f), pixels(24)})
-            .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
+            .with_flex_direction(FlexDirection::Row)
+            .with_align_items(AlignItems::Center)
+            .with_debug_name("repo_branch_row"));
+        auto branchBtn = button(ctx, mk(branchBadge.ent(), 0), preset::Button(branch.empty() ? (repo && !repo->repoPath.empty() ? "Reading branch..." : "Open a repository") : branch + (dirty ? " *" : ""))
+            .with_size(ComponentSize{children(), pixels(22)})
+            .with_padding(Padding{.top = pixels(2), .right = pixels(10), .bottom = pixels(2), .left = pixels(10)})
+            .with_custom_background(theme::BADGE_BRANCH_BG)
+            .with_custom_text_color(theme::TEXT_ACCENT).with_font("mono", pixels(12))
             .with_alignment(TextAlignment::Left)
+            .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+            .with_corner_radius(theme::layout::RADIUS_CONTROL)
             .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("branch_switcher"));
         ui::set_tooltip(branchBtn.ent(), "Switch branch");
         if (branchBtn && repo && !repo->repoPath.empty()) {
@@ -1346,13 +1388,15 @@ private:
             auto config = preset::Button(label, enabled)
                 .with_size(ComponentSize{children(), pixels(28)})
                 .with_padding(Padding{
-                    .right = pixels(6), .left = pixels(6)})
-                .with_font_size(pixels(14))
+                    .top = pixels(4), .right = pixels(8),
+                    .bottom = pixels(4), .left = pixels(8)})
+                .with_font_size(pixels(12))
                 .with_cursor(afterhours::ui::CursorType::Pointer)
                 .with_debug_name(debugName);
             if (enabled)
-                config = config.with_custom_background(theme::BUTTON_SECONDARY)
-                               .with_custom_text_color(theme::TEXT_PRIMARY);
+                config = config.with_transparent_bg()
+                               .with_border(theme::BORDER, pixels(1))
+                               .with_custom_text_color(theme::TEXT_SECONDARY);
             auto result = button(ctx, mk(row.ent(), id), config);
             if (!tooltip.empty()) ui::set_tooltip(result.ent(), tooltip);
             return static_cast<bool>(result);
@@ -1387,25 +1431,34 @@ private:
             for (const auto& branch : repo->branches)
                 if (branch.isCurrent && !branch.upstream.empty()) upstream = branch.upstream;
             std::string stamp;
-            std::filesystem::path gitDir = std::filesystem::path(repo->repoPath) / ".git";
-            std::error_code ec;
-            if (std::filesystem::is_regular_file(gitDir, ec)) {
-                std::ifstream in(gitDir);
-                std::string line;
-                std::getline(in, line);
-                if (line.starts_with("gitdir: ")) gitDir = line.substr(8);
-            }
-            const auto fetchHead = gitDir / "FETCH_HEAD";
-            if (std::filesystem::exists(fetchHead, ec)) {
-                const auto written = std::filesystem::last_write_time(fetchHead, ec);
-                if (!ec) {
-                    const auto age = std::chrono::duration_cast<std::chrono::seconds>(
-                        std::filesystem::file_time_type::clock::now() - written).count();
-                    stamp = age < 60 ? " · fetched just now" : age < 3600 ? " · fetched " + std::to_string(age / 60) + "m ago"
-                        : age < 86400 ? " · fetched " + std::to_string(age / 3600) + "h ago"
-                        : " · fetched " + std::to_string(age / 86400) + "d ago";
+            const auto nowClock = std::chrono::steady_clock::now();
+            if (fetchStampRepo_ != repo->repoPath || fetchStampVersion_ != repo->repoVersion ||
+                nowClock - fetchStampCheckedAt_ >= std::chrono::seconds(3)) {
+                fetchStampRepo_ = repo->repoPath;
+                fetchStampVersion_ = repo->repoVersion;
+                fetchStampCheckedAt_ = nowClock;
+                fetchStampText_.clear();
+                std::filesystem::path gitDir = std::filesystem::path(repo->repoPath) / ".git";
+                std::error_code ec;
+                if (std::filesystem::is_regular_file(gitDir, ec)) {
+                    std::ifstream in(gitDir);
+                    std::string line;
+                    std::getline(in, line);
+                    if (line.starts_with("gitdir: ")) gitDir = line.substr(8);
+                }
+                const auto fetchHead = gitDir / "FETCH_HEAD";
+                if (std::filesystem::exists(fetchHead, ec)) {
+                    const auto written = std::filesystem::last_write_time(fetchHead, ec);
+                    if (!ec) {
+                        const auto age = std::chrono::duration_cast<std::chrono::seconds>(
+                            std::filesystem::file_time_type::clock::now() - written).count();
+                        fetchStampText_ = age < 60 ? " · fetched just now" : age < 3600 ? " · fetched " + std::to_string(age / 60) + "m ago"
+                            : age < 86400 ? " · fetched " + std::to_string(age / 3600) + "h ago"
+                            : " · fetched " + std::to_string(age / 86400) + "d ago";
+                    }
                 }
             }
+            stamp = fetchStampText_;
             if (!upstream.empty() || !stamp.empty()) {
                 auto info = div(ctx, mk(parent, 2086), ComponentConfig{}
                     .with_size(ComponentSize{w, pixels(18)})
@@ -1416,7 +1469,7 @@ private:
                     .with_label((upstream.empty() ? repo->currentBranch + " · no upstream"
                                                   : repo->currentBranch + " → " + upstream) + stamp)
                     .with_size(ComponentSize{afterhours::ui::expand(), pixels(18)})
-                    .with_font_size(pixels(11)).with_custom_text_color(theme::TEXT_TERTIARY)
+                    .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_TERTIARY)
                     .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                     .with_debug_name("sync_upstream_label"));
             }
@@ -1429,12 +1482,12 @@ private:
                         const std::string& debugName) {
         div(ctx, mk(parent, id),
             ComponentConfig{}
-                .with_label("No repository open")
+                .with_label("Open a repository to begin.")
                 .with_size(ComponentSize{percent(1.0f), pixels(32)})
                 .with_padding(Padding{
                     .top = pixels(16), .right = pixels(8),
                     .bottom = pixels(8), .left = pixels(8)})
-                .with_custom_text_color(theme::TEXT_TERTIARY)
+                .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_alignment(TextAlignment::Center)
                 .with_roundness(0.0f)
                 .with_debug_name(debugName));
@@ -1448,18 +1501,28 @@ private:
         int queued = review ? static_cast<int>(unresolved_comment_count(*review)) : 0;
 
         int remainingHunks = 0;
-        for (const auto& file : repo.currentDiff)
-            for (const auto& hunk : file.hunks) {
-                if (review && review->approvedHunks.contains("wt\n" + ReviewComponent::hunk_key(file.filePath, hunk))) ++approvedHunks;
-                else ++remainingHunks;
-            }
+        const bool checkApproved = review && !review->approvedHunks.empty();
+        if (!checkApproved) {
+            for (const auto& file : repo.currentDiff)
+                remainingHunks += static_cast<int>(file.hunks.size());
+        } else {
+            auto& metrics = ui::diff_metrics();
+            for (const auto& file : repo.currentDiff)
+                for (const auto& hunk : file.hunks) {
+                    if (review->approvedHunks.contains("wt\n" + metrics.hunk_key(file, hunk))) ++approvedHunks;
+                    else ++remainingHunks;
+                }
+        }
         int totalHunks = approvedHunks + remainingHunks;
-        float frac = (reviewing && totalHunks > 0)
-                         ? static_cast<float>(approvedHunks) / totalHunks : 0.f;
+        float frac = totalHunks > 0
+                         ? static_cast<float>(approvedHunks) / static_cast<float>(totalHunks) : 0.f;
 
         bool aside = reviewing && !repo.selectedCommitHash().empty();
-        const std::string txt = std::to_string(approvedHunks) + "/" + std::to_string(totalHunks) +
-            " approved · " + std::to_string(queued) + " comments";
+        const std::string txt = totalHunks > 0
+            ? std::to_string(approvedHunks) + " of " + std::to_string(totalHunks) + " approved · " +
+                  std::to_string(remainingHunks) + " to go" +
+                  (queued > 0 ? " · " + std::to_string(queued) + (queued == 1 ? " comment" : " comments") : "")
+            : "";
 
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);
         auto row = div(ctx, mk(parent, 2085),
@@ -1508,28 +1571,28 @@ private:
             .with_size(ComponentSize{percent(1.f), pixels(20)})
             .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
             .with_gap(pixels(8)).with_debug_name("working_review_status"));
-        if (reviewing || toReview > 0) {
+        if (totalHunks > 0) {
             auto bar = div(ctx, mk(status.ent(), 0),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(32), pixels(4)})
-                    .with_custom_background(theme::pick({51, 51, 51, 255}, {218, 218, 222, 255}))
+                    .with_size(ComponentSize{pixels(72), pixels(4)})
+                    .with_custom_background(theme::BORDER)
                     .with_corner_radius(2.0f)
                     .with_debug_name("prog_bar"));
-            div(ctx, mk(bar.ent(), 0),
+            if (frac > 0.f) div(ctx, mk(bar.ent(), 0),
                 ComponentConfig{}
                     .with_size(ComponentSize{percent(frac), percent(1.0f)})
                     .with_custom_background(theme::STATUS_BAR_CLEAN)
                     .with_corner_radius(2.0f)
                     .with_debug_name("prog_fill"));
+            div(ctx, mk(status.ent(), 1),
+                ComponentConfig{}
+                    .with_label(txt)
+                    .with_size(ComponentSize{expand(), pixels(20)})
+                    .with_custom_text_color(theme::TEXT_SECONDARY)
+                    .with_font_size(pixels(12))
+                    .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                    .with_debug_name("prog_text"));
         }
-        div(ctx, mk(status.ent(), 1),
-            ComponentConfig{}
-                .with_label(txt)
-                .with_size(ComponentSize{expand(), pixels(20)})
-                .with_custom_text_color(theme::TEXT_SECONDARY)
-                .with_font_size(pixels(12))
-                .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
-                .with_debug_name("prog_text"));
     }
 
     // Height of the multi-line commit message box (logical px). Kept in sync
@@ -1572,9 +1635,9 @@ private:
                 .with_size(ComponentSize{childW, pixels(COMMIT_INPUT_H)})
                 .with_custom_background(theme::INPUT_BG)
                 .with_border(theme::BORDER, pixels(1.0f))
-                .with_corner_radius(4.0f)
+                .with_corner_radius(theme::layout::RADIUS_CONTROL)
                 .with_line_height(pixels(18.0f))
-                .with_placeholder("Message (on \"" + branch + "\")")
+                .with_placeholder("Commit message for " + branch)
                 .with_submit_on_enter()
                 .with_debug_name("commit_msg_input"));
 
@@ -1621,7 +1684,7 @@ private:
         if (commitBtn && hasStaged) editor.request_commit();
         auto splitBtn = button(ctx, mk(commitRow.ent(), 1),
             preset::Button("v", hasStaged)
-                .with_size(ComponentSize{pixels(28), pixels(28)})
+                .with_size(ComponentSize{pixels(36), pixels(28)})
                 .with_font_size(pixels(12))
                 .with_debug_name("commit_split_btn"));
         ui::set_tooltip(splitBtn.ent(), "Commit with a specific unstaged policy");
@@ -1661,23 +1724,26 @@ private:
 
         const auto localCount = std::count_if(repo.branches.begin(), repo.branches.end(),
             [](const BranchInfo& branch) { return branch.isLocal; });
-        std::string branchLabel = "BRANCHES  " + std::to_string(localCount);
+        std::string branchLabel = "Branches · " + std::to_string(localCount);
         div(ctx, mk(headerRow.ent(), 1),
             preset::SectionHeader(branchLabel)
                 // expand(), not percent(1): "+ New" shares this row, and a
                 // full-width label pushed it outside the header.
                 .with_size(ComponentSize{afterhours::ui::expand(), children()})
+                .with_font("ui-bold", pixels(12))
+                .with_font_size(pixels(12))
+                .with_custom_text_color(theme::SECTION_HEADER_TEXT)
                 .with_debug_name("branches_label"));
 
         // "+ New" button
         if (!repo.reviewWorkspace) {
             auto newBranchBtn = button(ctx, mk(headerRow.ent(), 2),
                 preset::Button("+ New")
-                    .with_size(ComponentSize{children(), pixels(18)})
+                    .with_size(ComponentSize{children(), pixels(28)})
                     .with_padding(Padding{
-                        .top = pixels(2), .right = pixels(8),
-                        .bottom = pixels(2), .left = pixels(8)})
-                    .with_font_size(pixels(14))
+                        .top = pixels(6), .right = pixels(8),
+                        .bottom = pixels(6), .left = pixels(8)})
+                    .with_font_size(pixels(12))
                     .with_debug_name("new_branch_btn"));
 
             if (newBranchBtn) {
@@ -1724,16 +1790,19 @@ private:
             div(ctx, mk(parent, id), preset::SectionHeader(label)
                 .with_size(ComponentSize{percent(1.0f), children()})
                 .with_padding(Padding{.top = pixels(10), .left = pixels(8)})
+                .with_font("ui-bold", pixels(12))
+                .with_font_size(pixels(12))
+                .with_custom_text_color(theme::SECTION_HEADER_TEXT)
                 .with_debug_name(debugName));
         };
         const auto remoteCount = static_cast<int>(repo.branches.size()) - static_cast<int>(localCount);
         if (remoteCount > 0) {
-            section(2180, "REMOTES  " + std::to_string(remoteCount), "remotes_label");
+            section(2180, "Remotes · " + std::to_string(remoteCount), "remotes_label");
             for (const auto& branch : repo.branches)
                 if (!branch.isLocal) render_branch_row(ctx, parent, rowIndex++, branch, repo);
         }
         if (!repo.tags.empty()) {
-            section(2181, "TAGS  " + std::to_string(repo.tags.size()), "tags_label");
+            section(2181, "Tags · " + std::to_string(repo.tags.size()), "tags_label");
             for (size_t i = 0; i < repo.tags.size(); ++i) {
                 auto tagRow = button(ctx, mk(parent, static_cast<int>(2400 + i)), preset::Button(repo.tags[i])
                     .with_size(ComponentSize{percent(1.0f), pixels(26)}).with_alignment(TextAlignment::Left)
@@ -1743,7 +1812,7 @@ private:
             }
         }
         if (!repo.stashes.empty()) {
-            section(2182, "STASHES  " + std::to_string(repo.stashes.size()), "stashes_label");
+            section(2182, "Stashes · " + std::to_string(repo.stashes.size()), "stashes_label");
             for (size_t i = 0; i < repo.stashes.size(); ++i) {
                 const auto& entry = repo.stashes[i];
                 const auto ref = entry.substr(0, entry.find(':'));
@@ -1789,10 +1858,12 @@ private:
             preset::SelectableRow(isCurrent)
                 .with_size(ComponentSize{percent(1.0f), pixels(ROW_H)})
                 .with_custom_background(rowBg)
+                .with_margin(Margin{.left = pixels(8), .right = pixels(14)})
                 .with_padding(Padding{
                     .top = pixels(0), .right = pixels(8),
                     .bottom = pixels(0), .left = pixels(0)})
-                .with_roundness(0.0f)
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                .with_corner_radius(theme::layout::RADIUS_CONTROL)
                 .with_debug_name("branch_row_" + branch.name));
         ui::set_tooltip(rowResult.ent(), isCurrent || !branch.isLocal ? branch.name : branch.name + " · Double-click to check out");
 
@@ -1818,14 +1889,22 @@ private:
             enqueue_network_op("Checkout", git::git_run_async(repo.repoPath, {"switch", branch.name}));
         }
 
-        // Current branch indicator (green left border)
+        // Current branch: 2px accent left bar + "current" caption (colour is
+        // never the only cue). Non-current rows keep a 2px spacer so names
+        // share one left edge.
         if (isCurrent) {
             div(ctx, mk(rowResult.ent(), 1),
                 ComponentConfig{}
-                    .with_size(ComponentSize{pixels(3), pixels(ROW_H)})
-                    .with_custom_background(theme::STATUS_ADDED)
+                    .with_size(ComponentSize{pixels(2), pixels(ROW_H)})
+                    .with_custom_background(theme::SELECTED_ACCENT)
                     .with_roundness(0.0f)
                     .with_debug_name("current_indicator"));
+        } else {
+            div(ctx, mk(rowResult.ent(), 1),
+                ComponentConfig{}
+                    .with_size(ComponentSize{pixels(2), pixels(ROW_H)})
+                    .with_transparent_bg()
+                    .with_roundness(0.0f));
         }
 
         // No L/R badge: the section header already says whether these
@@ -1834,19 +1913,25 @@ private:
         // Branch name takes whatever the badge, tracking and delete button
         // leave. This used to subtract each sibling by hand because percent(1)
         // resolved to the whole row and overflowed them; expand() does it now.
-        auto nameColor = isCurrent ? theme::pick({255, 255, 255, 255}, {0, 0, 0, 255})
-                                   : theme::TEXT_PRIMARY;
         div(ctx, mk(rowResult.ent(), 3),
             ComponentConfig{}
                 .with_label(branch.name)
                 .with_margin(Margin{.left = pixels(8)})
                 .with_size(ComponentSize{afterhours::ui::expand(), pixels(ROW_H)})
-                .with_custom_text_color(nameColor)
+                .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(pixels(14))
                 .with_alignment(TextAlignment::Left)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
                 .with_roundness(0.0f)
                 .with_debug_name("branch_name"));
+        if (isCurrent) {
+            div(ctx, mk(rowResult.ent(), 5), ComponentConfig{}
+                .with_label("current")
+                .with_size(ComponentSize{children(), pixels(ROW_H)})
+                .with_font_size(pixels(12))
+                .with_custom_text_color(theme::TEXT_ACCENT)
+                .with_debug_name("branch_current_label"));
+        }
 
         // Tracking as ↑/↓ icons with counts (the font has no arrows, so
         // chrome_icons draws them).
@@ -1858,7 +1943,7 @@ private:
             auto count = [&](int id, const std::string& text) {
                 div(ctx, mk(tracking.ent(), id), ComponentConfig{}.with_label(text)
                     .with_size(ComponentSize{children(), pixels(ROW_H)})
-                    .with_custom_text_color(theme::TEXT_SECONDARY).with_font_size(pixels(12))
+                    .with_custom_text_color(theme::TEXT_SECONDARY).with_font("mono", pixels(12))
                     .with_debug_name("branch_tracking_count"));
             };
             if (ahead > 0) {
@@ -2406,10 +2491,9 @@ private:
                 return;
             }
             const auto& path = repo.allFilePaths[node.sourceIndex];
+            ensure_status_maps(repo);
             char status = ' ';
-            for (const auto& file : repo.stagedFiles) if (file.path == path) status = file.indexStatus;
-            for (const auto& file : repo.unstagedFiles) if (file.path == path) status = file.workTreeStatus;
-            if (std::find(repo.untrackedFiles.begin(), repo.untrackedFiles.end(), path) != repo.untrackedFiles.end()) status = 'U';
+            if (auto it = allFilesStatusMap_.find(path); it != allFilesStatusMap_.end()) status = it->second;
             render_file_row_impl(ctx, row, 0, path, status, repo, false, false, {}, node.depth);
             return;
         }
@@ -2646,15 +2730,17 @@ private:
         }
 
         if (auto* rowReview = find_singleton<ReviewComponent, ActiveTab>(); rowReview && !allFilesMode_) {
-            const auto& rowDiffs = staged ? repo.stagedDiff : repo.currentDiff;
-            const auto rowDiff = std::find_if(rowDiffs.begin(), rowDiffs.end(), [&](const auto& file) { return file.filePath == path; });
+            ensure_diff_maps(repo);
+            const auto& diffMap = staged ? stagedDiffMap_ : currentDiffMap_;
+            const auto foundDiff = diffMap.find(path);
+            const FileDiff* rowDiffPtr = foundDiff != diffMap.end() ? foundDiff->second : nullptr;
             bool changed = false;
-            if (!staged && rowDiff != rowDiffs.end()) {
+            if (!staged && rowDiffPtr) {
                 auto seen = rowReview->seenSig.find(path);
-                changed = seen != rowReview->seenSig.end() && ui::diff_metrics().signature(*rowDiff) != seen->second;
+                changed = seen != rowReview->seenSig.end() && ui::diff_metrics().signature(*rowDiffPtr) != seen->second;
             }
-            ui::file_tree_style::review_indicator(ctx, row.ent(), rowDiff != rowDiffs.end() &&
-                ui::reviewed_file(*rowReview, staged ? "index" : "wt", *rowDiff),
+            ui::file_tree_style::review_indicator(ctx, row.ent(), rowDiffPtr != nullptr &&
+                ui::reviewed_file(*rowReview, staged ? "index" : "wt", *rowDiffPtr),
                 unresolved_file_count(*rowReview, staged ? "index" : "wt", path, oldPath), changed);
         }
 
@@ -2774,6 +2860,45 @@ private:
     commit_graph::Graph graph_;
     std::string graphKey_;
 
+    // Cached per-repo FETCH_HEAD lookup (avoids 3 VFS stat() syscalls/frame).
+    std::string fetchStampRepo_;
+    uint64_t fetchStampVersion_ = 0;
+    std::chrono::steady_clock::time_point fetchStampCheckedAt_{};
+    std::string fetchStampText_;
+
+    // O(1) lookup maps for visible sidebar file rows (replaces O(N) linear
+    // scans over repo.currentDiff / stagedFiles / unstagedFiles per row/frame).
+    std::string diffMapKey_;
+    std::unordered_map<std::string, const FileDiff*> currentDiffMap_;
+    std::unordered_map<std::string, const FileDiff*> stagedDiffMap_;
+    std::string statusMapKey_;
+    std::unordered_map<std::string, char> allFilesStatusMap_;
+
+    void ensure_diff_maps(const RepoComponent& repo) {
+        std::string key = repo.repoPath + "\n" + std::to_string(repo.patchGeneration) + ":" +
+            std::to_string(repo.currentDiff.size()) + ":" + std::to_string(repo.stagedDiff.size());
+        if (key == diffMapKey_) return;
+        diffMapKey_ = std::move(key);
+        currentDiffMap_.clear();
+        currentDiffMap_.reserve(repo.currentDiff.size());
+        for (const auto& f : repo.currentDiff) currentDiffMap_.emplace(f.filePath, &f);
+        stagedDiffMap_.clear();
+        stagedDiffMap_.reserve(repo.stagedDiff.size());
+        for (const auto& f : repo.stagedDiff) stagedDiffMap_.emplace(f.filePath, &f);
+    }
+
+    void ensure_status_maps(const RepoComponent& repo) {
+        std::string key = repo.repoPath + "\n" + std::to_string(repo.dataGeneration) + ":" +
+            std::to_string(repo.repoVersion);
+        if (key == statusMapKey_) return;
+        statusMapKey_ = std::move(key);
+        allFilesStatusMap_.clear();
+        allFilesStatusMap_.reserve(repo.stagedFiles.size() + repo.unstagedFiles.size() + repo.untrackedFiles.size());
+        for (const auto& f : repo.stagedFiles) allFilesStatusMap_[f.path] = f.indexStatus;
+        for (const auto& f : repo.unstagedFiles) allFilesStatusMap_[f.path] = f.workTreeStatus;
+        for (const auto& u : repo.untrackedFiles) allFilesStatusMap_[u] = 'U';
+    }
+
     std::optional<size_t> history_keys(UIContext<InputAction>& ctx, RepoComponent& repo,
             const LayoutComponent& layout, afterhours::ui::imm::EntityParent parent) {
         const auto owner = ui::shortcut_owner(ctx, repo);
@@ -2845,12 +2970,12 @@ private:
         auto row = div(ctx, mk(parent, baseId),
             preset::SelectableRow(selected)
                 .with_consumes_directional_input()
-                .with_size(ComponentSize{pixels(std::max(0.f, sidebarW - 8.f)), pixels(ROW_H)})
-                .with_margin(Margin{.left = pixels(4), .right = pixels(4)})
-                .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(6.f)
-                .with_border(selected ? theme::pick({69, 83, 103, 255}, {150, 180, 220, 255}) : afterhours::Color{0, 0, 0, 0}, pixels(1))
+                .with_size(ComponentSize{pixels(std::max(0.f, sidebarW - 22.f)), pixels(ROW_H)})
+                .with_margin(Margin{.left = pixels(8), .right = pixels(14)})
+                .with_rounded_corners(theme::layout::ROUNDED_CORNERS).with_corner_radius(theme::layout::RADIUS_CONTROL)
+                .with_border(selected ? theme::SELECTED_ACCENT : afterhours::Color{0, 0, 0, 0}, pixels(1))
                 .with_padding(Padding{
-                    .top = pixels(0), .right = pixels(4),
+                    .top = pixels(0), .right = pixels(8),
                     .bottom = pixels(0), .left = pixels(ROW_INSET_L)})
                 .with_gap(pixels(2))
                 .with_debug_name("commit_row"));
@@ -2923,11 +3048,12 @@ private:
             .with_flex_direction(FlexDirection::Row).with_no_wrap()
             .with_align_items(AlignItems::Center).with_gap(pixels(8))
             .with_padding(Padding{}));
-        div(ctx, mk(text.ent(), 0), preset::BodyText(commit.subject)
+        auto subjectLabel = div(ctx, mk(text.ent(), 0), preset::BodyText(commit.subject)
             .with_size(ComponentSize{expand(), pixels(22)})
             .with_custom_text_color(selected ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY)
             .with_font_size(pixels(14)).with_text_inset(0.f).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("commit_subject"));
+        ui::set_truncated_tooltip(row.ent(), commit.subject, subjectLabel.ent());
         auto metadata = div(ctx, mk(text.ent(), 1), ComponentConfig{}
             .with_size(ComponentSize{children(), pixels(20)})
             .with_flex_direction(FlexDirection::Row).with_align_items(AlignItems::Center)
@@ -2936,7 +3062,14 @@ private:
             const auto* badge = &badges.front();
             for (const auto& value : badges)
                 if (value.type == commit_log_detail::DecorationType::Head) badge = &value;
-            div(ctx, mk(metadata.ent(), 2), preset::Badge(badge->label, theme::BUTTON_SECONDARY, theme::TEXT_SECONDARY)
+            const auto badgeBg = badge->type == commit_log_detail::DecorationType::Head ? theme::BADGE_HEAD_BG
+                : badge->type == commit_log_detail::DecorationType::LocalBranch ? theme::BADGE_BRANCH_BG
+                : badge->type == commit_log_detail::DecorationType::Tag ? theme::BADGE_TAG_BG
+                : theme::BADGE_REMOTE_BG;
+            const auto badgeFg = badge->type == commit_log_detail::DecorationType::Head ? theme::DIFF_ADD_TEXT
+                : badge->type == commit_log_detail::DecorationType::Tag ? theme::BADGE_TAG_TEXT
+                : theme::TEXT_ACCENT;
+            div(ctx, mk(metadata.ent(), 2), preset::Badge(badge->label, badgeBg, badgeFg)
                 .with_size(ComponentSize{pixels(54), pixels(18)}).with_font_size(pixels(12))
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis).with_debug_name("commit_badge"));
         }
@@ -2948,9 +3081,10 @@ private:
             div(ctx, mk(metadata.ent(), 3), preset::Badge(std::to_string(commentCount), theme::BUTTON_SECONDARY, theme::STATUS_MODIFIED)
                 .with_size(ComponentSize{pixels(22), pixels(18)}).with_font_size(pixels(12))
                 .with_debug_name("commit_comment_badge"));
-        div(ctx, mk(metadata.ent(), 1), preset::MetaText(rowText.age)
-            .with_size(ComponentSize{pixels(34), pixels(20)}).with_font_size(pixels(12))
+        auto ageLabel = div(ctx, mk(metadata.ent(), 1), preset::MetaText(rowText.age)
+            .with_size(ComponentSize{pixels(34), pixels(20)}).with_font("mono", pixels(12))
             .with_alignment(TextAlignment::Right).with_text_inset(0.f).with_debug_name("commit_age"));
+        ui::set_tooltip(ageLabel.ent(), commit.authorDate.empty() ? rowText.age : commit.authorDate);
 
         // Arm drag range-select from the frame-level press state, not from
         // HasClickListener.down: that flag lives for one frame between two
