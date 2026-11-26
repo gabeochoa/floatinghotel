@@ -8,8 +8,8 @@ touch_file utils.h text "// appended by e2e"
 wait_for_file_change
 disable_file_watcher
 wait_for_refresh
-mouse_move 140 400
-scroll_wheel 0 -1000
+hover_ui sidebar_files
+scroll_wheel 0 -100
 wait_frames 30
 click_text "utils.h"
 wait_for_refresh

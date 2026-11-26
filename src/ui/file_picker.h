@@ -376,6 +376,19 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
             layout.filePickerIndex = best;
         }
     }
+    // A refresh or navigation can land while the outline scan is in flight;
+    // AsyncSlot then drops the result as stale and returns to Idle. Relaunch
+    // against the current stamp instead of leaving the picker at "0 symbols"
+    // for a file that was never actually scanned to completion.
+    if (layout.picker.mode == PickerMode::Symbol && position.point && position.error.empty() &&
+        position.commands.empty() && position.symbols.phase == async_slot::Phase::Idle &&
+        position.point->side != reading::DiffSide::Before && symbol_outline::supported(position.point->path)) {
+        const std::string key = position.point->path + "@" +
+            reading::revision_text(reading::source_revision_for(repo.workspace().location()));
+        position.symbols.request(key, navigation::stamp(repo, key),
+            git::outline_source_async({repo.repoPath, position.point->path,
+                reading::revision_text(reading::source_revision_for(repo.workspace().location())), {}, repo.fullFileEncodingOverride}));
+    }
     if (layout.picker.mode == PickerMode::ProjectSymbol) {
         if (auto landed = position.projectSymbols.poll(repo)) {
             auto& result = *landed;
@@ -391,6 +404,12 @@ inline void render_command_palette(UIContext<InputAction>& ctx, Entity& parent, 
                     }, symbol.line, symbol.path});
             layout.filePickerIndex = 0;
             ++position.paletteCommandsVersion;
+        }
+        if (position.error.empty() && position.commands.empty() &&
+            position.projectSymbols.phase == async_slot::Phase::Idle) {
+            const std::string key = "project:" + repo.repoPath + "\n" + position.projectQuery;
+            position.projectSymbols.request(key, navigation::stamp(repo, key),
+                git::project_symbols_async(repo.repoPath, repo.allFilePaths, position.projectQuery));
         }
         // Re-scan for the typed query after a short debounce; the previous
         // list stays on screen (and re-filters locally) meanwhile.

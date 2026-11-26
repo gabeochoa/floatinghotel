@@ -17,7 +17,7 @@ click_text "Search This Identifier"
 wait_frames 10
 expect_no_text "whole-word text"
 # Caret inside "main".
-click 445 284
+click 445 325
 wait_frames 3
 validate caret_line=3
 click_text "Edit"

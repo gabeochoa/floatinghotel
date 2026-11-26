@@ -11,6 +11,7 @@ wait_frames 3
 
 key CMD+R
 wait_for_refresh
+wait_wall 0.25
 wait_frames 3
 expect_text "Go to symbol"
 expect_text "1 symbols · approximate, text-based"
@@ -27,6 +28,7 @@ click 700 400
 wait_frames 3
 key CMD+R
 wait_for_refresh
+wait_wall 0.25
 wait_frames 3
 expect_text "# Test Project"
 expect_text "heading · line 4"
