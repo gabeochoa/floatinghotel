@@ -865,8 +865,9 @@ started work.
 ## Paseo feature review (filed 2026-11-25)
 
 Research: [docs/research/paseo-feature-review.md](docs/research/paseo-feature-review.md)
-(Paseo v0.17.4, repo HEAD `e114e13`, 63 features inventoried: 15 have/tracked,
-16 partial, 11 missing-fit, 17 low-fit/platform, 4 unknown). Every missing or
+(Paseo v0.17.4, repo HEAD `e114e13`, 64 features inventoried: 5 have,
+1 tracked, 21 partial, 11 missing-fit, 14 low-fit, 9 platform, 3 unknown).
+Every missing or
 partial distinct feature below is a checkbox; low-fit items are captured, not
 built. Do not treat these as started work.
 

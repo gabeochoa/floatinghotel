@@ -11,8 +11,8 @@ captured with reasons). Nothing is implemented in this lane.
 - Repo: https://github.com/getpaseo/paseo, shallow clone HEAD `e114e13`
   (commit date 2026-11-26 — recorded as-is from the clone; likely TZ-skewed),
   release version **0.17.4** (package.json + CHANGELOG top entry 2026-11-23).
-  Full repo inventory (packages/providers/plugins/mechanics): `/tmp/paseo-research/repo-inventory.md`
-  (scratch, not committed).
+  Full repo inventory (packages/providers/plugins/mechanics):
+  [paseo-repo-inventory.md](paseo-repo-inventory.md).
 - Stores: App Store id6758887924 "Paseo – Remote Coding Agents" v0.17.4
   (2026-11-24); Play Store `sh.paseo` ("Manage Claude Code and Codex agents
   from your phone"). Desktop: macOS 13+/Win/Linux(AppImage/DEB/RPM),
@@ -33,11 +33,14 @@ worktrees. Alternatives/comparison pages used only as secondary hints.
 
 ## Coverage counts (reconciled)
 
-63 distinct Paseo features inventoried: **15 already-have** (14 parity + 1
-already tracked in todo.md ACP follow-ups) · **16 partial** (delta → todo) ·
-**11 missing-fit** (→ todo) · **17 low-fit/platform** (captured, not built) ·
-**4 unknown-needs-decision**. Todos added: **21** (T1–T21 in todo.md).
-15+16+11+17+4 = 63. ✓
+64 distinct Paseo features inventoried in the matrix: **5 already-have** ·
+**1 already tracked** in todo.md ACP follow-ups · **21 partial** (delta → todo) ·
+**11 missing-fit** (→ todo) · **14 low-fit** and **9 platform** (captured, not
+built) · **3 unknown-needs-decision**. Todos added: **21** grouped items
+(T1–T21 in todo.md); several feature rows intentionally share one
+implementation delta. The 23 low-fit/platform rows are grouped into L1–L17.
+U1–U3 are the matrix's unknown rows; U4 is an extra renderer audit question,
+not counted as a feature row. 5+1+21+11+14+9+3 = 64. ✓
 
 ## What Paseo is (verified mechanics, deep notes)
 
@@ -202,7 +205,7 @@ capture-list only · PLATFORM = not transferable as product code · UNKNOWN.
 | K5 | Long-session scale: paginated history import, reconnect state, lazy loads | changelogs | PARTIAL | session restore exists → T10 |
 | K6 | Local-first + agent-auth passthrough + no telemetry | FAQ, privacy (2026-08-29), security | HAVE | same posture (`CLAUDE_CODE_EXECUTABLE`/`CODEX_PATH` note) |
 
-### Unknowns needing a decision (U1–U4)
+### Unknowns needing a decision (U1–U3, plus the U4 renderer audit)
 
 - U1: preview-less file Download button — check preview coverage; trivial if missing.
 - U2: structured question cards — is the ACP permission banner enough, or do we
