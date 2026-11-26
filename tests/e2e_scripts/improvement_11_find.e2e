@@ -20,7 +20,7 @@ click_ui diff_find_previous
 wait_frames 5
 screenshot improvement_11_previous
 expect_text "1/2"
-click_text Side-by-Side
+click_text Split
 wait_frames 5
 screenshot improvement_11_split
 assert_ui diff_find_match hidden=false
@@ -28,6 +28,10 @@ click_text "Add contributing guidelines"
 wait_frames 5
 wait_for_refresh
 screenshot improvement_11_commit_before
+hold_key SUPER
+key F
+release_key SUPER
+wait_frames 5
 click_ui diff_find_input
 key CMD+A
 wait_frames 5

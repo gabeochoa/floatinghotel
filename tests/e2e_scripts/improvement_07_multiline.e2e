@@ -16,10 +16,10 @@ screenshot improvement_07_multiline
 expect_text "First line"
 expect_text "Second line"
 expect_text "Third line"
-assert_ui_text "First line" h=24
-assert_ui_text "Second line" h=24
-assert_ui_text "Third line" h=24
+assert_ui_text "First line" h=22
+assert_ui_text "Second line" h=22
+assert_ui_text "Third line" h=22
 click_ui comment_add_btn
 wait_frames 5
 screenshot improvement_07_saved
-expect_text "commented"
+expect_text "Feedback 1"

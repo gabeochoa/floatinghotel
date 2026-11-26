@@ -3,7 +3,7 @@ resize 1280 800
 wait_for_refresh
 click_text main.cpp
 wait_frames 10
-click_text "Side-by-Side"
+click_text Split
 wait_frames 10
 screenshot improvement_05_split_before
 mouse_down 430 280
@@ -14,14 +14,14 @@ mouse_up
 wait_frames 5
 screenshot improvement_05_split_selection
 validate diff_has_selection=true
-click_text Inline
+click_text Unified
 click_text "Add contributing guidelines"
 wait_for_refresh
 screenshot improvement_05_commit_before
 validate diff_has_selection=false
-mouse_down 451 459
+mouse_down 451 383
 wait_frames 3
-mouse_move 900 459
+mouse_move 900 383
 wait_frames 3
 mouse_up
 wait_frames 5

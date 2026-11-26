@@ -8,7 +8,7 @@ type "This feedback has enough detail to wrap over several lines in the basket. 
 click_ui comment_add_btn
 wait_frames 10
 screenshot improvement_09_feedback
-assert_ui basket_scroll w=300
+assert_ui basket_scroll w=296
 expect_text "suggested next step."
 click_ui comment_hunk_btn
 click_ui comment_input
@@ -54,7 +54,7 @@ wait_frames 10
 screenshot improvement_09_before_scroll
 expect_no_text "Note 9:"
 mouse_move 1130 500
-scroll_wheel 0 -40
+scroll_wheel 0 -100
 wait_frames 30
 screenshot improvement_09_after_scroll
 expect_text "Note 9:"
