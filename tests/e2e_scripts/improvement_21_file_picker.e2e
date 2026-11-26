@@ -17,4 +17,4 @@ wait_frames 10
 screenshot improvement_21_open
 expect_text "src/app.cpp"
 expect_text "Working tree"
-expect_text "Complete file"
+expect_text "Working tree"

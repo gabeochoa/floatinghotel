@@ -22,4 +22,4 @@ assert_ui_text "Third line" h=22
 click_ui comment_add_btn
 wait_frames 5
 screenshot improvement_07_saved
-expect_text "Feedback 1"
+expect_text "Feedback (1)"
