@@ -54,7 +54,9 @@ zig build            # or: make (wraps zig build; OPT=-O0 for an unoptimised bui
 ./output/floatinghotel.exe <path-to-a-git-repo>
 ```
 
-Needs zig 0.16. On macOS the build uses the system `clang++` by default
+Needs zig 0.16. `make` first syncs `vendor/afterhours` to the commit pinned
+by this repo (skip with `SYNC_SUBMODULES=0`); a direct `zig build` needs the
+submodule update above. On macOS the build uses the system `clang++` by default
 (Zig's bundled libc++ does not parse current macOS SDK headers); override with
 `-Dcxx=<compiler>` if needed. `zig build -l` lists the other steps (run, test, bundle, validate).
 
