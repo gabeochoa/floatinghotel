@@ -1071,13 +1071,13 @@ inline std::string file_header_label(const ecs::FileDiff& fileDiff) {
     return label;
 }
 
-// `scope`, when known, replaces git's function-context guess; "≈" marks it as
-// a text scan rather than a semantic answer.
+// `scope`, when known, replaces git's function-context guess; it comes from
+// a text scan rather than a semantic answer, hence the plain "in" phrasing.
 inline std::vector<afterhours::ui::TextSpan> hunk_caption(const std::string& header, const std::string& scope = {}) {
     auto rangeEnd = header.find("@@", 2);
     if (rangeEnd == std::string::npos) return {{header, theme::DIFF_HUNK_HEADER}};
     return {{header.substr(0, rangeEnd + 2), theme::DIFF_HUNK_HEADER},
-            {scope.empty() ? header.substr(rangeEnd + 2) : " ≈ " + scope, theme::TEXT_TERTIARY}};
+            {scope.empty() ? header.substr(rangeEnd + 2) : " · in " + scope, theme::TEXT_TERTIARY}};
 }
 
 inline std::string hunk_scope_label(const ecs::FileDiff& file, const ecs::DiffHunk& hunk, const diff_sel::Session* sel) {
@@ -1705,15 +1705,6 @@ inline void render_hunk(UIContext<InputAction>& ctx,
 
     // Buttons live in a right-aligned group so they cluster together instead of
     // being spread apart by the row's SpaceBetween.
-    const auto headerRect = visible_rect(hunkRow.ent());
-    bool revealActions = ctx.is_input_allowed(hunkRow.ent().id) && headerRect.width > 0.f && headerRect.height > 0.f &&
-        afterhours::ui::is_mouse_inside(ctx.mouse.pos, headerRect);
-    if (auto focused = afterhours::ui::UICollectionHolder::getEntityForID(ctx.focus_id); focused.valid()) {
-        const auto target = focus_target(**focused);
-        const auto owner = focus_target(hunkRow.ent());
-        revealActions |= target && owner && target->repository == owner->repository && target->document == owner->document &&
-            target->region == reading::focus::Region::Code && target->item == hkey;
-    }
     const bool compactActions = contentWidth > 0.f && contentWidth < 680.f;
     auto hunkBtns = div(ctx, mk(hunkRow.ent(), 9),
         ComponentConfig{}.with_skip_grid_snap()
@@ -1724,8 +1715,6 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             .with_margin(Margin{.right = pixels(8)})
             .with_transparent_bg()
             .with_roundness(0.0f)
-            // Always discoverable; full strength on hover / keyboard focus.
-            .with_opacity(revealActions ? 1.f : 0.55f)
             .with_debug_name("hunk_header_btns"));
 
     if (sel && !sel->repoPath.empty() && !fileDiff.isFullContent && !fileDiff.isNew && !fileDiff.isDeleted && sel->reviewScope != "snapshot") {
@@ -2738,13 +2727,15 @@ inline void render_diff(UIContext<InputAction>& ctx,
             const auto comments = std::count_if(review->comments.begin(), review->comments.end(),
                 [&](const auto& comment) { return comment.scope == reviewScope; });
             auto feedback = button(ctx, mk(actions.ent(), 2), preset::Button("")
-                .with_size(ComponentSize{expand(), pixels(30)}).with_transparent_bg()
+                .with_size(ComponentSize{children(), pixels(30)})
+                .with_custom_background(review->basketOpen ? theme::SELECTED_BG : theme::BUTTON_SECONDARY)
                 .with_border(theme::BORDER, pixels(1)).with_flex_direction(FlexDirection::Row)
+                .with_padding(Padding{.top = pixels(2), .right = pixels(10), .bottom = pixels(2), .left = pixels(10)})
                 .with_align_items(AlignItems::Center).with_gap(pixels(6)).with_no_wrap()
                 .with_debug_name("basket_toggle_btn"));
             chrome_icon(ctx, mk(feedback.ent(), 0), ChromeIcon::Message, theme::TEXT_SECONDARY, "feedback_icon");
-            div(ctx, mk(feedback.ent(), 1), ComponentConfig{}.with_label("Feedback " + std::to_string(comments))
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(14))
+            div(ctx, mk(feedback.ent(), 1), ComponentConfig{}.with_label("Feedback (" + std::to_string(comments) + ")")
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(14))
                 .with_custom_text_color(comments > 0 ? theme::TEXT_PRIMARY : theme::TEXT_SECONDARY).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis));
             if (feedback) review->basketOpen = !review->basketOpen;
         }
@@ -3566,7 +3557,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
             filterRepo && reviewScope == "index" ? filterRepo->stagedDiff : diffs;
         auto progress = review ? cached_review_progress(*review, reviewScope, candidates) : ecs::ReviewProgress{};
         std::string end = reviewScope == "wt" || reviewScope == "index" || reviewScope == "snapshot" ? "End of changes" : "End of commit";
-        if (review) { end += " · " + std::to_string(progress.reviewed) + " of " + std::to_string(progress.total) + " files viewed";
+        if (review) { end += " · " + std::to_string(progress.reviewed) + " of " + std::to_string(progress.total) + " files marked viewed";
             if (progress.total > progress.reviewed) end += " · " + std::to_string(progress.total - progress.reviewed) + " to go"; }
         vp.flush(ctx, *contentParent, nextId);
         div(ctx, mk(*contentParent, nextId++), ComponentConfig{}.with_skip_grid_snap()

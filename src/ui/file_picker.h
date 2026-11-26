@@ -783,7 +783,7 @@ inline void render_file_picker(UIContext<InputAction>& ctx, Entity& parent,
     const auto& paths = working ? repo.allFilePaths : scope.listing.paths;
     auto input = afterhours::text_input::text_input(ctx, mk(parent, 586001), layout.filePickerQuery,
         ComponentConfig{}.with_size(ComponentSize{percent(1.f), pixels(32)})
-            .with_padding(Padding{.top = pixels(6), .right = pixels(10), .bottom = pixels(6), .left = pixels(10)})
+            .with_padding(Padding{.top = pixels(6), .right = pixels(15), .bottom = pixels(6), .left = pixels(15)})
             .with_custom_background(theme::INPUT_BG)
             .with_border(theme::BORDER, pixels(1))
             .with_rounded_corners(theme::layout::ROUNDED_CORNERS)

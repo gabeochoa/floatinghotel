@@ -170,20 +170,16 @@ struct LayoutUpdateSystem : afterhours::System<LayoutComponent> {
             !inSourceView && layout.mainContent.width > 0) {
             // Compact cutover: never crush the code reading column below a
             // usable 480px. Guard on the remaining content width (after
-            // sidebar + insets), not the raw window width.
+            // sidebar + insets), not the raw window width. Below the dock
+            // threshold the basket becomes a dismissible sheet over the
+            // code (state stays open; the code keeps its full width).
             constexpr float kMinCodeW = 480.f;
             constexpr float kFeedbackW = 320.f;
-            if (layout.mainContent.width < kMinCodeW + kFeedbackW + 12.f) {
-                // Collapse the dock at narrow widths instead of overlaying the
-                // file header / truncating code. Toggle via Feedback button.
-                review->basketOpen = false;
-            } else {
-                const bool overlay = layout.mainContent.width < 720.f;
-                const float feedbackW = std::min(kFeedbackW, layout.mainContent.width);
-                if (!overlay) layout.mainContent.width -= feedbackW + 12.f;
-                layout.feedback = {layout.mainContent.x + layout.mainContent.width + (overlay ? -feedbackW : 12.f),
-                                   layout.mainContent.y, feedbackW, layout.mainContent.height};
-            }
+            const float feedbackW = std::min(kFeedbackW, layout.mainContent.width);
+            const bool overlay = layout.mainContent.width < kMinCodeW + feedbackW + 12.f;
+            if (!overlay) layout.mainContent.width -= feedbackW + 12.f;
+            layout.feedback = {layout.mainContent.x + layout.mainContent.width + (overlay ? -feedbackW : 12.f),
+                               layout.mainContent.y, feedbackW, layout.mainContent.height};
         }
         layout.statusBar = {0, height - statusH, width, statusH};
     }

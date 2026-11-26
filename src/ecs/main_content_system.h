@@ -122,7 +122,9 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
             .with_padding(Padding{
                 .top = pixels(12), .right = pixels(12),
                 .bottom = pixels(12), .left = pixels(12)})
-            .with_render_layer(6)
+            // Above the diff file-card layers (49/50): at narrow widths this
+            // panel is a sheet over the code, and its children inherit here.
+            .with_render_layer(60)
             .with_roundness(0.0f)
             .with_debug_name("feedback_basket"));
     if (repo) ui::bind_focus(panel.ent(), *repo, reading::focus::Region::Feedback);
@@ -645,15 +647,12 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                     (titles[i].badge.empty() ? 0.f : measure(titles[i].badge, 11.f) + 10.f) + 96.f);
             const auto widths = reading::tab_widths(desiredWidths, viewportWidth);
             float contentWidth = 0.f;
-            float activeStart = 0.f;
-            float activeWidth = 0.f;
+            size_t activeIndex = 0;
             for (size_t i = 0; i < widths.size(); ++i) {
-                if (workspace.documents()[i].id == workspace.active_id()) {
-                    activeStart = contentWidth;
-                    activeWidth = widths[i];
-                }
+                if (workspace.documents()[i].id == workspace.active_id()) activeIndex = i;
                 contentWidth += widths[i];
             }
+            scroll.show_scrollbar = contentWidth > viewportWidth + .5f;
             auto* owner = find_singleton_entity<RepoComponent, ActiveTab>();
             const int repositoryId = owner ? owner->id : -1;
             auto target = [repositoryId, path = repoPtr->repoPath]() -> RepoComponent* {
@@ -664,8 +663,9 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
             const float scale = ui::zoom::get();
             if (revealActiveDocument || stripState.repository != repositoryId || stripState.active != workspace.active_id() ||
                 stripState.viewport != viewportWidth || stripState.content != contentWidth || stripState.scale != scale) {
-                const float offset = stripState.repository == repositoryId ? scroll.scroll_offset.x / stripState.scale : 0.f;
-                scroll.scroll_offset.x = reading::reveal_tab(offset, activeStart, activeWidth, viewportWidth, contentWidth) * scale;
+                const float currentOffset = stripState.repository == repositoryId && stripState.scale > 0.f
+                    ? scroll.scroll_offset.x / stripState.scale : 0.f;
+                scroll.scroll_offset.x = reading::reveal_tab_snapped(widths, activeIndex, viewportWidth, currentOffset) * scale;
                 scroll.scroll_target = scroll.scroll_offset;
                 stripState.repository = repositoryId;
                 stripState.active = workspace.active_id();
@@ -1834,7 +1834,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 ComponentConfig{}
                     .with_size(ComponentSize{expand(), pixels(36)})
                     .with_font_size(pixels(14))
-                    .with_padding(Padding{.top = pixels(6), .right = pixels(8), .bottom = pixels(6), .left = pixels(8)})
+                    .with_padding(Padding{.top = pixels(6), .right = pixels(15), .bottom = pixels(6), .left = pixels(15)})
                     .with_custom_background(theme::INPUT_BG)
                     .with_border(theme::BORDER, h720(theme::layout::BORDER_WIDTH))
                     .with_rounded_corners(theme::layout::ROUNDED_CORNERS)

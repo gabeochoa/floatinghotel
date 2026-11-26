@@ -17,4 +17,4 @@ wait_frames 10
 wait_for_refresh
 wait_frames 5
 screenshot hunk_scope
-expect_text "≈ greet"
+expect_text "in greet"

@@ -20,6 +20,49 @@ inline float reveal_tab(float offset, float start, float width, float viewport, 
     return std::clamp(offset, 0.f, std::max(0.f, content - viewport));
 }
 
+// Reveal the active tab without leaving a sliver of the previous tab at the
+// left edge: land on a tab boundary that keeps the active tab fully visible.
+// When it is already visible, snap the current offset to the nearest valid
+// boundary instead of jumping back to the first one.
+inline float reveal_tab_snapped(const std::vector<float>& widths, size_t active, float viewport,
+                                float current = 0.f) {
+    if (widths.empty() || active >= widths.size() || viewport <= 0.f) return 0.f;
+    std::vector<float> starts;
+    starts.reserve(widths.size());
+    float content = 0.f;
+    for (float width : widths) {
+        starts.push_back(content);
+        content += width;
+    }
+    if (content <= viewport) return 0.f;
+    const float maxOffset = std::max(0.f, content - viewport);
+    const float activeStart = starts[active];
+    if (widths[active] >= viewport)
+        return std::clamp(activeStart, 0.f, maxOffset);
+    const float activeEnd = activeStart + widths[active];
+    const float required = activeEnd - viewport;
+    auto first_at_least_required = [&] {
+        for (float start : starts) {
+            if (start > activeStart) break;
+            if (start >= required) return start;
+        }
+        return activeStart;
+    };
+
+    current = std::clamp(current, 0.f, maxOffset);
+    if (activeStart < current) return std::clamp(activeStart, 0.f, maxOffset);
+    if (activeEnd > current + viewport)
+        return std::clamp(first_at_least_required(), 0.f, maxOffset);
+
+    float result = 0.f;
+    for (float start : starts) {
+        if (start > current) break;
+        result = start;
+    }
+    if (result < required) result = first_at_least_required();
+    return std::clamp(result, 0.f, maxOffset);
+}
+
 inline size_t tab_insertion(const std::vector<float>& widths, float pointer) {
     float start = 0.f;
     for (size_t i = 0; i < widths.size(); ++i) {

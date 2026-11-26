@@ -93,7 +93,7 @@ for zoom in [100, 140, 200]:
             assert paths(name) == {'a.cpp', 'b.cpp', 'c.cpp'}, (zoom, name, paths(name))
         for name in ['single_c', 'narrow']:
             assert paths(name) == {'c.cpp'}
-        assert '1 of 3 files viewed' in node('viewed', 'diff_reading_end')['text']
+        assert '1 of 3 files marked viewed' in node('viewed', 'diff_reading_end')['text']
         for name in ['feedback', 'working_all']:
             state = json.loads((run / f'{name}.workspace.json').read_text())
             assert state['review']['comments'] == 1
@@ -106,8 +106,8 @@ for zoom in [100, 140, 200]:
         assert paths('staged') == {'c.cpp'}
         assert any(r['text'] == 'int c_value = 2;' for r in layout('staged')['reading_rows'])
         assert all(r['text'] != 'int c_value = 3;' for r in layout('staged')['reading_rows'])
-        assert any(n.get('text') == 'Feedback 1' for n in layout('working_all')['nodes'])
-        assert any(n.get('text') == 'Feedback 0' for n in layout('staged')['nodes'])
+        assert any(n.get('text') == 'Feedback (1)' for n in layout('working_all')['nodes'])
+        assert any(n.get('text') == 'Feedback (0)' for n in layout('staged')['nodes'])
         again = replay('restart', setup + 'click_text "Selected file fixture"\nwait_for_refresh\nclick_ui jump_to_diff:a.cpp\nwait_frames 15\nscreenshot restored\n')
         j = json.loads((again / 'restored.json').read_text())
         assert len([n for n in j['nodes'] if n.get('name') == 'file_header_row' and n['rendered']]) == 3

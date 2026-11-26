@@ -21,6 +21,24 @@ TEST(reveal_moves_only_when_the_active_tab_is_outside_the_viewport) {
     ASSERT_EQ(reading::reveal_tab(100, 700, 160, 400, 1000), 460.f);
 }
 
+TEST(reveal_snapped_lands_on_a_tab_boundary) {
+    const std::vector<float> widths{195.f, 245.f, 160.f};
+    // At the end of the strip the offset cannot pass content - viewport, so
+    // the last tab's reveal stays end-aligned; with more content after it,
+    // the same reveal lands exactly on the previous tab boundary.
+    ASSERT_EQ(reading::reveal_tab_snapped(widths, 2, 472.f), 128.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({195.f, 245.f, 160.f, 200.f}, 2, 472.f), 195.f);
+    ASSERT_EQ(reading::reveal_tab_snapped(widths, 1, 472.f), 0.f);
+    ASSERT_EQ(reading::reveal_tab_snapped(widths, 0, 472.f), 0.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({160.f, 240.f, 200.f}, 2, 400.f), 200.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({195.f, 245.f, 160.f, 200.f}, 2, 472.f, 150.f), 195.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({195.f, 245.f, 160.f, 200.f}, 2, 472.f, 250.f), 195.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({195.f, 245.f, 160.f, 200.f}, 2, 472.f, 500.f), 195.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({195.f, 245.f, 160.f, 400.f}, 2, 400.f, 500.f), 440.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({160.f, 600.f}, 1, 400.f), 160.f);
+    ASSERT_EQ(reading::reveal_tab_snapped({160.f, 200.f}, 1, 472.f), 0.f);
+}
+
 TEST(reveal_clamps_after_removal_or_expansion) {
     ASSERT_EQ(reading::reveal_tab(700, 600, 160, 500, 760), 260.f);
     ASSERT_EQ(reading::reveal_tab(700, 0, 160, 1000, 760), 0.f);

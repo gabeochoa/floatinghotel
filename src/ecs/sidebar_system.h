@@ -312,7 +312,6 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_text_overflow(afterhours::ui::TextOverflow::Wrap)
                 .with_debug_name("sidebar_no_repo_hint"));
-            render_sidebar_mode_tabs(ctx, sidebarRoot.ent(), layout);
             return;
         }
         if (layout.sidebarMode == LayoutComponent::SidebarMode::Agent) {
@@ -1261,6 +1260,7 @@ private:
         auto branchBtn = button(ctx, mk(branchBadge.ent(), 0), preset::Button(branch.empty() ? (repo && !repo->repoPath.empty() ? "Reading branch..." : "Open a repository") : branch + (dirty ? " *" : ""))
             .with_size(ComponentSize{children(), pixels(22)})
             .with_padding(Padding{.top = pixels(2), .right = pixels(10), .bottom = pixels(2), .left = pixels(10)})
+            .with_text_inset(10.f, 0.f)
             .with_custom_background(theme::BADGE_BRANCH_BG)
             .with_custom_text_color(theme::TEXT_ACCENT).with_font("mono", pixels(12))
             .with_alignment(TextAlignment::Left)
@@ -1498,8 +1498,6 @@ private:
         bool reviewing = review && review->reviewing;
         int toReview = static_cast<int>(repo.unstagedFiles.size());
         int approvedHunks = 0;
-        int queued = review ? static_cast<int>(unresolved_comment_count(*review)) : 0;
-
         int remainingHunks = 0;
         const bool checkApproved = review && !review->approvedHunks.empty();
         if (!checkApproved) {
@@ -1519,9 +1517,8 @@ private:
 
         bool aside = reviewing && !repo.selectedCommitHash().empty();
         const std::string txt = totalHunks > 0
-            ? std::to_string(approvedHunks) + " of " + std::to_string(totalHunks) + " approved · " +
-                  std::to_string(remainingHunks) + " to go" +
-                  (queued > 0 ? " · " + std::to_string(queued) + (queued == 1 ? " comment" : " comments") : "")
+            ? std::to_string(approvedHunks) + " of " + std::to_string(totalHunks) + " hunks approved · " +
+                  std::to_string(remainingHunks) + " to go"
             : "";
 
         auto w = sidebarPixelWidth_ > 0 ? pixels(sidebarPixelWidth_) : percent(1.0f);

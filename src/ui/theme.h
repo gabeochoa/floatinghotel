@@ -27,7 +27,7 @@ inline Color SECTION_HEADER_TEXT = {156, 162, 175, 255};
 inline Color STATUS_MODIFIED = {227, 179, 65, 255};    // Soft amber
 inline Color STATUS_ADDED = {140, 209, 164, 255};      // Soft sage green (#8CD1A4)
 inline Color STATUS_DELETED = {240, 138, 138, 255};    // AA coral (#F08A8A)
-inline Color STATUS_RENAMED = {138, 180, 232, 255};    // Calm slate blue
+inline Color STATUS_RENAMED = {185, 207, 239, 255};    // Ice accent (same family as TEXT_ACCENT)
 inline Color STATUS_UNTRACKED = {148, 154, 166, 255};  // AA neutral gray
 inline Color STATUS_CONFLICT = {227, 158, 72, 255};    // Warm amber
 
@@ -45,7 +45,7 @@ inline Color GUTTER_DEL_BG = {48, 34, 37, 255};
 
 // Disabled state (unified across all interactive elements; AA legible)
 inline Color DISABLED_BG = {34, 37, 43, 255};
-inline Color DISABLED_TEXT = {150, 155, 166, 255};
+inline Color DISABLED_TEXT = {172, 178, 190, 255};
 
 // Input fields
 inline Color INPUT_BG = {32, 35, 41, 255};
@@ -119,7 +119,7 @@ inline Color FIND_MATCH_BG = {230, 180, 30, 90};
 inline Color OCCURRENCE_BG = {120, 160, 230, 56};
 inline Color SELECTION_BG = {90, 145, 215, 76};
 inline Color CARET_GUTTER_BG = {130, 165, 212, 26};
-inline Color STATUS_SUBMODULE = {174, 152, 224, 255};
+inline Color STATUS_SUBMODULE = {146, 153, 166, 255};
 inline Color SEGMENT_SELECTED_BG = {51, 55, 64, 255};
 
 // Menu bar dropdowns and context menus
@@ -168,7 +168,7 @@ inline const Swatch LIGHT[] = {
     {&DIFF_HUNK_HEADER, {61, 91, 128, 255}}, {&DIFF_HUNK_BG, {235, 241, 248, 255}},
     {&GUTTER_BG, {248, 249, 251, 255}}, {&GUTTER_BORDER, {226, 229, 235, 255}},
     {&GUTTER_ADD_BG, {222, 241, 227, 255}}, {&GUTTER_DEL_BG, {249, 224, 226, 255}},
-    {&DISABLED_BG, {232, 234, 239, 255}}, {&DISABLED_TEXT, {107, 111, 118, 255}},
+    {&DISABLED_BG, {232, 234, 239, 255}}, {&DISABLED_TEXT, {90, 95, 104, 255}},
     {&INPUT_BG, {255, 255, 255, 255}},
     {&BUTTON_PRIMARY, {30, 78, 140, 255}}, {&BUTTON_PRIMARY_TEXT, {255, 255, 255, 255}},
     {&BUTTON_SECONDARY, {255, 255, 255, 255}},
@@ -190,11 +190,11 @@ inline const Swatch LIGHT[] = {
     {&SYNTAX_NUMBER, {158, 84, 18, 255}}, {&SYNTAX_COMMENT, {104, 112, 122, 255}},
     {&DIFF_MOVED_BG, {226, 236, 249, 255}}, {&DIFF_MOVED_TEXT, {30, 78, 140, 255}},
     {&DIFF_EMPTY_BG, {241, 243, 246, 255}}, {&FEEDBACK_LINE_BG, {232, 236, 248, 255}},
-    {&HUNK_CURSOR_BG, {220, 232, 246, 255}},
+    {&HUNK_CURSOR_BG, {205, 220, 240, 255}},
     {&INTRALINE_ADD_BG, {46, 160, 67, 52}}, {&INTRALINE_DEL_BG, {207, 56, 56, 52}},
     {&FIND_MATCH_BG, {188, 140, 12, 84}}, {&OCCURRENCE_BG, {30, 78, 140, 48}},
     {&SELECTION_BG, {30, 78, 140, 68}}, {&CARET_GUTTER_BG, {30, 78, 140, 28}},
-    {&STATUS_SUBMODULE, {116, 72, 168, 255}}, {&SEGMENT_SELECTED_BG, {255, 255, 255, 255}},
+    {&STATUS_SUBMODULE, {104, 109, 118, 255}}, {&SEGMENT_SELECTED_BG, {255, 255, 255, 255}},
     {&MENU_BAR_BG, {241, 243, 246, 255}}, {&MENU_HEADER_TEXT, {52, 58, 68, 255}},
     {&MENU_ACTIVE_BG, {226, 230, 236, 255}}, {&MENU_ACTIVE_TEXT, {20, 24, 30, 255}},
     {&MENU_PANEL_BG, {255, 255, 255, 255}}, {&MENU_BORDER, {214, 218, 226, 255}},
