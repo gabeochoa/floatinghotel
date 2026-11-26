@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const warnings = [_][]const u8{
     "-Wall",
@@ -70,7 +71,14 @@ pub fn build(b: *std.Build) void {
     // Oldest macOS the binary runs on. Unset, zig stamps the build machine's own
     // version (minos), so nothing older can launch it.
     const macos_min = b.option([]const u8, "macos-min", "Minimum macOS version, e.g. 14.0");
-    const cxx: []const []const u8 = if (b.option([]const u8, "cxx", "C++ compiler (default: zig c++)")) |c| &.{c} else &.{ b.graph.zig_exe, "c++" };
+    // On macOS, default to the SDK-matched system clang++: Zig 0.16's bundled
+    // libc++/clang fails on current macOS SDK headers (undeclared INFINITY in
+    // Metal/simd and libc++'s <random>). Zig still orchestrates the build.
+    const default_cxx: []const []const u8 = if (builtin.os.tag == .macos)
+        &.{"/usr/bin/clang++"}
+    else
+        &.{ b.graph.zig_exe, "c++" };
+    const cxx: []const []const u8 = if (b.option([]const u8, "cxx", "C++ compiler (default: system clang++ on macOS)")) |c| &.{c} else default_cxx;
 
     var flags: std.ArrayList([]const u8) = .empty;
     flags.appendSlice(b.allocator, &warnings) catch @panic("oom");
