@@ -10,8 +10,8 @@ touch_file src/app.cpp 400
 wait_for_file_change
 disable_file_watcher
 wait_frames 10
-mouse_move 140 400
-scroll_wheel 0 -1000
+hover_ui sidebar_files
+scroll_wheel 0 -2
 wait_frames 30
 click_text "app.cpp"
 wait_for_refresh

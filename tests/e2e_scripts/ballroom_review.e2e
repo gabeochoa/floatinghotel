@@ -11,7 +11,13 @@ expect_text "int main"
 click_ui approve_hunk_btn
 wait_for_refresh
 wait_frames 15
-# Comment on another file's hunk -> feedback basket appears
+# Comment on another file's hunk -> feedback basket appears. At 720px
+# app.cpp is one row below the file-list fold, so reveal it through tree
+# keyboard navigation instead of relying on the list's initial scroll.
+click_text README.md
+wait_frames 5
+key DOWN
+wait_frames 5
 click_text app.cpp
 wait_frames 12
 click_ui comment_hunk_btn
