@@ -2499,6 +2499,7 @@ private:
             // working-changes document (what the old segment did).
             auto headerBtn = button(ctx, mk(row, 0), preset::Button(treeRows_[i].label)
                 .with_size(ComponentSize{percent(1.0f), pixels(26)}).with_alignment(TextAlignment::Left)
+                .with_text_inset(12.f, 0.f)
                 .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
                 .with_debug_name(treeRows_[i].scope == "index" ? "review_staged_changes" : "review_unstaged_changes"));
             if (headerBtn) navigation::open(repo, reading::review(treeRows_[i].scope), true);

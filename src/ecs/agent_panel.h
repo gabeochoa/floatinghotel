@@ -480,7 +480,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
             .with_size(ComponentSize{children(), pixels(24)})
             .with_padding(Padding{.top = pixels(4), .right = pixels(8), .bottom = pixels(4), .left = pixels(8)})
             .with_font_size(pixels(12))
-            .with_transparent_bg()
+            .with_custom_background(theme::BUTTON_SECONDARY)
             .with_border(theme::BORDER, pixels(1))
             .with_custom_text_color(theme::TEXT_SECONDARY)
             .with_alignment(TextAlignment::Center);
@@ -693,7 +693,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         div(ctx, mk(permBody.ent(), 0), ComponentConfig{}
             .with_label("Allow: " + agent.permission->title)
             .with_size(ComponentSize{percent(1.f), pixels(18)})
-            .with_custom_text_color(theme::TEXT_PRIMARY).with_font_size(pixels(12))
+            .with_custom_text_color(theme::TEXT_PRIMARY).with_font("ui-bold", pixels(12))
             .with_alignment(TextAlignment::Left).with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
             .with_debug_name("agent_permission_title"));
         auto permActions = div(ctx, mk(permBody.ent(), 1), ComponentConfig{}
@@ -706,7 +706,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         for (const auto& option : agent.permission->options) {
             const bool reject = option.kind.rfind("reject", 0) == 0;
             auto config = preset::Button(option.name)
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
             .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
                 .with_debug_name("agent_permission_" + option.id);
             if (!reject) config = config.with_custom_background(theme::BUTTON_PRIMARY)
@@ -719,7 +719,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         }
         if (agent.permission->options.empty())
             cancelled = button(ctx, mk(permActions.ent(), 9), preset::Button("Dismiss")
-                .with_size(ComponentSize{expand(), pixels(28)}).with_font_size(pixels(12))
+                .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
             .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
                 .with_debug_name("agent_permission_dismiss"));
         if ((answered || cancelled) && agent.client) {
@@ -762,7 +762,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
             .with_corner_radius(theme::layout::RADIUS_CONTROL)
             .with_padding(Padding{.top = pixels(6), .right = pixels(8), .bottom = pixels(6), .left = pixels(8)})
             .with_line_height(pixels(20.f))
-            .with_placeholder("Ask the agent to change, explain, or review code…")
+            .with_placeholder(innerW < 320.f ? "Ask the agent…" : "Ask the agent to change, explain, or review code…")
             .with_font_size(pixels(14))
             .with_submit_on_enter()
             .with_debug_name("agent_prompt_input"));
@@ -781,7 +781,7 @@ inline void render(UIContext<InputAction>& ctx, Entity& parent, RepoComponent& r
         .with_debug_name("agent_send_row"));
     {
         auto sendConfig = preset::Button(prompting ? "Cancel" : "Send", prompting || !agent.promptText.empty())
-            .with_size(ComponentSize{prompting ? children() : expand(), pixels(28)}).with_font_size(pixels(12))
+            .with_size(ComponentSize{children(), pixels(28)}).with_font_size(pixels(12))
             .with_padding(Padding{.top = pixels(4), .right = pixels(12), .bottom = pixels(4), .left = pixels(12)})
             .with_debug_name("agent_send");
         if (!prompting && !agent.promptText.empty())

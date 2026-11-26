@@ -11,6 +11,23 @@ inline std::vector<float> tab_widths(const std::vector<float>& desired, float vi
     const float maximum = std::max(1.f, std::min(360.f, viewport));
     const float minimum = std::min(160.f, maximum);
     for (float width : desired) widths.push_back(std::clamp(width, minimum, maximum));
+    // A few tabs that only just overflow used to leave a clipped sliver of
+    // the previous tab (label visible for ~27px) at the strip edge. Shrink
+    // them to fit instead, taking the excess off the widest tabs first and
+    // never below a readable floor; many tabs still scroll at the floor.
+    float total = 0.f;
+    for (float width : widths) total += width;
+    if (total > viewport && viewport > 0.f) {
+        const float floor = std::min(128.f, maximum);
+        const float excess = total - viewport;
+        float reducible = 0.f;
+        for (float width : widths) reducible += std::max(0.f, width - floor);
+        if (reducible > 0.f)
+            for (float& width : widths) {
+                const float above = std::max(0.f, width - floor);
+                width -= std::min(above, excess * above / reducible);
+            }
+    }
     return widths;
 }
 

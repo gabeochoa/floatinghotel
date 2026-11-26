@@ -2,10 +2,21 @@
 #include "../../src/util/tab_strip.h"
 
 TEST(tab_widths_keep_short_titles_readable_and_bound_long_titles) {
-    auto widths = reading::tab_widths({40.f, 220.f, 2000.f}, 500.f);
+    auto widths = reading::tab_widths({40.f, 220.f, 2000.f}, 900.f);
     ASSERT_EQ(widths[0], 160.f);
     ASSERT_EQ(widths[1], 220.f);
     ASSERT_EQ(widths[2], 360.f);
+}
+
+TEST(tab_widths_shrink_a_few_tabs_to_fit_instead_of_clipping_a_sliver) {
+    auto widths = reading::tab_widths({195.f, 245.f, 160.f}, 472.f);
+    const float total = widths[0] + widths[1] + widths[2];
+    ASSERT_TRUE(total <= 472.5f);
+    ASSERT_TRUE(widths[0] >= 128.f && widths[1] >= 128.f && widths[2] >= 128.f);
+    ASSERT_TRUE(widths[1] > widths[0] && widths[0] > widths[2]);
+    // Many tabs cannot fit: they stop at the floor and the strip scrolls.
+    auto many = reading::tab_widths({300.f, 300.f, 300.f, 300.f, 300.f}, 472.f);
+    for (float width : many) ASSERT_EQ(width, 128.f);
 }
 
 TEST(narrow_viewport_still_contains_the_entire_active_tab) {

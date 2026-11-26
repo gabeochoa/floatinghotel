@@ -16,6 +16,7 @@ wait_for_refresh
 click_ui file_picker_input
 key CMD+A
 type "README.md"
+wait_until 30 validate ui_present:file_picker_result=true
 screenshot tabs_query_a
 key ENTER
 wait_for_refresh
@@ -27,6 +28,7 @@ screenshot tabs_picker_b
 click_ui file_picker_input
 key CMD+A
 type "CONTRIBUTING.md"
+wait_until 30 validate ui_present:file_picker_result=true
 screenshot tabs_query_b
 key ENTER
 wait_for_refresh
@@ -38,6 +40,7 @@ screenshot tabs_picker_c
 click_ui file_picker_input
 key CMD+A
 type "src/app.cpp"
+wait_until 30 validate ui_present:file_picker_result=true
 screenshot tabs_query_c
 key ENTER
 wait_for_refresh

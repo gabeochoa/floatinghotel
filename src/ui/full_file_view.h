@@ -536,7 +536,7 @@ inline void render_full_file(UIContext<InputAction>& ctx, Entity& parent,
                 .with_size(ComponentSize{percent(1.f), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Row)
                 .with_no_wrap().with_debug_name("outline_body"));
             auto panel = div(ctx, mk(bodyRow.ent(), 0), ComponentConfig{}
-                .with_size(ComponentSize{pixels(220), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Column)
+                .with_size(ComponentSize{pixels(180), pixels(bodyHeight2)}).with_flex_direction(FlexDirection::Column)
                 .with_custom_background(theme::SIDEBAR_BG).with_border_right(theme::BORDER)
                 .with_padding(Padding{.top = pixels(4), .right = pixels(8), .bottom = pixels(4), .left = pixels(8)})
                 .with_debug_name("outline_panel"));

@@ -1767,10 +1767,10 @@ inline void render_hunk(UIContext<InputAction>& ctx,
         }
         auto commentBtn = button(ctx, mk(hunkBtns.ent(), 3),
             preset::Button(compactActions ? "" : "Comment")
-                .with_size(ComponentSize{compactActions ? pixels(24) : children(), pixels(24)})
+                .with_size(ComponentSize{compactActions ? pixels(28) : children(), pixels(28)})
                 .with_padding(Padding{
-                    .top = pixels(2), .right = pixels(compactActions ? 0 : 8),
-                    .bottom = pixels(2), .left = pixels(compactActions ? 0 : 8)})
+                    .top = pixels(6), .right = pixels(compactActions ? 0 : 8),
+                    .bottom = pixels(6), .left = pixels(compactActions ? 0 : 8)})
                 .with_custom_background(theme::BUTTON_SECONDARY)
                 .with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_font_size(pixels(12))
@@ -1819,7 +1819,7 @@ inline void render_hunk(UIContext<InputAction>& ctx,
             ComponentConfig{}.with_skip_grid_snap()
                 .with_size(ComponentSize{pixels(std::max(80.f, contentWidth - addWidth - 134.f)), pixels(editorH)})
                 .with_custom_background(theme::INPUT_BG)
-                .with_font("mono", pixels(14.f))
+                .with_font_size(pixels(14.f))
                 .with_line_height(pixels(22.f))
                 .with_word_wrap(true)
                 .with_overflow(afterhours::ui::Overflow::Hidden)
@@ -1957,7 +1957,7 @@ inline void render_sbs_cell(UIContext<InputAction>& ctx, Entity& row, int id,
             .bottom = pixels(0), .left = pixels(0)})
         .with_roundness(0.0f)
         .with_debug_name("sbs_cell");
-    cfg = cfg.with_border_left(kind == SbsKind::Add ? theme::DIFF_ADD_TEXT : kind == SbsKind::Del ? theme::DIFF_DEL_TEXT : bg, pixels(2));
+    cfg = cfg.with_border_left(kind == SbsKind::Add ? theme::DIFF_ADD_TEXT : kind == SbsKind::Del ? theme::DIFF_DEL_TEXT : (leftBorder ? bg : theme::BORDER), pixels(2));
     if (leftBorder) cfg = cfg.with_border_right(theme::BORDER);
     auto cell = div(ctx, mk(row, id), cfg);
     if (moved) set_tooltip(cell.ent(), "Moved unchanged code");
@@ -2056,7 +2056,7 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
     // centre divider comes from the left cell's right border. Rendered even
     // when showHeader is false (the unified header row already drew above).
     {
-        constexpr float kCaptionH = 20.f;
+        constexpr float kCaptionH = 24.f;
         if (culling && !vp->visible(kCaptionH)) {
             vp->skipped(kCaptionH);
         } else {
@@ -2065,16 +2065,17 @@ inline void render_sbs_hunk(UIContext<InputAction>& ctx,
                 .with_size(ComponentSize{w, pixels(kCaptionH)})
                 .with_flex_direction(FlexDirection::Row).with_no_wrap()
                 .with_custom_background(theme::PANEL_BG)
+                .with_border_bottom(theme::BORDER, pixels(1))
                 .with_roundness(0.f)
                 .with_debug_name("sbs_pane_captions"));
             div(ctx, mk(captions.ent(), 0), ComponentConfig{}.with_skip_grid_snap()
                 .with_label("Before").with_size(ComponentSize{percent(0.5f), pixels(kCaptionH)})
-                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font("ui-bold", pixels(12)).with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_text_inset(12.f, 0.f)
                 .with_debug_name("sbs_before_label"));
             div(ctx, mk(captions.ent(), 1), ComponentConfig{}.with_skip_grid_snap()
                 .with_label("After").with_size(ComponentSize{percent(0.5f), pixels(kCaptionH)})
-                .with_font_size(pixels(12)).with_custom_text_color(theme::TEXT_SECONDARY)
+                .with_font("ui-bold", pixels(12)).with_custom_text_color(theme::TEXT_PRIMARY)
                 .with_text_inset(12.f, 0.f)
                 .with_border_left(theme::BORDER, pixels(1))
                 .with_debug_name("sbs_after_label"));
@@ -3192,7 +3193,7 @@ inline void render_diff(UIContext<InputAction>& ctx,
     auto stickyHost = div(ctx, mk(findParent ? *findParent : parent, 593100), ComponentConfig{}.with_skip_grid_snap()
         .with_size(ComponentSize{w, pixels(stickyHeight)}).with_custom_background(theme::WINDOW_BG)
         .with_flex_direction(FlexDirection::Row).with_no_wrap().with_align_items(AlignItems::Center)
-        .with_justify_content(JustifyContent::FlexEnd));
+        .with_justify_content(JustifyContent::FlexStart));
     if (!embedInParentScroll) {
         auto h = contentHeight > 0
                      ? pixels(std::max(0.f, contentHeight - findHeight - stickyHeight))

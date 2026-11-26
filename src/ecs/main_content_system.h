@@ -162,19 +162,36 @@ inline void render_basket(UIContext<InputAction>& ctx, Entity& uiRoot,
     float txtW = std::max(20.f, itemW - 16.f);
     constexpr float fontSize = 14.f;
     auto& measure = EntityHelper::get_singleton_cmp_enforce<afterhours::ui::TextMeasureCache>();
+    std::vector<std::string> scopes;
+    for (const auto& c : review.comments)
+        if ((!c.resolved || review.showResolved) && std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
+            scopes.push_back(c.scope);
+    // Size the list to its content (capped at the panel remainder) so the
+    // Copy footer sits under the last card instead of below a tall empty
+    // scroll void. The estimate mirrors the item heights below; anything it
+    // undercounts (e.g. outdated-anchor suffixes) just scrolls.
+    float listContentH = 0.f;
+    for (const auto& scope : scopes) {
+        listContentH += 32.f;  // group header + gap
+        for (int i = 0; i < static_cast<int>(review.comments.size()); ++i) {
+            const auto& c = review.comments[i];
+            if (c.scope != scope || (c.resolved && !review.showResolved)) continue;
+            const bool editing = review.composer == Composer::EditingExisting && review.editing_index() == i;
+            const auto text = c.kind == ReviewCommentKind::Comment ? c.text : review_comment_kind_label(c.kind) + ": " + c.text;
+            const float textH = editing ? 104.f : afterhours::ui::measure_text_wrapped(
+                measure, text, afterhours::ui::UIComponent::DEFAULT_FONT, fontSize * zoom, (txtW - 10.f) * zoom).height / zoom + 10.f;
+            listContentH += textH + 88.f + 8.f;
+        }
+    }
     auto list = div(ctx, mk(panel.ent(), 903),
         ComponentConfig{}
-            .with_size(ComponentSize{pixels(itemW), pixels(std::max(0.f, hgt - 136.f))})
+            .with_size(ComponentSize{pixels(itemW), pixels(std::min(std::max(0.f, hgt - 136.f), listContentH))})
             .with_overflow(Overflow::Scroll, Axis::Y)
             .with_flex_direction(FlexDirection::Column)
             .with_no_wrap()
             .with_gap(pixels(8))
             .with_padding(Padding{.right = pixels(14)})
             .with_debug_name("basket_scroll"));
-    std::vector<std::string> scopes;
-    for (const auto& c : review.comments)
-        if ((!c.resolved || review.showResolved) && std::find(scopes.begin(), scopes.end(), c.scope) == scopes.end())
-            scopes.push_back(c.scope);
 
     int id = 1;
     int removeIdx = -1;
@@ -1846,7 +1863,7 @@ struct MainContentSystem : afterhours::System<UIContext<InputAction>> {
                 pickerLayout->repoPicker.focusPending = false;
             }
             if (button(ctx, mk(controls.ent(), 8), preset::Button(pickerLayout->repoPicker.alphabetical ? "Name" : "Recent")
-                .with_size(ComponentSize{pixels(96), pixels(28)})
+                .with_size(ComponentSize{pixels(96), pixels(36)})
                 .with_font_size(pixels(12))
                 .with_transparent_bg()
                 .with_border(theme::BORDER, pixels(1))

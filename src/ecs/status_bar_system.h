@@ -94,6 +94,7 @@ struct StatusBarSystem : afterhours::System<UIContext<InputAction>> {
                 .with_label(text).with_tooltip(text).with_size(ComponentSize{pixels(labelWidth), pixels(height)})
                 .with_absolute_position().with_translate(x, rect.y)
                 .with_padding(Padding{.left = pixels(12), .right = pixels(12)})
+                .with_text_inset(12.f, 0.f)
                 .with_transparent_bg().with_custom_text_color(theme::STATUS_BAR_TEXT)
                 .with_font_size(pixels(12)).with_alignment(alignment)
                 .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
