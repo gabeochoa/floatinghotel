@@ -1,6 +1,6 @@
 # Flow: git controls are always shown — there is no hide/show toggle.
-# The sync row is its buttons (Push/Pull/Fetch/Stash), and the repo header
-# carries the Sync pill (structure B), so "Sync" appears exactly there.
+# The sync row is its buttons (Push/Pull/Fetch/Stash); there is no separate
+# Sync pill in the repo header.
 make_test_repo
 resize 1280 720
 wait_frames 10
@@ -13,5 +13,5 @@ expect_text "Push"
 expect_text "Pull"
 expect_text "Fetch"
 expect_text "Stash"
-expect_text "Sync"
+expect_no_text "Sync"
 screenshot sidebar_controls

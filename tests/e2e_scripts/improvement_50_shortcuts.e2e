@@ -7,6 +7,8 @@ click_text "Keyboard Shortcuts"
 screenshot improvement_50_reference
 assert_ui shortcut_reference hidden=false
 expect_text "Find a file"
+scroll_wheel_ui shortcut_reference 0 -5
+wait_frames 5
 expect_text "Next / previous review hunk"
 key ESCAPE
 wait_frames 5

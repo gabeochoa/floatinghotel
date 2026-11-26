@@ -3,8 +3,8 @@ resize 1280 800
 wait_for_refresh
 click_text "View"
 click_text "Tree View"
-mouse_move 190 180
-scroll_wheel 0 -1000
+hover_ui sidebar_files
+scroll_wheel 0 -100
 wait_frames 10
 screenshot improvement_23_tree
 expect_text "src"

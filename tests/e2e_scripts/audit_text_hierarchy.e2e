@@ -17,7 +17,7 @@ wait_frames 5
 screenshot txaudit_03_commit
 
 # 4. Menu open — dropdown items, shortcuts
-click_text Back
+key ALT+LEFT
 wait_frames 5
 click_text File
 wait_frames 5
@@ -31,6 +31,6 @@ screenshot txaudit_05_view_menu
 
 escape
 wait_frames 5
-click_text More
+click_ui repository_navigation
 wait_frames 5
 screenshot txaudit_06_repository_menu

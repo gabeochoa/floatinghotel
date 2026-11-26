@@ -7,7 +7,7 @@
 # version of this file asserted a toast after clicking it and passed anyway,
 # because the toast from the *previous* item was still on screen.
 make_test_repo
-resize 1280 720
+resize 1280 1000
 wait_frames 5
 validate ui_scale=1.00
 
