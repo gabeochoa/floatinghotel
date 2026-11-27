@@ -295,9 +295,13 @@ inline std::vector<Menu> createMenuBar() {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
             if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::Tree;
         }),
-        MenuItem::item("File Explorer", "", [] {
+        MenuItem::item("File Explorer", "Cmd+Shift+E", [] {
             auto* l = ecs::find_singleton<ecs::LayoutComponent>();
-            if (l) l->fileViewMode = ecs::LayoutComponent::FileViewMode::All;
+            if (l) {
+                l->sidebarMode = ecs::LayoutComponent::SidebarMode::Changes;
+                l->fileViewMode = ecs::LayoutComponent::FileViewMode::All;
+                l->sidebarVisible = true;
+            }
         }),
         MenuItem::separator(),
         MenuItem::item("Zoom In", "", [] { ui::zoom::step(ui::zoom::kStep); }),

@@ -5,6 +5,7 @@
 #include "../git/commit_patch.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdlib>
 #include <ctime>
 #include <numeric>
@@ -367,7 +368,9 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                      ? 38.f : 0.f) +
                 (renderCommitArea ? (39.0f + COMMIT_INPUT_H) : 0.f) +
                 28.f +
-                (showProgress ? 60.f : 0.f);
+                (showProgress ? 60.f : 0.f) +
+                (layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
+                         layout.fileViewMode == LayoutComponent::FileViewMode::All ? 36.f : 0.f);
             const float bodyH = std::max(viewportH, fixedControlsH + 20.f);
             // Ask layout to keep this pane tall enough for the header,
             // the fixed chrome, and a five-row file list; the history
@@ -409,6 +412,27 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             render_sidebar_mode_tabs(ctx, controlsBody.ent(), layout);
             float tabH = 28.f;
 
+            // Explorer filter (Files mode only): substring path filter over
+            // the whole tree, like a normal editor's explorer search box.
+            float explorerFilterH = 0.f;
+            if (layout.sidebarMode == LayoutComponent::SidebarMode::Changes &&
+                layout.fileViewMode == LayoutComponent::FileViewMode::All) {
+                auto filterRow = div(ctx, mk(controlsBody.ent(), 2096), ComponentConfig{}
+                    .with_size(ComponentSize{pixels(sidebarW), pixels(36)})
+                    .with_padding(Padding{.top = pixels(4), .right = pixels(8), .bottom = pixels(4), .left = pixels(8)})
+                    .with_debug_name("explorer_filter_row"));
+                afterhours::text_input::text_input(ctx, mk(filterRow.ent(), 0), explorerFilter_,
+                    ComponentConfig{}.with_size(ComponentSize{expand(), pixels(28)})
+                        .with_font_size(pixels(12))
+                        .with_padding(Padding{.top = pixels(6), .right = pixels(15), .bottom = pixels(6), .left = pixels(15)})
+                        .with_custom_background(theme::INPUT_BG)
+                        .with_border(theme::BORDER, pixels(1))
+                        .with_rounded_corners(theme::layout::ROUNDED_CORNERS)
+                        .with_corner_radius(theme::layout::RADIUS_CONTROL)
+                        .with_placeholder("Filter files...").with_debug_name("explorer_filter"));
+                explorerFilterH = 36.f;
+            }
+
             // === Review-progress strip ("In the ballroom") ===
             float progressH = 0.0f;
             if (showProgress) {
@@ -441,7 +465,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
             }
 
             // === Changed Files / Refs section (flow child of sidebar, NOT absolute) ===
-            filesH = bodyH - tabH - commitAreaH - progressH -
+            filesH = bodyH - tabH - explorerFilterH - commitAreaH - progressH -
                            controlsH - syncRowH - viewsH - conflictH;
             if (filesH < 20.0f) filesH = 20.0f;
             if (useReviewTree) {
@@ -468,7 +492,7 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 if (!repoPtr->refresh_busy() && file_tree::reveal_navigation(state, context,
                         repoPtr->workspace().generation(), file_tree::destination_path(repoPtr->workspace(),
                             allFilesMode_ || scope == "wt" ? file_tree::Scope::Working : file_tree::Scope::Index),
-                        allFilesMode_ ? repoPtr->allFilePaths : treePaths_, collapsed)) update_file_tree(ctx, fileList, *repoPtr, layout, context);
+                        allFilesMode_ ? explorerVisiblePaths_ : treePaths_, collapsed)) update_file_tree(ctx, fileList, *repoPtr, layout, context);
                 if (auto move = ui::tree_keys(ctx, *repoPtr, layout, state, context, treeRows_, collapsed)) {
                     if (move->toggle) {
                         file_tree::toggle_directory(treeRows_, *move->toggle, collapsed);
@@ -510,7 +534,13 @@ struct SidebarSystem : afterhours::System<UIContext<InputAction>> {
                 // Render file list directly into filesBg (no intermediate container)
                 // to avoid framework bug where nested container children render wrong
                 if (repoPtr) {
-                    if (!windowedFiles) render_file_list(ctx, filesBg.ent(), *repoPtr);
+                    if (allFilesMode_ && treeRows_.empty()) {
+                        div(ctx, mk(filesBg.ent(), 2151), preset::EmptyStateText(
+                                explorerFilter_.empty() ? "No files" : "No files match filter")
+                            .with_size(ComponentSize{percent(1.0f), pixels(28)})
+                            .with_text_overflow(afterhours::ui::TextOverflow::Ellipsis)
+                            .with_debug_name("explorer_empty"));
+                    } else if (!windowedFiles) render_file_list(ctx, filesBg.ent(), *repoPtr);
                 } else {
                     render_no_repo(ctx, filesBg.ent(), 2150, "no_repo");
                 }
@@ -1144,13 +1174,6 @@ private:
             .with_corner_radius(theme::layout::RADIUS_MODAL)
             .with_debug_name("sidebar_mode_track"));
 
-        auto* countRepo = find_singleton<RepoComponent, ActiveTab>();
-        int nReview = countRepo ? static_cast<int>(countRepo->unstagedFiles.size()) : 0;
-        int nStaged = countRepo ? static_cast<int>(countRepo->stagedFiles.size()) : 0;
-        int nUntracked = countRepo ? static_cast<int>(countRepo->untrackedFiles.size()) : 0;
-        int nRefs = countRepo ? static_cast<int>(countRepo->branches.size() + countRepo->tags.size() + countRepo->stashes.size()) : 0;
-        const int nChanges = nReview + nStaged + nUntracked;
-
         // Emit one tab. `active` highlights it; on click, `apply` mutates layout.
         auto makeTab = [&](int id, const std::string& label, bool active,
                            void (*apply)(LayoutComponent&)) {
@@ -1183,11 +1206,23 @@ private:
 
         using SM = LayoutComponent::SidebarMode;
         using RT = LayoutComponent::ReviewTab;
-        bool inChanges = (layout.sidebarMode == SM::Changes);
-        makeTab(2091, nChanges > 0 ? "Changes " + std::to_string(nChanges) : "Changes",
+        using FVM = LayoutComponent::FileViewMode;
+        // "Files" is the normal-editor browser: the Changes sidebar running
+        // the All-files explorer (whole working tree, click opens source).
+        // It gets its own tab so it is discoverable without the View menu,
+        // and so the highlight stops claiming "Changes" while exploring.
+        const bool inFiles = layout.sidebarMode == SM::Changes && layout.fileViewMode == FVM::All;
+        const bool inChanges = layout.sidebarMode == SM::Changes && !inFiles;
+        makeTab(2091, "Changes",
                 inChanges,
-                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.reviewTab = RT::ToReview; });
-        makeTab(2094, nRefs > 0 ? "Refs " + std::to_string(nRefs) : "Refs", layout.sidebarMode == SM::Refs,
+                [](LayoutComponent& l) {
+                    l.sidebarMode = SM::Changes;
+                    if (l.fileViewMode == FVM::All) l.fileViewMode = FVM::Flat;
+                    l.reviewTab = RT::ToReview;
+                });
+        makeTab(2092, "Files", inFiles,
+                [](LayoutComponent& l) { l.sidebarMode = SM::Changes; l.fileViewMode = FVM::All; });
+        makeTab(2094, "Refs", layout.sidebarMode == SM::Refs,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Refs; });
         makeTab(2095, "Agent", layout.sidebarMode == SM::Agent,
                 [](LayoutComponent& l) { l.sidebarMode = SM::Agent; });
@@ -2288,6 +2323,9 @@ private:
     bool treeMode_ = false;
     bool allFilesMode_ = false;
     std::set<std::string> explorerCollapsed_;
+    std::string explorerFilter_;
+    std::string explorerFilterApplied_;
+    std::vector<std::string> explorerVisiblePaths_;
     std::vector<size_t> fileIndices_;
     std::vector<char> treeKinds_;
     struct FileRowsKey {
@@ -2347,19 +2385,37 @@ private:
             // Explorer: every file in the repo (tracked + untracked,
             // gitignore-respecting) as a collapsible directory tree, so the
             // whole codebase can be browsed like a local file explorer.
+            // The filter is a case-insensitive path substring; rows index
+            // into explorerVisiblePaths_, never the unfiltered list.
+            auto foldContains = [](std::string_view haystack, std::string_view needle) {
+                if (needle.empty()) return true;
+                auto lower = [](char c) { return static_cast<char>(std::tolower(static_cast<unsigned char>(c))); };
+                for (size_t i = 0; i + needle.size() <= haystack.size(); ++i) {
+                    bool match = true;
+                    for (size_t j = 0; j < needle.size(); ++j)
+                        if (lower(haystack[i + j]) != lower(needle[j])) { match = false; break; }
+                    if (match) return true;
+                }
+                return false;
+            };
+            explorerVisiblePaths_.clear();
+            for (const auto& path : repo.allFilePaths)
+                if (foldContains(path, explorerFilter_)) explorerVisiblePaths_.push_back(path);
             auto collapsedIt = layout.collapsedDirectories.find(repo.repoPath);
             const std::set<std::string> noCollapsed;
             const auto& collapsed = collapsedIt == layout.collapsedDirectories.end() ? noCollapsed : collapsedIt->second;
-            if (!fileRowsKey_ || *fileRowsKey_ != key || collapsed != explorerCollapsed_) {
+            if (!fileRowsKey_ || *fileRowsKey_ != key || collapsed != explorerCollapsed_ ||
+                explorerFilter_ != explorerFilterApplied_) {
                 explorerCollapsed_ = collapsed;
+                explorerFilterApplied_ = explorerFilter_;
                 std::string collapsedKey;
                 for (const auto& dir : collapsed) collapsedKey += dir + "\n";
-                const auto explorerKey = file_tree_cache_key(key, true) + ":explorer:" + collapsedKey;
+                const auto explorerKey = file_tree_cache_key(key, true) + ":explorer:" + collapsedKey + ":filter:" + explorerFilter_;
                 if (auto cached = fileTreeCache_.find(explorerKey); cached != fileTreeCache_.end()) {
                     publish(cached->second.rows);
                 } else {
-                    publish(file_tree::flatten(repo.allFilePaths, explorerCollapsed_));
-                    fileTreeCache_[explorerKey] = {treeRows_, {}, {}, {}};
+                    publish(file_tree::flatten(explorerVisiblePaths_, explorerCollapsed_));
+                    fileTreeCache_[explorerKey] = {treeRows_, explorerVisiblePaths_, {}, {}};
                     std::erase(fileTreeCacheOrder_, explorerKey);
                     fileTreeCacheOrder_.insert(fileTreeCacheOrder_.begin(), explorerKey);
                     while (fileTreeCacheOrder_.size() > 4) {
@@ -2487,7 +2543,8 @@ private:
                 }
                 return;
             }
-            const auto& path = repo.allFilePaths[node.sourceIndex];
+            if (node.sourceIndex >= explorerVisiblePaths_.size()) return;
+            const auto& path = explorerVisiblePaths_[node.sourceIndex];
             ensure_status_maps(repo);
             char status = ' ';
             if (auto it = allFilesStatusMap_.find(path); it != allFilesStatusMap_.end()) status = it->second;

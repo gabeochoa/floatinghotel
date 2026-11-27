@@ -54,6 +54,7 @@ inline constexpr Binding table[] = {
     {"Cmd+T / Cmd+O", "New repository tab / open a repository"},
     {"Cmd+1 ... Cmd+9", "Switch to repository tab (Cmd+9 is the last)"},
     {"Cmd+Shift+[ / ]", "Previous / next repository tab"},
+    {"Cmd+Shift+E", "Browse all files (File Explorer)", afterhours::keys::E, true, false, false, true},
     {"Escape", "Dismiss temporary panels or dialogs", afterhours::keys::ESCAPE},
 };
 

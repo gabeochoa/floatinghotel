@@ -17,6 +17,9 @@ A review-first Git client for reading, reviewing, and sending feedback on agent-
   tabs, with close/reopen, Back/Forward, and saved reading positions.
 - Read unified or split diffs with wrapping, selection, folding, Find, and source
   navigation. Cmd+C copies plain code; Cmd+Shift+C adds its location.
+- Browse the whole working tree like a normal editor in the **Files** sidebar
+  tab (Cmd+Shift+E): collapsible directory tree with a path filter; click a
+  file to read it, Enter to keep it open.
 - Search files, commits, branches, and tags together in revision-aware Quick Open.
   Browse stashes, reflog, worktrees, and submodules from the repository's `…` menu.
 - Shift-select a commit range and right-click to review it as one comparison.

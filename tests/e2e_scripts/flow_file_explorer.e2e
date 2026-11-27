@@ -1,0 +1,45 @@
+# Flow: browse the whole working tree in the Files tab like a normal editor.
+make_test_repo
+resize 1280 800
+wait_for_refresh
+wait_frames 10
+screenshot explorer_01_changes
+
+# Shortcut opens the explorer (All-files tree).
+key CMD+SHIFT+E
+wait_for_refresh
+wait_frames 10
+validate file_view_mode=All
+expect_text "app.cpp"
+screenshot explorer_02_files_tab
+
+# The segmented Files tab is the same surface; Changes leaves explorer mode.
+click_ui tab_Changes
+wait_frames 5
+validate file_view_mode=Flat
+click_ui tab_Files
+wait_for_refresh
+wait_frames 10
+validate file_view_mode=All
+expect_text "app.cpp"
+
+# Filter narrows the tree by path substring; clearing restores it.
+click_ui explorer_filter
+type "test_utils"
+wait_until 30 validate ui_present:file_row=true
+wait_frames 5
+expect_text "test_utils.cpp"
+screenshot explorer_03_filtered
+click_ui explorer_filter
+key CMD+A
+key BACKSPACE
+wait_frames 10
+expect_text "app.cpp"
+
+# Clicking a file opens it as source (preview), like a normal editor.
+click_text "app.cpp"
+wait_for_refresh
+wait_frames 10
+assert_ui full_file_revision hidden=false
+expect_text "src/app.cpp"
+screenshot explorer_04_source_open

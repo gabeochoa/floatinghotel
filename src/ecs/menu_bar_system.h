@@ -170,6 +170,12 @@ struct MenuBarSystem : afterhours::System<UIContext<InputAction>> {
         if (const auto* binding = ui::bindings::find("Cmd+Shift+Z");
             binding && !ui::shortcuts_blocked(layout) && ui::bindings::chord_pressed(*binding))
             layout.focusMode = !layout.focusMode;
+        if (const auto* binding = ui::bindings::find("Cmd+Shift+E");
+            binding && !ui::shortcuts_blocked(layout) && ui::bindings::chord_pressed(*binding)) {
+            layout.sidebarMode = LayoutComponent::SidebarMode::Changes;
+            layout.fileViewMode = LayoutComponent::FileViewMode::All;
+            layout.sidebarVisible = true;
+        }
         if (std::exchange(menu.paletteRequested, false)) open_palette(layout);
 
         Entity& uiRoot = ui_imm::getUIRootEntity();
